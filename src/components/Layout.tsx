@@ -3,7 +3,7 @@ import { ReactNode } from 'react';
 import Navbar from './Navbar';
 import SideMenu from './SideMenu';
 import { useShop } from '@/context/ShopContext';
-import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
+import { SidebarProvider, SidebarInset, SidebarTrigger, SidebarRail } from '@/components/ui/sidebar';
 
 interface LayoutProps {
   children: ReactNode;
@@ -20,7 +20,12 @@ const Layout = ({ children }: LayoutProps) => {
       <div className="flex min-h-screen flex-col w-full">
         <Navbar />
         <div className="flex flex-1">
-          {isStaff && <SideMenu />}
+          {isStaff && (
+            <>
+              <SideMenu />
+              <SidebarRail />
+            </>
+          )}
           <SidebarInset className="p-4 md:p-6">
             <div className="flex items-center mb-4">
               <SidebarTrigger className="md:hidden" />
