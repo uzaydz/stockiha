@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -61,7 +62,20 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
-				}
+				},
+				// Game shop specific colors
+				"game-purple": {
+					50: "#f0eefa",
+					100: "#d6bcfa",
+					200: "#b794f4",
+					300: "#9b87f5",
+					400: "#7e69ab",
+					500: "#6e59a5",
+					600: "#553c9a",
+					700: "#44337a",
+					800: "#322659",
+					900: "#1A1F2C"
+				},
 			},
 			borderRadius: {
 				lg: 'var(--radius)',
@@ -89,6 +103,10 @@ export default {
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
 				'accordion-up': 'accordion-up 0.2s ease-out'
+			},
+			fontFamily: {
+				'cairo': ['Cairo', 'sans-serif'],
+				'tajawal': ['Tajawal', 'sans-serif'],
 			}
 		}
 	},
