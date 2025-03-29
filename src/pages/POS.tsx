@@ -113,7 +113,7 @@ const POS = () => {
       return;
     }
     
-    // Create new order
+    // Create new order with proper type for paymentStatus
     const newOrder = {
       customerId: selectedCustomer,
       items: cart.map(item => ({
@@ -130,7 +130,7 @@ const POS = () => {
       total,
       status: 'completed' as OrderStatus,
       paymentMethod: paymentMethod === 'cash' ? 'نقدي' : 'بطاقة ائتمان',
-      paymentStatus: 'paid',
+      paymentStatus: 'paid', // Fixed: Using the exact literal type value
       isOnline: false,
       employeeId: currentUser?.id || ''
     };

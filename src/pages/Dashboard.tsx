@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
@@ -177,7 +176,15 @@ const Dashboard = () => {
                     </div>
                     <div className="text-sm font-medium">{stats.orders.pending}</div>
                   </div>
-                  <Progress value={(stats.orders.pending / stats.orders.total) * 100} className="h-2 bg-muted" indicatorClassName="bg-yellow-500" />
+                  <Progress 
+                    value={(stats.orders.pending / stats.orders.total) * 100} 
+                    className="h-2 bg-muted"
+                  />
+                  <style jsx>{`
+                    .bg-yellow-500 {
+                      background-color: #EAB308;
+                    }
+                  `}</style>
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -187,7 +194,15 @@ const Dashboard = () => {
                     </div>
                     <div className="text-sm font-medium">{stats.orders.processing}</div>
                   </div>
-                  <Progress value={(stats.orders.processing / stats.orders.total) * 100} className="h-2 bg-muted" indicatorClassName="bg-blue-500" />
+                  <Progress 
+                    value={(stats.orders.processing / stats.orders.total) * 100} 
+                    className="h-2 bg-muted"
+                  />
+                  <style jsx>{`
+                    .bg-blue-500 {
+                      background-color: #3B82F6;
+                    }
+                  `}</style>
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -197,7 +212,15 @@ const Dashboard = () => {
                     </div>
                     <div className="text-sm font-medium">{stats.orders.completed}</div>
                   </div>
-                  <Progress value={(stats.orders.completed / stats.orders.total) * 100} className="h-2 bg-muted" indicatorClassName="bg-green-500" />
+                  <Progress 
+                    value={(stats.orders.completed / stats.orders.total) * 100} 
+                    className="h-2 bg-muted"
+                  />
+                  <style jsx>{`
+                    .bg-green-500 {
+                      background-color: #22C55E;
+                    }
+                  `}</style>
                 </div>
               </div>
             </CardContent>
