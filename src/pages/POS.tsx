@@ -1,8 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from "@/components/ui/use-toast"
 import { Product, Order, User } from '@/types';
 import { useShop } from '@/context/ShopContext';
+import { Button } from "@/components/ui/button";
 
 const POS = () => {
   const { products, orders, addOrder, currentUser } = useShop();
@@ -90,7 +92,7 @@ const POS = () => {
       total: total,
       status: "completed",
       paymentMethod: paymentMethod,
-      paymentStatus: "paid", // Fixed: Use the correct literal type
+      paymentStatus: "paid", 
       isOnline: false,
       employeeId: currentUser?.id || ""
     };
@@ -159,9 +161,9 @@ const POS = () => {
               <p>الضريبة ({taxRate * 100}%): {tax.toFixed(2)} ر.س</p>
               <p className="font-semibold">المجموع الكلي: {total.toFixed(2)} ر.س</p>
             </div>
-            <button className="px-4 py-2 bg-blue-500 text-white rounded" onClick={submitOrder}>
+            <Button className="px-4 py-2 bg-blue-500 text-white rounded" onClick={submitOrder}>
               إتمام العملية
-            </button>
+            </Button>
           </div>
         )}
       </div>
