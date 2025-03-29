@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { 
   Search, 
   X, 
@@ -30,6 +29,7 @@ import { useShop } from '@/context/ShopContext';
 import Layout from '@/components/Layout';
 import { getCategoryName } from '@/data/mockData';
 import { toast } from 'sonner';
+import { nanoid } from 'nanoid';
 
 interface POSCartItem {
   product: Product;
@@ -45,12 +45,10 @@ const POS = () => {
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [selectedCustomer, setSelectedCustomer] = useState<string>('');
   
-  // Calculate cart totals
   const subtotal = cart.reduce((total, item) => total + (item.product.price * item.quantity), 0);
   const tax = subtotal * 0.15; // 15% VAT
   const total = subtotal + tax;
   
-  // Filter products based on search and category
   const filteredProducts = products.filter(product => {
     const matchesSearch = searchQuery === '' || 
       product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -63,10 +61,8 @@ const POS = () => {
   
   const customers = users.filter(user => user.role === 'customer');
   
-  // Product categories
   const categories = Array.from(new Set(products.map(product => product.category)));
   
-  // Cart functions
   const addToCart = (product: Product) => {
     const existingItem = cart.find(item => item.product.id === product.id);
     
@@ -97,47 +93,39 @@ const POS = () => {
     setCart([]);
   };
   
-  // Checkout function
   const handleCheckout = () => {
     if (cart.length === 0) {
-      toast.error('السلة فارغة');
+      toast({
+        title: "لا توجد منتجات في السلة",
+        description: "الرجاء إضافة منتجات قبل إتمام عملية الدفع",
+        variant: "destructive",
+      });
       return;
     }
     
-    setIsCheckoutOpen(true);
-  };
-  
-  const completeTransaction = () => {
-    if (cart.length === 0) {
-      toast.error('السلة فارغة');
-      return;
-    }
-    
-    // Create new order with proper type for paymentStatus
     const newOrder = {
       customerId: selectedCustomer,
       items: cart.map(item => ({
-        id: Date.now().toString() + Math.random().toString(36).substring(2, 9),
+        id: nanoid(),
         productId: item.product.id,
         productName: item.product.name,
         quantity: item.quantity,
         unitPrice: item.product.price,
         totalPrice: item.product.price * item.quantity,
-        isDigital: item.product.isDigital
+        isDigital: item.product.isDigital || false,
       })),
       subtotal,
       tax,
       total,
       status: 'completed' as OrderStatus,
       paymentMethod: paymentMethod === 'cash' ? 'نقدي' : 'بطاقة ائتمان',
-      paymentStatus: 'paid', // Fixed: Using the exact literal type value
+      paymentStatus: 'paid' as 'pending' | 'paid' | 'failed',
       isOnline: false,
       employeeId: currentUser?.id || ''
     };
     
     addOrder(newOrder);
     
-    // Record transaction
     addTransaction({
       orderId: Date.now().toString(),
       amount: total,
@@ -147,10 +135,8 @@ const POS = () => {
       employeeId: currentUser?.id
     });
     
-    // Show success message
     toast.success('تم إكمال العملية بنجاح');
     
-    // Reset state
     setIsCheckoutOpen(false);
     clearCart();
     setPaymentMethod('cash');
@@ -160,7 +146,6 @@ const POS = () => {
   return (
     <Layout>
       <div className="flex flex-col lg:flex-row h-[calc(100vh-4rem)] gap-4">
-        {/* Products Section */}
         <div className="lg:w-2/3 bg-card rounded-lg shadow-md overflow-hidden flex flex-col">
           <div className="p-4 border-b">
             <div className="flex flex-col md:flex-row gap-2">
@@ -227,7 +212,6 @@ const POS = () => {
           </div>
         </div>
         
-        {/* Cart Section */}
         <div className="lg:w-1/3 bg-card rounded-lg shadow-md overflow-hidden flex flex-col">
           <div className="p-4 border-b flex justify-between items-center">
             <h2 className="text-xl font-bold flex items-center">
@@ -327,7 +311,6 @@ const POS = () => {
         </div>
       </div>
       
-      {/* Checkout Dialog */}
       <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>

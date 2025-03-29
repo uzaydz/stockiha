@@ -180,11 +180,7 @@ const Dashboard = () => {
                     value={(stats.orders.pending / stats.orders.total) * 100} 
                     className="h-2 bg-muted"
                   />
-                  <style jsx>{`
-                    .bg-yellow-500 {
-                      background-color: #EAB308;
-                    }
-                  `}</style>
+                  <div className="h-1 w-1 bg-yellow-500 hidden"></div>
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -198,11 +194,7 @@ const Dashboard = () => {
                     value={(stats.orders.processing / stats.orders.total) * 100} 
                     className="h-2 bg-muted"
                   />
-                  <style jsx>{`
-                    .bg-blue-500 {
-                      background-color: #3B82F6;
-                    }
-                  `}</style>
+                  <div className="h-1 w-1 bg-blue-500 hidden"></div>
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -216,11 +208,7 @@ const Dashboard = () => {
                     value={(stats.orders.completed / stats.orders.total) * 100} 
                     className="h-2 bg-muted"
                   />
-                  <style jsx>{`
-                    .bg-green-500 {
-                      background-color: #22C55E;
-                    }
-                  `}</style>
+                  <div className="h-1 w-1 bg-green-500 hidden"></div>
                 </div>
               </div>
             </CardContent>
