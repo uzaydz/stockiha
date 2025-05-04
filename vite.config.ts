@@ -16,9 +16,19 @@ export default defineConfig(({ mode }) => {
       hmr: {
         host: 'localhost',
         clientPort: 8080,
+      },
+      // إضافة إعدادات CORS و MIME
+      cors: true,
+      fs: {
+        strict: false,
+        allow: ['..']
+      },
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'application/javascript; charset=utf-8'
       }
     },
-    base: './',
+    base: '/',
     plugins: [
       react(),
       nodePolyfills({
