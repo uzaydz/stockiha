@@ -4,7 +4,7 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/((?!assets|_assets|_next|static).*)",
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ],

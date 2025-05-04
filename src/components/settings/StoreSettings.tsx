@@ -147,7 +147,7 @@ const StoreSettings = () => {
             
             <Button 
               onClick={handleSaveSettings} 
-              disabled={isSaving || !isOrgAdmin}
+              disabled={isSaving}
               className="min-w-[120px]"
             >
               {isSaving ? (

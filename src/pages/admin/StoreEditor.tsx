@@ -80,7 +80,7 @@ const StoreEditor = () => {
             <p className="text-muted-foreground mt-2">قم بإعداد وتخصيص مكونات صفحة المتجر الخاصة بك</p>
           </div>
           <div className="flex items-center gap-3">
-            {isOrgAdmin && <StoreSettings />}
+            <StoreSettings />
             
             <Button
               variant="outline"
