@@ -137,16 +137,16 @@ const SyncManager: React.FC<SyncManagerProps> = ({
   // مراقبة حالة الاتصال وتنفيذ المزامنة عند عودة الاتصال
   useEffect(() => {
     // تنفيذ المزامنة فقط في Electron عند استعادة الاتصال
-    if (isOnline && isSyncEnabled) {
+    if (isOnline && isSyncEnabled && isRunningInElectron) {
       console.log('استعادة الاتصال في Electron - تنفيذ المزامنة');
       performSync();
     }
-  }, [isOnline, lastOnlineChange, isSyncEnabled]);
+  }, [isOnline, lastOnlineChange, isSyncEnabled, isRunningInElectron]);
 
   // تنفيذ المزامنة بشكل دوري إذا كان الاتصال متوفراً
   useEffect(() => {
-    // لا نقوم بإعداد المؤقت الدوري إذا كانت المزامنة معطلة
-    if (!isSyncEnabled) return;
+    // لا نقوم بإعداد المؤقت الدوري إذا كانت المزامنة معطلة أو لسنا في Electron
+    if (!isSyncEnabled || !isRunningInElectron) return;
 
     const interval = setInterval(() => {
       if (isOnline && !isSyncing && document.visibilityState === 'visible') {
@@ -156,12 +156,12 @@ const SyncManager: React.FC<SyncManagerProps> = ({
     }, syncInterval);
 
     return () => clearInterval(interval);
-  }, [syncInterval, isSyncEnabled, isOnline, isSyncing]);
+  }, [syncInterval, isSyncEnabled, isOnline, isSyncing, isRunningInElectron]);
 
   // تحديث عدد العناصر غير المتزامنة عند تحميل المكون
   useEffect(() => {
-    // لا نقوم بتحديث العدد إذا كانت المزامنة معطلة
-    if (!isSyncEnabled) return;
+    // لا نقوم بتحديث العدد إذا كانت المزامنة معطلة أو لسنا في Electron
+    if (!isSyncEnabled || !isRunningInElectron) return;
     
     updatePendingCount();
     
@@ -175,7 +175,7 @@ const SyncManager: React.FC<SyncManagerProps> = ({
       
       return () => clearTimeout(initialSyncTimeout);
     }
-  }, [isSyncEnabled]);
+  }, [isSyncEnabled, isRunningInElectron]);
 
   // إذا كانت المزامنة معطلة أو مخفية، فقط لا نعرض شيئًا
   if (!showIndicator || !isRunningInElectron) {

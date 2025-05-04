@@ -141,6 +141,19 @@ if (typeof window !== 'undefined') {
 if (typeof window !== 'undefined') {
   (window as any).__REACT_QUERY_GLOBAL_CLIENT = queryClient;
 
+  // ضبط إعدادات ReactQuery لمنع التحديث التلقائي في المتصفح
+  if (!isRunningInElectron) {
+    console.log('[ReactQuery] ضبط إعدادات لمنع التحديث التلقائي في نسخة الويب');
+    queryClient.setDefaultOptions({
+      queries: {
+        refetchOnWindowFocus: false,
+        refetchOnMount: false,
+        refetchOnReconnect: false,
+        staleTime: Infinity,
+      }
+    });
+  }
+
   // إضافة معالج لتغيير التبويب يناسب البيئة (Electron أو متصفح)
   window.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
