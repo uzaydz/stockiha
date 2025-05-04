@@ -16,7 +16,7 @@ import https from 'https-browserify';
 import os from 'os-browserify/browser';
 import { URL, URLSearchParams } from 'url';
 import zlib from 'browserify-zlib';
-import crypto from 'crypto-browserify';
+import cryptoModule from 'crypto-browserify';
 
 // إضافة العناصر إلى النافذة العالمية (المتصفح)
 window.stream = stream;
@@ -29,7 +29,10 @@ window.os = os;
 window.URL = URL;
 window.URLSearchParams = URLSearchParams;
 window.zlib = zlib;
-window.crypto = window.crypto || crypto;
+
+// لا يمكننا تعديل window.crypto مباشرة، لذا ننشئ كائن منفصل 
+// للوظائف الإضافية من crypto-browserify
+window.nodeCrypto = cryptoModule;
 
 // تعريفات Readable class التي تستخدمها axios وغيرها
 if (!window.Readable) {
