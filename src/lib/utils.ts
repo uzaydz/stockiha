@@ -102,29 +102,39 @@ export function formatCurrency(amount: number): string {
  * التحقق مما إذا كانت التطبيق يعمل في بيئة Electron
  */
 export const isElectron = (): boolean => {
-  // التحقق من وجود واجهة Electron API
+  // التحقق من وجود واجهة Electron API (الطريقة الأكثر موثوقية)
   if (typeof window !== 'undefined' && (window as any).electronAPI) {
     return true;
   }
   
-  // التحقق من وجود الخصائص المميزة لـ Electron
-  if (typeof window !== 'undefined' && typeof (window as any).process === 'object' && 
-      (window as any).process?.type === 'renderer') {
+  // التحقق من وجود خصائص العملية الرئيسية للإلكترون
+  if (
+    typeof window !== 'undefined' && 
+    typeof (window as any).process === 'object' && 
+    (window as any).process?.type === 'renderer'
+  ) {
     return true;
   }
 
-  // التحقق من خصائص العملية الرئيسية
-  if (typeof process !== 'undefined' && typeof process.versions === 'object' && 
-      !!(process.versions as any).electron) {
-    return true;
+  // محاولة استدعاء وحدة الإلكترون (في بيئة الإلكترون فقط)
+  if (
+    typeof window !== 'undefined' &&
+    typeof (window as any).require === 'function'
+  ) {
+    try {
+      const electron = (window as any).require('electron');
+      if (electron) return true;
+    } catch (e) {
+      // نحن لسنا في بيئة إلكترون
+    }
   }
-
-  // التحقق من وكيل المستخدم
-  if (typeof navigator === 'object' && typeof navigator.userAgent === 'string' && 
-      navigator.userAgent.indexOf('Electron') >= 0) {
-    return true;
+  
+  // وضع علامة على الصفحة لتوضيح أننا في متصفح
+  if (typeof window !== 'undefined' && !(window as any).__IS_BROWSER_ENV_DETECTED) {
+    console.log('[ENV] تم تحديد بيئة المتصفح، تجاهل فحوصات إلكترون اللاحقة');
+    (window as any).__IS_BROWSER_ENV_DETECTED = true;
   }
-
+  
   // بشكل افتراضي، نفترض أننا في بيئة المتصفح
   return false;
 };

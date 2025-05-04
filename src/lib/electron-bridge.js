@@ -9,7 +9,22 @@ console.log('Inicializando puente de Electron');
  * التحقق مما إذا كان التطبيق يعمل في بيئة Electron
  */
 export const isElectron = () => {
-  return typeof window !== 'undefined' && Boolean(window.electronAPI);
+  // الطريقة الأكثر موثوقية هي التحقق من وجود واجهة برمجة التطبيق الخاصة بإلكترون
+  const hasElectronAPI = typeof window !== 'undefined' && Boolean(window.electronAPI);
+  
+  // التحديد الدقيق للبيئة
+  if (typeof window !== 'undefined') {
+    // طباعة معلومات البيئة للتشخيص
+    if (!window.__ENV_DETECTED) {
+      console.log('[ENV] تحديد البيئة:', { 
+        hasElectronAPI,
+        isInElectron: hasElectronAPI
+      });
+      window.__ENV_DETECTED = true;
+    }
+  }
+  
+  return hasElectronAPI;
 };
 
 /**

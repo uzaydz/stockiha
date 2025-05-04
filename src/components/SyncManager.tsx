@@ -34,6 +34,22 @@ const SyncManager: React.FC<SyncManagerProps> = ({
   // تحديد ما إذا كان التطبيق يعمل في بيئة Electron
   const isRunningInElectron = isElectron();
   
+  // طباعة تشخيصية عند بدء تشغيل المكون
+  React.useEffect(() => {
+    console.log('[SyncManager] تهيئة المكون:', { 
+      isRunningInElectron, 
+      autoSync, 
+      forceDisable,
+      isSyncEnabled: isRunningInElectron && autoSync && !forceDisable 
+    });
+    
+    // تعيين علامة عالمية لمنع المزامنة في المتصفح
+    if (typeof window !== 'undefined' && !isRunningInElectron) {
+      console.log('[SyncManager] تعطيل المزامنة في بيئة المتصفح');
+      (window as any).__SYNC_DISABLED_IN_BROWSER = true;
+    }
+  }, [isRunningInElectron, autoSync, forceDisable]);
+  
   // تقرير ما إذا كانت المزامنة مسموحة بناءً على البيئة والإعدادات
   const isSyncEnabled = isRunningInElectron && autoSync && !forceDisable;
 
@@ -61,12 +77,18 @@ const SyncManager: React.FC<SyncManagerProps> = ({
     // منع المزامنة إذا كانت معطلة أو في وضع عدم الاتصال أو خلال عملية مزامنة حالية
     if (!isSyncEnabled || !isOnline || isSyncing) {
       if (!isRunningInElectron) {
-        console.log('المزامنة معطلة في بيئة المتصفح');
+        console.log('[SyncManager] المزامنة معطلة في بيئة المتصفح');
       }
       return;
     }
 
     try {
+      // فحص إضافي لمنع المزامنة في المتصفح
+      if (!isRunningInElectron || (window as any).__SYNC_DISABLED_IN_BROWSER) {
+        console.log('[SyncManager] محاولة مزامنة في المتصفح تم منعها');
+        return;
+      }
+
       setIsSyncing(true);
       setSyncError(null);
       onSyncStatusChange?.(true);
@@ -105,6 +127,12 @@ const SyncManager: React.FC<SyncManagerProps> = ({
     const handleVisibilityChange = () => {
       const now = new Date();
       lastVisibilityChange.current = now;
+
+      // فحص إضافي للتأكد من أننا في Electron
+      if (!isRunningInElectron || (window as any).__SYNC_DISABLED_IN_BROWSER) {
+        console.log('[SyncManager] تجاهل حدث تغيير رؤية الصفحة في المتصفح');
+        return;
+      }
 
       // في Electron فقط: عند العودة للصفحة، نقوم بالمزامنة بعد فترة قصيرة
       if (document.visibilityState === 'visible' && isRunningInElectron) {

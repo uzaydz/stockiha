@@ -81,6 +81,21 @@ import { isElectron } from '@/lib/isElectron';
 // تحقق ما إذا كان التطبيق يعمل في بيئة Electron
 const isRunningInElectron = isElectron();
 
+// تسجيل بيئة التطبيق بوضوح
+console.log('[APP] نوع البيئة:', isRunningInElectron ? 'Electron' : 'متصفح');
+
+// وضع علامة عالمية على نوع البيئة
+if (typeof window !== 'undefined') {
+  (window as any).__IS_ELECTRON_APP = isRunningInElectron;
+  
+  // منع المزامنة والتحديث التلقائي في المتصفح
+  if (!isRunningInElectron) {
+    console.log('[APP] تعطيل المزامنة والتحديث التلقائي في المتصفح');
+    (window as any).__SYNC_DISABLED_IN_BROWSER = true;
+    (window as any).__PREVENT_AUTO_REFRESH = true;
+  }
+}
+
 // تكوين QueryClient مع خيارات مناسبة للبيئة (Electron أو متصفح)
 const queryClient = new QueryClient({
   defaultOptions: {
