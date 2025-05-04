@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>منصة الألعاب الشاملة</title>
+    <meta name="description" content="منصة الألعاب الشاملة - متجر ألعاب متكامل لبيع وإصلاح أجهزة الألعاب والإكسسوارات" />
+    <meta name="author" content="Game Shop" />
+    
+    <!-- Polyfill for process -->
+    <script>
+      window.process = window.process || { env: {} };
+      window.global = window.global || window;
+    </script>
+    
+    <!-- منع إعادة تحميل التطبيق بالكامل عند العودة إلى علامة التبويب -->
+    <script>
+      // تخزين متغير عام لتتبع آخر وقت للتركيز
+      window.__lastFocusTime = Date.now();
+      
+      // متغير لمنع إعادة التحميل المتكرر عند تبديل النوافذ
+      window.__preventTabChangeRefresh = true;
+      
+      // معالج الأحداث للكشف عن فقدان واستعادة التركيز
+      document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') {
+          // عند العودة للتطبيق، نتحقق من المدة الزمنية
+          const now = Date.now();
+          const timeDiff = now - window.__lastFocusTime;
+          
+          // وضع علامة لتتبع ما إذا كان هذا تنشيط لعلامة تبويب
+          window.__isTabActivation = true;
+          
+          // إذا كانت المدة أقل من 30 دقيقة، نمنع إعادة تحميل البيانات
+          if (timeDiff < 1800000) { // 30 دقيقة بالميللي ثانية
+            // نضع علامة لمنع إعادة التحميل التلقائي
+            window.__preventAutoRefresh = true;
+            
+            // الحفاظ على نشاط الجلسة الحالية والاتصال
+            if (window.navigator.onLine) {
+              // منع إعادة تهيئة المكونات عند العودة من نافذة أخرى
+              try {
+                // تحديث متغير التتبع العالمي
+                window.__REACT_APP_ACTIVE = true;
+                
+                // إيقاف أي استعلامات مجدولة
+                if (window.__REACT_QUERY_GLOBAL_CLIENT) {
+                  // تغيير خيارات الاستعلام لمنع إعادة التحميل
+                  window.__REACT_QUERY_GLOBAL_CLIENT.setDefaultOptions({
+                    queries: {
+                      refetchOnWindowFocus: false,
+                      refetchOnMount: false,
+                      refetchOnReconnect: false,
+                      retryOnMount: false,
+                      enabled: false
+                    }
+                  });
+                  
+                  // تعطيل جميع الاستعلامات الحالية لمنع إعادة التحميل
+                  window.__REACT_QUERY_GLOBAL_CLIENT.cancelQueries();
+                  
+                  // إعادة نشاط الاستعلامات بعد فترة قصيرة (ولكن مع تعطيل إعادة التحميل)
+                  setTimeout(() => {
+                    window.__REACT_QUERY_GLOBAL_CLIENT.resumePausedMutations();
+                    // إعادة الإعدادات الافتراضية تدريجيًا
+                    setTimeout(() => {
+                      window.__preventAutoRefresh = false;
+                      window.__isTabActivation = false;
+                    }, 5000);
+                  }, 100);
+                }
+              } catch (e) {
+                console.warn('خطأ في منع إعادة التحميل التلقائي', e);
+              }
+            }
+          }
+          
+          window.__lastFocusTime = now;
+        } else {
+          // عند مغادرة التبويب، نحفظ الوقت
+          window.__lastFocusTime = Date.now();
+          
+          // تعيين متغير التتبع العالمي لتحديد حالة عدم النشاط
+          window.__REACT_APP_ACTIVE = false;
+          
+          // إيقاف الاستعلامات المجدولة
+          if (window.__REACT_QUERY_GLOBAL_CLIENT) {
+            window.__REACT_QUERY_GLOBAL_CLIENT.cancelQueries();
+          }
+        }
+      });
+      
+      // منع الاستعلامات غير الضرورية عند بدء التحميل
+      window.__bazaar_init_complete = false;
+      
+      // وضع علامة على اكتمال التهيئة بعد تحميل التطبيق
+      window.addEventListener('load', function() {
+        // تمكين التخزين المؤقت الدائم للمكونات
+        if (!window.__routerInitialized && typeof window.history !== 'undefined') {
+          // تعديل مؤقت لوظائف التوجيه لمنع إعادة التحميل الكامل عند تبديل علامات التبويب
+          const originalPushState = window.history.pushState;
+          window.history.pushState = function() {
+            // منع pushState أثناء إعادة تنشيط علامة التبويب
+            if (window.__isTabActivation === true) {
+              console.log('[Router] تجاهل pushState أثناء إعادة تنشيط علامة التبويب');
+              return;
+            }
+            return originalPushState.apply(this, arguments);
+          };
+          window.__routerInitialized = true;
+        }
+        
+        setTimeout(() => {
+          window.__bazaar_init_complete = true;
+          window.__preventAutoRefresh = false;
+        }, 2000);
+      });
+    </script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <meta property="og:title" content="منصة الألعاب الشاملة" />
+    <meta property="og:description" content="متجر ألعاب متكامل لبيع وإصلاح أجهزة الألعاب والإكسسوارات" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@gameshop" />
+    <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    
+    <!-- PWA Support -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#6b21a8">
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <!-- IMPORTANT: DO NOT REMOVE THIS SCRIPT TAG OR THIS VERY COMMENT! -->
+    <script src="https://cdn.gpteng.co/gptengineer.js" type="module"></script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html> 

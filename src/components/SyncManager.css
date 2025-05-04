@@ -1,0 +1,141 @@
+.sync-manager {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  z-index: 990;
+  direction: rtl;
+  max-width: 280px;
+}
+
+.sync-indicator {
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  border-radius: 10px;
+  background-color: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  min-width: 180px;
+  transition: all 0.3s ease;
+  font-size: 0.9rem;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.sync-indicator.online {
+  border-right: 3px solid #4caf50;
+  border-left: none;
+}
+
+.sync-indicator.offline {
+  border-right: 3px solid #f44336;
+  border-left: none;
+}
+
+.sync-indicator.syncing {
+  border-right: 3px solid #2196f3;
+  border-left: none;
+}
+
+.sync-status {
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.status-text {
+  margin-right: 8px;
+  font-weight: 500;
+  font-size: 0.85rem;
+}
+
+.online .status-text {
+  color: #4caf50;
+}
+
+.offline .status-text {
+  color: #f44336;
+}
+
+.syncing .status-text {
+  color: #2196f3;
+}
+
+.pending-count {
+  font-size: 0.8rem;
+  color: #ff9800;
+  margin-bottom: 6px;
+}
+
+.sync-error {
+  color: #f44336;
+  font-size: 0.8rem;
+  margin-bottom: 6px;
+  padding: 6px;
+  background-color: rgba(244, 67, 54, 0.1);
+  border-radius: 4px;
+}
+
+.last-sync {
+  font-size: 0.75rem;
+  color: #757575;
+  margin-bottom: 6px;
+}
+
+.sync-button {
+  padding: 6px 12px;
+  background-color: #2196f3;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.3s ease;
+  font-size: 0.8rem;
+}
+
+.sync-button:hover {
+  background-color: #1976d2;
+}
+
+.sync-button:disabled {
+  background-color: #e0e0e0;
+  cursor: not-allowed;
+  color: #9e9e9e;
+}
+
+.sync-manager.minimized .sync-indicator {
+  max-height: 36px;
+  overflow: hidden;
+}
+
+.toggle-visibility {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0;
+  color: #999;
+}
+
+.toggle-visibility:hover {
+  color: #555;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.syncing::before {
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #2196f3;
+  border-top: 2px solid transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-right: 8px;
+} 

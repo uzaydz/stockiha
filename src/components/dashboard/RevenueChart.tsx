@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface RevenueData {
@@ -22,7 +21,7 @@ const RevenueChart = ({ data }: RevenueChartProps) => {
             {data.map((item, index) => (
               <div key={index} className="relative h-full flex flex-col justify-end items-center flex-1">
                 <div className="text-xs text-muted-foreground absolute top-0">
-                  {item.revenue} ر.س
+                  {item.revenue.toLocaleString()} د.ج
                 </div>
                 <div 
                   className="bg-primary/90 rounded-t-md w-full"

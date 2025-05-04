@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ShoppingCart, Eye } from 'lucide-react';
@@ -40,11 +39,11 @@ const ProductCard = ({ product }: ProductCardProps) => {
               خصم {Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100)}%
             </Badge>
           )}
-          <div className="relative aspect-square overflow-hidden rounded-md bg-muted mb-4">
+          <div className="relative overflow-hidden rounded-md bg-muted mb-4">
             <img
               src={product.thumbnailImage || '/placeholder.svg'}
               alt={product.name}
-              className={`h-full w-full object-cover transition-transform duration-500 ${isHovered ? 'scale-110' : 'scale-100'}`}
+              className={`w-full h-auto transition-transform duration-500 ${isHovered ? 'scale-110' : 'scale-100'}`}
             />
             <div className={`absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 transition-opacity duration-300 ${isHovered ? 'opacity-100' : ''}`}>
               <Button variant="secondary" size="sm" className="mx-1">
@@ -63,10 +62,10 @@ const ProductCard = ({ product }: ProductCardProps) => {
         <CardFooter className="border-t p-4 flex flex-col space-y-2">
           <div className="flex justify-between items-center w-full">
             <div className="flex items-center space-x-2 rtl:space-x-reverse">
-              <span className="font-bold text-lg">{product.price} ر.س</span>
+              <span className="font-bold text-lg">{product.price} د.ج</span>
               {product.compareAtPrice && product.compareAtPrice > product.price && (
                 <span className="text-sm text-muted-foreground line-through">
-                  {product.compareAtPrice} ر.س
+                  {product.compareAtPrice} د.ج
                 </span>
               )}
             </div>

@@ -1,4 +1,3 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -16,6 +15,8 @@
 
     --primary: 270 70% 60%;
     --primary-foreground: 270 10% 95%;
+    --primary-lighter: 270 70% 80%;
+    --primary-darker: 270 70% 40%;
 
     --secondary: 270 50% 30%;
     --secondary-foreground: 270 10% 95%;
@@ -57,6 +58,8 @@
 
     --primary: 270 70% 60%;
     --primary-foreground: 0 0% 100%;
+    --primary-lighter: 270 70% 85%;
+    --primary-darker: 270 70% 45%;
 
     --secondary: 270 30% 85%;
     --secondary-foreground: 270 70% 40%;
@@ -83,6 +86,38 @@
     --sidebar-border: 270 20% 90%;
     --sidebar-ring: 270 70% 60%;
   }
+
+  .dark {
+    --background: 260 15% 5%;
+    --foreground: 270 10% 95%;
+
+    --card: 260 10% 10%;
+    --card-foreground: 270 10% 95%;
+
+    --popover: 260 10% 10%;
+    --popover-foreground: 270 10% 95%;
+
+    --primary: 270 70% 60%;
+    --primary-foreground: 270 10% 95%;
+    --primary-lighter: 270 70% 80%;
+    --primary-darker: 270 70% 40%;
+
+    --secondary: 270 50% 30%;
+    --secondary-foreground: 270 10% 95%;
+
+    --muted: 260 10% 20%;
+    --muted-foreground: 270 10% 75%;
+
+    --accent: 270 50% 25%;
+    --accent-foreground: 270 10% 95%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 270 10% 95%;
+
+    --border: 260 10% 20%;
+    --input: 260 10% 20%;
+    --ring: 270 70% 60%;
+  }
 }
 
 @layer base {
@@ -91,11 +126,25 @@
   }
 
   body {
-    @apply bg-background text-foreground font-tajawal;
+    @apply bg-background text-foreground font-tajawal transition-colors duration-200;
   }
 
   h1, h2, h3, h4, h5, h6 {
     @apply font-cairo;
+  }
+}
+
+@layer components {
+  .primary-button {
+    @apply bg-primary text-primary-foreground hover:bg-primary/90;
+  }
+  
+  .custom-button {
+    @apply bg-primary text-primary-foreground hover:bg-primary-lighter;
+  }
+  
+  .custom-card {
+    @apply bg-card text-card-foreground border rounded-lg shadow-sm;
   }
 }
 
@@ -130,4 +179,16 @@
 
 .pulse-glow {
   animation: pulse-glow 2s infinite;
+}
+
+/* Hide scrollbar utility class */
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }

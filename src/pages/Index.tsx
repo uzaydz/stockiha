@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   Gamepad2, 
   ShoppingBag, 
@@ -79,6 +78,16 @@ const Home = () => {
   ];
   
   const [activeSlide, setActiveSlide] = useState(0);
+
+  // Auto-play hero slider
+  const nextSlide = useCallback(() => {
+    setActiveSlide((current) => (current + 1) % heroSlides.length);
+  }, [heroSlides.length]);
+
+  useEffect(() => {
+    const slideInterval = setInterval(nextSlide, 5000); // Change slide every 5 seconds
+    return () => clearInterval(slideInterval); // Clear interval on component unmount
+  }, [nextSlide]);
   
   return (
     <Layout>
@@ -90,14 +99,15 @@ const Home = () => {
               className="absolute inset-0 bg-center bg-cover transition-opacity duration-1000"
               style={{ 
                 backgroundImage: `url(${heroSlides[activeSlide].image})`,
-                opacity: 0.8
+                opacity: 1 // Keep opacity 1, gradient handles dimming
               }}
             />
-            <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent" />
+            {/* Adjusted gradient for potentially better contrast */}
+            <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/60 to-black/10" />
             
             <div className="relative h-full flex flex-col justify-center px-6 md:px-12 text-white max-w-2xl">
-              <h1 className="text-4xl md:text-5xl font-bold mb-4">{heroSlides[activeSlide].title}</h1>
-              <p className="text-lg md:text-xl mb-6">{heroSlides[activeSlide].description}</p>
+              <h1 className="text-4xl md:text-5xl font-bold mb-4 drop-shadow-md">{heroSlides[activeSlide].title}</h1>
+              <p className="text-lg md:text-xl mb-6 drop-shadow-sm">{heroSlides[activeSlide].description}</p>
               <div>
                 <Button asChild size="lg" className="font-bold pulse-glow">
                   <Link to={heroSlides[activeSlide].buttonLink}>
@@ -108,13 +118,15 @@ const Home = () => {
               </div>
             </div>
             
-            <div className="absolute bottom-4 left-0 right-0 flex justify-center space-x-2 rtl:space-x-reverse">
+            {/* Improved slide indicators */}
+            <div className="absolute bottom-6 left-0 right-0 flex justify-center space-x-2 rtl:space-x-reverse">
               {heroSlides.map((_, index) => (
                 <button
                   key={index}
-                  className={`h-2 w-8 rounded-full ${
-                    index === activeSlide ? 'bg-primary' : 'bg-white/50'
+                  className={`h-3 w-3 rounded-full transition-colors duration-300 ${
+                    index === activeSlide ? 'bg-primary' : 'bg-white/50 hover:bg-white/70'
                   }`}
+                  aria-label={`Go to slide ${index + 1}`}
                   onClick={() => setActiveSlide(index)}
                 />
               ))}
@@ -133,7 +145,8 @@ const Home = () => {
               <Link 
                 to={category.linkTo} 
                 key={index} 
-                className={`${category.bgClass} p-6 rounded-lg text-white transition-transform hover:scale-105`}
+                // Added hover:shadow-lg and hover:brightness-110 for better interaction
+                className={`${category.bgClass} p-6 rounded-lg text-white transition-all duration-300 hover:scale-105 hover:shadow-lg hover:brightness-110`}
               >
                 <category.icon className="h-10 w-10 mb-4" />
                 <h3 className="text-xl font-bold mb-2">{category.name}</h3>

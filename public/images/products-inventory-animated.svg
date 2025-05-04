@@ -1,0 +1,61 @@
+<svg width="800" height="500" viewBox="0 0 800 500" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#e0f2fe"/>
+    </linearGradient>
+    <linearGradient id="main" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0ea5e9"/>
+    </linearGradient>
+    <linearGradient id="shadow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#bae6fd"/>
+      <stop offset="100%" stop-color="#fff"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="500" fill="url(#bg)"/>
+
+  <!-- Shelf -->
+  <rect x="200" y="320" width="400" height="16" rx="8" fill="#e0f2fe"/>
+  <ellipse cx="400" cy="335" rx="180" ry="18" fill="url(#shadow)" opacity="0.18"/>
+
+  <!-- Product Box -->
+  <g>
+    <rect x="340" y="200" width="120" height="120" rx="24" fill="#fff" stroke="url(#main)" stroke-width="4"/>
+    <!-- Product Image Icon -->
+    <rect x="375" y="225" width="50" height="40" rx="10" fill="#e0f2fe"/>
+    <rect x="385" y="235" width="30" height="8" rx="4" fill="#bae6fd"/>
+    <rect x="385" y="248" width="18" height="6" rx="3" fill="#bae6fd"/>
+    <!-- Product Title -->
+    <rect x="355" y="275" width="70" height="10" rx="5" fill="#e0f2fe"/>
+    <!-- Price Tag -->
+    <rect x="355" y="295" width="30" height="10" rx="5" fill="#fbbf24"/>
+    <!-- Stock Indicator -->
+    <g>
+      <rect x="420" y="295" width="35" height="10" rx="5" fill="#d1fae5"/>
+      <rect x="422" y="297" width="12" height="6" rx="3" fill="#22d3ee">
+        <animate attributeName="width" values="12;28;12" dur="2s" repeatCount="indefinite"/>
+      </rect>
+    </g>
+  </g>
+
+  <!-- Notification Bell -->
+  <g>
+    <circle cx="455" cy="210" r="14" fill="#fff" stroke="#0ea5e9" stroke-width="3"/>
+    <path d="M455 204 Q459 208 455 212 Q451 208 455 204" fill="#38bdf8"/>
+    <circle cx="455" cy="214" r="2" fill="#fbbf24">
+      <animate attributeName="r" values="2;4;2" dur="1.5s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+
+  <!-- Minimal Employee Icon -->
+  <g>
+    <ellipse cx="320" cy="340" rx="16" ry="7" fill="#e0f2fe"/>
+    <circle cx="320" cy="330" r="10" fill="#38bdf8"/>
+    <rect x="314" y="335" width="12" height="10" rx="4" fill="#0ea5e9"/>
+  </g>
+
+  <!-- Labels -->
+  <text x="400" y="370" text-anchor="middle" font-size="20" fill="#0ea5e9" font-family="Cairo, Arial" font-weight="bold">منتج في المخزون</text>
+  <text x="400" y="400" text-anchor="middle" font-size="16" fill="#38bdf8" font-family="Cairo, Arial">تنبيه: الكمية منخفضة</text>
+</svg>

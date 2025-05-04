@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 
@@ -17,14 +16,14 @@ const OrderStatusCard = ({ stats }: OrderStatusCardProps) => {
   return (
     <Card className="col-span-3">
       <CardHeader>
-        <CardTitle>حالة الطلبات</CardTitle>
+        <CardTitle className="text-right">حالة الطلبات</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center">
-                <div className="h-2 w-2 rounded-full bg-yellow-500 mr-1" />
+                <div className="h-2 w-2 rounded-full bg-yellow-500 ml-1" />
                 <div className="text-sm font-medium">قيد الانتظار</div>
               </div>
               <div className="text-sm font-medium">{stats.pending}</div>
@@ -38,7 +37,7 @@ const OrderStatusCard = ({ stats }: OrderStatusCardProps) => {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center">
-                <div className="h-2 w-2 rounded-full bg-blue-500 mr-1" />
+                <div className="h-2 w-2 rounded-full bg-blue-500 ml-1" />
                 <div className="text-sm font-medium">قيد المعالجة</div>
               </div>
               <div className="text-sm font-medium">{stats.processing}</div>
@@ -52,7 +51,7 @@ const OrderStatusCard = ({ stats }: OrderStatusCardProps) => {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center">
-                <div className="h-2 w-2 rounded-full bg-green-500 mr-1" />
+                <div className="h-2 w-2 rounded-full bg-green-500 ml-1" />
                 <div className="text-sm font-medium">مكتملة</div>
               </div>
               <div className="text-sm font-medium">{stats.completed}</div>

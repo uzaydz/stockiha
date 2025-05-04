@@ -1,4 +1,3 @@
-
 import type { Config } from "tailwindcss";
 
 export default {
@@ -27,7 +26,9 @@ export default {
 				foreground: 'hsl(var(--foreground))',
 				primary: {
 					DEFAULT: 'hsl(var(--primary))',
-					foreground: 'hsl(var(--primary-foreground))'
+					foreground: 'hsl(var(--primary-foreground))',
+					lighter: 'hsl(var(--primary-lighter))',
+					darker: 'hsl(var(--primary-darker))'
 				},
 				secondary: {
 					DEFAULT: 'hsl(var(--secondary))',
