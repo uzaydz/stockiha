@@ -144,7 +144,13 @@ const LoginForm = () => {
                 }
                 
                 // Clear the redirect path from storage to prevent future issues
-                sessionStorage.removeItem('redirectAfterLogin');
+                try {
+                  if (typeof sessionStorage !== 'undefined') {
+                    sessionStorage.removeItem('redirectAfterLogin');
+                  }
+                } catch (error) {
+                  console.error('Error accessing sessionStorage:', error);
+                }
                 
                 console.log('Final navigation path:', dashboardPath);
                 setTimeout(() => {
@@ -154,21 +160,41 @@ const LoginForm = () => {
                 return;
               }
               
-              // For any hostname that includes localhost
-              if (hostname.includes('localhost')) {
+              // للتعامل مع عناوين محلية (localhost أو IP مثل 127.0.0.1)
+              if (hostname.includes('localhost') || hostname.match(/^127\.\d+\.\d+\.\d+$/) || hostname.match(/^\d+\.\d+\.\d+\.\d+$/)) {
                 toast.success('تم تسجيل الدخول بنجاح، سيتم توجيهك للوحة التحكم');
-                // Use subdomain.localhost format instead of query parameters
-                console.log('Redirecting to subdomain URL:', `${window.location.protocol}//${orgData.subdomain}.localhost:${window.location.port}/dashboard`);
                 
-                // Clear any stored data before redirecting
-                sessionStorage.removeItem('redirectAfterLogin');
-                localStorage.removeItem('loginRedirectCount');
+                try {
+                  // Clear any stored data before redirecting
+                  if (typeof sessionStorage !== 'undefined') {
+                    sessionStorage.removeItem('redirectAfterLogin');
+                  }
+                  if (typeof localStorage !== 'undefined') {
+                    localStorage.removeItem('loginRedirectCount');
+                  }
+                } catch (error) {
+                  console.error('Error accessing storage:', error);
+                }
                 
-                // Try using window.location.replace instead of href for a cleaner transition
-                setTimeout(() => {
-                  setIsLoading(false);
-                  window.location.replace(`${window.location.protocol}//${orgData.subdomain}.localhost:${window.location.port}/dashboard`);
-                }, 500);
+                // التحقق مما إذا كان المستخدم يريد استخدام نطاق فرعي مع localhost
+                if (hostname === 'localhost' && orgData.subdomain) {
+                  console.log('استخدام النطاق الفرعي مع localhost:', orgData.subdomain);
+                  
+                  // التوجيه إلى النطاق الفرعي مع localhost
+                  setTimeout(() => {
+                    setIsLoading(false);
+                    window.location.replace(`${window.location.protocol}//${orgData.subdomain}.localhost:${window.location.port}/dashboard`);
+                  }, 500);
+                } else {
+                  // للعناوين IP مثل 127.0.0.1، نوجه المستخدم مباشرة إلى لوحة التحكم في نفس العنوان
+                  console.log('تسجيل الدخول من عنوان IP محلي، التوجيه مباشرة إلى لوحة التحكم');
+                  
+                  // التوجيه مباشرة إلى لوحة التحكم في نفس العنوان
+                  setTimeout(() => {
+                    setIsLoading(false);
+                    navigate('/dashboard');
+                  }, 500);
+                }
                 return;
               }
               

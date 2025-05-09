@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { supabase } from '@/lib/supabase';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from 'react';
+import { supabase } from '@/lib/supabase-client';
 import { useTenant } from './TenantContext';
 import { v4 as uuidv4 } from 'uuid';
+import { withCache, DEFAULT_CACHE_TTL, SHORT_CACHE_TTL } from '@/lib/cache/storeCache';
 
 // استيراد الأنواع من الملفات المنفصلة
 import { 
@@ -60,115 +61,184 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [currentOrganization, setCurrentOrganization] = useState<{ id: string } | null>(null);
+  
+  // Flag to prevent multiple initialization
+  const isInitialized = useRef(false);
+  const loadingProducts = useRef(false);
 
   // حساب المجموع الكلي للسلة
   const cartTotal = cartService.calculateCartTotal(cart);
 
   const tenant = useTenant();
 
-  // وظيفة لجلب البيانات
-  const fetchData = async () => {
+  // وظيفة محسّنة لجلب المنتجات باستخدام التخزين المؤقت
+  const fetchProducts = useCallback(async (organizationId: string) => {
+    // Skip if already loading
+    if (loadingProducts.current) {
+      console.log('طلب جلب المنتجات قيد التنفيذ بالفعل، تخطي الطلب الجديد');
+      return [];
+    }
+    
+    loadingProducts.current = true;
+    console.log('بدء جلب المنتجات للمؤسسة:', organizationId);
+    
+    // إنشاء وقت انتهاء مهلة للاستعلام
+    const timeoutPromise = new Promise<Product[]>((_, reject) => {
+      setTimeout(() => {
+        console.error('انتهت مهلة جلب المنتجات');
+        reject(new Error('انتهت مهلة جلب المنتجات'));
+      }, 10000); // 10 ثواني كمهلة زمنية
+    });
+    
     try {
+      // Use cache system to prevent duplicate requests
+      const productsPromise = withCache<Product[]>(
+        `shop_products:${organizationId}`,
+        async () => {
+          console.log('جلب المنتجات من قاعدة البيانات');
+          
+          // استخدام استعلام مباشر لتجنب المشاكل
+          const { data: productsData, error: productsError } = await supabase
+            .from('products')
+            .select('*')
+            .eq('organization_id', organizationId)
+            .eq('is_active', true);
+            
+          if (productsError) {
+            console.error('Error fetching products:', productsError);
+            return [];
+          }
+          
+          console.log('تم استرجاع المنتجات بنجاح. عدد المنتجات:', productsData.length);
+          
+          // تبسيط تحويل البيانات لتحسين الأداء
+          return productsData.map(product => mapSupabaseProductToProduct(product));
+        },
+        SHORT_CACHE_TTL, // تخزين مؤقت لمدة 5 دقائق
+        true // استخدام ذاكرة التطبيق
+      );
+      
+      // استخدام Race بين الاستعلام والمهلة الزمنية
+      return await Promise.race([productsPromise, timeoutPromise]);
+    } catch (error) {
+      console.error('Error in fetchProducts:', error);
+      return [];
+    } finally {
+      loadingProducts.current = false;
+    }
+  }, []);
+
+  // دالة محسنة لجلب الطلبات
+  const fetchOrders = useCallback(async (organizationId: string) => {
+    console.log('بدء جلب الطلبات للمؤسسة:', organizationId);
+    
+    // إنشاء وقت انتهاء مهلة للاستعلام
+    const timeoutPromise = new Promise<Order[]>((_, reject) => {
+      setTimeout(() => {
+        console.error('انتهت مهلة جلب الطلبات');
+        reject(new Error('انتهت مهلة جلب الطلبات'));
+      }, 8000); // 8 ثواني كمهلة زمنية
+    });
+    
+    try {
+      // استخدام التخزين المؤقت لتحسين الأداء
+      const ordersPromise = withCache<Order[]>(
+        `shop_orders:${organizationId}`,
+        async () => {
+          console.log('جلب الطلبات من قاعدة البيانات');
+          
+          // استخدام استعلام مباشر وبسيط
+          const { data: ordersData, error: ordersError } = await supabase
+            .from('orders')
+            .select('*, order_items(*)')
+            .eq('organization_id', organizationId)
+            .order('created_at', { ascending: false });
+            
+          if (ordersError) {
+            console.error('Error fetching orders:', ordersError);
+            return [];
+          }
+          
+          console.log('تم استرجاع الطلبات بنجاح. عدد الطلبات:', ordersData.length);
+          
+          // تحويل البيانات
+          return ordersData.map(mapSupabaseOrderToOrder);
+        },
+        SHORT_CACHE_TTL, // تخزين مؤقت لمدة 5 دقائق
+        true // استخدام ذاكرة التطبيق
+      );
+      
+      // استخدام Race بين الاستعلام والمهلة الزمنية
+      return await Promise.race([ordersPromise, timeoutPromise]);
+    } catch (error) {
+      console.error('Error in fetchOrders:', error);
+      return [];
+    }
+  }, []);
+
+  // وظيفة لجلب البيانات بشكل متوازي
+  const fetchData = useCallback(async () => {
+    try {
+      // Skip if already initialized and data is loaded
+      if (isInitialized.current && products.length > 0 && orders.length > 0) {
+        console.log('البيانات محملة بالفعل، تخطي عملية التحميل');
+        return;
+      }
+
+      console.log('بدء تحميل بيانات المتجر');
       setIsLoading(true);
       
       // الحصول على معرف المنظمة
       const organizationId = await getOrganizationId(currentUser);
           
-          if (!organizationId) {
+      if (!organizationId) {
         console.error('لم يتم العثور على معرف المنظمة');
         setIsLoading(false);
-            return;
-          }
-          
+        return;
+      }
+      
+      console.log('معرف المنظمة:', organizationId);
       setCurrentOrganization({ id: organizationId });
       
       // التأكد من وجود عميل زائر
       await ensureGuestCustomer();
       
       // محاولة استرداد المستخدمين من التخزين المحلي
-    try {
-      const storedUsers = localStorage.getItem('bazaar_users');
-      if (storedUsers) {
-        const parsedUsers = JSON.parse(storedUsers);
+      try {
+        const storedUsers = localStorage.getItem('bazaar_users');
+        if (storedUsers) {
+          const parsedUsers = JSON.parse(storedUsers);
           setUsers(parsedUsers);
         }
       } catch (error) {
         console.error('Error parsing stored users:', error);
       }
       
+      // تنفيذ عمليات الجلب بشكل متوازي لتسريع التحميل
+      const [fetchedProducts, fetchedOrders] = await Promise.allSettled([
+        fetchProducts(organizationId),
+        fetchOrders(organizationId)
+      ]);
+      
+      // معالجة نتائج المنتجات
+      if (fetchedProducts.status === 'fulfilled') {
+        setProducts(fetchedProducts.value);
+        console.log(`تم تحميل ${fetchedProducts.value.length} منتج بنجاح`);
+      } else {
+        console.error('فشل في تحميل المنتجات:', fetchedProducts.reason);
+      }
+      
+      // معالجة نتائج الطلبات
+      if (fetchedOrders.status === 'fulfilled') {
+        setOrders(fetchedOrders.value);
+        console.log(`تم تحميل ${fetchedOrders.value.length} طلب بنجاح`);
+      } else {
+        console.error('فشل في تحميل الطلبات:', fetchedOrders.reason);
+      }
+      
+      // جلب المستخدمين بشكل منفصل (لا نستخدم Promise.allSettled لأننا نحتاج إلى معالجة الخطأ مباشرة)
       try {
-        // جلب المنتجات مع بيانات الألوان والمقاسات
-        const { data: productsData, error: productsError } = await supabase
-          .from('products')
-          .select(`
-            *,
-            product_colors (
-              *,
-              product_sizes (*)
-            )
-          `)
-          .eq('organization_id', organizationId)
-          .eq('is_active', true);
-          
-        if (productsError) {
-          console.error('Error fetching products:', productsError);
-        } else {
-          console.log('تم استرجاع المنتجات بنجاح. عدد المنتجات:', productsData.length);
-          
-          // تحويل البيانات وإضافة الألوان والمقاسات
-          const mappedProducts = productsData.map(product => {
-            const colors = product.product_colors?.map(color => {
-              const sizes = color.product_sizes?.map(size => ({
-                id: size.id,
-                color_id: size.color_id,
-                product_id: size.product_id,
-                size_name: size.size_name,
-                quantity: size.quantity,
-                price: size.price,
-                barcode: size.barcode || null,
-                is_default: size.is_default
-              })) || [];
-              
-              return {
-                id: color.id,
-                name: color.name,
-                color_code: color.color_code,
-                image_url: color.image_url,
-                quantity: color.quantity || 0,
-                price: color.price,
-                is_default: color.is_default,
-                barcode: color.barcode || null,
-                has_sizes: color.has_sizes || false,
-                sizes: sizes
-              };
-            }) || [];
-            
-            // المنتج مع الألوان والمقاسات
-            return {
-              ...mapSupabaseProductToProduct(product),
-              colors: colors,
-              has_variants: product.has_variants || false,
-              use_sizes: product.use_sizes || false
-            };
-          });
-          
-          setProducts(mappedProducts);
-        }
-        
-        // جلب الخدمات
-        const { data: servicesData, error: servicesError } = await supabase
-          .from('services')
-          .select('*')
-          .eq('organization_id', organizationId);
-          
-        if (servicesError) {
-          console.error('Error fetching services:', servicesError);
-        } else {
-          const mappedServices = servicesData.map(mapSupabaseServiceToService);
-          setServices(mappedServices);
-        }
-        
-        // جلب المستخدمين
+        console.log('جلب بيانات المستخدمين');
         const { data: usersData, error: usersError } = await supabase
           .from('users')
           .select('*')
@@ -196,124 +266,35 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               }
             }
             
-            return mergedUsers;
-          });
-        }
-        
-        // جلب العملاء
-        const { data: customersData, error: customersError } = await supabase
-          .from('customers')
-          .select('*')
-          .eq('organization_id', organizationId);
-          
-        if (customersError) {
-          console.error('Error fetching customers:', customersError);
-        } else {
-          // تحويل بيانات العملاء إلى نوع المستخدم وإضافتها إلى قائمة المستخدمين
-          setUsers(prevUsers => {
-            const mergedUsers = [...prevUsers];
+            // حفظ المستخدمين في التخزين المحلي
+            try {
+              localStorage.setItem('bazaar_users', JSON.stringify(mergedUsers));
+            } catch (storageError) {
+              console.error('Error storing users in localStorage:', storageError);
+            }
             
-            for (const customerData of customersData) {
-              const customer = {
-                id: customerData.id,
-                name: customerData.name,
-                email: customerData.email,
-                phone: customerData.phone,
-                role: 'customer' as const, // تحديد النوع بشكل صريح
-          isActive: true,
-                createdAt: new Date(customerData.created_at),
-                updatedAt: new Date(customerData.updated_at),
-                organization_id: customerData.organization_id
-              };
-              
-          const existingIndex = mergedUsers.findIndex(u => u.id === customer.id);
-          if (existingIndex >= 0) {
-            // تحديث البيانات الموجودة
-            mergedUsers[existingIndex] = customer;
-          } else {
-            // إضافة العميل إذا لم يكن موجوداً
-            mergedUsers.push(customer);
-          }
-        }
-        
             return mergedUsers;
           });
         }
-        
-        // جلب الطلبات
-        const { data: ordersData, error: ordersError } = await supabase
-          .from('orders')
-          .select('*')
-          .eq('organization_id', organizationId)
-          .order('created_at', { ascending: false });
-          
-        if (ordersError) {
-          console.error('Error fetching orders:', ordersError);
-          } else {
-          const mappedOrders = await Promise.all(ordersData.map(mapSupabaseOrderToOrder));
-          setOrders(mappedOrders);
-        }
-        
-        // جلب المعاملات المالية
-        const { data: transactionsData, error: transactionsError } = await supabase
-          .from('transactions')
-          .select('*')
-          .eq('organization_id', organizationId)
-          .order('created_at', { ascending: false });
-          
-        if (transactionsError) {
-          console.error('Error fetching transactions:', transactionsError);
-        } else {
-          const mappedTransactions = transactionsData.map(transaction => ({
-            id: transaction.id,
-            orderId: transaction.order_id,
-            amount: transaction.amount,
-            type: transaction.type,
-            paymentMethod: transaction.payment_method,
-            description: transaction.description,
-            createdAt: new Date(transaction.created_at),
-            employeeId: transaction.employee_id
-          }));
-          
-          setTransactions(mappedTransactions);
-        }
-        
-        // جلب المصاريف
-        const { data: expensesData, error: expensesError } = await supabase
-          .from('expenses')
-          .select('*')
-          .eq('organization_id', organizationId)
-          .order('created_at', { ascending: false });
-          
-        if (expensesError) {
-          console.error('Error fetching expenses:', expensesError);
-        } else {
-          const mappedExpenses = expensesData.map(expense => ({
-            id: expense.id,
-            title: expense.title,
-            description: expense.description,
-            amount: expense.amount,
-            category: expense.category,
-            date: new Date(expense.date),
-            paymentMethod: expense.payment_method,
-            paymentStatus: expense.payment_status,
-            organizationId: expense.organization_id
-          }));
-          
-          setExpenses(mappedExpenses);
-        }
-    } catch (error) {
-      console.error('Error fetching data:', error);
+      } catch (usersError) {
+        console.error('Error in users fetch:', usersError);
       }
+      
+      console.log('اكتمل تحميل بيانات المتجر بنجاح');
+      isInitialized.current = true;
+    } catch (error) {
+      console.error('Error in fetchData:', error);
     } finally {
       setIsLoading(false);
     }
-  };
-  
-  // تحديث البيانات عند بدء التطبيق أو تغيير المستخدم الحالي
+  }, [currentUser, fetchProducts, fetchOrders]);
+
+  // Use useEffect with proper dependencies
   useEffect(() => {
-    fetchData();
-  }, [currentUser]);
+    if (!tenant.isLoading && tenant.currentOrganization?.id) {
+      fetchData();
+    }
+  }, [tenant.isLoading, tenant.currentOrganization?.id, fetchData]);
   
   // دالة لتحديث البيانات
   const refreshData = async () => {

@@ -7,8 +7,12 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export type Currency = 'SAR' | 'AED' | 'DZD';
+export type Currency = 'DZD' | 'USD' | 'EUR';
 
+/**
+ * تنسيق الأسعار بشكل موحد في التطبيق
+ * مع دعم العملات المختلفة (الافتراضي: الدينار الجزائري)
+ */
 export function formatPrice(price: number | string | null | undefined, currency: Currency = 'DZD'): string {
   // التعامل مع القيم الفارغة أو غير المحددة
   if (price === null || price === undefined) {
@@ -33,7 +37,7 @@ export function formatPrice(price: number | string | null | undefined, currency:
   }
   
   const locale = 'en-US';
-  const symbol = 'دج';
+  const symbol = currency === 'DZD' ? 'دج' : currency;
   
   try {
     const formattedPrice = new Intl.NumberFormat(locale, {

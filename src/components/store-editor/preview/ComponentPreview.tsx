@@ -10,6 +10,9 @@ interface ComponentPreviewProps {
 const ComponentPreview: React.FC<ComponentPreviewProps> = ({ type, settings }) => {
   // تحويل النوع إلى حروف صغيرة لمقارنة غير حساسة لحالة الأحرف
   const normalizedType = type.toLowerCase();
+  
+  // صورة بديلة محلية بدلاً من استخدام خدمة خارجية
+  const fallbackImage = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAwIiBoZWlnaHQ9IjQwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjQwMCIgZmlsbD0iI2YzZjRmNiIvPjxwYXRoIGQ9Ik0zMTAuNSAyMTkuNUwzNjUuNSAxNzVMMzc0LjUgMTgzLjVMNDAwIDIwM0w0NjkgMTQ5LjVMNDk2LjUgMTc1TDUyNS41IDE0Ni41TDUzNC41IDE2My41TDYwMCAyMzAuNUw0MDAgMjgwTDMxMC41IDIxOS41WiIgZmlsbD0iI2UyZThmMCIvPjxjaXJjbGUgY3g9IjM0NyIgY3k9IjE0NiIgcj0iMTgiIGZpbGw9IiNlMmU4ZjAiLz48cGF0aCBkPSJNMjM4LjUgMjQ5LjVDMjM4LjUgMjQ5LjUgMjYwLjUgMjA1IDMwMi41IDE5NC41QzM0NC41IDE4NCA0MDAuNSAyMTMgNDAwLjUgMjEzTDIzOC41IDI1NS41VjI0OS41WiIgZmlsbD0iI2UyZThmMCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjI0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBhbGlnbm1lbnQtYmFzZWxpbmU9Im1pZGRsZSIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmaWxsPSIjOTQ5NDk0Ij7LktmI2LHYqSDYp9mE2K7ZhNmB2YrYqTwvdGV4dD48L3N2Zz4=';
 
   switch (normalizedType) {
     case 'hero':
@@ -17,7 +20,7 @@ const ComponentPreview: React.FC<ComponentPreviewProps> = ({ type, settings }) =
         <div className="relative rounded-lg overflow-hidden border">
           <div className="absolute inset-0 bg-gradient-to-r from-black/50 to-black/30 z-10"></div>
           <img 
-            src={settings.imageUrl || 'https://via.placeholder.com/800x400?text=صورة+الخلفية'} 
+            src={settings.imageUrl || fallbackImage} 
             alt="معاينة" 
             className="w-full h-full object-cover"
           />

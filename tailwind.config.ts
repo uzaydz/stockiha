@@ -99,11 +99,78 @@ export default {
 					to: {
 						height: '0'
 					}
+				},
+				// Custom animations for CTA button
+				'ripple': {
+					'0%': { 
+						transform: 'translate(-50%, -50%) scale(0)',
+						opacity: '0.6'
+					},
+					'100%': { 
+						transform: 'translate(-50%, -50%) scale(1)',
+						opacity: '0'
+					}
+				},
+				'shake': {
+					'0%, 100%': { transform: 'translateX(0)' },
+					'10%, 30%, 50%, 70%, 90%': { transform: 'translateX(-4px)' },
+					'20%, 40%, 60%, 80%': { transform: 'translateX(4px)' }
+				},
+				'glow': {
+					'0%, 100%': { 
+						boxShadow: '0 0 5px rgba(255, 255, 255, 0.5), 0 0 10px rgba(255, 255, 255, 0.3)'
+					},
+					'50%': { 
+						boxShadow: '0 0 15px rgba(255, 255, 255, 0.8), 0 0 20px rgba(255, 255, 255, 0.5)'
+					}
+				},
+				'shine': {
+					'0%': { transform: 'translateX(-100%)' },
+					'100%': { transform: 'translateX(100%)' }
+				},
+				'pulse-border': {
+					'0%, 100%': { 
+						boxShadow: '0 0 0 0 rgba(var(--primary-rgb), 0.4)'
+					},
+					'50%': { 
+						boxShadow: '0 0 0 5px rgba(var(--primary-rgb), 0)'
+					}
+				},
+				'wiggle': {
+					'0%, 100%': { transform: 'rotate(-3deg)' },
+					'50%': { transform: 'rotate(3deg)' }
+				},
+				'spin-slow': {
+					'from': { transform: 'rotate(0deg)' },
+					'to': { transform: 'rotate(360deg)' }
+				},
+				'breathe': {
+					'0%, 100%': { transform: 'scale(1)' },
+					'50%': { transform: 'scale(1.05)' }
+				},
+				'moving-gradient': {
+					'0%': { backgroundPosition: '0% 50%' },
+					'50%': { backgroundPosition: '100% 50%' },
+					'100%': { backgroundPosition: '0% 50%' }
+				},
+				'rotate-border': {
+					'0%': { backgroundPosition: '0% center' },
+					'100%': { backgroundPosition: '200% center' }
 				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				// Custom animations for CTA button
+				'ripple': 'ripple 0.6s linear forwards',
+				'shake': 'shake 0.8s cubic-bezier(.36,.07,.19,.97) both',
+				'glow': 'glow 1.5s ease-in-out infinite',
+				'pulse-border': 'pulse-border 1.5s infinite',
+				'wiggle': 'wiggle 0.5s ease-in-out infinite',
+				'spin-slow': 'spin-slow 3s linear infinite',
+				'breathe': 'breathe 4s infinite ease-in-out',
+				'moving-gradient': 'moving-gradient 4s ease infinite',
+				'rotate-border': 'rotate-border 4s linear infinite'
 			},
 			fontFamily: {
 				'cairo': ['Cairo', 'sans-serif'],

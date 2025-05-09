@@ -44,6 +44,7 @@ import Employees from '@/pages/dashboard/Employees';
 import OrganizationSetup from './pages/OrganizationSetup';
 import OrganizationSettings from './pages/dashboard/OrganizationSettings';
 import SettingsPage from './pages/dashboard/settings';
+import ShippingSettingsPage from './pages/dashboard/ShippingSettings';
 import RequireTenant from './components/auth/RequireTenant';
 import LandingPage from './pages/landing/LandingPage';
 import ProductPurchase from './pages/ProductPurchase';
@@ -60,6 +61,13 @@ import SupplierPayments from './pages/dashboard/SupplierPayments';
 import ProductDetails from './pages/ProductDetails';
 import PricingPage from "./pages/PricingPage";
 import StoreEditor from '@/pages/admin/StoreEditor';
+import FormSettings from '@/pages/FormSettings';
+import FormBuilder from '@/pages/FormBuilder';
+import ThankYouPage from '@/pages/ThankYouPage';
+import ThankYouPageEditor from '@/pages/dashboard/ThankYouPageEditor';
+import LandingPageBuilder from '@/pages/LandingPageBuilder';
+import LandingPagesManager from '@/pages/LandingPagesManager';
+import LandingPageView from '@/pages/LandingPageView';
 
 // Super Admin Pages
 import SuperAdminDashboard from '@/pages/super-admin/SuperAdminDashboard';
@@ -297,12 +305,18 @@ const App = () => (
                 {/* صفحة شراء المنتج */}
                 <Route path="/products/:slug" element={<ProductPurchase />} />
                 
+                {/* صفحة الشكر بعد إتمام الشراء */}
+                <Route path="/thank-you" element={<ThankYouPage />} />
+                
                 {/* صفحة متابعة الخدمات العامة للعملاء */}
                 <Route path="/service-tracking/:trackingId" element={<PublicServiceTrackingPage />} />
                 <Route path="/service-tracking-public" element={<PublicServiceTrackingPage />} />
                 
                 {/* صفحة خدمات الإصلاح العامة */}
                 <Route path="/services" element={<PublicServiceTrackingPage />} />
+
+                {/* صفحات الهبوط المخصصة */}
+                <Route path="/:slug" element={<LandingPageView />} />
 
                 {/* صفحات إعداد المؤسسة */}
                 <Route
@@ -478,6 +492,50 @@ const App = () => (
                       </SubscriptionCheck>
                     } />
 
+                    {/* صفحات إعدادات نموذج الطلب */}
+                    <Route path="/dashboard/form-settings" element={
+                      <SubscriptionCheck>
+                        <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+                          <FormSettings />
+                        </PermissionGuard>
+                      </SubscriptionCheck>
+                    } />
+                    <Route path="/form-builder/:formId" element={
+                      <SubscriptionCheck>
+                        <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+                          <FormBuilder />
+                        </PermissionGuard>
+                      </SubscriptionCheck>
+                    } />
+
+                    {/* صفحة إعدادات صفحة الشكر */}
+                    <Route path="/dashboard/thank-you-editor" element={
+                      <SubscriptionCheck>
+                        <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+                          <ThankYouPageEditor />
+                        </PermissionGuard>
+                      </SubscriptionCheck>
+                    } />
+
+                    {/* صفحات إدارة صفحات الهبوط */}
+                    <Route path="/dashboard/landing-pages" element={
+                      <SubscriptionCheck>
+                        <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+                          <LandingPagesManager />
+                        </PermissionGuard>
+                      </SubscriptionCheck>
+                    } />
+                    <Route path="/landing-page-builder/:id" element={
+                      <SubscriptionCheck>
+                        <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+                          <LandingPageBuilder />
+                        </PermissionGuard>
+                      </SubscriptionCheck>
+                    } />
+
+                    {/* صفحة معاينة صفحات الهبوط */}
+                    <Route path="/:slug" element={<LandingPageView />} />
+
                     {/* صفحة تخصيص المتجر */}
                     <Route path="/dashboard/store-editor" element={
                       <SubscriptionCheck>
@@ -498,6 +556,15 @@ const App = () => (
                     </SubscriptionCheck>
                   } />
                   
+                  {/* صفحة إعدادات الشحن والتوصيل */}
+                  <Route path="/dashboard/shipping-settings" element={
+                    <SubscriptionCheck>
+                      <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+                        <ShippingSettingsPage />
+                      </PermissionGuard>
+                    </SubscriptionCheck>
+                  } />
+
                   {/* إضافة صفحة جديدة في المستقبل */}
                   <Route path="/dashboard/products" element={
                     <SubscriptionCheck>

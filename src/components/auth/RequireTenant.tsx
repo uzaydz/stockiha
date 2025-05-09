@@ -14,14 +14,17 @@ type RequireTenantProps = {
  */
 const RequireTenant = ({ children }: RequireTenantProps) => {
   const { currentOrganization, isLoading, error } = useTenant();
-  const { currentSubdomain, isTenant } = useAuth();
+  const { currentSubdomain, isTenant, organization } = useAuth();
   const navigate = useNavigate();
+  
+  // التحقق من وجود مؤسسة في أي من السياقين
+  const hasOrganization = currentOrganization || organization;
 
   useEffect(() => {
-    // في حالة وجود خطأ في تحميل بيانات المؤسسة، توجيه المستخدم لصفحة إعداد المؤسسة
+    // في حالة وجود خطأ في تحميل بيانات المؤسسة، توجيه المستخدم لصفحة لوحة التحكم
     if (error && !isLoading) {
       console.error('Error loading organization data:', error);
-      navigate('/organization/setup');
+      navigate('/dashboard');
     }
   }, [error, isLoading, navigate]);
 
@@ -67,10 +70,10 @@ const RequireTenant = ({ children }: RequireTenantProps) => {
     );
   }
 
-  // إذا لم تكن هناك مؤسسة، توجيه المستخدم لصفحة إعداد المؤسسة
-  if (!currentOrganization) {
-    console.log("[RequireTenant] No current organization found, redirecting to setup.");
-    return <Navigate to="/organization/setup" replace />;
+  // إذا لم تكن هناك مؤسسة، تحقق من وجود مؤسسة في AuthContext قبل إعادة التوجيه
+  if (!currentOrganization && !isTenant) {
+    console.log("[RequireTenant] No current organization found and user is not a tenant, redirecting to dashboard.");
+    return <Navigate to="/dashboard" replace />;
   }
 
   // Render children if provided, otherwise render Outlet for nested routes

@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 import type { Database } from '@/types/database.types';
 import localforage from 'localforage';
 
@@ -167,12 +167,14 @@ export const getCategories = async (organizationId?: string): Promise<Category[]
       return await getLocalCategories();
     }
     
+    const supabaseClient = await getSupabaseClient();
+    
     // إذا لم يتم تمرير معرف المؤسسة، حاول الحصول عليه من المستخدم الحالي
     let orgId = organizationId;
     
     if (!orgId) {
       // الحصول على معلومات المستخدم الحالي
-      const userInfo = await supabase.auth.getUser();
+      const userInfo = await supabaseClient.auth.getUser();
       const userId = userInfo.data.user?.id;
       
       if (!userId) {
@@ -181,7 +183,7 @@ export const getCategories = async (organizationId?: string): Promise<Category[]
       }
       
       // البحث عن معرف المؤسسة الخاصة بالمستخدم
-      const { data: userData, error: userError } = await supabase
+      const { data: userData, error: userError } = await supabaseClient
         .from('users')
         .select('organization_id')
         .eq('id', userId)
@@ -197,7 +199,7 @@ export const getCategories = async (organizationId?: string): Promise<Category[]
     }
     
     // جلب الفئات مع تصفية حسب المؤسسة دائماً عندما يتوفر معرف المؤسسة
-    let query = supabase.from('product_categories').select('*');
+    let query = supabaseClient.from('product_categories').select('*');
     
     if (orgId) {
       query = query.eq('organization_id', orgId);
@@ -222,7 +224,7 @@ export const getCategories = async (organizationId?: string): Promise<Category[]
         console.log('حساب عدد المنتجات لكل فئة...');
         
         // جلب جميع المنتجات مرة واحدة لتحسين الأداء
-        const { data: products, error: productsError } = await supabase
+        const { data: products, error: productsError } = await supabaseClient
           .from('products')
           .select('id, category_id, category, is_active')
           .eq('organization_id', orgId)
@@ -294,87 +296,33 @@ export const getCategories = async (organizationId?: string): Promise<Category[]
   }
 };
 
-export const getCategoryById = async (id: string): Promise<Category> => {
+export const getCategoryById = async (id: string, organizationId?: string): Promise<Category | null> => {
   try {
     // التحقق من حالة الاتصال
     if (!isOnline()) {
-      console.log('جاري استخدام التخزين المحلي للفئة لأن المستخدم غير متصل');
-      const localCategory = await getLocalCategoryById(id);
-      if (localCategory) {
-        return localCategory;
-      }
-      throw new Error('الفئة غير موجودة في التخزين المحلي');
+      return getLocalCategoryById(id);
     }
     
-    // الحصول على معلومات المستخدم الحالي
-    const userInfo = await supabase.auth.getUser();
-    const userId = userInfo.data.user?.id;
-    
-    if (!userId) {
-      console.warn('المستخدم غير مسجل الدخول - تعذر جلب الفئة');
-      
-      // محاولة استخدام التخزين المحلي
-      const localCategory = await getLocalCategoryById(id);
-      if (localCategory) {
-        return localCategory;
-      }
-      
-      throw new Error('المستخدم غير مسجل الدخول والفئة غير موجودة في التخزين المحلي');
-    }
-    
-    // البحث عن معرف المؤسسة الخاصة بالمستخدم
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('organization_id')
-      .eq('id', userId)
-      .single();
-      
-    if (userError && userError.code !== 'PGRST116') {
-      console.error('Error fetching user organization:', userError);
-      
-      // محاولة استخدام التخزين المحلي
-      const localCategory = await getLocalCategoryById(id);
-      if (localCategory) {
-        return localCategory;
-      }
-      
-      throw userError;
-    }
-    
-    // استخدام معرف المؤسسة لجلب الفئة الخاصة بها فقط
-    const organizationId = userData?.organization_id;
+    const supabaseClient = await getSupabaseClient();
     
     // جلب الفئة مع تصفية حسب المؤسسة إذا كان معرف المؤسسة متوفرًا
-    let query = supabase.from('product_categories').select('*').eq('id', id);
+    let query = supabaseClient.from('product_categories').select('*').eq('id', id);
     
     if (organizationId) {
       query = query.eq('organization_id', organizationId);
     }
     
     const { data, error } = await query.single();
-
-    if (error) {
-      console.error('Error fetching category:', error);
-      // في حالة الخطأ، استخدم التخزين المحلي
-      const localCategory = await getLocalCategoryById(id);
-      if (localCategory) {
-        return localCategory;
-      }
-      throw new Error(error.message);
-    }
-
-    // تخزين الفئة محليًا
-    categoriesStore.setItem(id, data as Category);
     
-    return data as Category;
-  } catch (error) {
-    console.error(`حدث خطأ أثناء جلب الفئة ${id}:`, error);
-    // محاولة أخيرة من التخزين المحلي
-    const localCategory = await getLocalCategoryById(id);
-    if (localCategory) {
-      return localCategory;
+    if (error) {
+      console.error(`Error fetching category with ID ${id}:`, error);
+      return getLocalCategoryById(id);
     }
-    throw error;
+    
+    return data;
+  } catch (error) {
+    console.error(`Error in getCategoryById (${id}):`, error);
+    return getLocalCategoryById(id);
   }
 };
 
@@ -387,16 +335,12 @@ export const createCategory = async (categoryData: Partial<Category>): Promise<C
       // إنشاء معرف مؤقت للفئة
       const tempId = `temp_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
       
-      // إنشاء سلاق فريد بناءً على الاسم والوقت
-      const timestamp = new Date().getTime();
-      const slug = `${categoryData.name?.toLowerCase().replace(/\s+/g, '-')}-${timestamp}`;
-      
       // إنشاء كائن الفئة الجديدة
       const newCategory: Category = {
         id: tempId,
         name: categoryData.name || 'فئة جديدة',
         description: categoryData.description || null,
-        slug: slug,
+        slug: categoryData.name?.toLowerCase().replace(/\s+/g, '-') || 'new-category',
         icon: categoryData.icon || null,
         image_url: categoryData.image_url || null,
         is_active: categoryData.is_active !== undefined ? categoryData.is_active : true,
@@ -406,46 +350,53 @@ export const createCategory = async (categoryData: Partial<Category>): Promise<C
       };
       
       // تخزين الفئة الجديدة محليًا
-      await categoriesStore.setItem(tempId, newCategory);
+      await categoriesStore.setItem(newCategory.id, newCategory);
       
-      // تحديث قائمة جميع الفئات في التخزين المحلي
+      // تحديث قائمة الفئات في التخزين المحلي
       const categories = await getLocalCategories();
       await saveCategoriesToLocalStorage([...categories, newCategory]);
       
-      // إضافة الفئة إلى قائمة الفئات غير المتزامنة للمزامنة لاحقًا
+      // إضافة الفئة إلى قائمة المزامنة للمزامنة لاحقًا
       await addCategoryToSyncQueue(newCategory);
       
       console.log('تم إنشاء فئة جديدة محليًا:', newCategory);
       return newCategory;
     }
     
-    // إذا كان المستخدم متصل، استخدم السلوك الطبيعي
-    // الوقت الحالي
+    // Generate a unique slug by appending timestamp
     const timestamp = new Date().getTime();
+    const baseSlug = categoryData.name?.toLowerCase().replace(/\s+/g, '-') || 'new-category';
+    const uniqueSlug = `${baseSlug}-${timestamp}`;
     
-    // إنشاء سلاق فريد بناءً على الاسم والوقت
-    const slug = `${categoryData.name?.toLowerCase().replace(/\s+/g, '-')}-${timestamp}`;
-    
-    const { data, error } = await supabase
+    // إذا كان المستخدم متصل، استخدم السلوك الطبيعي
+    const supabaseClient = await getSupabaseClient();
+    const { data, error } = await supabaseClient
       .from('product_categories')
-      .insert({ ...categoryData, slug })
+      .insert({
+        name: categoryData.name,
+        description: categoryData.description,
+        slug: uniqueSlug,
+        icon: categoryData.icon,
+        image_url: categoryData.image_url,
+        is_active: categoryData.is_active !== undefined ? categoryData.is_active : true,
+        type: categoryData.type || 'product'
+      })
       .select()
       .single();
 
     if (error) {
       console.error('Error creating category:', error);
-      throw new Error(error.message);
+      throw error;
     }
 
     // تخزين الفئة الجديدة محليًا
-    const newCategory = data as Category;
-    await categoriesStore.setItem(newCategory.id, newCategory);
+    await categoriesStore.setItem(data.id, data);
     
-    // تحديث قائمة جميع الفئات في التخزين المحلي
+    // تحديث قائمة الفئات في التخزين المحلي
     const categories = await getLocalCategories();
-    await saveCategoriesToLocalStorage([...categories, newCategory]);
-    
-    return newCategory;
+    await saveCategoriesToLocalStorage([...categories, data]);
+
+    return data;
   } catch (error) {
     console.error('حدث خطأ أثناء إنشاء فئة جديدة:', error);
     throw error;
@@ -471,38 +422,58 @@ export const addCategoryToSyncQueue = async (category: Category): Promise<void> 
 };
 
 export const updateCategory = async (id: string, categoryData: UpdateCategoryData): Promise<Category> => {
-  const { data, error } = await supabase
-    .from('product_categories')
-    .update({
-      name: categoryData.name,
-      description: categoryData.description,
-      icon: categoryData.icon,
-      image_url: categoryData.image_url,
-      is_active: categoryData.is_active,
-      type: categoryData.type,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', id)
-    .select()
-    .single();
+  try {
+    const supabaseClient = await getSupabaseClient();
+    const { data, error } = await supabaseClient
+      .from('product_categories')
+      .update(categoryData)
+      .eq('id', id)
+      .select()
+      .single();
 
-  if (error) {
-    console.error('Error updating category:', error);
-    throw new Error(error.message);
+    if (error) {
+      console.error(`Error updating category ${id}:`, error);
+      throw error;
+    }
+
+    // تحديث بيانات الفئة محليًا
+    await categoriesStore.setItem(id, data);
+    
+    // تحديث قائمة الفئات المحلية
+    const categories = await getLocalCategories();
+    const updatedCategories = categories.map(cat => cat.id === id ? data : cat);
+    await saveCategoriesToLocalStorage(updatedCategories);
+
+    return data;
+  } catch (error) {
+    console.error('حدث خطأ أثناء تحديث الفئة:', error);
+    throw error;
   }
-
-  return data as Category;
 };
 
 export const deleteCategory = async (id: string): Promise<void> => {
-  const { error } = await supabase
-    .from('product_categories')
-    .delete()
-    .eq('id', id);
+  try {
+    const supabaseClient = await getSupabaseClient();
+    const { error } = await supabaseClient
+      .from('product_categories')
+      .delete()
+      .eq('id', id);
 
-  if (error) {
-    console.error('Error deleting category:', error);
-    throw new Error(error.message);
+    if (error) {
+      console.error(`Error deleting category ${id}:`, error);
+      throw error;
+    }
+
+    // حذف الفئة من التخزين المحلي
+    await categoriesStore.removeItem(id);
+    
+    // تحديث قائمة الفئات المحلية
+    const categories = await getLocalCategories();
+    const updatedCategories = categories.filter(cat => cat.id !== id);
+    await saveCategoriesToLocalStorage(updatedCategories);
+  } catch (error) {
+    console.error('حدث خطأ أثناء حذف الفئة:', error);
+    throw error;
   }
 };
 
@@ -512,50 +483,38 @@ export const getSubcategories = async (categoryId?: string): Promise<Subcategory
     // التحقق من حالة الاتصال
     if (!isOnline()) {
       console.log('جاري استخدام التخزين المحلي للفئات الفرعية لأن المستخدم غير متصل');
-      if (categoryId) {
-        return await getLocalSubcategoriesByCategoryId(categoryId);
-      } else {
-        return await getAllLocalSubcategories();
-      }
+      return categoryId 
+        ? await getLocalSubcategoriesByCategoryId(categoryId)
+        : await getAllLocalSubcategories();
     }
     
-    let query = supabase
+    const supabaseClient = await getSupabaseClient();
+    
+    // إنشاء استعلام قاعدة بيانات للفئات الفرعية
+    let query = supabaseClient
       .from('product_subcategories')
-      .select('*')
-      .order('name');
-      
+      .select('*');
+    
+    // إذا تم تحديد معرف الفئة، تصفية النتائج
     if (categoryId) {
       query = query.eq('category_id', categoryId);
     }
-
-    const { data, error } = await query;
-
+    
+    const { data, error } = await query.order('name');
+    
     if (error) {
       console.error('Error fetching subcategories:', error);
-      // في حالة الخطأ، استخدم التخزين المحلي
-      if (categoryId) {
-        return await getLocalSubcategoriesByCategoryId(categoryId);
-      } else {
-        return await getAllLocalSubcategories();
-      }
-    }
-
-    // تخزين البيانات محليًا للاستخدام في وضع عدم الاتصال
-    if (categoryId) {
-      saveSubcategoriesToLocalStorage(data, categoryId);
-    } else {
-      saveSubcategoriesToLocalStorage(data);
+      return categoryId 
+        ? await getLocalSubcategoriesByCategoryId(categoryId)
+        : await getAllLocalSubcategories();
     }
     
     return data;
   } catch (error) {
-    console.error('حدث خطأ أثناء جلب الفئات الفرعية:', error);
-    // في حالة حدوث خطأ، استخدم التخزين المحلي
-    if (categoryId) {
-      return await getLocalSubcategoriesByCategoryId(categoryId);
-    } else {
-      return await getAllLocalSubcategories();
-    }
+    console.error('Error in getSubcategories:', error);
+    return categoryId 
+      ? await getLocalSubcategoriesByCategoryId(categoryId)
+      : await getAllLocalSubcategories();
   }
 };
 
@@ -563,30 +522,26 @@ export const getSubcategoryById = async (id: string): Promise<Subcategory | null
   try {
     // التحقق من حالة الاتصال
     if (!isOnline()) {
-      console.log('جاري استخدام التخزين المحلي للفئة الفرعية لأن المستخدم غير متصل');
-      return await subcategoriesStore.getItem(id);
+      return subcategoriesStore.getItem<Subcategory>(id);
     }
     
-    const { data, error } = await supabase
+    const supabaseClient = await getSupabaseClient();
+    
+    const { data, error } = await supabaseClient
       .from('product_subcategories')
       .select('*')
       .eq('id', id)
       .single();
-
+    
     if (error) {
-      console.error(`Error fetching subcategory with id ${id}:`, error);
-      // في حالة الخطأ، استخدم التخزين المحلي
-      return await subcategoriesStore.getItem(id);
+      console.error(`Error fetching subcategory with ID ${id}:`, error);
+      return subcategoriesStore.getItem<Subcategory>(id);
     }
-
-    // تخزين الفئة الفرعية محليًا
-    subcategoriesStore.setItem(id, data);
     
     return data;
   } catch (error) {
-    console.error(`حدث خطأ أثناء جلب الفئة الفرعية ${id}:`, error);
-    // محاولة أخيرة من التخزين المحلي
-    return await subcategoriesStore.getItem(id);
+    console.error(`Error in getSubcategoryById (${id}):`, error);
+    return subcategoriesStore.getItem<Subcategory>(id);
   }
 };
 
@@ -640,7 +595,8 @@ export const createSubcategory = async (subcategory: { category_id: string; name
     const baseSlug = subcategory.name.toLowerCase().replace(/\s+/g, '-');
     const uniqueSlug = `${baseSlug}-${timestamp}`;
 
-    const { data, error } = await supabase
+    const supabaseClient = await getSupabaseClient();
+    const { data, error } = await supabaseClient
       .from('product_subcategories')
       .insert({
         category_id: subcategory.category_id,
@@ -694,29 +650,72 @@ export const addSubcategoryToSyncQueue = async (subcategory: Subcategory): Promi
 };
 
 export const updateSubcategory = async (id: string, updates: UpdateSubcategory): Promise<Subcategory> => {
-  const { data, error } = await supabase
-    .from('product_subcategories')
-    .update(updates)
-    .eq('id', id)
-    .select()
-    .single();
+  try {
+    const supabaseClient = await getSupabaseClient();
+    const { data, error } = await supabaseClient
+      .from('product_subcategories')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
 
-  if (error) {
-    console.error(`Error updating subcategory ${id}:`, error);
+    if (error) {
+      console.error(`Error updating subcategory ${id}:`, error);
+      throw error;
+    }
+
+    // تحديث الفئة الفرعية في التخزين المحلي
+    await subcategoriesStore.setItem(id, data);
+    
+    // تحديث القوائم المحلية
+    const allSubcategories = await getAllLocalSubcategories();
+    const updatedSubcategories = allSubcategories.map(sub => sub.id === id ? data : sub);
+    await saveSubcategoriesToLocalStorage(updatedSubcategories);
+    
+    // تحديث قائمة الفئة الأم
+    if (data.category_id) {
+      const categorySubcategories = await getLocalSubcategoriesByCategoryId(data.category_id);
+      const updatedCategorySubcategories = categorySubcategories.map(sub => sub.id === id ? data : sub);
+      await saveSubcategoriesToLocalStorage(updatedCategorySubcategories, data.category_id);
+    }
+
+    return data;
+  } catch (error) {
+    console.error(`حدث خطأ أثناء تحديث الفئة الفرعية ${id}:`, error);
     throw error;
   }
-
-  return data;
 };
 
 export const deleteSubcategory = async (id: string): Promise<void> => {
-  const { error } = await supabase
-    .from('product_subcategories')
-    .delete()
-    .eq('id', id);
+  try {
+    const supabaseClient = await getSupabaseClient();
+    const { error } = await supabaseClient
+      .from('product_subcategories')
+      .delete()
+      .eq('id', id);
 
-  if (error) {
-    console.error(`Error deleting subcategory ${id}:`, error);
+    if (error) {
+      console.error(`Error deleting subcategory ${id}:`, error);
+      throw error;
+    }
+
+    // حذف الفئة الفرعية من التخزين المحلي
+    await subcategoriesStore.removeItem(id);
+    
+    // تحديث القوائم المحلية
+    const allSubcategories = await getAllLocalSubcategories();
+    const updatedSubcategories = allSubcategories.filter(sub => sub.id !== id);
+    await saveSubcategoriesToLocalStorage(updatedSubcategories);
+    
+    // تحديث القوائم حسب الفئة الأم (سيتم تنفيذه لجميع الفئات لتغطية جميع الحالات)
+    const categories = await getLocalCategories();
+    for (const category of categories) {
+      const categorySubcategories = await getLocalSubcategoriesByCategoryId(category.id);
+      const updatedCategorySubcategories = categorySubcategories.filter(sub => sub.id !== id);
+      await saveSubcategoriesToLocalStorage(updatedCategorySubcategories, category.id);
+    }
+  } catch (error) {
+    console.error(`حدث خطأ أثناء حذف الفئة الفرعية ${id}:`, error);
     throw error;
   }
 };
@@ -730,8 +729,11 @@ export const syncCategoriesDataOnStartup = async (): Promise<boolean> => {
       return false;
     }
     
+    // استخدام getSupabaseClient() للحصول على مثيل صالح
+    const supabaseClient = await getSupabaseClient();
+    
     // جلب الفئات من Supabase
-    const { data: categories, error: categoriesError } = await supabase
+    const { data: categories, error: categoriesError } = await supabaseClient
       .from('product_categories')
       .select('*')
       .order('name');
@@ -745,7 +747,7 @@ export const syncCategoriesDataOnStartup = async (): Promise<boolean> => {
     await saveCategoriesToLocalStorage(categories as Category[]);
     
     // جلب جميع الفئات الفرعية
-    const { data: subcategories, error: subcategoriesError } = await supabase
+    const { data: subcategories, error: subcategoriesError } = await supabaseClient
       .from('product_subcategories')
       .select('*')
       .order('name');

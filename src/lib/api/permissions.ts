@@ -4,11 +4,24 @@
 
 import { supabase } from '@/lib/supabase';
 import { EmployeePermissions } from '@/types/employee';
+import { 
+  cachePermissions, 
+  getCachedPermissions, 
+  clearPermissionsCache,
+  hasCachedPermissions
+} from '@/lib/PermissionsCache';
 
 /**
  * تحديث بيانات المستخدم من Supabase
  */
 export const refreshUserData = async (userId: string) => {
+  // أولاً تحقق من التخزين المؤقت
+  const cachedPermissions = getCachedPermissions();
+  if (cachedPermissions) {
+    console.log('استخدام بيانات المستخدم من التخزين المؤقت');
+    return cachedPermissions;
+  }
+  
   try {
     const { data, error } = await supabase
       .from('users')
@@ -19,6 +32,11 @@ export const refreshUserData = async (userId: string) => {
     if (error) {
       console.error('خطأ في تحديث بيانات المستخدم:', error);
       return null;
+    }
+    
+    // تخزين بيانات المستخدم في التخزين المؤقت
+    if (data) {
+      cachePermissions(data);
     }
     
     return data;
@@ -80,6 +98,80 @@ export const checkUserPermissions = async (
 ): Promise<boolean> => {
   if (!user) {
     console.log('لا يوجد مستخدم للتحقق من الصلاحيات');
+    return false;
+  }
+  
+  // التحقق من التخزين المؤقت أولاً
+  const cachedPermissions = getCachedPermissions();
+  if (cachedPermissions) {
+    // منطق التحقق نفسه ولكن باستخدام البيانات المخزنة مؤقتاً
+    console.log('استخدام البيانات المخزنة مؤقتاً للتحقق من الصلاحيات:', requiredPermission);
+    
+    // تفقد البيانات المخزنة على أنها تحتوي على كل المعلومات الضرورية
+    const isActive = 
+      cachedPermissions.is_active !== false && 
+      cachedPermissions.user_metadata?.is_active !== false && 
+      cachedPermissions.app_metadata?.is_active !== false;
+      
+    const isSuperAdmin = 
+      cachedPermissions.is_super_admin === true || 
+      cachedPermissions.user_metadata?.is_super_admin === true || 
+      cachedPermissions.app_metadata?.is_super_admin === true;
+      
+    const isOrgAdmin = 
+      cachedPermissions.is_org_admin === true || 
+      cachedPermissions.user_metadata?.is_org_admin === true || 
+      cachedPermissions.app_metadata?.is_org_admin === true;
+    
+    // استخراج الدور من البيانات المخزنة
+    const userRole = 
+      cachedPermissions.role || 
+      cachedPermissions.user_metadata?.role || 
+      cachedPermissions.app_metadata?.role || 
+      '';
+      
+    // التحقق من أن المستخدم نشط أولاً
+    if (!isActive) {
+      console.log('المستخدم غير نشط (من التخزين المؤقت)');
+      return false;
+    }
+    
+    // المستخدم هو مدير عام
+    if (isSuperAdmin) {
+      console.log('المستخدم هو مدير عام (من التخزين المؤقت)');
+      return true;
+    }
+    
+    // المستخدم هو مدير المؤسسة
+    if (isOrgAdmin) {
+      console.log('المستخدم هو مدير المؤسسة (من التخزين المؤقت)');
+      return true;
+    }
+    
+    // المستخدم له دور مدير أو مالك
+    if (userRole === 'admin' || userRole === 'owner') {
+      console.log('المستخدم هو مدير أو مالك (من التخزين المؤقت)');
+      return true;
+    }
+    
+    // البحث عن الصلاحيات في المكانين المحتملين
+    let permissions = {};
+    
+    if (cachedPermissions.user_metadata?.permissions) {
+      permissions = cachedPermissions.user_metadata.permissions;
+    } else if (cachedPermissions.app_metadata?.permissions) {
+      permissions = cachedPermissions.app_metadata.permissions;
+    } else if (cachedPermissions.permissions) {
+      permissions = cachedPermissions.permissions;
+    }
+    
+    // التحقق من الصلاحية المطلوبة في الأذونات المخزنة
+    if (permissions && (permissions[requiredPermission] === true || permissions[requiredPermission] === 'true')) {
+      console.log(`المستخدم لديه الصلاحية ${requiredPermission} (من التخزين المؤقت)`);
+      return true;
+    }
+    
+    console.log(`المستخدم ليس لديه الصلاحية ${requiredPermission} (من التخزين المؤقت)`);
     return false;
   }
   
@@ -148,6 +240,9 @@ export const checkUserPermissions = async (
     isOrgAdmin,
     userRole
   });
+  
+  // تخزين معلومات الصلاحيات في التخزين المؤقت للمرات القادمة
+  cachePermissions(userToCheck);
   
   // التحقق من أن المستخدم نشط أولاً
   if (!isActive) {

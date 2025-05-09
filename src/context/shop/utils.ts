@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-client';
 
 // دالة للحصول على معرف المؤسسة
 export const getOrganizationId = async (currentUser: any = null): Promise<string | null> => {

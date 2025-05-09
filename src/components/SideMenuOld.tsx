@@ -38,7 +38,7 @@ import {
   BanknoteIcon,
   Server
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -99,17 +99,83 @@ interface SideMenuProps {
   userPermissions?: EmployeePermissions | null;
 }
 
+// المفتاح المستخدم للتخزين في localStorage
+const ACTIVE_GROUP_STORAGE_KEY = 'bazaar_active_sidebar_group';
+
 const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
   const location = useLocation();
+  const initialRenderRef = useRef(true);
+  const menuIsVisibleRef = useRef(true);
+  
+  // استعادة المجموعة النشطة من التخزين المحلي أو استخدام 'الرئيسية' كقيمة افتراضية
+  const getInitialActiveGroup = () => {
+    try {
+      const storedGroup = localStorage.getItem(ACTIVE_GROUP_STORAGE_KEY);
+      return storedGroup || 'الرئيسية';
+    } catch (e) {
+      console.warn('فشل في استرجاع المجموعة النشطة من التخزين المحلي:', e);
+      return 'الرئيسية';
+    }
+  };
+  
   // تحديد المجموعة النشطة الافتراضية عند التحميل
-  const [activeGroup, setActiveGroup] = useState<string | null>('الرئيسية');
+  const [activeGroup, setActiveGroup] = useState<string | null>(getInitialActiveGroup());
   const [scrolled, setScrolled] = useState(false);
   const { signOut, user } = useAuth();
   
   const permissions = userPermissions || {};
   
   const isAdmin = userRole === 'admin';
+
+  // تسجيل حالة القائمة
+  useEffect(() => {
+    // طباعة فقط عند التقديم الأولي لتجنب السجلات المتكررة
+    if (initialRenderRef.current) {
+      console.log('[SideMenu] تم تحميل القائمة الجانبية، المجموعة النشطة:', activeGroup);
+      initialRenderRef.current = false;
+    }
+
+    // تكوين مراقب لرصد ظهور/اختفاء القائمة الجانبية
+    if (typeof window !== 'undefined' && typeof MutationObserver !== 'undefined') {
+      const sidebarElement = document.getElementById('sidebar-container');
+      
+      if (sidebarElement) {
+        const observer = new MutationObserver((mutations) => {
+          for (const mutation of mutations) {
+            if (mutation.type === 'attributes' && 
+                (mutation.attributeName === 'style' || 
+                 mutation.attributeName === 'class' || 
+                 mutation.attributeName === 'hidden')) {
+              const isVisible = sidebarElement.offsetParent !== null;
+              if (menuIsVisibleRef.current !== isVisible) {
+                menuIsVisibleRef.current = isVisible;
+                console.log(`[SideMenu] تغيرت حالة القائمة الجانبية: ${isVisible ? 'ظاهرة' : 'مخفية'}`);
+              }
+            }
+          }
+        });
+        
+        observer.observe(sidebarElement, {
+          attributes: true,
+          attributeFilter: ['style', 'class', 'hidden']
+        });
+        
+        return () => observer.disconnect();
+      }
+    }
+  }, []);
   
+  // حفظ المجموعة النشطة في التخزين المحلي عند تغييرها
+  useEffect(() => {
+    if (activeGroup) {
+      try {
+        localStorage.setItem(ACTIVE_GROUP_STORAGE_KEY, activeGroup);
+      } catch (e) {
+        console.warn('فشل في حفظ المجموعة النشطة في التخزين المحلي:', e);
+      }
+    }
+  }, [activeGroup]);
+
   // تتبع التمرير للتأثيرات البصرية
   useEffect(() => {
     const handleScroll = (e: Event) => {
@@ -133,14 +199,37 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
     };
   }, []);
   
-  const toggleGroup = (group: string) => {
+  // استخدام useCallback لتحسين الأداء وتجنب إعادة إنشاء الدالة في كل تقديم
+  const toggleGroup = useCallback((group: string) => {
     // تحديث الحالة فوراً باستخدام الحالة السابقة
     setActiveGroup(prevGroup => {
       const newState = prevGroup === group ? null : group;
       console.log('تبديل المجموعة:', group, 'الحالة الجديدة:', newState);
       return newState;
     });
-  };
+  }, []);
+
+  // منع اختفاء القائمة عند العودة من التبويب
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[SideMenu] العودة إلى التبويب، المجموعة النشطة:', activeGroup);
+        
+        // إعادة تأكيد رؤية القائمة الجانبية
+        const sidebarElement = document.getElementById('sidebar-container');
+        if (sidebarElement && window.getComputedStyle(sidebarElement).display === 'none') {
+          console.log('[SideMenu] إعادة إظهار القائمة الجانبية بعد العودة للتبويب');
+          sidebarElement.style.display = 'block';
+        }
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [activeGroup]);
 
   const handleLogout = () => {
     signOut();

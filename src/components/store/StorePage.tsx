@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
 import Navbar from '@/components/Navbar';
@@ -39,12 +39,52 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
   const [storeSettings, setStoreSettings] = useState<OrganizationSettings | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
   const [storeData, setStoreData] = useState<Partial<StoreData>>(initialStoreData);
+  const dataFetchAttempted = useRef(false);
+  const forceTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   // استخراج اسم المتجر من البيانات
   const storeName = storeData?.name || storeSettings?.site_name || currentSubdomain || 'المتجر الإلكتروني';
   
   // التحقق من وجود مكونات مخصصة
   const hasCustomComponents = storeData?.components && storeData.components.length > 0;
+
+  // Set up a safety timeout to force exit loading state
+  useEffect(() => {
+    // Force exit loading state after 5 seconds to prevent infinite loading
+    forceTimerRef.current = setTimeout(() => {
+      if (dataLoading) {
+        console.log("Force exiting loading state after timeout");
+        setDataLoading(false);
+      }
+    }, 5000);
+    
+    return () => {
+      if (forceTimerRef.current) {
+        clearTimeout(forceTimerRef.current);
+      }
+    };
+  }, []);
+
+  // تحويل الفئات العادية إلى فئات موسعة المطلوبة لمكون ProductCategories
+  const getExtendedCategories = () => {
+    if (!storeData.categories || storeData.categories.length === 0) {
+      return [];
+    }
+    
+    // تحويل الفئات إلى النوع المطلوب
+    return storeData.categories.map(category => {
+      // استخدام التحويل القوي للوصول إلى الخصائص
+      const category_any = category as any;
+      
+      return {
+        ...category,
+        imageUrl: category_any.image_url || '',
+        productsCount: category_any.product_count || 0,
+        icon: 'folder', // قيمة افتراضية متوافقة مع النوع المطلوب
+        color: 'from-blue-500 to-indigo-600' // تدرج لوني افتراضي
+      };
+    });
+  };
 
   // تطبيق الثيم المحفوظ عند أول تحميل للمكون
   useEffect(() => {
@@ -55,99 +95,117 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
   
   // جلب بيانات المتجر والإعدادات
   useEffect(() => {
-    let mounted = true;
-    setDataLoading(true); // البدء بالتحميل دائمًا عند تغير النطاق أو المنظمة
+    // If we already have initial data, don't fetch again
+    if (Object.keys(initialStoreData).length > 0) {
+      console.log("Using initial store data passed from parent component");
+      setStoreData(initialStoreData);
+      setDataLoading(false);
+      return;
+    }
 
-    const fetchStoreData = async () => {
+    // Prevent duplicate data fetching
+    if (dataFetchAttempted.current) {
+      console.log("Data fetch already attempted, not fetching again");
+      return;
+    }
+
+    let mounted = true;
+    dataFetchAttempted.current = true;
+    
+    const loadStoreData = async () => {
       try {
-        if (!currentSubdomain) return;
+        if (!currentSubdomain) {
+          console.log("No subdomain available, aborting data fetch");
+          if (mounted) setDataLoading(false);
+          return;
+        }
+        
         console.log("Fetching store data for:", currentSubdomain);
         // استخدام الخدمة المحسنة لجلب البيانات
         const { data, isLoading } = await getStoreDataFast(currentSubdomain);
 
         // تحديث البيانات فقط إذا كان المكون لا يزال معلقًا
         if (mounted && data) {
-          console.log("Store data received:", data);
+          console.log("Store data received successfully:", data.name);
           setStoreData(data);
-          // يتم تحديث dataLoading بناءً على isLoading من getStoreDataFast
-          // أو إذا انتهى كلا الجلبين
+          
+          // Exit loading state immediately if no organization ID is available
+          if (!currentOrganization?.id) {
+            console.log("No organization ID, setting loading state to false");
+            setDataLoading(false);
+          }
         } else if (mounted) {
           // إذا لم ترجع بيانات، نعتبر التحميل قد انتهى بفشل جزئي
-          console.log("No store data returned from getStoreDataFast");
+          console.log("No store data returned, ending loading state");
+          setDataLoading(false);
         }
       } catch (error) {
         console.error('فشل في جلب بيانات المتجر:', error);
+        if (mounted) {
+          console.log("Error fetching store data, ending loading state");
+          setDataLoading(false);
+        }
       }
     };
 
-    // جلب إعدادات المتجر (بما في ذلك الثيم)
-    const fetchStoreSettings = async () => {
-      if (!currentOrganization?.id) return;
+    const loadStoreSettings = async () => {
+      // Skip fetching settings if no organization ID
+      if (!currentOrganization?.id) {
+        console.log("No organization ID, skipping settings fetch");
+        return;
+      }
 
       try {
         console.log("Fetching store settings for org:", currentOrganization.id);
         const settings = await getOrganizationSettings(currentOrganization.id);
         if (settings && mounted) {
-          console.log("Store settings received:", settings);
+          console.log("Store settings received:", settings.site_name);
           setStoreSettings(settings);
 
           // تحديث وحفظ الثيم باستخدام الإعدادات الجديدة
-          // هذا سيطبق الثيم الفعلي ويحفظه للمستقبل (للسكربت في <head>)
           if (currentSubdomain) {
-             console.log("Updating theme with fetched settings for:", currentSubdomain);
-             updateTheme(currentSubdomain, settings);
+            console.log("Updating theme with fetched settings");
+            updateTheme(currentSubdomain, settings);
           }
-          // تطبيق CSS المخصص يتم تلقائياً من خلال updateTheme
-        } else if(mounted){
-             console.log("No store settings returned or component unmounted");
+        } else if (mounted) {
+          console.log("No store settings returned or component unmounted");
         }
       } catch (error) {
         console.error('فشل في جلب إعدادات المتجر:', error);
-         // حتى لو فشل جلب الإعدادات، ربما لا يزال لدينا بيانات المتجر
+      } finally {
+        // Always end loading state after settings fetch completes
+        if (mounted) {
+          console.log("Settings fetch completed, ending loading state");
+          setDataLoading(false);
+        }
       }
     };
 
-    // جلب البيانات بشكل متوازي وانتظار اكتمالهما لإنهاء dataLoading
-    const loadAllData = async () => {
-       try {
-          // التأكد من جلب البيانات والإعدادات قبل إيقاف التحميل
-          await Promise.all([fetchStoreData(), fetchStoreSettings()]);
-       } catch(error) {
-          console.error("Error during parallel data fetching:", error);
-          // يمكنك إضافة معالجة خطأ أكثر تحديدًا هنا
-       } finally {
-          if (mounted) {
-             console.log("Finished fetching data and settings. Setting dataLoading to false.");
-             setDataLoading(false); // إنهاء التحميل بعد اكتمال كلا الطلبين أو فشلهما
-          }
-       }
-    };
-
-    // التأكد من وجود نطاق فرعي ومنظمة قبل بدء الجلب
-    if (currentSubdomain && currentOrganization?.id) {
-        loadAllData();
-    } else {
-        // إذا لم تتوفر المعلومات الأساسية، نوقف التحميل
-        if (mounted) {
-           console.log("Missing subdomain or organization ID. Aborting data load.");
-           setDataLoading(false);
-        }
-    }
-
+    // Fetch store data first, then settings in parallel
+    loadStoreData().then(() => {
+      if (currentOrganization?.id) {
+        loadStoreSettings();
+      } else if (mounted) {
+        // If no organization ID, we're done loading
+        console.log("No organization ID after data load, ending loading state");
+        setDataLoading(false);
+      }
+    });
 
     // تنظيف عند إزالة المكون
     return () => {
       console.log("StorePage unmounting or dependencies changed.");
       mounted = false;
     };
-    // الاعتماديات: جلب البيانات عند تغير النطاق الفرعي أو معرف المنظمة
-  }, [currentSubdomain, currentOrganization?.id]);
+  }, [currentSubdomain, currentOrganization?.id, initialStoreData]);
   
   // ضبط عنوان الصفحة عند التحميل
   useEffect(() => {
     // استخدام اسم المتجر من الإعدادات إذا كان متاحاً
     document.title = `${storeName} - المتجر الإلكتروني`;
   }, [storeName]);
+
+  console.log("StorePage render state:", { dataLoading, hasData: Object.keys(storeData).length > 0 });
 
   return (
     <div className="flex flex-col min-h-screen bg-background/95">
@@ -235,7 +293,10 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
             ) : (
               storeData.categories && storeData.categories.length > 0 && (
                 <LazyLoad>
-                  <LazyProductCategories categories={storeData.categories} />
+                  <LazyProductCategories 
+                    useRealCategories={false} // تعطيل جلب الفئات الحقيقية من داخل المكون
+                    categories={getExtendedCategories() as any} // استخدام any لتجنب أخطاء TypeScript
+                  />
                 </LazyLoad>
               )
             )}

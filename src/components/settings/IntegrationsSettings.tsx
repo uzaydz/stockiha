@@ -8,6 +8,7 @@ import {
   ShoppingBag
 } from 'lucide-react';
 import WhatsAppSettings from './WhatsAppSettings';
+import ShippingSettings from './ShippingSettings';
 
 export default function IntegrationsSettings() {
   const [activeTab, setActiveTab] = useState('whatsapp');
@@ -31,7 +32,7 @@ export default function IntegrationsSettings() {
             <CreditCard className="h-4 w-4" />
             <span>الدفع الإلكتروني</span>
           </TabsTrigger>
-          <TabsTrigger value="shipping" className="flex gap-2 items-center py-2" disabled>
+          <TabsTrigger value="shipping" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex gap-2 items-center py-2">
             <Truck className="h-4 w-4" />
             <span>خدمات التوصيل</span>
           </TabsTrigger>
@@ -60,17 +61,7 @@ export default function IntegrationsSettings() {
         </TabsContent>
         
         <TabsContent value="shipping" className="space-y-4 mt-4">
-          <div className="flex flex-col items-center justify-center py-10 px-6 border border-dashed rounded-lg">
-            <Truck className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-xl font-semibold mb-2">تكامل خدمات التوصيل</h3>
-            <p className="text-center text-muted-foreground mb-4">
-              تكامل مع شركات الشحن والتوصيل المحلية والعالمية
-            </p>
-            <div className="flex items-center text-sm text-blue-500">
-              <span>قريباً</span>
-              <ExternalLink className="h-4 w-4 ml-1" />
-            </div>
-          </div>
+          <ShippingSettings />
         </TabsContent>
         
         <TabsContent value="marketplace" className="space-y-4 mt-4">

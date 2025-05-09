@@ -7,6 +7,9 @@ const storeCache = localforage.createInstance({
   storeName: 'store-data'
 });
 
+// تخزين مؤقت للذاكرة للاستعلامات الشائعة جدًا
+const memoryCache: Record<string, any> = {};
+
 // تعريف أنواع البيانات المخزنة مؤقتاً
 interface CachedData<T> {
   data: T;
@@ -14,16 +17,26 @@ interface CachedData<T> {
   version: string;
 }
 
-// المدة الافتراضية للتخزين المؤقت (بالمللي ثانية) - 10 دقائق
-const DEFAULT_CACHE_TTL = 10 * 60 * 1000;
+// توسيع أوقات التخزين المؤقت للبيانات الثابتة نسبيًا
+// المدة الافتراضية للتخزين المؤقت (بالمللي ثانية) - 30 دقيقة
+const DEFAULT_CACHE_TTL = 30 * 60 * 1000;
+
+// تخزين مؤقت طويل المدى (24 ساعة) للبيانات التي لا تتغير كثيرًا
+const LONG_CACHE_TTL = 24 * 60 * 60 * 1000;
+
+// مدة قصيرة (5 دقائق) للبيانات المتغيرة بشكل متكرر
+const SHORT_CACHE_TTL = 5 * 60 * 1000;
 
 // مفتاح نسخة التخزين المؤقت - يتم زيادته عند تحديث هيكل البيانات
-const CACHE_VERSION = '1.0.0';
+const CACHE_VERSION = '1.1.0';
+
+// حفظ الاستعلامات قيد التنفيذ لمنع الاستعلامات المتكررة المتزامنة
+const pendingQueries: Record<string, Promise<any>> = {};
 
 /**
  * وظيفة لتخزين البيانات في التخزين المؤقت
  */
-export async function setCacheData<T>(key: string, data: T): Promise<void> {
+export async function setCacheData<T>(key: string, data: T, useMemoryCache = false): Promise<void> {
   try {
     const cacheItem: CachedData<T> = {
       data,
@@ -31,8 +44,12 @@ export async function setCacheData<T>(key: string, data: T): Promise<void> {
       version: CACHE_VERSION
     };
     
+    // تخزين في ذاكرة التطبيق للوصول الأسرع
+    if (useMemoryCache) {
+      memoryCache[key] = cacheItem;
+    }
+    
     await storeCache.setItem(key, cacheItem);
-    console.log(`[Cache] تم تخزين البيانات مؤقتًا للمفتاح: ${key}`);
   } catch (error) {
     console.error('[Cache] خطأ في تخزين البيانات مؤقتًا:', error);
   }
@@ -41,19 +58,32 @@ export async function setCacheData<T>(key: string, data: T): Promise<void> {
 /**
  * وظيفة للحصول على البيانات من التخزين المؤقت
  */
-export async function getCacheData<T>(key: string, ttl: number = DEFAULT_CACHE_TTL): Promise<T | null> {
+export async function getCacheData<T>(
+  key: string, 
+  ttl: number = DEFAULT_CACHE_TTL,
+  useMemoryCache = false
+): Promise<T | null> {
   try {
+    // أولاً، التحقق من وجودها في ذاكرة التطبيق
+    if (useMemoryCache && memoryCache[key]) {
+      const cachedItem = memoryCache[key] as CachedData<T>;
+      const now = Date.now();
+      const age = now - cachedItem.timestamp;
+      
+      if (age <= ttl && cachedItem.version === CACHE_VERSION) {
+        return cachedItem.data;
+      }
+    }
+    
     const cachedItem = await storeCache.getItem<CachedData<T>>(key);
     
     // التحقق من وجود البيانات المخزنة
     if (!cachedItem) {
-      console.log(`[Cache] لم يتم العثور على بيانات للمفتاح: ${key}`);
       return null;
     }
     
     // التحقق من نسخة البيانات
     if (cachedItem.version !== CACHE_VERSION) {
-      console.log(`[Cache] نسخة التخزين المؤقت غير متطابقة للمفتاح: ${key}`);
       await storeCache.removeItem(key); // إزالة البيانات القديمة
       return null;
     }
@@ -63,11 +93,14 @@ export async function getCacheData<T>(key: string, ttl: number = DEFAULT_CACHE_T
     const age = now - cachedItem.timestamp;
     
     if (age > ttl) {
-      console.log(`[Cache] البيانات منتهية الصلاحية للمفتاح: ${key}, العمر: ${age}ms`);
       return null;
     }
     
-    console.log(`[Cache] تم استرداد البيانات المخزنة للمفتاح: ${key}, العمر: ${age}ms`);
+    // التخزين في ذاكرة التطبيق للوصول اللاحق السريع
+    if (useMemoryCache) {
+      memoryCache[key] = cachedItem;
+    }
+    
     return cachedItem.data;
   } catch (error) {
     console.error('[Cache] خطأ في جلب البيانات المخزنة مؤقتًا:', error);
@@ -80,8 +113,12 @@ export async function getCacheData<T>(key: string, ttl: number = DEFAULT_CACHE_T
  */
 export async function clearCacheItem(key: string): Promise<void> {
   try {
+    // حذف من ذاكرة التطبيق
+    if (memoryCache[key]) {
+      delete memoryCache[key];
+    }
+    
     await storeCache.removeItem(key);
-    console.log(`[Cache] تم مسح البيانات المخزنة للمفتاح: ${key}`);
   } catch (error) {
     console.error('[Cache] خطأ في مسح البيانات المخزنة مؤقتًا:', error);
   }
@@ -92,8 +129,12 @@ export async function clearCacheItem(key: string): Promise<void> {
  */
 export async function clearAllCache(): Promise<void> {
   try {
+    // مسح ذاكرة التطبيق المؤقتة
+    Object.keys(memoryCache).forEach(key => {
+      delete memoryCache[key];
+    });
+    
     await storeCache.clear();
-    console.log('[Cache] تم مسح جميع البيانات المخزنة مؤقتًا');
   } catch (error) {
     console.error('[Cache] خطأ في مسح جميع البيانات المخزنة مؤقتًا:', error);
   }
@@ -101,56 +142,79 @@ export async function clearAllCache(): Promise<void> {
 
 /**
  * وظيفة للتحقق من صلاحية التخزين المؤقت وتنفيذ وظيفة جلب البيانات عند الحاجة
+ * مع التعامل مع الاستعلامات المتزامنة
  */
 export async function withCache<T>(
   key: string,
   fetchFn: () => Promise<T>,
-  ttl: number = DEFAULT_CACHE_TTL
+  ttl: number = DEFAULT_CACHE_TTL,
+  useMemoryCache = true
 ): Promise<T> {
   // محاولة الحصول على البيانات من التخزين المؤقت
-  const cachedData = await getCacheData<T>(key, ttl);
+  const cachedData = await getCacheData<T>(key, ttl, useMemoryCache);
   
   // إذا وجدت البيانات في التخزين المؤقت، أعد استخدامها
   if (cachedData !== null) {
     return cachedData;
   }
   
+  // التحقق من وجود استعلام مماثل قيد التنفيذ
+  if (pendingQueries[key]) {
+    return pendingQueries[key];
+  }
+  
   // جلب البيانات الجديدة
-  console.log(`[Cache] جلب بيانات جديدة للمفتاح: ${key}`);
-  const newData = await fetchFn();
-  
-  // تخزين البيانات الجديدة في التخزين المؤقت
-  await setCacheData(key, newData);
-  
-  return newData;
+  try {
+    // تسجيل الاستعلام قيد التنفيذ
+    pendingQueries[key] = fetchFn();
+    
+    // انتظار النتيجة
+    const newData = await pendingQueries[key];
+    
+    // تخزين البيانات الجديدة في التخزين المؤقت
+    await setCacheData(key, newData, useMemoryCache);
+    
+    return newData;
+  } finally {
+    // إزالة الاستعلام من قائمة الاستعلامات قيد التنفيذ
+    delete pendingQueries[key];
+  }
 }
 
 /**
  * وظيفة للحصول على النطاق الفرعي للمؤسسة من معرفها
+ * مع تحسينات تخزين مؤقت للأداء العالي
  */
 export async function getSubdomainFromOrganizationId(organizationId: string): Promise<string | null> {
   if (!organizationId) {
-    console.error('[Cache] معرف المؤسسة غير محدد');
     return null;
   }
   
-  try {
-    const { data, error } = await supabase
-      .from('organizations')
-      .select('subdomain')
-      .eq('id', organizationId)
-      .single();
-    
-    if (error || !data?.subdomain) {
-      console.error('[Cache] خطأ في جلب النطاق الفرعي للمؤسسة:', error?.message || 'لم يتم العثور على نطاق فرعي');
-      return null;
-    }
-    
-    return data.subdomain;
-  } catch (error) {
-    console.error('[Cache] خطأ غير متوقع أثناء جلب النطاق الفرعي:', error);
-    return null;
-  }
+  const cacheKey = `org_subdomain:${organizationId}`;
+  
+  return withCache<string | null>(
+    cacheKey,
+    async () => {
+      try {
+        const { data, error } = await supabase
+          .from('organizations')
+          .select('subdomain')
+          .eq('id', organizationId)
+          .single();
+        
+        if (error || !data?.subdomain) {
+          return null;
+        }
+        
+        return data.subdomain;
+      } catch (error) {
+        console.error('[Cache] خطأ غير متوقع أثناء جلب النطاق الفرعي:', error);
+        return null;
+      }
+    },
+    LONG_CACHE_TTL,
+    true
+  );
 }
 
 /**
@@ -161,8 +225,26 @@ export async function clearStoreCacheByOrganizationId(organizationId: string): P
   if (subdomain) {
     const cacheKey = `store_data:${subdomain}`;
     await clearCacheItem(cacheKey);
-    console.log(`[Cache] تم مسح تخزين المتجر المؤقت باستخدام معرف المؤسسة: ${organizationId}, النطاق الفرعي: ${subdomain}`);
+    
+    // حذف البيانات ذات الصلة أيضًا
+    await clearCacheItem(`categories:${organizationId}`);
+    await clearCacheItem(`products:${organizationId}`);
+    await clearCacheItem(`settings:${organizationId}`);
+    
+    // مسح ذاكرة التطبيق المؤقتة للبيانات ذات الصلة
+    Object.keys(memoryCache).forEach(key => {
+      if (key.includes(organizationId) || key.includes(subdomain)) {
+        delete memoryCache[key];
+      }
+    });
   }
 }
+
+// تصدير ثوابت TTL للاستخدام في أجزاء مختلفة من التطبيق
+export {
+  DEFAULT_CACHE_TTL,
+  LONG_CACHE_TTL,
+  SHORT_CACHE_TTL
+};
 
 export default storeCache; 

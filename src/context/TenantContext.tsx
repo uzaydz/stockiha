@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import React, { createContext, useContext, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { getSupabaseClient } from '@/lib/supabase';
 import { useAuth } from './AuthContext';
+import { withCache, LONG_CACHE_TTL } from '@/lib/cache/storeCache';
 
 export type Organization = {
   id: string;
@@ -19,6 +20,7 @@ export type Organization = {
 
 type TenantContextType = {
   currentOrganization: Organization | null;
+  tenant: Organization | null;
   isOrgAdmin: boolean;
   isLoading: boolean;
   error: Error | null;
@@ -55,81 +57,238 @@ const isMainDomain = (hostname: string): boolean => {
 
 // استخراج النطاق الفرعي من اسم المضيف
 const extractSubdomain = (hostname: string): string | null => {
-  // اختبار ما إذا كان النطاق الرئيسي
-  if (isMainDomain(hostname)) {
-    console.log('تم اكتشاف النطاق الرئيسي، استخدام "main" كقيمة خاصة');
+  console.log('TenantContext - استخراج النطاق الفرعي من:', hostname);
+  
+  // التعامل مع السابدومين في بيئة localhost المحلية
+  if (hostname.includes('localhost')) {
+    const parts = hostname.split('.');
+    // مثال: mystore.localhost:8080 أو mystore.localhost
+    if (parts.length > 1 && parts[0] !== 'localhost' && parts[0] !== 'www') {
+      console.log('TenantContext - تم اكتشاف سابدومين محلي:', parts[0]);
+      return parts[0];
+    }
+    
+    // إذا كان فقط localhost بدون سابدومين
+    if (hostname === 'localhost') {
+      console.log('TenantContext - تم اكتشاف localhost بدون سابدومين، استخدام main كقيمة');
+      return 'main';
+    }
+  }
+  
+  // التعامل مع عناوين IP المحلية (127.0.0.1, etc.)
+  if (hostname.match(/^127\.\d+\.\d+\.\d+$/) || hostname.match(/^\d+\.\d+\.\d+\.\d+$/)) {
+    console.log('TenantContext - تم اكتشاف عنوان IP محلي، استخدام main كقيمة');
     return 'main';
   }
   
-  // تقسيم اسم المضيف إلى أجزاء
+  // اختبار ما إذا كان النطاق الرئيسي
+  if (isMainDomain(hostname)) {
+    console.log('TenantContext - تم اكتشاف النطاق الرئيسي، استخدام main كقيمة');
+    return 'main';
+  }
+  
+  // تقسيم اسم المضيف إلى أجزاء للنطاقات العادية
   const hostParts = hostname.split('.');
   
   // إذا كان لدينا أكثر من جزئين، الجزء الأول هو النطاق الفرعي
   if (hostParts.length > 2) {
     const subdomain = hostParts[0];
     
-    // لا نعتبر 'www' كنطاق فرعي حقيقي (تم التعامل معه أعلاه)
+    // لا نعتبر 'www' كنطاق فرعي حقيقي
     if (subdomain === 'www') {
+      console.log('TenantContext - تم اكتشاف www، استخدام main كقيمة');
       return 'main';
     }
     
+    console.log('TenantContext - تم اكتشاف سابدومين:', subdomain);
     return subdomain;
   }
   
+  console.log('TenantContext - لا يوجد سابدومين');
   return null;
 };
 
 export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, loading: authLoading, currentSubdomain } = useAuth();
+  const { user, loading: authLoading, currentSubdomain, organization: authOrganization } = useAuth();
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [isOrgAdmin, setIsOrgAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const [initialized, setInitialized] = useState(false);
+  
+  // Track initialization and prevent duplicate loads
+  const initialized = useRef(false);
+  const loadingOrganization = useRef(false);
 
-  // تحميل بيانات المؤسسة عند تغيير النطاق الفرعي أو عند تحميل التطبيق
+  // مزامنة بيانات المؤسسة من AuthContext إلى TenantContext - محسنة
   useEffect(() => {
+    if (authOrganization && !organization && !loadingOrganization.current) {
+      console.log('مزامنة بيانات المؤسسة من AuthContext:', authOrganization.name);
+      
+      // تحويل بيانات المؤسسة من AuthContext إلى النموذج المطلوب لـ TenantContext
+      const syncedOrg: Organization = {
+        id: authOrganization.id,
+        name: authOrganization.name,
+        subscription_tier: authOrganization.subscription_tier || 'free',
+        subscription_status: authOrganization.subscription_status || 'inactive',
+        settings: {},
+        created_at: authOrganization.created_at,
+        updated_at: new Date().toISOString()
+      };
+      
+      setOrganization(syncedOrg);
+      
+      // حفظ معرف المؤسسة في التخزين المحلي
+      localStorage.setItem('bazaar_organization_id', authOrganization.id);
+      setIsLoading(false);
+      initialized.current = true;
+    }
+  }, [authOrganization, organization]);
+
+  // محسّن - جلب بيانات المؤسسة باستخدام Subdomain مع تخزين مؤقت
+  const fetchOrganizationBySubdomain = useCallback(async (subdomain: string): Promise<Organization | null> => {
+    if (!subdomain) return null;
+    
+    try {
+      // استخدام التخزين المؤقت لتجنب الاستعلامات المتكررة
+      return await withCache<Organization | null>(
+        `tenant:subdomain:${subdomain}`,
+        async () => {
+          console.log('جاري البحث عن المؤسسة باستخدام النطاق الفرعي:', subdomain);
+          
+          // Get Supabase client
+          const supabaseClient = await getSupabaseClient();
+          
+          // إذا كان subdomain = 'main'، يجب استخدام معرف المؤسسة من التخزين المحلي
+          if (subdomain === 'main') {
+            const storedOrgId = localStorage.getItem('bazaar_organization_id');
+            if (storedOrgId) {
+              const { data, error } = await supabaseClient
+                .from('organizations')
+                .select('*')
+                .eq('id', storedOrgId)
+                .single();
+              
+              if (error || !data) {
+                console.error('فشل في جلب بيانات المؤسسة الافتراضية:', error);
+                return null;
+              }
+              
+              return {
+                id: data.id,
+                name: data.name,
+                description: data.description,
+                logo_url: data.logo_url,
+                domain: data.domain,
+                subdomain: data.subdomain,
+                subscription_tier: data.subscription_tier || 'free',
+                subscription_status: data.subscription_status || 'inactive',
+                settings: data.settings || {},
+                created_at: data.created_at,
+                updated_at: data.updated_at,
+                owner_id: data.owner_id
+              };
+            }
+            return null;
+          }
+          
+          const { data, error } = await supabaseClient
+            .from('organizations')
+            .select('*')
+            .eq('subdomain', subdomain)
+            .single();
+          
+          if (error || !data) {
+            console.error('فشل في جلب بيانات المؤسسة بواسطة النطاق الفرعي:', error);
+            return null;
+          }
+          
+          return {
+            id: data.id,
+            name: data.name,
+            description: data.description,
+            logo_url: data.logo_url,
+            domain: data.domain,
+            subdomain: data.subdomain,
+            subscription_tier: data.subscription_tier || 'free',
+            subscription_status: data.subscription_status || 'inactive',
+            settings: data.settings || {},
+            created_at: data.created_at,
+            updated_at: data.updated_at,
+            owner_id: data.owner_id
+          };
+        },
+        LONG_CACHE_TTL, // 24 ساعة تخزين مؤقت - مناسب للبيانات الأساسية
+        true // تخزين في ذاكرة التطبيق
+      );
+    } catch (error) {
+      console.error('خطأ في fetchOrganizationBySubdomain:', error);
+      return null;
+    }
+  }, []);
+
+  // تحميل بيانات المؤسسة عند تغيير النطاق الفرعي 
+  useEffect(() => {
+    // تجنب تحميل البيانات مرات متعددة
+    if (authLoading || loadingOrganization.current || 
+       (initialized.current && organization)) {
+      return;
+    }
+    
     const loadTenantData = async () => {
       setIsLoading(true);
+      loadingOrganization.current = true;
       
       try {
         // استخدام النطاق الفرعي الحالي أو استخراجه من اسم المضيف
         const subdomain = currentSubdomain || extractSubdomain(window.location.hostname);
         console.log('بدء استرجاع بيانات المؤسسة - النطاق الفرعي:', subdomain);
         
-        // استخدام الدالة الجديدة للحصول على بيانات المؤسسة
-        const organization = await fetchOrganizationBySubdomain(subdomain);
+        const org = await fetchOrganizationBySubdomain(subdomain);
         
-        if (organization) {
-          console.log('تم العثور على المؤسسة:', organization.name);
-          setOrganization(organization);
+        if (org) {
+          console.log('تم العثور على المؤسسة:', org.name);
+          setOrganization(org);
           
           // حفظ معرف المؤسسة في التخزين المحلي للاستخدام لاحقاً
-          localStorage.setItem('bazaar_organization_id', organization.id);
+          localStorage.setItem('bazaar_organization_id', org.id);
+          
+          // تحقق ما إذا كان المستخدم الحالي هو مسؤول المؤسسة
+          if (user && user.id === org.owner_id) {
+            setIsOrgAdmin(true);
+          }
         } else {
           console.log('لم يتم العثور على مؤسسة بالنطاق الفرعي:', subdomain);
           setOrganization(null);
         }
+        
+        initialized.current = true;
       } catch (error) {
         console.error('خطأ في تحميل بيانات المؤسسة:', error);
         setOrganization(null);
+        setError(error as Error);
       } finally {
-        setInitialized(true);
+        loadingOrganization.current = false;
         setIsLoading(false);
       }
     };
     
     loadTenantData();
-  }, [currentSubdomain]);
+  }, [currentSubdomain, authLoading, user, fetchOrganizationBySubdomain, organization]);
 
-  // إنشاء مؤسسة جديدة
-  const createOrganization = async (name: string, description?: string, domain?: string, subdomain?: string) => {
+  // إنشاء مؤسسة جديدة - محسنة مع useCallback
+  const createOrganization = useCallback(async (
+    name: string, 
+    description?: string, 
+    domain?: string, 
+    subdomain?: string
+  ) => {
     try {
       if (!user) {
         throw new Error('يجب تسجيل الدخول لإنشاء مؤسسة جديدة');
       }
 
-      const { data, error } = await supabase.rpc('create_organization', {
+      const supabaseClient = await getSupabaseClient();
+      const { data, error } = await supabaseClient.rpc('create_organization', {
         org_name: name,
         org_description: description || null,
         org_domain: domain || null,
@@ -153,10 +312,13 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       console.error('Error creating organization:', err);
       return { success: false, error: err as Error };
     }
-  };
+  }, [user]);
 
-  // دعوة مستخدم إلى المؤسسة
-  const inviteUserToOrganization = async (email: string, role: string = 'employee') => {
+  // دعوة مستخدم إلى المؤسسة - محسنة مع useCallback
+  const inviteUserToOrganization = useCallback(async (
+    email: string, 
+    role: string = 'employee'
+  ) => {
     try {
       if (!user) {
         throw new Error('يجب تسجيل الدخول لدعوة مستخدمين');
@@ -170,7 +332,8 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         throw new Error('يجب أن تكون مسؤول المؤسسة لدعوة مستخدمين');
       }
 
-      const { data, error } = await supabase.rpc('invite_user_to_organization', {
+      const supabaseClient = await getSupabaseClient();
+      const { data, error } = await supabaseClient.rpc('invite_user_to_organization', {
         user_email: email,
         user_role: role
       });
@@ -184,177 +347,61 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       console.error('Error inviting user to organization:', err);
       return { success: false, error: err as Error };
     }
-  };
+  }, [user, organization, isOrgAdmin]);
 
-  // تحديث بيانات المؤسسة
-  const refreshOrganizationData = async () => {
+  // تحديث بيانات المؤسسة - محسنة مع useCallback
+  const refreshOrganizationData = useCallback(async () => {
     if (authLoading) {
       return;
     }
 
     setIsLoading(true);
     setError(null);
+    loadingOrganization.current = true;
 
     try {
-      let organizationData = null;
-
-      // إذا كان هناك نطاق فرعي، ابحث عن المؤسسة بناءً على النطاق الفرعي
-      if (currentSubdomain) {
-        const { data: subdomainOrgData, error: subdomainError } = await supabase
-          .from('organizations')
-          .select('*')
-          .eq('subdomain', currentSubdomain)
-          .single();
-
-        if (subdomainError && subdomainError.code !== 'PGRST116') {
-          console.error('Error fetching organization by subdomain:', subdomainError);
-        } else if (subdomainOrgData) {
-          organizationData = subdomainOrgData;
-          
-          // التحقق مما إذا كان المستخدم الحالي هو مسؤول هذه المؤسسة
-          if (user) {
-            const { data: userData, error: userError } = await supabase
-              .from('users')
-              .select('is_org_admin')
-              .eq('id', user.id)
-              .eq('organization_id', organizationData.id)
-              .single();
-
-            if (userError && userError.code !== 'PGRST116') {
-              console.error('Error checking admin status:', userError);
-            } else if (userData) {
-              setIsOrgAdmin(userData.is_org_admin || false);
-            } else {
-              setIsOrgAdmin(false);
-            }
-          }
-        }
-      }
+      // استخدام النطاق الفرعي الحالي أو استخراجه من اسم المضيف
+      const subdomain = currentSubdomain || extractSubdomain(window.location.hostname);
       
-      // إذا لم يتم العثور على مؤسسة بناءً على النطاق الفرعي وكان المستخدم مسجلاً
-      if (!organizationData && user) {
-        // الاستعلام عن المؤسسة للمستخدم الحالي
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('organization_id, is_org_admin')
-          .eq('id', user.id)
-          .single();
-
-        if (userError && userError.code !== 'PGRST116') {
-          throw userError;
-        }
-        
-        // لا نستمر إلا إذا كان لدينا بيانات صالحة
-        if (userData?.organization_id) {
-          // استرجاع بيانات المؤسسة
-          const { data: orgData, error: orgError } = await supabase
-            .from('organizations')
-            .select('*')
-            .eq('id', userData.organization_id)
-            .single();
-
-          if (orgError) {
-            throw orgError;
-          }
-
-          organizationData = orgData;
-          setIsOrgAdmin(userData.is_org_admin || false);
-        }
-      }
-
-      setOrganization(organizationData);
+      // حذف التخزين المؤقت لضمان الحصول على أحدث البيانات
+      localStorage.removeItem(`tenant:subdomain:${subdomain}`);
       
-      // إذا لم يتم العثور على مؤسسة وكان المستخدم مسجلاً، فهو لا ينتمي إلى أي مؤسسة
-      if (!organizationData && user) {
-        setIsOrgAdmin(false);
+      const org = await fetchOrganizationBySubdomain(subdomain);
+      
+      if (org) {
+        setOrganization(org);
+        localStorage.setItem('bazaar_organization_id', org.id);
+      } else {
+        setOrganization(null);
       }
-    } catch (err) {
-      console.error('Error refreshing organization data:', err);
-      setError(err as Error);
+    } catch (error) {
+      console.error('خطأ في تحديث بيانات المؤسسة:', error);
+      setError(error as Error);
     } finally {
+      loadingOrganization.current = false;
       setIsLoading(false);
     }
-  };
+  }, [currentSubdomain, authLoading, fetchOrganizationBySubdomain]);
 
-  // جلب بيانات المؤسسة باستخدام النطاق الفرعي أو معرف المؤسسة
-  const fetchOrganizationBySubdomain = async (subdomain: string | null) => {
-    try {
-      if (!subdomain) {
-        return null;
-      }
-      
-      // التعامل مع النطاق الرئيسي
-      if (subdomain === 'main') {
-        console.log('جلب المؤسسة للنطاق الرئيسي باستخدام المعرف المخزن');
-        // محاولة استخدام معرف المؤسسة من التخزين المحلي
-        const storedOrgId = localStorage.getItem('bazaar_organization_id');
-        
-        if (!storedOrgId) {
-          console.log('لم يتم العثور على معرف مؤسسة مخزن، استخدام المعرف الافتراضي');
-          // استخدام معرف المؤسسة الافتراضي
-          const defaultOrgId = 'aacf0931-91aa-4da3-94e6-eef5d8956443';
-          
-          const { data, error } = await supabase
-            .from('organizations')
-            .select('*')
-            .eq('id', defaultOrgId)
-            .single();
-            
-          if (error) {
-            console.error('خطأ في جلب المؤسسة الافتراضية:', error);
-            return null;
-          }
-          
-          // حفظ المعرف في التخزين المحلي للمرات القادمة
-          localStorage.setItem('bazaar_organization_id', defaultOrgId);
-          return data;
-        }
-        
-        // استخدام المعرف المخزن
-        const { data, error } = await supabase
-          .from('organizations')
-          .select('*')
-          .eq('id', storedOrgId)
-          .single();
-        
-        if (error) {
-          console.error('خطأ في جلب المؤسسة من المعرف المخزن:', error);
-          return null;
-        }
-        
-        return data;
-      }
-      
-      // للنطاقات الفرعية الحقيقية
-      console.log('جاري البحث عن المؤسسة باستخدام النطاق الفرعي:', subdomain);
-      const { data, error } = await supabase
-        .from('organizations')
-        .select('*')
-        .eq('subdomain', subdomain)
-        .single();
-      
-      if (error) {
-        console.error('خطأ في جلب بيانات المؤسسة بواسطة النطاق الفرعي:', error);
-        return null;
-      }
-      
-      return data;
-    } catch (error) {
-      console.error('خطأ في جلب بيانات المؤسسة بواسطة النطاق الفرعي:', error);
-      return null;
-    }
-  };
-
-  // القيمة التي سيتم توفيرها من خلال السياق
-  const value: TenantContextType = {
+  // استخدام useMemo لتجنب إعادة الإنشاء
+  const value = useMemo(() => ({
     currentOrganization: organization,
+    tenant: organization,
     isOrgAdmin,
     isLoading,
     error,
     createOrganization,
     inviteUserToOrganization,
     refreshOrganizationData
-  };
+  }), [
+    organization, 
+    isOrgAdmin, 
+    isLoading, 
+    error, 
+    createOrganization, 
+    inviteUserToOrganization, 
+    refreshOrganizationData
+  ]);
 
   return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>;
 };

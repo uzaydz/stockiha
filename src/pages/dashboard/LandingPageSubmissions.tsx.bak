@@ -1,0 +1,453 @@
+import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import { useSupabase } from "@/context/SupabaseContext";
+import { useTenant } from "@/context/TenantContext";
+import Layout from "@/components/Layout";
+import { useToast } from "@/hooks/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Loader2, ShieldAlert, FileText } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { checkUserPermissions } from "@/lib/api/permissions";
+import LandingSubmissionsList from "@/components/landing-submissions/LandingSubmissionsList";
+import LandingSubmissionDetails from "@/components/landing-submissions/LandingSubmissionDetails";
+import LandingSubmissionsFilters from "@/components/landing-submissions/LandingSubmissionsFilters";
+import LandingSubmissionsStats from "@/components/landing-submissions/LandingSubmissionsStats";
+import EmptyState from "@/components/ui/empty-state";
+
+// تعريف نوع الطلب من صفحات الهبوط
+type LandingSubmission = {
+  id: string;
+  landing_page_id: string;
+  form_id: string | null;
+  product_id: string | null;
+  data: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+  is_processed: boolean;
+  processed_at: string | null;
+  processed_by: string | null;
+  notes: string | null;
+  // معلومات إضافية من العلاقات
+  landing_page_name?: string;
+  landing_page_slug?: string;
+  product_name?: string;
+};
+
+// تعريف أنواع حالات المعالجة
+type ProcessingStatus = 'processed' | 'unprocessed' | 'all';
+
+// صفحة عرض طلبات صفحات الهبوط
+const LandingPageSubmissions = () => {
+  const { t } = useTranslation();
+  const { toast } = useToast();
+  const { supabase } = useSupabase();
+  const { currentOrganization } = useTenant();
+  
+  // حالة البيانات
+  const [submissions, setSubmissions] = useState<LandingSubmission[]>([]);
+  const [filteredSubmissions, setFilteredSubmissions] = useState<LandingSubmission[]>([]);
+  const [selectedSubmission, setSelectedSubmission] = useState<LandingSubmission | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [filterStatus, setFilterStatus] = useState<ProcessingStatus>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedLandingPage, setSelectedLandingPage] = useState<string | null>(null);
+  const [landingPages, setLandingPages] = useState<{id: string, name: string}[]>([]);
+  
+  // إحصائيات
+  const [submissionCounts, setSubmissionCounts] = useState({
+    all: 0,
+    processed: 0,
+    unprocessed: 0
+  });
+  
+  // حالات التحكم في الصلاحيات
+  const [hasViewPermission, setHasViewPermission] = useState(false);
+  const [hasManagePermission, setHasManagePermission] = useState(false);
+  const [permissionLoading, setPermissionLoading] = useState(true);
+
+  // التحقق من صلاحيات المستخدم
+  useEffect(() => {
+    const checkPermissions = async () => {
+      setPermissionLoading(true);
+      
+      try {
+        // التحقق من صلاحية مشاهدة الطلبات
+        const canViewSubmissions = await checkUserPermissions(null, 'viewLandingPageSubmissions' as any) || 
+                                  await checkUserPermissions(null, 'manageOrganizationSettings' as any);
+        setHasViewPermission(canViewSubmissions);
+        
+        // التحقق من صلاحية إدارة الطلبات
+        const canManageSubmissions = await checkUserPermissions(null, 'manageLandingPageSubmissions' as any) || 
+                                    await checkUserPermissions(null, 'manageOrganizationSettings' as any);
+        setHasManagePermission(canManageSubmissions);
+      } catch (error) {
+        console.error('خطأ في التحقق من الصلاحيات:', error);
+        toast({
+          variant: "destructive",
+          title: t("permissions.error.title"),
+          description: t("permissions.error.description")
+        });
+      } finally {
+        setPermissionLoading(false);
+      }
+    };
+    
+    checkPermissions();
+  }, [toast, t]);
+
+  // جلب قائمة صفحات الهبوط للتصفية
+  useEffect(() => {
+    const fetchLandingPages = async () => {
+      if (!currentOrganization?.id) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('landing_pages')
+          .select('id, name')
+          .eq('organization_id', currentOrganization.id)
+          .eq('is_deleted', false)
+          .order('name');
+          
+        if (error) throw error;
+        
+        setLandingPages(data || []);
+      } catch (error) {
+        console.error('خطأ في جلب صفحات الهبوط:', error);
+      }
+    };
+    
+    fetchLandingPages();
+  }, [currentOrganization, supabase]);
+
+  // جلب طلبات صفحات الهبوط
+  useEffect(() => {
+    const fetchSubmissions = async () => {
+      if (!hasViewPermission && !permissionLoading) {
+        setLoading(false);
+        return;
+      }
+      
+      if (permissionLoading) {
+        return;
+      }
+      
+      if (!currentOrganization?.id) return;
+      
+      setLoading(true);
+      
+      try {
+        // استخدام الـ view الذي أنشأناه لعرض طلبات صفحات الهبوط مع معلومات إضافية
+        const { data, error } = await supabase
+          .from('landing_page_submissions_view')
+          .select('*')
+          .eq('organization_id', currentOrganization.id)
+          .order('created_at', { ascending: false });
+          
+        if (error) throw error;
+        
+        // تهيئة البيانات
+        const formattedSubmissions = data || [];
+        setSubmissions(formattedSubmissions);
+        
+        // حساب الإحصائيات
+        const counts = {
+          all: formattedSubmissions.length,
+          processed: formattedSubmissions.filter(s => s.is_processed).length,
+          unprocessed: formattedSubmissions.filter(s => !s.is_processed).length
+        };
+        
+        setSubmissionCounts(counts);
+      } catch (error) {
+        console.error('خطأ في جلب طلبات صفحات الهبوط:', error);
+        toast({
+          variant: "destructive",
+          title: t("submissions.fetch.error.title"),
+          description: t("submissions.fetch.error.description")
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchSubmissions();
+  }, [currentOrganization, supabase, hasViewPermission, permissionLoading, toast, t]);
+
+  // تطبيق التصفية
+  useEffect(() => {
+    let filtered = [...submissions];
+    
+    // تصفية حسب حالة المعالجة
+    if (filterStatus === 'processed') {
+      filtered = filtered.filter(submission => submission.is_processed);
+    } else if (filterStatus === 'unprocessed') {
+      filtered = filtered.filter(submission => !submission.is_processed);
+    }
+    
+    // تصفية حسب صفحة الهبوط
+    if (selectedLandingPage) {
+      filtered = filtered.filter(submission => submission.landing_page_id === selectedLandingPage);
+    }
+    
+    // تصفية حسب البحث في البيانات
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(submission => {
+        // البحث في اسم العميل
+        const customerName = (submission.data?.fullName || '').toLowerCase();
+        if (customerName.includes(query)) return true;
+        
+        // البحث في رقم الهاتف
+        const phone = (submission.data?.phone || '').toLowerCase();
+        if (phone.includes(query)) return true;
+        
+        // البحث في الولاية والبلدية
+        const province = (submission.data?.province || '').toLowerCase();
+        const municipality = (submission.data?.municipality || '').toLowerCase();
+        if (province.includes(query) || municipality.includes(query)) return true;
+        
+        // البحث في ملاحظات الطلب
+        const notes = (submission.notes || '').toLowerCase();
+        if (notes.includes(query)) return true;
+        
+        return false;
+      });
+    }
+    
+    setFilteredSubmissions(filtered);
+  }, [submissions, filterStatus, selectedLandingPage, searchQuery]);
+
+  // تحديث حالة المعالجة
+  const updateProcessingStatus = async (submissionId: string, isProcessed: boolean, notes?: string) => {
+    if (!hasManagePermission) {
+      toast({
+        variant: "destructive",
+        title: t("permissions.denied.title"),
+        description: t("permissions.denied.description")
+      });
+      return;
+    }
+    
+    try {
+      const updateData: {
+        is_processed: boolean;
+        processed_at?: string | null;
+        notes?: string;
+      } = {
+        is_processed: isProcessed,
+        processed_at: isProcessed ? new Date().toISOString() : null
+      };
+      
+      if (notes) {
+        updateData.notes = notes;
+      }
+      
+      const { error } = await supabase
+        .from('landing_page_submissions')
+        .update(updateData)
+        .eq('id', submissionId);
+        
+      if (error) throw error;
+      
+      // تحديث البيانات المحلية
+      const updatedSubmissions = submissions.map(submission => 
+        submission.id === submissionId 
+          ? { 
+              ...submission, 
+              is_processed: isProcessed, 
+              processed_at: isProcessed ? new Date().toISOString() : null,
+              notes: notes || submission.notes
+            } 
+          : submission
+      );
+      
+      setSubmissions(updatedSubmissions);
+      
+      if (selectedSubmission?.id === submissionId) {
+        setSelectedSubmission({
+          ...selectedSubmission,
+          is_processed: isProcessed,
+          processed_at: isProcessed ? new Date().toISOString() : null,
+          notes: notes || selectedSubmission.notes
+        });
+      }
+      
+      toast({
+        title: t("submissions.update.success.title"),
+        description: isProcessed 
+          ? t("submissions.update.success.processed") 
+          : t("submissions.update.success.unprocessed")
+      });
+    } catch (error) {
+      console.error('خطأ في تحديث حالة الطلب:', error);
+      toast({
+        variant: "destructive",
+        title: t("submissions.update.error.title"),
+        description: t("submissions.update.error.description")
+      });
+    }
+  };
+  
+  // تحويل طلب إلى طلب متجر
+  const convertToOrder = async (submissionId: string) => {
+    if (!hasManagePermission) {
+      toast({
+        variant: "destructive",
+        title: t("permissions.denied.title"),
+        description: t("permissions.denied.description")
+      });
+      return;
+    }
+    
+    try {
+      // استدعاء وظيفة تحويل الطلب
+      const { data, error } = await supabase.rpc(
+        'convert_landing_page_submission_to_order',
+        { submission_id: submissionId }
+      );
+      
+      if (error) throw error;
+      
+      // نجاح التحويل، تحديث البيانات المحلية
+      const orderId = data;
+      
+      toast({
+        title: t("submissions.convert.success.title"),
+        description: t("submissions.convert.success.description", { orderId })
+      });
+      
+      // تحديث البيانات المحلية
+      const updatedSubmissions = submissions.map(submission => 
+        submission.id === submissionId 
+          ? { 
+              ...submission, 
+              is_processed: true, 
+              processed_at: new Date().toISOString(),
+              notes: `تم تحويله إلى طلب رقم: ${orderId}`
+            } 
+          : submission
+      );
+      
+      setSubmissions(updatedSubmissions);
+      
+      if (selectedSubmission?.id === submissionId) {
+        setSelectedSubmission({
+          ...selectedSubmission,
+          is_processed: true,
+          processed_at: new Date().toISOString(),
+          notes: `تم تحويله إلى طلب رقم: ${orderId}`
+        });
+      }
+    } catch (error) {
+      console.error('خطأ في تحويل الطلب:', error);
+      toast({
+        variant: "destructive",
+        title: t("submissions.convert.error.title"),
+        description: t("submissions.convert.error.description")
+      });
+    }
+  };
+
+  // التحقق من وجود صلاحيات الوصول
+  if (!permissionLoading && !hasViewPermission) {
+    return (
+      <Layout>
+        <div className="container py-10">
+          <Alert variant="destructive">
+            <ShieldAlert className="h-4 w-4 mr-2" />
+            <AlertTitle>{t("permissions.denied.title")}</AlertTitle>
+            <AlertDescription>
+              {t("permissions.denied.pageAccess")}
+            </AlertDescription>
+          </Alert>
+        </div>
+      </Layout>
+    );
+  }
+
+  return (
+    <Layout>
+      <div className="container py-6">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">{t("submissions.title")}</h1>
+          
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setSelectedSubmission(null)}
+              disabled={!selectedSubmission}
+            >
+              {t("submissions.actions.backToList")}
+            </Button>
+          </div>
+        </div>
+        
+        {/* عرض المؤشر أثناء التحميل */}
+        {loading ? (
+          <div className="py-20 text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+            <p className="text-muted-foreground">
+              {t("submissions.loading")}
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* الإحصائيات */}
+            <LandingSubmissionsStats 
+              counts={submissionCounts} 
+              filterStatus={filterStatus}
+              setFilterStatus={setFilterStatus}
+            />
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+              {/* قائمة الطلبات وتفاصيل الطلب */}
+              <div className={`md:col-span-${selectedSubmission ? "1" : "3"}`}>
+                {/* عناصر التصفية */}
+                <LandingSubmissionsFilters 
+                  landingPages={landingPages}
+                  selectedLandingPage={selectedLandingPage}
+                  setSelectedLandingPage={setSelectedLandingPage}
+                  searchQuery={searchQuery}
+                  setSearchQuery={setSearchQuery}
+                />
+                
+                {/* قائمة الطلبات */}
+                {filteredSubmissions.length > 0 ? (
+                  <LandingSubmissionsList
+                    submissions={filteredSubmissions}
+                    selectedId={selectedSubmission?.id}
+                    onSelect={setSelectedSubmission}
+                    onUpdateStatus={updateProcessingStatus}
+                    onConvertToOrder={convertToOrder}
+                    hasManagePermission={hasManagePermission}
+                  />
+                ) : (
+                  <EmptyState
+                    icon={<FileText className="h-10 w-10 text-muted-foreground" />}
+                    title={t("submissions.empty.title")}
+                    description={t("submissions.empty.description")}
+                  />
+                )}
+              </div>
+              
+              {/* تفاصيل الطلب المحدد */}
+              {selectedSubmission && (
+                <div className="md:col-span-2">
+                  <LandingSubmissionDetails
+                    submission={selectedSubmission}
+                    onUpdateStatus={updateProcessingStatus}
+                    onConvertToOrder={convertToOrder}
+                    hasManagePermission={hasManagePermission}
+                  />
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </Layout>
+  );
+};
+
+export default LandingPageSubmissions; 

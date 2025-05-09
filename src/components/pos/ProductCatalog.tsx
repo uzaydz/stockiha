@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Product, ProductCategory } from '@/types';
-import { Search, Filter, ShoppingCart, Tag, Package, LayoutGrid, ListFilter, Percent, Users } from 'lucide-react';
+import { Search, Filter, ShoppingCart, Tag, Package, LayoutGrid, ListFilter, Percent, Users, Plus, ArrowUpDown, Layers, Grid3X3, Grid2X2, List } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -11,6 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { formatPrice } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { motion } from "framer-motion";
 
 interface ProductCatalogProps {
   products: Product[];
@@ -22,12 +23,13 @@ export default function ProductCatalog({ products, onAddToCart }: ProductCatalog
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [filteredProducts, setFilteredProducts] = useState<Product[]>(products);
   const [showFilters, setShowFilters] = useState(true);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'compact'>('grid');
+  const [sortOption, setSortOption] = useState<'name' | 'price-asc' | 'price-desc' | 'stock'>('name');
 
-  // Extractar categorías únicas de productos
+  // استخراج الفئات الفريدة للمنتجات
   const categories: string[] = ['all', ...Array.from(new Set(products.map(p => p.category)))];
   
-  // Nombres de categorías en árabe
+  // أسماء الفئات بالعربية
   const categoryNames: Record<string, string> = {
     'all': 'الكل',
     'consoles': 'أجهزة',
@@ -39,14 +41,16 @@ export default function ProductCatalog({ products, onAddToCart }: ProductCatalog
     'merchandise': 'منتجات تذكارية'
   };
 
+  // تصفية وفرز المنتجات
   useEffect(() => {
-    // Filtrar productos por búsqueda y categoría
     let filtered = products;
     
+    // تصفية حسب الفئة
     if (selectedCategory !== 'all') {
       filtered = filtered.filter(p => p.category === selectedCategory);
     }
     
+    // تصفية حسب البحث
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(p => 
@@ -57,8 +61,24 @@ export default function ProductCatalog({ products, onAddToCart }: ProductCatalog
       );
     }
     
+    // فرز المنتجات حسب الخيار المحدد
+    filtered = [...filtered].sort((a, b) => {
+      switch (sortOption) {
+        case 'name':
+          return a.name.localeCompare(b.name);
+        case 'price-asc':
+          return a.price - b.price;
+        case 'price-desc':
+          return b.price - a.price;
+        case 'stock':
+          return b.stockQuantity - a.stockQuantity;
+        default:
+          return 0;
+      }
+    });
+    
     setFilteredProducts(filtered);
-  }, [products, searchQuery, selectedCategory]);
+  }, [products, searchQuery, selectedCategory, sortOption]);
 
   const handleProductClick = (product: Product) => {
     if (product.stockQuantity > 0) {
@@ -66,11 +86,11 @@ export default function ProductCatalog({ products, onAddToCart }: ProductCatalog
     }
   };
 
-  // Helper function to render wholesale pricing badges
+  // دالة مساعدة لعرض شارات أسعار الجملة
   const renderWholesaleBadges = (product: Product) => {
     return (
       <div className="absolute top-2 left-2 flex flex-col gap-1">
-        {product.allow_wholesale && product.wholesale_price !== undefined && (
+        {(product as any).allow_wholesale && (product as any).wholesale_price !== undefined && (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -80,14 +100,14 @@ export default function ProductCatalog({ products, onAddToCart }: ProductCatalog
                 </Badge>
               </TooltipTrigger>
               <TooltipContent side="left">
-                <p className="text-xs">سعر الجملة: {formatPrice(product.wholesale_price ?? 0)}</p>
-                <p className="text-xs">الحد الأدنى: {product.min_wholesale_quantity} قطعة</p>
+                <p className="text-xs">سعر الجملة: {formatPrice((product as any).wholesale_price ?? 0)}</p>
+                <p className="text-xs">الحد الأدنى: {(product as any).min_wholesale_quantity} قطعة</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
         )}
         
-        {product.allow_partial_wholesale && product.partial_wholesale_price !== undefined && (
+        {(product as any).allow_partial_wholesale && (product as any).partial_wholesale_price !== undefined && (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -97,8 +117,8 @@ export default function ProductCatalog({ products, onAddToCart }: ProductCatalog
                 </Badge>
               </TooltipTrigger>
               <TooltipContent side="left">
-                <p className="text-xs">سعر الجملة الجزئية: {formatPrice(product.partial_wholesale_price ?? 0)}</p>
-                <p className="text-xs">الحد الأدنى: {product.min_partial_wholesale_quantity} قطعة</p>
+                <p className="text-xs">سعر الجملة الجزئية: {formatPrice((product as any).partial_wholesale_price ?? 0)}</p>
+                <p className="text-xs">الحد الأدنى: {(product as any).min_partial_wholesale_quantity} قطعة</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -113,10 +133,30 @@ export default function ProductCatalog({ products, onAddToCart }: ProductCatalog
     );
   };
 
+  // دالة مساعدة لعرض زر إضافة للسلة
+  const renderAddToCartButton = (product: Product) => {
+    if (product.stockQuantity <= 0) return null;
+    
+    return (
+      <Button 
+        size="sm" 
+        variant="ghost" 
+        className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 bg-primary text-primary-foreground hover:bg-primary/90 transition-all rounded-full w-8 h-8 p-0 shadow-md"
+        onClick={(e) => {
+          e.stopPropagation();
+          onAddToCart(product);
+        }}
+      >
+        <Plus className="h-4 w-4" />
+        <span className="sr-only">إضافة إلى السلة</span>
+      </Button>
+    );
+  };
+
   return (
-    <div className="flex flex-col h-full bg-gradient-to-b from-card to-background rounded-lg border shadow-md overflow-hidden">
-      {/* Barra de búsqueda y filtros */}
-      <div className="bg-card/95 backdrop-blur-sm p-3 mb-1 shadow-sm border-b">
+    <div className="flex flex-col h-full bg-gradient-to-b from-card/50 to-background/50 rounded-lg border shadow-md overflow-hidden">
+      {/* شريط البحث والفلترة */}
+      <div className="bg-gradient-to-r from-card/95 to-card/80 backdrop-blur-sm p-3 border-b sticky top-0 z-10">
         <div className="flex gap-2 mb-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -128,33 +168,76 @@ export default function ProductCatalog({ products, onAddToCart }: ProductCatalog
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
+          
+          {/* زر ترتيب المنتجات */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  size="icon"
+                  onClick={() => {
+                    // تبديل بين خيارات الترتيب
+                    const options: ('name' | 'price-asc' | 'price-desc' | 'stock')[] = ['name', 'price-asc', 'price-desc', 'stock'];
+                    const currentIndex = options.indexOf(sortOption);
+                    const nextIndex = (currentIndex + 1) % options.length;
+                    setSortOption(options[nextIndex]);
+                  }}
+                  className="flex-shrink-0 shadow-sm"
+                >
+                  <ArrowUpDown className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>
+                  {sortOption === 'name' && 'ترتيب: الاسم'}
+                  {sortOption === 'price-asc' && 'ترتيب: السعر (تصاعدي)'}
+                  {sortOption === 'price-desc' && 'ترتيب: السعر (تنازلي)'}
+                  {sortOption === 'stock' && 'ترتيب: المخزون'}
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          
+          {/* زر إظهار/إخفاء الفلاتر */}
           <Button 
             variant="outline" 
             size="icon"
             onClick={() => setShowFilters(!showFilters)}
             className={cn("flex-shrink-0 shadow-sm", showFilters && "bg-primary/10 text-primary border-primary/50")}
           >
-            <ListFilter className="h-4 w-4" />
+            <Filter className="h-4 w-4" />
           </Button>
+          
+          {/* زر تغيير طريقة العرض */}
           <Button
             variant="outline"
             size="icon"
-            onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
+            onClick={() => {
+              // تبديل بين طرق العرض الثلاثة
+              if (viewMode === 'grid') setViewMode('compact');
+              else if (viewMode === 'compact') setViewMode('list');
+              else setViewMode('grid');
+            }}
             className="flex-shrink-0 shadow-sm"
           >
-            {viewMode === 'grid' ? (
-              <LayoutGrid className="h-4 w-4" />
-            ) : (
-              <ListFilter className="h-4 w-4" />
-            )}
+            {viewMode === 'grid' && <Grid3X3 className="h-4 w-4" />}
+            {viewMode === 'compact' && <Grid2X2 className="h-4 w-4" />}
+            {viewMode === 'list' && <List className="h-4 w-4" />}
           </Button>
         </div>
         
+        {/* علامات تبويب الفئات */}
         {showFilters && (
-          <div className="pt-1 pb-1">
+          <motion.div 
+            className="pt-1 pb-1"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+          >
             <Tabs defaultValue="all" value={selectedCategory} className="w-full" onValueChange={setSelectedCategory}>
               <ScrollArea className="max-w-full">
-                <TabsList className="flex flex-nowrap overflow-auto bg-background/40 shadow-sm">
+                <TabsList className="flex flex-nowrap overflow-auto bg-background/40 shadow-sm rounded-md">
                   {categories.map(category => (
                     <TabsTrigger
                       key={category}
@@ -168,57 +251,135 @@ export default function ProductCatalog({ products, onAddToCart }: ProductCatalog
                 </TabsList>
               </ScrollArea>
             </Tabs>
-          </div>
+          </motion.div>
         )}
       </div>
 
       <Separator className="opacity-50" />
 
-      {/* Sección de información */}
-      <div className="bg-muted/30 px-4 py-2 flex items-center justify-between text-sm border-b">
+      {/* قسم المعلومات */}
+      <div className="bg-gradient-to-r from-muted/30 to-muted/10 px-4 py-2 flex items-center justify-between text-sm border-b sticky top-[68px] z-10">
         <div className="flex items-center gap-2">
           <Package className="h-4 w-4 text-primary/70" />
           <span>المنتجات: {filteredProducts.length}</span>
         </div>
-        <div className="text-muted-foreground">
+        <div className="text-muted-foreground flex items-center gap-2">
           {selectedCategory !== 'all' && (
-            <Badge variant="outline" className="mr-2 bg-background shadow-sm border-primary/20">
+            <Badge variant="outline" className="bg-background/80 shadow-sm border-primary/20">
               {categoryNames[selectedCategory] || selectedCategory}
             </Badge>
           )}
           {searchQuery && (
-            <Badge variant="outline" className="bg-background shadow-sm border-primary/20">
+            <Badge variant="outline" className="bg-background/80 shadow-sm border-primary/20">
               بحث: {searchQuery}
             </Badge>
           )}
         </div>
       </div>
 
-      {/* Catálogo de productos */}
+      {/* كتالوج المنتجات */}
       <ScrollArea className="flex-1">
         {filteredProducts.length === 0 ? (
-          <div className="h-40 flex flex-col items-center justify-center text-muted-foreground">
+          <div className="h-40 flex flex-col items-center justify-center text-muted-foreground p-6">
             <Package className="h-12 w-12 mb-2 opacity-20" />
-            <p>لم يتم العثور على منتجات</p>
+            <p className="mb-2">لم يتم العثور على منتجات</p>
             <Button 
-              variant="link" 
+              variant="outline" 
               onClick={() => {
                 setSearchQuery('');
                 setSelectedCategory('all');
               }}
+              className="bg-background/80"
             >
               إعادة ضبط الفلتر
             </Button>
           </div>
         ) : viewMode === 'grid' ? (
-          <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 p-4">
+          <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 gap-4 p-4">
             {filteredProducts.map((product) => (
-              <div
+              <motion.div
                 key={product.id}
+                layout
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ duration: 0.2 }}
                 className={cn(
-                  "rounded-md border overflow-hidden transition-all hover:shadow-md relative group",
+                  "rounded-xl border overflow-hidden transition-all hover:shadow-lg relative group",
                   product.stockQuantity > 0 
                     ? "hover:border-primary/50 cursor-pointer bg-card hover:translate-y-[-2px]" 
+                    : "opacity-70 bg-muted/40 border-muted"
+                )}
+                onClick={() => handleProductClick(product)}
+              >
+                <div className="relative aspect-square bg-gradient-to-br from-white to-gray-50">
+                  <img
+                    src={product.thumbnailImage || '/placeholder-product.svg'}
+                    alt={product.name}
+                    className="object-contain w-full h-full p-2"
+                  />
+                  
+                  {product.stockQuantity <= 0 && (
+                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-sm">
+                      <span className="text-white text-sm font-medium px-3 py-1.5 bg-black/70 rounded-full">نفذت الكمية</span>
+                    </div>
+                  )}
+                  
+                  {product.stockQuantity > 0 && product.stockQuantity <= 5 && (
+                    <Badge variant="destructive" className="absolute top-2 right-2 shadow-md px-2 py-1">
+                      الكمية {product.stockQuantity}
+                    </Badge>
+                  )}
+                  
+                  {/* عرض شارات الجملة */}
+                  {renderWholesaleBadges(product)}
+                  
+                  {product.compareAtPrice && product.compareAtPrice > product.price && (
+                    <div className="absolute bottom-2 right-2 bg-primary text-primary-foreground text-xs px-2 py-1 rounded-full font-medium flex items-center shadow-md">
+                      <Percent className="h-3 w-3 mr-1" />
+                      {Math.round((1 - product.price / product.compareAtPrice) * 100)}%
+                    </div>
+                  )}
+
+                  {/* زر إضافة للسلة */}
+                  {renderAddToCartButton(product)}
+                </div>
+                
+                <div className="p-3 border-t bg-card">
+                  <h3 className="font-medium text-sm line-clamp-1 mb-1">{product.name}</h3>
+                  <div className="flex items-baseline justify-between">
+                    <div className="flex flex-col">
+                      <span className="font-bold text-primary">
+                        {formatPrice(product.price)}
+                      </span>
+                      {product.compareAtPrice && product.compareAtPrice > product.price && (
+                        <span className="text-xs text-muted-foreground line-through">
+                          {formatPrice(product.compareAtPrice)}
+                        </span>
+                      )}
+                    </div>
+                    <Badge variant="outline" className="text-xs bg-muted/30">
+                      {product.sku}
+                    </Badge>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        ) : viewMode === 'compact' ? (
+          <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2 p-4">
+            {filteredProducts.map((product) => (
+              <motion.div
+                key={product.id}
+                layout
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ duration: 0.15 }}
+                className={cn(
+                  "rounded-lg border overflow-hidden transition-all relative group",
+                  product.stockQuantity > 0 
+                    ? "hover:border-primary/50 cursor-pointer bg-card hover:translate-y-[-1px] hover:shadow" 
                     : "opacity-70 bg-muted/40 border-muted"
                 )}
                 onClick={() => handleProductClick(product)}
@@ -227,132 +388,86 @@ export default function ProductCatalog({ products, onAddToCart }: ProductCatalog
                   <img
                     src={product.thumbnailImage || '/placeholder-product.svg'}
                     alt={product.name}
-                    className="object-cover w-full h-full"
+                    className="object-contain w-full h-full p-1"
                   />
                   
                   {product.stockQuantity <= 0 && (
                     <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                      <span className="text-white text-sm font-medium px-2 py-1 bg-black/50 rounded">نفذت الكمية</span>
+                      <span className="text-white text-xs font-medium px-1.5 py-0.5 bg-black/70 rounded">نفذ</span>
                     </div>
                   )}
                   
                   {product.stockQuantity > 0 && product.stockQuantity <= 5 && (
-                    <Badge variant="destructive" className="absolute top-2 right-2 shadow-sm">
-                      الكمية {product.stockQuantity}
+                    <Badge variant="destructive" className="absolute top-1 right-1 shadow-sm text-[10px] px-1 py-0">
+                      {product.stockQuantity}
                     </Badge>
                   )}
-                  
-                  {/* Render wholesale badges */}
-                  {renderWholesaleBadges(product)}
-                  
-                  {product.compareAtPrice && product.compareAtPrice > product.price && (
-                    <div className="absolute bottom-2 right-2 bg-primary text-primary-foreground text-xs px-1.5 py-0.5 rounded-sm font-medium flex items-center shadow-sm">
-                      <Percent className="h-3 w-3 mr-0.5" />
-                      {Math.round((1 - product.price / product.compareAtPrice) * 100)}%
-                    </div>
-                  )}
-                  
-                  {product.stockQuantity > 0 && (
-                    <Button 
-                      size="icon" 
-                      variant="secondary"
-                      className="absolute bottom-2 left-2 h-7 w-7 rounded-full opacity-0 group-hover:opacity-100 bg-primary text-primary-foreground transition-opacity shadow-md"
-                    >
-                      <ShoppingCart className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
                 </div>
-                <div className="p-3">
-                  <h3 className="text-sm font-medium line-clamp-1">{product.name}</h3>
-                  <div className="flex justify-between items-center mt-1">
-                    <span className="text-primary font-bold">{formatPrice(product.price)}</span>
-                    {product.compareAtPrice && (
-                      <span className="text-xs text-muted-foreground line-through">
-                        {formatPrice(product.compareAtPrice)}
-                      </span>
-                    )}
-                  </div>
-                  {(product.wholesale_price !== undefined || product.partial_wholesale_price !== undefined) && (
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {product.wholesale_price !== undefined && (
-                        <span className="mr-1">جملة: {formatPrice(product.wholesale_price)}</span>
-                      )}
-                      {product.partial_wholesale_price !== undefined && (
-                        <span>ج.جزئية: {formatPrice(product.partial_wholesale_price)}</span>
-                      )}
-                    </div>
-                  )}
+                
+                <div className="p-2 text-center border-t bg-background/50">
+                  <h3 className="text-xs line-clamp-1">{product.name}</h3>
+                  <p className="font-semibold text-xs text-primary">{formatPrice(product.price)}</p>
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         ) : (
-          <div className="p-4 space-y-3">
+          <div className="p-4 space-y-2">
             {filteredProducts.map((product) => (
-              <Card 
+              <motion.div
                 key={product.id}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ duration: 0.2 }}
                 className={cn(
-                  "overflow-hidden transition-all border",
+                  "rounded-lg border overflow-hidden transition-all hover:shadow flex items-center relative group",
                   product.stockQuantity > 0 
-                    ? "hover:border-primary/50 cursor-pointer hover:shadow-md hover:translate-y-[-2px]" 
+                    ? "hover:border-primary/50 cursor-pointer bg-card" 
                     : "opacity-70 bg-muted/40 border-muted"
                 )}
                 onClick={() => handleProductClick(product)}
               >
-                <CardContent className="p-0">
-                  <div className="flex gap-3 p-3">
-                    <div className="w-16 h-16 xs:w-20 xs:h-20 rounded-md overflow-hidden flex-shrink-0 bg-white border shadow-sm">
-                      <img
-                        src={product.thumbnailImage || '/placeholder-product.svg'}
-                        alt={product.name}
-                        className="object-cover w-full h-full"
-                      />
+                <div className="relative h-16 w-16 bg-white">
+                  <img
+                    src={product.thumbnailImage || '/placeholder-product.svg'}
+                    alt={product.name}
+                    className="object-contain w-full h-full p-1"
+                  />
+                  
+                  {product.stockQuantity <= 0 && (
+                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                      <span className="text-white text-xs font-medium px-1 py-0.5 bg-black/70 rounded">نفذ</span>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between">
-                        <h3 className="font-medium line-clamp-1 text-sm sm:text-base">{product.name}</h3>
-                        <Badge variant="outline" className="mr-2 h-6 bg-primary/10 text-primary border-primary/30">
-                          {product.stockQuantity > 0 ? `المخزون: ${product.stockQuantity}` : 'نفذت الكمية'}
-                        </Badge>
+                  )}
+                </div>
+                
+                <div className="p-3 flex-1">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-medium text-sm">{product.name}</h3>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="font-bold text-sm text-primary">
+                          {formatPrice(product.price)}
+                        </span>
+                        {product.compareAtPrice && product.compareAtPrice > product.price && (
+                          <span className="text-xs text-muted-foreground line-through">
+                            {formatPrice(product.compareAtPrice)}
+                          </span>
+                        )}
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{product.description}</p>
-                      <div className="flex flex-wrap items-center justify-between mt-2">
-                        <div>
-                          <span className="text-primary font-bold text-sm">{formatPrice(product.price)}</span>
-                          {product.compareAtPrice && (
-                            <span className="text-xs text-muted-foreground line-through ml-2">
-                              {formatPrice(product.compareAtPrice)}
-                            </span>
-                          )}
-                          {(product.wholesale_price !== undefined || product.partial_wholesale_price !== undefined) && (
-                            <div className="mt-0.5 text-xs text-muted-foreground">
-                              {product.wholesale_price !== undefined && (
-                                <span className="mr-1">جملة: {formatPrice(product.wholesale_price)}</span>
-                              )}
-                              {product.partial_wholesale_price !== undefined && (
-                                <span>ج.جزئية: {formatPrice(product.partial_wholesale_price)}</span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          {product.allow_wholesale && (
-                            <Badge variant="outline" className="bg-blue-500/90 text-white border-blue-600 text-xs h-6">
-                              <Users className="h-3 w-3 mr-1" />
-                              جملة
-                            </Badge>
-                          )}
-                          {product.isDigital && (
-                            <Badge variant="outline" className="bg-background text-xs h-6">
-                              رقمي
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge variant="outline" className="text-xs bg-muted/30">
+                        {product.sku}
+                      </Badge>
+                      <Badge variant={product.stockQuantity <= 5 ? "destructive" : "secondary"} className="text-xs">
+                        المخزون: {product.stockQuantity}
+                      </Badge>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </motion.div>
             ))}
           </div>
         )}

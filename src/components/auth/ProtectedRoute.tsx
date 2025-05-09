@@ -5,6 +5,12 @@ import { isUserAdmin } from '@/lib/api/admin';
 import { getCurrentUserProfile } from '@/lib/api/users';
 import { UserRole } from '@/types';
 import { supabase } from '@/lib/supabase';
+import { 
+  refreshCache, 
+  getCachedPermissions, 
+  hasCachedPermissions,
+  cachePermissions
+} from '@/lib/PermissionsCache';
 
 type ProtectedRouteProps = {
   children?: ReactNode;
@@ -24,11 +30,54 @@ const ProtectedRoute = ({
   const [checkingPermissions, setCheckingPermissions] = useState(false);
   const [initialCheckDone, setInitialCheckDone] = useState(false);
   const [authCheckAttempts, setAuthCheckAttempts] = useState(0);
+  const [permissionsCached, setPermissionsCached] = useState(false);
 
   console.log(`ProtectedRoute initialization - Path: ${location.pathname}, Loading: ${loading}, User: ${!!user}, Session: ${!!session}, Subdomain: ${currentSubdomain}`);
 
   useEffect(() => {
+    // عند تغيير المسار، تحقق من وجود تخزين مؤقت للتحقق السابق
+    if (hasCachedPermissions()) {
+      refreshCache(); // تحديث وقت انتهاء الصلاحية
+      setPermissionsCached(true);
+      setInitialCheckDone(true);
+      
+      // استخراج المعلومات من التخزين المؤقت
+      const cachedData = getCachedPermissions();
+      if (cachedData) {
+        // تعيين حالة المسؤول من التخزين المؤقت
+        const isAdminFromCache = 
+          cachedData.is_super_admin === true || 
+          cachedData.user_metadata?.is_super_admin === true ||
+          cachedData.app_metadata?.is_super_admin === true ||
+          cachedData.role === 'admin';
+          
+        if (isAdminFromCache) {
+          setIsAdmin(true);
+        }
+        
+        // تعيين دور المستخدم من التخزين المؤقت
+        const roleFromCache = 
+          cachedData.role || 
+          cachedData.user_metadata?.role || 
+          cachedData.app_metadata?.role;
+          
+        if (roleFromCache) {
+          setUserRole(roleFromCache as UserRole);
+        }
+      }
+    } else {
+      setPermissionsCached(false);
+    }
+  }, [location.pathname]);
+
+  useEffect(() => {
     const checkUserPermissions = async () => {
+      // تخطي التحقق إذا كانت المعلومات مخزنة مؤقتًا
+      if (permissionsCached) {
+        console.log("استخدام معلومات الصلاحيات من التخزين المؤقت");
+        return;
+      }
+      
       console.log(`Checking user permissions - User: ${!!user}, Loading: ${loading}, Attempts: ${authCheckAttempts}`);
       if (user) {
         setCheckingPermissions(true);
@@ -44,6 +93,13 @@ const ProtectedRoute = ({
             const userProfile = await getCurrentUserProfile();
             if (userProfile) {
               setUserRole(userProfile.role as UserRole);
+              
+              // تخزين معلومات المستخدم في التخزين المؤقت
+              cachePermissions({
+                ...user,
+                role: userProfile.role,
+                permissions: userProfile.permissions
+              });
             }
           }
           console.log("User permission check completed successfully");
@@ -63,9 +119,12 @@ const ProtectedRoute = ({
       }
     };
 
-    // Only run the check if we're not in a loading state
-    if (!loading) {
+    // Only run the check if we're not in a loading state and don't have cached permissions
+    if (!loading && !permissionsCached) {
       checkUserPermissions();
+    } else if (permissionsCached) {
+      // إذا كانت المعلومات مخزنة مؤقتًا، اعتبر التحقق منتهيًا
+      setInitialCheckDone(true);
     }
     
     // Add a safety check to prevent infinite loading
@@ -78,7 +137,7 @@ const ProtectedRoute = ({
     }, 5000);
     
     return () => clearTimeout(timeout);
-  }, [user, requireAdmin, allowedRoles, loading, authCheckAttempts]);
+  }, [user, requireAdmin, allowedRoles, loading, authCheckAttempts, permissionsCached]);
 
   // Check if URL has a typo (dashbord instead of dashboard)
   useEffect(() => {

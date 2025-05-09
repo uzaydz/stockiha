@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import Navbar from '@/components/Navbar';
 import StoreFooter from '@/components/store/StoreFooter';
 import { useTenant } from '@/context/TenantContext';
 import { getProductCategories } from '@/api/store';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Category } from '@/api/store';
+import performanceTracking from '@/lib/performance-tracking';
+import { useLocation } from 'react-router-dom';
 
 interface StoreLayoutProps {
   children: React.ReactNode;
@@ -13,6 +15,7 @@ interface StoreLayoutProps {
 const StoreLayout = ({ children }: StoreLayoutProps) => {
   const { currentOrganization } = useTenant();
   const [categories, setCategories] = useState<Category[]>([]);
+  const location = useLocation();
   
   // جلب فئات المنتجات من قاعدة البيانات
   useEffect(() => {
@@ -31,6 +34,30 @@ const StoreLayout = ({ children }: StoreLayoutProps) => {
 
     fetchCategories();
   }, [currentOrganization?.id]);
+
+  // تتبع أداء الصفحة
+  useEffect(() => {
+    // تسجيل وقت تحميل الصفحة عند اكتمال التحميل
+    const trackPagePerformance = () => {
+      performanceTracking.trackPageLoad(
+        location.pathname,
+        currentOrganization?.id,
+        window.location.hostname.split('.')[0]
+      );
+    };
+    
+    // Track on initial load
+    window.addEventListener('load', trackPagePerformance);
+    
+    // Track on component mount if the page is already loaded
+    if (document.readyState === 'complete') {
+      trackPagePerformance();
+    }
+    
+    return () => {
+      window.removeEventListener('load', trackPagePerformance);
+    };
+  }, [location.pathname, currentOrganization?.id]);
 
   return (
     <div className="flex flex-col min-h-screen">

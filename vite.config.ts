@@ -1,8 +1,25 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
+import { Plugin } from 'vite';
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
+
+// Custom plugin to ensure correct content types
+function contentTypePlugin(): Plugin {
+  return {
+    name: 'content-type-plugin',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        // Set proper content type for HTML files
+        if (req.url === '/' || req.url?.endsWith('.html')) {
+          res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        }
+        next();
+      });
+    }
+  };
+}
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -25,7 +42,14 @@ export default defineConfig(({ mode }) => {
       },
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/javascript; charset=utf-8'
+        'X-Content-Type-Options': 'nosniff'
+      },
+      proxy: {
+        '/yalidine-api': {
+          target: 'https://api.yalidine.app/v1',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/yalidine-api/, '')
+        }
       }
     },
     base: '/',
@@ -37,6 +61,7 @@ export default defineConfig(({ mode }) => {
       }),
       mode === 'development' &&
       componentTagger(),
+      contentTypePlugin(), // Add our custom content type plugin
     ].filter(Boolean),
     resolve: {
       alias: {

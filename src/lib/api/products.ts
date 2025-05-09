@@ -1,5 +1,5 @@
-import { supabase } from '@/lib/supabase';
-import { getSupabaseClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-client';
+import { getSupabaseClient } from '@/lib/supabase-client';
 import type { Database } from '@/types/database.types';
 
 export type Product = Database['public']['Tables']['products']['Row'] & {
@@ -44,6 +44,7 @@ export interface InsertProduct {
   organization_id: string;
   slug: string;
   use_sizes?: boolean;
+  category?: string;
 }
 
 export type UpdateProduct = Omit<Database['public']['Tables']['products']['Update'], 'category' | 'subcategory'> & {
@@ -83,6 +84,8 @@ export type Category = Database['public']['Tables']['product_categories']['Row']
 export type Subcategory = Database['public']['Tables']['product_subcategories']['Row'];
 
 export const getProducts = async (organizationId?: string, includeInactive: boolean = false): Promise<Product[]> => {
+  console.log("=== getProducts called with organizationId:", organizationId, "includeInactive:", includeInactive, "===");
+  
   try {
     if (!organizationId) {
       console.error("لم يتم تمرير معرف المؤسسة إلى وظيفة getProducts");
@@ -91,32 +94,35 @@ export const getProducts = async (organizationId?: string, includeInactive: bool
     
     console.log("جلب المنتجات للمؤسسة:", organizationId);
     
+    // Use a simpler approach with consistent logging
+    console.log("Starting Supabase query for products...");
+    
+    // Always use the same query pattern for consistent behavior
     let query = supabase
       .from('products')
-      .select(`
-        *,
-        category:category_id(id, name, slug),
-        subcategory:subcategory_id(id, name, slug)
-      `)
-      .eq('organization_id', organizationId);
-      
-    // إذا كان includeInactive = false، أضف شرط is_active = true
+      .select('*');
+    
+    // Add organization filter
+    query = query.eq('organization_id', organizationId);
+    
+    // Add active filter if needed
     if (!includeInactive) {
       query = query.eq('is_active', true);
     }
-
+    
+    console.log("Executing database query...");
     const { data, error } = await query;
-
+    
     if (error) {
       console.error('خطأ في جلب المنتجات:', error);
-      throw error;
+      return [];
     }
-
-    console.log(`تم جلب ${data?.length || 0} منتج للمؤسسة ${organizationId}`);
+    
+    console.log(`Query successful. تم جلب ${data?.length || 0} منتج للمؤسسة ${organizationId}`);
     return data || [];
   } catch (error) {
     console.error('خطأ غير متوقع أثناء جلب المنتجات:', error);
-    return [];
+    return []; // Return empty array to prevent UI from hanging
   }
 };
 

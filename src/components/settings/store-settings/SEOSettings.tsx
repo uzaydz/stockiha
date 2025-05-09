@@ -75,12 +75,27 @@ interface SEOSettings {
 const getDefaultSEOSettings = (settings: OrganizationSettings): SEOSettings => {
   if (settings.custom_js) {
     try {
-      const customData = JSON.parse(settings.custom_js);
-      if (customData.seoSettings) {
-        return customData.seoSettings;
+      // التحقق من أن البيانات هي JSON صالح
+      let customJsStr = settings.custom_js;
+      
+      // إزالة أي تعليقات أو أكواد جافاسكريبت غير صالحة
+      if (customJsStr.includes('//') || customJsStr.includes('function')) {
+        // إذا كانت البيانات تحتوي على تعليقات أو دوال، استخدم القيم الافتراضية
+        console.log('تم اكتشاف بيانات غير صالحة في custom_js، استخدام القيم الافتراضية لـ SEO');
+        // العودة مباشرة إلى القيم الافتراضية بدلاً من محاولة تحليل JSON
+      } else {
+        try {
+          const customData = JSON.parse(customJsStr);
+          if (customData && customData.seoSettings) {
+            return customData.seoSettings;
+          }
+        } catch (innerError) {
+          console.error('خطأ في تحليل JSON في getDefaultSEOSettings:', innerError);
+        }
       }
     } catch (error) {
       console.error('فشل تحليل إعدادات SEO', error);
+      // استمر باستخدام القيم الافتراضية
     }
   }
 
@@ -128,9 +143,20 @@ interface SEOSettingsProps {
 
 const SEOSettings = ({ settings, updateSetting }: SEOSettingsProps) => {
   // استخراج إعدادات SEO الحالية أو استخدام القيم الافتراضية
-  const [seoSettings, setSeoSettings] = React.useState<SEOSettings>(
-    getDefaultSEOSettings(settings)
-  );
+  // تأخير تهيئة الحالة باستخدام دالة للتعامل مع الأخطاء بشكل أفضل
+  const [seoSettings, setSeoSettings] = React.useState<SEOSettings>(() => {
+    try {
+      return getDefaultSEOSettings(settings);
+    } catch (error) {
+      console.error('خطأ في تهيئة إعدادات SEO:', error);
+      // العودة إلى القيم الافتراضية في حالة الخطأ
+      return {
+        title: settings.site_name || '',
+        description: '',
+        keywords: '',
+      } as SEOSettings;
+    }
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = React.useState(false);
   const { toast } = useToast();
@@ -162,7 +188,27 @@ const SEOSettings = ({ settings, updateSetting }: SEOSettingsProps) => {
       }
 
       // تحديث الإعدادات العامة
-      const customJs = settings.custom_js ? JSON.parse(settings.custom_js) : {};
+      // تعريف الكائن بنوع مناسب لتجنب أخطاء TypeScript
+      let customJs: { seoSettings?: SEOSettings } = {};
+      
+      try {
+        // التحقق من أن البيانات هي JSON صالح
+        if (settings.custom_js) {
+          // التحقق من وجود تعليقات أو دوال جافاسكريبت
+          if (settings.custom_js.includes('//') || settings.custom_js.includes('function')) {
+            console.log('تم اكتشاف بيانات غير صالحة في custom_js، استخدام كائن جديد');
+          } else {
+            // تحليل JSON والتأكد من أنه كائن
+            const parsed = JSON.parse(settings.custom_js);
+            if (parsed && typeof parsed === 'object') {
+              customJs = parsed;
+            }
+          }
+        }
+      } catch (error) {
+        console.error('خطأ في تحليل custom_js:', error);
+      }
+      
       customJs.seoSettings = updated;
       updateSetting('custom_js', JSON.stringify(customJs));
 

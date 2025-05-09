@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, startTransition, Suspense } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   ShoppingCart, 
@@ -58,6 +58,7 @@ import { useTenant } from '@/context/TenantContext';
 import { getOrganizationSettings } from '@/lib/api/settings';
 import { getProductCategories } from '@/api/store';
 import { Category } from '@/api/store';
+import { flushSync } from 'react-dom';
 
 interface NavbarProps {
   className?: string;
@@ -78,8 +79,11 @@ const Navbar = ({ className, toggleSidebar, isSidebarOpen, categories: propCateg
   const [notifications, setNotifications] = useState(3);
   const [showNotificationDot, setShowNotificationDot] = useState(true);
   const { currentOrganization } = useTenant();
+  
+  // استخدام useRef للحفاظ على مفتاح التخزين المؤقت
+  const cacheKey = useRef<string>(`org_settings_${window.location.hostname}`);
   const [orgLogo, setOrgLogo] = useState<string>('');
-  const [siteName, setSiteName] = useState<string>('stockiha');
+  const [siteName, setSiteName] = useState<string>('');
   const [displayTextWithLogo, setDisplayTextWithLogo] = useState<boolean>(true);
   const [storeCategories, setStoreCategories] = useState<Category[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
@@ -87,6 +91,19 @@ const Navbar = ({ className, toggleSidebar, isSidebarOpen, categories: propCateg
   
   const totalItems = cart.reduce((total, item) => total + item.quantity, 0);
   const isAdminPage = location.pathname.startsWith('/dashboard');
+  
+  // تطبيق View Transitions API للتغييرات المرئية
+  const applyViewTransition = (callback: () => void) => {
+    if (document.startViewTransition) {
+      document.startViewTransition(() => {
+        flushSync(() => {
+          callback();
+        });
+      });
+    } else {
+      callback();
+    }
+  };
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -106,16 +123,57 @@ const Navbar = ({ className, toggleSidebar, isSidebarOpen, categories: propCateg
     fetchUserProfile();
   }, [user]);
   
-  // تحميل شعار وإعدادات المنظمة
+  // محسن - استرجاع إعدادات المنظمة من التخزين المؤقت أولاً للعرض الفوري
   useEffect(() => {
+    // تحميل البيانات من التخزين المحلي أولاً للعرض الفوري
+    const loadCachedOrgSettings = () => {
+      const cachedData = localStorage.getItem(cacheKey.current);
+      if (cachedData) {
+        try {
+          const { orgLogo, siteName, displayTextWithLogo, timestamp } = JSON.parse(cachedData);
+          
+          // استخدام البيانات المخزنة مؤقتًا فقط إذا كانت حديثة (أقل من ساعة)
+          const isRecent = (Date.now() - timestamp) < (60 * 60 * 1000);
+          
+          if (isRecent) {
+            applyViewTransition(() => {
+              setOrgLogo(orgLogo || '');
+              setSiteName(siteName || currentOrganization?.name || '');
+              setDisplayTextWithLogo(displayTextWithLogo !== false);
+            });
+            return true;
+          }
+        } catch (e) {
+          console.error('خطأ في تحليل البيانات المخزنة مؤقتًا:', e);
+        }
+      }
+      return false;
+    };
+    
+    // إذا لم نجد بيانات في التخزين المؤقت، نضع اسم المنظمة مؤقتًا
+    if (!loadCachedOrgSettings() && currentOrganization?.name) {
+      setSiteName(currentOrganization.name);
+    }
+    
+    // تحميل البيانات من السيرفر فقط إذا كان هناك معرف منظمة
     const loadOrgSettings = async () => {
       if (currentOrganization?.id) {
         try {
           const settings = await getOrganizationSettings(currentOrganization.id);
           if (settings) {
-            setOrgLogo(settings.logo_url || '');
-            setSiteName(settings.site_name || currentOrganization.name || 'stockiha');
-            setDisplayTextWithLogo(settings.display_text_with_logo !== false);
+            applyViewTransition(() => {
+              setOrgLogo(settings.logo_url || '');
+              setSiteName(settings.site_name || currentOrganization.name || '');
+              setDisplayTextWithLogo(settings.display_text_with_logo !== false);
+            });
+            
+            // تخزين البيانات في التخزين المحلي
+            localStorage.setItem(cacheKey.current, JSON.stringify({
+              orgLogo: settings.logo_url || '',
+              siteName: settings.site_name || currentOrganization.name || '',
+              displayTextWithLogo: settings.display_text_with_logo !== false,
+              timestamp: Date.now()
+            }));
           }
         } catch (error) {
           console.error('Error loading organization settings:', error);
@@ -123,8 +181,14 @@ const Navbar = ({ className, toggleSidebar, isSidebarOpen, categories: propCateg
       }
     };
     
-    loadOrgSettings();
-  }, [currentOrganization?.id]);
+    // استخدام requestIdleCallback لتحميل البيانات الحقيقية في وقت الخمول
+    if ('requestIdleCallback' in window) {
+      window.requestIdleCallback(() => loadOrgSettings(), { timeout: 1000 });
+    } else {
+      // للمتصفحات التي لا تدعم requestIdleCallback
+      setTimeout(loadOrgSettings, 100);
+    }
+  }, [currentOrganization?.id, currentOrganization?.name]);
   
   // تحميل فئات المتجر من قاعدة البيانات إذا لم يتم تمريرها كخصائص
   useEffect(() => {

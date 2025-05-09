@@ -7,29 +7,70 @@ const supabaseServiceKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || '';
 
 // الاحتفاظ بمثيل واحد فقط من Supabase Admin
 let supabaseAdminInstance: ReturnType<typeof createClient<Database>> | null = null;
+let adminInstanceInitialized = false;
 
+/**
+ * دالة للحصول على عميل Supabase بصلاحيات المسؤول
+ * تستخدم نمط Singleton لضمان وجود نسخة واحدة فقط
+ */
 export const getSupabaseAdmin = () => {
-  if (!supabaseAdminInstance) {
-    console.log('Creando nueva instancia de Supabase Admin');
-    // إنشاء اتصال Supabase باستخدام مفتاح الخدمة لتجاوز سياسات RLS
-    supabaseAdminInstance = createClient<Database>(
-      supabaseUrl, 
-      supabaseServiceKey,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-          // استخدام مفتاح تخزين مختلف لتجنب تعارضات المصادقة مع عملاء آخرين
-          storageKey: 'bazaar-admin-token-unique'
+  if (!supabaseAdminInstance && !adminInstanceInitialized) {
+    adminInstanceInitialized = true; // وضع علامة على أن التهيئة قيد التنفيذ
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('عدم وجود متغيرات البيئة المطلوبة لـ Supabase Admin!');
+      adminInstanceInitialized = false; // إعادة تعيين العلامة في حالة الفشل
+      return null;
+    }
+    
+    try {
+      // إنشاء اتصال Supabase باستخدام مفتاح الخدمة لتجاوز سياسات RLS
+      // استخدام إعدادات خاصة لتجنب التعارض مع عميل المستخدم العادي
+      supabaseAdminInstance = createClient<Database>(
+        supabaseUrl, 
+        supabaseServiceKey,
+        {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false,
+            // إعدادات محددة لتجنب تعارضات المصادقة
+            detectSessionInUrl: false,
+            // استخدام مفتاح تخزين مختلف تمامًا
+            storageKey: 'bazaar-admin-storage-key-unique',
+            // عدم استخدام التخزين المستمر للجلسة
+            storage: {
+              getItem: () => Promise.resolve(null),
+              setItem: () => Promise.resolve(),
+              removeItem: () => Promise.resolve()
+            }
+          },
+          global: {
+            headers: {
+              'X-Client-Info': 'bazaar-admin-client',
+            }
+          }
         }
-      }
-    );
+      );
+    } catch (error) {
+      console.error('فشل في إنشاء عميل Supabase Admin:', error);
+      supabaseAdminInstance = null;
+      adminInstanceInitialized = false; // إعادة تعيين العلامة في حالة الفشل
+    }
   }
   return supabaseAdminInstance;
 };
 
-// للتوافق مع الكود السابق
-export const supabaseAdmin = getSupabaseAdmin(); 
+// كائن وسيط للتهيئة الكسولة لعميل المسؤول
+export const supabaseAdmin = new Proxy({} as ReturnType<typeof createClient<Database>>, {
+  get(target, prop, receiver) {
+    // تهيئة العميل عند أي محاولة للوصول
+    const client = getSupabaseAdmin();
+    if (!client) {
+      throw new Error('فشل في تهيئة عميل Supabase Admin');
+    }
+    return Reflect.get(client, prop, receiver);
+  }
+});
 
 /**
  * دالة لتجاوز خطأ الوصول المباشر إلى information_schema
@@ -37,15 +78,12 @@ export const supabaseAdmin = getSupabaseAdmin();
  */
 export const getTables = async (): Promise<string[]> => {
   try {
-    const supabase = getSupabaseAdmin();
     // استخدام RPC get_available_tables بدون أي باراميتر
     try {
-      const { data, error } = await supabase.rpc('get_available_tables');
-      console.log('نتائج الجداول من Supabase:', data);
+      const { data, error } = await supabaseAdmin.rpc('get_available_tables');
       if (!error && Array.isArray(data)) {
         // استخراج أسماء الجداول فقط من النتائج مع fallback
         const tableNames = data.map(item => item.table_name || item.tablename).filter(Boolean);
-        console.log('تم الحصول على الجداول باستخدام get_available_tables:', tableNames);
         if (tableNames.length === 0) {
           console.warn('لم يتم العثور على أي جداول في النتائج!');
         }
@@ -57,10 +95,9 @@ export const getTables = async (): Promise<string[]> => {
     
     // الخيار 2: محاولة استخدام get_public_tables
     try {
-      const { data, error } = await supabase.rpc('get_public_tables');
+      const { data, error } = await supabaseAdmin.rpc('get_public_tables');
       
       if (!error && Array.isArray(data)) {
-        console.log('تم الحصول على الجداول باستخدام get_public_tables:', data);
         return data;
       }
     } catch (error2) {
@@ -78,7 +115,6 @@ export const getTables = async (): Promise<string[]> => {
       
       if (Array.isArray(data) && data.length > 0) {
         const tableNames = data.map(item => item.table_name || item.tablename);
-        console.log('تم الحصول على الجداول باستخدام استعلام مباشر:', tableNames);
         return tableNames;
       }
     } catch (error3) {
@@ -87,7 +123,7 @@ export const getTables = async (): Promise<string[]> => {
     
     // الخيار 4: محاولة استخدام الوصول المباشر إلى جدول معلومات النظام
     try {
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from('information_schema.tables')
         .select('table_name')
         .eq('table_schema', 'public')
@@ -95,7 +131,6 @@ export const getTables = async (): Promise<string[]> => {
       
       if (!error && Array.isArray(data) && data.length > 0) {
         const tableNames = data.map(item => item.table_name);
-        console.log('تم الحصول على الجداول باستخدام الوصول المباشر إلى information_schema:', tableNames);
         return tableNames;
       }
     } catch (error4) {
@@ -137,13 +172,11 @@ export const getTables = async (): Promise<string[]> => {
   }
 }; 
 
-// الدالة المساعدة لتنفيذ استعلام SQL مباشر إذا لم يكن query_tables متاحًا
+// الدالة المساعدة لتنفيذ استعلام SQL مباشر
 export const executeRawQuery = async (queryText: string): Promise<any[]> => {
-  const supabase = getSupabaseAdmin();
-  
   // محاولة استخدام query_tables RPC أولاً
   try {
-    const { data, error } = await supabase.rpc('query_tables', { query_text: queryText });
+    const { data, error } = await supabaseAdmin.rpc('query_tables', { query_text: queryText });
     
     if (!error && Array.isArray(data)) {
       return data;
@@ -169,14 +202,11 @@ export const executeRawQuery = async (queryText: string): Promise<any[]> => {
 
 /**
  * دالة مساعدة للحصول على فهارس جدول
- * تستخدم عدة طرق للمحاولة في حالة عدم توفر الوظيفة الأساسية
  */
 export const getTableIndexes = async (tableName: string): Promise<any[]> => {
-  const supabase = getSupabaseAdmin();
-  
   // محاولة استخدام get_table_indexes RPC أولاً
   try {
-    const { data, error } = await supabase.rpc('get_table_indexes', { table_name: tableName });
+    const { data, error } = await supabaseAdmin.rpc('get_table_indexes', { table_name: tableName });
     
     if (!error && Array.isArray(data)) {
       return data;
@@ -213,14 +243,11 @@ export const getTableIndexes = async (tableName: string): Promise<any[]> => {
 
 /**
  * دالة مساعدة للحصول على أعمدة جدول
- * تستخدم عدة طرق للمحاولة في حالة عدم توفر الوظيفة الأساسية
  */
 export const getTableColumns = async (tableName: string): Promise<any[]> => {
-  const supabase = getSupabaseAdmin();
-  
   // محاولة استخدام get_table_columns RPC أولاً
   try {
-    const { data, error } = await supabase.rpc('get_table_columns', { p_table_name: tableName });
+    const { data, error } = await supabaseAdmin.rpc('get_table_columns', { p_table_name: tableName });
     
     if (!error && Array.isArray(data)) {
       return data;
@@ -231,7 +258,7 @@ export const getTableColumns = async (tableName: string): Promise<any[]> => {
   
   // محاولة استخدام المخطط المعلوماتي كبديل
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('information_schema.columns')
       .select('column_name, data_type, character_maximum_length, is_nullable, column_default')
       .eq('table_schema', 'public')
@@ -249,21 +276,21 @@ export const getTableColumns = async (tableName: string): Promise<any[]> => {
   try {
     return await executeRawQuery(`
       SELECT 
-        column_name, 
+        column_name,
         data_type,
-        character_maximum_length::text,
-        is_nullable, 
+        character_maximum_length,
+        is_nullable,
         column_default
       FROM 
-        information_schema.columns 
+        information_schema.columns
       WHERE 
-        table_schema = 'public' 
-        AND table_name = '${tableName}'
+        table_schema = 'public' AND
+        table_name = '${tableName}'
       ORDER BY 
         ordinal_position
     `);
   } catch (error) {
-    console.warn(`فشل في استرداد أعمدة جدول ${tableName} بالطريقة البديلة:`, error);
+    console.warn(`فشل في استخدام الاستعلام المباشر للحصول على أعمدة جدول ${tableName}:`, error);
     return [];
   }
 }; 

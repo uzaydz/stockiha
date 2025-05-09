@@ -132,12 +132,24 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
           
           if (orgSettings.custom_js) {
             try {
-              const pixelSettings = JSON.parse(orgSettings.custom_js);
-              if (pixelSettings.trackingPixels) {
+              // التحقق من أن البيانات هي JSON صالح
+              let customJsStr = orgSettings.custom_js;
+              
+              // إزالة أي تعليقات أو أكواد جافاسكريبت غير صالحة
+              if (customJsStr.includes('//') || customJsStr.includes('function')) {
+                // إذا كانت البيانات تحتوي على تعليقات أو دوال، استخدم القيم الافتراضية
+                console.log('تم اكتشاف بيانات غير صالحة في custom_js، استخدام القيم الافتراضية');
+                // استخدام القيم الافتراضية للمتابعة
+                return;
+              }
+              
+              const pixelSettings = JSON.parse(customJsStr);
+              if (pixelSettings && pixelSettings.trackingPixels) {
                 setTrackingPixels(pixelSettings.trackingPixels);
               }
             } catch (error) {
               console.error('فشل تحليل بيانات بكسل التتبع', error);
+              // استمر باستخدام القيم الافتراضية
             }
           }
         }

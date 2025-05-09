@@ -4,7 +4,7 @@
 import React, { ReactNode } from 'react';
 import { Helmet } from 'react-helmet-async';
 import Navbar from './Navbar';
-import SideMenu from './SideMenu';
+import SideMenu from './sidebar/SideMenu';
 import { useAuth } from '@/context/AuthContext';
 
 interface AdminLayoutProps {

@@ -7,7 +7,7 @@ import { useTenant } from '@/context/TenantContext';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { getSupabaseClient } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase-client';
 
 // واجهة الفئة الممتدة للعرض
 interface ExtendedCategory {

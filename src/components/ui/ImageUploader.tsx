@@ -1,4 +1,4 @@
-import { useState, useRef, forwardRef, useImperativeHandle, useEffect } from "react";
+import { useState, useRef, forwardRef, useImperativeHandle, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Upload, X, ImageIcon, Loader2 } from "lucide-react";
@@ -18,6 +18,7 @@ interface ImageUploaderProps {
   folder?: string;
   maxSizeInMB?: number;
   disableAutoCallback?: boolean;
+  compact?: boolean;
 }
 
 // تصدير واجهة لوظائف المكون التي يمكن استدعاؤها من الخارج
@@ -35,6 +36,7 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
   aspectRatio,
   className = "",
   disableAutoCallback = false,
+  compact = false
 }, ref) => {
   const [isUploading, setIsUploading] = useState(false);
   const [preview, setPreview] = useState<string>(imageUrl);
@@ -42,11 +44,17 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { currentOrganization } = useTenant();
-  const supabase = getSupabaseClient();
+  
+  // استخدام useMemo لإنشاء عميل Supabase مرة واحدة فقط
+  const supabase = useMemo(() => getSupabaseClient(), []);
   
   // تحديث الحالة عندما يتغير imageUrl من الخارج
   useEffect(() => {
-    console.log("ImageUploader received imageUrl:", imageUrl);
+    // تجنب طباعة رسائل التصحيح المتكررة في البيئة الإنتاجية
+    if (process.env.NODE_ENV !== 'production') {
+      console.log("ImageUploader received imageUrl:", imageUrl);
+    }
+    
     if (imageUrl && imageUrl.trim() !== "") {
       // معالجة الصور المخزنة محليًا باستخدام البروتوكول القديم
       if (imageUrl.startsWith('local:')) {
@@ -225,8 +233,6 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
   // دالة لرفع الصورة إلى Supabase فقط
   const uploadImageWithOfflineSupport = async (file: File, filePath: string): Promise<string> => {
     try {
-      const supabase = getSupabaseClient();
-      
       // للتأكد من أن الملف فعلاً ملف وليس شيئًا آخر
       if (!(file instanceof File)) {
         throw new Error('الملف المقدم ليس ملفًا صالحًا');
@@ -437,45 +443,67 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
 
   return (
     <div className={`space-y-2 ${className}`}>
-      {label && <Label className="block text-right">{label}</Label>}
+      {label && !compact && <Label className="block text-right">{label}</Label>}
       
-      <div className={`border rounded-md overflow-hidden relative ${preview ? "p-0" : "p-6"}`}>
+      <div className={`border rounded-md overflow-hidden relative ${preview ? "p-0" : compact ? "p-2" : "p-6"}`}>
         {preview ? (
           <div className="relative group">
-            <img src={getDisplayUrl(preview)} alt="معاينة" className="w-full h-auto max-h-72 object-contain mx-auto" />
+            <img 
+              src={getDisplayUrl(preview)} 
+              alt="معاينة" 
+              className={`w-full h-auto object-contain mx-auto ${compact ? 'max-h-24' : 'max-h-72'}`}
+            />
             {isUploading && (
               <div className="absolute inset-0 flex justify-center items-center bg-black/40">
-                <Loader2 className="h-8 w-8 animate-spin text-white" />
+                <Loader2 className={`${compact ? 'h-6 w-6' : 'h-8 w-8'} animate-spin text-white`} />
               </div>
             )}
             <div className="absolute inset-0 flex justify-center items-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity">
-              <Button size="sm" variant="destructive" onClick={handleRemoveImage} disabled={isUploading}>
-                <X className="h-4 w-4 mr-1" /> حذف
+              <Button 
+                size="sm"
+                variant="destructive" 
+                onClick={handleRemoveImage} 
+                disabled={isUploading}
+                className={compact ? "h-6 px-1.5 text-xs" : ""}
+              >
+                <X className={compact ? "h-3 w-3 mr-0.5" : "h-4 w-4 mr-1"} /> {compact ? "" : "حذف"}
               </Button>
-              <Button size="sm" variant="secondary" onClick={handleTriggerFileInput} className="mr-2" disabled={isUploading}>
-                <Upload className="h-4 w-4 mr-1" /> تغيير
+              <Button 
+                size="sm"
+                variant="secondary" 
+                onClick={handleTriggerFileInput} 
+                className={`mr-2 ${compact ? "h-6 px-1.5 text-xs" : ""}`} 
+                disabled={isUploading}
+              >
+                <Upload className={compact ? "h-3 w-3 mr-0.5" : "h-4 w-4 mr-1"} /> {compact ? "" : "تغيير"}
               </Button>
             </div>
           </div>
         ) : (
           <div
-            className="flex flex-col items-center justify-center cursor-pointer min-h-[150px]"
+            className={`flex flex-col items-center justify-center cursor-pointer ${compact ? 'min-h-[80px]' : 'min-h-[150px]'}`}
             onClick={handleTriggerFileInput}
           >
             {isUploading ? (
               <div className="flex flex-col items-center">
-                <Loader2 className="h-12 w-12 animate-spin text-muted-foreground mb-2" />
-                <p className="text-sm text-center text-muted-foreground">جاري رفع الصورة...</p>
+                <Loader2 className={`${compact ? 'h-6 w-6 mb-1' : 'h-12 w-12 mb-2'} animate-spin text-muted-foreground`} />
+                <p className={`${compact ? 'text-xs' : 'text-sm'} text-center text-muted-foreground`}>
+                  {compact ? "جاري الرفع..." : "جاري رفع الصورة..."}
+                </p>
               </div>
             ) : (
               <>
-                <UploadCloud className="h-12 w-12 mb-2 text-muted-foreground" />
-                <p className="text-sm text-center text-muted-foreground">
-                  انقر هنا لرفع صورة
-                  <br />
-                  <span className="text-xs">
-                    (الحد الأقصى للحجم: {maxSizeInMB} ميجابايت)
-                  </span>
+                <UploadCloud className={`${compact ? 'h-6 w-6 mb-1' : 'h-12 w-12 mb-2'} text-muted-foreground`} />
+                <p className={`${compact ? 'text-xs' : 'text-sm'} text-center text-muted-foreground`}>
+                  {compact ? "انقر للرفع" : "انقر هنا لرفع صورة"}
+                  {!compact && (
+                    <>
+                      <br />
+                      <span className="text-xs">
+                        (الحد الأقصى للحجم: {maxSizeInMB} ميجابايت)
+                      </span>
+                    </>
+                  )}
                 </p>
               </>
             )}

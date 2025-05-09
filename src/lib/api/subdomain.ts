@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { getSupabaseClient } from '@/lib/supabase';
 
 /**
  * التحقق من توفر النطاق الفرعي
@@ -48,7 +49,8 @@ export const getOrganizationBySubdomain = async (subdomain: string) => {
   
   try {
     console.log(`محاولة جلب المؤسسة باستخدام النطاق الفرعي: ${subdomain}`);
-    const { data, error } = await supabase
+    const supabaseClient = await getSupabaseClient();
+    const { data, error } = await supabaseClient
       .from('organizations')
       .select('*')
       .eq('subdomain', subdomain)
@@ -78,7 +80,8 @@ export const getOrganizationBySubdomain = async (subdomain: string) => {
 export const getOrganizationById = async (organizationId: string) => {
   try {
     console.log(`محاولة جلب المؤسسة باستخدام المعرف: ${organizationId}`);
-    const { data, error } = await supabase
+    const supabaseClient = await getSupabaseClient();
+    const { data, error } = await supabaseClient
       .from('organizations')
       .select('*')
       .eq('id', organizationId)

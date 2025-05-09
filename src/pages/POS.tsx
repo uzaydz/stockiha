@@ -39,8 +39,9 @@ interface CartItem {
 }
 
 const POS = () => {
-  const { products, services, orders, addOrder, users, isLoading, refreshData } = useShop();
+  const { products: shopProducts, services, orders, addOrder, users, isLoading, refreshData } = useShop();
   const { user } = useAuth();
+  const [products, setProducts] = useState<Product[]>([]);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [selectedServices, setSelectedServices] = useState<(Service & { 
     scheduledDate?: Date; 
@@ -61,6 +62,14 @@ const POS = () => {
   
   // إضافة حالة لطي/توسيع الإجراءات السريعة
   const [isQuickActionsExpanded, setIsQuickActionsExpanded] = useState(false);
+
+  // تعديل: مباشرة تعيين المنتجات من متجر التطبيق
+  useEffect(() => {
+    if (shopProducts.length > 0) {
+      console.log("تم العثور على المنتجات من السياق:", shopProducts.length);
+      setProducts(shopProducts);
+    }
+  }, [shopProducts]);
 
   // جلب الطلبات الأخيرة والمنتجات المفضلة
   useEffect(() => {
@@ -652,7 +661,7 @@ const POS = () => {
                     <ServiceManager
                       services={services}
                       customers={users.filter(u => u.role === 'customer')}
-                      onServiceSelected={handleAddService}
+                      onAddService={handleAddService}
                     />
                   )}
                 </TabsContent>

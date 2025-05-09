@@ -2,6 +2,11 @@ import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { SubscriptionService } from '@/lib/subscription-service';
+import { 
+  cacheSubscriptionStatus,
+  getCachedSubscriptionStatus,
+  refreshCache
+} from '@/lib/PermissionsCache';
 
 interface SubscriptionCheckProps {
   children: React.ReactNode;
@@ -37,17 +42,41 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
     const checkSubscription = async () => {
       if (!organization) return;
 
+      // أولاً، تحقق من التخزين المؤقت
+      const cachedSubscription = getCachedSubscriptionStatus();
+      if (cachedSubscription) {
+        console.log('[SubscriptionCheck] استخدام معلومات الاشتراك من التخزين المؤقت');
+        
+        // إذا كان الاشتراك نشطًا أو الفترة التجريبية سارية
+        if (cachedSubscription.isActive) {
+          console.log('[SubscriptionCheck] اشتراك نشط موجود (من التخزين المؤقت)');
+          // تحديث وقت انتهاء الصلاحية
+          refreshCache();
+          return;
+        } else {
+          console.log('[SubscriptionCheck] الاشتراك غير نشط أو منتهي (من التخزين المؤقت)');
+          navigate('/dashboard/subscription');
+          return;
+        }
+      }
+
       // التعامل مع كائن المؤسسة باستخدام الواجهة المحسنة
       const org = organization as unknown as OrganizationWithSettings;
+      let isSubscriptionActive = false;
+      let subscriptionInfo = { isActive: false, status: '', message: '' };
 
       // التحقق من وجود اشتراك نشط
       if (org.subscription_status === 'active' && org.subscription_id) {
         console.log('[SubscriptionCheck] اشتراك نشط موجود');
-        return; // الاشتراك نشط
+        isSubscriptionActive = true;
+        subscriptionInfo = {
+          isActive: true,
+          status: 'active',
+          message: 'اشتراك نشط'
+        };
       }
-
       // التحقق من الفترة التجريبية
-      if (org.subscription_status === 'trial') {
+      else if (org.subscription_status === 'trial') {
         let isTrialActive = false;
         let logMessage = '';
         
@@ -65,7 +94,12 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
           console.log(logMessage);
           
           if (isTrialActive) {
-            return; // الفترة التجريبية لازالت سارية
+            isSubscriptionActive = true;
+            subscriptionInfo = {
+              isActive: true,
+              status: 'trial',
+              message: 'الفترة التجريبية سارية'
+            };
           }
         } else {
           // استخدام الطريقة القديمة كاحتياط (5 أيام من تاريخ الإنشاء)
@@ -76,17 +110,25 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
           console.log(logMessage);
           
           if (isTrialActive) {
-            return; // الفترة التجريبية لازالت سارية
+            isSubscriptionActive = true;
+            subscriptionInfo = {
+              isActive: true,
+              status: 'trial',
+              message: `الفترة التجريبية سارية (${daysLeft} يوم متبقية)`
+            };
           }
         }
-        
-        // إذا وصلنا هنا، فالفترة التجريبية منتهية
-        console.log('[SubscriptionCheck] الفترة التجريبية منتهية، إعادة التوجيه إلى صفحة الاشتراك');
       }
 
-      // إذا كان الاشتراك منتهي أو غير موجود أو انتهت الفترة التجريبية
-      console.log('[SubscriptionCheck] إعادة التوجيه إلى صفحة الاشتراك');
-      navigate('/dashboard/subscription');
+      // تخزين نتيجة التحقق في التخزين المؤقت
+      console.log('[SubscriptionCheck] تخزين معلومات الاشتراك في التخزين المؤقت:', subscriptionInfo);
+      cacheSubscriptionStatus(subscriptionInfo);
+
+      // إذا كان الاشتراك غير نشط، إعادة التوجيه إلى صفحة الاشتراك
+      if (!isSubscriptionActive) {
+        console.log('[SubscriptionCheck] إعادة التوجيه إلى صفحة الاشتراك');
+        navigate('/dashboard/subscription');
+      }
     };
 
     checkSubscription();

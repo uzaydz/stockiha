@@ -1,7 +1,8 @@
-import { supabase as importedSupabase } from '../supabase';
+import { supabase } from '../supabase-client';
 import { UserSettings, OrganizationSettings, SettingsTemplate, UpdateSettingsPayload, SettingsResponse, UserThemeMode, OrganizationThemeMode } from '../../types/settings';
 import { apiClient } from '@/lib/api/client';
-import { getSupabaseClient } from '../supabase';
+import { getSupabaseClient } from '../supabase-client';
+import { withCache, LONG_CACHE_TTL } from '@/lib/cache/storeCache';
 
 // ====================== إعدادات المستخدم ======================
 
@@ -214,47 +215,103 @@ export const updateUserSettings = async (
  */
 export const getOrganizationSettings = async (organizationId: string): Promise<OrganizationSettings | null> => {
   try {
-    console.log('Getting organization settings for organization ID:', organizationId);
-    
     if (!organizationId) {
       console.error('No organization ID provided');
       return getDefaultOrganizationSettings('default-org');
     }
     
+    // استخدام التخزين المؤقت لتقليل الاستعلامات المتكررة
+    return withCache<OrganizationSettings | null>(
+      `organization_settings:${organizationId}`,
+      async () => {
+        console.log('Getting organization settings for organization ID:', organizationId);
+        
+        const supabase = getSupabaseClient();
+        
+        // استخدام الدالة get_organization_theme أولاً للحصول على إعدادات الثيم بما في ذلك القيم الافتراضية
+        const themeSettings = await getOrganizationTheme(organizationId);
+        
+        const { data, error, status } = await supabase
+          .from('organization_settings')
+          .select('*')
+          .eq('organization_id', organizationId)
+          .single();
+
+        if (error) {
+          if (status === 406 || error.code === 'PGRST116') {
+            // لا توجد إعدادات للمؤسسة - نستخدم القيم من themeSettings أو القيم الافتراضية
+            console.log('No settings found for organization, using theme settings or default values:', organizationId);
+            const defaultSettings = getDefaultOrganizationSettings(organizationId);
+            
+            // دمج القيم من themeSettings مع الإعدادات الافتراضية
+            if (themeSettings) {
+              return { 
+                ...defaultSettings, 
+                theme_primary_color: themeSettings.theme_primary_color,
+                theme_secondary_color: themeSettings.theme_secondary_color,
+                theme_mode: themeSettings.theme_mode as 'light' | 'dark' | 'auto',
+                site_name: themeSettings.site_name || defaultSettings.site_name,
+                logo_url: themeSettings.logo_url || defaultSettings.logo_url,
+                favicon_url: themeSettings.favicon_url || defaultSettings.favicon_url
+              };
+            }
+            
+            return defaultSettings;
+          }
+          
+          console.error('Error fetching organization settings:', error);
+          return getDefaultOrganizationSettings(organizationId);
+        }
+        
+        // دمج الإعدادات المخزنة مع إعدادات الثيم
+        if (themeSettings) {
+          return {
+            ...data,
+            theme_primary_color: themeSettings.theme_primary_color || data.theme_primary_color,
+            theme_secondary_color: themeSettings.theme_secondary_color || data.theme_secondary_color,
+            theme_mode: (themeSettings.theme_mode as 'light' | 'dark' | 'auto') || data.theme_mode,
+            site_name: themeSettings.site_name || data.site_name,
+            logo_url: themeSettings.logo_url || data.logo_url,
+            favicon_url: themeSettings.favicon_url || data.favicon_url
+          };
+        }
+        
+        return data;
+      },
+      LONG_CACHE_TTL, // تخزين مؤقت طويل المدى (24 ساعة)
+      true // استخدام ذاكرة التطبيق للوصول السريع
+    );
+  } catch (error) {
+    console.error('Unexpected error in getOrganizationSettings:', error);
+    return getDefaultOrganizationSettings(organizationId);
+  }
+};
+
+/**
+ * الحصول على إعدادات الثيم والألوان للمؤسسة باستخدام دالة get_organization_theme
+ */
+export const getOrganizationTheme = async (organizationId: string) => {
+  try {
+    if (!organizationId) {
+      return null;
+    }
+    
     const supabase = getSupabaseClient();
     
-    const { data, error, status } = await supabase
-      .from('organization_settings')
-      .select('*')
-      .eq('organization_id', organizationId)
-      .single();
-
-    if (error) {
-      if (status === 406 || error.code === 'PGRST116') {
-        // لا توجد إعدادات للمؤسسة - نستخدم القيم الافتراضية
-        console.log('No settings found for organization, using default values:', organizationId);
-        return getDefaultOrganizationSettings(organizationId);
-      }
-      
-      console.error('Error fetching organization settings:', error);
-      return getDefaultOrganizationSettings(organizationId);
-    }
-
-    console.log('Organization settings found:', data);
+    // استدعاء دالة get_organization_theme المخصصة التي تطبق القيم الافتراضية
+    const { data, error } = await supabase.rpc('get_organization_theme', {
+      p_organization_id: organizationId
+    });
     
-    // Verificación adicional para asegurarnos de que los datos corresponden a la organización correcta
-    if (data && data.organization_id === organizationId) {
-      return data;
-    } else {
-      console.warn('Organization ID mismatch in settings data', {
-        requestedId: organizationId,
-        returnedId: data?.organization_id
-      });
-      return getDefaultOrganizationSettings(organizationId);
+    if (error) {
+      console.error('Error fetching organization theme:', error);
+      return null;
     }
+    
+    return data.length > 0 ? data[0] : null;
   } catch (error) {
-    console.error('Unexpected error while fetching organization settings:', error);
-    return getDefaultOrganizationSettings(organizationId);
+    console.error('Unexpected error while fetching organization theme:', error);
+    return null;
   }
 };
 

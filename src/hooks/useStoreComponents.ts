@@ -41,6 +41,12 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
     }
   };
 
+  // التحقق مما إذا كان المستخدم مسجل دخول
+  const isUserLoggedIn = async (): Promise<boolean> => {
+    const { data } = await supabase.auth.getSession();
+    return !!data.session?.user;
+  };
+
   // وظيفة جلب مكونات المتجر
   const fetchStoreComponents = async () => {
     if (!organizationId) return;
@@ -48,11 +54,30 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
     try {
       setIsLoading(true);
       
-      // استخدام وظيفة get_store_settings من قاعدة البيانات
-      const { data, error } = await supabase
-        .rpc('get_store_settings', {
-          p_organization_id: organizationId
+      // التحقق مما إذا كان المستخدم مسجل دخول
+      const isLoggedIn = await isUserLoggedIn();
+      console.log("حالة تسجيل الدخول:", isLoggedIn ? "مسجل دخول" : "زائر");
+      
+      let data, error;
+      
+      if (isLoggedIn) {
+        // استخدام وظيفة get_store_settings للمستخدمين المسجلين
+        const result = await supabase.rpc('get_store_settings', {
+          p_organization_id: organizationId,
+          p_public_access: false
         });
+        data = result.data;
+        error = result.error;
+      } else {
+        // استخدام وظيفة get_store_settings للزوار مع p_public_access = true
+        console.log("استخدام get_store_settings مع p_public_access = true للزائر");
+        const result = await supabase.rpc('get_store_settings', {
+          p_organization_id: organizationId,
+          p_public_access: true
+        });
+        data = result.data;
+        error = result.error;
+      }
 
       if (error) {
         console.error('Error fetching store components:', error);
@@ -93,7 +118,9 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
         }
       } else {
         // إذا لم يكن هناك مكونات محفوظة، تهيئة إعدادات المتجر
-        initializeStoreComponents();
+        if (isLoggedIn) {
+          initializeStoreComponents();
+        }
       }
     } catch (error) {
       console.error('Error in fetching store components:', error);
@@ -130,7 +157,8 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
       // إعادة تحميل المكونات بعد التهيئة
       const { data: storeData, error: storeError } = await supabase
         .rpc('get_store_settings', {
-          p_organization_id: organizationId
+          p_organization_id: organizationId,
+          p_public_access: false
         });
 
       if (storeError) {

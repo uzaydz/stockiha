@@ -15,10 +15,6 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.error('عدم وجود متغيرات البيئة المطلوبة لـ Supabase!');
 }
 
-// Create a single supabase client instance for interacting with the database
-// Use a singleton pattern to ensure we only create one instance
-let supabaseInstance: ReturnType<typeof createClient<Database>> | null = null;
-
 // تهيئة مخزن محلي لبيانات المصادقة
 const authStore = localforage.createInstance({
   name: 'bazaar-auth',
@@ -65,7 +61,8 @@ const options = {
       // تحقق من حالة الاتصال قبل إجراء الطلب
       if (!navigator.onLine) {
         // عند محاولة تحديث رمز الوصول في وضع عدم الاتصال
-        if (url.toString().includes('token?grant_type=refresh_token')) {
+        const urlStr = typeof url === 'string' ? url : url.toString();
+        if (urlStr.includes('token?grant_type=refresh_token')) {
           console.warn('تجاوز تحديث رمز الوصول في وضع عدم الاتصال');
           // إعادة استجابة وهمية بدلاً من الفشل
           return Promise.resolve(new Response(
@@ -75,7 +72,7 @@ const options = {
         }
         
         // التحقق من نوع الطلب الآخر
-        console.warn('محاولة وصول إلى الخادم في وضع عدم الاتصال:', url);
+        console.warn('محاولة وصول إلى الخادم في وضع عدم الاتصال:', urlStr);
         return Promise.reject(new Error('ERR_INTERNET_DISCONNECTED'));
       }
       
@@ -89,12 +86,13 @@ const options = {
         newHeaders.set('Accept', 'application/json, text/plain, */*');
       }
       
-      if (!newHeaders.has('Content-Type') && !url.toString().includes('storage')) {
+      const urlStr = typeof url === 'string' ? url : url.toString();
+      if (!newHeaders.has('Content-Type') && !urlStr.includes('storage')) {
         newHeaders.set('Content-Type', 'application/json');
       }
       
       // إضافة رأس Prefer للتحكم في إرجاع البيانات من Postgrest
-      if (url.toString().includes('/rest/v1/') && !newHeaders.has('Prefer')) {
+      if (urlStr.includes('/rest/v1/') && !newHeaders.has('Prefer')) {
         newHeaders.set('Prefer', 'return=representation');
       }
       
@@ -109,7 +107,7 @@ const options = {
   global: {
     headers: {
       'X-Client-Info': 'bazaar-console-connect',
-      'Accept': 'application/json, text/plain, */*',
+      'Accept': 'application/json',
       'Prefer': 'return=representation'
     }
   },
@@ -121,46 +119,90 @@ const options = {
   }
 };
 
+// Create a single supabase client instance for interacting with the database
+// Use a singleton pattern to ensure we only create one instance
+let supabaseInstance: ReturnType<typeof createClient<Database>> | null = null;
+let instanceInitialized = false;
+
 // إنشاء عميل Supabase واحد للاستخدام في جميع أنحاء التطبيق
 export const getSupabaseClient = () => {
-  console.log('جلب عميل Supabase...');
-  
-  // تهيئة إعدادات Electron لـ Supabase إذا لزم الأمر
-  if (isElectron()) {
-    initSupabaseForElectron();
-  }
-  
-  if (!supabaseInstance) {
-    console.log('Creando nueva instancia de Supabase client');
+  // تجنب تهيئة عميل Supabase أكثر من مرة
+  if (!supabaseInstance && !instanceInitialized) {
+    instanceInitialized = true; // وضع علامة على أن التهيئة قيد التنفيذ
+    
+    // تهيئة إعدادات Electron لـ Supabase إذا لزم الأمر
+    if (isElectron()) {
+      initSupabaseForElectron();
+    }
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('عدم وجود متغيرات البيئة المطلوبة لـ Supabase!');
+      instanceInitialized = false; // إعادة تعيين العلامة في حالة الفشل
+      return null;
+    }
     
     try {
       // إنشاء عميل Supabase
       supabaseInstance = createClient<Database>(supabaseUrl, supabaseAnonKey, options);
+      console.log('تم إنشاء عميل Supabase بنجاح');
       
       // إضافة مستمع لأحداث المصادقة لرصد المشاكل
       supabaseInstance.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_OUT') {
-          console.log('Usuario desconectado de Supabase');
+          console.log('User signed out from Supabase');
         } else if (event === 'SIGNED_IN') {
-          console.log('Usuario conectado a Supabase');
+          console.log('User signed in to Supabase');
         } else if (event === 'TOKEN_REFRESHED') {
-          console.log('Token de Supabase actualizado');
+          console.log('Supabase token refreshed');
         } else if (event === 'USER_UPDATED') {
-          console.log('Datos de usuario actualizados en Supabase');
+          console.log('User data updated in Supabase');
         }
       });
     } catch (error) {
-      console.error('Error al crear el cliente Supabase:', error);
-      throw error;
+      console.error('Error creating Supabase client:', error);
+      supabaseInstance = null;
+      instanceInitialized = false; // إعادة تعيين العلامة في حالة الفشل
     }
   }
   
   return supabaseInstance;
 };
 
-// للتوافق مع الكود السابق
-export const supabase = getSupabaseClient();
-console.log('تم إنشاء عميل Supabase بنجاح');
+// تهيئة عميل Supabase فورًا (مع التأخير إذا كان في بيئة المتصفح)
+let initPromise: Promise<void> | null = null;
+
+const initSupabaseClient = () => {
+  if (!initPromise) {
+    initPromise = new Promise<void>((resolve) => {
+      // تأخير التهيئة قليلاً في بيئة المتصفح لتجنب تضارب التهيئة
+      if (typeof window !== 'undefined') {
+        // تأخير بسيط لتجنب التهيئة المتزامنة
+        setTimeout(() => {
+          supabase; // تشغيل التهيئة الكسولة
+          resolve();
+        }, 10);
+      } else {
+        // تهيئة فورية في بيئة الخادم
+        supabase;
+        resolve();
+      }
+    });
+  }
+  return initPromise;
+};
+
+// كائن وسيط يعمل على تهيئة العميل بشكل كسول
+// هذا يضمن أنه يتم إنشاء عميل واحد فقط عند استخدامه أول مرة
+export const supabase = new Proxy({} as ReturnType<typeof createClient<Database>>, {
+  get(target, prop, receiver) {
+    // تهيئة العميل عند أي محاولة للوصول
+    const client = getSupabaseClient();
+    if (!client) {
+      throw new Error('فشل في تهيئة عميل Supabase');
+    }
+    return Reflect.get(client, prop, receiver);
+  }
+});
 
 // إضافة مستمع لحالة الاتصال بالإنترنت
 if (typeof window !== 'undefined') {
@@ -191,8 +233,16 @@ export const getAuthStatus = async () => {
       };
     }
     
+    // التأكد من تهيئة العميل قبل استدعاء getSession
+    await initSupabaseClient();
+    
     // إذا كان المستخدم متصلاً، استخدم الطريقة المعتادة
-    const { data, error } = await supabase.auth.getSession();
+    const client = getSupabaseClient();
+    if (!client) {
+      return { isAuthenticated: false, isOffline: true, session: null };
+    }
+    
+    const { data, error } = await client.auth.getSession();
     
     if (error) {
       console.error('خطأ في التحقق من حالة المصادقة:', error);

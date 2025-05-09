@@ -773,9 +773,10 @@ const Dashboard = () => {
   }, [currentOrganization, currentSubdomain, orgLoading]);
   
   // Low stock products - محاولة تحسين الأداء
-  const lowStockProducts = products
-    ?.filter(product => product.stock_quantity <= 5 && product.stock_quantity > 0)
-    .slice(0, 5) || [];
+  const lowStockProducts = Array.isArray(products)
+    ? products.filter(product => product.stock_quantity <= 5 && product.stock_quantity > 0)
+      .slice(0, 5)
+    : [];
   
   // Recent orders - محاولة تحسين الأداء
   const recentOrders = orders?.slice(0, 5) || [];

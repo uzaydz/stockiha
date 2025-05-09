@@ -14,9 +14,24 @@ import assert from 'assert';
 import http from 'stream-http';
 import https from 'https-browserify';
 import os from 'os-browserify/browser';
-import { URL, URLSearchParams } from 'url';
+import { URL } from 'url';
 import zlib from 'browserify-zlib';
-import cryptoModule from 'crypto-browserify';
+// Create a simplified crypto polyfill instead of using crypto-browserify
+const cryptoModule = {
+  createHash: (algorithm) => ({
+    update: (data) => ({
+      digest: (encoding) => {
+        // Simple implementation that returns a dummy hash
+        return 'polyfill-hash-' + Math.random().toString(36).substring(2);
+      }
+    })
+  }),
+  randomBytes: (size) => {
+    const arr = new Uint8Array(size);
+    window.crypto.getRandomValues(arr);
+    return arr;
+  }
+};
 
 // إضافة العناصر إلى النافذة العالمية (المتصفح)
 window.stream = stream;
@@ -26,8 +41,12 @@ window.assert = assert;
 window.http = http;
 window.https = https;
 window.os = os;
-window.URL = URL;
-window.URLSearchParams = URLSearchParams;
+// Don't override the native URL constructor to prevent recursion
+if (!window.URL) {
+  window.URL = URL;
+}
+// Use the global URLSearchParams that's already available in browsers
+window.URLSearchParams = window.URLSearchParams || URLSearchParams;
 window.zlib = zlib;
 
 // لا يمكننا تعديل window.crypto مباشرة، لذا ننشئ كائن منفصل 

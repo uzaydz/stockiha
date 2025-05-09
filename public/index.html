@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" class="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>منصة الألعاب الشاملة</title>
+    <meta name="description" content="منصة الألعاب الشاملة - متجر ألعاب متكامل لبيع وإصلاح أجهزة الألعاب والإكسسوارات" />
+    <meta name="author" content="Game Shop" />
+    
+    <!-- إضافة سكريبت للتعامل مع وضع الإضاءة -->
+    <script>
+      // حاول تطبيق الوضع المحفوظ قبل تحميل الصفحة لمنع وميض الشاشة
+      const storedTheme = localStorage.getItem('theme') || 'light';
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      const initialTheme = storedTheme === 'system' ? systemTheme : storedTheme;
+      document.documentElement.classList.add(initialTheme);
+      document.documentElement.style.colorScheme = initialTheme;
+    </script>
+    
+    <!-- Polyfill for process -->
+    <script>
+      window.process = window.process || { env: {} };
+      window.global = window.global || window;
+    </script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <meta property="og:title" content="منصة الألعاب الشاملة" />
+    <meta property="og:description" content="متجر ألعاب متكامل لبيع وإصلاح أجهزة الألعاب والإكسسوارات" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@gameshop" />
+    <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    
+    <!-- PWA Support -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#6b21a8">
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+    
+    <!-- مخصص لـ Vercel و SPA -->
+    <meta name="vercel-deployment" content="true">
+    <meta name="format-detection" content="telephone=no">
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <!-- IMPORTANT: DO NOT REMOVE THIS SCRIPT TAG OR THIS VERY COMMENT! -->
+    <script src="https://cdn.gpteng.co/gptengineer.js" type="module"></script>
+  </body>
+</html>

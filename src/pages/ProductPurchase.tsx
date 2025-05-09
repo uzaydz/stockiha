@@ -24,6 +24,8 @@ import Navbar from '@/components/Navbar';
 import StoreFooter from '@/components/store/StoreFooter';
 import { getProductBySlug } from '@/api/store';
 import { supabase } from '@/lib/supabase';
+import { getFormSettingsForProduct } from '@/api/form-settings';
+import { FormField } from '@/api/form-settings';
 
 // توسعة واجهة المنتج لتتضمن الميزات الجديدة
 interface Product extends ApiProduct {
@@ -55,7 +57,7 @@ const ProductPurchase = () => {
   const [quantity, setQuantity] = useState(1);
   const [activeImage, setActiveImage] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [showOrderForm, setShowOrderForm] = useState(false);
+  const [customFormFields, setCustomFormFields] = useState<FormField[]>([]);
 
   useEffect(() => {
     const loadProduct = async () => {
@@ -79,6 +81,23 @@ const ProductPurchase = () => {
           if (productData.use_sizes && defaultColor) {
             loadSizesForColor(defaultColor.id, productData.id);
           }
+        }
+
+        // تحميل إعدادات النموذج المخصصة للمنتج
+        try {
+          console.log('جاري تحميل إعدادات النموذج للمنتج:', productData.id);
+          const formFields = await getFormSettingsForProduct(currentOrganization.id, productData.id);
+          if (formFields && Array.isArray(formFields) && formFields.length > 0) {
+            console.log('تم تحميل حقول النموذج المخصصة للمنتج:', formFields);
+            setCustomFormFields(formFields);
+          } else {
+            console.log('لا توجد حقول مخصصة للمنتج، استخدام الحقول الافتراضية');
+            setCustomFormFields([]);
+          }
+        } catch (formError) {
+          console.error('Error loading form settings:', formError);
+          // لا ترمي خطأ فقط سجل في السجل واستمر بالحقول الافتراضية
+          setCustomFormFields([]);
         }
       } catch (error) {
         console.error('Error loading product:', error);
@@ -202,16 +221,6 @@ const ProductPurchase = () => {
     return product?.stock_quantity || 0;
   };
 
-  const handleProceedToCheckout = () => {
-    setShowOrderForm(true);
-    // Smooth scroll to form
-    setTimeout(() => {
-      document.getElementById('order-form-section')?.scrollIntoView({
-        behavior: 'smooth'
-      });
-    }, 100);
-  };
-
   if (isLoading) {
     return (
       <div className="flex flex-col min-h-screen">
@@ -285,7 +294,8 @@ const ProductPurchase = () => {
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.5 }}
-            className="space-y-6"
+            className="space-y-6 lg:sticky lg:top-8 lg:self-start max-h-[calc(100vh-8rem)] overflow-hidden"
+            style={{ position: 'sticky' }}
           >
             <div className="aspect-square overflow-hidden rounded-2xl border bg-background shadow-sm">
               <motion.img
@@ -457,38 +467,6 @@ const ProductPurchase = () => {
               </div>
             </div>
 
-            <Tabs defaultValue="description" className="w-full">
-              <TabsList className="grid grid-cols-2 mb-4">
-                <TabsTrigger value="description">الوصف</TabsTrigger>
-                <TabsTrigger value="specifications">المواصفات</TabsTrigger>
-              </TabsList>
-              <TabsContent value="description" className="bg-muted/20 p-4 rounded-lg border">
-                <p className="text-muted-foreground leading-relaxed">{product.description}</p>
-              </TabsContent>
-              <TabsContent value="specifications" className="bg-muted/20 p-4 rounded-lg border">
-                <div className="space-y-2">
-                  <div className="grid grid-cols-2 gap-2 py-2 border-b">
-                    <span className="font-medium">العلامة التجارية:</span>
-                    <div className="flex items-center space-x-2 rtl:space-x-reverse text-sm">
-                      <span className="text-muted-foreground">غير محدد</span>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 py-2 border-b">
-                    <span className="font-medium">الفئة:</span>
-                    <span className="text-muted-foreground">{product.category}</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 py-2 border-b">
-                    <span className="font-medium">رقم المنتج:</span>
-                    <span className="text-muted-foreground">SKU-{product.id.substring(0, 6)}</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 py-2">
-                    <span className="font-medium">الضمان:</span>
-                    <span className="text-muted-foreground">12 شهر</span>
-                  </div>
-                </div>
-              </TabsContent>
-            </Tabs>
-
             {/* اختيار اللون */}
             {product.colors && product.colors.length > 0 && (
               <div className="space-y-3">
@@ -558,63 +536,42 @@ const ProductPurchase = () => {
               </div>
             </div>
 
-            {/* السعر الإجمالي */}
-            <motion.div 
-              className="pt-4 border-t"
+            {/* نموذج الطلب (مباشرة بدون زر) */}
+            <motion.div
+              id="order-form-section"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.3 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className="mt-6 pt-6 border-t"
             >
-              <div className="flex justify-between items-center mb-6">
-                <span className="font-semibold text-lg">المجموع:</span>
-                <span className="text-2xl font-bold text-primary">{calculateTotal().toLocaleString()} د.ج</span>
-              </div>
-              
-              <Button 
-                size="lg" 
-                className="w-full py-6 text-lg transition-all duration-300 hover:shadow-lg bg-gradient-to-tr from-primary to-primary/90"
-                onClick={handleProceedToCheckout}
-                disabled={(product.use_sizes && selectedColor?.has_sizes && sizes.length > 0 && !selectedSize) || getAvailableQuantity() <= 0}
-              >
-                <ShoppingCart className="h-5 w-5 mr-2" />
-                إتمام الطلب
-              </Button>
-              
-              {/* رسالة تحذيرية إذا كان المنتج يستخدم المقاسات ولم يتم تحديد مقاس */}
-              {product.use_sizes && selectedColor?.has_sizes && sizes.length > 0 && !selectedSize && (
-                <p className="text-sm text-amber-600 dark:text-amber-400 mt-2 text-center">
-                  يرجى اختيار المقاس قبل المتابعة
-                </p>
-              )}
+              <OrderForm
+                productId={product.id}
+                price={selectedSize?.price || product.price}
+                deliveryFee={product.delivery_fee || 0}
+                productColorId={selectedColor?.id || null}
+                productSizeId={selectedSize?.id || null}
+                sizeName={selectedSize?.size_name || null}
+                quantity={quantity}
+                customFields={customFormFields}
+              />
             </motion.div>
           </motion.div>
         </div>
-
-        {/* نموذج الطلب */}
-        <AnimatePresence>
-          {showOrderForm && (
-            <motion.div 
-              id="order-form-section"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
-              transition={{ duration: 0.5 }}
-              className="mt-12 border-t pt-8"
-            >
-              <h2 className="text-2xl font-bold mb-8 text-center relative">
-                <span className="bg-primary h-1 w-16 absolute -bottom-2 left-1/2 transform -translate-x-1/2 rounded-full"></span>
-                أكمل طلب الشراء
-              </h2>
-              <OrderForm 
-                product={product} 
-                selectedColor={selectedColor}
-                selectedSize={selectedSize}
-                quantity={quantity} 
-                totalPrice={calculateTotal()} 
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        
+        {/* وصف المنتج - موضوع أسفل الصفحة بالكامل */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+          className="w-full mt-12 mb-8"
+        >
+          <div className="border-t pt-8">
+            <h2 className="text-2xl font-semibold mb-4">وصف المنتج</h2>
+            <div className="bg-muted/20 p-6 rounded-xl border">
+              <p className="text-muted-foreground leading-relaxed">{product.description}</p>
+            </div>
+          </div>
+        </motion.div>
       </div>
       <StoreFooter />
     </div>

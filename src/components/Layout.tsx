@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import Navbar from '@/components/Navbar';
 import { useAuth } from '@/context/AuthContext';
-import SideMenu from '@/components/SideMenu';
+import SideMenu from '@/components/sidebar/SideMenu';
 import { cn } from '@/lib/utils';
 import { getCurrentUserProfile } from '@/lib/api/users';
 import { X, Menu } from 'lucide-react';

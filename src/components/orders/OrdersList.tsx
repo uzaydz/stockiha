@@ -18,7 +18,7 @@ import {
   ScrollBar
 } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Phone, User, ShoppingBag, Calendar, Truck } from "lucide-react";
+import { Loader2, Phone, User, ShoppingBag, Calendar, Truck, Globe, Store } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 
 // مكون لعرض حالة الطلب مع لون مناسب
@@ -42,6 +42,31 @@ const OrderStatusBadge = ({ status }) => {
   return (
     <Badge className={`${statusColors[status] || ""} flex gap-1 items-center px-3 py-1`}>
       {statusTranslations[status] || status}
+    </Badge>
+  );
+};
+
+// مكون لعرض مصدر الطلب
+const OrderSourceBadge = ({ source }) => {
+  // تعيين أنماط وأيقونات مختلفة حسب مصدر الطلب
+  let sourceInfo = {
+    icon: Store,
+    label: "المتجر",
+    className: "bg-gray-100 text-gray-800 dark:bg-gray-800/30 dark:text-gray-400"
+  };
+  
+  if (source === "landing_page") {
+    sourceInfo = {
+      icon: Globe,
+      label: "صفحة هبوط",
+      className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400"
+    };
+  }
+  
+  return (
+    <Badge variant="secondary" className={`flex items-center gap-1 ${sourceInfo.className}`}>
+      <sourceInfo.icon className="h-3 w-3" />
+      <span>{sourceInfo.label}</span>
     </Badge>
   );
 };
@@ -102,6 +127,7 @@ const OrdersList = ({ orders, loading, selectedOrderId, onSelectOrder }) => {
             <TableHead>طريقة الدفع</TableHead>
             <TableHead>التاريخ</TableHead>
             <TableHead>الحالة</TableHead>
+            <TableHead>المصدر</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -153,6 +179,9 @@ const OrdersList = ({ orders, loading, selectedOrderId, onSelectOrder }) => {
               </TableCell>
               <TableCell>
                 <OrderStatusBadge status={order.status} />
+              </TableCell>
+              <TableCell>
+                <OrderSourceBadge source={order.created_from || 'store'} />
               </TableCell>
             </TableRow>
           ))}

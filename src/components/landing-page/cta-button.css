@@ -1,0 +1,361 @@
+/* CSS لتأثيرات زر الدعوة للعمل */
+
+/* دعم اتجاه RTL */
+[dir="rtl"] button, 
+.rtl button,
+button.rtl {
+  direction: rtl;
+  unicode-bidi: embed;
+  text-align: center;
+}
+
+/* تأثيرات التحرك */
+@keyframes breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(-3deg); }
+  75% { transform: rotate(3deg); }
+}
+
+@keyframes shine {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes glow {
+  0%, 100% { 
+    box-shadow: 0 0 5px 0 rgba(255, 255, 255, 0.5), 0 0 10px 0 rgba(255, 255, 255, 0.3); 
+  }
+  50% { 
+    box-shadow: 0 0 10px 0 rgba(255, 255, 255, 0.7), 0 0 20px 0 rgba(255, 255, 255, 0.5); 
+  }
+}
+
+.breathe-animation {
+  animation: breathe 3s ease-in-out infinite;
+}
+
+.tilt-effect {
+  transition: transform 0.2s;
+}
+
+.tilt-effect:hover {
+  transform: perspective(500px) rotateX(5deg);
+}
+
+.animate-spin-slow {
+  animation: spin-slow 8s linear infinite;
+}
+
+.animate-wiggle:hover {
+  animation: wiggle 0.5s ease-in-out;
+}
+
+.animate-glow {
+  animation: glow 2s ease-in-out infinite;
+}
+
+/* تأثير حدود نابضة */
+.pulsing-border {
+  position: relative;
+}
+
+.pulsing-border::after {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  right: -4px;
+  bottom: -4px;
+  border: 2px solid var(--primary);
+  border-radius: inherit;
+  animation: pulse-border 1.5s infinite;
+  opacity: 0;
+  z-index: -1;
+}
+
+@keyframes pulse-border {
+  0% {
+    transform: scale(1);
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.4;
+  }
+  100% {
+    transform: scale(1.15);
+    opacity: 0;
+  }
+}
+
+/* تأثير وهج للظل */
+.glow-shadow {
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.6), 0 0 20px rgba(99, 102, 241, 0.4), 0 0 30px rgba(99, 102, 241, 0.2);
+}
+
+/* تأثير ظل بطبقات */
+.layered-shadow {
+  box-shadow: 
+    0 1px 1px rgba(0, 0, 0, 0.05),
+    0 2px 2px rgba(0, 0, 0, 0.05),
+    0 4px 4px rgba(0, 0, 0, 0.05),
+    0 8px 8px rgba(0, 0, 0, 0.05);
+}
+
+/* تأثير ظل حاد */
+.sharp-shadow {
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.8);
+}
+
+/* تأثير حافة متدرجة */
+.gradient-border {
+  background-origin: border-box;
+  background-clip: content-box, border-box;
+  border: 2px solid transparent;
+  position: relative;
+}
+
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  border-radius: inherit;
+  background: linear-gradient(45deg, var(--color-primary, hsl(var(--primary))), var(--color-secondary, hsl(var(--secondary))));
+  z-index: -1;
+}
+
+/* تأثير لمعان عند التحويم */
+.shine-effect {
+  position: relative;
+  overflow: hidden;
+}
+
+.shine-effect::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.3) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: rotate(30deg);
+  animation: shine 3s infinite;
+}
+
+@keyframes shine {
+  0% {
+    transform: scale(0) rotate(45deg);
+    opacity: 0;
+  }
+  80% {
+    transform: scale(2) rotate(45deg);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(3) rotate(45deg);
+    opacity: 0;
+  }
+}
+
+/* تأثير حدود متحركة */
+.animated-border {
+  position: relative;
+  border: 2px solid transparent !important;
+  background-clip: padding-box;
+  background-image: 
+    linear-gradient(90deg, var(--primary) 50%, transparent 50%),
+    linear-gradient(90deg, var(--primary) 50%, transparent 50%),
+    linear-gradient(0deg, var(--primary) 50%, transparent 50%),
+    linear-gradient(0deg, var(--primary) 50%, transparent 50%);
+  background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
+  background-size: 15px 2px, 15px 2px, 2px 15px, 2px 15px;
+  background-position: 0 0, 100% 100%, 0 100%, 100% 0;
+  animation: border-dance 3s infinite linear;
+}
+
+@keyframes border-dance {
+  0% {
+    background-position: 0 0, 100% 100%, 0 100%, 100% 0;
+  }
+  100% {
+    background-position: 100% 0, 0 100%, 0 0, 100% 100%;
+  }
+}
+
+/* تأثير تدرج متحرك */
+.moving-gradient {
+  background-size: 200% 200%;
+  background-image: linear-gradient(
+    45deg,
+    var(--primary) 0%,
+    var(--primary-dark, hsl(240, 54%, 30%)) 25%,
+    var(--primary) 50%,
+    var(--primary-dark, hsl(240, 54%, 30%)) 75%,
+    var(--primary) 100%
+  );
+  animation: moving-gradient 3s ease infinite;
+}
+
+@keyframes moving-gradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* تأثير نيون */
+.neon-effect {
+  text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 15px #fff, 0 0 20px var(--primary), 0 0 35px var(--primary), 0 0 40px var(--primary);
+  transition: all 0.3s ease;
+}
+
+.neon-effect:hover {
+  box-shadow: 0 0 10px var(--color-primary, hsl(var(--primary))),
+              0 0 20px var(--color-primary, hsl(var(--primary))),
+              0 0 40px var(--color-primary, hsl(var(--primary)));
+  text-shadow: 0 0 10px var(--color-primary, hsl(var(--primary)));
+}
+
+/* تأثير التموج عند النقر */
+@keyframes ripple {
+  to {
+    transform: translate(-50%, -50%) scale(3);
+    opacity: 0;
+  }
+}
+
+/* تأثير الدوران البطيء */
+.animate-spin-slow {
+  animation: spin 3s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* تأثير التمايل */
+.animate-wiggle {
+  animation: wiggle 1s ease-in-out infinite;
+}
+
+/* تأثير التدرج المتحرك */
+.moving-gradient {
+  background-size: 200% 200%;
+  background-image: linear-gradient(
+    45deg,
+    var(--primary) 0%,
+    var(--primary-dark, hsl(240, 54%, 30%)) 25%,
+    var(--primary) 50%,
+    var(--primary-dark, hsl(240, 54%, 30%)) 75%,
+    var(--primary) 100%
+  );
+  animation: moving-gradient 3s ease infinite;
+}
+
+/* تأثير النص المزدوج */
+.button-double-text-container {
+  position: relative;
+  display: inline-block;
+  transition: transform 0.3s ease;
+}
+
+.button-main-text,
+.button-secondary-text {
+  display: block;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.button-secondary-text {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+*:hover > .button-main-text {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+*:hover > .button-double-text-container .button-secondary-text {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* تأثير المستهدف بالتمرير - محسّن للانتقال البطيء */
+.highlight-scroll-target {
+  animation: target-highlight 2.5s ease-in-out;
+}
+
+@keyframes target-highlight {
+  0% {
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
+    outline: 0px solid rgba(99, 102, 241, 0);
+    transform: scale(1);
+  }
+  20% {
+    box-shadow: 0 0 8px 2px rgba(99, 102, 241, 0.3);
+    outline: 1px solid rgba(99, 102, 241, 0.5);
+    transform: scale(1.01);
+  }
+  40% {
+    box-shadow: 0 0 15px 5px rgba(99, 102, 241, 0.6);
+    outline: 2px solid rgba(99, 102, 241, 0.8);
+    transform: scale(1.02);
+  }
+  70% {
+    box-shadow: 0 0 10px 3px rgba(99, 102, 241, 0.4);
+    outline: 1px solid rgba(99, 102, 241, 0.6);
+    transform: scale(1.01);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
+    outline: 0px solid rgba(99, 102, 241, 0);
+    transform: scale(1);
+  }
+}
+
+/* إعدادات التمرير السلس للصفحة */
+html {
+  scroll-behavior: smooth;
+  --scroll-timeline-duration: 2000ms;
+}
+
+/* تعديل منحنى الانتقال لجميع العناصر للحصول على انتقالات أكثر سلاسة */
+* {
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+} 

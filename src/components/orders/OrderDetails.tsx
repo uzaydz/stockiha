@@ -29,8 +29,34 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { formatPrice } from "@/lib/utils";
-import { Phone, Mail, MapPin, ExternalLink, ClipboardList, PackageCheck, Truck, RefreshCcw, User, Map, CreditCard } from "lucide-react";
+import { Phone, Mail, MapPin, ExternalLink, ClipboardList, PackageCheck, Truck, RefreshCcw, User, Map, CreditCard, Globe, Store } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
+import FormDataViewer from './FormDataViewer';
+
+// مكون لعرض مصدر الطلب
+const OrderSourceBadge = ({ source }) => {
+  // تعيين أنماط وأيقونات مختلفة حسب مصدر الطلب
+  let sourceInfo = {
+    icon: Store,
+    label: "المتجر",
+    className: "bg-gray-100 text-gray-800 dark:bg-gray-800/30 dark:text-gray-400"
+  };
+  
+  if (source === "landing_page") {
+    sourceInfo = {
+      icon: Globe,
+      label: "صفحة هبوط",
+      className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400"
+    };
+  }
+  
+  return (
+    <Badge variant="secondary" className={`flex items-center gap-1 ml-2 ${sourceInfo.className}`}>
+      <sourceInfo.icon className="h-3 w-3" />
+      <span>{sourceInfo.label}</span>
+    </Badge>
+  );
+};
 
 const OrderDetails = ({ 
   order, 
@@ -50,7 +76,8 @@ const OrderDetails = ({
   const [shippingData, setShippingData] = useState({
     shipping_method: order.shipping_method || "",
     shipping_cost: order.shipping_cost || 0,
-    notes: order.notes || ""
+    notes: order.notes || "",
+    shipping_option: order.shipping_option || "home"
   });
   const [customerData, setCustomerData] = useState({
     name: order.customer?.name || "",
@@ -155,13 +182,34 @@ const OrderDetails = ({
     return statuses[status] || status;
   };
 
+  // ترجمة طريقة الشحن
+  const translateShippingMethod = (method) => {
+    const methods = {
+      'standard': 'الشركة المحددة',
+      'yalidine': 'ياليدين',
+      'quick_delivery': 'توصيل سريع',
+      'easy_delivery': 'توصيل سهل',
+      'express': 'سريع',
+      'premium': 'ممتاز',
+      'dhl': 'دي إتش إل',
+      'aramex': 'أرامكس',
+      'fedex': 'فيديكس',
+      'algerie_post': 'بريد الجزائر',
+      '': 'غير محدد'
+    };
+    return methods[method] || method;
+  };
+
   return (
     <div className="space-y-6">
       {/* معلومات أساسية عن الطلب */}
       <div>
         <div className="flex justify-between items-start mb-4">
           <div>
-            <h3 className="text-lg font-bold">طلب #{order.customer_order_number || "---"}</h3>
+            <div className="flex items-center">
+              <h3 className="text-lg font-bold">طلب #{order.customer_order_number || "---"}</h3>
+              <OrderSourceBadge source={order.created_from || 'store'} />
+            </div>
             <p className="text-sm text-muted-foreground">{formatDate(order.created_at)}</p>
           </div>
           <Badge 
@@ -199,6 +247,20 @@ const OrderDetails = ({
                 <p className="text-sm text-muted-foreground">رسوم التوصيل</p>
                 <p>{formatPrice(order.shipping_cost || 0)}</p>
               </div>
+              {order.created_from === 'landing_page' && (
+                <div className="col-span-2">
+                  <p className="text-sm text-muted-foreground mb-1">المصدر</p>
+                  <div className="flex items-center">
+                    <Globe className="w-4 h-4 ml-1 text-emerald-600" />
+                    <span>تم إنشاؤه من صفحة هبوط</span>
+                    {order.notes && order.notes.includes("تم إنشاؤه من صفحة هبوط:") && (
+                      <Badge variant="outline" className="mr-2">
+                        {order.notes.replace("تم إنشاؤه من صفحة هبوط:", "").trim()}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -266,6 +328,40 @@ const OrderDetails = ({
           </Button>
         </div>
       </div>
+
+      {/* بيانات النموذج المخصص إذا كانت موجودة */}
+      {order.form_data && (
+        <section className="mt-6">
+          <h3 className="text-lg font-semibold mb-2">معلومات إضافية</h3>
+          {(() => {
+            // استبعاد الحقول التي تم عرضها بالفعل في الأقسام الأخرى
+            const excludedFields = ['fullName', 'phone', 'province', 'municipality', 'deliveryOption', 'address'];
+            
+            // إذا كان form_data نصي، نحوله إلى كائن
+            let formDataObj = order.form_data;
+            if (typeof order.form_data === 'string') {
+              try {
+                formDataObj = JSON.parse(order.form_data);
+              } catch (e) {
+                return <FormDataViewer formData={order.form_data} />;
+              }
+            }
+            
+            // إنشاء نسخة من البيانات بدون الحقول المستبعدة
+            const filteredFormData = { ...formDataObj };
+            excludedFields.forEach(field => {
+              delete filteredFormData[field];
+            });
+            
+            // التحقق من وجود بيانات إضافية بعد استبعاد الحقول المكررة
+            if (Object.keys(filteredFormData).length === 0) {
+              return <p className="text-sm text-muted-foreground">لا توجد معلومات إضافية للطلب</p>;
+            }
+            
+            return <FormDataViewer formData={filteredFormData} title="معلومات أخرى" />;
+          })()}
+        </section>
+      )}
 
       {/* تفاصيل الطلب في أقسام قابلة للطي */}
       <Accordion type="single" collapsible defaultValue="order-items">
@@ -335,18 +431,44 @@ const OrderDetails = ({
             <div className="space-y-3">
               <div className="flex justify-between">
                 <div className="space-y-1">
+                  {/* عرض البيانات من معلومات العميل الأساسية */}
                   <div className="flex items-center text-sm">
                     <User className="w-4 h-4 ml-1 opacity-70" />
-                    <span>{order.customer?.name || "غير محدد"}</span>
+                    <span>
+                      {order.form_data?.fullName || order.customer?.name || "غير محدد"}
+                    </span>
                   </div>
                   <div className="flex items-center text-sm">
                     <Phone className="w-4 h-4 ml-1 opacity-70" />
-                    <span>{order.customer?.phone || "غير محدد"}</span>
+                    <span>
+                      {order.form_data?.phone || order.customer?.phone || "غير محدد"}
+                    </span>
                   </div>
                   <div className="flex items-center text-sm">
                     <Mail className="w-4 h-4 ml-1 opacity-70" />
                     <span>{order.customer?.email || "غير محدد"}</span>
                   </div>
+
+                  {/* إذا كان هناك بيانات form_data، عرض المزيد من التفاصيل */}
+                  {order.form_data && typeof order.form_data === 'object' && (
+                    <>
+                      <div className="mt-3 pt-3 border-t">
+                        <div className="text-xs font-semibold opacity-70 mb-2">بيانات إضافية</div>
+                        {order.form_data.province && (
+                          <div className="flex items-center text-sm">
+                            <Map className="w-4 h-4 ml-1 opacity-70" />
+                            <span>المنطقة: {order.form_data.province}</span>
+                          </div>
+                        )}
+                        {order.form_data.municipality && (
+                          <div className="flex items-center text-sm">
+                            <MapPin className="w-4 h-4 ml-1 opacity-70" />
+                            <span>البلدية: {order.form_data.municipality}</span>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
                 
                 <Dialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen}>
@@ -418,21 +540,84 @@ const OrderDetails = ({
                   <div className="flex items-center text-sm">
                     <Truck className="w-4 h-4 ml-1 opacity-70" />
                     <span>
-                      شركة التوصيل: {order.shipping_method || "غير محدد"}
+                      شركة التوصيل: {translateShippingMethod(order.shipping_method) || "غير محدد"}
                     </span>
                   </div>
+
+                  {/* إضافة خيار التوصيل */}
                   <div className="flex items-center text-sm">
-                    <Map className="w-4 h-4 ml-1 opacity-70" />
+                    <PackageCheck className="w-4 h-4 ml-1 opacity-70" />
                     <span>
-                      المنطقة: {order.shipping_address?.state || "غير محدد"}
+                      طريقة التوصيل: {
+                        order.shipping_option ? 
+                          (order.shipping_option === 'home' ? 'توصيل للمنزل' : 
+                           order.shipping_option === 'office' ? 'استلام من المكتب' : 
+                           order.shipping_option) : 
+                        (order.form_data?.deliveryOption === 'home' ? 'توصيل للمنزل' : 
+                         order.form_data?.deliveryOption === 'office' ? 'استلام من المكتب' : 
+                         "غير محدد")
+                      }
                     </span>
                   </div>
-                  <div className="flex items-start text-sm">
-                    <MapPin className="w-4 h-4 ml-1 mt-0.5 opacity-70" />
-                    <span>
-                      العنوان: {order.shipping_address?.street_address || "غير محدد"}
-                    </span>
-                  </div>
+
+                  {/* عرض معلومات العنوان من form_data إذا كانت موجودة */}
+                  {order.form_data && (
+                    <>
+                      {order.form_data.province && (
+                        <div className="flex items-center text-sm">
+                          <Map className="w-4 h-4 ml-1 opacity-70" />
+                          <span>
+                            المنطقة: {order.form_data.province || order.shipping_address?.state || "غير محدد"}
+                          </span>
+                        </div>
+                      )}
+                      
+                      {order.form_data.municipality && (
+                        <div className="flex items-center text-sm">
+                          <Map className="w-4 h-4 ml-1 opacity-70" />
+                          <span>
+                            البلدية: {order.form_data.municipality || "غير محدد"}
+                          </span>
+                        </div>
+                      )}
+                      
+                      {order.form_data.address && (
+                        <div className="flex items-start text-sm">
+                          <MapPin className="w-4 h-4 ml-1 mt-0.5 opacity-70" />
+                          <span>
+                            العنوان: {order.form_data.address || order.shipping_address?.street_address || "غير محدد"}
+                          </span>
+                        </div>
+                      )}
+                      
+                      {!order.form_data.address && order.shipping_address?.street_address && (
+                        <div className="flex items-start text-sm">
+                          <MapPin className="w-4 h-4 ml-1 mt-0.5 opacity-70" />
+                          <span>
+                            العنوان: {order.shipping_address.street_address}
+                          </span>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* إظهار البيانات الأصلية إذا لم تكن موجودة في form_data */}
+                  {!order.form_data && order.shipping_address && (
+                    <>
+                      <div className="flex items-center text-sm">
+                        <Map className="w-4 h-4 ml-1 opacity-70" />
+                        <span>
+                          المنطقة: {order.shipping_address.state || "غير محدد"}
+                        </span>
+                      </div>
+                      <div className="flex items-start text-sm">
+                        <MapPin className="w-4 h-4 ml-1 mt-0.5 opacity-70" />
+                        <span>
+                          العنوان: {order.shipping_address.street_address || "غير محدد"}
+                        </span>
+                      </div>
+                    </>
+                  )}
                 </div>
                 
                 <Dialog open={isShippingDialogOpen} onOpenChange={setIsShippingDialogOpen}>
@@ -462,7 +647,25 @@ const OrderDetails = ({
                             <SelectItem value="yalidine">ياليدين</SelectItem>
                             <SelectItem value="quick_delivery">توصيل سريع</SelectItem>
                             <SelectItem value="easy_delivery">توصيل سهل</SelectItem>
+                            <SelectItem value="dhl">دي إتش إل</SelectItem>
+                            <SelectItem value="aramex">أرامكس</SelectItem>
+                            <SelectItem value="algerie_post">بريد الجزائر</SelectItem>
                             <SelectItem value="other">شركة أخرى</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="shipping-option">خيار التوصيل</Label>
+                        <Select
+                          value={shippingData.shipping_option}
+                          onValueChange={(value) => setShippingData({...shippingData, shipping_option: value})}
+                        >
+                          <SelectTrigger id="shipping-option">
+                            <SelectValue placeholder="اختر خيار التوصيل" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="home">توصيل للمنزل</SelectItem>
+                            <SelectItem value="office">استلام من المكتب</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>

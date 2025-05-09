@@ -1,0 +1,117 @@
+/* أنماط السحب والإفلات المحسنة */
+
+/* أنماط عامة للسحب */
+body.dragging * {
+  cursor: grabbing !important;
+}
+
+body.dragging .sortable-item-ghost {
+  opacity: 0.3;
+  background: var(--ghost-background, #f0f0f0);
+  border: 2px dashed var(--ghost-border, #ccc);
+}
+
+/* تحسين مؤشر السحب */
+[data-dnd-draggable="true"] {
+  touch-action: none;
+  user-select: none;
+}
+
+/* مؤشر الإدخال */
+.sortable-indicator {
+  height: 2px;
+  margin: 4px 0;
+  background-color: hsl(var(--primary));
+  border-radius: 4px;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+
+/* أنماط مخصصة للعناصر القابلة للسحب */
+.sortable-item {
+  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), 
+              opacity 0.15s cubic-bezier(0.4, 0, 0.2, 1), 
+              box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sortable-item:hover {
+  z-index: 10;
+}
+
+.sortable-item.is-dragging {
+  z-index: 999;
+  opacity: 0.8;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+/* مؤثرات حركة للسحب */
+.sortable-drag-overlay {
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  transform: scale(1.02);
+  border-radius: 8px;
+  z-index: 9999;
+}
+
+/* أنماط الإفلات */
+.drop-area {
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.drop-area.is-over {
+  background-color: rgba(var(--primary-rgb), 0.05);
+}
+
+.drop-area-indicator {
+  position: absolute;
+  inset: 0;
+  border: 2px dashed hsl(var(--primary));
+  border-radius: 8px;
+  display: none;
+  pointer-events: none;
+}
+
+.drop-area.is-over .drop-area-indicator {
+  display: block;
+}
+
+/* أنماط محسنة للمعاينة أثناء السحب */
+.preview-while-dragging {
+  transform-origin: center;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+  background-color: rgba(var(--background-rgb), 0.95);
+  border: 1px solid rgba(var(--border-rgb), 0.3);
+  backdrop-filter: blur(4px);
+}
+
+/* أنماط محسنة للمقابض */
+.drag-handle {
+  cursor: grab;
+  transition: background 0.2s, color 0.2s;
+}
+
+.drag-handle:hover {
+  background-color: rgba(var(--hover-rgb), 0.1);
+  color: hsl(var(--primary));
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+  background-color: rgba(var(--hover-rgb), 0.2);
+}
+
+/* مساحات الإضافة */
+.add-component-zone {
+  height: 12px;
+  margin: 8px 0;
+  border-radius: 6px;
+  background-color: transparent;
+  transition: height 0.2s, background-color 0.2s;
+}
+
+.add-component-zone.is-over {
+  height: 80px;
+  background-color: rgba(var(--primary-rgb), 0.08);
+  border: 2px dashed hsl(var(--primary) / 0.4);
+} 

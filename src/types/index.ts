@@ -144,6 +144,7 @@ export interface Order {
   shippingAddress?: Address;
   shippingMethod?: string;
   shippingCost?: number;
+  shipping_option?: string;
   notes?: string;
   isOnline: boolean; // طلب عبر الإنترنت أو من المتجر الفعلي
   employeeId?: string; // معرف الموظف الذي أتم الطلب (للمتجر الفعلي)

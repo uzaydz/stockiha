@@ -36,6 +36,7 @@ type Order = {
   organization_id: string;
   slug: string | null;
   customer_order_number: number | null;
+  created_from?: string;
   // خصائص مضافة من العلاقات
   customer?: {
     id: string;
@@ -544,7 +545,8 @@ const Orders = () => {
   const updateShippingInfo = async (orderId: string, shippingData: {
     shipping_method: string,
     shipping_cost: number,
-    notes?: string
+    notes?: string,
+    shipping_option?: string
   }) => {
     try {
       const { error } = await supabase
@@ -552,7 +554,8 @@ const Orders = () => {
         .update({
           shipping_method: shippingData.shipping_method,
           shipping_cost: shippingData.shipping_cost,
-          notes: shippingData.notes || null
+          notes: shippingData.notes || null,
+          shipping_option: shippingData.shipping_option || null
         })
         .eq('id', orderId)
         .eq('organization_id', currentOrganization?.id);
@@ -565,7 +568,8 @@ const Orders = () => {
           ...order, 
           shipping_method: shippingData.shipping_method,
           shipping_cost: shippingData.shipping_cost,
-          notes: shippingData.notes || null
+          notes: shippingData.notes || null,
+          shipping_option: shippingData.shipping_option || null
         } : order
       );
       setOrders(updatedOrders);
@@ -575,7 +579,8 @@ const Orders = () => {
           ...selectedOrder,
           shipping_method: shippingData.shipping_method,
           shipping_cost: shippingData.shipping_cost,
-          notes: shippingData.notes || null
+          notes: shippingData.notes || null,
+          shipping_option: shippingData.shipping_option || null
         });
       }
 

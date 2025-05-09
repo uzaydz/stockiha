@@ -213,8 +213,11 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
       if (orgSettings) {
         // تطبيق الألوان الرئيسية والثانوية
         // اللون الرئيسي
+        let primaryHSL = '';
+        let secondaryHSL = '';
+        
         if (orgSettings.theme_primary_color) {
-          const primaryHSL = hexToHSL(orgSettings.theme_primary_color);
+          primaryHSL = hexToHSL(orgSettings.theme_primary_color);
           document.documentElement.style.setProperty('--primary', primaryHSL);
           
           // إضافة متغيرات إضافية مشتقة من اللون الرئيسي
@@ -227,9 +230,20 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
         
         // اللون الثانوي
         if (orgSettings.theme_secondary_color) {
-          const secondaryHSL = hexToHSL(orgSettings.theme_secondary_color);
+          secondaryHSL = hexToHSL(orgSettings.theme_secondary_color);
           document.documentElement.style.setProperty('--secondary', secondaryHSL);
           document.documentElement.style.setProperty('--secondary-foreground', '0 0% 100%');
+        }
+        
+        // تخزين الألوان في localStorage للتحميل السريع في المرات القادمة
+        try {
+          localStorage.setItem(`org_theme_${window.location.hostname}`, JSON.stringify({
+            primary: primaryHSL,
+            secondary: secondaryHSL,
+            timestamp: Date.now()
+          }));
+        } catch (error) {
+          console.error('خطأ في تخزين ألوان الثيم:', error);
         }
         
         // تطبيق وضع المظهر من إعدادات المؤسسة

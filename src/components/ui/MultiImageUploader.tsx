@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Upload, X, ImageIcon, ArrowUp, ArrowDown, Loader2 } from "lucide-react";
@@ -32,30 +32,42 @@ export default function MultiImageUploader({
   const [isAddingImage, setIsAddingImage] = useState(false);
   const { toast } = useToast();
   
+  // تحسين: استخدام مرجع للاحتفاظ بالقيمة الحالية للصور لتفادي مشاكل الإغلاق
+  const imagesRef = useRef<string[]>(defaultImages);
+  
   // إضافة useEffect لتحديث الصور عندما تتغير defaultImages من الخارج
   useEffect(() => {
-    console.log("MultiImageUploader: defaultImages changed", defaultImages);
+    // تجنب طباعة رسائل التصحيح المتكررة في البيئة الإنتاجية
+    if (process.env.NODE_ENV !== 'production') {
+      console.log("MultiImageUploader: defaultImages changed", defaultImages);
+    }
+    
     // التأكد من أن defaultImages مصفوفة
     if (Array.isArray(defaultImages) && JSON.stringify(defaultImages) !== JSON.stringify(images)) {
       setImages(defaultImages);
+      imagesRef.current = defaultImages;
     }
   }, [defaultImages]);
   
   const handleImageUploaded = (url: string) => {
-    console.log("MultiImageUploader: image uploaded", url);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log("MultiImageUploader: image uploaded", url);
+    }
+    
     if (url && url.trim() !== "") {
       // استخدام وظيفة تحديث الحالة مع وظيفة مرجعية للتأكد من استخدام أحدث القيم
       setImages(prevImages => {
         const newImages = [...prevImages, url];
-        console.log("MultiImageUploader: updating images", newImages);
+        // تحديث مرجع الصور
+        imagesRef.current = newImages;
+        
+        if (process.env.NODE_ENV !== 'production') {
+          console.log("MultiImageUploader: updating images", newImages);
+        }
         
         // تأخير استدعاء onImagesUploaded لضمان اكتمال تحديث الحالة أولاً
         if (!disableAutoCallback) {
-          // استخدام setTimeout لتفادي مشكلة إغلاق قناة الاتصال
-          setTimeout(() => {
-            console.log("MultiImageUploader: calling onImagesUploaded after timeout", newImages);
-            onImagesUploaded(newImages);
-          }, 0);
+          onImagesUploaded(newImages);
         }
         
         return newImages;
@@ -67,19 +79,22 @@ export default function MultiImageUploader({
   };
 
   const handleRemoveImage = (index: number) => {
-    console.log("MultiImageUploader: removing image at index", index);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log("MultiImageUploader: removing image at index", index);
+    }
     
     setImages(prevImages => {
       const newImages = [...prevImages];
       const removedUrl = newImages.splice(index, 1)[0];
-      console.log("MultiImageUploader: removed image URL", removedUrl);
+      // تحديث مرجع الصور
+      imagesRef.current = newImages;
+      
+      if (process.env.NODE_ENV !== 'production') {
+        console.log("MultiImageUploader: removed image URL", removedUrl);
+      }
       
       if (!disableAutoCallback) {
-        // استخدام setTimeout لتفادي مشكلة إغلاق قناة الاتصال
-        setTimeout(() => {
-          console.log("MultiImageUploader: calling onImagesUploaded after removal with timeout", newImages);
-          onImagesUploaded(newImages);
-        }, 0);
+        onImagesUploaded(newImages);
       }
       
       return newImages;
@@ -98,14 +113,15 @@ export default function MultiImageUploader({
       const newImages = [...prevImages];
       const newIndex = direction === 'up' ? index - 1 : index + 1;
       [newImages[index], newImages[newIndex]] = [newImages[newIndex], newImages[index]];
-      console.log("MultiImageUploader: reordered images", newImages);
+      // تحديث مرجع الصور
+      imagesRef.current = newImages;
+      
+      if (process.env.NODE_ENV !== 'production') {
+        console.log("MultiImageUploader: reordered images", newImages);
+      }
       
       if (!disableAutoCallback) {
-        // استخدام setTimeout لتفادي مشكلة إغلاق قناة الاتصال
-        setTimeout(() => {
-          console.log("MultiImageUploader: calling onImagesUploaded after reordering with timeout", newImages);
-          onImagesUploaded(newImages);
-        }, 0);
+        onImagesUploaded(newImages);
       }
       
       return newImages;

@@ -1,7 +1,9 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 import { getOrganizationBySubdomain } from '@/lib/api/tenant';
+import { getCacheData, setCacheData, LONG_CACHE_TTL } from '@/lib/cache/storeCache';
 
 export interface AuthContextType {
   session: Session | null;
@@ -26,7 +28,7 @@ export interface AuthContextType {
   loading: boolean;
   isTenant: boolean;
   currentSubdomain: string | null;
-  refreshOrganizationData: () => Promise<void>;
+  refreshOrganizationData: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -37,35 +39,57 @@ const isMainDomain = (hostname: string): boolean => {
   return hostname === 'www.ktobi.online' || hostname === 'ktobi.online';
 };
 
-// استخراج النطاق الفرعي من اسم المضيف
+// استخراج النطاق الفرعي من اسم المضيف (مع تخزين النتيجة)
 const extractSubdomain = (hostname: string) => {
+  // استخدام قيمة مخزنة محليًا لمنع الاستدعاءات المتكررة
+  const cachedSubdomain = sessionStorage.getItem('bazaar_current_subdomain');
+  if (cachedSubdomain) {
+    return cachedSubdomain === 'null' ? null : cachedSubdomain;
+  }
+  
   console.log('اكتشاف النطاق الفرعي - اسم المضيف:', hostname);
   
-  // اختبار ما إذا كان النطاق الرئيسي
-  if (isMainDomain(hostname)) {
-    console.log('تم اكتشاف النطاق الرئيسي، لا يوجد نطاق فرعي');
-    return null;
-  }
+  let subdomain = null;
   
-  // تقسيم اسم المضيف إلى أجزاء
-  const hostParts = hostname.split('.');
-  console.log('أجزاء اسم المضيف:', hostParts);
-  
-  // إذا كان لدينا أكثر من جزئين، الجزء الأول هو النطاق الفرعي
-  if (hostParts.length > 2) {
-    const subdomain = hostParts[0];
-    console.log('تم اكتشاف النطاق الفرعي:', subdomain);
-    
-    // لا نعتبر 'www' كنطاق فرعي حقيقي
-    if (subdomain === 'www') {
-      console.log('تجاهل www كنطاق فرعي');
-      return null;
+  // خاص بـ localhost: التعامل مع النطاقات الفرعية في بيئة التطوير
+  if (hostname.includes('localhost')) {
+    // مثال: mystore.localhost:8080 يجب أن تعطي "mystore"
+    const parts = hostname.split('.');
+    if (parts.length > 1) {
+      subdomain = parts[0];
+      console.log('تم اكتشاف نطاق فرعي على localhost:', subdomain);
+    } else {
+      console.log('تم اكتشاف localhost فقط، لا يوجد نطاق فرعي');
     }
+  } 
+  // التعامل مع عناوين IP المحلية
+  else if (hostname.match(/^127\.\d+\.\d+\.\d+$/) || hostname.match(/^\d+\.\d+\.\d+\.\d+$/)) {
+    console.log('تم اكتشاف عنوان IP محلي، لا يوجد نطاق فرعي');
+  } 
+  // اختبار ما إذا كان النطاق الرئيسي
+  else if (isMainDomain(hostname)) {
+    console.log('تم اكتشاف النطاق الرئيسي، لا يوجد نطاق فرعي');
+  } 
+  // تقسيم اسم المضيف إلى أجزاء
+  else {
+    const hostParts = hostname.split('.');
     
-    return subdomain;
+    // إذا كان لدينا أكثر من جزئين، الجزء الأول هو النطاق الفرعي
+    if (hostParts.length > 2) {
+      subdomain = hostParts[0];
+      console.log('تم اكتشاف النطاق الفرعي:', subdomain);
+      
+      // لا نعتبر 'www' كنطاق فرعي حقيقي
+      if (subdomain === 'www') {
+        console.log('تجاهل www كنطاق فرعي');
+        subdomain = null;
+      }
+    }
   }
   
-  return null;
+  // حفظ النتيجة في التخزين لتجنب إعادة الحساب
+  sessionStorage.setItem('bazaar_current_subdomain', subdomain === null ? 'null' : subdomain);
+  return subdomain;
 };
 
 // دالة لتحديد معرف المؤسسة الافتراضية للنطاق الرئيسي
@@ -89,15 +113,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isTenant, setIsTenant] = useState(false);
-  const [currentSubdomain, setCurrentSubdomain] = useState<string | null>(extractSubdomain(window.location.hostname));
+  const [currentSubdomain, setCurrentSubdomain] = useState<string | null>(() => 
+    extractSubdomain(window.location.hostname)
+  );
   const [organization, setOrganization] = useState<AuthContextType['organization']>(null);
+  
+  // منع تسجيل رسالة التهيئة المتكررة - تسجيل مرة واحدة فقط
+  useEffect(() => {
+    console.log("تهيئة AuthProvider - النطاق الفرعي الحالي:", currentSubdomain);
+  }, []);
 
-  console.log("تهيئة AuthProvider - النطاق الفرعي الحالي:", currentSubdomain);
-
-  const loadOrganizationData = async (subdomain: string | null) => {
+  // تحسين وظيفة تحميل بيانات المؤسسة باستخدام useCallback والتخزين المؤقت
+  const loadOrganizationData = useCallback(async (subdomain: string | null) => {
     console.log('جاري جلب بيانات المؤسسة...');
     
     try {
+      // محاولة الحصول على البيانات من التخزين المؤقت أولاً
+      const cacheKey = subdomain 
+        ? `organization:subdomain:${subdomain}`
+        : `organization:default`;
+      
+      const cachedData = await getCacheData<AuthContextType['organization']>(cacheKey, LONG_CACHE_TTL);
+      if (cachedData) {
+        console.log('استخدام بيانات المؤسسة من التخزين المؤقت');
+        setOrganization(cachedData);
+        setIsTenant(true);
+        return true;
+      }
+      
+      const supabaseClient = await getSupabaseClient();
+      
       let organizationData = null;
       
       // إذا كان النطاق الفرعي غير محدد (النطاق الرئيسي)
@@ -107,7 +152,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (defaultOrgId) {
           // استخدام المعرف المخزن أو الافتراضي لجلب بيانات المؤسسة
-          const { data, error } = await supabase
+          const { data, error } = await supabaseClient
             .from('organizations')
             .select('id, name, subscription_tier, subscription_status, created_at')
             .eq('id', defaultOrgId)
@@ -125,7 +170,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // البحث عن المؤسسة باستخدام النطاق الفرعي
         console.log('محاولة العثور على المؤسسة باستخدام النطاق الفرعي:', subdomain);
         
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
           .from('organizations')
           .select('id, name, subscription_tier, subscription_status, created_at')
           .eq('subdomain', subdomain)
@@ -147,7 +192,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (organizationId) {
           console.log('معرف المؤسسة من التخزين المحلي:', organizationId);
           
-          const { data, error } = await supabase
+          const { data, error } = await supabaseClient
             .from('organizations')
             .select('id, name, subscription_tier, subscription_status, created_at')
             .eq('id', organizationId)
@@ -167,7 +212,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // جلب معلومات الاشتراك
         let subscription_id = null;
         try {
-          const { data: subscriptionData } = await supabase
+          const { data: subscriptionData } = await supabaseClient
             .from('organization_subscriptions')
             .select('id')
             .eq('organization_id', organizationData.id)
@@ -183,15 +228,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         
         // تعيين بيانات المؤسسة
-        setOrganization({
+        const orgData = {
           id: organizationData.id,
           name: organizationData.name,
           subscription_tier: organizationData.subscription_tier || 'free',
           subscription_status: organizationData.subscription_status || 'inactive',
           subscription_id: subscription_id,
           created_at: organizationData.created_at
-        });
+        };
         
+        // تخزين البيانات مؤقتًا لتقليل الاستعلامات المستقبلية
+        await setCacheData(cacheKey, orgData, true);
+        
+        setOrganization(orgData);
         setIsTenant(true);
         return true;
       } else {
@@ -205,23 +254,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsTenant(false);
       return false;
     }
-  };
+  }, []);
 
+  // منع تنفيذ التحقق من الجلسة بشكل متكرر
   useEffect(() => {
-    // Check for active session on component mount
+    let isActive = true;
+    
+    // التحقق من الجلسة النشطة عند تحميل المكون
     const getInitialSession = async () => {
+      if (!isActive) return;
+      
       console.log("جاري التحقق من الجلسة الحالية...");
       try {
-        // Clear any existing loop detection counters
+        // مسح أي عدادات اكتشاف حلقة موجودة
         sessionStorage.removeItem('lastLoginRedirect');
         sessionStorage.setItem('loginRedirectCount', '0');
         
-        setLoading(true); // Ensure loading is set to true before checking session
-        const { data: { session } } = await supabase.auth.getSession();
+        setLoading(true); // التأكد من تعيين التحميل إلى true قبل التحقق من الجلسة
+        const supabaseClient = await getSupabaseClient();
+        const { data: { session } } = await supabaseClient.auth.getSession();
         console.log("نتيجة الجلسة:", session ? "موجودة" : "غير موجودة");
         
-        // Add a small delay to ensure state updates properly
+        if (!isActive) return;
+        
+        // إضافة تأخير صغير للتأكد من تحديث الحالة بشكل صحيح
         await new Promise(resolve => setTimeout(resolve, 300));
+        
+        if (!isActive) return;
         
         // Store session in localStorage for backup recovery
         if (session) {
@@ -252,13 +311,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           await loadOrganizationData(currentSubdomain);
         }
       } catch (error) {
-        console.error('خطأ في الحصول على الجلسة الأولية:', error);
+        console.error("خطأ أثناء الحصول على الجلسة:", error);
       } finally {
-        // Add a small delay before setting loading to false to ensure state is updated
-        setTimeout(() => {
+        if (isActive) {
           setLoading(false);
-          console.log("تم الانتهاء من التحقق من الجلسة، حالة التحميل:", false);
-        }, 300);
+        }
       }
     };
 
@@ -275,8 +332,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    const { data: authListener } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
+        if (!isActive) return;
+        
         console.log("تغيير حالة المصادقة - نوع الحدث:", _event);
         setLoading(true); // Set loading to true during auth state change
         
@@ -319,15 +378,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
 
-    // Cleanup on unmount
     return () => {
-      subscription.unsubscribe();
+      isActive = false;
+      if (authListener && authListener.subscription) {
+        authListener.subscription.unsubscribe();
+      }
     };
   }, []);
 
-  // Check subdomain validity
+  // تنفيذ التحقق من النطاق الفرعي مرة واحدة فقط
   useEffect(() => {
+    let isActive = true;
+    
     const validateSubdomain = async () => {
+      if (!currentSubdomain || !isActive) return;
+      
       console.log("التحقق من صحة النطاق الفرعي:", currentSubdomain);
       if (currentSubdomain) {
         try {
@@ -370,30 +435,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
 
-    // Prevent validation from running too frequently
-    const timer = setTimeout(() => {
+    if (currentSubdomain) {
       validateSubdomain();
-    }, 500);
-    
-    return () => clearTimeout(timer);
+    }
+
+    return () => {
+      isActive = false;
+    };
   }, [currentSubdomain]);
 
-  // دالة لتحديث بيانات المؤسسة - يمكن استدعاؤها من أي مكان في التطبيق
-  const refreshOrganizationData = async () => {
-    console.log("تحديث بيانات المؤسسة...");
-    await loadOrganizationData(currentSubdomain);
-  };
-
-  // تحميل بيانات المؤسسة عند بدء التطبيق
+  // تحميل بيانات المؤسسة مرة واحدة عند تعيين النطاق الفرعي
   useEffect(() => {
-    // محاولة تحميل بيانات المؤسسة من التخزين المحلي عند بدء التطبيق
-    if (!organization) {
-      console.log("تحميل بيانات المؤسسة عند بدء التطبيق");
-      loadOrganizationData(currentSubdomain);
-    }
-  }, []);
+    let isActive = true;
+    
+    // تحميل بيانات المؤسسة فقط بعد تعيين النطاق الفرعي وعند تغييره
+    const loadOrgData = async () => {
+      if (!isActive) return;
+      await loadOrganizationData(currentSubdomain);
+    };
+    
+    loadOrgData();
+    
+    return () => {
+      isActive = false;
+    };
+  }, [currentSubdomain, loadOrganizationData]);
 
-  const signIn = async (email: string, password: string) => {
+  // تحسين وظائف المصادقة باستخدام useCallback لمنع إعادة الإنشاء غير الضرورية
+  const refreshOrganizationData = useCallback(async () => {
+    return await loadOrganizationData(currentSubdomain);
+  }, [currentSubdomain, loadOrganizationData]);
+
+  const signIn = useCallback(async (email: string, password: string) => {
     console.log("محاولة تسجيل الدخول لـ:", email);
     try {
       setLoading(true); // Set loading to true during sign in
@@ -403,7 +476,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.removeItem('authSessionExists');
       localStorage.removeItem('authSessionLastUpdated');
       
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const supabaseClient = await getSupabaseClient();
+      const { data, error } = await supabaseClient.auth.signInWithPassword({
         email,
         password,
       });
@@ -461,14 +535,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false); // Reset loading state on error
       return { success: false, error: error as Error };
     }
-  };
+  }, []);
 
-  const signUp = async (email: string, password: string, name: string) => {
+  const signUp = useCallback(async (email: string, password: string, name: string) => {
     try {
+      const supabaseClient = await getSupabaseClient();
       // تحقق مما إذا كان التسجيل من خلال صفحة المتجر (النطاق الفرعي)
       if (currentSubdomain) {
         // التسجيل من خلال صفحة المتجر يسمح فقط بإنشاء حسابات العملاء
-        const { data, error } = await supabase.auth.signUp({
+        const { data, error } = await supabaseClient.auth.signUp({
           email,
           password,
           options: {
@@ -495,7 +570,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: true, error: null };
       } else {
         // التسجيل العادي (ليس من خلال صفحة المتجر)
-        const { data, error } = await supabase.auth.signUp({
+        const { data, error } = await supabaseClient.auth.signUp({
           email,
           password,
           options: {
@@ -524,11 +599,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Error signing up:', error);
       return { success: false, error: error as Error };
     }
-  };
+  }, []);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     try {
-      await supabase.auth.signOut();
+      const supabaseClient = await getSupabaseClient();
+      await supabaseClient.auth.signOut();
       setSession(null);
       setUser(null);
       setIsTenant(false);
@@ -536,22 +612,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('Error signing out:', error);
     }
-  };
+  }, []);
 
-  const value: AuthContextType = {
+  // استخدام useMemo لمنع إعادة إنشاء سياق المصادقة في كل عملية رندر
+  const value = useMemo(() => ({
     session,
     user,
+    organization,
     signIn,
     signUp,
     signOut,
     loading,
     isTenant,
     currentSubdomain,
-    organization,
     refreshOrganizationData,
-  };
+  }), [
+    session,
+    user,
+    organization,
+    signIn,
+    signUp,
+    signOut,
+    loading,
+    isTenant,
+    currentSubdomain,
+    refreshOrganizationData,
+  ]);
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  // استخدام useMemo لتجنب عمليات إعادة الرندر غير الضرورية
+  return useMemo(() => (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  ), [value, children]);
 };
 
 export const useAuth = (): AuthContextType => {
