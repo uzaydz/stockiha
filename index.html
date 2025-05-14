@@ -7,11 +7,37 @@
     <meta name="description" content="منصة الألعاب الشاملة - متجر ألعاب متكامل لبيع وإصلاح أجهزة الألعاب والإكسسوارات" />
     <meta name="author" content="Game Shop" />
     
-    <!-- تحميل React Preload لضمان تعريف hooks قبل أي شيء آخر -->
-    <script src="/preload.js"></script>
+    <!-- تحميل React Preload مباشرة قبل أي شيء آخر -->
+    <script src="/preload.js" type="text/javascript"></script>
+    
+    <!-- إصلاح مخصص لـ hooks في المكتبات -->
+    <script src="/hooks-fix.js" type="text/javascript"></script>
     
     <!-- تحميل React الساكن لمنع الأخطاء أثناء التحميل -->
-    <script src="/react-global-static.js"></script>
+    <script src="/react-global-static.js" type="text/javascript"></script>
+    
+    <!-- التأكد من تعريف React والـ hooks قبل تحميل أي شيء آخر -->
+    <script>
+      // فحص توفر React والـ hooks الضرورية
+      (function() {
+        if (!window.React || !window.React.useLayoutEffect) {
+          console.warn('التحقق من React والـ hooks قبل التحميل: React أو useLayoutEffect غير متوفر');
+          
+          // تعريف مباشر لـ useLayoutEffect في حالة عدم توفره
+          if (window.React && !window.React.useLayoutEffect) {
+            window.React.useLayoutEffect = function useLayoutEffectPolyfill(fn, deps) {
+              console.warn('استخدام useLayoutEffect polyfill من فحص التحميل المبكر');
+              return undefined;
+            };
+          }
+          
+          // التأكد من توفر الـ hooks الضرورية
+          window.useLayoutEffect = window.useLayoutEffect || window.React?.useLayoutEffect || function() {};
+        } else {
+          console.log('React والـ hooks متوفرة بنجاح قبل التحميل');
+        }
+      })();
+    </script>
     
     <!-- إضافة سكريبت للتعامل مع وضع الإضاءة -->
     <script>

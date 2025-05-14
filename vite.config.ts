@@ -175,18 +175,23 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks: (id) => {
-            // ملفات React الأساسية تحمل أولاً
-            if (id.includes('react') && (id.includes('/react/') || id.includes('/react-dom/'))) {
-              return 'vendor-react-core';
+            // ملفات preload وsetup تحمل أولاً
+            if (id.includes('/public/preload.js') || id.includes('/public/hooks-fix.js')) {
+              return 'react-preload';
             }
             
-            // ترتيب تحميل الملفات الرئيسية
+            // ملفات React الأساسية تحمل بعد preload مباشرة
+            if (id.includes('react') && (id.includes('/react/') || id.includes('/react-dom/') || id.includes('/react/jsx'))) {
+              return 'vendor-react-base';
+            }
+            
+            // ملفات React العالمية والساكنة
             if (id.includes('/src/lib/react-global.js') || id.includes('/src/lib/react-global')) {
-              return 'vendor-react-core';
+              return 'vendor-react-global';
             }
             
             if (id.includes('/public/react-global-static.js')) {
-              return 'vendor-react-core';
+              return 'vendor-react-global';
             }
             
             // تجزئة الكود للمكتبات الرئيسية
@@ -195,7 +200,8 @@ export default defineConfig(({ mode }) => {
               if (id.includes('react') || id.includes('react-dom')) {
                 return 'vendor-react-core';
               }
-              // مكتبات تستخدم React hooks
+              
+              // مكتبات تستخدم React hooks (مع التأكد من تحميلها بعد React core)
               if (
                 id.includes('@radix-ui') || 
                 id.includes('react-hook-form') || 
@@ -205,7 +211,14 @@ export default defineConfig(({ mode }) => {
                 id.includes('@floating-ui') ||
                 id.includes('framer-motion')
               ) {
-                return 'vendor-react-ui';
+                // تقسيمها حسب المكتبة لتقليل حجم كل ملف
+                if (id.includes('@radix-ui')) return 'vendor-radix-ui';
+                if (id.includes('react-hook-form')) return 'vendor-hook-form';
+                if (id.includes('@headlessui')) return 'vendor-headless-ui';
+                if (id.includes('@floating-ui')) return 'vendor-floating-ui';
+                if (id.includes('framer-motion')) return 'vendor-framer-motion';
+                
+                return 'vendor-react-hooks';
               }
               if (id.includes('@tanstack/react-query')) {
                 return 'vendor-query';
