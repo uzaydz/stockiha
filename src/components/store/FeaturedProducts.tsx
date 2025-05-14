@@ -142,7 +142,12 @@ const FeaturedProducts = ({
   
   // استخدام سياق المؤسسة للحصول على معرف المؤسسة إذا لم يتم تمريره
   const { currentOrganization, isLoading: isTenantLoading } = useTenant();
-  const effectiveOrgId = organizationId || currentOrganization?.id;
+  
+  // قراءة معرف المؤسسة من localStorage لضمان الحصول على القيمة المحدثة
+  const storedOrgId = typeof window !== 'undefined' ? localStorage.getItem('bazaar_organization_id') : null;
+  
+  // استخدام المعرف المخزن محليًا إذا كان موجودًا، وإلا استخدام المعرف الممرر، وإلا استخدام معرف المؤسسة الحالية
+  const effectiveOrgId = storedOrgId || organizationId || currentOrganization?.id;
   
   // جلب المنتجات من قاعدة البيانات عند الحاجة
   useEffect(() => {
