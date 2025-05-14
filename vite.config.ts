@@ -163,7 +163,7 @@ export default defineConfig(({ mode }: { mode: string }) => {
       outDir: 'dist',
       assetsDir: 'assets',
       emptyOutDir: true,
-      sourcemap: !isProduction, // Source map only in development
+      sourcemap: true, // Source map enabled for all builds for easier debugging
       // تحسينات بناء Electron
       target: 'esnext',
       minify: false, // تعطيل التصغير مؤقتًا للتشخيص
@@ -206,7 +206,10 @@ export default defineConfig(({ mode }: { mode: string }) => {
                   id.includes('react-markdown') || 
                   id.includes('react-resizable-panels') || 
                   id.includes('react-to-print') || 
-                  id.includes('react-window')
+                  id.includes('react-window') ||
+                  id.includes('aria-hidden') || 
+                  id.includes('use-callback-ref') ||
+                  id.includes('react-remove-scroll') // تمت الإضافة
               ) {
                 return 'vendor-react';
               }
