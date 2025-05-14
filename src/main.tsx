@@ -2,20 +2,24 @@
 import React from './lib/react-global.js';
 import ReactDOM from 'react-dom/client';
 
-// التأكد من أن window.React متاح قبل أي شيء آخر
-if (typeof window !== 'undefined' && (!window.React || !window.React.useLayoutEffect)) {
-  console.warn('تعريف React عالمياً من main.tsx');
+// تهيئة React العالمي والتأكد من توفر useLayoutEffect
+if (typeof window !== 'undefined') {
+  // التأكد من توفر React قبل أي عملية تحميل أخرى
   window.React = window.React || React;
   
-  // التأكد من توفر useLayoutEffect
-  if (!React.useLayoutEffect) {
-    console.warn('استبدال useLayoutEffect بـ useEffect في main.tsx');
-    React.useLayoutEffect = React.useEffect;
-  }
-  
-  if (!window.React.useLayoutEffect) {
+  // التأكد من توفر useLayoutEffect بشكل صريح
+  if (window.React && !window.React.useLayoutEffect) {
+    console.warn('ضمان توفر useLayoutEffect من main.tsx');
     window.React.useLayoutEffect = React.useLayoutEffect || React.useEffect;
   }
+
+  // نسخ الـ hooks الهامة إلى النافذة العالمية لدعم المكتبات التي تستخدمها بشكل مباشر
+  const essentialHooks = ['useLayoutEffect', 'useState', 'useEffect', 'useRef', 'useContext'];
+  essentialHooks.forEach(hookName => {
+    if (React[hookName] && !window[hookName]) {
+      window[hookName] = React[hookName];
+    }
+  });
 }
 
 // Importar los polyfills específicos para env.mjs antes de cualquier otro módulo

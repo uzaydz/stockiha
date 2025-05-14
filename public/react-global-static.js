@@ -6,12 +6,30 @@
 (function() {
   // التأكد من أن النافذة موجودة
   if (typeof window === 'undefined') return;
+  
+  // تهيئة الـ hooks الأساسية بشكل منفصل قبل تعريف React
+  const noopHook = () => {};
+  const useStateHook = () => [undefined, () => {}];
+  
+  // ضمان تعريف الـ hooks الأساسية في النافذة العالمية
+  window.useLayoutEffect = window.useLayoutEffect || noopHook;
+  window.useState = window.useState || useStateHook;
+  window.useEffect = window.useEffect || noopHook;
+  window.useRef = window.useRef || (() => ({ current: null }));
+  window.useContext = window.useContext || (() => null);
 
   // إنشاء كائن React الوهمي إذا لم يكن موجودًا بالفعل
   if (!window.React) {
     // دوال عامة لـ React
     const noop = () => null;
     const noopWithReturn = (val) => val || {};
+    
+    // إنشاء React hooks مسبقًا
+    const useLayoutEffectImpl = window.useLayoutEffect;
+    const useStateImpl = window.useState;
+    const useEffectImpl = window.useEffect;
+    const useRefImpl = window.useRef;
+    const useContextImpl = window.useContext;
     
     // إنشاء كائن React وهمي
     window.React = {
@@ -30,14 +48,14 @@
       forwardRef: (fn) => fn,
       
       // هوكس
-      useState: () => [undefined, noop],
-      useEffect: noop,
-      useContext: () => null,
+      useState: useStateImpl,
+      useEffect: useEffectImpl,
+      useContext: useContextImpl,
       useReducer: () => [null, noop],
       useCallback: (cb) => cb,
       useMemo: (fn) => fn(),
-      useRef: () => ({ current: null }),
-      useLayoutEffect: noop,
+      useRef: useRefImpl,
+      useLayoutEffect: useLayoutEffectImpl,
       useImperativeHandle: noop,
       useDebugValue: noop,
       useTransition: () => [false, noop],

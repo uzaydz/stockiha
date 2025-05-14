@@ -181,15 +181,19 @@ export default defineConfig(({ mode }) => {
             }
             
             // ترتيب تحميل الملفات الرئيسية
-            if (id.includes('/src/lib/react-global.js')) {
-              return 'react-setup';
+            if (id.includes('/src/lib/react-global.js') || id.includes('/src/lib/react-global')) {
+              return 'vendor-react-core';
+            }
+            
+            if (id.includes('/public/react-global-static.js')) {
+              return 'vendor-react-core';
             }
             
             // تجزئة الكود للمكتبات الرئيسية
             if (id.includes('node_modules')) {
               // مكتبات React الأساسية - لكن ليست الأساسية بالكامل
               if (id.includes('react') || id.includes('react-dom')) {
-                return 'vendor-react';
+                return 'vendor-react-core';
               }
               // مكتبات تستخدم React hooks
               if (
@@ -201,7 +205,7 @@ export default defineConfig(({ mode }) => {
                 id.includes('@floating-ui') ||
                 id.includes('framer-motion')
               ) {
-                return 'vendor-react-hooks';
+                return 'vendor-react-ui';
               }
               if (id.includes('@tanstack/react-query')) {
                 return 'vendor-query';
