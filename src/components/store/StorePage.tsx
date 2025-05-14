@@ -254,13 +254,9 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
           
           <div className="flex-1">
             {/* عرض المكونات المخصصة إذا كانت موجودة */}
+            {/* استخدام Navbar العادي بدلاً من StoreNavbar غير المعرف */}
             <header className="bg-background/50 backdrop-blur-sm border-b sticky top-0 z-30">
-              <StoreNavbar
-                storeName={storeName}
-                logoUrl={storeData.logoUrl}
-                cartCount={0}
-                primaryColor={storeData.primaryColor}
-              />
+              <Navbar />
             </header>
             
             <main className="flex-1">
