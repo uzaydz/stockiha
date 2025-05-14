@@ -53,6 +53,15 @@ const LandingPage = () => {
           
           if (orgData) {
             console.log('تم العثور على نطاق مخصص:', hostname);
+            // تحديث التخزين المحلي مباشرة
+            localStorage.setItem('bazaar_organization_id', orgData.id);
+            localStorage.setItem('bazaar_current_subdomain', orgData.subdomain);
+            
+            // بدء تحميل بيانات المتجر فورًا
+            if (!dataFetchedRef.current) {
+              fetchStoreDataForSubdomain(orgData.subdomain);
+            }
+            
             setShowStore(true);
             return;
           }
@@ -61,9 +70,10 @@ const LandingPage = () => {
         }
       };
       
-      // التحقق من النطاق المخصص أولاً
+      // التحقق من النطاق المخصص أولاً - للنطاقات المخصصة، نتخطى باقي الفحوصات
       if (!hostname.includes('localhost')) {
         checkCustomDomain();
+        return; // انتظار نتيجة الفحص
       }
       
       // التحقق من النطاق الفرعي
@@ -124,40 +134,40 @@ const LandingPage = () => {
     };
   }, []);
 
-  const fetchStoreData = async () => {
-    if (!currentSubdomain) return;
-    
-    // Prevent duplicate fetches
-    if (isLoading || dataFetchedRef.current) return;
+  // دالة مساعدة لتحميل بيانات المتجر لنطاق فرعي محدد
+  const fetchStoreDataForSubdomain = async (subdomain: string) => {
+    if (!subdomain) return;
     
     dataFetchedRef.current = true;
     setIsLoading(true);
     setError(null);
 
     try {
-      console.log('Fetching store data for subdomain:', currentSubdomain);
-      const data = await getFullStoreData(currentSubdomain);
-      
-      console.log('Store data result:', {
-        success: !!data,
-        name: data?.name,
-        productsCount: data?.products?.length || 0,
-        categoriesCount: data?.categories?.length || 0,
-        servicesCount: data?.services?.length || 0
-      });
+      console.log('تحميل بيانات المتجر للنطاق الفرعي:', subdomain);
+      const data = await getFullStoreData(subdomain);
       
       if (data) {
         setStoreData(data);
       } else {
-        console.error('No store data returned for subdomain:', currentSubdomain);
+        console.error('لم يتم العثور على بيانات للنطاق الفرعي:', subdomain);
         setError('لم نتمكن من العثور على متجر بهذا الاسم');
       }
     } catch (err) {
-      console.error('Error fetching store data:', err);
+      console.error('خطأ في تحميل بيانات المتجر:', err);
       setError('حدث خطأ أثناء تحميل بيانات المتجر');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // الدالة الأصلية لتحميل بيانات المتجر
+  const fetchStoreData = async () => {
+    if (!currentSubdomain) return;
+    
+    // منع تحميل البيانات مرتين
+    if (isLoading || dataFetchedRef.current) return;
+    
+    fetchStoreDataForSubdomain(currentSubdomain);
   };
 
   // جلب فئات المنتجات من قاعدة البيانات

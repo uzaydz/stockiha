@@ -1,8 +1,33 @@
 import { supabase } from '@/lib/supabase-client';
+import { getSupabaseClient } from '@/lib/supabase-client';
 
 // دالة للحصول على معرف المؤسسة
 export const getOrganizationId = async (currentUser: any = null): Promise<string | null> => {
   try {
+    // 0. محاولة الحصول على المعرف من النطاق المخصص إذا كان موجودًا
+    const hostname = window.location.hostname;
+    if (!hostname.includes('localhost')) {
+      try {
+        const supabase = await getSupabaseClient();
+        const { data: orgData } = await supabase
+          .from('organizations')
+          .select('id, domain, subdomain')
+          .eq('domain', hostname)
+          .single();
+          
+        if (orgData) {
+          console.log("استخدام معرف المؤسسة من النطاق المخصص:", hostname, orgData.id);
+          // تحديث التخزين المحلي بالمعرف الصحيح
+          localStorage.setItem('bazaar_organization_id', orgData.id);
+          localStorage.setItem('bazaar_current_subdomain', orgData.subdomain);
+          
+          return orgData.id;
+        }
+      } catch (customDomainError) {
+        console.error("خطأ في التحقق من النطاق المخصص:", customDomainError);
+      }
+    }
+
     // 1. محاولة الحصول على المعرف من المستخدم الحالي عبر API
     if (currentUser) {
       const { data: userData, error: userError } = await supabase
