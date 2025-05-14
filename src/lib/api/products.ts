@@ -269,7 +269,7 @@ export const getProductsByCategory = async (categoryId: string, includeInactive:
   return data as any;
 };
 
-export const getFeaturedProducts = async (includeInactive: boolean = false): Promise<Product[]> => {
+export const getFeaturedProducts = async (includeInactive: boolean = false, organizationId?: string): Promise<Product[]> => {
   let query = supabase
     .from('products')
     .select(`
@@ -278,6 +278,11 @@ export const getFeaturedProducts = async (includeInactive: boolean = false): Pro
       subcategory:subcategory_id(id, name, slug)
     `)
     .eq('is_featured', true);
+    
+  // فلترة حسب المؤسسة إذا تم توفير معرف المؤسسة
+  if (organizationId) {
+    query = query.eq('organization_id', organizationId);
+  }
     
   // إذا كان includeInactive = false، أضف شرط is_active = true
   if (!includeInactive) {

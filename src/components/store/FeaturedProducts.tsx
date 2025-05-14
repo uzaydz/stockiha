@@ -186,7 +186,7 @@ const FeaturedProducts = ({
           
           if (selectionCriteria === 'featured') {
             // استخدام الوظيفة التي تم إعادة تسميتها
-            const featuredProducts = await libGetFeaturedProducts(false);
+            const featuredProducts = await libGetFeaturedProducts(false, effectiveOrgId);
             // تحويل البيانات إلى تنسيق المتجر
             productData = featuredProducts.map(p => convertDatabaseProductToStoreProduct(p as unknown as DBProduct));
           } else if (selectionCriteria === 'newest') {
