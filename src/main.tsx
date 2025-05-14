@@ -1,3 +1,10 @@
+// تصريح بـ React للتأكد من وجوده في النطاق العالمي
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+
+// استيراد ملف إصلاح React
+import './lib/react-compat.js';
+
 // Importar los polyfills específicos para env.mjs antes de cualquier otro módulo
 import './lib/env-polyfill';
 // Importar los polyfills generales
@@ -8,8 +15,6 @@ import './polyfills';
 // استيراد ملف تسجيل مكونات محرر المتجر
 import './lib/register-components';
 
-import React from 'react';
-import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import { BrowserRouter } from 'react-router-dom';
