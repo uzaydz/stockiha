@@ -72,6 +72,7 @@ import LandingPageView from '@/pages/LandingPageView';
 import CustomizeProductPurchasePage from '@/pages/dashboard/CustomizeProductPurchasePage';
 import CustomDomainsDocPage from './pages/docs/CustomDomainsDocPage';
 import DomainSettings from '@/components/settings/DomainSettings';
+import StoreRouter from '@/components/routing/StoreRouter';
 
 // Super Admin Pages
 import SuperAdminDashboard from '@/pages/super-admin/SuperAdminDashboard';
@@ -269,7 +270,7 @@ const App = () => (
               <Toaster />
               <Sonner />
               <Routes>
-                <Route path="/" element={<LandingPage />} />
+                <Route path="/" element={<StoreRouter />} />
                 <Route path="/features" element={<Features />} />
                 <Route path="/offline-features" element={<OfflineFeatures />} />
                 <Route path="/features/pos" element={<POSFeaturesPage />} />
@@ -325,7 +326,8 @@ const App = () => (
                 <Route path="/docs/custom-domains" element={<CustomDomainsDocPage />} />
 
                 {/* الصفحة الرئيسية للمتجر - يتم توجيه النطاقات المخصصة إليها */}
-                <Route index element={<LandingPage />} />
+                {/* تم تغييره من LandingPage إلى StoreRouter للتوجيه المباشر إلى المتجر عند استخدام دومين مخصص */}
+                <Route index element={<StoreRouter />} />
 
                 {/* صفحات الهبوط المخصصة - يجب أن تكون في النهاية لتجنب توجيه النطاقات المخصصة إليها */}
                 <Route path="/:slug" element={<LandingPageView />} />
