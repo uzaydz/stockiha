@@ -178,7 +178,14 @@ export default defineConfig(({ mode }: { mode: string }) => {
           manualChunks: (id: string) => {
             // تجزئة الكود للمكتبات الرئيسية
             if (id.includes('node_modules')) {
-              if (id.includes('react') || id.includes('react-dom')) {
+              // تجميع React وكل المكتبات المتعلقة بـ React في حزمة واحدة
+              if (id.includes('react') || 
+                  id.includes('react-dom') ||
+                  id.includes('react-use') || 
+                  id.includes('use-') ||
+                  id.includes('react-hook-form') || 
+                  id.includes('@hookform') ||
+                  id.includes('usehooks-ts')) {
                 return 'vendor-react';
               }
               if (id.includes('@tanstack/react-query')) {
@@ -192,14 +199,6 @@ export default defineConfig(({ mode }: { mode: string }) => {
               }
               if (id.includes('framer-motion')) {
                 return 'vendor-animation';
-              }
-              // تجميع مكتبات React Hooks بشكل منفصل
-              if (id.includes('react-use') || 
-                  id.includes('use-') ||
-                  id.includes('react-hook-form') || 
-                  id.includes('@hookform') ||
-                  id.includes('usehooks-ts')) {
-                return 'vendor-react-hooks';
               }
               // تجميع المكتبات الأخرى
               return 'vendor-others';

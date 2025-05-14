@@ -11,5 +11,16 @@ if (typeof window === 'undefined' || typeof window.document === 'undefined') {
   React.useLayoutEffect = React.useEffect;
 }
 
+// إضافة إصلاح عالمي لـ React
+if (typeof window !== 'undefined') {
+  // تعريف React في النطاق العالمي لاستخدامه من قبل المكتبات الأخرى
+  window.React = window.React || React;
+  
+  // التأكد من أن useLayoutEffect معرفة بشكل صحيح
+  if (window.React && !window.React.useLayoutEffect) {
+    window.React.useLayoutEffect = window.React.useEffect;
+  }
+}
+
 // تصدير React الذي تم إصلاحه
 export default React; 

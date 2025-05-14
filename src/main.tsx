@@ -1,3 +1,25 @@
+// إصلاح useLayoutEffect قبل أي استيراد
+// تعريف مباشر في النطاق العالمي لضمان التنفيذ قبل أي شيء آخر
+(function() {
+  if (typeof window !== 'undefined') {
+    // محاولة التعرف على React العالمي
+    const _React = window.React || null;
+    if (_React && _React.useLayoutEffect) {
+      // احتفظ بنسخة من النسخة الأصلية
+      const originalUseLayoutEffect = _React.useLayoutEffect;
+      // استبدل بنسخة آمنة
+      _React.useLayoutEffect = function() {
+        return typeof window !== 'undefined' 
+          ? originalUseLayoutEffect.apply(this, arguments) 
+          : _React.useEffect.apply(this, arguments);
+      };
+    }
+  }
+})();
+
+// استيراد ملف إصلاح React في Vercel
+import './lib/vercel-react-fix.js';
+
 // تصريح بـ React للتأكد من وجوده في النطاق العالمي
 import React from 'react';
 import ReactDOM from 'react-dom/client';
