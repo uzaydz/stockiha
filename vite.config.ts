@@ -216,6 +216,13 @@ export default defineConfig(({ mode }: { mode: string }) => {
           entryFileNames: 'assets/js/[name]-[hash].js',
           chunkFileNames: 'assets/js/[name]-[hash].js',
           assetFileNames: 'assets/[ext]/[name]-[hash].[ext]',
+          // إضافة نوع وحدة صريح لجميع ملفات JavaScript
+          hoistTransitiveImports: false,
+          minifyInternalExports: true,
+          generatedCode: {
+            preset: 'es2015',
+            constBindings: true
+          }
         },
         external: ['electron'],
       },
