@@ -2,8 +2,17 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 
+// تطبيق الإصلاح العالمي إذا كان متاحا
+if (typeof window !== 'undefined' && window.__applyReactPolyfill) {
+  window.__applyReactPolyfill(React);
+}
+
 // استيراد ملف إصلاح React
-import './lib/react-compat.js';
+import FixedReact from './lib/react-compat.js';
+
+// التأكد من استخدام الإصدار المصحح من React
+// إعادة تعيين React لضمان استخدام النسخة المصححة
+const ReactWithFixes = FixedReact;
 
 // Importar los polyfills específicos para env.mjs antes de cualquier otro módulo
 import './lib/env-polyfill';
@@ -36,6 +45,8 @@ declare global {
     __LAST_URL_CHANGE_TIME: number;
     __PREVENT_DUPLICATE_RENDER: boolean;
     electronAPI?: ElectronAPI;
+    __REACT_POLYFILL_APPLIED?: boolean;
+    __applyReactPolyfill?: (react: typeof React) => void;
   }
 
   // إضافة معلومات للنافذة لتعزيز كشف التنقلات المكررة
@@ -155,6 +166,12 @@ if (typeof window !== 'undefined') {
       window.__LAST_NAVIGATION_TYPE = 'popState';
     }
   }, true);
+}
+
+// التأكد من توفر الـ hooks الضرورية
+if (!React.useLayoutEffect) {
+  console.warn('تم اكتشاف نقص في useLayoutEffect في main.tsx، تطبيق الإصلاح مباشرة');
+  React.useLayoutEffect = React.useEffect;
 }
 
 const TenantWithTheme = ({ children }: { children: React.ReactNode }) => {

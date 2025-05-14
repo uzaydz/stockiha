@@ -23,6 +23,22 @@
       window.global = window.global || window;
     </script>
     
+    <!-- React Compatibility Fix -->
+    <script>
+      // إصلاح مشكلة React.useLayoutEffect
+      window.__REACT_POLYFILL_APPLIED = false;
+      // سيتم تطبيق هذا الإصلاح فقط إذا لم يتم تحميل React بشكل صحيح
+      window.__applyReactPolyfill = function(React) {
+        if (!window.__REACT_POLYFILL_APPLIED && React) {
+          if (!React.useLayoutEffect) {
+            console.warn('تطبيق إصلاح useLayoutEffect من مستوى النافذة');
+            React.useLayoutEffect = React.useEffect || function() {};
+          }
+          window.__REACT_POLYFILL_APPLIED = true;
+        }
+      };
+    </script>
+    
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
