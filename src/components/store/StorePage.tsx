@@ -101,19 +101,31 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
       if (hostname.includes('localhost')) return null;
       
       const supabase = getSupabaseClient();
-      const { data: orgData } = await supabase
+      
+      // استخدام استعلام مباشر بدلاً من RPC للتوافق مع TypeScript
+      const { data: orgData, error } = await supabase
         .from('organizations')
         .select('id, name, domain, subdomain, settings')
         .eq('domain', hostname)
-        .single();
+        .maybeSingle();
+      
+      if (error) {
+        console.error('خطأ في البحث عن المؤسسة بالنطاق المخصص:', error);
+        return null;
+      }
       
       if (orgData) {
-        console.log('تم العثور على نطاق مخصص:', hostname);
+        console.log('تم العثور على نطاق مخصص:', hostname, 'للمؤسسة:', orgData.name);
         // تحديث بيانات المتجر
         const storeData = await getFullStoreData(orgData.subdomain);
         if (storeData) {
           setStoreData(storeData);
-          setStoreSettings(storeData.settings as OrganizationSettings);
+          
+          // التعامل مع إعدادات المتجر
+          const settings = (storeData as any).settings;
+          if (settings) {
+            setStoreSettings(settings as OrganizationSettings);
+          }
         }
         return orgData;
       }
@@ -142,7 +154,12 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
           const data = await getFullStoreData(currentSubdomain);
           if (data) {
             setStoreData(data);
-            setStoreSettings(data.settings as OrganizationSettings);
+            
+            // التعامل مع إعدادات المتجر
+            const settings = (data as any).settings;
+            if (settings) {
+              setStoreSettings(settings as OrganizationSettings);
+            }
           }
         }
       } catch (error) {

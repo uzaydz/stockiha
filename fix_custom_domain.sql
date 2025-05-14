@@ -57,6 +57,93 @@ EXECUTE FUNCTION validate_organization_domain();
 GRANT EXECUTE ON FUNCTION validate_organization_domain() TO authenticated;
 GRANT EXECUTE ON FUNCTION validate_organization_domain() TO service_role;
 
+-- إضافة وظيفة للبحث عن المؤسسة بواسطة النطاق الفرعي
+CREATE OR REPLACE FUNCTION get_organization_info_by_subdomain(p_subdomain TEXT)
+RETURNS JSON AS $$
+DECLARE
+    result JSON;
+BEGIN
+    -- البحث عن المؤسسة بواسطة النطاق الفرعي
+    SELECT json_build_object(
+        'id', o.id,
+        'name', o.name,
+        'logo_url', o.logo_url,
+        'domain', o.domain,
+        'subdomain', o.subdomain,
+        'settings', o.settings,
+        'owner_id', o.owner_id
+    ) INTO result
+    FROM organizations o
+    WHERE o.subdomain = p_subdomain;
+    
+    -- إذا لم يتم العثور على نتائج، ابحث عن المؤسسة بواسطة النطاق المخصص
+    IF result IS NULL THEN
+        SELECT json_build_object(
+            'id', o.id,
+            'name', o.name,
+            'logo_url', o.logo_url,
+            'domain', o.domain,
+            'subdomain', o.subdomain,
+            'settings', o.settings,
+            'owner_id', o.owner_id
+        ) INTO result
+        FROM organizations o
+        WHERE o.domain = p_subdomain;
+    END IF;
+    
+    RETURN result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- إضافة وظيفة للبحث عن المؤسسة بواسطة النطاق المخصص
+CREATE OR REPLACE FUNCTION get_organization_info_by_domain(p_domain TEXT)
+RETURNS JSON AS $$
+DECLARE
+    result JSON;
+BEGIN
+    -- تنظيف النطاق المدخل
+    p_domain := TRIM(p_domain);
+    
+    -- إزالة بروتوكول HTTP/HTTPS إذا كان موجوداً
+    IF p_domain ~* '^https?://' THEN
+        p_domain := regexp_replace(p_domain, '^https?://', '', 'i');
+    END IF;
+    
+    -- إزالة www. إذا كانت موجودة
+    IF p_domain ~* '^www\.' THEN
+        p_domain := substring(p_domain FROM 5);
+    END IF;
+    
+    -- إزالة المنفذ والمسارات
+    p_domain := split_part(p_domain, ':', 1); -- إزالة المنفذ
+    p_domain := split_part(p_domain, '/', 1); -- إزالة المسار
+    
+    -- البحث عن المؤسسة بواسطة النطاق المخصص
+    SELECT json_build_object(
+        'id', o.id,
+        'name', o.name,
+        'logo_url', o.logo_url,
+        'domain', o.domain,
+        'subdomain', o.subdomain,
+        'settings', o.settings,
+        'owner_id', o.owner_id
+    ) INTO result
+    FROM organizations o
+    WHERE o.domain = p_domain;
+    
+    RETURN result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- منح الصلاحيات اللازمة
+GRANT EXECUTE ON FUNCTION get_organization_info_by_subdomain(TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION get_organization_info_by_subdomain(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_organization_info_by_subdomain(TEXT) TO service_role;
+
+GRANT EXECUTE ON FUNCTION get_organization_info_by_domain(TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION get_organization_info_by_domain(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_organization_info_by_domain(TEXT) TO service_role;
+
 -- إضافة وظائف للتعامل مع التحقق من النطاقات المخصصة
 
 -- التحقق من وجود جدول domain_verifications وإنشائه إذا لم يكن موجودًا

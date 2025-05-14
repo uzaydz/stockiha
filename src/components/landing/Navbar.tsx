@@ -57,14 +57,32 @@ const Navbar = () => {
     const fetchOrganizationData = async () => {
       try {
         // تحقق من وجود معرف المؤسسة أو النطاق الفرعي
-        const currentSubdomain = window.location.hostname.split('.')[0];
-        if (!currentSubdomain || currentSubdomain === 'localhost') return;
+        const hostname = window.location.hostname;
+        if (hostname === 'localhost') return;
 
-        // استعلام أكثر كفاءة - استخدام معلمات محددة فقط وتجنب الاستعلام الكامل
-        const { data: orgData, error } = await supabase
-          .rpc('get_organization_info_by_subdomain', {
+        let query;
+        // التحقق مما إذا كان الهوست هو نطاق مخصص أو سابدومين
+        if (hostname.split('.').length > 2) {
+          // سابدومين مثل: mystore.example.com
+          const currentSubdomain = hostname.split('.')[0];
+          console.log('استخدام النطاق الفرعي للبحث:', currentSubdomain);
+          
+          // استخدام دالة get_organization_info_by_subdomain للبحث بواسطة النطاق الفرعي
+          query = supabase.rpc('get_organization_info_by_subdomain', {
             p_subdomain: currentSubdomain
           });
+        } else {
+          // نطاق مخصص مثل: example.com
+          console.log('استخدام النطاق المخصص للبحث:', hostname);
+          
+          // استخدام دالة get_organization_info_by_domain للبحث بواسطة النطاق المخصص
+          query = supabase.rpc('get_organization_info_by_domain', {
+            p_domain: hostname
+          });
+        }
+
+        // تنفيذ الاستعلام
+        const { data: orgData, error } = await query;
 
         if (!error && orgData) {
           // تحديث البيانات باستخدام startTransition لتجنب تجميد الواجهة
