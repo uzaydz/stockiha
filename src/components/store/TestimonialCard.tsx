@@ -23,13 +23,16 @@ export interface Testimonial {
   productSlug?: string;
 }
 
-// الحصول على الأحرف الأولى من اسم العميل
-const getInitials = (name: string) => {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase();
+// وظيفة للحصول على الأحرف الأولى من الاسم
+const getInitials = (name: string | undefined): string => {
+  if (!name) return '??';
+  
+  const nameParts = name.split(' ');
+  if (nameParts.length === 1) {
+    return nameParts[0].substring(0, 2).toUpperCase();
+  }
+  
+  return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
 };
 
 // تحويل التقييمات إلى نجوم
