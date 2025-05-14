@@ -45,17 +45,80 @@ const LandingPage = () => {
       const checkCustomDomain = async () => {
         try {
           const supabase = getSupabaseClient();
-          const { data: orgData } = await supabase
-            .from('organizations')
-            .select('id, domain, subdomain')
-            .eq('domain', hostname)
-            .single();
           
+          // 1. التحقق إذا كان النطاق يحتوي على عدة أجزاء (مثل subdomain.domain.com)
+          const domainParts = hostname.split('.');
+          let orgData = null;
+          
+          if (domainParts.length > 2 && domainParts[0].toLowerCase() !== 'www') {
+            // جرب البحث في subdomain أولاً
+            const possibleSubdomain = domainParts[0];
+            console.log(`النطاق يحتوي على أكثر من جزئين. محاولة البحث كنطاق فرعي: ${possibleSubdomain}`);
+            
+            try {
+              const { data: subdomainData, error: subdomainError } = await supabase
+                .from('organizations')
+                .select('id, name, domain, subdomain')
+                .eq('subdomain', possibleSubdomain)
+                .maybeSingle();
+                
+              if (!subdomainError && subdomainData) {
+                console.log(`تم العثور على مؤسسة بالنطاق الفرعي: ${possibleSubdomain}`, subdomainData.name);
+                orgData = subdomainData;
+              }
+            } catch (error) {
+              console.warn('خطأ في البحث كنطاق فرعي:', error);
+            }
+          }
+          
+          // 2. إذا لم ينجح البحث بالنطاق الفرعي، جرب النطاق الكامل
+          if (!orgData) {
+            try {
+              const { data: domainData, error: domainError } = await supabase
+                .from('organizations')
+                .select('id, name, domain, subdomain')
+                .eq('domain', hostname)
+                .maybeSingle();
+                
+              if (!domainError && domainData) {
+                console.log('تم العثور على نطاق مخصص:', hostname);
+                orgData = domainData;
+              }
+            } catch (error) {
+              // إذا كان الخطأ 406 (Not Acceptable)، جرب طريقة بديلة
+              console.warn('خطأ في البحث كنطاق مخصص:', error);
+              
+              if (error && 'code' in (error as any) && (error as any).code === '406') {
+                console.log('خطأ 406 - محاولة البحث بطريقة مختلفة');
+                
+                try {
+                  // جلب كل المؤسسات ثم التصفية يدويًا
+                  const { data: allOrgs, error: allOrgsError } = await supabase
+                    .from('organizations')
+                    .select('id, name, domain, subdomain');
+                  
+                  if (!allOrgsError && allOrgs) {
+                    // بحث يدوي عن مطابقة النطاق
+                    const matchingOrg = allOrgs.find(org => org.domain === hostname);
+                    if (matchingOrg) {
+                      console.log(`تم العثور على مؤسسة مطابقة للنطاق بالبحث اليدوي: ${hostname}`, matchingOrg.name);
+                      orgData = matchingOrg;
+                    }
+                  }
+                } catch (allOrgsError) {
+                  console.error('خطأ في جلب جميع المؤسسات:', allOrgsError);
+                }
+              }
+            }
+          }
+          
+          // 3. إذا تم العثور على المؤسسة، قم بحفظ المعلومات وعرض المتجر
           if (orgData) {
-            console.log('تم العثور على نطاق مخصص:', hostname);
+            console.log('تم العثور على المؤسسة:', orgData.name, 'معرف:', orgData.id);
+            
             // تحديث التخزين المحلي مباشرة
             localStorage.setItem('bazaar_organization_id', orgData.id);
-            localStorage.setItem('bazaar_current_subdomain', orgData.subdomain);
+            localStorage.setItem('bazaar_current_subdomain', orgData.subdomain || '');
             
             // بدء تحميل بيانات المتجر فورًا
             if (!dataFetchedRef.current) {

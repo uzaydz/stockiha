@@ -119,6 +119,26 @@ export const getOrganizationByDomain = async (domain: string) => {
       console.log('النطاقات المخصصة الموجودة:', orgWithDomains.map(org => ({id: org.id, name: org.name, domain: org.domain})));
     }
     
+    // التحقق أولاً إذا كان النطاق يحتوي على عدة أجزاء (مثل subdomain.domain.com)
+    // ففي هذه الحالة قد يكون نطاقًا فرعيًا وليس نطاقًا رئيسيًا
+    const domainParts = cleanDomain.split('.');
+    if (domainParts.length > 2 && domainParts[0].toLowerCase() !== 'www') {
+      // جرب البحث في subdomain أولاً
+      const possibleSubdomain = domainParts[0];
+      console.log(`النطاق يحتوي على أكثر من جزئين. محاولة البحث كنطاق فرعي: ${possibleSubdomain}`);
+      
+      const { data: subdomainData, error: subdomainError } = await supabaseClient
+        .from('organizations')
+        .select('*')
+        .eq('subdomain', possibleSubdomain)
+        .maybeSingle();
+        
+      if (!subdomainError && subdomainData) {
+        console.log(`تم العثور على مؤسسة بالنطاق الفرعي: ${possibleSubdomain}`, subdomainData.name);
+        return subdomainData;
+      }
+    }
+    
     // البحث عن المنظمة بواسطة النطاق الرئيسي
     const { data, error } = await supabaseClient
       .from('organizations')
@@ -131,6 +151,26 @@ export const getOrganizationByDomain = async (domain: string) => {
     
     if (error) {
       console.error(`خطأ أثناء البحث عن المؤسسة بالنطاق الرئيسي ${cleanDomain}:`, error);
+      
+      // التحقق مما إذا كان خطأ 406 (Not Acceptable)
+      if (error.code === '406') {
+        console.log('خطأ 406 - محاولة البحث بطريقة مختلفة');
+        
+        // محاولة البحث عن كل المؤسسات ثم التصفية يدويًا
+        const { data: allOrgs, error: allOrgsError } = await supabaseClient
+          .from('organizations')
+          .select('*');
+          
+        if (!allOrgsError && allOrgs) {
+          // بحث يدوي عن مطابقة النطاق
+          const matchingOrg = allOrgs.find(org => org.domain === cleanDomain);
+          if (matchingOrg) {
+            console.log(`تم العثور على مؤسسة مطابقة للنطاق بالبحث اليدوي: ${cleanDomain}`, matchingOrg.name);
+            return matchingOrg;
+          }
+        }
+      }
+      
       return null;
     }
     
