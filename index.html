@@ -7,38 +7,6 @@
     <meta name="description" content="منصة الألعاب الشاملة - متجر ألعاب متكامل لبيع وإصلاح أجهزة الألعاب والإكسسوارات" />
     <meta name="author" content="Game Shop" />
     
-    <!-- تحميل React Preload مباشرة قبل أي شيء آخر -->
-    <script src="/preload.js" type="text/javascript"></script>
-    
-    <!-- إصلاح مخصص لـ hooks في المكتبات -->
-    <script src="/hooks-fix.js" type="text/javascript"></script>
-    
-    <!-- تحميل React الساكن لمنع الأخطاء أثناء التحميل -->
-    <script src="/react-global-static.js" type="text/javascript"></script>
-    
-    <!-- التأكد من تعريف React والـ hooks قبل تحميل أي شيء آخر -->
-    <script>
-      // فحص توفر React والـ hooks الضرورية
-      (function() {
-        if (!window.React || !window.React.useLayoutEffect) {
-          console.warn('التحقق من React والـ hooks قبل التحميل: React أو useLayoutEffect غير متوفر');
-          
-          // تعريف مباشر لـ useLayoutEffect في حالة عدم توفره
-          if (window.React && !window.React.useLayoutEffect) {
-            window.React.useLayoutEffect = function useLayoutEffectPolyfill(fn, deps) {
-              console.warn('استخدام useLayoutEffect polyfill من فحص التحميل المبكر');
-              return undefined;
-            };
-          }
-          
-          // التأكد من توفر الـ hooks الضرورية
-          window.useLayoutEffect = window.useLayoutEffect || window.React?.useLayoutEffect || function() {};
-        } else {
-          console.log('React والـ hooks متوفرة بنجاح قبل التحميل');
-        }
-      })();
-    </script>
-    
     <!-- إضافة سكريبت للتعامل مع وضع الإضاءة -->
     <script>
       // حاول تطبيق الوضع المحفوظ قبل تحميل الصفحة لمنع وميض الشاشة
@@ -53,53 +21,6 @@
     <script>
       window.process = window.process || { env: {} };
       window.global = window.global || window;
-    </script>
-    
-    <!-- React Compatibility Fix -->
-    <script>
-      // إصلاح مشكلة React.useLayoutEffect
-      window.__REACT_POLYFILL_APPLIED = false;
-      // سيتم تطبيق هذا الإصلاح فقط إذا لم يتم تحميل React بشكل صحيح
-      window.__applyReactPolyfill = function(React) {
-        if (!window.__REACT_POLYFILL_APPLIED && React) {
-          if (!React.useLayoutEffect) {
-            console.warn('تطبيق إصلاح useLayoutEffect من مستوى النافذة');
-            React.useLayoutEffect = React.useEffect || function() {};
-          }
-          window.__REACT_POLYFILL_APPLIED = true;
-        }
-      };
-      
-      // تعريف React و React Hooks كمتغيرات عالمية
-      // هذا يحل مشكلة المكتبات التي تعتمد على وجود React عالمياً
-      // وخاصة useLayoutEffect
-      window.React = window.React || {};
-      window.ReactDOM = window.ReactDOM || {};
-      
-      // تعريف hooks أساسية إذا لم تكن موجودة
-      window.React.useLayoutEffect = window.React.useLayoutEffect || function useLayoutEffectPolyfill() {
-        console.warn('استخدام useLayoutEffect مؤقت');
-        return undefined;
-      };
-      
-      window.React.useState = window.React.useState || function useStatePolyfill() { return [undefined, function() {}]; };
-      window.React.useEffect = window.React.useEffect || function useEffectPolyfill() {};
-      window.React.useRef = window.React.useRef || function useRefPolyfill() { return { current: null }; };
-      
-      // مكونات React الأساسية
-      window.React.createContext = window.React.createContext || function createContextPolyfill() {
-        return {
-          Provider: function Provider() {},
-          Consumer: function Consumer() {},
-          displayName: ''
-        };
-      };
-      
-      window.React.createElement = window.React.createElement || function createElementPolyfill(type, props, ...children) {
-        return { type, props, children };
-      };
-
-      window.React.Fragment = window.React.Fragment || Symbol('Fragment');
     </script>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -129,8 +50,6 @@
     <div id="root"></div>
     <!-- IMPORTANT: DO NOT REMOVE THIS SCRIPT TAG OR THIS VERY COMMENT! -->
     <script src="https://cdn.gpteng.co/gptengineer.js" type="module"></script>
-    <!-- تحميل React العالمي قبل أي ملف آخر لضمان توفر React -->
-    <script type="module" src="/src/lib/react-global.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
