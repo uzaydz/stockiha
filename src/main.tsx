@@ -52,6 +52,7 @@ import { Toaster } from "./components/ui/toaster";
 import { ThemeProvider } from './context/ThemeContext';
 import { registerGlobalErrorHandler } from './lib/electron-errors';
 import type { ElectronAPI } from './types/electron';
+import { initializeReact } from './lib/react-init';
 
 // إضافة التعريفات اللازمة للمتغيرات العالمية
 declare global {
@@ -185,6 +186,16 @@ if (typeof window !== 'undefined') {
   }, true);
 }
 
+// إصلاح useLayoutEffect قبل أي استيراد
+if (typeof window !== 'undefined') {
+  const _React = (window as any).React;
+  if (_React) {
+    _React.useLayoutEffect = typeof window !== 'undefined' 
+      ? _React.useLayoutEffect 
+      : _React.useEffect;
+  }
+}
+
 const TenantWithTheme = ({ children }: { children: React.ReactNode }) => {
   return (
     <TenantProvider>
@@ -216,27 +227,19 @@ const browserRouterOptions = {
   basename: '/'
 };
 
+// تهيئة React قبل أي شيء آخر
+initializeReact();
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  // إزالة StrictMode في الإنتاج لمنع التحميل المزدوج
-  process.env.NODE_ENV === 'production' ? (
-    <BrowserRouter {...browserRouterOptions}>
-      <AuthProvider>
-        <TenantWithTheme>
-          <App />
-          <Toaster />
-        </TenantWithTheme>
-      </AuthProvider>
-    </BrowserRouter>
-  ) : (
-    <React.StrictMode>
-      <BrowserRouter {...browserRouterOptions}>
+  <React.StrictMode>
+    <BrowserRouter>
+      <ThemeProvider>
         <AuthProvider>
-          <TenantWithTheme>
+          <TenantProvider>
             <App />
-            <Toaster />
-          </TenantWithTheme>
+          </TenantProvider>
         </AuthProvider>
-      </BrowserRouter>
-    </React.StrictMode>
-  ),
+      </ThemeProvider>
+    </BrowserRouter>
+  </React.StrictMode>
 );

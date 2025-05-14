@@ -114,7 +114,11 @@ export default defineConfig(({ mode }: { mode: string }) => {
       }
     },
     plugins: [
-      react(),
+      react({
+        jsxRuntime: 'automatic',
+        // تحسين تحميل React
+        fastRefresh: true,
+      }),
       nodePolyfills({
         // Whether to polyfill `node:` protocol imports.
         protocolImports: true,
@@ -175,67 +179,12 @@ export default defineConfig(({ mode }: { mode: string }) => {
       } : undefined,
       // التأكد من أن جميع المسارات نسبية
       rollupOptions: {
+        input: {
+          main: path.resolve(__dirname, 'index.html'),
+        },
         output: {
-          manualChunks: (id: string) => {
-            if (id.includes('node_modules')) {
-              // React وجميع المكتبات المرتبطة به في حزمة واحدة
-              if (id.includes('react') || 
-                  id.includes('@tanstack/react-query') ||
-                  id.includes('react-use') || 
-                  id.includes('usehooks-ts') ||
-                  id.includes('@radix-ui') ||
-                  id.includes('@headlessui') ||
-                  id.includes('framer-motion') ||
-                  id.includes('cmdk') ||
-                  id.includes('next-themes') ||
-                  id.includes('swr') ||
-                  id.includes('@dnd-kit') || 
-                  id.includes('react-dnd') || 
-                  id.includes('@tanstack/react-table') ||
-                  id.includes('sonner') ||
-                  id.includes('vaul') ||
-                  id.includes('recharts') ||
-                  id.includes('react-beautiful-dnd') ||
-                  id.includes('@mui') || 
-                  id.includes('@emotion') || 
-                  id.includes('@tinymce/tinymce-react') || 
-                  id.includes('embla-carousel-react') || 
-                  id.includes('react-colorful') || 
-                  id.includes('react-day-picker') || 
-                  id.includes('react-intersection-observer') || 
-                  id.includes('react-markdown') || 
-                  id.includes('react-resizable-panels') || 
-                  id.includes('react-to-print') || 
-                  id.includes('react-window') ||
-                  id.includes('aria-hidden') || 
-                  id.includes('use-callback-ref') ||
-                  id.includes('react-remove-scroll') // تمت الإضافة
-              ) {
-                return 'vendor-react';
-              }
-              if (id.includes('@supabase')) {
-                return 'vendor-supabase';
-              }
-              if (id.includes('lodash-es') || id.includes('date-fns') || id.includes('dayjs')) {
-                return 'vendor-dates';
-              }
-              if (id.includes('axios') || id.includes('swr')) {
-                return 'vendor-data';
-              }
-              if (id.includes('jspdf') || id.includes('html2canvas')) {
-                return 'vendor-pdf';
-              }
-              // المكتبات الأخرى
-              return 'vendor-others';
-            }
-            // تجزئة مكونات صفحة المنتج
-            if (id.includes('/components/store/product/')) {
-              return 'product-components';
-            }
-            // تجزئة مكونات نموذج الطلب
-            if (id.includes('/components/store/order-form/')) {
-              return 'order-form-components';
-            }
+          manualChunks: {
+            'react-vendor': ['react', 'react-dom'],
           },
           format: 'es',
           entryFileNames: 'assets/js/[name]-[hash].js',
@@ -255,184 +204,15 @@ export default defineConfig(({ mode }: { mode: string }) => {
       assetsInlineLimit: 4096, // 4KB
       // تجنب مشاكل تقسيم الشفرة في Electron
       commonjsOptions: {
+        include: [/node_modules/],
         transformMixedEsModules: true,
       },
       chunkSizeWarningLimit: 1000, // زيادة حد التحذير لحجم الملف (1MB)
     },
     // تشغيل الشفرة في محتوى واحد في Electron
     optimizeDeps: {
-      include: [
-        'react', 
-        'react-dom', 
-        'react-router-dom',
-        '@supabase/supabase-js',
-        'buffer',
-        'process',
-        'stream-browserify',
-        'path-browserify',
-        'util',
-        'crypto-browserify',
-        'assert',
-        'stream-http',
-        'https-browserify',
-        'os-browserify',
-        'url',
-        'browserify-zlib',
-      ],
-      exclude: ['electron'],
-      // تجنب تخريج وحدات Node.js 
-      esbuildOptions: {
-        define: {
-          global: 'globalThis',
-        },
-        plugins: [
-          {
-            name: 'node-globals',
-            setup(build: any) {
-              // إعداد polyfills لوحدات Node.js
-              build.onResolve({ filter: /^stream$|^http$|^url$|^crypto$|^https$|^zlib$|^util$|^events$|^path$|^fs$|^assert$/ }, (args: any) => {
-                return { path: args.path, namespace: 'node-polyfills' };
-              });
-              
-              build.onLoad({ filter: /.*/, namespace: 'node-polyfills' }, (args: any) => {
-                let contents = '';
-                if (args.path === 'stream') {
-                  contents = `
-                    export class Readable {
-                      constructor() {}
-                      static from() { return new Readable(); }
-                      pipe() { return this; }
-                      on() { return this; }
-                    }
-                    export class Writable {
-                      constructor() {}
-                      write() {}
-                      end() {}
-                      on() { return this; }
-                    }
-                    export class PassThrough extends Readable {
-                      constructor() { super(); }
-                    }
-                    export class Transform extends Readable {
-                      constructor() { super(); }
-                    }
-                    export default { Readable, Writable, PassThrough, Transform };
-                  `;
-                } else if (args.path === 'http') {
-                  contents = `
-                    export const STATUS_CODES = {
-                      '200': 'OK',
-                      '204': 'No Content',
-                      '304': 'Not Modified',
-                      '400': 'Bad Request',
-                      '401': 'Unauthorized',
-                      '403': 'Forbidden',
-                      '404': 'Not Found',
-                      '500': 'Internal Server Error'
-                    };
-                    export const request = () => {};
-                    export const get = () => {};
-                    export default { STATUS_CODES, request, get };
-                  `;
-                } else if (args.path === 'https') {
-                  contents = `
-                    export const request = () => {};
-                    export const get = () => {};
-                    export default { request, get };
-                  `;
-                } else if (args.path === 'url') {
-                  contents = `
-                    export class URL {
-                      constructor(url, base) {
-                        return new globalThis.URL(url, base);
-                      }
-                    }
-                    export function parse(url) {
-                      const parsed = new globalThis.URL(url);
-                      return {
-                        protocol: parsed.protocol,
-                        hostname: parsed.hostname,
-                        port: parsed.port,
-                        pathname: parsed.pathname,
-                        search: parsed.search,
-                        hash: parsed.hash
-                      };
-                    }
-                    export function format(urlObj) {
-                      return urlObj.toString();
-                    }
-                    export default { URL, parse, format };
-                  `;
-                } else if (args.path === 'zlib') {
-                  contents = `
-                    export const createGzip = () => ({});
-                    export const createUnzip = () => ({});
-                    export default { createGzip, createUnzip };
-                  `;
-                } else if (args.path === 'crypto') {
-                  contents = `
-                    export const createHash = () => ({
-                      update: () => ({}),
-                      digest: () => '',
-                    });
-                    export const randomBytes = () => ({});
-                    export default { createHash, randomBytes };
-                  `;
-                } else if (args.path === 'util') {
-                  contents = `
-                    export const inherits = () => {};
-                    export const inspect = () => {};
-                    export const promisify = (fn) => fn;
-                    export const deprecate = (fn) => fn;
-                    export default { inherits, inspect, promisify, deprecate };
-                  `;
-                } else if (args.path === 'events') {
-                  contents = `
-                    export class EventEmitter {
-                      constructor() {}
-                      on() { return this; }
-                      once() { return this; }
-                      off() { return this; }
-                      emit() { return false; }
-                    }
-                    export default { EventEmitter };
-                  `;
-                } else if (args.path === 'path') {
-                  contents = `
-                    export const join = (...args) => args.join('/').replace(/\\/+/g, '/');
-                    export const resolve = (...args) => args.join('/').replace(/\\/+/g, '/');
-                    export const normalize = (path) => path.replace(/\\/+/g, '/');
-                    export const dirname = (path) => path.split('/').slice(0, -1).join('/');
-                    export const basename = (path) => path.split('/').pop();
-                    export const extname = (path) => {
-                      const base = basename(path);
-                      const idx = base.lastIndexOf('.');
-                      return idx !== -1 ? base.substring(idx) : '';
-                    };
-                    export default { join, resolve, normalize, dirname, basename, extname };
-                  `;
-                } else if (args.path === 'fs') {
-                  contents = `
-                    export const readFileSync = () => '';
-                    export const writeFileSync = () => {};
-                    export const existsSync = () => false;
-                    export const mkdirSync = () => {};
-                    export default { readFileSync, writeFileSync, existsSync, mkdirSync };
-                  `;
-                } else if (args.path === 'assert') {
-                  contents = `
-                    export const ok = () => {};
-                    export const equal = () => {};
-                    export const deepEqual = () => {};
-                    export default { ok, equal, deepEqual };
-                  `;
-                }
-                return { contents, loader: 'js' };
-              });
-            }
-          }
-        ]
-      }
+      include: ['react', 'react-dom'],
+      exclude: ['path-browserify']
     },
     preview: {
       port: 3000,
