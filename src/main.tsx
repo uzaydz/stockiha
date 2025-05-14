@@ -1,9 +1,9 @@
 // إصلاح createContext وأخرى: تأكد من تحميل React APIs قبل أي شيء آخر
-(window as any).React = (window as any).React || {};
+// (window as any).React = (window as any).React || {}; // إزالة أو تعليق هذا
 
 // إصلاح useLayoutEffect قبل أي استيراد
 // تعريف مباشر في النطاق العالمي لضمان التنفيذ قبل أي شيء آخر
-(function() {
+/* (function() { // تعليق هذا البلوك بالكامل مؤقتًا، سيتم التعامل مع useLayoutEffect بشكل أفضل بعد استيراد React
   if (typeof window !== 'undefined') {
     // محاولة التعرف على React العالمي
     const _React = (window as any).React || null;
@@ -18,17 +18,20 @@
       };
     }
   }
-})();
+})(); */
 
 // استيراد ملف إصلاح React في Vercel
-import './lib/vercel-react-fix.js';
+// import './lib/vercel-react-fix.js'; // تعليق هذا
 
 // تصريح بـ React للتأكد من وجوده في النطاق العالمي
-import React from 'react';
+import React from 'react'; // يجب أن يكون هذا من أوائل الاستيرادات
 import ReactDOM from 'react-dom/client';
 
+// إذا كنت بحاجة ماسة لجعل React متاحًا عالميًا (غير مستحسن بشكل عام):
+// (window as any).React = React;
+
 // استيراد ملف إصلاح React
-import './lib/react-compat.js';
+// import './lib/react-compat.js'; // تعليق هذا أيضًا مؤقتًا
 
 // Importar los polyfills específicos para env.mjs antes de cualquier otro módulo
 import './lib/env-polyfill';
