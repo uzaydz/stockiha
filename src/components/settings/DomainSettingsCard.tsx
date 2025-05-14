@@ -84,6 +84,9 @@ export function DomainSettingsCard({
           throw new Error('هذا النطاق قيد الاستخدام بالفعل من قبل مؤسسة أخرى');
         }
 
+        // حذف أي تخزين مؤقت قبل إضافة النطاق
+        clearCaches(organizationId);
+
         // 3. استدعاء API مباشر لربط النطاق
         const linkResult = await linkDomain(newDomain, organizationId);
 
@@ -91,10 +94,31 @@ export function DomainSettingsCard({
           throw new Error(linkResult.error || 'فشل في ربط النطاق');
         }
 
+        console.log('تم ربط النطاق بنجاح:', linkResult.data);
+
+        // تحديث حالة النطاق في المكون محلياً
+        setDomain(linkResult.data.domain);
+        
         // 4. استدعاء onDomainUpdate إذا كان موجودًا
         if (onDomainUpdate) {
-          onDomainUpdate(newDomain);
+          onDomainUpdate(linkResult.data.domain);
         }
+
+        // المزيد من تنظيف التخزين المؤقت بعد إضافة النطاق
+        clearCaches(organizationId);
+
+        // ضرورة إعادة تحميل المؤسسة لضمان عرض النطاق المحدّث
+        setTimeout(() => {
+          // حذف المزيد من التخزين المؤقت قبل التحديث
+          Object.keys(localStorage).forEach(key => {
+            if (key.includes('organization') || key.includes('tenant') || key.includes('domain')) {
+              localStorage.removeItem(key);
+            }
+          });
+          
+          // إضافة معلمة عشوائية لمنع التخزين المؤقت للمتصفح
+          window.location.href = `${window.location.pathname}?cache=${Date.now()}`;
+        }, 1000);
 
         // تحديد الرسالة بناءً على الاستجابة من الـ API
         const successMessage = linkResult.data?.message?.includes('بالفعل')
@@ -102,7 +126,7 @@ export function DomainSettingsCard({
           : 'تم ربط النطاق بنجاح! يرجى إعداد سجلات DNS الخاصة بك.';
 
         toast.success(successMessage);
-        return newDomain;
+        return linkResult.data.domain;
       } catch (err) {
         console.error('خطأ في إضافة النطاق:', err);
         const errorMessage = err instanceof Error ? err.message : 'حدث خطأ أثناء إضافة النطاق';
@@ -115,6 +139,28 @@ export function DomainSettingsCard({
     }
   });
 
+  // وظيفة مساعدة لمسح التخزين المؤقت
+  const clearCaches = (orgId: string) => {
+    console.log('مسح التخزين المؤقت للمؤسسة:', orgId);
+    
+    // مسح أي تخزين مؤقت للمؤسسة
+    if (orgId) {
+      localStorage.removeItem(`organization:${orgId}`);
+      
+      // مسح التخزين المؤقت المتعلق بالنطاق والمستأجر
+      Object.keys(localStorage).forEach(key => {
+        if (key.includes(orgId) || key.includes('tenant:') || key.includes('domain:')) {
+          console.log('حذف مفتاح التخزين المؤقت:', key);
+          localStorage.removeItem(key);
+        }
+      });
+    }
+    
+    // إلغاء تخزين الاستعلامات المؤقتة
+    queryClient.invalidateQueries({ queryKey: ['organization'] });
+    queryClient.invalidateQueries({ queryKey: ['domain'] });
+  };
+
   // التحقق من حالة النطاق
   const verifyDomainMutation = useMutation({
     mutationFn: async () => {
@@ -122,6 +168,9 @@ export function DomainSettingsCard({
       
       setVerifying(true);
       try {
+        // حذف التخزين المؤقت قبل التحقق
+        clearCaches(organizationId);
+        
         // استدعاء API مباشر للتحقق من حالة النطاق
         const result = await checkDomainStatus(currentDomain, organizationId);
         
@@ -156,6 +205,9 @@ export function DomainSettingsCard({
       if (!currentDomain) return null;
       
       try {
+        // حذف التخزين المؤقت قبل إزالة النطاق
+        clearCaches(organizationId);
+        
         // استدعاء API مباشر لإزالة النطاق
         const result = await removeDomain(currentDomain, organizationId);
 
@@ -170,6 +222,14 @@ export function DomainSettingsCard({
 
         // إعادة تعيين النطاق المحلي
         setDomain('');
+        
+        // المزيد من تنظيف التخزين المؤقت بعد إزالة النطاق
+        clearCaches(organizationId);
+        
+        // إعادة تحميل الصفحة بعد فترة قصيرة لتحديث واجهة المستخدم
+        setTimeout(() => {
+          window.location.reload();
+        }, 500);
         
         toast.success('تم إزالة النطاق بنجاح');
         return true;
@@ -249,185 +309,186 @@ export function DomainSettingsCard({
       <CardHeader>
         <CardTitle>النطاق المخصص</CardTitle>
         <CardDescription>
-          {currentDomain 
-            ? 'عرض وإدارة النطاق المخصص الخاص بمنصتك'
-            : 'أضف نطاقًا مخصصًا لمنصتك لتوفير تجربة متكاملة للمستخدمين'}
+          ربط نطاقك المخصص بمتجرك الإلكتروني
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {/* إذا كان لديه نطاق مخصص بالفعل، نعرض معلوماته */}
         {currentDomain ? (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{currentDomain}</span>
-                {getStatusBadge()}
+          <>
+            <div className="mb-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-semibold">{currentDomain}</h3>
+                    {getStatusBadge()}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {verificationMessage || 'النطاق المخصص الخاص بمتجرك'}
+                  </p>
+                </div>
+                
+                <div className="flex gap-2">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.open(`https://${currentDomain}`, '_blank')}
+                        >
+                          <ExternalLink size={16} className="mr-1" />
+                          <span>فتح المتجر</span>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>معاينة المتجر بالنطاق المخصص</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => verifyDomainMutation.mutate()}
+                    disabled={verifying}
+                  >
+                    {verifying ? (
+                      <>
+                        <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
+                        جاري التحقق...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw size={16} className="mr-1" />
+                        <span>تحديث الحالة</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => verifyDomainMutation.mutate()}
-                  disabled={verifying}
+
+              <div className="text-sm text-muted-foreground">
+                <span>آخر تحديث: </span>
+                <span>{getLastCheckedTime()}</span>
+              </div>
+
+              {/* في حالة وجود خطأ في تكوين النطاق، نعرض تحذيرًا */}
+              {(verificationStatus === 'error' || verificationStatus === 'pending') && (
+                <Alert variant={verificationStatus === 'error' ? 'destructive' : 'default'}>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    {verificationStatus === 'error'
+                      ? (verificationMessage || 'هناك مشكلة في تكوين النطاق. يرجى مراجعة إعدادات DNS الخاصة بك.')
+                      : 'النطاق قيد التحقق. قد يستغرق هذا حتى 24 ساعة، لكن عادة يتم في غضون دقائق.'}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/* جدول تعليمات DNS */}
+              <div className="mt-6">
+                <h3 className="text-base font-medium mb-2">سجلات DNS المطلوبة:</h3>
+                <div className="border rounded-md">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>النوع</TableHead>
+                        <TableHead>المضيف</TableHead>
+                        <TableHead>القيمة</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {dnsInstructions.map((instruction, index) => (
+                        <TableRow key={index}>
+                          <TableCell className="font-medium">{instruction.type}</TableCell>
+                          <TableCell>{instruction.name}</TableCell>
+                          <TableCell>{instruction.value}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+
+              {/* حذف النطاق */}
+              <div className="mt-6 border-t pt-4">
+                <h3 className="text-base font-medium mb-2">حذف النطاق المخصص</h3>
+                <p className="text-sm text-muted-foreground mb-2">
+                  سيؤدي هذا إلى إزالة النطاق المخصص من متجرك، وسيصبح متجرك متاحًا فقط على النطاق الفرعي الافتراضي.
+                </p>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => removeDomainMutation.mutate()}
+                  disabled={removeDomainMutation.isPending}
                 >
-                  {verifying ? (
+                  {removeDomainMutation.isPending ? (
                     <>
                       <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
-                      جارٍ التحقق...
+                      جاري الحذف...
                     </>
                   ) : (
                     <>
-                      <RefreshCw className="mr-2 h-4 w-4" />
-                      تحديث الحالة
+                      <Trash2 size={16} className="mr-1" />
+                      <span>حذف النطاق</span>
                     </>
                   )}
                 </Button>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button 
-                        variant="destructive" 
-                        size="sm"
-                        onClick={() => {
-                          if (window.confirm('هل أنت متأكد من رغبتك في إزالة هذا النطاق؟')) {
-                            removeDomainMutation.mutate();
-                          }
-                        }}
-                        disabled={removeDomainMutation.isPending}
-                      >
-                        {removeDomainMutation.isPending ? (
-                          <Icons.spinner className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>إزالة النطاق</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
               </div>
             </div>
-
-            {verificationMessage && verificationStatus !== 'active' && (
-              <Alert variant="default" className="mt-4">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  {verificationMessage}
-                </AlertDescription>
-              </Alert>
-            )}
-
-            <div className="text-sm text-muted-foreground">
-              آخر تحقق: {getLastCheckedTime()}
-            </div>
-
-            {verificationStatus !== 'active' && (
-              <div className="mt-4">
-                <h4 className="mb-2 text-sm font-medium">تكوين سجلات DNS</h4>
-                <p className="mb-4 text-sm text-muted-foreground">
-                  أضف سجلات DNS التالية إلى مزود النطاق الخاص بك لإكمال تكوين النطاق المخصص:
-                </p>
-
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>النوع</TableHead>
-                      <TableHead>الاسم</TableHead>
-                      <TableHead>القيمة</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {dnsInstructions.map((record, index) => (
-                      <TableRow key={index}>
-                        <TableCell>{record.type}</TableCell>
-                        <TableCell>{record.name}</TableCell>
-                        <TableCell>{record.value}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-
-                <div className="mt-3 text-xs text-muted-foreground">
-                  ملاحظة: قد تستغرق التغييرات في DNS ما يصل إلى 48 ساعة للانتشار.
-                </div>
-              </div>
-            )}
-
-            {verificationStatus === 'active' && (
-              <div className="mt-4">
-                <Alert>
-                  <CheckCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    النطاق المخصص الخاص بك نشط ويعمل بشكل صحيح.
-                  </AlertDescription>
-                </Alert>
-                <div className="mt-3">
-                  <a 
-                    href={`https://${currentDomain}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-sm text-primary hover:underline"
-                  >
-                    زيارة الموقع
-                    <ExternalLink size={12} />
-                  </a>
-                </div>
-              </div>
-            )}
-          </div>
+          </>
         ) : (
-          <div className="space-y-4">
-            <div className="flex space-x-2">
-              <Input
-                placeholder="أدخل نطاقك (مثل: example.com)"
-                value={domain}
-                onChange={(e) => setDomain(e.target.value)}
-                disabled={loading || !isAdmin}
-                dir="ltr"
-                className="text-left"
-              />
-              <Button 
-                onClick={() => addDomainMutation.mutate(domain)} 
-                disabled={!domain || loading || !isAdmin}
+          // إذا لم يكن لديه نطاق مخصص، نعرض نموذج إضافة النطاق
+          <>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Input
+                  type="text"
+                  placeholder="example.com"
+                  value={domain}
+                  onChange={(e) => setDomain(e.target.value)}
+                  disabled={loading || !isAdmin}
+                  id="domain-input"
+                />
+                <p className="text-xs text-muted-foreground">
+                  أدخل اسم النطاق بدون http:// أو www.
+                </p>
+              </div>
+
+              {error && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+
+              <Button
+                onClick={() => addDomainMutation.mutate(domain)}
+                disabled={loading || !domain || !isAdmin}
               >
                 {loading ? (
                   <>
                     <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
-                    جارٍ الإضافة...
+                    جاري الإضافة...
                   </>
                 ) : (
-                  'إضافة'
+                  'إضافة النطاق'
                 )}
               </Button>
             </div>
 
-            {error && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-
-            <div className="rounded-md bg-muted p-4">
-              <h4 className="mb-2 text-sm font-medium">استخدام النطاقات المخصصة</h4>
-              <p className="text-sm text-muted-foreground">
-                النطاق المخصص يتيح لمستخدميك الوصول إلى منصتك من خلال نطاق مخصص خاص بك، بدلاً من استخدام النطاق الافتراضي.
-              </p>
-              <div className="mt-2 text-xs text-muted-foreground">
-                مثال: <span className="font-mono">app.yourcompany.com</span> بدلاً من <span className="font-mono">{organizationId}.{INTERMEDIATE_DOMAIN}</span>
-              </div>
+            <div className="mt-6">
+              <h3 className="text-base font-medium mb-2">قبل إضافة النطاق المخصص:</h3>
+              <ul className="space-y-2 text-sm text-muted-foreground list-disc list-inside">
+                <li>تأكد من امتلاكك للنطاق وأنه مسجل لديك.</li>
+                <li>تأكد من أن النطاق فعال ويمكن الوصول إليه.</li>
+                <li>ستحتاج إلى إضافة سجلات DNS بعد ربط النطاق.</li>
+                <li>قد يستغرق تفعيل النطاق بالكامل حتى 24 ساعة.</li>
+              </ul>
             </div>
-          </div>
+          </>
         )}
       </CardContent>
-      {!currentDomain && (
-        <CardFooter className="flex justify-between border-t px-6 py-4">
-          <p className="text-xs text-muted-foreground">
-            تأكد من أن لديك حق الوصول للتحكم في سجلات DNS للنطاق الذي تضيفه.
-          </p>
-        </CardFooter>
-      )}
     </Card>
   );
 } 

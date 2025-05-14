@@ -24,6 +24,7 @@ import { DomainSettingsCard } from './DomainSettingsCard';
 import { generateCustomDomainDnsInstructions } from '@/api/domain-verification-api';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { INTERMEDIATE_DOMAIN } from '@/lib/api/domain-verification';
+import { getDomainInfo } from '@/api/get-domain-direct';
 
 // نمط للتحقق من صحة تنسيق النطاق
 const DOMAIN_REGEX = /^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+(([a-zA-Z]{2,})|(xn--[a-zA-Z0-9]+))$/;
@@ -99,12 +100,60 @@ const DomainSettings: React.FC = () => {
   const [isCheckingAvailability, setIsCheckingAvailability] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [isChecking, setIsChecking] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [verificationData, setVerificationData] = useState<Record<string, any> | null>(null);
   const [lastChecked, setLastChecked] = useState<string | null>(null);
+  const [actualDomain, setActualDomain] = useState<string | null>(null);
+  
+  // الحصول على معلومات النطاق مباشرة من قاعدة البيانات
+  const fetchDomainInfoDirect = async () => {
+    if (!organization?.id) return;
+    
+    setIsLoading(true);
+    
+    try {
+      console.log('جلب معلومات النطاق مباشرة من قاعدة البيانات...');
+      
+      const result = await getDomainInfo(organization.id);
+      
+      if (result.success && result.data) {
+        console.log('تم جلب معلومات النطاق بنجاح:', result.data);
+        
+        if (result.data.domain) {
+          setActualDomain(result.data.domain);
+          setDomain(result.data.domain);
+          
+          // إذا كانت معلومات التحقق موجودة
+          if (result.data.verification) {
+            setDomainStatus(result.data.verification.status as DomainStatusType || 'pending');
+            setStatusMessage(result.data.verification.error_message || '');
+            setLastChecked(result.data.verification.updated_at || '');
+            setVerificationData(result.data.verification);
+          } else {
+            setDomainStatus('pending');
+          }
+        } else {
+          setActualDomain(null);
+          setDomainStatus('unconfigured');
+        }
+      } else {
+        console.error('فشل في جلب معلومات النطاق:', result.error);
+        toast({
+          title: "خطأ",
+          description: result.error || "حدث خطأ أثناء جلب معلومات النطاق",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('خطأ أثناء جلب معلومات النطاق:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
   // الحصول على معلومات التحقق من النطاق من قاعدة البيانات
   const fetchDomainVerificationInfo = async () => {
-    if (!organization?.id || !organization?.domain) return;
+    if (!organization?.id || !actualDomain) return;
     
     try {
       const supabase = getSupabaseClient();
@@ -112,7 +161,7 @@ const DomainSettings: React.FC = () => {
         .from('domain_verifications' as any)
         .select('*')
         .eq('organization_id', organization.id)
-        .eq('domain', organization.domain)
+        .eq('domain', actualDomain)
         .maybeSingle();
         
       if (error) {
@@ -132,11 +181,25 @@ const DomainSettings: React.FC = () => {
   
   // تحميل النطاق الحالي إذا كان موجودًا
   useEffect(() => {
-    if (organization?.domain) {
-      setDomain(organization.domain);
+    if (organization?.id) {
+      fetchDomainInfoDirect();
+    }
+  }, [organization?.id]);
+  
+  // جلب معلومات التحقق عند تغيير النطاق الفعلي
+  useEffect(() => {
+    if (actualDomain) {
       fetchDomainVerificationInfo();
     }
-  }, [organization]);
+  }, [actualDomain]);
+  
+  // تحميل معلومات النطاق من المنظمة
+  useEffect(() => {
+    if (organization?.domain && !actualDomain) {
+      setActualDomain(organization.domain);
+      setDomain(organization.domain);
+    }
+  }, [organization?.domain, actualDomain]);
   
   // التحقق من حالة النطاق الحالي عبر Vercel API
   const checkDomainStatusMutation = useMutation({
@@ -366,237 +429,252 @@ const DomainSettings: React.FC = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="setup" className="w-full">
-            <TabsList className="mb-4">
-              <TabsTrigger value="setup">إعداد النطاق</TabsTrigger>
-              <TabsTrigger value="verification">التحقق من النطاق</TabsTrigger>
-              <TabsTrigger value="help">إرشادات المساعدة</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="setup">
-              <div className="space-y-6">
-                {/* استخدام المكون الجديد إذا كان متاحًا، وإلا استخدم المكون القديم */}
-                {typeof DomainSettingsCard !== 'undefined' ? (
-                  <DomainSettingsCard
-                    organizationId={organization?.id || ''}
-                    currentDomain={organization?.domain || null}
-                    verificationStatus={domainStatus}
-                    verificationData={verificationData}
-                    lastChecked={lastChecked}
-                    verificationMessage={statusMessage}
-                    isAdmin={true}
-                    onDomainUpdate={async (newDomain) => {
-                      if (newDomain) {
-                        setDomain(newDomain);
-                        setDomainStatus('pending');
-                      } else {
-                        setDomain('');
-                        setDomainStatus('unconfigured');
-                      }
-                      await refreshTenant();
-                    }}
-                  />
-                ) : (
-                  <>
-                    {/* حالة النطاق الحالي */}
-                    {(organization?.domain || domainStatus !== 'unconfigured') && (
-                      <div className="p-4 border rounded-md bg-gray-50">
-                        <DomainStatus 
-                          status={isChecking ? 'pending' : domainStatus} 
-                          message={statusMessage} 
-                          domain={organization?.domain} 
-                        />
+          {isLoading ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <span className="mr-3">جار تحميل معلومات النطاق...</span>
+            </div>
+          ) : (
+            <Tabs defaultValue="setup" className="w-full">
+              <TabsList className="mb-4">
+                <TabsTrigger value="setup">إعداد النطاق</TabsTrigger>
+                <TabsTrigger value="verification">التحقق من النطاق</TabsTrigger>
+                <TabsTrigger value="help">إرشادات المساعدة</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="setup">
+                <div className="space-y-6">
+                  {/* استخدام المكون الجديد إذا كان متاحًا، وإلا استخدم المكون القديم */}
+                  {typeof DomainSettingsCard !== 'undefined' ? (
+                    <DomainSettingsCard
+                      organizationId={organization?.id || ''}
+                      currentDomain={actualDomain || null}
+                      verificationStatus={domainStatus}
+                      verificationData={verificationData}
+                      lastChecked={lastChecked}
+                      verificationMessage={statusMessage}
+                      isAdmin={true}
+                      onDomainUpdate={async (newDomain) => {
+                        if (newDomain) {
+                          setActualDomain(newDomain);
+                          setDomain(newDomain);
+                          setDomainStatus('pending');
+                        } else {
+                          setActualDomain(null);
+                          setDomain('');
+                          setDomainStatus('unconfigured');
+                        }
                         
-                        <div className="mt-4 flex gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={checkCurrentDomainStatus} 
-                            disabled={isChecking || !organization?.domain}
-                          >
-                            {isChecking && <Loader2 className="animate-spin w-4 h-4 ml-2" />}
-                            تحديث الحالة
-                          </Button>
+                        // إعادة تحميل معلومات النطاق بعد التحديث
+                        setTimeout(() => {
+                          fetchDomainInfoDirect();
+                        }, 1000);
+                        
+                        await refreshTenant();
+                      }}
+                    />
+                  ) : (
+                    <>
+                      {/* حالة النطاق الحالي */}
+                      {(organization?.domain || domainStatus !== 'unconfigured') && (
+                        <div className="p-4 border rounded-md bg-gray-50">
+                          <DomainStatus 
+                            status={isChecking ? 'pending' : domainStatus} 
+                            message={statusMessage} 
+                            domain={organization?.domain} 
+                          />
                           
-                          {domainStatus === 'active' && (
+                          <div className="mt-4 flex gap-2">
                             <Button 
                               variant="outline" 
                               size="sm" 
-                              onClick={handlePreviewStore}
+                              onClick={checkCurrentDomainStatus} 
+                              disabled={isChecking || !organization?.domain}
                             >
-                              <ExternalLink className="w-4 h-4 ml-2" />
-                              معاينة المتجر
+                              {isChecking && <Loader2 className="animate-spin w-4 h-4 ml-2" />}
+                              تحديث الحالة
+                            </Button>
+                            
+                            {domainStatus === 'active' && (
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={handlePreviewStore}
+                              >
+                                <ExternalLink className="w-4 h-4 ml-2" />
+                                معاينة المتجر
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* نموذج إعداد النطاق */}
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="domain">النطاق المخصص</Label>
+                          <Input
+                            id="domain"
+                            placeholder="example.com"
+                            value={domain}
+                            onChange={(e) => handleDomainChange(e.target.value)}
+                            className={`${!isValidFormat ? 'border-red-300 focus:ring-red-500' : ''}`}
+                          />
+                          {!isValidFormat && (
+                            <p className="text-sm text-red-500">يرجى إدخال نطاق صالح (مثل example.com)</p>
+                          )}
+                          {!isAvailable && isValidFormat && domain && (
+                            <p className="text-sm text-red-500">هذا النطاق مستخدم بالفعل من قبل متجر آخر</p>
+                          )}
+                          {isCheckingAvailability && (
+                            <p className="text-sm text-gray-500 flex items-center">
+                              <Loader2 className="animate-spin w-3 h-3 ml-1" />
+                              جاري التحقق من توفر النطاق...
+                            </p>
+                          )}
+                          <p className="text-xs text-gray-500">
+                            أدخل النطاق بدون http:// أو https:// (مثال: yourdomain.com)
+                          </p>
+                        </div>
+                        
+                        <div className="flex gap-2 justify-end">
+                          {organization?.domain && (
+                            <Button 
+                              variant="outline" 
+                              onClick={() => removeDomainMutation.mutate()} 
+                              disabled={isSaving || isChecking}
+                            >
+                              {isSaving && <Loader2 className="animate-spin w-4 h-4 ml-2" />}
+                              إزالة النطاق
                             </Button>
                           )}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* نموذج إعداد النطاق */}
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="domain">النطاق المخصص</Label>
-                        <Input
-                          id="domain"
-                          placeholder="example.com"
-                          value={domain}
-                          onChange={(e) => handleDomainChange(e.target.value)}
-                          className={`${!isValidFormat ? 'border-red-300 focus:ring-red-500' : ''}`}
-                        />
-                        {!isValidFormat && (
-                          <p className="text-sm text-red-500">يرجى إدخال نطاق صالح (مثل example.com)</p>
-                        )}
-                        {!isAvailable && isValidFormat && domain && (
-                          <p className="text-sm text-red-500">هذا النطاق مستخدم بالفعل من قبل متجر آخر</p>
-                        )}
-                        {isCheckingAvailability && (
-                          <p className="text-sm text-gray-500 flex items-center">
-                            <Loader2 className="animate-spin w-3 h-3 ml-1" />
-                            جاري التحقق من توفر النطاق...
-                          </p>
-                        )}
-                        <p className="text-xs text-gray-500">
-                          أدخل النطاق بدون http:// أو https:// (مثال: yourdomain.com)
-                        </p>
-                      </div>
-                      
-                      <div className="flex gap-2 justify-end">
-                        {organization?.domain && (
+                          
                           <Button 
-                            variant="outline" 
-                            onClick={() => removeDomainMutation.mutate()} 
-                            disabled={isSaving || isChecking}
+                            onClick={() => addDomainMutation.mutate(domain)} 
+                            disabled={!isValidFormat || !isAvailable || isSaving || isChecking || isCheckingAvailability || domain === organization?.domain}
                           >
                             {isSaving && <Loader2 className="animate-spin w-4 h-4 ml-2" />}
-                            إزالة النطاق
+                            حفظ النطاق
                           </Button>
-                        )}
-                        
-                        <Button 
-                          onClick={() => addDomainMutation.mutate(domain)} 
-                          disabled={!isValidFormat || !isAvailable || isSaving || isChecking || isCheckingAvailability || domain === organization?.domain}
-                        >
-                          {isSaving && <Loader2 className="animate-spin w-4 h-4 ml-2" />}
-                          حفظ النطاق
-                        </Button>
+                        </div>
                       </div>
-                    </div>
-                    
-                    {/* معلومات سجل CNAME */}
-                    <div className="space-y-1">
-                      <Label htmlFor="cname-value">قيمة سجل CNAME:</Label>
-                      <div className="relative">
-                        <Input
-                          id="cname-value"
-                          value={INTERMEDIATE_DOMAIN}
-                          readOnly
-                          className="pr-20 font-mono text-sm"
-                        />
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          className="absolute right-1 top-1 h-7"
-                          onClick={() => {
-                            navigator.clipboard.writeText(INTERMEDIATE_DOMAIN);
-                            toast({
-                              title: "تم النسخ",
-                              description: "تم نسخ قيمة CNAME إلى الحافظة",
-                              variant: "default",
-                            });
-                          }}
-                        >
-                          <Copy className="h-4 w-4 ml-2" />
-                          نسخ
-                        </Button>
+                      
+                      {/* معلومات سجل CNAME */}
+                      <div className="space-y-1">
+                        <Label htmlFor="cname-value">قيمة سجل CNAME:</Label>
+                        <div className="relative">
+                          <Input
+                            id="cname-value"
+                            value={INTERMEDIATE_DOMAIN}
+                            readOnly
+                            className="pr-20 font-mono text-sm"
+                          />
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="absolute right-1 top-1 h-7"
+                            onClick={() => {
+                              navigator.clipboard.writeText(INTERMEDIATE_DOMAIN);
+                              toast({
+                                title: "تم النسخ",
+                                description: "تم نسخ قيمة CNAME إلى الحافظة",
+                                variant: "default",
+                              });
+                            }}
+                          >
+                            <Copy className="h-4 w-4 ml-2" />
+                            نسخ
+                          </Button>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          قم بإضافة سجل CNAME في إعدادات DNS لنطاقك ليشير إلى النطاق الوسيط الخاص بنا.
+                        </p>
                       </div>
-                      <p className="text-sm text-muted-foreground">
-                        قم بإضافة سجل CNAME في إعدادات DNS لنطاقك ليشير إلى النطاق الوسيط الخاص بنا.
+                    </>
+                  )}
+                  
+                  {/* نصائح سريعة */}
+                  <Alert>
+                    <AlertTitle>نصائح لإعداد النطاق</AlertTitle>
+                    <AlertDescription>
+                      <ul className="list-disc list-inside space-y-1 text-sm mt-2">
+                        <li>تأكد من أنك تمتلك النطاق وتستطيع إدارة إعدادات DNS الخاصة به.</li>
+                        <li>بعد تكوين النطاق هنا، يجب عليك تكوين سجلات CNAME على النطاق.</li>
+                        <li>قد يستغرق انتشار التغييرات على DNS حتى 48 ساعة.</li>
+                      </ul>
+                    </AlertDescription>
+                  </Alert>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    يمكنك استخدام نطاق مخصص لمتجرك الإلكتروني لزيادة الاحترافية وتحسين تجربة العملاء.
+                    <Link to="/docs/custom-domains" className="text-primary hover:underline mr-1">
+                      اقرأ دليل النطاقات المخصصة
+                    </Link>
+                  </p>
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="verification">
+                {actualDomain ? (
+                  <>
+                    <div className="mb-4">
+                      <h3 className="text-lg font-semibold mb-2">سجلات DNS المطلوبة</h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        أضف سجلات DNS التالية إلى مزود النطاق الخاص بك لإكمال عملية التحقق:
+                      </p>
+                      
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse">
+                          <thead>
+                            <tr className="bg-muted">
+                              <th className="px-4 py-2 text-right font-medium">النوع</th>
+                              <th className="px-4 py-2 text-right font-medium">الاسم</th>
+                              <th className="px-4 py-2 text-right font-medium">القيمة</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {dnsInstructions.map((record, index) => (
+                              <tr key={index} className="border-b">
+                                <td className="px-4 py-2">{record.type}</td>
+                                <td className="px-4 py-2">{record.name}</td>
+                                <td className="px-4 py-2 font-mono">{record.value}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      
+                      <p className="text-xs text-muted-foreground mt-2">
+                        ملاحظة: قد تستغرق التغييرات في DNS ما يصل إلى 48 ساعة للانتشار.
                       </p>
                     </div>
+                    
+                    <DomainVerificationDetails 
+                      domain={actualDomain} 
+                      onVerificationComplete={(status) => {
+                        setDomainStatus(status);
+                        if (status === 'active') {
+                          setStatusMessage('تم التحقق من النطاق بنجاح وهو نشط الآن');
+                        } else if (status === 'pending') {
+                          setStatusMessage('سجلات DNS صحيحة، لكن لم يتم إصدار شهادة SSL بعد. قد يستغرق الأمر حتى 24 ساعة.');
+                        } else {
+                          setStatusMessage('فشل التحقق من النطاق، يرجى مراجعة إعدادات DNS');
+                        }
+                      }}
+                    />
                   </>
-                )}
-                
-                {/* نصائح سريعة */}
-                <Alert>
-                  <AlertTitle>نصائح لإعداد النطاق</AlertTitle>
-                  <AlertDescription>
-                    <ul className="list-disc list-inside space-y-1 text-sm mt-2">
-                      <li>تأكد من أنك تمتلك النطاق وتستطيع إدارة إعدادات DNS الخاصة به.</li>
-                      <li>بعد تكوين النطاق هنا، يجب عليك تكوين سجلات CNAME على النطاق.</li>
-                      <li>قد يستغرق انتشار التغييرات على DNS حتى 48 ساعة.</li>
-                    </ul>
-                  </AlertDescription>
-                </Alert>
-                <p className="text-sm text-muted-foreground mt-2">
-                  يمكنك استخدام نطاق مخصص لمتجرك الإلكتروني لزيادة الاحترافية وتحسين تجربة العملاء.
-                  <Link to="/docs/custom-domains" className="text-primary hover:underline mr-1">
-                    اقرأ دليل النطاقات المخصصة
-                  </Link>
-                </p>
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="verification">
-              {organization?.domain ? (
-                <>
-                  <div className="mb-4">
-                    <h3 className="text-lg font-semibold mb-2">سجلات DNS المطلوبة</h3>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      أضف سجلات DNS التالية إلى مزود النطاق الخاص بك لإكمال عملية التحقق:
-                    </p>
-                    
-                    <div className="overflow-x-auto">
-                      <table className="w-full border-collapse">
-                        <thead>
-                          <tr className="bg-muted">
-                            <th className="px-4 py-2 text-right font-medium">النوع</th>
-                            <th className="px-4 py-2 text-right font-medium">الاسم</th>
-                            <th className="px-4 py-2 text-right font-medium">القيمة</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {dnsInstructions.map((record, index) => (
-                            <tr key={index} className="border-b">
-                              <td className="px-4 py-2">{record.type}</td>
-                              <td className="px-4 py-2">{record.name}</td>
-                              <td className="px-4 py-2 font-mono">{record.value}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    
-                    <p className="text-xs text-muted-foreground mt-2">
-                      ملاحظة: قد تستغرق التغييرات في DNS ما يصل إلى 48 ساعة للانتشار.
-                    </p>
+                ) : (
+                  <div className="flex items-center justify-center h-40 text-center p-4 border rounded-md bg-muted">
+                    <p>يرجى إعداد نطاق مخصص أولاً قبل إجراء التحقق</p>
                   </div>
-                  
-                  <DomainVerificationDetails 
-                    domain={organization.domain} 
-                    onVerificationComplete={(status) => {
-                      setDomainStatus(status);
-                      if (status === 'active') {
-                        setStatusMessage('تم التحقق من النطاق بنجاح وهو نشط الآن');
-                      } else if (status === 'pending') {
-                        setStatusMessage('سجلات DNS صحيحة، لكن لم يتم إصدار شهادة SSL بعد. قد يستغرق الأمر حتى 24 ساعة.');
-                      } else {
-                        setStatusMessage('فشل التحقق من النطاق، يرجى مراجعة إعدادات DNS');
-                      }
-                    }}
-                  />
-                </>
-              ) : (
-                <div className="flex items-center justify-center h-40 text-center p-4 border rounded-md bg-muted">
-                  <p>يرجى إعداد نطاق مخصص أولاً قبل إجراء التحقق</p>
-                </div>
-              )}
-            </TabsContent>
-            
-            <TabsContent value="help">
-              <CustomDomainHelp domain={domain || organization?.domain} />
-            </TabsContent>
-          </Tabs>
+                )}
+              </TabsContent>
+              
+              <TabsContent value="help">
+                <CustomDomainHelp domain={domain || actualDomain} />
+              </TabsContent>
+            </Tabs>
+          )}
         </CardContent>
       </Card>
     </div>

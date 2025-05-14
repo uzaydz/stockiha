@@ -96,19 +96,38 @@ export const getOrganizationByDomain = async (domain: string) => {
     cleanDomain = cleanDomain.substring(4);
   }
   
+  // إزالة المنفذ من النطاق (مثل :3000)
+  cleanDomain = cleanDomain.split(':')[0];
+  
   // إزالة أي مسارات بعد النطاق
   cleanDomain = cleanDomain.split('/')[0];
+  
+  console.log(`النطاق بعد التنظيف: "${cleanDomain}"`);
   
   try {
     console.log(`محاولة جلب المؤسسة باستخدام النطاق الرئيسي: ${cleanDomain}`);
     const supabaseClient = await getSupabaseClient();
+    
+    // طباعة عدد المؤسسات التي تستخدم نطاقات مخصصة (للتشخيص)
+    const { data: orgWithDomains, error: countError } = await supabaseClient
+      .from('organizations')
+      .select('id, name, domain')
+      .not('domain', 'is', null);
+      
+    if (!countError && orgWithDomains) {
+      console.log(`عدد المؤسسات ذات النطاقات المخصصة: ${orgWithDomains.length}`);
+      console.log('النطاقات المخصصة الموجودة:', orgWithDomains.map(org => ({id: org.id, name: org.name, domain: org.domain})));
+    }
     
     // البحث عن المنظمة بواسطة النطاق الرئيسي
     const { data, error } = await supabaseClient
       .from('organizations')
       .select('*')
       .eq('domain', cleanDomain)
-      .single();
+      .maybeSingle();
+    
+    // طباعة معلومات تشخيصية عن الاستعلام
+    console.log(`استعلام عن النطاق: "${cleanDomain}", النتيجة:`, data ? `موجود (${data.name})` : 'غير موجود');
     
     if (error) {
       console.error(`خطأ أثناء البحث عن المؤسسة بالنطاق الرئيسي ${cleanDomain}:`, error);
@@ -117,6 +136,19 @@ export const getOrganizationByDomain = async (domain: string) => {
     
     if (!data) {
       console.log(`لم يتم العثور على مؤسسة بالنطاق الرئيسي: ${cleanDomain}`);
+      
+      // محاولة أخرى بحذف علامات التشكيل للتعامل مع النطاقات العربية
+      const { data: dataAlt, error: errorAlt } = await supabaseClient
+        .from('organizations')
+        .select('*')
+        .like('domain', `%${cleanDomain}%`)
+        .maybeSingle();
+        
+      if (!errorAlt && dataAlt) {
+        console.log(`تم العثور على مؤسسة مطابقة جزئياً للنطاق: ${cleanDomain} => ${dataAlt.domain}`);
+        return dataAlt;
+      }
+      
       return null;
     }
     

@@ -182,12 +182,16 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         
         // أولاً نحاول العثور على المؤسسة بواسطة النطاق الرئيسي (الحالي)
         const currentHostname = window.location.hostname;
+        console.log('اسم المضيف الحالي:', currentHostname);
+        
+        // إلغاء التخزين المؤقت للتأكد من استدعاء البيانات المحدثة من قاعدة البيانات
+        localStorage.removeItem(`tenant:domain:${currentHostname}`);
         
         // محاولة البحث عن المؤسسة بواسطة النطاق الرئيسي
         const orgByDomain = await getOrganizationByDomain(currentHostname);
         
         if (orgByDomain) {
-          console.log(`تم العثور على المؤسسة بواسطة النطاق الرئيسي: ${currentHostname}`);
+          console.log(`تم العثور على المؤسسة بواسطة النطاق الرئيسي: ${currentHostname}`, orgByDomain);
           setOrganization(updateOrganizationFromData(orgByDomain));
           localStorage.setItem('bazaar_organization_id', orgByDomain.id);
           
@@ -213,29 +217,13 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             }
           } else {
             console.log('لم يتم العثور على مؤسسة بالنطاق الفرعي:', subdomain);
-            setOrganization(null);
+            
+            // محاولة استخدام المعرف المخزن محلياً كاحتياطي
+            tryLoadFromLocalStorage();
           }
         } else {
           // محاولة استخدام المعرف المخزن محلياً
-          const storedOrgId = localStorage.getItem('bazaar_organization_id');
-          if (storedOrgId) {
-            const orgById = await getOrganizationById(storedOrgId);
-            if (orgById) {
-              console.log('تم العثور على المؤسسة من التخزين المحلي:', orgById.name);
-              setOrganization(updateOrganizationFromData(orgById));
-              
-              // تحقق ما إذا كان المستخدم الحالي هو مسؤول المؤسسة
-              if (user && user.id === orgById.owner_id) {
-                setIsOrgAdmin(true);
-              }
-            } else {
-              console.log('لم يتم العثور على مؤسسة باستخدام المعرف المخزن محلياً');
-              setOrganization(null);
-            }
-          } else {
-            console.log('لا يوجد معرف مؤسسة مخزن محلياً');
-            setOrganization(null);
-          }
+          tryLoadFromLocalStorage();
         }
         
         initialized.current = true;
@@ -246,6 +234,31 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       } finally {
         loadingOrganization.current = false;
         setIsLoading(false);
+      }
+    };
+    
+    // وظيفة مساعدة لتحميل المؤسسة من التخزين المحلي
+    const tryLoadFromLocalStorage = async () => {
+      const storedOrgId = localStorage.getItem('bazaar_organization_id');
+      console.log('محاولة تحميل المؤسسة من التخزين المحلي بمعرف:', storedOrgId);
+      
+      if (storedOrgId) {
+        const orgById = await getOrganizationById(storedOrgId);
+        if (orgById) {
+          console.log('تم العثور على المؤسسة من التخزين المحلي:', orgById.name);
+          setOrganization(updateOrganizationFromData(orgById));
+          
+          // تحقق ما إذا كان المستخدم الحالي هو مسؤول المؤسسة
+          if (user && user.id === orgById.owner_id) {
+            setIsOrgAdmin(true);
+          }
+        } else {
+          console.log('لم يتم العثور على مؤسسة باستخدام المعرف المخزن محلياً');
+          setOrganization(null);
+        }
+      } else {
+        console.log('لا يوجد معرف مؤسسة مخزن محلياً');
+        setOrganization(null);
       }
     };
     
@@ -337,6 +350,62 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     loadingOrganization.current = true;
 
     try {
+      console.log('بدء تحديث بيانات المؤسسة بشكل كامل...');
+      
+      // مسح كل التخزين المؤقت المتعلق بالمؤسسة
+      const orgId = localStorage.getItem('bazaar_organization_id');
+      if (orgId) {
+        console.log(`مسح التخزين المؤقت للمؤسسة: ${orgId}`);
+        localStorage.removeItem(`organization:${orgId}`);
+        
+        // مسح أي تخزين مؤقت آخر متعلق بالمؤسسة
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.includes(orgId) || key.includes('tenant:') || key.includes('domain:'))) {
+            keysToRemove.push(key);
+          }
+        }
+        
+        keysToRemove.forEach(key => {
+          console.log(`حذف مفتاح التخزين المؤقت: ${key}`);
+          localStorage.removeItem(key);
+        });
+      }
+      
+      // استخدام معرف المؤسسة لجلب البيانات المحدثة مباشرة
+      if (orgId) {
+        console.log(`جلب بيانات المؤسسة مباشرة باستخدام المعرف: ${orgId}`);
+        const supabaseClient = await getSupabaseClient();
+        
+        const { data: orgData, error: orgError } = await supabaseClient
+          .from('organizations')
+          .select('*')
+          .eq('id', orgId)
+          .single();
+        
+        if (orgError) {
+          console.error('خطأ في جلب بيانات المؤسسة:', orgError);
+          throw orgError;
+        }
+        
+        if (orgData) {
+          console.log('تم جلب بيانات المؤسسة بنجاح:', orgData.name);
+          console.log('النطاق المخصص:', orgData.domain || 'لا يوجد');
+          
+          setOrganization(updateOrganizationFromData(orgData));
+          localStorage.setItem('bazaar_organization_id', orgData.id);
+          
+          // تحقق ما إذا كان المستخدم الحالي هو مسؤول المؤسسة
+          if (user && user.id === orgData.owner_id) {
+            setIsOrgAdmin(true);
+          }
+          
+          return;
+        }
+      }
+      
+      // إذا فشل استرداد البيانات بواسطة المعرف، نعود إلى الطريقة الاحتياطية
       // استخدام النطاق الفرعي الحالي أو استخراجه من اسم المضيف
       const subdomain = currentSubdomain || extractSubdomain(window.location.hostname);
       
@@ -358,7 +427,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       loadingOrganization.current = false;
       setIsLoading(false);
     }
-  }, [currentSubdomain, authLoading, fetchOrganizationBySubdomain]);
+  }, [currentSubdomain, authLoading, user, fetchOrganizationBySubdomain, getSupabaseClient]);
 
   // استخدام useMemo لتجنب إعادة الإنشاء
   const value = useMemo(() => ({

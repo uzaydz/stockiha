@@ -48,6 +48,15 @@ export async function linkDomain(domain, organizationId) {
       };
     }
 
+    // التحقق من حالة المؤسسة قبل التحديث
+    const { data: organizationBefore } = await supabase
+      .from('organizations')
+      .select('id, name, domain')
+      .eq('id', organizationId)
+      .single();
+    
+    console.log('معلومات المؤسسة قبل التحديث:', organizationBefore);
+
     // ربط النطاق بمشروع Vercel
     const linkResult = await linkDomainToVercelProject(
       domain,
@@ -62,11 +71,21 @@ export async function linkDomain(domain, organizationId) {
       };
     }
 
+    // تنظيف النطاق للتأكد من تخزينه بتنسيق متناسق
+    const cleanDomain = domain.toLowerCase()
+      .replace(/^https?:\/\//i, '') // إزالة البروتوكول
+      .replace(/^www\./i, '')      // إزالة www.
+      .split(':')[0]               // إزالة المنفذ (مثل :3000)
+      .split('/')[0];              // إزالة المسارات
+
+    console.log(`تحديث النطاق في قاعدة البيانات: "${cleanDomain}" للمؤسسة ID: ${organizationId}`);
+
     // تحديث النطاق في قاعدة البيانات
-    const { error: dbError } = await supabase
+    const { data: updateData, error: dbError } = await supabase
       .from('organizations')
-      .update({ domain: domain })
-      .eq('id', organizationId);
+      .update({ domain: cleanDomain })
+      .eq('id', organizationId)
+      .select('id, name, domain');
 
     if (dbError) {
       console.error('حدث خطأ أثناء تحديث النطاق في قاعدة البيانات:', dbError);
@@ -75,6 +94,17 @@ export async function linkDomain(domain, organizationId) {
         error: 'حدث خطأ أثناء تحديث النطاق في قاعدة البيانات'
       };
     }
+
+    console.log('نتيجة تحديث قاعدة البيانات:', updateData);
+
+    // التحقق من نجاح تحديث المؤسسة
+    const { data: organizationAfter } = await supabase
+      .from('organizations')
+      .select('id, name, domain')
+      .eq('id', organizationId)
+      .single();
+    
+    console.log('معلومات المؤسسة بعد التحديث:', organizationAfter);
 
     try {
       // التحقق من حالة النطاق (DNS و SSL)
@@ -89,33 +119,39 @@ export async function linkDomain(domain, organizationId) {
         .from('domain_verifications')
         .select('id')
         .eq('organization_id', organizationId)
-        .eq('domain', domain)
+        .eq('domain', cleanDomain)
         .maybeSingle();
       
       const now = new Date().toISOString();
       
       if (existingRecord) {
         // تحديث سجل موجود
-        await supabase
+        const { data: updatedVerification, error: verificationUpdateError } = await supabase
           .from('domain_verifications')
           .update({
             status: verificationStatus.verified ? 'verified' : 'pending',
             error_message: verificationStatus.message || null,
             updated_at: now
           })
-          .eq('id', existingRecord.id);
+          .eq('id', existingRecord.id)
+          .select();
+          
+        console.log('تحديث سجل التحقق الموجود:', updatedVerification, verificationUpdateError);
       } else {
         // إنشاء سجل جديد
-        await supabase
+        const { data: newVerification, error: verificationInsertError } = await supabase
           .from('domain_verifications')
           .insert([{
             organization_id: organizationId,
-            domain: domain,
+            domain: cleanDomain,
             status: verificationStatus.verified ? 'verified' : 'pending',
             error_message: verificationStatus.message || null,
             created_at: now,
             updated_at: now
-          }]);
+          }])
+          .select();
+          
+        console.log('إنشاء سجل تحقق جديد:', newVerification, verificationInsertError);
       }
     } catch (verificationError) {
       console.error('خطأ في التحقق من النطاق:', verificationError);
@@ -126,7 +162,7 @@ export async function linkDomain(domain, organizationId) {
     return {
       success: true,
       data: {
-        domain: domain,
+        domain: cleanDomain,
         verification: linkResult.data?.verification || null
       }
     };
