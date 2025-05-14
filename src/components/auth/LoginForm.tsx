@@ -161,49 +161,32 @@ const LoginForm = () => {
               }
               
               // للتعامل مع عناوين محلية (localhost أو IP مثل 127.0.0.1)
-              if (hostname.includes('localhost') || hostname.match(/^127\.\d+\.\d+\.\d+$/) || hostname.match(/^\d+\.\d+\.\d+\.\d+$/)) {
-                toast.success('تم تسجيل الدخول بنجاح، سيتم توجيهك للوحة التحكم');
+              if (hostname === 'localhost' && orgData.subdomain) {
+                console.log('استخدام النطاق الفرعي مع localhost:', orgData.subdomain);
                 
-                try {
-                  // Clear any stored data before redirecting
-                  if (typeof sessionStorage !== 'undefined') {
-                    sessionStorage.removeItem('redirectAfterLogin');
-                  }
-                  if (typeof localStorage !== 'undefined') {
-                    localStorage.removeItem('loginRedirectCount');
-                  }
-                } catch (error) {
-                  console.error('Error accessing storage:', error);
-                }
+                // التوجيه إلى النطاق الفرعي مع localhost
+                setTimeout(() => {
+                  setIsLoading(false);
+                  window.location.replace(`${window.location.protocol}//${orgData.subdomain}.localhost:${window.location.port}/dashboard`);
+                }, 500);
+              } else if (hostname.match(/^127\.\d+\.\d+\.\d+$/) || hostname.match(/^\d+\.\d+\.\d+\.\d+$/)) {
+                console.log('تسجيل الدخول من عنوان IP محلي، التوجيه إلى النطاق الفرعي على localhost');
                 
-                // التحقق مما إذا كان المستخدم يريد استخدام نطاق فرعي مع localhost
-                if (hostname === 'localhost' && orgData.subdomain) {
-                  console.log('استخدام النطاق الفرعي مع localhost:', orgData.subdomain);
-                  
-                  // التوجيه إلى النطاق الفرعي مع localhost
-                  setTimeout(() => {
-                    setIsLoading(false);
-                    window.location.replace(`${window.location.protocol}//${orgData.subdomain}.localhost:${window.location.port}/dashboard`);
-                  }, 500);
-                } else {
-                  // للعناوين IP مثل 127.0.0.1، نوجه المستخدم مباشرة إلى لوحة التحكم في نفس العنوان
-                  console.log('تسجيل الدخول من عنوان IP محلي، التوجيه مباشرة إلى لوحة التحكم');
-                  
-                  // التوجيه مباشرة إلى لوحة التحكم في نفس العنوان
-                  setTimeout(() => {
-                    setIsLoading(false);
-                    navigate('/dashboard');
-                  }, 500);
-                }
-                return;
+                // استخدام localhost بدلاً من IP للتوجيه إلى النطاق الفرعي
+                setTimeout(() => {
+                  setIsLoading(false);
+                  window.location.replace(`${window.location.protocol}//${orgData.subdomain}.localhost:${window.location.port}/dashboard`);
+                }, 500);
+              } else {
+                // للعناوين الأخرى، نوجه المستخدم مباشرة إلى لوحة التحكم في نفس العنوان
+                console.log('التوجيه مباشرة إلى لوحة التحكم');
+                
+                // التوجيه مباشرة إلى لوحة التحكم في نفس العنوان
+                setTimeout(() => {
+                  setIsLoading(false);
+                  navigate('/dashboard');
+                }, 500);
               }
-              
-              // في الإنتاج، قم بتوجيه المستخدم إلى النطاق الفرعي الخاص به
-              const domainParts = hostname.split('.');
-              const domain = domainParts.length > 2 ? domainParts.slice(1).join('.') : hostname;
-              
-              console.log('Redirecting to production subdomain URL:', `${window.location.protocol}//${orgData.subdomain}.${domain}/dashboard`);
-              window.location.href = `${window.location.protocol}//${orgData.subdomain}.${domain}/dashboard`;
               return;
             }
           }
@@ -308,9 +291,6 @@ const LoginForm = () => {
         </form>
       </CardContent>
       <CardFooter className="flex flex-col space-y-2">
-        <div className="text-center text-sm text-muted-foreground">
-          <p>للانضمام كموظف، يرجى التواصل مع مسؤول المؤسسة ليقوم بإضافتك</p>
-        </div>
         {!currentSubdomain && (
           <div className="text-center text-sm text-muted-foreground mt-2">
             هل تريد إنشاء نظام خاص بمؤسستك؟{' '}

@@ -138,6 +138,30 @@ const OrganizationBrandSettings = () => {
       
       setIsUploading(false);
       
+      const supabaseClient = getSupabaseClient();
+      const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+
+      if (sessionError) {
+        console.error('Error getting session:', sessionError);
+        toast({ title: 'خطأ في الجلسة', description: 'لا يمكن التحقق من جلسة المستخدم', variant: 'destructive' });
+        setIsSaving(false);
+        return;
+      }
+
+      if (!session || !session.user) {
+        console.error('No active session or user found before calling RPC.');
+        toast({ title: 'جلسة غير نشطة', description: 'يرجى تسجيل الدخول مرة أخرى', variant: 'destructive' });
+        setIsSaving(false);
+        return;
+      }
+
+      console.log('Active user ID before RPC call:', session.user.id);
+      if (currentOrganization?.id) {
+          console.log('Current organization ID from context before RPC call:', currentOrganization.id);
+      } else {
+          console.log('Current organization or ID is not available in context before RPC call.');
+      }
+      
       // Actualizar configuración
       await updateOrganizationSettings(currentOrganization.id, {
         site_name: siteName,

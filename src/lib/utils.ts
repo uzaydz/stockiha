@@ -79,9 +79,57 @@ export const iconToComponent = (icon: string | null | undefined, size = 16): Rea
   return null; // سيتم تنفيذ هذه الدالة في مكان آخر لتعامل مع المكونات الحقيقية
 };
 
-// تنسيق التاريخ بطريقة مناسبة للواجهة العربية ولكن بالأرقام العادية
-export function formatDate(date: Date | string): string {
-  const dateObj = typeof date === 'string' ? new Date(date) : date;
+/**
+ * تنسيق التاريخ والوقت بطريقة مناسبة للواجهة
+ * يعرض التاريخ والوقت بتنسيق كامل
+ */
+export function formatDateTime(dateString: string | Date, options?: { locale?: 'ar-DZ' | 'en-US' }): string {
+  if (!dateString) return '';
+  
+  const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+  const locale = options?.locale || 'en-US';
+  
+  if (locale === 'ar-DZ') {
+    return new Intl.DateTimeFormat('ar-DZ', {
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+    }).format(date);
+  }
+  
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  }).format(date);
+}
+
+/**
+ * تنسيق التاريخ بطريقة مناسبة للواجهة
+ * يدعم الواجهة العربية والإنجليزية
+ */
+export function formatDate(dateString: string | Date, options?: { locale?: 'ar-DZ' | 'en-US' }): string {
+  if (!dateString) return '';
+  
+  const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+  const locale = options?.locale || 'en-US';
+  
+  if (locale === 'ar-DZ') {
+    return new Intl.DateTimeFormat('ar-DZ', {
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+    }).format(date);
+  }
   
   return new Intl.DateTimeFormat('en-US', {
     year: 'numeric',
@@ -90,7 +138,7 @@ export function formatDate(date: Date | string): string {
     hour: '2-digit',
     minute: '2-digit',
     hour12: true
-  }).format(dateObj);
+  }).format(date);
 }
 
 // تنسيق العملة بالدينار الجزائري بالأرقام العادية
@@ -187,3 +235,64 @@ export const getUserDataPath = (): string => {
   // في حالة الفشل أو في بيئة المتصفح، نرجع مسار افتراضي
   return './user-data';
 };
+
+/**
+ * اختصار النص إذا تجاوز طولاً معيناً
+ */
+export function truncateText(text: string, maxLength: number = 50): string {
+  if (!text) return '';
+  
+  if (text.length <= maxLength) return text;
+  
+  return text.substring(0, maxLength) + '...';
+}
+
+/**
+ * تحويل كائن إلى معلمات URL
+ */
+export function objectToQueryParams(obj: Record<string, any>): string {
+  const params = new URLSearchParams();
+  
+  Object.entries(obj).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      params.append(key, String(value));
+    }
+  });
+  
+  return params.toString();
+}
+
+/**
+ * توليد لون عشوائي للاختبار
+ */
+export function getRandomColor(): string {
+  const letters = '0123456789ABCDEF';
+  let color = '#';
+  
+  for (let i = 0; i < 6; i++) {
+    color += letters[Math.floor(Math.random() * 16)];
+  }
+  
+  return color;
+}
+
+/**
+ * تنسيق رقم الهاتف الجزائري
+ */
+export function formatPhoneNumber(phone: string | null | undefined): string {
+  if (!phone) return '';
+  
+  // إزالة أي أحرف غير رقمية
+  const cleaned = phone.replace(/\D/g, '');
+  
+  // إذا كان الرقم يبدأ بـ 0، حذفه
+  const normalized = cleaned.startsWith('0') ? cleaned.substring(1) : cleaned;
+  
+  // تنسيق الرقم
+  if (normalized.length === 9) {
+    return `0${normalized.substring(0, 2)} ${normalized.substring(2, 5)} ${normalized.substring(5, 7)} ${normalized.substring(7, 9)}`;
+  }
+  
+  // إرجاع الرقم كما هو إذا لم يكن بالتنسيق المتوقع
+  return phone;
+}

@@ -20,6 +20,9 @@ export interface Municipality {
   is_deliverable: number;
   delivery_time_parcel?: number;
   delivery_time_payment?: number;
+  // حقول إضافية لدعم عرض المكاتب مع البلديات
+  display_name?: string; // اسم العرض الذي يشمل معلومات إضافية
+  centers?: Center[]; // قائمة المكاتب في البلدية
 }
 
 // واجهة مراكز الاستلام
@@ -63,7 +66,7 @@ export interface ShippingInfo {
   deliveryPrice?: number;
 }
 
-// نوع خيارات التوصيل
+// نوع التوصيل
 export type DeliveryType = 'home' | 'desk';
 
 // واجهة بيانات اعتماد ياليدين

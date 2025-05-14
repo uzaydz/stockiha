@@ -13,89 +13,93 @@ import TemplateLoader from "@/components/thank-you/TemplateLoader";
 import ThankYouContent from "@/components/thank-you/ThankYouContent";
 import { Loader2 } from "lucide-react";
 
+// *** تحديث الاستيراد والنوع ***
+import { getOrderByOrderNumber, FullOrderInfo, DisplayOrderInfo } from "@/api/orders";
+import { Database } from "@/lib/supabase-types";
+
 // نوع قالب صفحة الشكر
 import { ThankYouTemplate } from "@/pages/dashboard/ThankYouPageEditor";
 
-// نوع بيانات الطلب
-interface OrderInfo {
-  orderNumber: string;
-  quantity: number;
-  price: number;
-  deliveryFee: number;
-  totalPrice: number;
-  date?: string;
-  productId?: string;
-  productName?: string;
-  customerName?: string;
-  customerEmail?: string;
-  customerPhone?: string;
-  shippingAddress?: string;
-  paymentMethod?: string;
-  estimatedDelivery?: string;
-}
+// *** إضافة حقول محسوبة لـ FullOrderInfo إذا لزم الأمر لاحقًا ***
+// interface DisplayOrderInfo extends Partial<OnlineOrder> {
+//   orderNumber: string; 
+//   productName?: string; 
+//   estimatedDelivery?: string; 
+// }
+
+// *** إزالة التعريف المحلي للواجهة ***
+// interface DisplayOrderInfo extends FullOrderInfo {
+//   orderNumber: string; // لضمان وجوده كسلسلة نصية
+//   productName?: string; // يمكن جلبه لاحقًا أو تمريره
+//   estimatedDelivery?: string;
+// }
 
 export default function ThankYouPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [orderInfo, setOrderInfo] = useState<OrderInfo>({
-    orderNumber: "",
-    quantity: 0,
-    price: 0,
-    deliveryFee: 0,
-    totalPrice: 0,
-  });
+  // *** استخدام النوع المحدث للحالة ***
+  const [orderInfo, setOrderInfo] = useState<DisplayOrderInfo | null>(null);
+  const [isLoadingOrder, setIsLoadingOrder] = useState(true);
+  const [errorLoadingOrder, setErrorLoadingOrder] = useState<string | null>(null);
   const [template, setTemplate] = useState<ThankYouTemplate | null>(null);
   const [isTemplateLoading, setIsTemplateLoading] = useState(true);
   const templateLoadedRef = useRef(false);
-  const orderInfoLoadedRef = useRef(false);
+  // const orderInfoLoadedRef = useRef(false); // لم نعد بحاجة لهذا
 
+  // *** useEffect جديد لجلب بيانات الطلب من قاعدة البيانات ***
   useEffect(() => {
-    if (orderInfoLoadedRef.current) return;
-    
-    // استخراج بيانات الطلب من معلمات URL
-    const orderNumber = searchParams.get("orderNumber") || "";
-    const quantity = Number(searchParams.get("quantity") || "0");
-    const price = Number(searchParams.get("price") || "0");
-    const deliveryFee = Number(searchParams.get("deliveryFee") || "0");
-    const totalPrice = Number(searchParams.get("totalPrice") || "0");
-    const productId = searchParams.get("productId") || undefined;
-    const productName = searchParams.get("productName") || undefined;
-    
-    // متغيرات اختيارية إضافية
-    const shippingAddress = searchParams.get("shippingAddress") || undefined;
-    const paymentMethod = searchParams.get("paymentMethod") || "الدفع عند الاستلام";
-    
-    // اليوم كتاريخ افتراضي للطلب
-    const date = new Date().toLocaleDateString("ar-DZ");
-    
-    // تقدير تاريخ التسليم (بعد 3-5 أيام)
-    const deliveryDate = new Date();
-    deliveryDate.setDate(deliveryDate.getDate() + 3);
-    const estimatedDelivery = deliveryDate.toLocaleDateString("ar-DZ") + " - " + 
-      new Date(deliveryDate.getTime() + 2 * 24 * 60 * 60 * 1000).toLocaleDateString("ar-DZ");
+    const orderNumberParam = searchParams.get("orderNumber");
 
-    // التحقق من وجود رقم الطلب على الأقل
-    if (!orderNumber) {
-      navigate("/");
+    if (!orderNumberParam) {
+      console.error("Order number not found in URL params.");
+      navigate("/"); // أو توجيه لصفحة خطأ
       return;
     }
 
-    // تحديث حالة بيانات الطلب
-    orderInfoLoadedRef.current = true;
-    setOrderInfo({
-      orderNumber,
-      quantity,
-      price,
-      deliveryFee,
-      totalPrice: totalPrice || (price * quantity + deliveryFee),
-      date,
-      productId,
-      productName,
-      shippingAddress,
-      paymentMethod,
-      estimatedDelivery
-    });
+    const fetchOrderData = async () => {
+      setIsLoadingOrder(true);
+      setErrorLoadingOrder(null);
+      try {
+        console.log(`Fetching order data for order number: ${orderNumberParam}`);
+        const fetchedOrder = await getOrderByOrderNumber(orderNumberParam);
+
+        if (fetchedOrder) {
+          console.log("Order data fetched successfully:", fetchedOrder);
+          // حساب تاريخ التسليم المقدر
+          const deliveryDate = new Date();
+          deliveryDate.setDate(deliveryDate.getDate() + 3);
+          const estimatedDelivery = deliveryDate.toLocaleDateString("ar-DZ") + " - " + 
+            new Date(deliveryDate.getTime() + 2 * 24 * 60 * 60 * 1000).toLocaleDateString("ar-DZ");
+            
+          // *** الوصول إلى product_id من أول عنصر في الطلب ***
+          const productIdFromItem = fetchedOrder.items && fetchedOrder.items.length > 0 ? fetchedOrder.items[0].product_id : undefined;
+          // *** ملاحظة: productName لا يزال غير موجود ***
+          // يمكن إضافة استعلام آخر هنا لجلب اسم المنتج باستخدام productIdFromItem
+          // أو تعديل getOrderByOrderNumber ليشمل join مع جدول products
+          
+          setOrderInfo({ 
+            ...fetchedOrder,
+            orderNumber: fetchedOrder.customer_order_number?.toString() || orderNumberParam, 
+            estimatedDelivery,
+            // productName: fetchedProductName // إذا تم جلبه
+          });
+        } else {
+          console.error(`Order with number ${orderNumberParam} not found.`);
+          setErrorLoadingOrder("لم يتم العثور على الطلب المحدد.");
+        }
+      } catch (error) {
+        console.error("Error fetching order data:", error);
+        setErrorLoadingOrder("حدث خطأ أثناء جلب بيانات الطلب.");
+      } finally {
+        setIsLoadingOrder(false);
+      }
+    };
+
+    fetchOrderData();
   }, [searchParams, navigate]);
+
+  // *** إزالة useEffect القديم الذي يعتمد على معلمات URL ***
+  // useEffect(() => { ... }, [searchParams, navigate]);
 
   // معالج تحميل القالب
   const handleTemplateLoad = (loadedTemplate: ThankYouTemplate | null) => {
@@ -109,15 +113,17 @@ export default function ThankYouPage() {
 
   // التأكد من أننا لدينا بيانات الطلب قبل تحميل القالب
   useEffect(() => {
-    if (orderInfo.orderNumber && !templateLoadedRef.current) {
+    // *** تعديل الشرط ليعتمد على orderInfo بدلاً من orderInfo.orderNumber ***
+    if (orderInfo && !templateLoadedRef.current) {
       console.log("طلب تحميل القالب بعد تحميل بيانات الطلب");
-      // نبدأ تحميل القالب هنا، بعد تحميل بيانات الطلب
       setIsTemplateLoading(true);
     }
-  }, [orderInfo]);
+  }, [orderInfo]); // الاعتماد على كائن orderInfo بأكمله
 
-  // إظهار حالة التحميل أثناء جلب القالب
-  if (isTemplateLoading) {
+  // *** تعديل حالة التحميل لتشمل تحميل الطلب والقالب ***
+  // *** الوصول إلى product_id عبر items[0] ***
+  const productIdForTemplate = orderInfo?.items?.[0]?.product_id;
+  if (isLoadingOrder || (orderInfo && isTemplateLoading && productIdForTemplate)) { 
     return (
       <>
         <Helmet>
@@ -127,14 +133,15 @@ export default function ThankYouPage() {
         <div className="min-h-screen bg-gradient-to-b from-background to-muted/30 pt-12 pb-16 px-4 flex items-center justify-center">
           <div className="text-center">
             <Loader2 className="h-10 w-10 animate-spin mx-auto mb-4 text-primary" />
-            <p className="text-muted-foreground">جاري تحميل صفحة الشكر...</p>
+            <p className="text-muted-foreground">{isLoadingOrder ? 'جاري تحميل بيانات الطلب...' : 'جاري تحميل صفحة الشكر...'}</p>
           </div>
         </div>
 
-        {/* تحميل القالب في الخلفية - فقط إذا كان لدينا معرف المنتج */}
-        {orderInfo.productId && (
+        {/* تحميل القالب في الخلفية - فقط إذا كان لدينا معرف المنتج وبيانات الطلب */}
+        {/* *** استخدام productIdForTemplate *** */}
+        {productIdForTemplate && isLoadingOrder === false && (
           <TemplateLoader 
-            productId={orderInfo.productId} 
+            productId={productIdForTemplate} 
             onLoad={handleTemplateLoad} 
           />
         )}
@@ -142,9 +149,34 @@ export default function ThankYouPage() {
     );
   }
 
+  // *** إضافة معالجة حالة الخطأ في تحميل الطلب ***
+  if (errorLoadingOrder) {
+    return (
+      <>
+        <Helmet>
+          <title>خطأ في تحميل الطلب</title>
+        </Helmet>
+        <Navbar />
+        <div className="min-h-screen bg-gradient-to-b from-background to-muted/30 pt-12 pb-16 px-4 flex items-center justify-center">
+          <div className="text-center text-destructive">
+            <p>{errorLoadingOrder}</p>
+            {/* يمكن إضافة زر للعودة للصفحة الرئيسية */}
+          </div>
+        </div>
+      </>
+    );
+  }
+  
+  // *** التأكد من وجود orderInfo قبل العرض ***
+  if (!orderInfo) {
+      // نظريًا لن نصل هنا بسبب معالجة الأخطاء والتحميل أعلاه، لكن كإجراء احترازي
+      return null; 
+  }
+
   return (
     <>
       <Helmet>
+        {/* *** استخدام رقم الطلب من الحالة *** */}
         <title>شكرًا لطلبك - معلومات الطلب #{orderInfo.orderNumber}</title>
         <meta name="description" content="تم استلام طلبك بنجاح وسيتم معالجته قريبًا" />
       </Helmet>
@@ -176,7 +208,7 @@ export default function ThankYouPage() {
                   <OrderNotification type="info" />
                 </div>
                 
-                <div className="bg-white dark:bg-background rounded-lg border shadow-sm overflow-hidden">
+                <div className="bg-card rounded-lg border border-border shadow-sm overflow-hidden">
                   <ThankYouActions />
                 </div>
                 

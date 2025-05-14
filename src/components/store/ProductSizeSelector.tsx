@@ -1,6 +1,7 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Check } from "lucide-react";
-import { ProductSize } from "@/types/product";
+import type { ProductSize } from '@/lib/api/products';
+import { cn } from '@/lib/utils';
 
 interface ProductSizeSelectorProps {
   sizes: ProductSize[];

@@ -1,458 +1,1182 @@
-import { useId, useState, useEffect, useRef } from "react";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Checkbox } from "@/components/ui/checkbox";
-import { AlertCircle } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { CustomFormFieldsProps } from "./OrderFormTypes";
-import { PROVINCES } from "./OrderFormTypes";
+import React, { useEffect, useState, useRef } from "react";
+import { useForm } from "react-hook-form";
+import { useTenant } from "@/context/TenantContext";
+import { Skeleton } from "@/components/ui/skeleton";
+import { User, MapPin, Phone, Mail, MessageSquare, Building, Package2, CreditCard, Home } from "lucide-react";
+import { getProvinces, getMunicipalities, calculateDeliveryPrice } from "@/api/yalidine/service";
+import { DeliveryTypeField } from "./DeliveryTypeField";
+import { 
+  TextField, 
+  TextAreaField, 
+  SelectField, 
+  ProvinceField, 
+  MunicipalityField, 
+  RadioField, 
+  CheckboxField 
+} from "./FormFieldComponents";
+import { supabase } from '@/lib/supabase-client';
 
-// إضافة وصف إلى واجهة FormField
-interface ExtendedFormField {
-  id: string;
-  name: string;
-  label: string;
-  type: 'text' | 'number' | 'email' | 'tel' | 'select' | 'radio' | 'checkbox' | 'province' | 'municipality' | 'textarea';
-  required: boolean;
-  placeholder?: string;
-  order: number;
-  options?: { label: string; value: string }[];
-  defaultValue?: string;
-  validation?: {
-    minLength?: number;
-    maxLength?: number;
-    pattern?: string;
-    message?: string;
-  };
-  isVisible: boolean;
-  description?: string; // إضافة حقل الوصف
-  linkedFields?: {
-    municipalityField?: string | null;
-    provinceField?: string | null;
-    [key: string]: string | null | undefined;
-  };
-  dependency?: {
-    fieldId: string;
-    value: string;
+// استيراد ملف التنسيقات
+import "./form.css";
+
+// استيراد الأنواع من ملف types.ts
+import type { CustomFormProps, ExtendedFormField, CustomFormField } from "./types";
+
+// إيقاف رسائل التشخيص في console
+if (typeof window !== 'undefined') {
+  const originalConsoleLog = console.log;
+  console.log = function() {
+    // تجاهل رسائل التشخيص المحددة
+    const firstArg = arguments[0];
+    if (typeof firstArg === 'string' && (
+      firstArg.includes('تكامل الشحن') ||
+      firstArg.includes('معرّف مزود الشحن') ||
+      firstArg.includes('الولايات المحملة') ||
+      firstArg.includes('نوع التوصيل الحالي') ||
+      firstArg.includes('رسوم التوصيل الحالية') ||
+      firstArg.includes('طباعة الحقول في وحدة التحكم') ||
+      firstArg.includes('استخدام النموذج المخصص') ||
+      firstArg.includes('الحقول:') ||
+      firstArg.includes('نوع التوصيل:') ||
+      firstArg.includes('>> إعدادات مزود الشحن الافتراضية المستخدمة في renderField') ||
+      firstArg.includes('>> بيانات إعدادات مزود الشحن الكاملة') ||
+      firstArg.includes('>> القيم المفروضة لخيارات التوصيل') ||
+      firstArg.includes('>> القيم النهائية المستخدمة في العرض') ||
+      firstArg.includes('>> اختيار التوصيل للمكتب كقيمة افتراضية') ||
+      firstArg.includes('>> تحديث إعدادات التوصيل في DeliveryTypeField') ||
+      firstArg.includes('>> إجبار استخدام خيار المكتب') ||
+      firstArg.includes('>> تحديث نوع التوصيل في النموذج') ||
+      firstArg.includes('>> فرض استخدام نوع التوصيل') ||
+      firstArg.includes('تحديث حقل deliveryOption في النموذج') ||
+      firstArg.includes('إعادة حساب سعر التوصيل')
+    )) {
+      return;
+    }
+    originalConsoleLog.apply(console, arguments);
   };
 }
 
-// واجهة البلديات الجزائرية
-interface Municipalities {
-  [province: string]: string[];
-}
-
-// قائمة البلديات لكل ولاية (مبسطة للتوضيح)
-const MUNICIPALITIES: Municipalities = {
-  "الجزائر": ["باب الوادي", "حسين داي", "بئر مراد رايس", "حيدرة", "باش جراح"],
-  "وهران": ["وهران", "عين الترك", "بئر الجير", "السانية", "مرسى الحجاج"],
-  "قسنطينة": ["قسنطينة", "الخروب", "حامة بوزيان", "زيغود يوسف", "ديدوش مراد"],
-  // إضافة باقي الولايات والبلديات حسب الحاجة
-};
-
-const CustomFormFields = ({ customFields }: CustomFormFieldsProps) => {
-  const componentId = useId();
+// دالة للبحث عن معرف مزود الشحن المستنسخ
+async function findClonedShippingProviderId(formSettings: any, orgId: string | null | undefined): Promise<string | number | null> {
+  console.log(">> بداية استخلاص معرف مزود الشحن المستنسخ");
   
-  // حالة لتخزين قيم الحقول
-  const [fieldValues, setFieldValues] = useState<{[key: string]: any}>({});
+  if (!orgId) {
+    console.log(">> معرف المؤسسة غير محدد، لا يمكن البحث عن مزود شحن");
+    return null;
+  }
   
-  // حالة لتخزين الولاية المحددة والبلديات المناسبة
-  const [selectedProvinces, setSelectedProvinces] = useState<{[key: string]: string}>({});
-  const [availableMunicipalities, setAvailableMunicipalities] = useState<{[key: string]: string[]}>({});
+  console.log(">> محاولة البحث عن مزود شحن للمؤسسة:", orgId);
   
-  // حالة لتخزين أخطاء التحقق
-  const [fieldErrors, setFieldErrors] = useState<{[key: string]: string}>({});
-  
-  // خريطة لربط حقول الولاية والبلدية المرتبطة
-  const [fieldRelations, setFieldRelations] = useState<{[key: string]: string}>({});
-  
-  // حالة لتحديد الحقول المرئية استنادًا إلى التبعيات
-  const [visibleFields, setVisibleFields] = useState<{[key: string]: boolean}>({});
-  
-  // مرجع للنموذج
-  const formRef = useRef<HTMLFormElement | null>(null);
-  
-  // التحقق من توفر الحقول المخصصة
-  if (!customFields || !customFields.length) return null;
-  
-  // تصفية الحقول المرئية فقط وترتيبها حسب الترتيب
-  const sortedFields = [...customFields]
-    .filter(field => field.isVisible === true) // التأكد من عرض الحقول المرئية فقط
-    .sort((a, b) => (a.order || 0) - (b.order || 0));
-  
-  if (!sortedFields.length) return null;
-
-  // تهيئة الحقول المرئية عند تحميل المكون
-  useEffect(() => {
-    // وضع جميع الحقول كمرئية افتراضيًا
-    const initialVisibility: {[key: string]: boolean} = {};
-    sortedFields.forEach(field => {
-      const fieldKey = `custom_${field.name}`;
-      initialVisibility[fieldKey] = true;
+  // البحث عن مزود شحن افتراضي للمؤسسة
+  try {
+    console.log(">> البحث عن مزود شحن مستنسخ افتراضي للمؤسسة:", orgId);
+    
+    const { data, error } = await (supabase as any).from('shipping_provider_clones')
+      .select('id')
+      .eq('organization_id', orgId)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false }) // ترتيب بحسب تاريخ الإنشاء (الأحدث أولاً)
+      .limit(1);
       
-      // التحقق من التبعيات
-      if (field.dependency && field.dependency.fieldId) {
-        // إذا كان الحقل تابعًا لحقل آخر، فإن رؤيته تعتمد على قيمة الحقل الأساسي
-        const parentFieldId = field.dependency.fieldId;
-        const parentField = customFields.find(f => f.id === parentFieldId);
-        
-        if (parentField) {
-          const parentFieldKey = `custom_${parentField.name}`;
-          const requiredValue = field.dependency.value;
+    if (error) {
+      console.error(">> خطأ في البحث عن مزود شحن مستنسخ:", error);
+    } else if (data && Array.isArray(data) && data.length > 0) {
+      const defaultCloneId = data[0].id;
+      console.log(">> تم العثور على مزود شحن مستنسخ افتراضي:", defaultCloneId);
+      
+      // حفظ معرف المزود المستنسخ في formSettings إذا كان متاحاً
+      if (formSettings && formSettings.id) {
+        try {
+          // تحديث إعدادات النموذج في قاعدة البيانات
+          const updateResult = await (supabase as any).from('form_settings')
+            .update({
+              settings: {
+                ...formSettings.settings,
+                shipping_clone_id: defaultCloneId.toString()
+              }
+            })
+            .eq('id', formSettings.id);
           
-          // تعيين رؤية الحقل بناءً على قيمة الحقل الأساسي
-          if (fieldValues[parentFieldKey] !== requiredValue && requiredValue !== '*') {
-            initialVisibility[fieldKey] = false;
-          }
+          console.log(">> تم تحديث النموذج بمعرف مزود الشحن المستنسخ");
+        } catch (updateError) {
+          console.error(">> خطأ في تحديث النموذج:", updateError);
         }
       }
-    });
-    
-    setVisibleFields(initialVisibility);
-  }, [customFields]);
-
-  // تحديث رابط النموذج مرة واحدة عند التحميل
-  useEffect(() => {
-    // البحث عن النموذج الأب مرة واحدة فقط
-    if (!formRef.current) {
-      const parentForm = document.querySelector('form');
-      if (parentForm) {
-        formRef.current = parentForm;
-        console.log("تم العثور على النموذج الأب");
-      }
-    }
-    
-    // إنشاء العلاقات بين حقول الولاية والبلدية
-    const relations: {[key: string]: string} = {};
-    
-    // البحث عن حقول الولاية والبلدية المرتبطة
-    sortedFields.forEach(field => {
-      if (field.type === 'municipality' && field.linkedFields?.provinceField) {
-        const provinceField = customFields.find(f => f.id === field.linkedFields?.provinceField);
-        if (provinceField) {
-          relations[`custom_${field.name}`] = `custom_${provinceField.name}`;
-        }
-      }
-    });
-    
-    setFieldRelations(relations);
-  }, [customFields]);
-  
-  // معالج تغيير الولاية
-  const handleProvinceChange = (province: string, fieldName: string) => {
-    console.log(`تغيير الولاية إلى: ${province} في الحقل: ${fieldName}`);
-    
-    // تحديث قيمة الولاية المحددة
-    setSelectedProvinces(prev => ({
-      ...prev,
-      [fieldName]: province
-    }));
-    
-    // تحديث البلديات المتاحة
-    if (MUNICIPALITIES[province]) {
-      setAvailableMunicipalities(prev => ({
-        ...prev,
-        [fieldName]: MUNICIPALITIES[province]
-      }));
+      
+      return defaultCloneId;
     } else {
-      setAvailableMunicipalities(prev => ({
-        ...prev,
-        [fieldName]: []
-      }));
+      console.log(">> لم يتم العثور على مزود شحن مستنسخ للمؤسسة");
     }
-    
-    // تحديث قيم الحقول
-    setFieldValues(prev => ({
-      ...prev,
-      [fieldName]: province
-    }));
-    
-    // تحديث الحقول التابعة
-    for (const [municipalityField, provinceField] of Object.entries(fieldRelations)) {
-      if (provinceField === fieldName) {
-        // إعادة تعيين قيمة البلدية عند تغيير الولاية
-        setFieldValues(prev => ({
-          ...prev,
-          [municipalityField]: ''
-        }));
-      }
-    }
-    
-    // تحديث الحقول المرئية بناءً على التبعيات
-    updateVisibleFieldsBasedOnDependencies(fieldName, province);
-  };
+  } catch (error) {
+    console.error(">> خطأ في البحث عن مزود شحن مستنسخ:", error);
+  }
   
-  // دالة تحديث الحقول المرئية بناءً على التبعيات
-  const updateVisibleFieldsBasedOnDependencies = (changedFieldName: string, newValue: any) => {
-    const newVisibility = { ...visibleFields };
+  // إذا وصلنا إلى هنا، نستخدم القيمة 1 كإجراء أخير
+  console.log(">> استخدام القيمة الافتراضية 1 كإجراء أخير");
+  return 1;
+}
+
+// دالة مساعدة للحصول على إعدادات مزود الشحن الافتراضية
+function getDefaultShippingProviderSettings(orgId: string | null | undefined, cloneId: string | number | null) {
+  console.log(">> إنشاء إعدادات افتراضية لمزود الشحن برقم:", cloneId || 1);
+  
+  // البحث في قاعدة البيانات للحصول على مزود شحن مستنسخ
+  async function attemptToFetchSettings() {
+    if (!cloneId || !orgId) return null;
     
-    // البحث عن جميع الحقول التي تعتمد على الحقل المتغير
-    sortedFields.forEach(field => {
-      if (field.dependency && field.dependency.fieldId) {
-        // البحث عن الحقل الأساسي
-        const parentField = customFields.find(f => f.id === field.dependency?.fieldId);
-        if (parentField) {
-          const parentFieldKey = `custom_${parentField.name}`;
+    try {
+      const { data, error } = await (supabase as any).from('shipping_provider_clones')
+        .select('*')
+        .eq('id', cloneId)
+        .single();
+        
+      if (!error && data) {
+        console.log(">> تم العثور على إعدادات مزود الشحن في قاعدة البيانات:", data);
+        return data;
+      }
+    } catch (error) {
+      console.error(">> خطأ في البحث عن إعدادات مزود الشحن:", error);
+    }
+    
+    return null;
+  }
+  
+  // محاولة استرجاع اخر مرة من قاعدة البيانات اذا كان ممكناً
+  attemptToFetchSettings().then(settings => {
+    if (settings) {
+      console.log(">> استخدام إعدادات مزود الشحن المجلوبة من قاعدة البيانات");
+      return settings;
+    }
+  });
+  
+  // إعدادات افتراضية إذا لم يتم العثور على إعدادات في قاعدة البيانات
+  return {
+    id: cloneId || 1,
+    organization_id: orgId || '',
+    original_provider_id: 1,
+    name: "مزود الشحن الافتراضي",
+    is_active: true,
+    // بشكل افتراضي، تفعيل خياري المكتب والمنزل
+    is_home_delivery_enabled: true,
+    is_desk_delivery_enabled: true,
+    use_unified_price: true,
+    unified_home_price: 800,
+    unified_desk_price: 0,
+    is_free_delivery_home: false,
+    is_free_delivery_desk: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    sync_enabled: false
+  };
+}
+
+// تحديث نوع CustomFormField ليشمل formSettings
+interface ExtendedCustomFormField extends CustomFormField {
+  formSettings?: {
+    id?: string;
+    settings?: any;
+    [key: string]: any;
+  };
+}
+
+export const CustomFormFields: React.FC<CustomFormProps> = ({
+  formId,
+  formFields,
+  productId,
+  onSubmit,
+  isSubmitting = false,
+  children,
+  noForm = false,
+  onDeliveryPriceChange,
+  onFieldChange,
+}) => {
+  const { currentOrganization } = useTenant();
+  const [extendedFields, setExtendedFields] = useState<ExtendedFormField[]>([]);
+  const [deliveryPrice, setDeliveryPrice] = useState<number | null>(null);
+  const { watch, setValue } = useForm();
+  const [clonedShippingProviderId, setClonedShippingProviderId] = useState<string | number | null>(null);
+  const [shippingProviderSettings, setShippingProviderSettings] = useState<any | null>(null);
+  const [isLoadingShippingSettings, setIsLoadingShippingSettings] = useState<boolean>(false);
+  // إضافة مرجع للتحكم في تحديثات نوع التوصيل لتجنب الحلقة اللانهائية
+  const deliveryTypeUpdateRef = useRef<{
+    isHomeOnlyDelivery: boolean;
+    isDeskOnlyDelivery: boolean;
+    hasBeenUpdated: boolean;
+  }>({
+    isHomeOnlyDelivery: false,
+    isDeskOnlyDelivery: false,
+    hasBeenUpdated: false
+  });
+
+  // استخراج معرف مزود الشحن المستنسخ
+  useEffect(() => {
+    if (!currentOrganization) return;
+    
+    const getShippingCloneId = async () => {
+      try {
+        // تمكين حالة التحميل
+        setIsLoadingShippingSettings(true);
+        
+        // تحضير كائن formSettings من البيانات المتاحة
+        let settingsObj: any = null;
+        
+        if (formFields && formFields.length > 0) {
+          // البحث عن الحقل الذي يحتوي على formSettings
+          const fieldWithSettings = formFields.find(field => 
+            field && typeof field === 'object' && 'formSettings' in field && field.formSettings
+          ) as ExtendedCustomFormField | undefined;
           
-          // إذا كان الحقل المتغير هو الحقل الأساسي
-          if (parentFieldKey === changedFieldName) {
-            const fieldKey = `custom_${field.name}`;
-            const requiredValue = field.dependency.value;
-            
-            // تحديث رؤية الحقل بناءً على القيمة الجديدة
-            if (requiredValue === '*' || requiredValue === newValue) {
-              newVisibility[fieldKey] = true;
-            } else {
-              newVisibility[fieldKey] = false;
-            }
+          if (fieldWithSettings && fieldWithSettings.formSettings) {
+            settingsObj = { 
+              id: formId, 
+              settings: {}, 
+              ...fieldWithSettings.formSettings 
+            };
+          } else {
+            settingsObj = { id: formId, settings: {} };
           }
         }
-      }
-    });
-    
-    setVisibleFields(newVisibility);
-  };
-  
-  // دالة لمعالجة تغيير قيمة الحقل
-  const handleFieldChange = (fieldName: string, value: any) => {
-    console.log(`تغيير قيمة الحقل: ${fieldName} إلى:`, value);
-    
-    // تحديث قيمة الحقل
-    setFieldValues(prev => ({
-      ...prev,
-      [fieldName]: value
-    }));
-    
-    // تحديث الحقول المرئية بناءً على التبعيات
-    updateVisibleFieldsBasedOnDependencies(fieldName, value);
-  };
-  
-  // تقديم الحقول المرئية فقط
-  return (
-    <div className="space-y-6 py-4">
-      {sortedFields.map((field) => {
-        const fieldName = `custom_${field.name}`;
         
-        // التحقق من رؤية الحقل
-        const isVisible = visibleFields[fieldName] !== false;
-        
-        if (!isVisible) {
-          return null;
+        // البحث عن shipping_clone_id للمنتج المحدد
+        if (productId) {
+          console.log(">> البحث عن shipping_clone_id للمنتج:", productId);
+          try {
+            const { data, error } = await (supabase as any).from('products')
+              .select('shipping_clone_id, purchase_page_config')
+              .eq('id', productId)
+              .single();
+              
+            if (error) {
+              console.error(">> خطأ في جلب معلومات المنتج:", error);
+            } else if (data) {
+              console.log(">> بيانات المنتج المسترجعة:", data);
+              
+              if (data.shipping_clone_id) {
+                console.log(">> تم العثور على shipping_clone_id مباشرة في المنتج:", data.shipping_clone_id);
+                const cloneId = data.shipping_clone_id;
+                setClonedShippingProviderId(cloneId);
+                await fetchShippingProviderSettings(cloneId);
+                setIsLoadingShippingSettings(false);
+                return;
+              } else if (data.purchase_page_config && data.purchase_page_config.shipping_clone_id) {
+                console.log(">> تم العثور على shipping_clone_id في purchase_page_config:", data.purchase_page_config.shipping_clone_id);
+                const cloneId = data.purchase_page_config.shipping_clone_id;
+                setClonedShippingProviderId(cloneId);
+                await fetchShippingProviderSettings(cloneId);
+                setIsLoadingShippingSettings(false);
+                return;
+              } else {
+                console.log(">> لم يتم العثور على shipping_clone_id في بيانات المنتج");
+              }
+            } else {
+              console.log(">> لم يتم العثور على بيانات للمنتج");
+            }
+          } catch (error) {
+            console.error(">> خطأ في جلب معلومات المنتج:", error);
+          }
+        } else {
+          console.log(">> لا يوجد معرف منتج (productId غير محدد)");
         }
         
-        return (
-          <div key={field.id} className="space-y-2">
-            <Label
-              htmlFor={`${componentId}-${fieldName}`}
-              className={field.required ? "after:content-['*'] after:text-destructive after:mr-1" : ""}
-            >
-              {field.label}
-            </Label>
-            
-            {field.description && (
-              <p className="text-muted-foreground text-sm mb-2">{field.description}</p>
-            )}
-            
-            {renderField(field, fieldName)}
-            
-            {fieldErrors[fieldName] && (
-              <div className="flex items-center mt-1 text-destructive text-xs">
-                <AlertCircle className="h-3 w-3 mr-1" />
-                <span>{fieldErrors[fieldName]}</span>
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-  
-  // دالة لعرض الحقل المناسب حسب نوعه
-  function renderField(field: ExtendedFormField, fieldName: string) {
-    // استقبال قيمة الحقل من الحالة
-    const fieldValue = fieldValues[fieldName] || field.defaultValue || '';
-    
-    // معالج التغيير العام
-    const handleChange = (value: any) => {
-      handleFieldChange(fieldName, value);
+        // إذا لم نجد shipping_clone_id في المنتج، نبحث عن مزود شحن افتراضي للمؤسسة
+        const cloneId = await findClonedShippingProviderId(settingsObj, currentOrganization?.id);
+        console.log(">> معرف مزود الشحن المستنسخ النهائي:", cloneId);
+        
+        if (cloneId) {
+          setClonedShippingProviderId(cloneId);
+          await fetchShippingProviderSettings(cloneId);
+        } else {
+          console.error(">> لم يتم العثور على مزود شحن مناسب");
+          
+          // تعيين حالة "لا توجد إعدادات" باستخدام الإعدادات الافتراضية
+          const defaultSettings = getDefaultShippingProviderSettings(currentOrganization?.id, 1);
+          console.log(">> استخدام إعدادات مزود شحن افتراضية:", defaultSettings);
+          setShippingProviderSettings(defaultSettings);
+        }
+        
+        // إنهاء حالة التحميل
+        setIsLoadingShippingSettings(false);
+      } catch (error) {
+        console.error(">> خطأ في استخلاص معرف مزود الشحن المستنسخ:", error);
+        
+        // تعيين حالة "لا توجد إعدادات" باستخدام الإعدادات الافتراضية في حالة الخطأ
+        const defaultSettings = getDefaultShippingProviderSettings(currentOrganization?.id, 1);
+        console.log(">> استخدام إعدادات مزود شحن افتراضية في حالة الخطأ:", defaultSettings);
+        setShippingProviderSettings(defaultSettings);
+        
+        setIsLoadingShippingSettings(false);
+      }
     };
+    
+    getShippingCloneId();
+  }, [formId, currentOrganization, formFields, productId, setValue]);
+
+  // دالة لجلب إعدادات مزود الشحن بناءً على المعرف
+  const fetchShippingProviderSettings = async (cloneId: string | number) => {
+    console.log(">> بداية تنفيذ fetchShippingProviderSettings");
+    console.log(">> معرف مزود الشحن المستنسخ:", cloneId);
+    console.log(">> هل تم توفير معرف مزود الشحن؟", !!cloneId);
+    
+    if (cloneId) {
+      try {
+        console.log(">> جاري جلب إعدادات مزود الشحن المستنسخ...");
+        console.log(">> محاولة جلب مزود الشحن المستنسخ بالمعرف:", cloneId);
+        
+        // استخدام any لتجاوز التحقق من النوع
+        const { data, error } = await (supabase as any).from('shipping_provider_clones')
+          .select('*')
+          .eq('id', cloneId)
+          .single();
+          
+        if (error) {
+          console.error(">> خطأ في جلب إعدادات مزود الشحن المستنسخ:", error);
+          return;
+        }
+        
+        if (data) {
+          console.log(">> تم جلب بيانات مزود الشحن المستنسخ بنجاح:", data);
+          console.log(">> حالة التوصيل للمنزل:", data.is_home_delivery_enabled);
+          console.log(">> حالة التوصيل للمكتب:", data.is_desk_delivery_enabled);
+          
+          // تأكد من أن القيم البوليانية محددة بشكل صحيح وليست null
+          const sanitizedData = {
+            ...data,
+            is_home_delivery_enabled: data.is_home_delivery_enabled === true,
+            is_desk_delivery_enabled: data.is_desk_delivery_enabled === true,
+            is_free_delivery_home: data.is_free_delivery_home === true,
+            is_free_delivery_desk: data.is_free_delivery_desk === true
+          };
+          
+          // تخزين إعدادات مزود الشحن
+          setShippingProviderSettings(sanitizedData);
+          
+          // إعادة تعيين مرجع التحديث لتمكين التحديث في useEffect
+          deliveryTypeUpdateRef.current.hasBeenUpdated = false;
+          
+          console.log(">> تم تحديث إعدادات مزود الشحن:", {
+            is_home_delivery_enabled: sanitizedData.is_home_delivery_enabled,
+            is_desk_delivery_enabled: sanitizedData.is_desk_delivery_enabled
+          });
+        }
+      } catch (error) {
+        console.error(">> خطأ في جلب إعدادات مزود الشحن:", error);
+        
+        // تعيين إعدادات افتراضية في حالة الخطأ
+        const defaultSettings = getDefaultShippingProviderSettings(currentOrganization?.id, cloneId);
+        setShippingProviderSettings(defaultSettings);
+        
+        // إعادة تعيين مرجع التحديث لتمكين التحديث في useEffect
+        deliveryTypeUpdateRef.current.hasBeenUpdated = false;
+      }
+    } else {
+      console.error(">> لم يتم توفير معرف مزود شحن صالح");
+      
+      // استخدام إعدادات افتراضية
+      const defaultSettings = getDefaultShippingProviderSettings(currentOrganization?.id, 1);
+      setShippingProviderSettings(defaultSettings);
+      
+      // إعادة تعيين مرجع التحديث لتمكين التحديث في useEffect
+      deliveryTypeUpdateRef.current.hasBeenUpdated = false;
+    }
+  };
+
+  // دالة مساعدة لتحديث قيمة الحقل وإرسالها إلى النموذج الأساسي
+  const updateFieldValue = (fieldName: string, value: string) => {
+    // تجنب التحديثات المتكررة لـ deliveryOption
+    if (fieldName === 'deliveryOption' && value === 'desk') {
+      // التحقق مما إذا كانت القيمة بالفعل "desk" في extendedFields
+      const currentField = extendedFields.find(f => f.name === fieldName);
+      if (currentField && currentField.value === 'desk') {
+        return; // تجنب التحديث إذا كانت القيمة هي نفسها بالفعل
+      }
+    }
+    
+    // تحديث القيمة في extendedFields
+    const updatedFields = [...extendedFields];
+    const fieldToUpdate = updatedFields.find(f => f.name === fieldName);
+    
+    if (fieldToUpdate) {
+      fieldToUpdate.value = value;
+      setExtendedFields(updatedFields);
+    }
+    
+    // تحديث القيمة في النموذج الأساسي إذا كانت الدالة متوفرة
+    if (onFieldChange) {
+      onFieldChange(fieldName, value);
+    }
+  };
+
+  // دالة مساعدة لتحديث الحالة واستدعاء onDeliveryPriceChange
+  const updateDeliveryPriceState = (price: number | null) => {
+    setDeliveryPrice(price);
+    if (onDeliveryPriceChange) {
+      onDeliveryPriceChange(price);
+    }
+  };
+
+  // وظيفة لتحديث سعر التوصيل
+  const updateDeliveryPrice = async (
+    deliveryType: string,
+    provinceId: string,
+    municipalityId: string | null | undefined
+  ) => {
+    if (!provinceId || !currentOrganization) {
+      updateDeliveryPriceState(0);
+      return;
+    }
+    
+    try {
+      // إذا لم يتم تحميل إعدادات مزود التوصيل بعد، استخدم منطق الحساب الافتراضي
+      if (!shippingProviderSettings) {
+        console.log(">> إعدادات مزود التوصيل غير متوفرة، استخدام منطق حساب السعر الافتراضي");
+        
+        // التحقق مما إذا كان لدينا معرف مزود التوصيل
+        if (clonedShippingProviderId) {
+          // محاولة جلب الإعدادات مرة أخرى
+          await fetchShippingProviderSettings(clonedShippingProviderId);
+          
+          // إذا كانت الإعدادات لا تزال غير متوفرة، استخدم سعر افتراضي معقول
+          if (!shippingProviderSettings) {
+            const defaultPrice = deliveryType === 'home' ? 800 : 300;
+            console.log(`>> استخدام سعر افتراضي للتوصيل: ${defaultPrice} دج`);
+            updateDeliveryPriceState(defaultPrice);
+          } else {
+            // إذا تم تحميل الإعدادات، عاود المحاولة
+            updateDeliveryPrice(deliveryType, provinceId, municipalityId);
+          }
+          return;
+        }
+        
+        // إذا لم يكن لدينا معرف مزود التوصيل، استخدم سعر افتراضي
+        const defaultPrice = deliveryType === 'home' ? 800 : 300;
+        console.log(`>> استخدام سعر افتراضي للتوصيل: ${defaultPrice} دج`);
+        updateDeliveryPriceState(defaultPrice);
+        return;
+      }
+      
+      // استخدام إعدادات مزود التوصيل المحملة
+      console.log(">> استخدام إعدادات مزود التوصيل المحملة:", shippingProviderSettings.id);
+      
+      // التحقق من توفر خيارات التوصيل
+      const isHomeEnabled = shippingProviderSettings.is_home_delivery_enabled === true;
+      const isDeskEnabled = shippingProviderSettings.is_desk_delivery_enabled === true;
+      
+      // تحديد نوع التوصيل النهائي بناءً على الخيارات المتاحة
+      let finalDeliveryType = deliveryType;
+      
+      // إذا كان خيار واحد فقط متاح، استخدمه بغض النظر عن القيمة المحددة
+      if (!isHomeEnabled && isDeskEnabled) {
+        // فقط التوصيل للمكتب متاح
+        finalDeliveryType = 'desk';
+      } else if (isHomeEnabled && !isDeskEnabled) {
+        // فقط التوصيل للمنزل متاح
+        finalDeliveryType = 'home';
+      } else if (deliveryType === 'home' && !isHomeEnabled) {
+        // إذا كان نوع التوصيل "للمنزل" غير مدعوم ولكن "للمكتب" مدعوم
+        finalDeliveryType = isDeskEnabled ? 'desk' : 'home';
+      } else if (deliveryType === 'desk' && !isDeskEnabled) {
+        // إذا كان نوع التوصيل "للمكتب" غير مدعوم ولكن "للمنزل" مدعوم
+        finalDeliveryType = isHomeEnabled ? 'home' : 'desk';
+      }
+      
+      // التحقق ما إذا تم تغيير نوع التوصيل
+      if (finalDeliveryType !== deliveryType) {
+        console.log(`>> تغيير نوع التوصيل من ${deliveryType} إلى ${finalDeliveryType} بناءً على الخيارات المتاحة`);
+        
+        // تحديث القيمة في النموذج
+        if (setValue) {
+          setValue('deliveryOption', finalDeliveryType);
+        }
+        
+        // تحديث القيمة في النموذج الأساسي
+        if (onFieldChange) {
+          onFieldChange('deliveryOption', finalDeliveryType);
+        }
+      }
+      
+      // حساب سعر التوصيل بناءً على نوع التوصيل النهائي
+      if (finalDeliveryType === 'home' && isHomeEnabled) {
+        // التحقق ما إذا كان التوصيل للمنزل مجانيًا
+        if (shippingProviderSettings.is_free_delivery_home) {
+          updateDeliveryPriceState(0);
+        } else if (shippingProviderSettings.use_unified_price) {
+          // استخدام السعر الموحد للتوصيل للمنزل
+          updateDeliveryPriceState(shippingProviderSettings.unified_home_price || 0);
+        } else {
+          // هنا يمكن إضافة منطق خاص بحساب سعر التوصيل حسب الولاية والبلدية
+          const price = await calculateDeliveryPrice(
+            currentOrganization.id, // معرف المؤسسة
+            "16", // افتراضي لولاية الإرسال - سيتم استبداله بالولاية المحددة في إعدادات المؤسسة
+            provinceId, // ولاية الاستقبال
+            municipalityId || "", // بلدية الاستقبال (فارغة إذا لم تكن محددة)
+            finalDeliveryType as 'home' | 'desk', // نوع التوصيل
+            1 // الوزن الافتراضي 1 كجم
+          );
+          updateDeliveryPriceState(price);
+        }
+      } else if (finalDeliveryType === 'desk' && isDeskEnabled) {
+        // التحقق ما إذا كان التوصيل للمكتب مجانيًا
+        if (shippingProviderSettings.is_free_delivery_desk) {
+          updateDeliveryPriceState(0);
+        } else if (shippingProviderSettings.use_unified_price) {
+          // استخدام السعر الموحد للتوصيل للمكتب
+          updateDeliveryPriceState(shippingProviderSettings.unified_desk_price || 0);
+        } else {
+          // هنا يمكن إضافة منطق خاص بحساب سعر التوصيل حسب الولاية والبلدية
+          const price = await calculateDeliveryPrice(
+            currentOrganization.id, // معرف المؤسسة
+            "16", // افتراضي لولاية الإرسال - سيتم استبداله بالولاية المحددة في إعدادات المؤسسة
+            provinceId, // ولاية الاستقبال
+            municipalityId || "", // بلدية الاستقبال (فارغة إذا لم تكن محددة)
+            finalDeliveryType as 'home' | 'desk', // نوع التوصيل
+            1 // الوزن الافتراضي 1 كجم
+          );
+          updateDeliveryPriceState(price);
+        }
+      } else {
+        // إذا كان نوع التوصيل المستخدم غير مدعوم، استخدم سعر افتراضي
+        console.log(`>> نوع التوصيل ${finalDeliveryType} غير مدعوم، استخدام سعر افتراضي`);
+        const defaultPrice = finalDeliveryType === 'home' ? 800 : 300;
+        updateDeliveryPriceState(defaultPrice);
+      }
+    } catch (error) {
+      console.error(">> خطأ في حساب سعر التوصيل:", error);
+      updateDeliveryPriceState(0);
+    }
+  };
+
+  // دالة لإعادة حساب سعر التوصيل وتحديثه
+  const recalculateAndSetDeliveryPrice = (
+    currentDeliveryType?: string,
+    currentProvinceId?: string,
+    currentMunicipalityId?: string
+  ) => {
+    // استخدام نوع التوصيل المحدد أو البحث عنه في الحقول الممتدة
+    const deliveryTypeToUse = currentDeliveryType || extendedFields.find(f => f.type === 'deliveryType')?.value || 'home';
+    
+    // استخدام معرف الولاية المحدد أو البحث عنه في الحقول الممتدة
+    const provinceIdToUse = currentProvinceId || extendedFields.find(f => f.type === 'province')?.value;
+    
+    // استخدام معرف البلدية المحدد أو البحث عنه في الحقول الممتدة
+    const municipalityIdToUse = currentMunicipalityId || extendedFields.find(f => f.type === 'municipality')?.value;
+    
+    console.log(">> إعادة حساب سعر التوصيل:", {
+      deliveryTypeToUse,
+      provinceIdToUse,
+      municipalityIdToUse,
+      hasProviderSettings: !!shippingProviderSettings,
+      shippingCloneId: clonedShippingProviderId
+    });
+    
+    // التحقق مما إذا كنا بحاجة إلى انتظار تحميل إعدادات مزود التوصيل
+    if (!shippingProviderSettings && clonedShippingProviderId) {
+      // محاولة جلب الإعدادات مرة أخرى
+      fetchShippingProviderSettings(clonedShippingProviderId)
+        .then(() => {
+          // إذا تم تحميل الإعدادات، عاود المحاولة
+          if (shippingProviderSettings) {
+            recalculateAndSetDeliveryPrice(deliveryTypeToUse, provinceIdToUse, municipalityIdToUse);
+          } else if (provinceIdToUse) {
+            // إذا لم يتم تحميل الإعدادات، استخدم منطق الحساب الافتراضي
+            updateDeliveryPrice(deliveryTypeToUse, provinceIdToUse, municipalityIdToUse);
+          } else {
+            updateDeliveryPriceState(0);
+          }
+        });
+      return;
+    }
+    
+    // إذا لم تكن إعدادات مزود التوصيل متوفرة ولم يكن لدينا معرف مزود التوصيل
+    if (!shippingProviderSettings) {
+      if (provinceIdToUse) {
+        // استخدام منطق الحساب الافتراضي
+        updateDeliveryPrice(deliveryTypeToUse, provinceIdToUse, municipalityIdToUse);
+      } else {
+        updateDeliveryPriceState(0);
+      }
+      return;
+    }
+    
+    // التحقق من توفر خيارات التوصيل
+    const isHomeEnabled = shippingProviderSettings.is_home_delivery_enabled === true;
+    const isDeskEnabled = shippingProviderSettings.is_desk_delivery_enabled === true;
+    
+    // التعامل مع الحالات المختلفة لخيارات التوصيل
+    let finalDeliveryType = deliveryTypeToUse;
+    
+    // إذا كان خيار واحد فقط متاح، استخدمه بغض النظر عن القيمة المحددة
+    if (!isHomeEnabled && isDeskEnabled) {
+      // فقط التوصيل للمكتب متاح
+      finalDeliveryType = 'desk';
+      console.log(">> تم اختيار نوع التوصيل 'desk' لأنه الخيار الوحيد المتاح");
+    } else if (isHomeEnabled && !isDeskEnabled) {
+      // فقط التوصيل للمنزل متاح
+      finalDeliveryType = 'home';
+      console.log(">> تم اختيار نوع التوصيل 'home' لأنه الخيار الوحيد المتاح");
+    } else if (!isHomeEnabled && !isDeskEnabled) {
+      // لا توجد خيارات متاحة، استخدم الخيار الافتراضي
+      console.log(">> لا توجد خيارات توصيل متاحة، استخدام الافتراضي");
+      finalDeliveryType = 'home';
+    }
+    // في حالة توفر كلا الخيارين، استخدم القيمة المحددة
+    
+    // تحديث نوع التوصيل في النموذج إذا تغير
+    if (finalDeliveryType !== deliveryTypeToUse) {
+      console.log(`>> تحديث نوع التوصيل من ${deliveryTypeToUse} إلى ${finalDeliveryType} بناءً على الخيارات المتاحة`);
+      
+      // تحديث القيمة في النموذج الأساسي
+      if (onFieldChange) {
+        onFieldChange('deliveryOption', finalDeliveryType);
+      }
+      
+      // تحديث القيمة في النموذج
+      if (setValue) {
+        setValue('deliveryOption', finalDeliveryType);
+      }
+      
+      // تحديث قيمة الحقل في extendedFields
+      const updatedFields = [...extendedFields];
+      const deliveryTypeField = updatedFields.find(f => f.type === 'deliveryType' || f.name === 'fixedDeliveryType');
+      if (deliveryTypeField) {
+        deliveryTypeField.value = finalDeliveryType;
+        setExtendedFields(updatedFields);
+      }
+    }
+    
+    // حساب سعر التوصيل بناءً على نوع التوصيل النهائي
+    if (provinceIdToUse) {
+      updateDeliveryPrice(finalDeliveryType, provinceIdToUse, municipalityIdToUse);
+    } else {
+      updateDeliveryPriceState(0);
+    }
+  };
+
+  // إضافة useEffect للتعامل مع تحديث نوع التوصيل بناءً على إعدادات مزود الشحن
+  useEffect(() => {
+    if (!shippingProviderSettings || deliveryTypeUpdateRef.current.hasBeenUpdated) {
+      return;
+    }
+    
+    const isHomeEnabled = shippingProviderSettings.is_home_delivery_enabled === true;
+    const isDeskEnabled = shippingProviderSettings.is_desk_delivery_enabled === true;
+    
+    const isHomeOnlyDelivery = isHomeEnabled && !isDeskEnabled;
+    const isDeskOnlyDelivery = !isHomeEnabled && isDeskEnabled;
+    
+    // تحديث المرجع لمنع التحديثات المتكررة
+    deliveryTypeUpdateRef.current = {
+      isHomeOnlyDelivery,
+      isDeskOnlyDelivery,
+      hasBeenUpdated: true
+    };
+    
+    if (isHomeOnlyDelivery) {
+      console.log(">> تم تحديد إعدادات مزود الشحن - تكوين الخيارات المتاحة", {
+        is_home_delivery_enabled: isHomeEnabled,
+        is_desk_delivery_enabled: isDeskEnabled
+      });
+      console.log(">> تعيين نوع التوصيل الافتراضي إلى: home (فقط التوصيل للمنزل متاح)");
+      console.log(">> تعيين قيمة حقل deliveryOption في النموذج: home");
+      setValue('deliveryOption', 'home');
+      
+      if (onFieldChange) {
+        console.log(">> تحديث قيمة حقل التوصيل في الحقول الممتدة:", {
+          fieldName: 'fixedDeliveryType',
+          oldValue: 'desk', 
+          newValue: 'home'
+        });
+        onFieldChange('deliveryOption', 'home');
+      }
+    } else if (isDeskOnlyDelivery) {
+      console.log(">> تم تحديد إعدادات مزود الشحن - تكوين الخيارات المتاحة", {
+        is_home_delivery_enabled: isHomeEnabled,
+        is_desk_delivery_enabled: isDeskEnabled
+      });
+      console.log(">> تعيين نوع التوصيل الافتراضي إلى: desk (فقط الاستلام من المكتب متاح)");
+      console.log(">> تعيين قيمة حقل deliveryOption في النموذج: desk");
+      setValue('deliveryOption', 'desk');
+      
+      if (onFieldChange) {
+        console.log(">> تحديث قيمة حقل التوصيل في الحقول الممتدة:", {
+          fieldName: 'fixedDeliveryType',
+          oldValue: 'home', 
+          newValue: 'desk'
+        });
+        onFieldChange('deliveryOption', 'desk');
+      }
+    }
+  }, [shippingProviderSettings, setValue, onFieldChange]);
+
+  // تأثير جانبي لتهيئة الحقول وتحميل البيانات الأولية
+  useEffect(() => {
+    if (!formFields || !Array.isArray(formFields)) {
+      setExtendedFields([]);
+      return;
+    }
+    
+    const newExtendedFields = formFields.filter(field => field && field.isVisible).map(field => {
+      let initialValue = field.defaultValue || '';
+      if (field.type === 'deliveryType' && !initialValue) {
+        initialValue = 'home';
+      }
+      return {
+        ...field,
+        isLoading: false,
+        value: initialValue, 
+      };
+    });
+
+    const provinceFields = newExtendedFields.filter(field => field.type === 'province');
+    const municipalityFields = newExtendedFields.filter(field => field.type === 'municipality');
+
+    for (const municipalityField of municipalityFields) {
+      const provinceFieldId = municipalityField.linkedFields?.provinceField;
+      if (provinceFieldId) {
+        municipalityField.dependency = {
+          fieldId: provinceFieldId,
+          value: '*',
+        };
+      }
+    }
+
+    const loadProvinces = async () => {
+      try {
+        if (!currentOrganization) return;
+
+        for (const field of provinceFields) {
+          field.isLoading = true;
+        }
+        setExtendedFields([...newExtendedFields]);
+
+        const provinces = await getProvinces(currentOrganization.id);
+        
+        if (!provinces || provinces.length === 0) {
+          return;
+        }
+
+        const formattedProvinces = provinces.map(province => ({
+          id: province.id,
+          name: province.name
+        }));
+
+        for (const field of provinceFields) {
+          (field as ExtendedFormField).provinces = formattedProvinces;
+          field.isLoading = false;
+        }
+        setExtendedFields([...newExtendedFields]);
+      } catch (error) {
+        for (const field of provinceFields) {
+          field.isLoading = false;
+        }
+        setExtendedFields([...newExtendedFields]);
+      }
+    };
+
+    if (newExtendedFields.length > 0) {
+      if (provinceFields.length > 0) {
+        loadProvinces();
+      } else {
+        setExtendedFields(newExtendedFields);
+      }
+    }
+  }, [formFields, currentOrganization, productId]);
+
+  // معالجة تغيير اختيار الولاية
+  const handleProvinceChange = async (provinceId: string, municipalityFieldId: string | null, deliveryTypeOverride?: string) => {
+    if (!provinceId || !currentOrganization) {
+      return;
+    }
+    
+    try {
+      const updatedFields = [...extendedFields];
+      
+      const provinceField = updatedFields.find(field => field.type === 'province');
+      if (provinceField) {
+        provinceField.value = provinceId;
+      }
+      
+      const deliveryTypeField = updatedFields.find(field => field.type === 'deliveryType' || field.name === 'fixedDeliveryType');
+      const selectedDeliveryType = deliveryTypeOverride || deliveryTypeField?.value || 'home';
+      
+      let municipalityField: ExtendedFormField | undefined;
+      
+      if (municipalityFieldId === 'auto') {
+        municipalityField = updatedFields.find(field => field.type === 'municipality');
+      } else {
+        municipalityField = updatedFields.find(field => field.id === municipalityFieldId);
+      }
+      
+      if (municipalityField) {
+        municipalityField.isLoading = true;
+        setExtendedFields([...updatedFields]);
+        
+        const municipalities = await getMunicipalities(currentOrganization.id, provinceId);
+        
+        if (!municipalities || municipalities.length === 0) {
+          municipalityField.isLoading = false;
+          (municipalityField as ExtendedFormField).municipalities = [];
+          setExtendedFields([...updatedFields]);
+          return;
+        }
+
+        const formattedMunicipalities = municipalities.map(municipality => {
+          if (selectedDeliveryType === 'desk' && municipality.has_stop_desk) {
+            return {
+              id: municipality.id,
+              name: `${municipality.name} (مكتب توصيل متاح)`
+            };
+          } else {
+            return {
+              id: municipality.id,
+              name: municipality.name
+            };
+          }
+        });
+        
+        const filteredMunicipalities = selectedDeliveryType === 'desk' 
+          ? formattedMunicipalities.filter((_, index) => municipalities[index].has_stop_desk)
+          : formattedMunicipalities;
+        
+        (municipalityField as ExtendedFormField).municipalities = filteredMunicipalities;
+        municipalityField.isLoading = false;
+
+        let newMunicipalityValue = '';
+        const currentMunicipalityId = municipalityField.value;
+        
+        if (filteredMunicipalities.length > 0) {
+          const currentSelectionIsValid = filteredMunicipalities.some(m => m.id.toString() === currentMunicipalityId);
+          if (currentSelectionIsValid) {
+            newMunicipalityValue = currentMunicipalityId;
+          } else {
+            newMunicipalityValue = filteredMunicipalities[0].id.toString();
+          }
+        }
+        
+        municipalityField.value = newMunicipalityValue;
+        if (municipalityField.name) {
+            setValue(municipalityField.name, newMunicipalityValue);
+        }
+
+        if (municipalityField.dependency) {
+          const provinceField = updatedFields.find(field => field.type === 'province');
+          if (provinceField) {
+            municipalityField.dependency.fieldId = provinceField.id;
+          }
+        }
+        
+        setExtendedFields([...updatedFields]);
+        
+        setTimeout(() => {
+            recalculateAndSetDeliveryPrice(selectedDeliveryType, provinceId, newMunicipalityValue);
+        }, 0);
+      }
+    } catch (error) {
+      const updatedFields = [...extendedFields];
+      let municipalityField: ExtendedFormField | undefined;
+      
+      if (municipalityFieldId === 'auto') {
+        municipalityField = updatedFields.find(field => field.type === 'municipality');
+      } else {
+        municipalityField = updatedFields.find(field => field.id === municipalityFieldId);
+      }
+      
+      if (municipalityField) {
+        municipalityField.isLoading = false;
+        (municipalityField as ExtendedFormField).municipalities = [];
+        setExtendedFields([...updatedFields]);
+      }
+    }
+  };
+
+  // معالجة تغيير اختيار البلدية
+  const handleMunicipalityChange = (municipalityId: string, provinceId: string) => {
+    try {
+      const updatedFields = [...extendedFields];
+      const municipalityField = updatedFields.find(field => field.type === 'municipality');
+      if (municipalityField) {
+        municipalityField.value = municipalityId;
+      }
+      
+      const deliveryTypeField = updatedFields.find(field => field.type === 'deliveryType');
+      const selectedDeliveryType = deliveryTypeField?.value || 'home';
+      
+      setExtendedFields(updatedFields);
+      
+      recalculateAndSetDeliveryPrice(selectedDeliveryType, provinceId, municipalityId);
+    } catch (error) {
+      // تعامل مع الخطأ
+    }
+  };
+
+  // تنظيم الحقول حسب الترتيب
+  const sortedFields = [...extendedFields].sort((a, b) => a.order - b.order);
+
+  // تصفية الحقول المكررة (مثل حقول العنوان)
+  const uniqueFields = sortedFields.filter((field, index, self) => {
+    // احتفظ بالحقل الأول فقط إذا كان هناك حقول متكررة بنفس الاسم
+    if (field.name === 'address') {
+      return self.findIndex(f => f.name === 'address') === index;
+    }
+    return true;
+  });
+
+  // عرض الحقل بناءً على نوعه
+  const renderField = (field: ExtendedFormField) => {
+    if (!field.isVisible) return null;
+    
+    const isShippingField = field.name === 'fixedDeliveryType' || 
+      field.description?.includes('حقل نوع التوصيل الثابت') || 
+      field.type === 'deliveryType';
+    
+    // إذا كان حقل توصيل وما زال في حالة التحميل، أظهر حالة التحميل
+    if (isShippingField && (isLoadingShippingSettings || (productId && !shippingProviderSettings && clonedShippingProviderId))) {
+      return (
+        <div key={field.id} className="mb-4 col-span-1 md:col-span-2">
+          <label className="block text-sm font-medium mb-2 text-foreground">
+            {field.label || "خيارات التوصيل"}
+            {field.required && <span className="text-red-500 mr-1">*</span>}
+          </label>
+          <div className="bg-muted/40 p-4 rounded-lg animate-pulse">
+            <div className="h-6 w-3/4 bg-muted rounded mb-3"></div>
+            <div className="h-4 w-1/2 bg-muted rounded"></div>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">جاري تحميل خيارات التوصيل...</p>
+        </div>
+      );
+    }
+    
+    // استخدام إعدادات مزود التوصيل المحملة
+    const settingsInfo = shippingProviderSettings ? 
+      `الإعدادات الفعلية (${shippingProviderSettings.id}) - المنزل: ${shippingProviderSettings.is_home_delivery_enabled}, المكتب: ${shippingProviderSettings.is_desk_delivery_enabled}` : 
+      'لا توجد إعدادات';
+    
+    console.log(">> إعدادات مزود الشحن المستخدمة في renderField:", settingsInfo);
+    
+    // التحقق من خيارات التوصيل المتاحة
+    let isHomeEnabled = false; 
+    let isDeskEnabled = false;
+    let isHomeOnlyDelivery = false;
+    let isDeskOnlyDelivery = false;
+    
+    if (shippingProviderSettings) {
+      isHomeEnabled = shippingProviderSettings.is_home_delivery_enabled === true;
+      isDeskEnabled = shippingProviderSettings.is_desk_delivery_enabled === true;
+      
+      isHomeOnlyDelivery = isHomeEnabled && !isDeskEnabled;
+      isDeskOnlyDelivery = !isHomeEnabled && isDeskEnabled;
+      
+      console.log(">> خيارات التوصيل المتاحة:", {
+        isHomeEnabled,
+        isDeskEnabled,
+        isHomeOnlyDelivery,
+        isDeskOnlyDelivery,
+        fieldName: field.name
+      });
+      
+      // إزالة التحديثات المباشرة للقيم من هنا لتجنب الحلقة اللانهائية 
+      // سيتم تنفيذ التحديثات من خلال useEffect بدلاً من ذلك
+    }
     
     switch (field.type) {
       case 'text':
+      case 'number':
       case 'email':
       case 'tel':
-      case 'number':
-        return (
-          <Input
-            id={`${componentId}-${fieldName}`}
-            name={fieldName}
-            type={field.type}
-            placeholder={field.placeholder}
-            required={field.required}
-            value={fieldValue}
-            onChange={(e) => handleChange(e.target.value)}
-          />
-        );
+        return <TextField field={field} key={field.id} updateValue={updateFieldValue} />;
       
       case 'textarea':
-        return (
-          <Textarea
-            id={`${componentId}-${fieldName}`}
-            name={fieldName}
-            placeholder={field.placeholder}
-            required={field.required}
-            value={fieldValue}
-            onChange={(e) => handleChange(e.target.value)}
-          />
-        );
+        return <TextAreaField field={field} key={field.id} updateValue={updateFieldValue} />;
       
       case 'select':
-        return (
-          <Select
-            name={fieldName}
-            value={fieldValue}
-            onValueChange={handleChange}
-          >
-            <SelectTrigger id={`${componentId}-${fieldName}`}>
-              <SelectValue placeholder={field.placeholder} />
-            </SelectTrigger>
-            <SelectContent>
-              {field.options?.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        );
+        return <SelectField field={field} key={field.id} updateValue={updateFieldValue} />;
       
       case 'radio':
+        // إذا كان حقل نوع التوصيل الثابت
+        if (field.name === 'fixedDeliveryType' || field.description?.includes('حقل نوع التوصيل الثابت')) {
+          // التأكد من أن إعدادات مزود الشحن متوفرة ومحملة
+          if (shippingProviderSettings) {
+            console.log(">> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات:", {
+              isHomeEnabled: shippingProviderSettings.is_home_delivery_enabled,
+              isDeskEnabled: shippingProviderSettings.is_desk_delivery_enabled
+            });
+            
+            // للمنتجات التي تدعم نوع توصيل واحد فقط، عرض الخيار المتاح فقط
+            if (shippingProviderSettings.is_home_delivery_enabled === true && 
+                shippingProviderSettings.is_desk_delivery_enabled === false) {
+              // عرض معلومات التوصيل للمنزل فقط
+              console.log(">> عرض خيار التوصيل للمنزل فقط");
+              return (
+                <div key={field.id} className="mb-4 col-span-1 md:col-span-2">
+                  <label className="block text-sm font-medium mb-2 text-foreground">
+                    {field.label || "طريقة التوصيل"}
+                    {field.required && <span className="text-red-500 mr-1">*</span>}
+                  </label>
+                  <div className="flex items-center p-4 border border-primary rounded-lg bg-primary/10">
+                    <Home className="ml-3 h-5 w-5 text-primary" />
+                    <div>
+                      <span className="font-medium block text-foreground">توصيل للمنزل</span>
+                      <span className="text-xs text-muted-foreground block mt-1">سيتم توصيل الطلب إلى عنوانك</span>
+                      {shippingProviderSettings?.is_free_delivery_home ? (
+                        <span className="text-xs text-green-600 font-medium block mt-1">شحن مجاني!</span>
+                      ) : (
+                        <span className="text-xs text-blue-600 font-medium block mt-1">
+                          سعر الشحن: {shippingProviderSettings?.unified_home_price || 0} دج
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <input type="hidden" name={field.name} value="home" />
+                  {field.description && (
+                    <p className="mt-2 text-xs text-muted-foreground">{field.description}</p>
+                  )}
+                </div>
+              );
+            } else if (shippingProviderSettings.is_home_delivery_enabled === false && 
+                       shippingProviderSettings.is_desk_delivery_enabled === true) {
+              // عرض معلومات التوصيل للمكتب فقط
+              console.log(">> عرض خيار التوصيل للمكتب فقط");
+              return (
+                <div key={field.id} className="mb-4 col-span-1 md:col-span-2">
+                  <label className="block text-sm font-medium mb-2 text-foreground">
+                    {field.label || "طريقة التوصيل"}
+                    {field.required && <span className="text-red-500 mr-1">*</span>}
+                  </label>
+                  <div className="flex items-center p-4 border border-primary rounded-lg bg-primary/10">
+                    <Building className="ml-3 h-5 w-5 text-primary" />
+                    <div>
+                      <span className="font-medium block text-foreground">استلام من مكتب شركة التوصيل</span>
+                      <span className="text-xs text-muted-foreground block mt-1">استلام الطلب من مكتب شركة التوصيل</span>
+                      {shippingProviderSettings?.is_free_delivery_desk ? (
+                        <span className="text-xs text-green-600 font-medium block mt-1">شحن مجاني!</span>
+                      ) : (
+                        <span className="text-xs text-blue-600 font-medium block mt-1">
+                          سعر الشحن: {shippingProviderSettings?.unified_desk_price || 0} دج
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <input type="hidden" name={field.name} value="desk" />
+                  {field.description && (
+                    <p className="mt-2 text-xs text-muted-foreground">{field.description}</p>
+                  )}
+                </div>
+              );
+            }
+          }
+          
+          // إذا كان كلا الخيارين متاحين أو إذا كانت الإعدادات غير محملة، استخدم مكون نوع التوصيل المخصص
+          const hasSettings = !!shippingProviderSettings;
+          console.log(">> استخدام مكون DeliveryTypeField العادي مع تمرير الإعدادات:", hasSettings);
+          return (
+            <DeliveryTypeField
+              key={field.id}
+              field={field}
+              extendedFields={extendedFields}
+              setExtendedFields={setExtendedFields}
+              setValue={setValue}
+              recalculateAndSetDeliveryPrice={recalculateAndSetDeliveryPrice}
+              handleProvinceChange={handleProvinceChange}
+              updateValue={updateFieldValue}
+              shippingProviderSettings={shippingProviderSettings}
+            />
+          );
+        }
+        
+        // لأي حقل radio آخر، استخدم المكون العام
         return (
-          <RadioGroup
-            name={fieldName}
-            value={fieldValue}
-            onValueChange={handleChange}
-            className="flex flex-col space-y-2"
-          >
-            {field.options?.map((option) => (
-              <div key={option.value} className="flex items-center space-x-2 space-x-reverse">
-                <RadioGroupItem id={`${componentId}-${fieldName}-${option.value}`} value={option.value} />
-                <Label htmlFor={`${componentId}-${fieldName}-${option.value}`} className="cursor-pointer">
-                  {option.label}
-                </Label>
-              </div>
-            ))}
-          </RadioGroup>
+          <RadioField 
+            key={field.id}
+            field={field} 
+            setExtendedFields={setExtendedFields}
+            extendedFields={extendedFields}
+            recalculateAndSetDeliveryPrice={recalculateAndSetDeliveryPrice}
+            updateValue={updateFieldValue}
+            shippingProviderSettings={field.name === 'fixedDeliveryType' ? shippingProviderSettings : undefined}
+          />
         );
       
       case 'checkbox':
-        return (
-          <div className="flex flex-col space-y-2">
-            {field.options?.map((option) => {
-              // استخدام مصفوفة للقيم المحددة
-              const selectedValues = Array.isArray(fieldValue) ? fieldValue : [fieldValue].filter(Boolean);
-              const isChecked = selectedValues.includes(option.value);
-              
-              return (
-                <div key={option.value} className="flex items-center space-x-2 space-x-reverse">
-                  <Checkbox
-                    id={`${componentId}-${fieldName}-${option.value}`}
-                    name={`${fieldName}[]`}
-                    value={option.value}
-                    checked={isChecked}
-                    onCheckedChange={(checked) => {
-                      const newValues = [...selectedValues];
-                      if (checked) {
-                        // إضافة القيمة إذا لم تكن موجودة
-                        if (!newValues.includes(option.value)) {
-                          newValues.push(option.value);
-                        }
-                      } else {
-                        // إزالة القيمة إذا كانت موجودة
-                        const index = newValues.indexOf(option.value);
-                        if (index !== -1) {
-                          newValues.splice(index, 1);
-                        }
-                      }
-                      handleChange(newValues);
-                    }}
-                  />
-                  <Label htmlFor={`${componentId}-${fieldName}-${option.value}`} className="cursor-pointer">
-                    {option.label}
-                  </Label>
-                </div>
-              );
-            })}
-          </div>
-        );
+        return <CheckboxField field={field} key={field.id} />;
       
       case 'province':
         return (
-          <Select
-            name={fieldName}
-            value={selectedProvinces[fieldName] || ''}
-            onValueChange={(province) => handleProvinceChange(province, fieldName)}
-          >
-            <SelectTrigger id={`${componentId}-${fieldName}`}>
-              <SelectValue placeholder={field.placeholder} />
-            </SelectTrigger>
-            <SelectContent>
-              {PROVINCES.map((province) => (
-                <SelectItem key={province} value={province}>
-                  {province}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <ProvinceField 
+            key={field.id}
+            field={field} 
+            handleProvinceChange={handleProvinceChange}
+            updateValue={updateFieldValue}
+          />
         );
-      
+
       case 'municipality':
-        // البحث عن الولاية المرتبطة
-        const relatedProvinceField = fieldRelations[fieldName];
-        const selectedProvince = relatedProvinceField ? selectedProvinces[relatedProvinceField] : '';
-        const municipalityOptions = 
-          (selectedProvince && availableMunicipalities[relatedProvinceField]) 
-            ? availableMunicipalities[relatedProvinceField] 
-            : [];
-        
         return (
-          <Select
-            name={fieldName}
-            value={fieldValue}
-            onValueChange={handleChange}
-            disabled={!selectedProvince}
-          >
-            <SelectTrigger id={`${componentId}-${fieldName}`}>
-              <SelectValue placeholder={selectedProvince ? field.placeholder : "اختر الولاية أولاً"} />
-            </SelectTrigger>
-            <SelectContent>
-              {municipalityOptions.length > 0 ? (
-                municipalityOptions.map((municipality) => (
-                  <SelectItem key={municipality} value={municipality}>
-                    {municipality}
-                  </SelectItem>
-                ))
-              ) : (
-                <SelectItem value="no_options" disabled>
-                  {selectedProvince ? "لا توجد بلديات متاحة" : "اختر الولاية أولاً"}
-                </SelectItem>
-              )}
-            </SelectContent>
-          </Select>
+          <MunicipalityField 
+            key={field.id}
+            field={field}
+            recalculateAndSetDeliveryPrice={recalculateAndSetDeliveryPrice}
+            setValue={setValue}
+            setExtendedFields={setExtendedFields}
+            extendedFields={extendedFields}
+            updateValue={updateFieldValue}
+          />
         );
-      
+
+      case 'deliveryType':
+        return <SelectField field={field} key={field.id} updateValue={updateFieldValue} />;
+
       default:
         return null;
     }
-  }
-};
+  };
 
-export default CustomFormFields; 
+  // عرض النموذج
+  const content = (
+    <div className="space-y-6">
+      <div className="bg-card p-6 rounded-lg border border-border shadow-sm">
+        <h2 className="text-xl font-semibold mb-6 text-foreground border-b border-border pb-3">معلومات الطلب</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+          {uniqueFields.map(renderField)}
+        </div>
+      </div>
+      
+      {children}
+      
+      {onSubmit && !noForm && (
+        <div className="mt-8">
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full py-4 px-6 bg-primary hover:bg-primary-darker text-primary-foreground font-semibold rounded-lg transition duration-200 disabled:opacity-70 shadow-md hover:shadow-lg flex items-center justify-center text-lg"
+          >
+            {isSubmitting ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                جاري إرسال الطلب...
+              </>
+            ) : (
+              <>
+                <CreditCard className="ml-2 h-5 w-5" /> 
+                إرسال الطلب
+              </>
+            )}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+  
+  // إذا كان noForm صحيحًا، نعرض المحتوى مباشرة بدون عنصر form
+  if (noForm) {
+    return content;
+  }
+  
+  // وإلا نعرض المحتوى داخل عنصر form
+  return (
+    <form onSubmit={onSubmit ? onSubmit : (e) => e.preventDefault()} className="custom-form">
+      {content}
+    </form>
+  );
+}; 

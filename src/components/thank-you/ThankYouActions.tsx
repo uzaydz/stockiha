@@ -36,7 +36,7 @@ export default function ThankYouActions({
   };
 
   return (
-    <CardFooter className={`flex flex-col md:flex-row gap-4 pt-2 pb-6 border-t ${className}`}>
+    <CardFooter className={`flex flex-col md:flex-row gap-4 pt-2 pb-6 border-t border-border ${className}`}>
       <Button 
         className="w-full gap-2 bg-primary/90 hover:bg-primary hover:shadow-md transition-all"
         onClick={handlePrimaryAction}
@@ -47,7 +47,7 @@ export default function ThankYouActions({
       
       <Button 
         variant="outline"
-        className="w-full gap-2 border-green-200 dark:border-green-800 hover:bg-green-50 dark:hover:bg-green-900/20"
+        className="w-full gap-2 border-primary/20 dark:border-primary/30 hover:bg-primary/10 dark:hover:bg-primary/20 text-foreground"
         onClick={secondaryAction.handler}
       >
         <span>{secondaryAction.text}</span>

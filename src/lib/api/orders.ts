@@ -115,23 +115,16 @@ export const createOrder = async (
   return { order: newOrder, items: newItems };
 };
 
-export const updateOrderStatus = async (
-  id: string,
-  status: string
-): Promise<Order> => {
-  const { data, error } = await supabase
+export const updateOrderStatus = async (orderId: string, status: string): Promise<void> => {
+  const { error } = await supabase
     .from('orders')
-    .update({ status, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .select()
-    .single();
+    .update({ status })
+    .eq('id', orderId);
 
   if (error) {
-    console.error(`Error updating order ${id} status:`, error);
+    console.error('Error updating order status:', error);
     throw error;
   }
-
-  return data;
 };
 
 export const deleteOrder = async (id: string): Promise<void> => {

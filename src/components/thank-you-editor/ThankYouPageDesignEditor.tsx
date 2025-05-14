@@ -379,12 +379,11 @@ export default function ThankYouPageDesignEditor({
             <CardContent className="p-6 space-y-6">
               <div className="space-y-2">
                 <Label>خط العناوين</Label>
-                <Select defaultValue="cairo">
+                <Select defaultValue="tajawal">
                   <SelectTrigger>
                     <SelectValue placeholder="اختر خط العناوين" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="cairo">Cairo</SelectItem>
                     <SelectItem value="tajawal">Tajawal</SelectItem>
                     <SelectItem value="almarai">Almarai</SelectItem>
                     <SelectItem value="ibm-plex-sans-arabic">
@@ -401,7 +400,6 @@ export default function ThankYouPageDesignEditor({
                     <SelectValue placeholder="اختر خط النصوص" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="cairo">Cairo</SelectItem>
                     <SelectItem value="tajawal">Tajawal</SelectItem>
                     <SelectItem value="almarai">Almarai</SelectItem>
                     <SelectItem value="ibm-plex-sans-arabic">
@@ -607,4 +605,4 @@ export default function ThankYouPageDesignEditor({
       </Tabs>
     </div>
   );
-} 
+}

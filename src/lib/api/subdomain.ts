@@ -50,26 +50,80 @@ export const getOrganizationBySubdomain = async (subdomain: string) => {
   try {
     console.log(`محاولة جلب المؤسسة باستخدام النطاق الفرعي: ${subdomain}`);
     const supabaseClient = await getSupabaseClient();
+    
+    // البحث عن المنظمة بواسطة النطاق الفرعي
     const { data, error } = await supabaseClient
       .from('organizations')
       .select('*')
       .eq('subdomain', subdomain)
       .single();
-
+    
     if (error) {
-      console.error('Error fetching organization by subdomain:', error);
+      console.error(`خطأ أثناء البحث عن المؤسسة بالنطاق الفرعي ${subdomain}:`, error);
       return null;
     }
-
-    if (data) {
-      console.log(`تم العثور على المؤسسة: ${data.name}, المعرف: ${data.id}`);
-      // حفظ معرف المؤسسة في التخزين المحلي للاستخدام المستقبلي
-      localStorage.setItem('bazaar_organization_id', data.id);
+    
+    if (!data) {
+      console.log(`لم يتم العثور على مؤسسة بالنطاق الفرعي: ${subdomain}`);
+      return null;
     }
-
+    
+    console.log(`تم العثور على المؤسسة بنجاح بالنطاق الفرعي: ${subdomain}`, data.name);
     return data;
   } catch (error) {
-    console.error('Error fetching organization by subdomain:', error);
+    console.error(`خطأ أثناء جلب المؤسسة بالنطاق الفرعي ${subdomain}:`, error);
+    return null;
+  }
+};
+
+/**
+ * الحصول على معلومات المؤسسة من النطاق الرئيسي
+ */
+export const getOrganizationByDomain = async (domain: string) => {
+  if (!domain) {
+    console.log('النطاق فارغ، لا يمكن البحث عن المؤسسة');
+    return null;
+  }
+  
+  // تنظيف النطاق من البروتوكول وwww. للتأكد من التطابق الصحيح
+  let cleanDomain = domain.toLowerCase();
+  
+  // إزالة البروتوكول إذا كان موجوداً
+  cleanDomain = cleanDomain.replace(/^https?:\/\//i, '');
+  
+  // إزالة www. إذا كانت موجودة
+  if (cleanDomain.startsWith('www.')) {
+    cleanDomain = cleanDomain.substring(4);
+  }
+  
+  // إزالة أي مسارات بعد النطاق
+  cleanDomain = cleanDomain.split('/')[0];
+  
+  try {
+    console.log(`محاولة جلب المؤسسة باستخدام النطاق الرئيسي: ${cleanDomain}`);
+    const supabaseClient = await getSupabaseClient();
+    
+    // البحث عن المنظمة بواسطة النطاق الرئيسي
+    const { data, error } = await supabaseClient
+      .from('organizations')
+      .select('*')
+      .eq('domain', cleanDomain)
+      .single();
+    
+    if (error) {
+      console.error(`خطأ أثناء البحث عن المؤسسة بالنطاق الرئيسي ${cleanDomain}:`, error);
+      return null;
+    }
+    
+    if (!data) {
+      console.log(`لم يتم العثور على مؤسسة بالنطاق الرئيسي: ${cleanDomain}`);
+      return null;
+    }
+    
+    console.log(`تم العثور على المؤسسة بنجاح بالنطاق الرئيسي: ${cleanDomain}`, data.name);
+    return data;
+  } catch (error) {
+    console.error(`خطأ أثناء جلب المؤسسة بالنطاق الرئيسي ${cleanDomain}:`, error);
     return null;
   }
 };
@@ -101,4 +155,40 @@ export const getOrganizationById = async (organizationId: string) => {
     console.error('Error fetching organization by ID:', error);
     return null;
   }
+};
+
+/**
+ * استخراج النطاق الفرعي من URL
+ */
+export const extractSubdomainFromUrl = (url: string) => {
+  try {
+    const hostname = new URL(url).hostname;
+    return extractSubdomainFromHostname(hostname);
+  } catch (error) {
+    console.error('خطأ في استخراج النطاق الفرعي من URL:', error);
+    return null;
+  }
+};
+
+/**
+ * استخراج النطاق الفرعي من اسم المضيف
+ */
+export const extractSubdomainFromHostname = (hostname: string) => {
+  // تجاهل localhost
+  if (hostname === 'localhost' || hostname.includes('localhost:')) {
+    return null;
+  }
+  
+  // التحقق أولاً إذا كان يستخدم النطاق الرئيسي الذي نمتلكه
+  const baseDomains = ['.bazaar.com', '.bazaar.dev', '.vercel.app'];
+  
+  for (const baseDomain of baseDomains) {
+    if (hostname.endsWith(baseDomain)) {
+      const parts = hostname.replace(baseDomain, '').split('.');
+      return parts[parts.length - 1];
+    }
+  }
+  
+  // إذا لم يكن النطاق من نطاقاتنا الأساسية، فقد يكون نطاقًا مخصصًا ولا نحتاج لاستخراج نطاق فرعي منه
+  return null;
 }; 

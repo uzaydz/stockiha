@@ -10,14 +10,17 @@ import {
   validateYalidineCredentials,
   getProvinces as fetchProvinces,
   getMunicipalitiesByDeliveryType,
-  getCenters,
-  getCentersByCommune,
-  calculateDeliveryPrice,
+  getCenters as fetchCenters,
+  getCentersByCommune as fetchCentersByCommune,
+  calculateDeliveryPrice as calculateYalidineDeliveryPrice,
   Province,
   Municipality,
   Center,
   DeliveryType
 } from './yalidine';
+
+// تصدير الأنواع ليتم استخدامها في الواجهة
+export type { Province, Municipality, Center, DeliveryType };
 
 /**
  * التحقق من قاعدة البيانات وبيانات اعتماد ياليدين
@@ -53,14 +56,15 @@ export async function checkYalidineConfiguration(organizationId: string): Promis
       .from('shipping_provider_settings')
       .select('id, provider_id, api_key, api_token, created_at')
       .eq('organization_id', organizationId)
-      .eq('provider_id', 5)  // ياليدين ID = 5
-      .single();
+      .eq('provider_id', 1)  // ياليدين ID = 1 بدلاً من 5
+      .maybeSingle(); // استخدام maybeSingle بدلاً من single لتجنب الخطأ إذا لم يتم العثور على نتائج
     
-    if (settingsError) {
+    if (settingsError && settingsError.code !== 'PGRST116') {
+      // PGRST116 هو خطأ "لم يتم العثور على نتائج" وهو ما نتوقعه في بعض الحالات
       console.error('خطأ في جلب بيانات اعتماد ياليدين للمؤسسة:', settingsError);
       return { 
         success: false, 
-        message: 'لم يتم العثور على بيانات اعتماد ياليدين للمؤسسة: ' + settingsError.message
+        message: 'حدث خطأ أثناء البحث عن بيانات اعتماد ياليدين: ' + settingsError.message
       };
     }
     
@@ -77,6 +81,7 @@ export async function checkYalidineConfiguration(organizationId: string): Promis
     // إخفاء معلومات حساسة قبل الإرجاع
     const safeData = {
       ...yalidineSettings,
+      organization_id: organizationId,
       api_key: yalidineSettings.api_key.substring(0, 3) + '****',
       api_token: yalidineSettings.api_token.substring(0, 3) + '****',
     };
@@ -96,22 +101,17 @@ export async function checkYalidineConfiguration(organizationId: string): Promis
 }
 
 /**
- * جلب قائمة الولايات من مزود ياليدين
+ * جلب الولايات من ياليدين
  * @param organizationId معرف المؤسسة
+ * @returns قائمة بالولايات
  */
-export async function getProvinces(
-  organizationId: string
-): Promise<Province[]> {
+export async function getProvinces(organizationId: string): Promise<Province[]> {
   try {
-    // التحقق من وجود بيانات اعتماد صالحة
-    const isValid = await validateYalidineCredentials(organizationId);
+    console.log('جلب الولايات من ياليدين');
+    const provinces = await fetchProvinces(organizationId);
     
-    if (!isValid) {
-      console.error('بيانات اعتماد ياليدين غير صالحة');
-      return [];
-    }
-    
-    return await fetchProvinces(organizationId);
+    // ترتيب الولايات أبجديًا بالعربية
+    return provinces.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
   } catch (error) {
     console.error('خطأ في جلب الولايات:', error);
     return [];
@@ -130,11 +130,17 @@ export async function getMunicipalities(
   deliveryType: DeliveryType
 ): Promise<Municipality[]> {
   try {
-    return await getMunicipalitiesByDeliveryType(
+    console.log(`جلب البلديات للولاية ${provinceId} مع نوع التوصيل ${deliveryType}`);
+    
+    // استخدام الوظيفة المخصصة لتصفية البلديات حسب نوع التوصيل
+    const municipalities = await getMunicipalitiesByDeliveryType(
       organizationId,
       provinceId,
       deliveryType
     );
+    
+    // ترتيب البلديات أبجديًا بالعربية
+    return municipalities.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
   } catch (error) {
     console.error('خطأ في جلب البلديات:', error);
     return [];
@@ -142,35 +148,47 @@ export async function getMunicipalities(
 }
 
 /**
- * جلب مراكز التوصيل حسب الولاية
+ * جلب مراكز الاستلام لولاية محددة
  * @param organizationId معرف المؤسسة
  * @param provinceId معرف الولاية
+ * @returns قائمة بمراكز الاستلام
  */
-export async function getDeliveryCenters(
+export async function getCenters(
   organizationId: string,
   provinceId: string
 ): Promise<Center[]> {
   try {
-    return await getCenters(organizationId, provinceId);
+    console.log(`جلب مراكز الاستلام للولاية ${provinceId}`);
+    
+    const centers = await fetchCenters(organizationId, provinceId);
+    
+    // ترتيب المراكز أبجديًا بالعربية
+    return centers.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
   } catch (error) {
-    console.error('خطأ في جلب مراكز التوصيل:', error);
+    console.error('خطأ في جلب مراكز الاستلام:', error);
     return [];
   }
 }
 
 /**
- * جلب مراكز التوصيل حسب البلدية
+ * جلب مراكز الاستلام لبلدية محددة
  * @param organizationId معرف المؤسسة
  * @param communeId معرف البلدية
+ * @returns قائمة بمراكز الاستلام في البلدية المحددة
  */
-export async function getDeliveryCentersByCommune(
+export async function getCentersByCommune(
   organizationId: string,
   communeId: string
 ): Promise<Center[]> {
   try {
-    return await getCentersByCommune(organizationId, communeId);
+    console.log(`جلب مراكز الاستلام للبلدية ${communeId}`);
+    
+    const centers = await fetchCentersByCommune(organizationId, communeId);
+    
+    // ترتيب المراكز أبجديًا بالعربية
+    return centers.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
   } catch (error) {
-    console.error('خطأ في جلب مراكز التوصيل للبلدية:', error);
+    console.error('خطأ في جلب مراكز الاستلام للبلدية:', error);
     return [];
   }
 }
@@ -182,7 +200,8 @@ export async function getDeliveryCentersByCommune(
  * @param toProvinceId معرف ولاية الاستلام
  * @param toCommuneId معرف بلدية الاستلام
  * @param deliveryType نوع التوصيل (منزلي أو مكتب)
- * @param weight وزن الشحنة بالكيلوغرام (اختياري)
+ * @param weight وزن الشحنة (اختياري)
+ * @returns سعر التوصيل
  */
 export async function getDeliveryPrice(
   organizationId: string,
@@ -190,16 +209,18 @@ export async function getDeliveryPrice(
   toProvinceId: string,
   toCommuneId: string,
   deliveryType: DeliveryType,
-  weight: number = 1
+  weight?: number
 ): Promise<number | null> {
   try {
-    const price = await calculateDeliveryPrice(
+    console.log(`حساب سعر التوصيل من ${fromProvinceId} إلى ${toProvinceId} (${toCommuneId})`);
+    
+    const price = await calculateYalidineDeliveryPrice(
       organizationId,
       fromProvinceId,
       toProvinceId,
       toCommuneId,
       deliveryType,
-      weight
+      weight || 1
     );
     
     return price;
@@ -209,5 +230,89 @@ export async function getDeliveryPrice(
   }
 }
 
-// تصدير الأنواع
-export type { Province, Municipality, Center, DeliveryType }; 
+/**
+ * يربط إعدادات النموذج مع مزود الشحن
+ * @param formId - معرف النموذج
+ * @param shippingSettings - إعدادات الشحن
+ * @returns 
+ */
+export async function updateFormShippingIntegration(
+  formId: string, 
+  shippingSettings: {
+    enabled: boolean;
+    provider: string | null;
+  }
+) {
+  try {
+    // تحديث إعدادات النموذج في قاعدة البيانات
+    const { data, error } = await supabase
+      .from('form_settings')
+      .update({
+        settings: {
+          shipping_integration: {
+            enabled: shippingSettings.enabled,
+            provider_id: shippingSettings.provider
+          }
+        },
+        version: supabase.rpc('increment_version', { row_id: formId })
+      })
+      .eq('id', formId)
+      .select('id, version, settings')
+      .single();
+
+    if (error) throw error;
+    
+    return { 
+      success: true, 
+      data,
+      message: 'تم تحديث إعدادات الشحن بنجاح'
+    };
+  } catch (error) {
+    console.error('Error updating form shipping integration:', error);
+    return { 
+      success: false, 
+      error,
+      message: 'حدث خطأ أثناء تحديث إعدادات الشحن'
+    };
+  }
+}
+
+/**
+ * يجلب إعدادات الشحن المرتبطة بالنموذج
+ * @param formId - معرف النموذج
+ * @returns 
+ */
+export async function getFormShippingIntegration(formId: string) {
+  try {
+    const { data, error } = await supabase
+      .from('form_settings')
+      .select('settings')
+      .eq('id', formId)
+      .single();
+
+    if (error) throw error;
+    
+    const shippingIntegration = data?.settings?.shipping_integration || {
+      enabled: false,
+      provider_id: null
+    };
+    
+    return { 
+      success: true, 
+      data: {
+        enabled: shippingIntegration.enabled,
+        provider: shippingIntegration.provider_id
+      }
+    };
+  } catch (error) {
+    console.error('Error fetching form shipping integration:', error);
+    return { 
+      success: false, 
+      error,
+      data: {
+        enabled: false,
+        provider: null
+      }
+    };
+  }
+} 

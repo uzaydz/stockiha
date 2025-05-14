@@ -1,0 +1,1010 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import axios from 'axios';
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { toast as showToast } from "@/components/ui/use-toast";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, RefreshCw, AlertCircle } from "lucide-react";
+import { 
+  Card, 
+  CardContent, 
+  CardDescription, 
+  CardFooter, 
+  CardHeader, 
+  CardTitle 
+} from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { YalidineProviderProps } from './YalidineTypes';
+import { syncYalidineData, getSyncStatus, syncGlobalProvincesOnly } from '@/api/yalidine/data-sync';
+import { syncFees } from '@/api/yalidine/new-fees-sync';
+import { supabase } from '@/lib/supabase';
+import { yalidineRateLimiter } from '@/api/yalidine/rate-limiter';
+import { useTranslation } from 'react-i18next';
+import dayjs from 'dayjs';
+import 'dayjs/locale/ar-sa';
+import { Card as UiCard, CardHeader as UiCardHeader, CardTitle as UiCardTitle, CardDescription as UiCardDescription, CardFooter as UiCardFooter } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { SyncStatus as SyncStatusComponent } from './SyncStatus';
+import { SourceProvinceSelector } from './SourceProvinceSelector';
+import { DataFixTools } from './DataFixTools';
+import { SyncControls } from './SyncControls';
+import { handleNetworkError } from './NetworkErrorHandler';
+import { useSyncState } from './useSyncState';
+
+// Define the sync status types
+type SyncStatusType = "pending" | "syncing" | "success" | "failed" | "canceled";
+type SyncStatusItem = {
+  total: number;
+  added: number;
+  status: SyncStatusType;
+};
+type SyncStatus = {
+  provinces: SyncStatusItem;
+  municipalities: SyncStatusItem;
+  centers: SyncStatusItem;
+  fees: SyncStatusItem;
+};
+
+// SyncStatusItem component to display the status of each data type
+const SyncStatusItem = ({ 
+  label, 
+  status, 
+  count, 
+  total 
+}: { 
+  label: string; 
+  status: SyncStatusType; 
+  count: number; 
+  total: number; 
+}) => {
+  // Determine status text and color
+  let statusText = "في الانتظار";
+  let statusClass = "";
+  
+  if (status === "syncing") {
+    statusText = "جاري...";
+    statusClass = "text-primary";
+  } else if (status === "success") {
+    statusText = "تم";
+    statusClass = "text-green-600";
+  } else if (status === "failed") {
+    statusText = "فشل";
+    statusClass = "text-destructive";
+  } else if (status === "canceled") {
+    statusText = "ملغى";
+    statusClass = "text-amber-500";
+  }
+  
+  return (
+    <div className="flex flex-col">
+      <div className="flex justify-between items-center">
+        <span>{label}:</span>
+        <span className={statusClass}>{statusText}</span>
+      </div>
+      {total > 0 && (
+        <div className="text-xs text-muted-foreground text-left">
+          {count} / {total}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default function YalidineDataSync({
+  isEnabled,
+  apiToken,
+  apiKey,
+  originWilayaId,
+  currentOrganizationId,
+  toast
+}: YalidineProviderProps) {
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isSyncingProvinces, setIsSyncingProvinces] = useState(false);
+  const [syncProgress, setSyncProgress] = useState<SyncStatus>({
+    provinces: { total: 0, added: 0, status: "pending" },
+    municipalities: { total: 0, added: 0, status: "pending" },
+    centers: { total: 0, added: 0, status: "pending" },
+    fees: { total: 0, added: 0, status: "pending" }
+  });
+  
+  // إضافة حالة لاختيار ولاية المصدر
+  const [selectedSourceProvince, setSelectedSourceProvince] = useState<number | null>(originWilayaId ? Number(originWilayaId) : null);
+  const [provinces, setProvinces] = useState<{id: number, name: string}[]>([]);
+  // إضافة متغير جديد للتحقق من إصلاحات الجدول
+  const [hasAppliedTableFix, setHasAppliedTableFix] = useState(false);
+  const [isCheckingTableStatus, setIsCheckingTableStatus] = useState(false);
+  const [tableStatus, setTableStatus] = useState<{
+    yalidine_fees: number;
+    yalidine_fees_new: number;
+    trigger_status: string;
+    fk_constraint: string;
+  } | null>(null);
+  
+  // متغيرات لتتبع أخطاء الشبكة
+  const errorCountRef = useRef(0);
+  const lastErrorTimeRef = useRef(0);
+  const maxConsecutiveErrors = 3; // الحد الأقصى للأخطاء المتتالية قبل إيقاف المزامنة
+  const errorResetTime = 3000; // إعادة تعيين عداد الأخطاء بعد 3 ثوانية دون أخطاء جديدة
+  const syncAbortedRef = useRef(false);
+  
+  // متغير للتتبع سجل المزامنة والتحكم في التكرار
+  const prevSyncProgressStringRef = useRef<string>("");
+  const prevProgressMessageRef = useRef<string>("");
+
+  const [isFixingData, setIsFixingData] = useState<boolean>(false);
+
+  // جلب قائمة الولايات عند تحميل المكون
+  useEffect(() => {
+    const fetchProvinces = async () => {
+      if (!currentOrganizationId) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('yalidine_provinces')
+          .select('id, name')
+          .eq('organization_id', currentOrganizationId)
+          .order('id', { ascending: true });
+        
+        if (!error && data) {
+          setProvinces(data);
+          
+          // تعيين ولاية المصدر الافتراضية إذا لم يتم تحديدها
+          if (!selectedSourceProvince && data.length > 0) {
+            // البحث عن ولاية الجزائر العاصمة (16) أو استخدام أول ولاية
+            const algiersProvince = data.find(p => p.id === 16);
+            setSelectedSourceProvince(algiersProvince ? algiersProvince.id : data[0].id);
+          }
+        }
+      } catch (error) {
+        console.error('خطأ في جلب قائمة الولايات:', error);
+      }
+    };
+    
+    fetchProvinces();
+  }, [currentOrganizationId]);
+  
+  // مراقبة حالة المزامنة
+  useEffect(() => {
+    // فحص الحالة بشكل دوري حتى لو كانت الخدمة معطلة
+    // تحسين: إضافة فحص للحالة بغض النظر عن تفعيل الخدمة
+    
+    // متغير لتخزين آخر حالة تم تسجيلها لتجنب التكرار
+    let lastStatus = JSON.stringify(syncProgress);
+    // متغير لتخزين آخر حالة تقدم الرسوم لتجنب تكرار السجلات
+    let lastProgressLog = '';
+    
+    // زيادة تكرار التحديث من localStorage للحصول على وضع أكثر تحديثًا
+    const checkSyncStatus = () => {
+      try {
+        const status = getSyncStatus();
+        const feesStatus = status.fees;
+        
+        // تحسين التسجيل لتوفير رؤية أفضل لحالة المزامنة
+        if (feesStatus.status === 'syncing') {
+          const progressLog = `تحديث حالة المزامنة: ${feesStatus.added}/${feesStatus.total} (${Math.round((feesStatus.added / Math.max(feesStatus.total, 1)) * 100)}%)`;
+          // تسجيل فقط إذا كان هناك تغيير في حالة التقدم
+          if (progressLog !== lastProgressLog) {
+            console.log(progressLog);
+            lastProgressLog = progressLog;
+          }
+        }
+        
+        // استخدام المقارنة العميقة للكشف عن التغييرات بشكل أفضل
+        const currentFeesStatus = syncProgress.fees;
+        const hasChange = 
+          feesStatus.status !== currentFeesStatus.status ||
+          feesStatus.added !== currentFeesStatus.added ||
+          feesStatus.total !== currentFeesStatus.total ||
+          status.provinces.status !== syncProgress.provinces.status ||
+          status.municipalities.status !== syncProgress.municipalities.status ||
+          status.centers.status !== syncProgress.centers.status;
+        
+        // تحديث واجهة المستخدم فقط عند حدوث تغيير فعلي في الحالة
+        // وتجنب تسجيل نفس الرسالة مرارًا وتكرارًا
+        const newStatusString = JSON.stringify(status);
+        if (hasChange && newStatusString !== lastStatus) {
+          console.log('تغيير في حالة المزامنة، تحديث واجهة المستخدم');
+          setSyncProgress(status);
+          lastStatus = newStatusString;
+        }
+      } catch (e) {
+        console.error('خطأ في قراءة حالة المزامنة:', e);
+      }
+    };
+    
+    // فحص الحالة فور تحميل المكون
+    checkSyncStatus();
+    
+    // تسريع تكرار الفحص - تحقق كل 500 مللي ثانية بدلاً من كل ثانية
+    // لتحسين استجابة واجهة المستخدم
+    const interval = setInterval(checkSyncStatus, 500);
+    
+    return () => clearInterval(interval);
+  }, []); // إزالة syncProgress من التبعيات لمنع التحديث المتكرر
+
+  // مراقبة أخطاء معدل الطلبات
+  useEffect(() => {
+    if (!yalidineRateLimiter || typeof yalidineRateLimiter.schedule !== 'function') {
+      return;
+    }
+    
+    // تسجيل الاستماع لأحداث الخطأ من معدل الطلبات
+    const originalSchedule = yalidineRateLimiter.schedule;
+    
+    // استبدال وظيفة schedule بوظيفة مخصصة لاكتشاف الأخطاء
+    // @ts-ignore - التجاهل لأننا نعلم ما نفعله
+    yalidineRateLimiter.schedule = async function<T>(task: () => Promise<T>): Promise<T> {
+      try {
+        const result = await originalSchedule.call(yalidineRateLimiter, task);
+        // إعادة تعيين عداد الأخطاء عند النجاح
+        errorCountRef.current = 0;
+        return result;
+      } catch (error: any) {
+        // التحقق مما إذا كان الخطأ متعلقًا بالشبكة
+        if (error?.message?.includes('Network Error') || 
+            error?.toString()?.includes('Network Error') ||
+            error?.code === 'ERR_NETWORK' ||
+            error?.name === 'AxiosError') {
+          
+          handleNetworkError();
+        }
+        throw error;
+      }
+    };
+    
+    // تسجيل الاستماع لحدث إلغاء معالج الصف
+    if (typeof yalidineRateLimiter.onCancel === 'function') {
+      yalidineRateLimiter.onCancel(() => {
+        // ينفذ هذا الكود عند إلغاء معالج الصف تلقائيًا
+        if (isSyncing && !syncAbortedRef.current) {
+          syncAbortedRef.current = true;
+          console.warn('[SYNC] تم إلغاء المزامنة بسبب تجاوز حد معالج معدل الطلبات');
+          
+          // تحديث حالة المزامنة إلى فاشلة
+          const currentStatus = getSyncStatus();
+          if (currentStatus.fees.status === 'syncing') {
+            currentStatus.fees.status = 'failed';
+            localStorage.setItem('yalidine_sync_status', JSON.stringify(currentStatus));
+            setSyncProgress(currentStatus);
+          }
+          
+          // إظهار رسالة للمستخدم
+          toast({
+            title: "توقفت المزامنة",
+            description: "تم إيقاف المزامنة تلقائيًا بسبب تجاوز حد معدل الطلبات. يرجى المحاولة مرة أخرى لاحقًا.",
+            variant: "destructive",
+          });
+          
+          // إيقاف المزامنة
+          setIsSyncing(false);
+        }
+      });
+    }
+    
+    // تنظيف عند إزالة المكون
+    return () => {
+      // استعادة الوظيفة الأصلية
+      if (yalidineRateLimiter && typeof originalSchedule === 'function') {
+        // @ts-ignore
+        yalidineRateLimiter.schedule = originalSchedule;
+      }
+    };
+  }, [isSyncing]);
+
+  // وظيفة لمزامنة البيانات
+  const handleSyncData = async () => {
+    if (!currentOrganizationId) {
+      toast({
+        title: "خطأ في المزامنة",
+        description: "لم يتم العثور على معرف المنظمة الحالية",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!selectedSourceProvince) {
+      toast({
+        title: "خطأ في المزامنة",
+        description: "يرجى اختيار ولاية المصدر أولاً",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // إعادة تعيين متغيرات تتبع الأخطاء
+    errorCountRef.current = 0;
+    lastErrorTimeRef.current = 0;
+    syncAbortedRef.current = false;
+    
+    setIsSyncing(true);
+    try {
+      toast({
+        title: "جاري المزامنة",
+        description: "بدأت عملية مزامنة بيانات ياليدين. قد تستغرق هذه العملية بضع دقائق.",
+        variant: "default",
+      });
+      
+      // إعادة تعيين حالة المزامنة قبل البدء
+      const initialSyncStatus: SyncStatus = {
+        provinces: { total: 0, added: 0, status: "pending" },
+        municipalities: { total: 0, added: 0, status: "pending" },
+        centers: { total: 0, added: 0, status: "pending" },
+        fees: { total: 0, added: 0, status: "pending" }
+      };
+      
+      localStorage.setItem('yalidine_sync_status', JSON.stringify(initialSyncStatus));
+      setSyncProgress(initialSyncStatus);
+      
+      // استخدام خاصية البيانات الإضافية (custom settings) لتمرير ولاية المصدر
+      localStorage.setItem('yalidine_sync_options', JSON.stringify({
+        sourceProvinceId: selectedSourceProvince
+      }));
+      
+      console.log(`بدء عملية المزامنة مع forceUpdate=true وولاية المصدر: ${selectedSourceProvince}`, currentOrganizationId);
+      
+      // حفظ ولاية المصدر في إعدادات المتجر
+      await supabase
+        .from('store_settings')
+        .upsert({
+          organization_id: currentOrganizationId,
+          key: 'yalidine_source_province_id',
+          value: selectedSourceProvince.toString(),
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'organization_id,key' });
+      
+      // استخدام وظيفة مزامنة الأسعار الجديدة مباشرة
+      const feesSuccess = await syncFees(currentOrganizationId, undefined, {
+        sourceProvinceId: selectedSourceProvince
+      });
+      
+      // مزامنة باقي البيانات (الولايات، البلديات، المراكز)
+      const success = await syncYalidineData(currentOrganizationId, true, true);
+      
+      if (success) {
+        toast({
+          title: "تمت المزامنة",
+          description: "تمت مزامنة بيانات ياليدين بنجاح.",
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "تنبيه",
+          description: "اكتملت المزامنة مع وجود بعض الأخطاء. قد تكون البيانات غير مكتملة.",
+          variant: "default",
+        });
+      }
+      
+      // تحديث حالة المزامنة بعد الانتهاء
+      const finalStatus = getSyncStatus();
+      setSyncProgress(finalStatus as SyncStatus);
+      
+    } catch (error) {
+      console.error('خطأ أثناء مزامنة بيانات ياليدين:', error);
+      toast({
+        title: "خطأ في المزامنة",
+        description: "حدث خطأ أثناء مزامنة بيانات ياليدين: " + ((error as Error)?.message || 'خطأ غير معروف'),
+        variant: "destructive",
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // وظيفة جديدة لمزامنة بيانات الولايات العالمية فقط
+  const handleSyncGlobalProvinces = async () => {
+    if (!currentOrganizationId) {
+      toast({
+        title: "خطأ في المزامنة",
+        description: "لم يتم العثور على معرف المنظمة الحالية",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsSyncingProvinces(true);
+    try {
+      const result = await syncGlobalProvincesOnly(currentOrganizationId);
+      
+      if (result) {
+        toast({
+          title: "تمت المزامنة",
+          description: "تم تحديث بيانات الولايات العالمية بنجاح",
+          variant: "default",
+        });
+        
+        // إعادة تحميل الصفحة لعرض البيانات المحدثة
+        window.location.reload();
+      } else {
+        toast({
+          title: "فشل المزامنة",
+          description: "حدث خطأ أثناء مزامنة بيانات الولايات العالمية",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error syncing global provinces:', error);
+      toast({
+        title: "خطأ في المزامنة",
+        description: "حدث خطأ غير متوقع أثناء مزامنة بيانات الولايات العالمية",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSyncingProvinces(false);
+    }
+  };
+
+  // وظيفة لإعادة تعيين المزامنة
+  const handleForceReset = () => {
+    localStorage.removeItem('yalidine_sync_status');
+    localStorage.removeItem('yalidine_sync_options');
+    
+    const initialSyncStatus: SyncStatus = {
+      provinces: { total: 0, added: 0, status: "pending" },
+      municipalities: { total: 0, added: 0, status: "pending" },
+      centers: { total: 0, added: 0, status: "pending" },
+      fees: { total: 0, added: 0, status: "pending" }
+    };
+    
+    localStorage.setItem('yalidine_sync_status', JSON.stringify(initialSyncStatus));
+    setSyncProgress(initialSyncStatus);
+    
+    toast({
+      title: "تم إعادة التعيين",
+      description: "تم إعادة تعيين حالة المزامنة",
+      variant: "default",
+    });
+  };
+
+  // وظيفة لإيقاف المزامنة
+  const handleStopSync = () => {
+    if (!isSyncing) return;
+    
+    // تعيين متغير لإشارة إلى أن المزامنة تم إيقافها عمدًا
+    syncAbortedRef.current = true;
+    
+    // إيقاف معالج قائمة الانتظار في نظام معدل الطلبات
+    if (yalidineRateLimiter && typeof yalidineRateLimiter.cancelProcessing === 'function') {
+      yalidineRateLimiter.cancelProcessing();
+      console.log("[SYNC] تم إيقاف معالج قائمة انتظار الطلبات");
+    }
+    
+    // تحديث حالة المزامنة إلى فاشلة
+    const currentStatus = getSyncStatus();
+    if (currentStatus.fees.status === 'syncing') {
+      currentStatus.fees.status = 'failed';
+      localStorage.setItem('yalidine_sync_status', JSON.stringify(currentStatus));
+      setSyncProgress(currentStatus);
+    }
+    
+    // إيقاف المزامنة
+    setIsSyncing(false);
+    
+    // إظهار رسالة للمستخدم
+    toast({
+      title: "تم إيقاف المزامنة",
+      description: "تم إيقاف عملية المزامنة بناءً على طلبك.",
+      variant: "default",
+    });
+  };
+
+  // الحصول على الحالة العامة للمزامنة
+  const getSyncStatusOverall = (): SyncStatusType => {
+    const statuses = [
+      syncProgress.provinces.status,
+      syncProgress.municipalities.status,
+      syncProgress.centers.status,
+      syncProgress.fees.status
+    ];
+    
+    // إذا كانت أي مزامنة جارية، فالحالة العامة هي "جاري المزامنة"
+    if (statuses.includes('syncing')) {
+      return 'syncing';
+    }
+    
+    // إذا كانت أي مزامنة فاشلة، فالحالة العامة هي "فشل"
+    if (statuses.includes('failed')) {
+      return 'failed';
+    }
+    
+    // إذا كانت أي مزامنة ملغاة، فالحالة العامة هي "ملغاة"
+    if (statuses.includes('canceled')) {
+      return 'canceled';
+    }
+    
+    // إذا كانت جميع المزامنات ناجحة، فالحالة العامة هي "نجاح"
+    if (statuses.every(status => status === 'success')) {
+      return 'success';
+    }
+    
+    // الحالة الافتراضية
+    return 'pending';
+  };
+  
+  // حساب التقدم الإجمالي للمزامنة
+  const calculateTotalProgress = (): number => {
+    const categories = [
+      {
+        added: syncProgress.provinces.added,
+        total: syncProgress.provinces.total,
+        status: syncProgress.provinces.status
+      },
+      {
+        added: syncProgress.municipalities.added,
+        total: syncProgress.municipalities.total,
+        status: syncProgress.municipalities.status
+      },
+      {
+        added: syncProgress.centers.added,
+        total: syncProgress.centers.total,
+        status: syncProgress.centers.status
+      },
+      {
+        added: syncProgress.fees.added,
+        total: syncProgress.fees.total,
+        status: syncProgress.fees.status
+      }
+    ];
+    
+    // حساب مجموع المضاف ومجموع الكلي لجميع الفئات
+    let totalAdded = 0;
+    let totalItems = 0;
+    
+    categories.forEach(category => {
+      // إضافة فقط الفئات التي لديها إجمالي أكبر من صفر
+      if (category.total > 0) {
+        totalAdded += category.added;
+        totalItems += category.total;
+      }
+    });
+    
+    // إذا لم تكن هناك عناصر للمزامنة، فالتقدم هو صفر
+    if (totalItems === 0) {
+      return 0;
+    }
+    
+    // حساب النسبة المئوية للتقدم
+    const progressPercent = Math.round((totalAdded / totalItems) * 100);
+    return Math.min(progressPercent, 100); // التأكد من أن النسبة لا تتجاوز 100%
+  };
+
+  // بيانات رسالة حالة المزامنة
+  const syncStatusDetails = () => {
+    const status = getSyncStatusOverall();
+    
+    switch (status) {
+      case 'syncing':
+        return {
+          title: "المزامنة جارية...",
+          description: "يرجى الانتظار حتى اكتمال عملية المزامنة. قد تستغرق العملية بضع دقائق.",
+          variant: "default" as const
+        };
+      case 'success':
+        return {
+          title: "تمت المزامنة بنجاح",
+          description: "تم تحديث بيانات ياليدين بنجاح.",
+          variant: "default" as const
+        };
+      case 'failed':
+        return {
+          title: "فشلت المزامنة",
+          description: "حدث خطأ أثناء مزامنة بيانات ياليدين. يرجى المحاولة مرة أخرى.",
+          variant: "destructive" as const
+        };
+      default:
+        return {
+          title: "لم تبدأ المزامنة",
+          description: "اضغط على زر المزامنة لبدء تحديث بيانات ياليدين.",
+          variant: "default" as const
+        };
+    }
+  };
+
+  const { title, description, variant } = syncStatusDetails();
+  
+  // دالة للتعامل مع أخطاء الشبكة
+  const handleNetworkError = () => {
+    const now = Date.now();
+    
+    // إعادة تعيين العداد إذا مر وقت كافٍ منذ آخر خطأ
+    if (now - lastErrorTimeRef.current > errorResetTime) {
+      errorCountRef.current = 0;
+    }
+    
+    // زيادة عداد الأخطاء
+    errorCountRef.current++;
+    lastErrorTimeRef.current = now;
+    
+    console.log(`[ERROR HANDLER] تم اكتشاف خطأ في الشبكة (${errorCountRef.current}/${maxConsecutiveErrors})`);
+    
+    // التحقق مما إذا وصلنا إلى الحد الأقصى للأخطاء المتتالية
+    if (errorCountRef.current >= maxConsecutiveErrors && !syncAbortedRef.current && isSyncing) {
+      syncAbortedRef.current = true;
+      console.error(`[ERROR HANDLER] تم اكتشاف ${errorCountRef.current} أخطاء متتالية في الشبكة. إيقاف المزامنة.`);
+      
+      // إيقاف معالج قائمة الانتظار في نظام معدل الطلبات
+      if (yalidineRateLimiter && typeof yalidineRateLimiter.cancelProcessing === 'function') {
+        yalidineRateLimiter.cancelProcessing();
+        console.log("[ERROR HANDLER] تم إيقاف معالج قائمة انتظار الطلبات بسبب أخطاء الشبكة المتكررة");
+      }
+      
+      // تحديث حالة المزامنة إلى فاشلة
+      const currentStatus = getSyncStatus();
+      if (currentStatus.fees.status === 'syncing') {
+        currentStatus.fees.status = 'failed';
+        localStorage.setItem('yalidine_sync_status', JSON.stringify(currentStatus));
+        setSyncProgress(currentStatus);
+      }
+      
+      // إظهار رسالة للمستخدم
+      toast({
+        title: "توقفت المزامنة",
+        description: "تم إيقاف المزامنة بسبب تكرار أخطاء الشبكة. يرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.",
+        variant: "destructive",
+      });
+      
+      // إيقاف المزامنة
+      setIsSyncing(false);
+    }
+  };
+
+  const { t } = useTranslation();
+  const isInitialSync = !localStorage.getItem('yalidine_sync_status');
+  const lastSyncDate = localStorage.getItem('yalidine_sync_date');
+
+  // متابعة تقدم المزامنة وتنبيه المستخدم
+  useEffect(() => {
+    if (!isSyncing) return;
+
+    // تحويل حالة المزامنة إلى سلسلة نصية للمقارنة
+    const syncProgressString = JSON.stringify({
+      provincesStatus: syncProgress.provinces.status,
+      provincesCount: syncProgress.provinces.added,
+      provincesTotal: syncProgress.provinces.total,
+      municipalitiesStatus: syncProgress.municipalities.status,
+      municipalitiesCount: syncProgress.municipalities.added,
+      municipalitiesTotal: syncProgress.municipalities.total,
+      centersStatus: syncProgress.centers.status,
+      centersCount: syncProgress.centers.added,
+      centersTotal: syncProgress.centers.total,
+      feesStatus: syncProgress.fees.status,
+      feesCount: syncProgress.fees.added,
+      feesTotal: syncProgress.fees.total,
+    });
+
+    // التحقق مما إذا كانت الحالة قد تغيرت
+    if (syncProgressString !== prevSyncProgressStringRef.current) {
+      console.log("تغيير في حالة المزامنة، تحديث واجهة المستخدم");
+      prevSyncProgressStringRef.current = syncProgressString;
+      
+      // إنشاء رسالة تقدم بناءً على الحالة الحالية
+      const currentStatus = getSyncStatusOverall();
+      const progressPercent = calculateTotalProgress();
+      const progressMessage = `المزامنة: ${progressPercent}%`;
+      
+      // التحقق مما إذا كانت رسالة التقدم قد تغيرت
+      if (progressMessage !== prevProgressMessageRef.current) {
+        prevProgressMessageRef.current = progressMessage;
+        console.log(`تحديث حالة المزامنة: ${progressPercent}%`);
+      }
+      
+      // تحديث واجهة المستخدم حسب الحالة
+      if (currentStatus === "success") {
+        toast({
+          title: "اكتملت المزامنة",
+          description: "تم تحديث جميع البيانات بنجاح.",
+          variant: "default",
+        });
+      } else if (currentStatus === "failed") {
+        toast({
+          title: "فشلت المزامنة",
+          description: "حدث خطأ أثناء تحديث البيانات.",
+          variant: "destructive",
+        });
+      }
+    }
+  }, [syncProgress, isSyncing]);
+
+  // دالة للتحقق من حالة الجداول بدون تعديلها
+  const checkTablesStatus = async () => {
+    try {
+      setIsCheckingTableStatus(true);
+      
+      // التحقق من عدد السجلات في الجداول فقط (بدون تعديل أي بنية)
+      const { count: yalidineFeesCount, error: yalidineFeesError } = await supabase
+        .from('yalidine_fees')
+        .select('*', { count: 'exact', head: true })
+        .eq('organization_id', currentOrganizationId);
+      
+      const { count: yalidineFeesNewCount, error: yalidineFeesNewError } = await supabase
+        .from('yalidine_fees_new')
+        .select('*', { count: 'exact', head: true })
+        .eq('organization_id', currentOrganizationId);
+      
+      if (yalidineFeesError) {
+        console.error('خطأ في الوصول إلى جدول yalidine_fees:', yalidineFeesError);
+      }
+      
+      if (yalidineFeesNewError) {
+        console.error('خطأ في الوصول إلى جدول yalidine_fees_new:', yalidineFeesNewError);
+      }
+      
+      // تعيين حالة الجداول بناءً على البيانات المتاحة
+      setTableStatus({
+        yalidine_fees: yalidineFeesCount || 0,
+        yalidine_fees_new: yalidineFeesNewCount || 0,
+        trigger_status: 'غير معروف (حاجة لصلاحيات أعلى)',
+        fk_constraint: 'غير معروف (حاجة لصلاحيات أعلى)'
+      });
+      
+      // عرض معلومات حول حالة الجداول
+      toast({
+        variant: 'default',
+        title: 'حالة الجداول',
+        description: `يوجد ${yalidineFeesCount || 0} سجل في yalidine_fees و ${yalidineFeesNewCount || 0} سجل في yalidine_fees_new.`
+      });
+      
+    } catch (e) {
+      console.error('استثناء أثناء التحقق من حالة الجداول:', e);
+      toast({
+        variant: 'destructive',
+        title: 'خطأ',
+        description: 'حدث خطأ غير متوقع أثناء التحقق من حالة الجداول'
+      });
+    } finally {
+      setIsCheckingTableStatus(false);
+    }
+  };
+
+  // استدعاء دالة التحقق من حالة الجداول عند تحميل المكون
+  useEffect(() => {
+    if (currentOrganizationId) {
+      checkTablesStatus();
+    }
+  }, [currentOrganizationId]);
+
+  // إضافة وظيفة جديدة لإصلاح مشكلة تعيين الحقول
+  const handleFixDataMapping = async () => {
+    try {
+      setIsFixingData(true);
+      
+      // 1. جلب البيانات من API ياليدين مباشرة
+      toast({
+        variant: 'default',
+        title: 'جاري إصلاح البيانات',
+        description: 'جاري جلب البيانات من API ياليدين وتصحيح مشكلة تعيين الحقول...'
+      });
+      
+      // استخدام الوظيفة الموجودة لإجراء اتصال بـ API
+      const yalidineApiUrl = "https://api.yalidine.app/v1";
+      const headers = {
+        'X-API-ID': apiToken,
+        'X-API-TOKEN': apiKey
+      };
+      
+      // إنشاء عميل Axios
+      const yalidineClient = axios.create({
+        baseURL: yalidineApiUrl,
+        headers
+      });
+      
+      // جلب بيانات أسعار التوصيل لمدينة المصدر
+      const response = await yalidineClient.get(`/wilayas/${originWilayaId}/fees`);
+      
+      if (!response.data || !response.data.data) {
+        throw new Error('فشل في جلب بيانات الأسعار من API ياليدين');
+      }
+      
+      const feesData = response.data.data;
+      
+      // إعداد البيانات بالتنسيق الصحيح
+      const formattedFees = feesData.map(fee => ({
+        organization_id: currentOrganizationId,
+        from_wilaya_id: originWilayaId,
+        to_wilaya_id: fee.wilaya_id,
+        commune_id: 0, // Default commune
+        from_wilaya_name: fee.from_wilaya_name || "غير معروف",
+        to_wilaya_name: fee.wilaya_name || fee.to_wilaya_name || "غير معروف",
+        // تعيين حقول الرسوم بشكل صحيح
+        express_home: fee.home_fee || 0,  
+        express_desk: fee.stop_desk_fee || 0,
+        home_fee: fee.home_fee || 0,
+        stop_desk_fee: fee.stop_desk_fee || 0,
+        is_home_available: Boolean(fee.is_home_available),
+        is_stop_desk_available: Boolean(fee.is_stop_desk_available)
+      }));
+      
+      // استخدام وظيفة الإدراج البسيطة الجديدة مباشرة
+      const { data, error } = await supabase.rpc('simple_insert_yalidine_fees', {
+        p_data: JSON.stringify(formattedFees),
+        p_organization_id: currentOrganizationId
+      });
+      
+      if (error) {
+        console.error('خطأ في إدخال البيانات باستخدام الوظيفة البسيطة:', error);
+        
+        // المحاولة بطريقة أخرى - إدخال مباشر
+        const { error: directError } = await supabase
+          .from('yalidine_fees')
+          .delete()
+          .eq('organization_id', currentOrganizationId);
+        
+        if (directError) {
+          console.error('خطأ في حذف البيانات القديمة:', directError);
+          throw new Error('فشل في حذف البيانات القديمة');
+        }
+        
+        // إدخال البيانات بدفعات صغيرة
+        const batchSize = 50;
+        let successCount = 0;
+        
+        for (let i = 0; i < formattedFees.length; i += batchSize) {
+          const batch = formattedFees.slice(i, i + batchSize);
+          
+          const { error: insertError } = await supabase
+            .from('yalidine_fees')
+            .insert(batch);
+          
+          if (insertError) {
+            console.error(`خطأ في إدخال الدفعة ${i / batchSize + 1}:`, insertError);
+          } else {
+            successCount += batch.length;
+          }
+        }
+        
+        toast({
+          variant: 'success',
+          title: 'تم إصلاح البيانات',
+          description: `تم إصلاح ${successCount} سجل بنجاح باستخدام الطريقة المباشرة.`
+        });
+      } else {
+        const insertedCount = typeof data === 'number' ? data : formattedFees.length;
+        toast({
+          variant: 'success',
+          title: 'تم إصلاح البيانات',
+          description: `تم إصلاح ${insertedCount} سجل بنجاح باستخدام الوظيفة البسيطة.`
+        });
+      }
+      
+      // تحديث حالة الجداول بعد الإصلاح
+      await checkTablesStatus();
+      
+    } catch (error) {
+      console.error('خطأ في إصلاح البيانات:', error);
+      toast({
+        variant: 'destructive',
+        title: 'خطأ في الإصلاح',
+        description: 'حدث خطأ أثناء محاولة إصلاح البيانات. يرجى المحاولة مرة أخرى.'
+      });
+    } finally {
+      setIsFixingData(false);
+    }
+  };
+
+  return (
+    <Card className="mb-4">
+      <CardHeader>
+        <CardTitle>مزامنة بيانات ياليدين</CardTitle>
+        <CardDescription>
+          مزامنة بيانات ياليدين (الولايات، البلديات، المكاتب، وأسعار التوصيل)
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {!isEnabled ? (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              خدمة ياليدين غير مفعلة. يرجى تفعيل الخدمة أولاً قبل المزامنة.
+            </AlertDescription>
+          </Alert>
+        ) : null}
+        
+        {tableStatus && (
+          <div className="mb-4 p-4 border rounded-md bg-gray-50">
+            <h3 className="font-semibold text-md mb-2">معلومات حالة جداول ياليدين:</h3>
+            <div className="text-sm space-y-1">
+              <p>عدد السجلات في yalidine_fees: <span className="font-semibold">{tableStatus.yalidine_fees}</span></p>
+              <p>عدد السجلات في yalidine_fees_new: <span className="font-semibold">{tableStatus.yalidine_fees_new}</span></p>
+              <p>حالة المحفز: <span className={`font-semibold ${tableStatus.trigger_status === 'مفعل' ? 'text-red-600' : 'text-green-600'}`}>{tableStatus.trigger_status}</span></p>
+            </div>
+          </div>
+        )}
+        
+        {tableStatus && tableStatus.trigger_status === 'مفعل' && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              تنبيه: محفز إعادة التوجيه مفعل. هذا قد يتسبب في حذف البيانات تلقائياً. يرجى النقر على "إصلاح الجداول".
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        {tableStatus && tableStatus.yalidine_fees === 0 && tableStatus.yalidine_fees_new > 0 && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              تنبيه: لم يتم العثور على بيانات في جدول yalidine_fees ولكن يوجد {tableStatus.yalidine_fees_new} سجل في جدول yalidine_fees_new. يرجى النقر على "إصلاح الجداول".
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        {tableStatus && tableStatus.yalidine_fees === 0 && tableStatus.yalidine_fees_new === 0 && isSyncing === false && (
+          <Alert variant="default" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              تنبيه: لا توجد بيانات في أي من الجدولين. قد تكون هناك مشكلة في عملية الإدراج. جرب تطبيق الإصلاحات ثم مزامنة البيانات.
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        {/* عرض حالة المزامنة */}
+        <Alert variant={variant} className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            <div className="font-semibold">{title}</div>
+            <div>{description}</div>
+          </AlertDescription>
+        </Alert>
+        
+        {/* عرض شريط التقدم */}
+        <div className="mb-4">
+          <div className="flex justify-between text-xs mb-1">
+            <span>{calculateTotalProgress()}%</span>
+            <span>
+              {getSyncStatusOverall() === 'syncing' ? 'جارٍ...' : 
+                getSyncStatusOverall() === 'success' ? 'تم' : 
+                getSyncStatusOverall() === 'failed' ? 'فشل' : 'في الانتظار'}
+            </span>
+          </div>
+          <Progress value={calculateTotalProgress()} className="h-2" />
+        </div>
+        
+        {/* إضافة زر إصلاح المشكلة */}
+        {tableStatus && tableStatus.yalidine_fees === 0 && (
+          <Card className="bg-amber-50 border-amber-200">
+            <CardHeader>
+              <CardTitle className="text-amber-800">إصلاح مشكلة تعيين الحقول</CardTitle>
+              <CardDescription className="text-amber-700">
+                تم اكتشاف مشكلة في تعيين أسماء الحقول بين API وقاعدة البيانات. يمكن إصلاح هذه المشكلة تلقائياً.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button 
+                onClick={handleFixDataMapping}
+                disabled={isFixingData || isSyncing}
+                variant="secondary"
+                className="bg-amber-600 text-white hover:bg-amber-700"
+              >
+                {isFixingData ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    جاري الإصلاح...
+                  </>
+                ) : (
+                  <>إصلاح تعيين الحقول وإعادة المزامنة</>
+                )}
+          </Button>
+          <Button
+            variant={!isEnabled ? "outline" : "default"}
+            size="sm"
+            onClick={handleSyncData}
+            disabled={!isEnabled || isSyncing || isSyncingProvinces}
+          >
+            {isSyncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+            مزامنة كاملة
+          </Button>
+          {/* إضافة زر توقف المزامنة */}
+          {isSyncing && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleStopSync}
+            >
+              إيقاف المزامنة
+            </Button>
+          )}
+        </div>
+      </CardFooter>
+    </Card>
+  );
+} 

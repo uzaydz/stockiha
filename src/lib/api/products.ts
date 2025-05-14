@@ -2,6 +2,77 @@ import { supabase } from '@/lib/supabase-client';
 import { getSupabaseClient } from '@/lib/supabase-client';
 import type { Database } from '@/types/database.types';
 
+export interface TimerConfig {
+  enabled: boolean;
+  endDate: string; // Or Date?
+  message: string;
+  textAbove?: string;
+  textBelow?: string;
+  style?: 'default' | 'minimal' | 'prominent';
+}
+
+export interface QuantityOffer {
+  id: string;
+  name?: string | null; // <-- Add optional name field
+  description?: string | null; // <-- Add optional description field
+  minQuantity: number; 
+  type: 'free_shipping' | 'percentage_discount' | 'fixed_amount_discount' | 'buy_x_get_y_free';
+  discountValue?: number | null; // Represents discount %/amount OR quantity Y for free gift
+  // freeShipping is implied by type = 'free_shipping'
+  freeProductId?: string | null; // Optional: ID of the free gift product (only for buy_x_get_y_free type)
+  freeProductName?: string | null; // <-- Add optional name field
+}
+
+export interface UpsellDownsellItem {
+  id: string; // Use UUID for new items
+  productId: string;
+  product?: Partial<Product> | null; // Optional: To display product info
+  discountType: 'percentage' | 'fixed' | 'none';
+  discountValue: number;
+}
+
+export interface PurchasePageConfig {
+  timer: TimerConfig;
+  quantityOffers: QuantityOffer[];
+  upsells: UpsellDownsellItem[];
+  downsells: UpsellDownsellItem[];
+  shipping_clone_id?: number | null; // معرف نسخة مزود التوصيل
+}
+
+export interface ProductColor {
+  id: string;
+  product_id: string;
+  name: string;
+  color_code: string;
+  image_url?: string | null;
+  quantity: number;
+  is_default: boolean;
+  barcode?: string | null;
+  has_sizes?: boolean;
+  price?: number | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ProductSize {
+  id: string;
+  product_id: string;
+  color_id: string;
+  size_name: string;
+  quantity: number;
+  price?: number | null; // Can override product/color price
+  barcode?: string | null;
+  is_default: boolean;
+  has_money_back?: boolean;
+  has_quality_guarantee?: boolean;
+  fast_shipping_text?: string;
+  money_back_text?: string;
+  quality_guarantee_text?: string;
+  rating?: number | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export type Product = Database['public']['Tables']['products']['Row'] & {
   category?: { id: string; name: string; slug: string } | string;
   subcategory?: { id: string; name: string; slug: string } | string | null;
@@ -11,6 +82,16 @@ export type Product = Database['public']['Tables']['products']['Row'] & {
   fast_shipping_text?: string;
   money_back_text?: string;
   quality_guarantee_text?: string;
+  purchase_page_config?: PurchasePageConfig | null;
+  colors?: ProductColor[];
+  sizes?: ProductSize[];
+  use_sizes?: boolean;
+  discount_price?: number | null;
+  imageUrl?: string;
+  additional_images?: string[];
+  delivery_fee?: number;
+  short_description?: string;
+  shipping_clone_id?: number | null;
 };
 
 export interface InsertProduct {
@@ -68,6 +149,7 @@ export type UpdateProduct = Omit<Database['public']['Tables']['products']['Updat
   fast_shipping_text?: string;
   money_back_text?: string;
   quality_guarantee_text?: string;
+  shipping_clone_id?: number | null;
 };
 
 export interface WholesaleTier {
@@ -119,7 +201,7 @@ export const getProducts = async (organizationId?: string, includeInactive: bool
     }
     
     console.log(`Query successful. تم جلب ${data?.length || 0} منتج للمؤسسة ${organizationId}`);
-    return data || [];
+    return (data as any) || [];
   } catch (error) {
     console.error('خطأ غير متوقع أثناء جلب المنتجات:', error);
     return []; // Return empty array to prevent UI from hanging
@@ -131,8 +213,10 @@ export const getProductById = async (id: string): Promise<Product | null> => {
     .from('products')
     .select(`
       *,
+      purchase_page_config,
       category:category_id(id, name, slug),
-      subcategory:subcategory_id(id, name, slug)
+      subcategory:subcategory_id(id, name, slug),
+      product_images ( product_id, image_url, sort_order )
     `)
     .eq('id', id)
     .single();
@@ -142,12 +226,22 @@ export const getProductById = async (id: string): Promise<Product | null> => {
     throw error;
   }
 
+  // معالجة الصور الإضافية
+  if (data && Array.isArray((data as any).product_images)) {
+    (data as any).additional_images = ((data as any).product_images as any[])
+      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+      .map(img => img.image_url);
+    // delete (data as any).product_images; // اختياري: حذف البيانات الأولية للصور المدمجة
+  } else if (data) {
+    (data as any).additional_images = []; // ضمان وجود مصفوفة فارغة إذا لم توجد صور
+  }
+
   // إضافة تحذير إذا كان المنتج معطلاً
   if (data && data.is_active === false) {
     console.warn(`تحذير: المنتج ${id} معطل ولن يظهر في نقاط البيع أو واجهة المتجر`);
   }
 
-  return data;
+  return data as any;
 };
 
 export const getProductsByCategory = async (categoryId: string, includeInactive: boolean = false): Promise<Product[]> => {
@@ -172,7 +266,7 @@ export const getProductsByCategory = async (categoryId: string, includeInactive:
     throw error;
   }
 
-  return data;
+  return data as any;
 };
 
 export const getFeaturedProducts = async (includeInactive: boolean = false): Promise<Product[]> => {
@@ -197,7 +291,38 @@ export const getFeaturedProducts = async (includeInactive: boolean = false): Pro
     throw error;
   }
 
-  return data;
+  return data as any;
+};
+
+export const searchProductsByName = async (
+  query: string,
+  organizationId: string,
+  limit: number = 10 // Limit the results for performance
+): Promise<Partial<Product>[]> => {
+  if (!organizationId || !query) {
+    return [];
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('products')
+      .select('id, name, price, thumbnail_image, sku') // Select necessary fields
+      .eq('organization_id', organizationId)
+      .eq('is_active', true) // Only search active products
+      .ilike('name', `%${query}%`) // Case-insensitive search
+      .limit(limit);
+
+    if (error) {
+      console.error('Error searching products by name:', error);
+      throw error;
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Unexpected error during product search:', error);
+    // Depending on requirements, you might want to re-throw or return empty
+    return []; 
+  }
 };
 
 export const createProduct = async (productData: InsertProduct) => {
@@ -386,7 +511,7 @@ export const createProduct = async (productData: InsertProduct) => {
     }
     
     console.log('تم إنشاء المنتج بنجاح مع المعرف:', data.id);
-    return data;
+    return data as any;
   } catch (error) {
     console.error('خطأ في دالة createProduct:', error);
     throw error;
@@ -430,7 +555,7 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
     }
     
     console.log(`تم تحديث المنتج ${id} بنجاح:`, updatedProduct.name);
-    return updatedProduct;
+    return updatedProduct as any;
   } catch (error) {
     console.error(`خطأ عام في تحديث المنتج ${id}:`, error);
     throw error;
@@ -516,14 +641,20 @@ export const getCategoryById = async (id: string): Promise<Category | null> => {
   return data;
 };
 
-export const createCategory = async (category: { name: string; description?: string; icon?: string }): Promise<Category> => {
+export const createCategory = async (category: { 
+  name: string; 
+  description?: string; 
+  icon?: string; 
+  organization_id: string;
+}): Promise<Category> => {
   const { data, error } = await supabase
     .from('product_categories')
     .insert({
       name: category.name,
       description: category.description || null,
       icon: category.icon || null,
-      slug: category.name.toLowerCase().replace(/\s+/g, '-')
+      slug: category.name.toLowerCase().replace(/\s+/g, '-'),
+      organization_id: category.organization_id
     })
     .select()
     .single();
@@ -824,7 +955,7 @@ export const generateAutomaticSku = async (
         // التحقق من وجود رمز مماثل - تم تعديل الاستعلام لمنع خطأ 406
         const { data: existingProducts, error } = await supabase
           .from('products')
-          .select('id')
+          .select('id, name')
           .eq('sku', generatedSku);
         
         // التحقق إذا كان هناك منتجات بنفس الرمز
@@ -1034,7 +1165,7 @@ export const disableProduct = async (id: string): Promise<Product> => {
     }
     
     console.log(`تم تعطيل المنتج ${id} بنجاح`);
-    return data;
+    return data as any;
   } catch (error) {
     console.error(`خطأ عام في تعطيل المنتج ${id}:`, error);
     throw error;
@@ -1070,9 +1201,99 @@ export const enableProduct = async (id: string): Promise<Product> => {
     }
     
     console.log(`تم تفعيل المنتج ${id} بنجاح`);
-    return data;
+    return data as any;
   } catch (error) {
     console.error(`خطأ عام في تفعيل المنتج ${id}:`, error);
     throw error;
+  }
+};
+
+/**
+ * Updates the purchase page customization config for a specific product.
+ */
+export const updateProductPurchaseConfig = async (
+  productId: string,
+  config: PurchasePageConfig | null // Allow null to reset/clear config
+): Promise<Product | null> => {
+  if (!productId) {
+    console.error('Product ID is required to update purchase page config.');
+    throw new Error('Product ID is required.');
+  }
+
+  try {
+    console.log(`Updating purchase page config for product ${productId}:`, config);
+    // تحويل الكائن إلى JSON قبل إرساله لقاعدة البيانات
+    const jsonConfig = config ? JSON.parse(JSON.stringify(config)) : null;
+    
+    // تحديث شامل يتضمن shipping_clone_id مباشرة إلى جانب purchase_page_config
+    const updateData: any = { 
+      purchase_page_config: jsonConfig,
+      updated_at: new Date().toISOString()
+    };
+    
+    // إضافة shipping_clone_id إلى التحديث إذا كان موجوداً في التكوين
+    if (config && 'shipping_clone_id' in config) {
+      updateData.shipping_clone_id = config.shipping_clone_id;
+      console.log(`Also updating shipping_clone_id directly to: ${config.shipping_clone_id}`);
+    }
+    
+    const { data, error } = await supabase
+      .from('products')
+      .update(updateData)
+      .eq('id', productId)
+      .select(`
+        *,
+        purchase_page_config,
+        category:category_id(id, name, slug),
+        subcategory:subcategory_id(id, name, slug)
+      `)
+      .single();
+
+    if (error) {
+      console.error(`Error updating purchase page config for product ${productId}:`, error);
+      throw error;
+    }
+    
+    if (!data) {
+      throw new Error(`Product not found after updating purchase page config: ${productId}`);
+    }
+
+    console.log(`Successfully updated purchase page config for product ${productId}`);
+    return data as any;
+  } catch (error) {
+    console.error(`Unexpected error updating purchase page config for product ${productId}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Fetches a lightweight list of active products (id and name) for an organization.
+ * Useful for populating dropdowns or selection lists.
+ */
+export const getProductListForOrganization = async (
+  organizationId: string
+): Promise<{ id: string; name: string }[]> => {
+  if (!organizationId) {
+    console.error("Organization ID is required for getProductListForOrganization");
+    return [];
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('products')
+      .select('id, name') // Only select id and name
+      .eq('organization_id', organizationId)
+      .eq('is_active', true) // Only active products
+      .order('name', { ascending: true }); // Order alphabetically
+
+    if (error) {
+      console.error('Error fetching product list for organization:', error);
+      throw error;
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Unexpected error fetching product list:', error);
+    return []; // Return empty array on error
   }
 }; 

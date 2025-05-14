@@ -119,7 +119,7 @@ const AdvancedSettings = ({ settings, updateSetting }: AdvancedSettingsProps) =>
 <meta name='description' content='وصف المتجر الإلكتروني' />
 <meta name='keywords' content='كلمات مفتاحية، منتجات، متجر' />
 <link rel='preconnect' href='https://fonts.googleapis.com' />
-<link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap' />"
+<link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap' />"
           helpText="أضف وسوم HTML مخصصة في رأس الصفحة (head). مفيد لإضافة وصف الموقع، والكلمات المفتاحية، وخطوط جوجل، وغيرها."
           language="html"
         />

@@ -201,7 +201,14 @@ export function SupplierDialog({
                   <FormItem>
                     <FormLabel>رقم الهاتف</FormLabel>
                     <FormControl>
-                      <Input placeholder="أدخل رقم الهاتف" {...field} />
+                      <Input 
+                        placeholder="الهاتف رقم أدخل" 
+                        {...field} 
+                        dir="rtl"
+                        inputMode="tel"
+                        style={{ textAlign: 'right', direction: 'rtl' }}
+                        className="text-right [&::placeholder]:text-right [&::placeholder]:mr-0"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

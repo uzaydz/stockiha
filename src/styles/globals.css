@@ -11,4 +11,21 @@
 
 .animate-fadeIn {
   animation: fadeIn 0.3s ease-in-out;
+}
+
+/* تخصيص Placeholder لحقول الإدخال */
+input::placeholder {
+  direction: rtl;
+  text-align: right;
+}
+
+textarea::placeholder {
+  direction: rtl;
+  text-align: right;
+}
+
+/* خاص بحقول إدخال الهاتف */
+input[inputmode="tel"]::placeholder {
+  direction: rtl !important;
+  text-align: right !important;
 } 

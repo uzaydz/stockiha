@@ -1,0 +1,65 @@
+-- إضافة عمود للترجمة العربية إلى جدول الولايات
+ALTER TABLE yalidine_provinces_global ADD COLUMN name_ar TEXT;
+
+-- تحديث الجدول بالترجمات العربية للولايات
+UPDATE yalidine_provinces_global SET name_ar = 'أدرار' WHERE id = 1;
+UPDATE yalidine_provinces_global SET name_ar = 'الشلف' WHERE id = 2;
+UPDATE yalidine_provinces_global SET name_ar = 'الأغواط' WHERE id = 3;
+UPDATE yalidine_provinces_global SET name_ar = 'أم البواقي' WHERE id = 4;
+UPDATE yalidine_provinces_global SET name_ar = 'باتنة' WHERE id = 5;
+UPDATE yalidine_provinces_global SET name_ar = 'بجاية' WHERE id = 6;
+UPDATE yalidine_provinces_global SET name_ar = 'بسكرة' WHERE id = 7;
+UPDATE yalidine_provinces_global SET name_ar = 'بشار' WHERE id = 8;
+UPDATE yalidine_provinces_global SET name_ar = 'البليدة' WHERE id = 9;
+UPDATE yalidine_provinces_global SET name_ar = 'البويرة' WHERE id = 10;
+UPDATE yalidine_provinces_global SET name_ar = 'تمنراست' WHERE id = 11;
+UPDATE yalidine_provinces_global SET name_ar = 'تبسة' WHERE id = 12;
+UPDATE yalidine_provinces_global SET name_ar = 'تلمسان' WHERE id = 13;
+UPDATE yalidine_provinces_global SET name_ar = 'تيارت' WHERE id = 14;
+UPDATE yalidine_provinces_global SET name_ar = 'تيزي وزو' WHERE id = 15;
+UPDATE yalidine_provinces_global SET name_ar = 'الجزائر' WHERE id = 16;
+UPDATE yalidine_provinces_global SET name_ar = 'الجلفة' WHERE id = 17;
+UPDATE yalidine_provinces_global SET name_ar = 'جيجل' WHERE id = 18;
+UPDATE yalidine_provinces_global SET name_ar = 'سطيف' WHERE id = 19;
+UPDATE yalidine_provinces_global SET name_ar = 'سعيدة' WHERE id = 20;
+UPDATE yalidine_provinces_global SET name_ar = 'سكيكدة' WHERE id = 21;
+UPDATE yalidine_provinces_global SET name_ar = 'سيدي بلعباس' WHERE id = 22;
+UPDATE yalidine_provinces_global SET name_ar = 'عنابة' WHERE id = 23;
+UPDATE yalidine_provinces_global SET name_ar = 'قالمة' WHERE id = 24;
+UPDATE yalidine_provinces_global SET name_ar = 'قسنطينة' WHERE id = 25;
+UPDATE yalidine_provinces_global SET name_ar = 'المدية' WHERE id = 26;
+UPDATE yalidine_provinces_global SET name_ar = 'مستغانم' WHERE id = 27;
+UPDATE yalidine_provinces_global SET name_ar = 'المسيلة' WHERE id = 28;
+UPDATE yalidine_provinces_global SET name_ar = 'معسكر' WHERE id = 29;
+UPDATE yalidine_provinces_global SET name_ar = 'ورقلة' WHERE id = 30;
+UPDATE yalidine_provinces_global SET name_ar = 'وهران' WHERE id = 31;
+UPDATE yalidine_provinces_global SET name_ar = 'البيض' WHERE id = 32;
+UPDATE yalidine_provinces_global SET name_ar = 'إليزي' WHERE id = 33;
+UPDATE yalidine_provinces_global SET name_ar = 'برج بوعريريج' WHERE id = 34;
+UPDATE yalidine_provinces_global SET name_ar = 'بومرداس' WHERE id = 35;
+UPDATE yalidine_provinces_global SET name_ar = 'الطارف' WHERE id = 36;
+UPDATE yalidine_provinces_global SET name_ar = 'تندوف' WHERE id = 37;
+UPDATE yalidine_provinces_global SET name_ar = 'تيسمسيلت' WHERE id = 38;
+UPDATE yalidine_provinces_global SET name_ar = 'الوادي' WHERE id = 39;
+UPDATE yalidine_provinces_global SET name_ar = 'خنشلة' WHERE id = 40;
+UPDATE yalidine_provinces_global SET name_ar = 'سوق أهراس' WHERE id = 41;
+UPDATE yalidine_provinces_global SET name_ar = 'تيبازة' WHERE id = 42;
+UPDATE yalidine_provinces_global SET name_ar = 'ميلة' WHERE id = 43;
+UPDATE yalidine_provinces_global SET name_ar = 'عين الدفلى' WHERE id = 44;
+UPDATE yalidine_provinces_global SET name_ar = 'النعامة' WHERE id = 45;
+UPDATE yalidine_provinces_global SET name_ar = 'عين تموشنت' WHERE id = 46;
+UPDATE yalidine_provinces_global SET name_ar = 'غرداية' WHERE id = 47;
+UPDATE yalidine_provinces_global SET name_ar = 'غليزان' WHERE id = 48;
+UPDATE yalidine_provinces_global SET name_ar = 'تيميمون' WHERE id = 49;
+UPDATE yalidine_provinces_global SET name_ar = 'برج باجي مختار' WHERE id = 50;
+UPDATE yalidine_provinces_global SET name_ar = 'أولاد جلال' WHERE id = 51;
+UPDATE yalidine_provinces_global SET name_ar = 'بني عباس' WHERE id = 52;
+UPDATE yalidine_provinces_global SET name_ar = 'عين صالح' WHERE id = 53;
+UPDATE yalidine_provinces_global SET name_ar = 'عين قزام' WHERE id = 54;
+UPDATE yalidine_provinces_global SET name_ar = 'تقرت' WHERE id = 55;
+UPDATE yalidine_provinces_global SET name_ar = 'جانت' WHERE id = 56;
+UPDATE yalidine_provinces_global SET name_ar = 'المغير' WHERE id = 57;
+UPDATE yalidine_provinces_global SET name_ar = 'المنيعة' WHERE id = 58;
+
+-- إضافة أمر لعرض البيانات للتأكد من نجاح التحديث
+-- SELECT id, name, name_ar FROM yalidine_provinces_global ORDER BY id; 

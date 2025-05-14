@@ -1,20 +1,35 @@
 import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import YalidineSettings from './shipping/YalidineSettings';
-import { Package, Truck, TruckIcon, Package2 } from 'lucide-react';
+import { Package, Truck, TruckIcon, Package2, Copy } from 'lucide-react';
 
-export default function ShippingSettings() {
+interface ShippingSettingsProps {
+  onNavigateToClones?: () => void;
+}
+
+export default function ShippingSettings({ onNavigateToClones }: ShippingSettingsProps = {}) {
   const [activeProvider, setActiveProvider] = useState('yalidine');
 
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
           <CardTitle className="text-xl">خدمات التوصيل</CardTitle>
           <CardDescription>
             قم بتفعيل وإعداد خدمات التوصيل المختلفة لمتجرك
           </CardDescription>
+          </div>
+          <Button 
+            variant="outline" 
+            onClick={onNavigateToClones}
+            className="flex items-center gap-2"
+          >
+            <Copy className="h-4 w-4" />
+            <span>إدارة النسخ المستنسخة</span>
+          </Button>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="yalidine" value={activeProvider} onValueChange={setActiveProvider} className="space-y-4">

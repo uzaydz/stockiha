@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ShippingProviderSettings } from "./types"; // استيراد واجهة إعدادات مزود الشحن من ملف types.ts
 
 // Provinces data
 export const PROVINCES = [
@@ -19,14 +20,62 @@ export const DELIVERY_COMPANIES = [
 // Delivery options
 export const DELIVERY_OPTIONS = [
   { id: "home", name: "توصيل للمنزل", icon: "🏠" },
-  { id: "office", name: "استلام من مكتب شركة التوصيل", icon: "🏢" }
+  { id: "desk", name: "استلام من مكتب شركة التوصيل", icon: "🏢" }
 ];
 
 // Payment methods
 export const PAYMENT_METHODS = [
   { id: "cash_on_delivery", name: "الدفع عند الاستلام", icon: "💵" },
-  { id: "bank_transfer", name: "تحويل بنكي", icon: "🏦" }
+  { id: "bank_transfer", name: "تحويل بنكي", icon: "🏦" },
+  { id: "cash", name: "كاش", icon: "💰" }
 ];
+
+// Shipping provider integration interface
+export interface ShippingIntegration {
+  enabled: boolean;
+  provider_id: string | null;
+  origin_wilaya_id?: string | null;
+}
+
+// Form settings interface
+export interface FormSettings {
+  id: string;
+  name: string;
+  is_default: boolean;
+  is_active: boolean;
+  version: number;
+  settings: {
+    shipping_integration?: ShippingIntegration;
+    shipping_clone_id?: number | null;
+    [key: string]: any;
+  };
+  fields?: CustomFormField[];
+  shipping_clone_id?: number | null;
+  purchase_page_config?: {
+    shipping_clone_id?: number | null;
+    [key: string]: any;
+  };
+  [key: string]: any;
+}
+
+// Wilaya interface
+export interface Wilaya {
+  id: number;
+  name: string;
+  zone: number;
+  is_deliverable: boolean;
+}
+
+// Commune interface
+export interface Commune {
+  id: number;
+  name: string;
+  wilaya_id: number;
+  has_stop_desk: boolean;
+  is_deliverable: boolean;
+  delivery_time_parcel: number;
+  delivery_time_payment: number;
+}
 
 // Form schema - improved
 export const orderFormSchema = z.object({
@@ -48,7 +97,7 @@ export const orderFormSchema = z.object({
   deliveryCompany: z.string({
     required_error: "يرجى اختيار شركة التوصيل",
   }),
-  deliveryOption: z.enum(["home", "office"], {
+  deliveryOption: z.enum(["home", "desk"], {
     required_error: "يرجى اختيار خيار التوصيل",
   }),
   paymentMethod: z.string({
@@ -87,18 +136,40 @@ export interface CustomFormField {
   };
 }
 
-export type OrderFormValues = z.infer<typeof orderFormSchema>;
+export interface OrderFormValues {
+  fullName?: string;
+  phone?: string;
+  province?: string;
+  municipality?: string;
+  address?: string;
+  deliveryCompany?: string; 
+  deliveryOption?: 'home' | 'desk';
+  paymentMethod?: string;
+  notes?: string;
+  // حقول إضافية للنموذج المخصص ومزود الشحن
+  form_id?: string | null;
+  shipping_clone_id?: string | number | null;
+  [key: string]: any; // للحقول المخصصة الديناميكية
+}
 
+// Define the structure for an active offer (matching what's passed from ProductPurchase)
+// Using 'any' for now for simplicity, refine later if needed based on exact structure
+export type ActiveOfferData = any | null; 
+
+// Interface for props passed to the OrderForm component
 export interface OrderFormProps {
   productId: string;
   productColorId?: string | null;
   productSizeId?: string | null;
   sizeName?: string | null;
-  price: number;
+  basePrice: number;
+  activeOffer?: ActiveOfferData;
   deliveryFee?: number;
   quantity?: number;
   customFields?: CustomFormField[];
-  redirectAfterSuccess?: boolean;
+  formSettings?: FormSettings | null;
+  productColorName?: string | null;
+  productSizeName?: string | null;
 }
 
 export interface OrderSuccessProps {
@@ -115,17 +186,38 @@ export interface PersonalInfoFieldsProps {
 
 export interface DeliveryInfoFieldsProps {
   form: any;
-  onDeliveryCompanyChange: (value: string) => void;
+  onDeliveryCompanyChange?: (value: string) => void;
+  provinces?: Wilaya[];
+  municipalities?: Commune[];
+  onWilayaChange?: (wilayaId: string) => void;
+  hasShippingIntegration?: boolean;
+  isLoadingWilayas?: boolean;
+  isLoadingCommunes?: boolean;
+  shippingProviderSettings?: ShippingProviderSettings;
 }
 
 export interface CustomFormFieldsProps {
   customFields: CustomFormField[];
+  deliveryType?: 'home' | 'desk';
 }
 
+// Interface for props passed to the OrderSummary component
 export interface OrderSummaryProps {
+  productId: string;
   quantity: number;
-  price: number;
+  basePrice: number;
+  subtotal: number;
+  discount: number;
   deliveryFee: number;
+  hasFreeShipping: boolean;
   total: number;
-  isSubmitting: boolean;
+  isLoadingDeliveryFee: boolean;
+  productColorName?: string | null;
+  productSizeName?: string | null;
+  productName?: string;
+  productImage?: string;
+  productColor?: string | null;
+  productSize?: string | null;
+  deliveryType?: 'home' | 'desk';
+  shippingProviderSettings?: ShippingProviderSettings;
 } 

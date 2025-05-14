@@ -1,0 +1,50 @@
+/* تنسيقات النموذج */
+.custom-form {
+  font-family: 'Tajawal', sans-serif;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.custom-form input,
+.custom-form select,
+.custom-form textarea {
+  transition: all 0.3s ease;
+}
+
+.custom-form input:focus,
+.custom-form select:focus,
+.custom-form textarea:focus {
+  box-shadow: 0 0 0 3px rgba(var(--color-primary), 0.2);
+  border-color: var(--color-primary);
+}
+
+.custom-form label {
+  font-weight: 500;
+}
+
+/* تنسيق أزرار الراديو */
+.custom-form input[type="radio"] {
+  cursor: pointer;
+}
+
+/* تنسيق زر الإرسال */
+.custom-form button[type="submit"] {
+  transition: all 0.3s ease;
+}
+
+.custom-form button[type="submit"]:hover {
+  transform: translateY(-2px);
+}
+
+/* تنسيق الحقول المعطلة */
+.custom-form select:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* تنسيقات متجاوبة */
+@media (max-width: 768px) {
+  .custom-form {
+    padding: 0 1rem;
+  }
+} 

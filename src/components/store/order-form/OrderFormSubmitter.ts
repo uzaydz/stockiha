@@ -13,6 +13,7 @@ export interface OrderFormSubmitterProps {
   quantity: number;
   price: number;
   deliveryFee: number;
+  metadata?: Record<string, any> | null;
   formData?: Record<string, any>;
   onSuccess: (orderNumber: string) => void;
   onError: (message: string) => void;
@@ -33,11 +34,19 @@ export const prepareOrderData = (props: OrderFormSubmitterProps, customFormData?
     quantity,
     price,
     deliveryFee,
+    metadata
   } = props;
 
   console.log("------ بدء إعداد بيانات الطلب ------");
   console.log("القيم المستلمة من النموذج:", values);
   console.log("البيانات المخصصة المستلمة:", customFormData);
+
+  // استخراج معرف النموذج المخصص ومزود الشحن المستنسخ من البيانات
+  const form_id = values.form_id || null;
+  const shipping_clone_id = values.shipping_clone_id || null;
+  
+  console.log("معرف النموذج المخصص:", form_id);
+  console.log("معرف مزود الشحن المستنسخ:", shipping_clone_id);
 
   // استخدام البيانات المخصصة إذا كانت متوفرة
   const fullName = customFormData?.fullName || values.fullName || "زائر";
@@ -87,8 +96,15 @@ export const prepareOrderData = (props: OrderFormSubmitterProps, customFormData?
     totalPrice: price * quantity,
     deliveryFee: deliveryFee,
     
+    // معلومات النموذج المخصص ومزود الشحن
+    form_id: form_id,
+    shipping_clone_id: shipping_clone_id,
+    
     // بيانات النموذج المخصص (إذا كانت موجودة)
-    formData: customFormData
+    formData: customFormData,
+
+    // Add metadata to the prepared order data
+    metadata: metadata 
   };
   
   console.log("------ انتهاء إعداد بيانات الطلب ------");

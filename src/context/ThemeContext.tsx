@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback } from 'react';
-import { getOrganizationSettings } from '@/lib/api/settings';
+import { getOrganizationSettings, getOrganizationTheme } from '@/lib/api/settings';
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -208,7 +208,13 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
     if (!targetOrgId) return;
     
     try {
-      const orgSettings = await getOrganizationSettings(targetOrgId);
+      console.log('Loading theme for organization ID:', targetOrgId);
+      
+      // استخدام دالة getOrganizationTheme بدلاً من getOrganizationSettings للحصول على إعدادات الثيم
+      const themeSettings = await getOrganizationTheme(targetOrgId);
+      
+      // إذا لم نتمكن من الحصول على إعدادات الثيم، نحاول الحصول على إعدادات المؤسسة العامة
+      const orgSettings = themeSettings || await getOrganizationSettings(targetOrgId);
       
       if (orgSettings) {
         // تطبيق الألوان الرئيسية والثانوية
@@ -226,6 +232,13 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
           document.documentElement.style.setProperty('--primary-foreground', '0 0% 100%');
           document.documentElement.style.setProperty('--primary-lighter', `${h} ${s} 85%`);
           document.documentElement.style.setProperty('--primary-darker', `${h} ${s} 25%`);
+          
+          // حفظ اللون الرئيسي في localStorage للتحميل السريع في المرات القادمة
+          try {
+            localStorage.setItem('theme_primary_color', orgSettings.theme_primary_color);
+          } catch (error) {
+            console.error('خطأ في تخزين اللون الرئيسي:', error);
+          }
         }
         
         // اللون الثانوي
@@ -233,6 +246,13 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
           secondaryHSL = hexToHSL(orgSettings.theme_secondary_color);
           document.documentElement.style.setProperty('--secondary', secondaryHSL);
           document.documentElement.style.setProperty('--secondary-foreground', '0 0% 100%');
+          
+          // حفظ اللون الثانوي في localStorage للتحميل السريع في المرات القادمة
+          try {
+            localStorage.setItem('theme_secondary_color', orgSettings.theme_secondary_color);
+          } catch (error) {
+            console.error('خطأ في تخزين اللون الثانوي:', error);
+          }
         }
         
         // تخزين الألوان في localStorage للتحميل السريع في المرات القادمة
@@ -240,7 +260,10 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
           localStorage.setItem(`org_theme_${window.location.hostname}`, JSON.stringify({
             primary: primaryHSL,
             secondary: secondaryHSL,
-            timestamp: Date.now()
+            primaryColor: orgSettings.theme_primary_color,
+            secondaryColor: orgSettings.theme_secondary_color,
+            timestamp: Date.now(),
+            organizationId: targetOrgId
           }));
         } catch (error) {
           console.error('خطأ في تخزين ألوان الثيم:', error);
@@ -336,17 +359,37 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
         
         console.log('تم تطبيق إعدادات المؤسسة بنجاح', {
           primaryColor: orgSettings.theme_primary_color,
+          secondaryColor: orgSettings.theme_secondary_color,
           themeMode: orgSettings.theme_mode,
           siteName: orgSettings.site_name,
           favicon: orgSettings.favicon_url,
           customCSS: !!orgSettings.custom_css,
-          customJS: !!orgSettings.custom_js
+          customJS: !!orgSettings.custom_js,
+          organizationId: targetOrgId
         });
       }
     } catch (error) {
       console.error('خطأ في تحميل إعدادات المؤسسة:', error);
+      
+      // محاولة استخدام القيم المخزنة محليًا في حالة فشل الاتصال بالخادم
+      try {
+        const cachedTheme = localStorage.getItem(`org_theme_${window.location.hostname}`);
+        if (cachedTheme) {
+          const parsedTheme = JSON.parse(cachedTheme);
+          if (parsedTheme.primaryColor) {
+            document.documentElement.style.setProperty('--primary', parsedTheme.primary);
+            console.log('تم استخدام اللون الرئيسي المخزن محليًا:', parsedTheme.primaryColor);
+          }
+          if (parsedTheme.secondaryColor) {
+            document.documentElement.style.setProperty('--secondary', parsedTheme.secondary);
+            console.log('تم استخدام اللون الثانوي المخزن محليًا:', parsedTheme.secondaryColor);
+          }
+        }
+      } catch (localStorageError) {
+        console.error('خطأ في قراءة الألوان المخزنة محليًا:', localStorageError);
+      }
     }
-  }, [currentOrganizationId]);
+  }, [currentOrganizationId, setTheme]);
 
   // Actualizar organizationId cuando cambia la prop
   useEffect(() => {

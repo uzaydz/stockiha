@@ -4,6 +4,7 @@ import { getOrganizationSettings, updateOrganizationSettings } from '@/lib/api/s
 import { OrganizationSettings } from '@/types/settings';
 import { useTheme } from 'next-themes';
 import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 
 interface UseOrganizationSettingsProps {
   organizationId: string | undefined;
@@ -132,24 +133,33 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
           
           if (orgSettings.custom_js) {
             try {
-              // التحقق من أن البيانات هي JSON صالح
-              let customJsStr = orgSettings.custom_js;
+              // تحسين التعامل مع بيانات custom_js التالفة
+              let customJsData: CustomJsData | null = null;
               
-              // إزالة أي تعليقات أو أكواد جافاسكريبت غير صالحة
-              if (customJsStr.includes('//') || customJsStr.includes('function')) {
-                // إذا كانت البيانات تحتوي على تعليقات أو دوال، استخدم القيم الافتراضية
-                console.log('تم اكتشاف بيانات غير صالحة في custom_js، استخدام القيم الافتراضية');
-                // استخدام القيم الافتراضية للمتابعة
-                return;
+              try {
+                // محاولة تحليل البيانات كما هي
+                const parsedData = JSON.parse(orgSettings.custom_js);
+                customJsData = parsedData;
+              } catch (parseError) {
+                console.log('تم اكتشاف بيانات غير صالحة في custom_js، استخدام كائن جديد');
+                // في حالة فشل التحليل، نستخدم كائن جديد
+                customJsData = {
+                  trackingPixels: {
+                    facebook: { enabled: false, pixelId: '' },
+                    tiktok: { enabled: false, pixelId: '' },
+                    snapchat: { enabled: false, pixelId: '' },
+                    google: { enabled: false, pixelId: '' },
+                  }
+                };
               }
               
-              const pixelSettings = JSON.parse(customJsStr);
-              if (pixelSettings && pixelSettings.trackingPixels) {
-                setTrackingPixels(pixelSettings.trackingPixels);
+              // استخدام بيانات التتبع إذا كانت موجودة
+              if (customJsData && customJsData.trackingPixels) {
+                setTrackingPixels(customJsData.trackingPixels);
               }
             } catch (error) {
               console.error('فشل تحليل بيانات بكسل التتبع', error);
-              // استمر باستخدام القيم الافتراضية
+              // استمر باستخدام القيم الافتراضية في حالة الفشل
             }
           }
         }
@@ -192,68 +202,90 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
     }));
   };
   
-  // حفظ إعدادات SEO في جدول store_settings
-  const saveSEOSettings = async (customJsData: CustomJsData) => {
-    if (!organizationId) return;
-    
-    try {
-      if (customJsData.seoSettings) {
-        const { data, error } = await supabase.rpc('update_store_seo_settings', {
-          _organization_id: organizationId,
-          _settings: customJsData.seoSettings
-        });
-        
-        if (error) {
-          console.error('فشل في حفظ إعدادات SEO', error);
-          throw error;
-        }
-        
-        console.log('تم حفظ إعدادات SEO بنجاح', data);
-      }
-    } catch (error) {
-      console.error('فشل في حفظ إعدادات SEO', error);
-      throw error;
-    }
-  };
-
   // حفظ الإعدادات
   const saveSettings = async () => {
     if (!organizationId) {
       toast({
-        title: 'خطأ',
-        description: 'معرف المؤسسة غير متوفر',
+        title: 'خطأ في الحفظ',
+        description: 'معرف المؤسسة مطلوب لحفظ الإعدادات.',
         variant: 'destructive',
       });
       return;
     }
-    
+
     setIsSaving(true);
     setSaveSuccess(false);
     
     try {
+      // تأكد من الحصول على أحدث جلسة قبل إجراء طلب RPC
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError) {
+        console.error('Error getting session in useOrganizationSettings saveSettings:', sessionError);
+        toast({ 
+          title: 'خطأ في الجلسة', 
+          description: 'لا يمكن التحقق من جلسة المستخدم عند محاولة الحفظ.', 
+          variant: 'destructive' 
+        });
+        setIsSaving(false);
+        return;
+      }
+
+      if (!session || !session.user) {
+        console.error('No active session or user found in useOrganizationSettings saveSettings');
+        toast({ 
+          title: 'جلسة غير نشطة', 
+          description: 'يرجى تسجيل الدخول مرة أخرى قبل الحفظ.', 
+          variant: 'destructive' 
+        });
+        setIsSaving(false);
+        return;
+      }
+
+      console.log('Active user ID in saveSettings:', session.user.id);
+      console.log('Organization ID in saveSettings:', organizationId);
+
+      // إنشاء كائن بيانات custom_js جديد بدلاً من محاولة استرجاع البيانات القديمة
       let customJsData: CustomJsData = {
         trackingPixels,
+        // يمكن إضافة المزيد من البيانات هنا
       };
       
-      // استرجاع إعدادات SEO إذا كانت موجودة
+      // استرجاع إعدادات SEO بطريقة أكثر أماناً
       if (settings.custom_js) {
         try {
-          const existingData = JSON.parse(settings.custom_js);
-          if (existingData.seoSettings) {
-            customJsData = {
-              ...customJsData,
-              seoSettings: existingData.seoSettings
-            };
+          let existingSeoSettings = null;
+          
+          try {
+            const existingData = JSON.parse(settings.custom_js);
+            if (existingData && existingData.seoSettings) {
+              existingSeoSettings = existingData.seoSettings;
+            }
+          } catch (parseError) {
+            console.log('تم اكتشاف بيانات غير صالحة في custom_js، استخدام القيم الافتراضية لـ SEO');
+          }
+          
+          if (existingSeoSettings) {
+            customJsData.seoSettings = existingSeoSettings;
           }
         } catch (error) {
-          console.error('فشل تحليل بيانات custom_js', error);
+          console.error('فشل في استرجاع إعدادات SEO', error);
+          // استمر بالعملية
         }
       }
       
       const themeMode = settings.theme_mode === 'auto' ? 'system' : settings.theme_mode;
       
+      // إنشاء عميل supabase جديد مع الجلسة المحدثة
+      const freshSupabase = getSupabaseClient();
+      
+      console.log('Saving organization settings...');
+      
+      // تأكد من تحويل البيانات إلى نص JSON بشكل صحيح
+      const safeCustomJsStr = JSON.stringify(customJsData);
+      
       // حفظ إعدادات المؤسسة العامة
-      await updateOrganizationSettings(organizationId, {
+      const updateResult = await updateOrganizationSettings(organizationId, {
         theme_primary_color: settings.theme_primary_color,
         theme_secondary_color: settings.theme_secondary_color,
         theme_mode_org: themeMode as 'light' | 'dark' | 'system',
@@ -261,14 +293,34 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
         custom_css: settings.custom_css,
         logo_url: settings.logo_url,
         favicon_url: settings.favicon_url,
-        custom_js: JSON.stringify(customJsData),
+        custom_js: safeCustomJsStr,
         custom_header: settings.custom_header,
         custom_footer: settings.custom_footer,
         display_text_with_logo: settings.display_text_with_logo
       });
       
+      console.log('Organization settings update result:', updateResult);
+      
       // حفظ إعدادات SEO بشكل منفصل في جدول store_settings
-      await saveSEOSettings(customJsData);
+      if (customJsData.seoSettings) {
+        console.log('Saving SEO settings...');
+        try {
+          const { data, error } = await freshSupabase.rpc('update_store_seo_settings', {
+            _organization_id: organizationId,
+            _settings: customJsData.seoSettings
+          });
+          
+          if (error) {
+            console.error('فشل في حفظ إعدادات SEO', error);
+            throw error;
+          }
+          
+          console.log('تم حفظ إعدادات SEO بنجاح', data);
+        } catch (error) {
+          console.error('استثناء أثناء حفظ إعدادات SEO', error);
+          // استمر بالعملية حتى مع وجود خطأ في SEO
+        }
+      }
       
       setTheme(themeMode);
       
@@ -283,11 +335,12 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
       setTimeout(() => {
         setSaveSuccess(false);
       }, 2000);
+      
     } catch (error) {
-      console.error('فشل في حفظ إعدادات المؤسسة', error);
+      console.error('خطأ أثناء حفظ إعدادات المؤسسة:', error);
       toast({
-        title: 'خطأ',
-        description: 'فشل في حفظ إعدادات المؤسسة',
+        title: 'خطأ في الحفظ',
+        description: 'حدث خطأ أثناء حفظ الإعدادات، الرجاء المحاولة مرة أخرى.',
         variant: 'destructive',
       });
     } finally {

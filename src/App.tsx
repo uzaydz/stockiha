@@ -36,6 +36,7 @@ import Analytics from '@/pages/dashboard/Analytics';
 import ServiceTrackingPage from './pages/ServiceTrackingPage';
 import ServiceRequestsPage from './pages/dashboard/ServiceRequestsPage';
 import PublicServiceTrackingPage from './pages/PublicServiceTrackingPage';
+import AbandonedOrders from '@/pages/dashboard/AbandonedOrders';
 import Customers from '@/pages/dashboard/Customers';
 import CustomerDebts from '@/pages/dashboard/CustomerDebts';
 import CustomerDebtDetails from './pages/dashboard/CustomerDebtDetails';
@@ -68,6 +69,9 @@ import ThankYouPageEditor from '@/pages/dashboard/ThankYouPageEditor';
 import LandingPageBuilder from '@/pages/LandingPageBuilder';
 import LandingPagesManager from '@/pages/LandingPagesManager';
 import LandingPageView from '@/pages/LandingPageView';
+import CustomizeProductPurchasePage from '@/pages/dashboard/CustomizeProductPurchasePage';
+import CustomDomainsDocPage from './pages/docs/CustomDomainsDocPage';
+import DomainSettings from '@/components/settings/DomainSettings';
 
 // Super Admin Pages
 import SuperAdminDashboard from '@/pages/super-admin/SuperAdminDashboard';
@@ -77,6 +81,7 @@ import SuperAdminLogin from './pages/SuperAdminLogin';
 import SuperAdminPaymentMethods from '@/pages/super-admin/PaymentMethods';
 import ActivationCodesPage from '@/pages/super-admin/activation-codes';
 import SuperAdminLayout from '@/components/SuperAdminLayout';
+import YalidineSyncPage from '@/pages/super-admin/YalidineSyncPage'; // Import new page
 
 // صفحة الاشتراكات
 import SubscriptionPage from "./pages/dashboard/subscription";
@@ -286,6 +291,7 @@ const App = () => (
                   <Route path="/super-admin/subscriptions" element={<SuperAdminSubscriptions />} />
                   <Route path="/super-admin/payment-methods" element={<SuperAdminPaymentMethods />} />
                   <Route path="/super-admin/activation-codes" element={<ActivationCodesPage />} />
+                  <Route path="/super-admin/yalidine-sync" element={<YalidineSyncPage />} /> {/* Add new route here */}
                   <Route path="/super-admin/users" element={<SuperAdminDashboard />} />
                   <Route path="/super-admin/admins" element={<SuperAdminDashboard />} />
                   <Route path="/super-admin/settings" element={<SuperAdminDashboard />} />
@@ -317,6 +323,9 @@ const App = () => (
 
                 {/* صفحات الهبوط المخصصة */}
                 <Route path="/:slug" element={<LandingPageView />} />
+
+                {/* صفحات التوثيق */}
+                <Route path="/docs/custom-domains" element={<CustomDomainsDocPage />} />
 
                 {/* صفحات إعداد المؤسسة */}
                 <Route
@@ -360,6 +369,13 @@ const App = () => (
                     <Route path="/dashboard/orders" element={
                       <SubscriptionCheck>
                         <Orders />
+                      </SubscriptionCheck>
+                    } />
+                    <Route path="/dashboard/abandoned-orders" element={
+                      <SubscriptionCheck>
+                        <PermissionGuard requiredPermissions={['viewOrders']}>
+                          <AbandonedOrders />
+                        </PermissionGuard>
                       </SubscriptionCheck>
                     } />
                     <Route path="/dashboard/expenses" element={
@@ -406,6 +422,13 @@ const App = () => (
                     <Route path="/dashboard/organization" element={
                       <SubscriptionCheck>
                         <OrganizationSettings />
+                      </SubscriptionCheck>
+                    } />
+                    <Route path="/dashboard/custom-domains" element={
+                      <SubscriptionCheck>
+                        <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+                          <DomainSettings />
+                        </PermissionGuard>
                       </SubscriptionCheck>
                     } />
                     <Route path="/dashboard/invoices" element={
@@ -542,6 +565,58 @@ const App = () => (
                         <StoreEditor />
                       </SubscriptionCheck>
                     } />
+
+                    {/* صفحة إدارة المنتجات */}
+                    <Route path="/dashboard/products" element={
+                      <SubscriptionCheck>
+                        <PermissionGuard requiredPermissions={['viewProducts']}>
+                          <Products />
+                        </PermissionGuard>
+                      </SubscriptionCheck>
+                    } />
+                    <Route path="/dashboard/products/:productId/customize-purchase-page" element={
+                      <SubscriptionCheck>
+                        <PermissionGuard requiredPermissions={['editProducts']}>
+                          <CustomizeProductPurchasePage />
+                        </PermissionGuard>
+                      </SubscriptionCheck>
+                    } />
+                    <Route path="/dashboard/inventory" element={
+                      <SubscriptionCheck>
+                        <PermissionGuard requiredPermissions={['viewInventory']}>
+                          <Inventory />
+                        </PermissionGuard>
+                      </SubscriptionCheck>
+                    } />
+
+                    {/* صفحة نقطة البيع */}
+                    <Route path="/dashboard/pos" element={
+                      <SubscriptionCheck>
+                        <PermissionGuard requiredPermissions={['accessPOS']}>
+                          <POS />
+                        </PermissionGuard>
+                      </SubscriptionCheck>
+                    } />
+
+                    {/* صفحة متابعة الخدمات */}
+                    <Route path="/dashboard/service-tracking" element={
+                      <SubscriptionCheck>
+                        <PermissionGuard requiredPermissions={['trackServices']}>
+                          <ServiceTrackingPage />
+                        </PermissionGuard>
+                      </SubscriptionCheck>
+                    } />
+                    
+                    {/* صفحة طلبات الخدمات */}
+                    <Route path="/dashboard/service-requests" element={
+                      <SubscriptionCheck>
+                        <PermissionGuard requiredPermissions={['trackServices']}>
+                          <ServiceRequestsPage />
+                        </PermissionGuard>
+                      </SubscriptionCheck>
+                    } />
+                    
+                    <Route path="*" element={<NotFound />} />
                   </Route>
                   
                   {/* صفحات الإعدادات */}

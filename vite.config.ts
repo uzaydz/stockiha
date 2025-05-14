@@ -1,9 +1,27 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import { Plugin } from 'vite';
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
+
+// تكوين استيراد ملفات Markdown كنصوص
+function rawContentPlugin(): Plugin {
+  return {
+    name: 'vite-plugin-raw-content',
+    transform(code, id) {
+      if (id.endsWith('?raw')) {
+        const fileName = id.replace('?raw', '');
+        if (fileName.endsWith('.md')) {
+          // إرجاع محتوى الملف كنص
+          const content = JSON.stringify(code);
+          return `export default ${content};`;
+        }
+      }
+      return null;
+    }
+  };
+}
 
 // Custom plugin to ensure correct content types
 function contentTypePlugin(): Plugin {
@@ -23,18 +41,21 @@ function contentTypePlugin(): Plugin {
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
+  // تحميل متغيرات البيئة
+  const env = loadEnv(mode, process.cwd(), '');
+
   const isProduction = mode === 'production';
   
   return {
+    base: '/',
     server: {
-      host: "localhost",
+      host: true,
       port: 8080,
-      // Setup for supporting subdomains in development
+      strictPort: true,
       hmr: {
         host: 'localhost',
         clientPort: 8080,
       },
-      // إضافة إعدادات CORS و MIME
       cors: true,
       fs: {
         strict: false,
@@ -44,15 +65,53 @@ export default defineConfig(({ mode }) => {
         'Access-Control-Allow-Origin': '*',
         'X-Content-Type-Options': 'nosniff'
       },
+      watch: {
+        usePolling: true,
+      },
       proxy: {
         '/yalidine-api': {
           target: 'https://api.yalidine.app/v1',
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/yalidine-api/, '')
-        }
+          secure: false,
+          rewrite: (path) => path.replace(/^\/yalidine-api/, ''),
+          headers: {
+            // إضافة رؤوس إضافية هنا إذا لزم الأمر
+          },
+          onProxyReq: (proxyReq: any, req: any) => {
+            // نسخ الرؤوس من الطلب الأصلي إلى طلب الوكيل
+            if (req.headers['x-api-id']) {
+              proxyReq.setHeader('X-API-ID', req.headers['x-api-id'] as string);
+            }
+            if (req.headers['x-api-token']) {
+              proxyReq.setHeader('X-API-TOKEN', req.headers['x-api-token'] as string);
+            }
+            // تنظيف رأس Origin لتجنب مشاكل CORS
+            proxyReq.removeHeader('origin');
+          },
+          configure: (proxy, _options) => {
+            proxy.on('error', (err, _req, _res) => {
+              console.log('proxy error', err);
+            });
+            proxy.on('proxyReq', (proxyReq, req, _res) => {
+              console.log('Sending Request to the Target:', req.method, req.url);
+            });
+            proxy.on('proxyRes', (proxyRes, req, _res) => {
+              console.log('Received Response from the Target:', proxyRes.statusCode, req.url);
+              // إضافة رؤوس CORS للاستجابة
+              proxyRes.headers['Access-Control-Allow-Origin'] = '*';
+              proxyRes.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, PATCH, OPTIONS';
+              proxyRes.headers['Access-Control-Allow-Headers'] = 'X-API-ID, X-API-TOKEN, Content-Type, Accept';
+            });
+          }
+        },
+        // توجيه طلبات API إلى خادم API المحلي
+        '/api': {
+          target: 'http://localhost:3001',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api/, ''),
+        },
       }
     },
-    base: '/',
     plugins: [
       react(),
       nodePolyfills({
@@ -62,6 +121,7 @@ export default defineConfig(({ mode }) => {
       mode === 'development' &&
       componentTagger(),
       contentTypePlugin(), // Add our custom content type plugin
+      rawContentPlugin(), // إضافة إضافة استيراد ملفات Markdown
     ].filter(Boolean),
     resolve: {
       alias: {
@@ -92,19 +152,58 @@ export default defineConfig(({ mode }) => {
       // Polyfills للوحدات الضرورية
       'Buffer': ['buffer', 'Buffer'],
       'process': 'process',
+      'import.meta.env.VITE_DOMAIN_PROXY': JSON.stringify(env.VITE_DOMAIN_PROXY || 'connect.ktobi.online'),
+      'import.meta.env.VITE_API_URL': JSON.stringify(env.VITE_API_URL || 'http://localhost:3001/api'),
+      'import.meta.env.VITE_VERCEL_PROJECT_ID': JSON.stringify(env.VITE_VERCEL_PROJECT_ID || ''),
+      'import.meta.env.VITE_VERCEL_API_TOKEN': JSON.stringify(env.VITE_VERCEL_API_TOKEN || ''),
     },
     build: {
       outDir: 'dist',
       assetsDir: 'assets',
       emptyOutDir: true,
-      sourcemap: true,
+      sourcemap: !isProduction, // Source map only in development
       // تحسينات بناء Electron
       target: 'esnext',
-      minify: isProduction,
+      minify: isProduction ? 'terser' : false,
+      terserOptions: isProduction ? {
+        compress: {
+          drop_console: true,
+          drop_debugger: true
+        }
+      } : undefined,
       // التأكد من أن جميع المسارات نسبية
       rollupOptions: {
         output: {
-          manualChunks: undefined,
+          manualChunks: (id) => {
+            // تجزئة الكود للمكتبات الرئيسية
+            if (id.includes('node_modules')) {
+              if (id.includes('react') || id.includes('react-dom')) {
+                return 'vendor-react';
+              }
+              if (id.includes('@tanstack/react-query')) {
+                return 'vendor-query';
+              }
+              if (id.includes('@supabase')) {
+                return 'vendor-supabase';
+              }
+              if (id.includes('@mui') || id.includes('@emotion')) {
+                return 'vendor-mui';
+              }
+              if (id.includes('framer-motion')) {
+                return 'vendor-animation';
+              }
+              // تجميع المكتبات الأخرى
+              return 'vendor-others';
+            }
+            // تجزئة مكونات صفحة المنتج
+            if (id.includes('/components/store/product/')) {
+              return 'product-components';
+            }
+            // تجزئة مكونات نموذج الطلب
+            if (id.includes('/components/store/order-form/')) {
+              return 'order-form-components';
+            }
+          },
           format: 'es',
           entryFileNames: 'assets/js/[name]-[hash].js',
           chunkFileNames: 'assets/js/[name]-[hash].js',
@@ -112,10 +211,13 @@ export default defineConfig(({ mode }) => {
         },
         external: ['electron'],
       },
+      // تحسين ضغط الصور
+      assetsInlineLimit: 4096, // 4KB
       // تجنب مشاكل تقسيم الشفرة في Electron
       commonjsOptions: {
         transformMixedEsModules: true,
-      }
+      },
+      chunkSizeWarningLimit: 1000, // زيادة حد التحذير لحجم الملف (1MB)
     },
     // تشغيل الشفرة في محتوى واحد في Electron
     optimizeDeps: {
@@ -291,6 +393,11 @@ export default defineConfig(({ mode }) => {
           }
         ]
       }
+    },
+    preview: {
+      port: 3000,
+      host: 'localhost',
+      strictPort: true,
     }
   };
 });

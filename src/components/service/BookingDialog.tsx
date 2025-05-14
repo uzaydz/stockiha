@@ -198,10 +198,16 @@ const BookingDialog = ({
                           <Phone className="h-4 w-4 text-muted-foreground" />
                         </div>
                         <Input
-                          placeholder="أدخل رقم الهاتف"
+                          placeholder="الهاتف رقم أدخل"
                           type="tel"
                           {...field}
-                          className="rounded-l-md rounded-r-none"
+                          className="rounded-l-md rounded-r-none text-right [&::placeholder]:text-right [&::placeholder]:mr-0"
+                          style={{ 
+                            textAlign: 'right', 
+                            direction: 'rtl'
+                          }}
+                          dir="rtl"
+                          inputMode="tel"
                         />
                       </div>
                     </FormControl>

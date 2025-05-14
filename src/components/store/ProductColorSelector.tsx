@@ -1,6 +1,8 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { ProductColor } from "@/api/store";
+import { CheckCircle } from 'lucide-react';
+import type { ProductColor } from '@/lib/api/products';
 import { Check } from "lucide-react";
+import { cn } from '@/lib/utils';
 
 interface ProductColorSelectorProps {
   colors: ProductColor[];

@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Truck, AlertTriangle, MapPin, Building, RefreshCw, Info } from 'lucide-react';
+import { Truck, AlertTriangle, MapPin, Building, RefreshCw, Info, Home, Navigation } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -9,6 +9,7 @@ import { useFormShippingIntegration } from '@/hooks/useFormShippingIntegration';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import type { Province, Municipality, DeliveryType } from "@/api/formShippingIntegration";
+import { getCentersByCommune } from '@/api/yalidine';
 
 interface ShippingIntegrationFieldsProps {
   shippingIntegration: {
@@ -40,6 +41,11 @@ export function ShippingIntegrationFields({ shippingIntegration }: ShippingInteg
     provider: shippingIntegration.provider,
   });
 
+  // إضافة حالة لمراكز التوصيل (المكاتب)
+  const [centers, setCenters] = useState<any[]>([]);
+  const [selectedCenter, setSelectedCenter] = useState<string | null>(null);
+  const [loadingCenters, setLoadingCenters] = useState<boolean>(false);
+
   // الوظيفة المستدعاة عند تغيير اختيار الولاية
   const handleProvinceChange = async (value: string) => {
     if (value && value !== selectedProvince) {
@@ -48,6 +54,8 @@ export function ShippingIntegrationFields({ shippingIntegration }: ShippingInteg
       
       // إعادة تعيين البلدية ونوع التوصيل
       setSelectedMunicipality(null);
+      setSelectedCenter(null);
+      setCenters([]);
       
       // إعادة تعيين نوع التوصيل للمنزل افتراضياً
       if (!deliveryType) {
@@ -60,94 +68,72 @@ export function ShippingIntegrationFields({ shippingIntegration }: ShippingInteg
   const handleDeliveryTypeChange = (value: DeliveryType) => {
     setDeliveryType(value);
     setSelectedMunicipality(null);
+    setSelectedCenter(null);
+    setCenters([]);
     setDeliveryPrice(null);
   };
 
-  // تخزين القيم في النموذج عند تغييرها
+  // جلب مراكز التوصيل عند تغيير البلدية المختارة إذا كان نوع التوصيل هو "مكتب"
   useEffect(() => {
-    if (isEnabled) {
-      // تخزين البيانات المختارة في النموذج
-      if (selectedProvince) {
-        setFieldValue('shipping.province', selectedProvince);
-      }
+    if (deliveryType === 'desk' && selectedMunicipality && shippingIntegration.enabled) {
+      setLoadingCenters(true);
       
-      if (selectedMunicipality) {
-        setFieldValue('shipping.municipality', selectedMunicipality);
-      }
+      // البحث عن البلدية المختارة في قائمة البلديات
+      const selectedMunicipalityObject = municipalities.find(
+        m => m.id.toString() === selectedMunicipality
+      );
       
-      if (deliveryType) {
-        setFieldValue('shipping.deliveryType', deliveryType);
-      }
-      
-      if (deliveryPrice !== null) {
-        setFieldValue('shipping.deliveryPrice', deliveryPrice);
-      }
-      
-      // إذا كانت كل البيانات متوفرة، نقوم بتعيين isShippingComplete = true
-      if (selectedProvince && selectedMunicipality && deliveryType && deliveryPrice !== null) {
-        setFieldValue('shipping.isComplete', true);
+      // إذا وجدنا البلدية ولديها مكاتب محفوظة
+      if (selectedMunicipalityObject && selectedMunicipalityObject.centers) {
+        setCenters(selectedMunicipalityObject.centers);
+        setLoadingCenters(false);
       } else {
-        setFieldValue('shipping.isComplete', false);
+        // إذا لم تكن المكاتب محفوظة في البلدية، نجلبها من الخادم
+        const organizationId = diagnostic.data?.organization_id || '';
+        
+        getCentersByCommune(organizationId, selectedMunicipality)
+          .then(data => {
+            setCenters(data);
+            setLoadingCenters(false);
+          })
+          .catch(err => {
+            console.error('خطأ في جلب مراكز التوصيل:', err);
+            setLoadingCenters(false);
+          });
       }
     }
-  }, [selectedProvince, selectedMunicipality, deliveryType, deliveryPrice, isEnabled, setFieldValue]);
+  }, [deliveryType, selectedMunicipality, shippingIntegration.enabled, diagnostic.data, municipalities]);
 
-  // وظيفة لعرض عنصر الولاية في القائمة
-  const renderProvinceItem = (province: Province) => {
-    return (
-      <SelectItem 
-        key={province.id.toString()} 
-        value={province.id.toString()}
-        className="my-1 p-2 text-right text-black dark:text-white rounded hover:bg-primary/10"
-      >
-        <div className="flex items-center justify-between gap-2">
-          <span className="font-medium text-base">{province.name || `ولاية ${province.id}`}</span>
-        </div>
-      </SelectItem>
-    );
-  };
+  // عرض عنصر الولاية في القائمة المنسدلة
+  const renderProvinceItem = (province: Province) => (
+    <SelectItem key={province.id} value={province.id.toString()}>
+      {province.name} {/* استخدام الاسم العربي */}
+    </SelectItem>
+  );
 
-  // وظيفة لعرض عنصر البلدية في القائمة
-  const renderMunicipalityItem = (municipality: Municipality) => {
-    return (
-      <SelectItem 
-        key={municipality.id.toString()} 
-        value={municipality.id.toString()}
-        className="my-1 p-2 text-right text-black dark:text-white rounded hover:bg-primary/10"
-      >
-        <div className="flex items-center justify-between gap-2">
-          <span className="font-medium text-base">{municipality.name}</span>
-          {municipality.has_stop_desk === 1 && (
-            <span className="text-xs px-1 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
-              مكتب
-            </span>
-          )}
-        </div>
-      </SelectItem>
-    );
-  };
+  // عرض عنصر البلدية في القائمة المنسدلة
+  const renderMunicipalityItem = (municipality: Municipality) => (
+    <SelectItem key={municipality.id} value={municipality.id.toString()}>
+      {municipality.display_name || municipality.name} {/* استخدام الاسم العربي مع معلومات المكاتب إن وجدت */}
+    </SelectItem>
+  );
 
-  // عرض حالة التكوين
-  const renderConfigStatus = () => {
+  // عرض عنصر مركز التوصيل في القائمة المنسدلة
+  const renderCenterItem = (center: any) => (
+    <SelectItem key={center.center_id} value={center.center_id.toString()}>
+      {center.name} - {center.commune_name}
+    </SelectItem>
+  );
+
+  // رسالة الحالة
+  const renderStatusMessage = () => {
     if (!isEnabled) {
       return (
-        <Alert variant="destructive" className="mb-4">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>خدمة الشحن غير متوفرة</AlertTitle>
-          <AlertDescription>
-            لم يتم تكوين خدمة الشحن أو تفعيلها. يرجى التواصل مع مسؤول النظام.
-          </AlertDescription>
-        </Alert>
-      );
-    }
-
-    if (diagnostic.configStatus === 'checking') {
-      return (
-        <Alert className="mb-4 bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300">
+        <Alert variant="default" className="mb-4">
           <Info className="h-4 w-4" />
-          <AlertTitle>جاري التحقق من الإعدادات</AlertTitle>
+          <AlertTitle>خدمة التوصيل غير مفعلة</AlertTitle>
           <AlertDescription>
-            يتم الآن التحقق من إعدادات خدمة الشحن ياليدين...
+            يرجى تفعيل خدمة التوصيل أولاً من إعدادات النموذج
           </AlertDescription>
         </Alert>
       );
@@ -157,41 +143,25 @@ export function ShippingIntegrationFields({ shippingIntegration }: ShippingInteg
       return (
         <Alert variant="destructive" className="mb-4">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>خطأ في إعدادات خدمة الشحن</AlertTitle>
-          <AlertDescription className="flex flex-col gap-2">
-            <span>{diagnostic.message}</span>
-            {diagnostic.message?.includes('CORS') && (
-              <span className="text-xs">
-                قد تكون المشكلة بسبب سياسات حماية CORS في متصفحك عند التطوير المحلي. في بيئة الإنتاج قد لا تظهر هذه المشكلة.
-              </span>
-            )}
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="mt-2 w-fit flex items-center gap-1"
-              onClick={retryConnection}
-            >
-              <RefreshCw className="h-3 w-3" />
-              <span>إعادة المحاولة</span>
+          <AlertTitle>خطأ في تكوين التوصيل</AlertTitle>
+          <AlertDescription className="space-y-2">
+            <p>{diagnostic.message}</p>
+            <Button variant="outline" size="sm" onClick={retryConnection} className="mt-2">
+              <RefreshCw className="h-4 w-4 ml-2" />
+              إعادة المحاولة
             </Button>
           </AlertDescription>
         </Alert>
       );
     }
 
-    if (diagnostic.message && diagnostic.configStatus === 'valid') {
+    if (diagnostic.configStatus === 'checking') {
       return (
-        <Alert className="mb-4 bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-300">
-          <Info className="h-4 w-4" />
-          <AlertTitle>معلومات</AlertTitle>
-          <AlertDescription>
-            {diagnostic.message}
-            {diagnostic.message?.includes('CORS') && (
-              <div className="text-xs mt-1">
-                قد تكون المشكلة بسبب سياسات حماية CORS في متصفحك عند التطوير المحلي. في بيئة الإنتاج قد لا تظهر هذه المشكلة.
-              </div>
-            )}
-          </AlertDescription>
+        <Alert variant="default" className="mb-4">
+          <div className="flex items-center">
+            <div className="border-2 border-primary border-r-transparent rounded-full h-4 w-4 animate-spin ml-2"></div>
+            <div>جاري التحقق من تكوين التوصيل...</div>
+          </div>
         </Alert>
       );
     }
@@ -200,20 +170,18 @@ export function ShippingIntegrationFields({ shippingIntegration }: ShippingInteg
   };
 
   return (
-    <Card className="relative">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Truck className="h-5 w-5 text-primary" />
-          <span>معلومات التوصيل</span>
+    <Card className="mb-6">
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center text-lg font-semibold">
+          <Truck className="h-5 w-5 ml-2 text-primary" />
+          خدمة التوصيل
         </CardTitle>
       </CardHeader>
-      
       <CardContent>
-        {renderConfigStatus()}
+        {renderStatusMessage()}
 
-        {isEnabled && diagnostic.configStatus === 'valid' && (
-          <div className="space-y-6">
-            {/* اختيار الولاية */}
+        {diagnostic.configStatus === 'valid' && (
+          <div className="space-y-4">
             <div className="space-y-2">
               <Label className="text-md font-medium mr-1 flex items-center gap-2">
                 <MapPin className="h-4 w-4 text-muted-foreground" />
@@ -244,33 +212,32 @@ export function ShippingIntegrationFields({ shippingIntegration }: ShippingInteg
               )}
             </div>
 
-            {/* اختيار نوع التوصيل */}
             {selectedProvince && (
               <div className="space-y-2">
-                <Label className="text-md font-medium mr-1 flex items-center gap-2">
-                  <Truck className="h-4 w-4 text-muted-foreground" />
-                  <span>نوع التوصيل</span>
-                </Label>
-                
+                <Label className="text-md font-medium mr-1">نوع التوصيل</Label>
                 <RadioGroup
-                  dir="rtl"
-                  value={deliveryType || undefined}
+                  value={deliveryType || 'home'}
                   onValueChange={(value) => handleDeliveryTypeChange(value as DeliveryType)}
-                  className="flex gap-4"
+                  className="flex space-x-4 space-x-reverse"
                 >
                   <div className="flex items-center space-x-2 space-x-reverse">
-                    <RadioGroupItem value="home" id="home" />
-                    <Label htmlFor="home" className="cursor-pointer">توصيل للمنزل</Label>
+                    <RadioGroupItem value="home" id="home-delivery" />
+                    <Label htmlFor="home-delivery" className="flex items-center gap-1">
+                      <Home className="h-4 w-4 text-muted-foreground" />
+                      توصيل للمنزل
+                    </Label>
                   </div>
                   <div className="flex items-center space-x-2 space-x-reverse">
-                    <RadioGroupItem value="desk" id="desk" />
-                    <Label htmlFor="desk" className="cursor-pointer">استلام من المكتب</Label>
+                    <RadioGroupItem value="desk" id="desk-delivery" />
+                    <Label htmlFor="desk-delivery" className="flex items-center gap-1">
+                      <Building className="h-4 w-4 text-muted-foreground" />
+                      استلام من المكتب
+                    </Label>
                   </div>
                 </RadioGroup>
               </div>
             )}
 
-            {/* اختيار البلدية */}
             {selectedProvince && deliveryType && (
               <div className="space-y-2">
                 <Label className="text-md font-medium mr-1 flex items-center gap-2">
@@ -284,7 +251,10 @@ export function ShippingIntegrationFields({ shippingIntegration }: ShippingInteg
                   <Select 
                     dir="rtl"
                     value={selectedMunicipality || undefined}
-                    onValueChange={(value) => setSelectedMunicipality(value)}
+                    onValueChange={(value) => {
+                      setSelectedMunicipality(value);
+                      setSelectedCenter(null); // إعادة تعيين المركز المختار عند تغيير البلدية
+                    }}
                   >
                     <SelectTrigger className="w-full h-10">
                       <SelectValue placeholder="اختر البلدية" />
@@ -296,6 +266,39 @@ export function ShippingIntegrationFields({ shippingIntegration }: ShippingInteg
                         </div>
                       ) : (
                         municipalities.map(renderMunicipalityItem)
+                      )}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            )}
+
+            {/* عرض مراكز التوصيل (المكاتب) للبلدية المختارة في حالة اختيار التوصيل للمكتب */}
+            {deliveryType === 'desk' && selectedMunicipality && (
+              <div className="space-y-2">
+                <Label className="text-md font-medium mr-1 flex items-center gap-2">
+                  <Navigation className="h-4 w-4 text-muted-foreground" />
+                  <span>مكتب الاستلام</span>
+                </Label>
+                
+                {loadingCenters ? (
+                  <Skeleton className="h-10 w-full" />
+                ) : (
+                  <Select 
+                    dir="rtl"
+                    value={selectedCenter || undefined}
+                    onValueChange={(value) => setSelectedCenter(value)}
+                  >
+                    <SelectTrigger className="w-full h-10">
+                      <SelectValue placeholder="اختر مكتب الاستلام" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      {centers.length === 0 ? (
+                        <div className="p-2 text-center text-muted-foreground">
+                          لا توجد مكاتب متاحة في هذه البلدية
+                        </div>
+                      ) : (
+                        centers.map(renderCenterItem)
                       )}
                     </SelectContent>
                   </Select>

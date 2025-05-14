@@ -61,6 +61,7 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { checkUserPermissions, refreshUserData } from '@/lib/api/permissions';
 import { ProductFeatures } from '@/components/store/ProductFeatures';
+import { Link } from 'react-router-dom';
 
 interface ProductsListProps {
   products: Product[];
@@ -393,6 +394,15 @@ const ProductsList = ({ products, onRefreshProducts }: ProductsListProps) => {
                               <QrCode className="ml-2 h-4 w-4" />
                               عرض الباركود
                             </DropdownMenuItem>
+                            
+                            {/* ===== بداية الإضافة ===== */}
+                            <DropdownMenuItem asChild>
+                             <Link to={`/dashboard/products/${product.id}/customize-purchase-page`}>
+                               <Settings className="ml-2 h-4 w-4" />
+                               تخصيص صفحة الشراء
+                             </Link>
+                           </DropdownMenuItem>
+                            {/* ===== نهاية الإضافة ===== */}
                             
                             <DropdownMenuSeparator />
                             

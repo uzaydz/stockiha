@@ -87,7 +87,7 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setTimeout(() => {
         console.error('انتهت مهلة جلب المنتجات');
         reject(new Error('انتهت مهلة جلب المنتجات'));
-      }, 10000); // 10 ثواني كمهلة زمنية
+      }, 30000); // زيادة المهلة إلى 30 ثانية
     });
     
     try {
@@ -137,7 +137,7 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setTimeout(() => {
         console.error('انتهت مهلة جلب الطلبات');
         reject(new Error('انتهت مهلة جلب الطلبات'));
-      }, 8000); // 8 ثواني كمهلة زمنية
+      }, 30000); // زيادة المهلة إلى 30 ثانية
     });
     
     try {
@@ -161,8 +161,9 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           
           console.log('تم استرجاع الطلبات بنجاح. عدد الطلبات:', ordersData.length);
           
-          // تحويل البيانات
-          return ordersData.map(mapSupabaseOrderToOrder);
+          // تحويل البيانات - معالجة الوعود بشكل صحيح
+          const orderPromises = ordersData.map(order => mapSupabaseOrderToOrder(order));
+          return Promise.all(orderPromises);
         },
         SHORT_CACHE_TTL, // تخزين مؤقت لمدة 5 دقائق
         true // استخدام ذاكرة التطبيق

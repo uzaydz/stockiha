@@ -58,6 +58,18 @@ const OrderSourceBadge = ({ source }) => {
   );
 };
 
+// ترجمة نوع التوصيل
+const translateDeliveryOption = (option) => {
+  if (!option) return "غير محدد";
+  
+  const options = {
+    'home': 'توصيل للمنزل',
+    'desk': 'استلام من المكتب',
+    'office': 'استلام من المكتب'
+  };
+  return options[option] || option;
+};
+
 const OrderDetails = ({ 
   order, 
   updateOrderStatus, 
@@ -95,6 +107,16 @@ const OrderDetails = ({
       });
     }
   }, [order.customer]);
+  
+  // تحديث بيانات الشحن عند تغير order
+  useEffect(() => {
+    setShippingData({
+      shipping_method: order.shipping_method || "",
+      shipping_cost: order.shipping_cost || 0,
+      notes: order.notes || "",
+      shipping_option: order.shipping_option || "home"
+    });
+  }, [order]);
   
   // تنسيق التاريخ
   const formatDate = (dateString) => {
@@ -537,6 +559,7 @@ const OrderDetails = ({
             <div className="space-y-3">
               <div className="flex justify-between">
                 <div className="space-y-1">
+                  {/* شركة التوصيل */}
                   <div className="flex items-center text-sm">
                     <Truck className="w-4 h-4 ml-1 opacity-70" />
                     <span>
@@ -544,80 +567,62 @@ const OrderDetails = ({
                     </span>
                   </div>
 
-                  {/* إضافة خيار التوصيل */}
+                  {/* طريقة التوصيل */}
                   <div className="flex items-center text-sm">
                     <PackageCheck className="w-4 h-4 ml-1 opacity-70" />
                     <span>
-                      طريقة التوصيل: {
-                        order.shipping_option ? 
-                          (order.shipping_option === 'home' ? 'توصيل للمنزل' : 
-                           order.shipping_option === 'office' ? 'استلام من المكتب' : 
-                           order.shipping_option) : 
-                        (order.form_data?.deliveryOption === 'home' ? 'توصيل للمنزل' : 
-                         order.form_data?.deliveryOption === 'office' ? 'استلام من المكتب' : 
-                         "غير محدد")
-                      }
+                      طريقة التوصيل: {translateDeliveryOption(order.shipping_option || order.form_data?.deliveryOption)}
                     </span>
                   </div>
 
-                  {/* عرض معلومات العنوان من form_data إذا كانت موجودة */}
-                  {order.form_data && (
-                    <>
-                      {order.form_data.province && (
-                        <div className="flex items-center text-sm">
-                          <Map className="w-4 h-4 ml-1 opacity-70" />
-                          <span>
-                            المنطقة: {order.form_data.province || order.shipping_address?.state || "غير محدد"}
-                          </span>
-                        </div>
-                      )}
-                      
-                      {order.form_data.municipality && (
-                        <div className="flex items-center text-sm">
-                          <Map className="w-4 h-4 ml-1 opacity-70" />
-                          <span>
-                            البلدية: {order.form_data.municipality || "غير محدد"}
-                          </span>
-                        </div>
-                      )}
-                      
-                      {order.form_data.address && (
-                        <div className="flex items-start text-sm">
-                          <MapPin className="w-4 h-4 ml-1 mt-0.5 opacity-70" />
-                          <span>
-                            العنوان: {order.form_data.address || order.shipping_address?.street_address || "غير محدد"}
-                          </span>
-                        </div>
-                      )}
-                      
-                      {!order.form_data.address && order.shipping_address?.street_address && (
-                        <div className="flex items-start text-sm">
-                          <MapPin className="w-4 h-4 ml-1 mt-0.5 opacity-70" />
-                          <span>
-                            العنوان: {order.shipping_address.street_address}
-                          </span>
-                        </div>
-                      )}
-                    </>
-                  )}
+                  {/* سعر التوصيل */}
+                  <div className="flex items-center text-sm">
+                    <CreditCard className="w-4 h-4 ml-1 opacity-70" />
+                    <span>
+                      سعر التوصيل: {formatPrice(order.shipping_cost || 0)} دج
+                    </span>
+                  </div>
 
-                  {/* إظهار البيانات الأصلية إذا لم تكن موجودة في form_data */}
-                  {!order.form_data && order.shipping_address && (
-                    <>
-                      <div className="flex items-center text-sm">
-                        <Map className="w-4 h-4 ml-1 opacity-70" />
-                        <span>
-                          المنطقة: {order.shipping_address.state || "غير محدد"}
-                        </span>
-                      </div>
-                      <div className="flex items-start text-sm">
-                        <MapPin className="w-4 h-4 ml-1 mt-0.5 opacity-70" />
-                        <span>
-                          العنوان: {order.shipping_address.street_address || "غير محدد"}
-                        </span>
-                      </div>
-                    </>
-                  )}
+                  {/* معلومات الولاية والبلدية */}
+                  <div className="mt-3 pt-3 border-t">
+                    <div className="text-xs font-semibold opacity-70 mb-2">معلومات العنوان</div>
+                    
+                    {/* الولاية */}
+                    <div className="flex items-center text-sm">
+                      <Map className="w-4 h-4 ml-1 opacity-70" />
+                      <span>
+                        الولاية: {
+                          order.form_data?.province || 
+                          order.shipping_address?.state || 
+                          "غير محدد"
+                        }
+                      </span>
+                    </div>
+                    
+                    {/* البلدية */}
+                    <div className="flex items-center text-sm">
+                      <Map className="w-4 h-4 ml-1 opacity-70" />
+                      <span>
+                        البلدية: {
+                          order.form_data?.municipality || 
+                          order.shipping_address?.municipality || 
+                          "غير محدد"
+                        }
+                      </span>
+                    </div>
+                    
+                    {/* العنوان التفصيلي */}
+                    <div className="flex items-start text-sm">
+                      <MapPin className="w-4 h-4 ml-1 mt-0.5 opacity-70" />
+                      <span>
+                        العنوان: {
+                          order.form_data?.address || 
+                          order.shipping_address?.street_address || 
+                          "غير محدد"
+                        }
+                      </span>
+                    </div>
+                  </div>
                 </div>
                 
                 <Dialog open={isShippingDialogOpen} onOpenChange={setIsShippingDialogOpen}>
@@ -665,7 +670,7 @@ const OrderDetails = ({
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="home">توصيل للمنزل</SelectItem>
-                            <SelectItem value="office">استلام من المكتب</SelectItem>
+                            <SelectItem value="desk">استلام من المكتب</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>

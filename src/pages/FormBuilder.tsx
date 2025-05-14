@@ -34,9 +34,12 @@ export default function FormBuilder() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('fields');
-  const [shippingIntegration, setShippingIntegration] = useState({
+  const [shippingIntegration, setShippingIntegration] = useState<{
+    enabled: boolean;
+    provider: string | null;
+  }>({
     enabled: false,
-    provider: '',
+    provider: null,
   });
 
   // تحميل البيانات عند بدء تشغيل الصفحة
@@ -59,6 +62,11 @@ export default function FormBuilder() {
             setIsActive(formData.is_active);
             setFields(formData.fields);
             setSelectedProducts(formData.product_ids);
+            
+            // تحميل إعدادات تكامل الشحن إذا كانت موجودة
+            if (formData.settings && formData.settings.shipping_integration) {
+              setShippingIntegration(formData.settings.shipping_integration);
+            }
           } else {
             toast({
               title: 'خطأ',
@@ -311,6 +319,21 @@ export default function FormBuilder() {
           { label: 'الخيار الثالث', value: 'option3' },
         ]
       };
+    } else if (type === 'deliveryType') {
+      // حقل خاص بنوع التوصيل (ثابت لا يمكن تعديله) للتكامل مع شركة التوصيل
+      newField = {
+        ...newField,
+        label: 'نوع التوصيل الثابت',
+        name: 'fixedDeliveryType',
+        type: 'radio', // نستخدم حقل راديو ولكنه سيكون ثابتًا لا يمكن تعديله
+        required: true,
+        options: [
+          { label: 'توصيل للمنزل', value: 'home' },
+          { label: 'استلام من مكتب شركة التوصيل', value: 'desk' }
+        ],
+        defaultValue: 'home', // القيمة الافتراضية هي التوصيل للمنزل
+        description: 'حقل نوع التوصيل الثابت مع شركة التوصيل، سيظهر في النموذج ولا يمكن للمستخدم تغييره'
+      };
     }
 
     setFields([...fields, newField]);
@@ -327,6 +350,7 @@ export default function FormBuilder() {
       case 'checkbox': return 'اختيار متعدد';
       case 'province': return 'الولاية';
       case 'municipality': return 'البلدية';
+      case 'deliveryType': return 'نوع التوصيل الثابت';
       default: return `حقل ${fields.length + 1}`;
     }
   };
@@ -449,6 +473,7 @@ export default function FormBuilder() {
         product_ids: selectedProducts,
         is_default: isDefault,
         is_active: isActive,
+        shipping_integration: shippingIntegration
       };
 
       const result = await upsertFormSettings(currentOrganization.id, formData);
@@ -565,17 +590,18 @@ export default function FormBuilder() {
       },
       {
         id: uuidv4(),
-        name: 'deliveryOption',
+        name: 'fixedDeliveryType',
         label: 'نوع التوصيل',
         type: 'radio',
         required: true,
-        placeholder: 'اختر نوع التوصيل',
         order: fields.length + 6,
         isVisible: true,
         options: [
           { label: 'توصيل للمنزل', value: 'home' },
-          { label: 'استلام من مكتب شركة التوصيل', value: 'office' }
-        ]
+          { label: 'استلام من مكتب شركة التوصيل', value: 'desk' }
+        ],
+        defaultValue: 'home',
+        description: 'حقل نوع التوصيل، قم بتعديله إلى نوع التوصيل الثابت عند استخدام التكامل مع شركة التوصيل'
       },
     ];
 
@@ -610,14 +636,13 @@ export default function FormBuilder() {
             onCancel={() => navigate('/dashboard/form-settings')}
           />
 
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="w-full justify-start">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="mb-4">
               <TabsTrigger value="fields">الحقول</TabsTrigger>
-              <TabsTrigger value="products">المنتجات</TabsTrigger>
               <TabsTrigger value="settings">الإعدادات</TabsTrigger>
+              <TabsTrigger value="products">المنتجات</TabsTrigger>
             </TabsList>
-            
-            <TabsContent value="fields" className="mt-4">
+            <TabsContent value="fields">
               <FormFieldsPanel
                 fields={fields}
                 onAddField={addField}
@@ -627,7 +652,23 @@ export default function FormBuilder() {
                 onAddPresetFields={addPresetFields}
               />
             </TabsContent>
-            
+            <TabsContent value="settings">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormSettingsPanel
+                  formName={formName}
+                  isDefault={isDefault}
+                  setIsDefault={setIsDefault}
+                  isActive={isActive}
+                  setIsActive={setIsActive}
+                  onFormNameChange={setFormName}
+                  shippingIntegration={shippingIntegration}
+                  onShippingIntegrationChange={(settings) => setShippingIntegration(settings)}
+                />
+                {shippingIntegration.enabled && shippingIntegration.provider && (
+                  <ShippingIntegrationFields shippingIntegration={shippingIntegration} />
+                )}
+              </div>
+            </TabsContent>
             <TabsContent value="products" className="mt-4">
               <ProductsPanel
                 availableProducts={availableProducts}
@@ -636,26 +677,6 @@ export default function FormBuilder() {
                 onSelectAll={selectAllProducts}
                 onUnselectAll={unselectAllProducts}
               />
-            </TabsContent>
-            
-            <TabsContent value="settings" className="mt-6">
-              <FormSettingsPanel
-                formName={formName}
-                isDefault={isDefault}
-                setIsDefault={setIsDefault}
-                isActive={isActive}
-                setIsActive={setIsActive}
-                onFormNameChange={setFormName}
-                shippingIntegration={shippingIntegration}
-                onShippingIntegrationChange={setShippingIntegration}
-              />
-              
-              {/* إضافة حقول شركة التوصيل إذا كان التكامل مفعل */}
-              {shippingIntegration.enabled && shippingIntegration.provider && (
-                <ShippingIntegrationFields 
-                  shippingIntegration={shippingIntegration} 
-                />
-              )}
             </TabsContent>
           </Tabs>
         </>

@@ -1,13 +1,27 @@
 /**
- * نقطة دخول لخدمة ياليدين للشحن
- * تصدر جميع الوظائف والأنواع المتعلقة بخدمة ياليدين للشحن
+ * مُصدّر رئيسي لوحدات ياليدين
  */
 
-// تصدير الأنواع والواجهات
-export * from './types';
-
-// تصدير وظائف API
-export * from './api';
+// تصدير الوظائف الرئيسية من الوحدات الفرعية
+export { validateYalidineCredentials } from './validation';
+export { syncYalidineData } from './main-sync';
+export { getLastUpdate } from './data-update';
+export { getYalidineApiClient } from './api';
+export { yalidineRateLimiter } from './rate-limiter';
+export { isGlobalDataUpToDate, syncAllGlobalData } from './global-sync';
 
 // تصدير وظائف الخدمة
-export * from './service'; 
+export { 
+  getProvinces, 
+  getMunicipalities, 
+  getMunicipalitiesByDeliveryType, 
+  getCenters, 
+  getCentersByCommune, 
+  calculateDeliveryPrice 
+} from './service';
+
+// تصدير الأنواع
+export * from './types';
+
+// تصدير وظائف حالة المزامنة
+export { getSyncStatus, updateSyncStatus, createInitialSyncStatus } from './sync-status'; 

@@ -10,7 +10,40 @@ RETURNS JSONB AS $$
 DECLARE
     updated_settings JSONB;
     existing_id UUID;
+    v_user_id UUID;
+    v_user_org_id UUID;
+    v_is_admin BOOLEAN;
+    v_has_permission BOOLEAN;
 BEGIN
+    -- الحصول على معرف المستخدم الحالي
+    v_user_id := auth.uid();
+    
+    IF v_user_id IS NULL THEN
+        RAISE EXCEPTION 'يجب تسجيل الدخول لتحديث إعدادات SEO';
+    END IF;
+
+    -- التحقق من صلاحية المستخدم
+    SELECT 
+        u.organization_id,
+        u.is_org_admin OR u.is_super_admin,
+        COALESCE(u.permissions->>'manageOrganizationSettings' = 'true', false)
+    INTO 
+        v_user_org_id,
+        v_is_admin,
+        v_has_permission
+    FROM 
+        users u
+    WHERE 
+        u.id = v_user_id;
+    
+    IF v_user_org_id IS NULL OR (v_user_org_id != _organization_id AND NOT v_is_admin) THEN
+        RAISE EXCEPTION 'غير مصرح لك بتعديل بيانات هذه المؤسسة';
+    END IF;
+    
+    IF NOT (v_is_admin OR v_has_permission) THEN
+        RAISE EXCEPTION 'يجب أن تكون مديراً أو تملك صلاحيات إدارة إعدادات المؤسسة';
+    END IF;
+
     -- تحقق ما إذا كانت إعدادات SEO موجودة مسبقاً
     SELECT id INTO existing_id
     FROM public.store_settings
@@ -50,26 +83,48 @@ BEGIN
         
         -- التحقق من أن الإدراج تم بنجاح
         IF updated_settings IS NULL THEN
-            RAISE EXCEPTION 'فشل إدراج إعدادات SEO الجديدة';
+            RAISE EXCEPTION 'فشل إنشاء إعدادات SEO جديدة';
         END IF;
     END IF;
     
     -- تنظيف ذاكرة التخزين المؤقت لـ SEO إذا كانت موجودة
-    BEGIN
-        DELETE FROM public.seo_cache 
-        WHERE organization_id = _organization_id 
-        AND cache_type LIKE 'seo_%';
-    EXCEPTION WHEN undefined_table THEN
-        -- تجاهل الخطأ إذا كان الجدول غير موجود
-        NULL;
-    END;
+    DELETE FROM public.seo_cache 
+    WHERE organization_id = _organization_id 
+    AND cache_type LIKE 'seo_%';
     
-    -- تسجيل نجاح العملية
-    RAISE NOTICE 'تم تحديث إعدادات SEO بنجاح للمؤسسة: %', _organization_id;
+    -- إضافة سجل في سجل التغييرات
+    INSERT INTO settings_audit_log (
+        user_id,
+        organization_id,
+        setting_type,
+        setting_key,
+        new_value,
+        action_type,
+        table_name,
+        record_id,
+        created_at
+    ) VALUES (
+        v_user_id,
+        _organization_id,
+        'store',
+        'seo_settings',
+        _settings::TEXT,
+        CASE WHEN existing_id IS NULL THEN 'INSERT' ELSE 'UPDATE' END,
+        'store_settings',
+        COALESCE(existing_id, (SELECT id FROM store_settings WHERE organization_id = _organization_id AND component_type = 'seo_settings')),
+        NOW()
+    );
     
     RETURN updated_settings;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- منح الصلاحيات المطلوبة
+GRANT EXECUTE ON FUNCTION public.update_store_seo_settings(UUID, JSONB) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.update_store_seo_settings(UUID, JSONB) TO service_role;
+
+-- إضافة تعليق توضيحي
+COMMENT ON FUNCTION public.update_store_seo_settings IS 'تحديث إعدادات SEO مع التحقق من الصلاحيات وضمان الحفظ الصحيح';
 
 -- 2. إضافة وظيفة مساعدة لفحص وضبط مشاكل إعدادات SEO
 CREATE OR REPLACE FUNCTION public.fix_seo_settings()
@@ -145,13 +200,16 @@ BEGIN
     CREATE POLICY seo_settings_update_policy ON public.store_settings
     FOR UPDATE
     USING (
-        component_type = 'seo_settings' AND EXISTS (
-            SELECT 1 FROM auth.users
-            WHERE auth.uid() = ANY(ARRAY(
-                SELECT user_id FROM public.organization_members
-                WHERE organization_id = store_settings.organization_id
-                AND role IN ('admin', 'editor')
-            ))
+        component_type = 'seo_settings' AND 
+        (
+            -- المستخدم ينتمي للمؤسسة وهو مدير أو لديه صلاحيات
+            auth.uid() IN (
+                SELECT u.id FROM users u 
+                WHERE u.organization_id = store_settings.organization_id
+                AND (u.is_org_admin = true OR u.permissions->>'manageOrganizationSettings' = 'true')
+            )
+            -- أو المستخدم هو المدير الأعلى
+            OR auth.uid() IN (SELECT id FROM users WHERE is_super_admin = true)
         )
     );
 END

@@ -1,0 +1,331 @@
+// supabase/functions/sync-global-yalidine-data/index.ts
+import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+// const ENCRYPTION_KEY = Deno.env.get("YOUR_ENCRYPTION_KEY")!; // For actual decryption
+
+// --- Helper: Decryption --- (Replace with actual decryption logic)
+// function decrypt(encryptedText: string, key: string): string {
+//   console.warn("Data is NOT being decrypted in this example!");
+//   // Implement actual decryption (e.g., AES)
+//   if (encryptedText.startsWith("encrypted(") && encryptedText.endsWith(`)_with_key(${key.substring(0,4)}...)`)) {
+//     return encryptedText.substring("encrypted(".length, encryptedText.indexOf(")_with_key"));
+//   }
+//   return encryptedText; // Fallback if not matching expected pseudo-encrypted format
+// }
+// --- End Helper ---
+
+// --- Helper: Yalidine API Fetch with Retries and Logging ---
+async function fetchFromYalidine(endpoint: string, apiKey: string, apiToken: string, retries = 3, initialDelay = 1000) {
+  const YALIDINE_API_BASE_URL = "https://api.yalidine.app/v1";
+  let delay = initialDelay;
+
+  console.log(`[sync-yalidine] Attempting to fetch: ${YALIDINE_API_BASE_URL}${endpoint}`);
+
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(`${YALIDINE_API_BASE_URL}${endpoint}`, {
+        method: "GET",
+        headers: {
+          "X-API-ID": apiKey,
+          "X-API-TOKEN": apiToken,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        console.error(`[sync-yalidine] Yalidine API Error (${response.status}) for ${endpoint}. Attempt ${i + 1}/${retries}. Body: ${errorBody}`);
+        if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+          // Don't retry for client errors like 401, 403, 404 unless it's 429 (rate limit)
+          throw new Error(`Yalidine API Client Error (${response.status} for ${endpoint}): ${errorBody}`);
+        }
+        if (i === retries - 1) {
+          throw new Error(`Yalidine API Error (${response.status} for ${endpoint}) after ${retries} attempts: ${errorBody}`);
+        }
+        console.log(`[sync-yalidine] Retrying in ${delay / 1000}s...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay *= 2; // Exponential backoff
+        continue;
+      }
+      const responseData = await response.json();
+      console.log(`[sync-yalidine] Successfully fetched data from ${endpoint}. Status: ${response.status}`);
+      return responseData;
+    } catch (e) {
+      console.error(`[sync-yalidine] Fetch attempt ${i + 1}/${retries} for ${endpoint} failed: ${e.message}`);
+      if (i === retries - 1) {
+        // If this was the last attempt, rethrow the caught error or a new one if e is not an Error instance
+        if (e instanceof Error) throw e;
+        throw new Error(`All fetch attempts failed for ${endpoint}: ${e}`);
+      }
+      console.log(`[sync-yalidine] Retrying in ${delay / 1000}s... (due to exception)`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      delay *= 2; // Exponential backoff
+    }
+  }
+  // Should not be reached if retries > 0, but as a fallback:
+  throw new Error(`[sync-yalidine] Failed to fetch from Yalidine for ${endpoint} after ${retries} attempts and all retries exhausted.`);
+}
+
+// --- Helper: Fetch all paginated data from Yalidine ---
+async function fetchAllPaginatedData(baseEndpoint: string, apiKey: string, apiToken: string) {
+  let allData: any[] = [];
+  let page = 1;
+  const pageSize = 100; // Yalidine API default is 100, max 1000. Adjust if needed.
+  let hasMore = true;
+  let totalFetched = 0;
+  const PAGINATION_DELAY_MS = 500; // تأخير 500 مللي ثانية بين طلبات الصفحات
+
+  console.log(`[sync-yalidine] Starting paginated fetch for base endpoint: ${baseEndpoint}`);
+
+  while (hasMore) {
+    const endpointWithPagination = `${baseEndpoint}?page=${page}&page_size=${pageSize}`;
+    try {
+      // Use the robust fetchFromYalidine for each page request
+      const responseJson = await fetchFromYalidine(endpointWithPagination, apiKey, apiToken);
+
+      if (responseJson && Array.isArray(responseJson.data)) {
+        allData = allData.concat(responseJson.data);
+        totalFetched += responseJson.data.length;
+        hasMore = responseJson.has_more === true; // Ensure strict boolean check
+        console.log(`[sync-yalidine] Fetched page ${page} for ${baseEndpoint}. Items: ${responseJson.data.length}. Total items so far: ${totalFetched}. Has more: ${hasMore}`);
+        if (hasMore) {
+          page++;
+          console.log(`[sync-yalidine] Waiting ${PAGINATION_DELAY_MS}ms before fetching next page...`);
+          await new Promise(resolve => setTimeout(resolve, PAGINATION_DELAY_MS));
+        } else {
+          console.log(`[sync-yalidine] Pagination complete for ${baseEndpoint}. Total items fetched: ${totalFetched}.`);
+        }
+      } else {
+        console.warn(`[sync-yalidine] Unexpected response structure or no data array from ${endpointWithPagination}. Stopping pagination for ${baseEndpoint}. Response:`, responseJson);
+        hasMore = false; // Stop if data format is not as expected
+      }
+    } catch (error) {
+      console.error(`[sync-yalidine] Error fetching page ${page} for ${baseEndpoint}: ${error.message}. Halting pagination for this endpoint.`);
+      // Depending on the error, you might want to rethrow or handle differently
+      // For now, we stop pagination for this specific endpoint on error to prevent infinite loops on persistent errors.
+      hasMore = false; 
+      throw error; // Rethrow to be caught by the main sync process for this data type
+    }
+  }
+  console.log(`[sync-yalidine] Finished paginated fetch for ${baseEndpoint}. Total ${totalFetched} items collected.`);
+  return allData;
+}
+
+// --- Helper: Upsert data to Supabase ---
+async function upsertData(supabase: SupabaseClient, tableName: string, conflictColumn: string, data: any[], syncResults: any) {
+  if (!data || data.length === 0) {
+    console.log(`[sync-yalidine] No data to upsert for table ${tableName}.`);
+    return { data: [], error: null };
+  }
+  
+  console.log(`[sync-yalidine] Upserting ${data.length} items into ${tableName} on conflict with ${conflictColumn}.`);
+  // Ensure all items have created_at and updated_at if your table expects them and they aren't auto-set
+  // const now = new Date().toISOString();
+  // const processedData = data.map(item => ({
+  //   ...item,
+  //   created_at: item.created_at || now, 
+  //   updated_at: now
+  // }));
+  // Temporarily removing explicit created_at/updated_at setting to address schema cache issue.
+  // Ensure your database tables handle these fields appropriately (e.g., with default values or triggers)
+  // or that the columns do not exist if they are not needed.
+  const processedData = data.map(item => {
+    const { created_at, updated_at, ...restOfItem } = item; // eslint-disable-line @typescript-eslint/no-unused-vars
+    // If your DB auto-handles created_at on insert and updated_at on update, this is fine.
+    // If you need to set them and they *do* exist in the table, revert this change
+    // and ensure the column names are exact matches.
+    return restOfItem;
+  });
+
+  const { data: result, error } = await supabase
+    .from(tableName)
+    .upsert(processedData, { onConflict: conflictColumn, ignoreDuplicates: false }); 
+  
+  if (error) {
+    console.error(`[sync-yalidine] Error upserting to ${tableName}:`, error); // Log the full error object
+    syncResults.errors++;
+    syncResults.message = error.message || JSON.stringify(error); // Use full error if message is empty
+  } else {
+    console.log(`[sync-yalidine] Successfully upserted data to ${tableName}.`);
+    syncResults.synced = (result && result.length > 0) ? result.length : processedData.length; // Use processedData.length as a fallback if result is not informative for upserts
+    syncResults.message = ""; // Clear message on success
+  }
+  return { data: result, error };
+}
+// --- End Helper ---
+
+serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" } });
+  }
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ error: "Method Not Allowed" }), { status: 405, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+  let apiKey = "", apiToken = "";
+
+  console.log("[sync-yalidine] Starting Global Yalidine Sync process...");
+
+  try {
+    // 1. Fetch API credentials from DB
+    console.log("[sync-yalidine] Fetching API credentials from database...");
+    const { data: config, error: configError } = await supabase
+      .from("global_yalidine_configuration")
+      .select("yalidine_api_key, yalidine_api_token")
+      .eq("id", 1)
+      .single();
+
+    if (configError || !config || !config.yalidine_api_key || !config.yalidine_api_token) {
+      console.error("[sync-yalidine] API configuration not found or incomplete in database.", configError);
+      throw new Error("API configuration not found or incomplete in database.");
+    }
+    console.log("[sync-yalidine] API credentials fetched successfully.");
+
+    // --- !!! DECRYPTION POINT !!! ---
+    // apiKey = decrypt(config.yalidine_api_key, ENCRYPTION_KEY);
+    // apiToken = decrypt(config.yalidine_api_token, ENCRYPTION_KEY);
+    apiKey = config.yalidine_api_key; // Replace with decrypted key
+    apiToken = config.yalidine_api_token; // Replace with decrypted token
+    // --- !!! END DECRYPTION POINT !!! ---
+
+    const syncResults = {
+      provinces: { synced: 0, errors: 0, message: "" },
+      municipalities: { synced: 0, errors: 0, message: "" },
+      centers: { synced: 0, errors: 0, message: "" },
+    };
+
+    // 2. Sync Provinces (Wilayas)
+    try {
+      console.log("[sync-yalidine] Starting provinces (Wilayas) sync...");
+      const rawProvincesData = await fetchAllPaginatedData("/wilayas/", apiKey, apiToken);
+      console.log(`[sync-yalidine] Fetched ${rawProvincesData.length} raw provinces from Yalidine.`);
+      
+      const provincesToUpsert = rawProvincesData.map((p: any) => {
+        if (!p.id || !p.name) {
+            console.warn("[sync-yalidine] Province item missing id or name:", p);
+        }
+        return {
+            id: p.id, 
+            name: p.name,
+            is_deliverable: p.is_deliverable === 1 || p.is_deliverable === true, 
+            zone: p.zone,
+            // created_at and updated_at should be handled by DB defaults or triggers if they exist
+        };
+      });
+      
+      if (provincesToUpsert.length > 0) {
+        await upsertData(supabase, "yalidine_provinces_global", "id", provincesToUpsert, syncResults.provinces);
+        await supabase.from("global_yalidine_configuration").update({ last_global_provinces_sync: new Date().toISOString() }).eq("id", 1);
+        console.log(`[sync-yalidine] Provinces sync completed. Synced: ${provincesToUpsert.length}`);
+      } else {
+        console.log("[sync-yalidine] No new province data to sync after mapping.");
+      }
+    } catch (e) {
+      syncResults.provinces.message = e.message;
+      syncResults.provinces.errors++;
+      console.error("[sync-yalidine] Error syncing provinces:", e);
+    }
+
+    // 3. Sync Municipalities (Communes)
+    try {
+      console.log("[sync-yalidine] Starting municipalities (Communes) sync...");
+      const rawMunicipalitiesData = await fetchAllPaginatedData("/communes/", apiKey, apiToken);
+      console.log(`[sync-yalidine] Fetched ${rawMunicipalitiesData.length} raw municipalities from Yalidine.`);
+      
+      const municipalitiesToUpsert = rawMunicipalitiesData.map((m: any) => {
+        if (!m.id || !m.name || !m.wilaya_id) {
+            console.warn("[sync-yalidine] Municipality item missing id, name, or wilaya_id:", m);
+        }
+        return {
+            id: m.id, 
+            name: m.name,
+            wilaya_id: m.wilaya_id, 
+            wilaya_name: m.wilaya_name, 
+            has_stop_desk: m.has_stop_desk === 1 || m.has_stop_desk === true, 
+            is_deliverable: m.is_deliverable === 1 || m.is_deliverable === true, 
+            delivery_time_parcel: m.delivery_time_parcel,
+            delivery_time_payment: m.delivery_time_payment,
+            // created_at and updated_at should be handled by DB defaults or triggers if they exist
+        };
+      });
+
+      if (municipalitiesToUpsert.length > 0) {
+        await upsertData(supabase, "yalidine_municipalities_global", "id", municipalitiesToUpsert, syncResults.municipalities);
+        await supabase.from("global_yalidine_configuration").update({ last_global_municipalities_sync: new Date().toISOString() }).eq("id", 1);
+        console.log(`[sync-yalidine] Municipalities sync completed. Synced: ${municipalitiesToUpsert.length}`);
+      } else {
+        console.log("[sync-yalidine] No new municipality data to sync after mapping.");
+      }
+    } catch (e) {
+      syncResults.municipalities.message = e.message;
+      syncResults.municipalities.errors++;
+      console.error("[sync-yalidine] Error syncing municipalities:", e);
+    }
+
+    // --- Sync Delivery Centers ---
+    // IMPORTANT: Yalidine API returned 400 "Wrong endpoint" for /delivery-centers/.
+    // This section is temporarily commented out.
+    // You need to find the correct Yalidine API endpoint for fetching global delivery centers.
+    /*
+    console.log("[sync-yalidine] Attempting to fetch all delivery centers...");
+    let centersData: any[] = [];
+    try {
+      // Verify if '/delivery-centers/' is the correct global endpoint and supports pagination
+      // The API previously returned 403 for this, and now 400 "Wrong endpoint"
+      console.warn("[sync-yalidine] Fetching delivery centers. Ensure '/delivery-centers/' is the correct global endpoint from Yalidine documentation.");
+      centersData = await fetchAllPaginatedData("/delivery-centers/", apiKey, apiToken);
+      syncResults.centers.fetched = centersData.length;
+      console.log(`[sync-yalidine] Fetched ${centersData.length} delivery centers from Yalidine.`);
+
+      if (centersData.length > 0) {
+        console.log(`[sync-yalidine] Mapping ${centersData.length} delivery centers for upsert.`);
+        const centersToUpsert = centersData.map((c: any) => ({
+          yalidine_id: c.id, // Assuming 'c.id' is the primary identifier from Yalidine for centers
+          name: c.name,
+          // Yalidine's documentation for /delivery-centers indicates wilaya_id and commune_id
+          // Ensure your table 'yalidine_delivery_centers_global' has columns for these if you need them
+          // And that they correctly reference the IDs stored in your provinces/municipalities tables.
+          // province_yalidine_id: c.wilaya_id, 
+          // municipality_yalidine_id: c.commune_id, 
+          address: c.address, // If available and needed
+          phone: c.phone,     // If available and needed
+          // Add other relevant fields from 'c'
+        }));
+        await upsertData(supabase, "yalidine_delivery_centers_global", "yalidine_id", centersToUpsert, syncResults.centers);
+        console.log(`[sync-yalidine] Delivery centers sync completed. Synced: ${centersToUpsert.length}`);
+      } else {
+        console.log("[sync-yalidine] No new center data to sync after mapping.");
+      }
+    } catch (e) {
+      syncResults.centers.message = e.message;
+      syncResults.centers.errors++;
+      console.error("[sync-yalidine] Error syncing delivery centers:", e);
+      console.error("[sync-yalidine] This might be due to an incorrect endpoint ('/delivery-centers/') or data mapping issues. Please verify Yalidine documentation.");
+    }
+    */
+
+    let status = 200;
+    if (syncResults.provinces.errors > 0 || syncResults.municipalities.errors > 0 || syncResults.centers.errors > 0) {
+        status = 207; // Multi-Status: some operations may have failed
+        console.warn("[sync-yalidine] Global Yalidine Sync process completed with some errors.", syncResults);
+    } else {
+        console.log("[sync-yalidine] Global Yalidine Sync process completed successfully.", syncResults);
+    }
+
+    return new Response(JSON.stringify({ message: "Global Yalidine Sync process completed.", results: syncResults }), {
+      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      status: status,
+    });
+
+  } catch (e) {
+    console.error("[sync-yalidine] Fatal error in sync-global-yalidine-data function:", e);
+    return new Response(JSON.stringify({ error: "Internal Server Error: " + e.message, details: e.stack }), {
+      status: 500,
+      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+    });
+  }
+});

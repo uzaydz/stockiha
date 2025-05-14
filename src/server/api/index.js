@@ -1,0 +1,26 @@
+import express from 'express';
+import cors from 'cors';
+import domainVerificationApi from './domain-verification-api.js';
+
+// إنشاء تطبيق Express
+const app = express();
+
+// تكوين CORS
+app.use(cors());
+
+// استخدام middleware لتحليل JSON
+app.use(express.json());
+
+// استخدام موجهات API
+app.use('/api', domainVerificationApi);
+
+// واجهة برمجية افتراضية للتحقق من حالة الخادم
+app.get('/api/status', (req, res) => {
+  res.json({
+    status: 'running',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// تصدير التطبيق
+export default app; 

@@ -73,9 +73,11 @@ export default function NewCustomerDialog({
               id="customer-phone"
               value={newCustomer.phone}
               onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
-              placeholder="أدخل رقم الهاتف"
-              dir="ltr"
-              className="focus:border-primary focus:ring-1 focus:ring-primary"
+              placeholder="الهاتف رقم أدخل"
+              dir="rtl"
+              inputMode="tel"
+              style={{ textAlign: 'right', direction: 'rtl' }}
+              className="focus:border-primary focus:ring-1 focus:ring-primary text-right [&::placeholder]:text-right [&::placeholder]:mr-0"
             />
           </div>
         </div>

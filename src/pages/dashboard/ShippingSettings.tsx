@@ -1,8 +1,22 @@
+import { useState, useCallback } from 'react';
+import { useParams } from 'react-router-dom';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Truck, Copy, Settings } from 'lucide-react';
+import { useOrganization } from '@/hooks/useOrganization';
+import ShippingCloneManager from '@/components/settings/ShippingCloneManager';
 import { Helmet } from 'react-helmet-async';
 import ShippingSettings from '@/components/settings/ShippingSettings';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function ShippingSettingsPage() {
+  const { organization } = useOrganization();
+  const [activeTab, setActiveTab] = useState('general');
+
+  // وظيفة للانتقال إلى تبويب نسخ مزودي التوصيل
+  const navigateToClones = useCallback(() => {
+    setActiveTab('clones');
+  }, []);
+
   return (
     <>
       <Helmet>
@@ -28,7 +42,22 @@ export default function ShippingSettingsPage() {
           </CardContent>
         </Card>
         
-        <ShippingSettings />
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid grid-cols-2 w-[400px] mb-6">
+            <TabsTrigger value="general">الإعدادات العامة</TabsTrigger>
+            <TabsTrigger value="clones">نسخ مزودي التوصيل</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="general">
+            <ShippingSettings onNavigateToClones={navigateToClones} />
+          </TabsContent>
+          
+          <TabsContent value="clones">
+            {organization && (
+              <ShippingCloneManager organizationId={organization.id} />
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
     </>
   );

@@ -103,11 +103,24 @@ export function useFormShippingIntegration({ enabled, provider }: ShippingIntegr
     if (enabled && provider && organizationId && selectedProvince && deliveryType) {
       setLoading(true);
       setMunicipalities([]);
+      setSelectedMunicipality(null); // إعادة تعيين البلدية المختارة عند تغيير الولاية أو نوع التوصيل
       
       getMunicipalities(organizationId, selectedProvince, deliveryType)
         .then(data => {
+          // استخدام البيانات المصفاة من الخادم مباشرة
           setMunicipalities(data);
           setLoading(false);
+          
+          // تسجيل عدد البلديات المتاحة
+          console.log(`تم العثور على ${data.length} بلدية متاحة لنوع التوصيل ${deliveryType}`);
+          
+          // إذا كان نوع التوصيل هو مكتب، تحقق من وجود بلديات بها مكاتب استلام
+          if (deliveryType === 'desk' && data.length === 0) {
+            setDiagnostic(prev => ({ 
+              ...prev, 
+              message: 'لا توجد بلديات بها مكاتب استلام متاحة في هذه الولاية.' 
+            }));
+          }
         })
         .catch(err => {
           console.error('خطأ في جلب البلديات:', err);

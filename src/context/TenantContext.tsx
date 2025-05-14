@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useRef, useCallb
 import { getSupabaseClient } from '@/lib/supabase';
 import { useAuth } from './AuthContext';
 import { withCache, LONG_CACHE_TTL } from '@/lib/cache/storeCache';
+import { getOrganizationBySubdomain, getOrganizationByDomain } from '@/lib/api/subdomain';
 
 export type Organization = {
   id: string;
@@ -21,12 +22,14 @@ export type Organization = {
 type TenantContextType = {
   currentOrganization: Organization | null;
   tenant: Organization | null;
+  organization: Organization | null;
   isOrgAdmin: boolean;
   isLoading: boolean;
   error: Error | null;
   createOrganization: (name: string, description?: string, domain?: string, subdomain?: string) => Promise<{ success: boolean, organizationId?: string, error?: Error }>;
   inviteUserToOrganization: (email: string, role?: string) => Promise<{ success: boolean, error?: Error }>;
   refreshOrganizationData: () => Promise<void>;
+  refreshTenant: () => Promise<void>;
 };
 
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
@@ -125,17 +128,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       console.log('مزامنة بيانات المؤسسة من AuthContext:', authOrganization.name);
       
       // تحويل بيانات المؤسسة من AuthContext إلى النموذج المطلوب لـ TenantContext
-      const syncedOrg: Organization = {
-        id: authOrganization.id,
-        name: authOrganization.name,
-        subscription_tier: authOrganization.subscription_tier || 'free',
-        subscription_status: authOrganization.subscription_status || 'inactive',
-        settings: {},
-        created_at: authOrganization.created_at,
-        updated_at: new Date().toISOString()
-      };
-      
-      setOrganization(syncedOrg);
+      setOrganization(updateOrganizationFromData(authOrganization));
       
       // حفظ معرف المؤسسة في التخزين المحلي
       localStorage.setItem('bazaar_organization_id', authOrganization.id);
@@ -144,84 +137,26 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [authOrganization, organization]);
 
-  // محسّن - جلب بيانات المؤسسة باستخدام Subdomain مع تخزين مؤقت
-  const fetchOrganizationBySubdomain = useCallback(async (subdomain: string): Promise<Organization | null> => {
+  // تحديث وظيفة fetchOrganizationBySubdomain
+  const fetchOrganizationBySubdomain = useCallback(async (subdomain: string | null) => {
     if (!subdomain) return null;
     
     try {
-      // استخدام التخزين المؤقت لتجنب الاستعلامات المتكررة
-      return await withCache<Organization | null>(
-        `tenant:subdomain:${subdomain}`,
-        async () => {
-          console.log('جاري البحث عن المؤسسة باستخدام النطاق الفرعي:', subdomain);
-          
-          // Get Supabase client
-          const supabaseClient = await getSupabaseClient();
-          
-          // إذا كان subdomain = 'main'، يجب استخدام معرف المؤسسة من التخزين المحلي
-          if (subdomain === 'main') {
-            const storedOrgId = localStorage.getItem('bazaar_organization_id');
-            if (storedOrgId) {
-              const { data, error } = await supabaseClient
-                .from('organizations')
-                .select('*')
-                .eq('id', storedOrgId)
-                .single();
-              
-              if (error || !data) {
-                console.error('فشل في جلب بيانات المؤسسة الافتراضية:', error);
-                return null;
-              }
-              
-              return {
-                id: data.id,
-                name: data.name,
-                description: data.description,
-                logo_url: data.logo_url,
-                domain: data.domain,
-                subdomain: data.subdomain,
-                subscription_tier: data.subscription_tier || 'free',
-                subscription_status: data.subscription_status || 'inactive',
-                settings: data.settings || {},
-                created_at: data.created_at,
-                updated_at: data.updated_at,
-                owner_id: data.owner_id
-              };
-            }
-            return null;
-          }
-          
-          const { data, error } = await supabaseClient
-            .from('organizations')
-            .select('*')
-            .eq('subdomain', subdomain)
-            .single();
-          
-          if (error || !data) {
-            console.error('فشل في جلب بيانات المؤسسة بواسطة النطاق الفرعي:', error);
-            return null;
-          }
-          
-          return {
-            id: data.id,
-            name: data.name,
-            description: data.description,
-            logo_url: data.logo_url,
-            domain: data.domain,
-            subdomain: data.subdomain,
-            subscription_tier: data.subscription_tier || 'free',
-            subscription_status: data.subscription_status || 'inactive',
-            settings: data.settings || {},
-            created_at: data.created_at,
-            updated_at: data.updated_at,
-            owner_id: data.owner_id
-          };
-        },
-        LONG_CACHE_TTL, // 24 ساعة تخزين مؤقت - مناسب للبيانات الأساسية
-        true // تخزين في ذاكرة التطبيق
-      );
+      // أولاً نحاول العثور على المؤسسة بواسطة النطاق الرئيسي (الحالي)
+      const currentHostname = window.location.hostname;
+      if (currentHostname !== 'localhost' && !currentHostname.includes('localhost')) {
+        // محاولة العثور على المؤسسة بالنطاق الرئيسي
+        const orgByDomain = await getOrganizationByDomain(currentHostname);
+        if (orgByDomain) {
+          console.log(`تم العثور على المؤسسة بواسطة النطاق الرئيسي: ${currentHostname}`);
+          return orgByDomain;
+        }
+      }
+      
+      // إذا لم نعثر على المؤسسة بالنطاق الرئيسي، نستخدم النطاق الفرعي
+      return await getOrganizationBySubdomain(subdomain);
     } catch (error) {
-      console.error('خطأ في fetchOrganizationBySubdomain:', error);
+      console.error(`خطأ أثناء جلب المؤسسة بالنطاق الفرعي: ${subdomain}`, error);
       return null;
     }
   }, []);
@@ -247,7 +182,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         
         if (org) {
           console.log('تم العثور على المؤسسة:', org.name);
-          setOrganization(org);
+          setOrganization(updateOrganizationFromData(org));
           
           // حفظ معرف المؤسسة في التخزين المحلي للاستخدام لاحقاً
           localStorage.setItem('bazaar_organization_id', org.id);
@@ -369,7 +304,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const org = await fetchOrganizationBySubdomain(subdomain);
       
       if (org) {
-        setOrganization(org);
+        setOrganization(updateOrganizationFromData(org));
         localStorage.setItem('bazaar_organization_id', org.id);
       } else {
         setOrganization(null);
@@ -387,12 +322,14 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const value = useMemo(() => ({
     currentOrganization: organization,
     tenant: organization,
+    organization,
     isOrgAdmin,
     isLoading,
     error,
     createOrganization,
     inviteUserToOrganization,
-    refreshOrganizationData
+    refreshOrganizationData,
+    refreshTenant: refreshOrganizationData
   }), [
     organization, 
     isOrgAdmin, 
@@ -413,4 +350,24 @@ export const useTenant = (): TenantContextType => {
     throw new Error('useTenant must be used within a TenantProvider');
   }
   return context;
+};
+
+// معالجة مشكلة نوع settings
+const updateOrganizationFromData = (orgData: any): Organization => {
+  return {
+    id: orgData.id,
+    name: orgData.name,
+    description: orgData.description,
+    logo_url: orgData.logo_url,
+    domain: orgData.domain,
+    subdomain: orgData.subdomain,
+    subscription_tier: orgData.subscription_tier || 'free',
+    subscription_status: orgData.subscription_status || 'inactive',
+    settings: typeof orgData.settings === 'string' 
+      ? JSON.parse(orgData.settings || '{}') 
+      : (orgData.settings || {}),
+    created_at: orgData.created_at,
+    updated_at: orgData.updated_at,
+    owner_id: orgData.owner_id
+  };
 }; 

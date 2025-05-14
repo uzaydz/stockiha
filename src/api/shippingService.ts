@@ -38,11 +38,12 @@ interface CreateOrderParams {
   Produits?: string;
 }
 
-interface YalidineWilaya {
+export interface YalidineWilaya {
   id: string;
   wilaya_name: string;
   target_tarif: string;
   stop_desk: string;
+  desk_fee: string;
 }
 
 interface YalidineCommune {
@@ -137,7 +138,7 @@ abstract class BaseShippingService implements IShippingService {
 /**
  * YalidineShippingService implementation
  */
-class YalidineShippingService extends BaseShippingService {
+export class YalidineShippingService extends BaseShippingService {
   private apiClient;
   
   constructor(credentials: ProviderCredentials) {
@@ -269,10 +270,18 @@ class YalidineShippingService extends BaseShippingService {
     try {
       const response = await this.apiClient.get('wilayas');
       
-      // معالجة بنية البيانات الصحيحة
-      return Array.isArray(response.data) 
+      // Yalidine API قد يرجع البيانات مباشرة أو داخل حقل 'data'
+      const wilayasData = Array.isArray(response.data) 
         ? response.data 
         : (response.data?.data || []);
+
+      return wilayasData.map((w: any) => ({
+        id: w.id?.toString(),
+        wilaya_name: w.name || w.wilaya_name, // تفضيل 'name' إذا كان موجوداً
+        target_tarif: w.home_fee?.toString() || w.target_tarif?.toString() || '0', // محاولة home_fee أولاً
+        stop_desk: w.stop_desk?.toString() || 'N', // قيمة افتراضية إذا لم تكن موجودة
+        desk_fee: w.desk_fee?.toString() || '0' // إضافة desk_fee هنا، بافتراض أن API يرجعه
+      }));
     } catch (error) {
       console.error('Error getting Yalidine wilayas:', error);
       throw error;

@@ -1,104 +1,324 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Loader2, Check, ChevronRight, ChevronLeft, Star, ArrowRight, Tag, Box, Truck, ShoppingCart, RefreshCw, Shield } from 'lucide-react';
-import type { Product as ApiProduct, ProductColor } from '@/api/store';
-import type { ProductSize } from '@/types/product';
-import { getProductImages, getProductColors } from '@/lib/api/productVariants';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
-} from '@/components/ui/carousel';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import ProductColorSelector from '../components/store/ProductColorSelector';
-import ProductSizeSelector from '../components/store/ProductSizeSelector';
-import OrderForm from '../components/store/OrderForm';
-import { useTenant } from '@/context/TenantContext';
+import { Loader2, ShoppingCart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { getProductPageData } from '@/api/product-page';
+import type { Product, ProductColor, PurchasePageConfig, ProductSize, UpsellDownsellItem } from '@/lib/api/products';
+import { FormSettings, CustomFormField } from '@/components/store/order-form/OrderFormTypes';
+import { toast } from 'sonner';
+
+// Components
 import Navbar from '@/components/Navbar';
 import StoreFooter from '@/components/store/StoreFooter';
-import { getProductBySlug } from '@/api/store';
-import { supabase } from '@/lib/supabase';
-import { getFormSettingsForProduct } from '@/api/form-settings';
-import { FormField } from '@/api/form-settings';
+import { useTenant } from '@/context/TenantContext';
+import ProductBreadcrumb from '@/components/store/product/ProductBreadcrumb';
 
-// توسعة واجهة المنتج لتتضمن الميزات الجديدة
-interface Product extends ApiProduct {
-  has_fast_shipping?: boolean;
-  has_money_back?: boolean;
-  has_quality_guarantee?: boolean;
-  fast_shipping_text?: string;
-  money_back_text?: string;
-  quality_guarantee_text?: string;
+// Custom Components
+import ProductGallery from '@/components/store/product/ProductGallery';
+import ProductInfo from '@/components/store/product/ProductInfo';
+import ProductFeatures from '@/components/store/product/ProductFeatures';
+import ProductOptions from '@/components/store/product/ProductOptions';
+import ProductDescription from '@/components/store/product/ProductDescription';
+import PurchaseTimer from '@/components/store/PurchaseTimer';
+
+// Lazy-loaded components
+const OrderForm = lazy(() => import('@/components/store/OrderForm'));
+const QuantityOffersDisplay = lazy(() => import('@/components/store/product/QuantityOffersDisplay'));
+const UpsellDownsellDisplay = lazy(() => import('@/components/store/product-purchase/UpsellDownsellDisplay'));
+
+// تمديد واجهة FormSettings لإضافة حقل fields
+interface ExtendedFormSettings extends FormSettings {
+  fields?: CustomFormField[];
 }
 
-const ProductFeatureCard = ({ icon, text }: { icon: React.ReactNode; text: string }) => (
-  <div className="flex items-start space-x-3 space-x-reverse border rounded-lg p-3 bg-primary/5">
-    <div className="text-primary shrink-0 mt-0.5">{icon}</div>
-    <div className="text-sm font-medium">{text}</div>
+// مكون فرعي لعرض جزء المعلومات الرئيسية للمنتج
+const ProductMainInfo = ({ product, ...props }) => {
+  if (!product) return null;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+    >
+      <ProductInfo 
+        name={product.name}
+        price={product.price}
+        discountPrice={product.discount_price}
+        currentPrice={props.calculatePrice()}
+        rating={product.rating || 0}
+        isNew={product.is_new}
+        stock={props.getAvailableQuantity()}
+        description={product.short_description}
+      />
+    </motion.div>
+  );
+};
+
+// مكون فرعي لعرض العداد التنازلي
+const ProductTimerSection = ({ timerConfig }) => {
+  console.log("تفاصيل المؤقت:", timerConfig);
+  
+  // إذا لم يكن هناك تكوين للمؤقت أو لم يكن مفعلاً
+  if (!timerConfig) {
+    console.log("لم يتم توفير تكوين المؤقت");
+    return null;
+  }
+  
+  if (!timerConfig.enabled) {
+    console.log("المؤقت غير مفعل");
+    return null;
+  }
+  
+  if (!timerConfig.endDate) {
+    console.log("لم يتم تحديد تاريخ انتهاء للمؤقت");
+    return null;
+  }
+  
+  // عرض المؤقت حتى لو كان تاريخ الانتهاء في الماضي (المكون نفسه سيتحقق من ذلك)
+  
+  // استخدام textAbove أو message أو النص الافتراضي
+  const timerTextAbove = timerConfig.textAbove || timerConfig.message || "العرض ينتهي خلال:";
+  const timerTextBelow = timerConfig.textBelow || "سارع بالطلب قبل انتهاء العرض - الكمية محدودة";
+  
+  console.log("معلومات المؤقت النهائية:", { 
+    enabled: timerConfig.enabled, 
+    endDate: timerConfig.endDate,
+    textAbove: timerTextAbove,
+    textBelow: timerTextBelow
+  });
+  
+  // استخدام تعليمة key لإجبار React على إعادة رسم المكون عند تغير البيانات
+  return (
+    <motion.div
+      key={`timer-${timerConfig.endDate}`}
+      className="mb-6 border border-primary/20 rounded-xl overflow-hidden shadow-sm"
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+    >
+      <PurchaseTimer 
+        endDate={timerConfig.endDate} 
+        textAbove={timerTextAbove} 
+        textBelow={timerTextBelow} 
+      />
+    </motion.div>
+  );
+};
+
+// إضافة مكون جديد للصورة مع تأثيرات
+const ProductGalleryWithAnimation = (props) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.4 }}
+    >
+      <ProductGallery {...props} />
+    </motion.div>
+  );
+};
+
+// مكون لعرض جزء المميزات مع تأثيرات
+const ProductFeaturesWithAnimation = (props) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3, delay: 0.2 }}
+    >
+      <ProductFeatures {...props} />
+    </motion.div>
+  );
+};
+
+// مكون لعرض خيارات المنتج (الألوان والمقاسات) مع تأثيرات
+const ProductOptionsWithAnimation = (props) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3, delay: 0.3 }}
+    >
+      <ProductOptions {...props} />
+    </motion.div>
+  );
+};
+
+// مكون لعرض شريط التقدم عند التحميل
+const LoadingProgressBar = ({ isVisible }) => {
+  return (
+    <AnimatePresence>
+      {isVisible && (
+        <motion.div 
+          className="fixed top-0 left-0 right-0 h-1 z-50 bg-primary-foreground overflow-hidden"
+          initial={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <motion.div 
+            className="h-full bg-primary"
+            initial={{ width: "0%" }}
+            animate={{ 
+              width: ["0%", "30%", "70%", "90%"],
+              transition: { 
+                times: [0, 0.3, 0.7, 0.9],
+                duration: 2.5,
+                ease: "easeInOut",
+                repeat: Infinity,
+                repeatType: "loop"
+              }
+            }}
+          />
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
+
+// Fallback component for Suspense
+const SuspenseFallback = () => (
+  <div className="flex items-center justify-center p-8 w-full">
+    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+    <span className="ml-2 text-sm text-muted-foreground">جاري التحميل...</span>
   </div>
 );
 
 const ProductPurchase = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
-  const { currentOrganization } = useTenant();
+  const { currentOrganization, isLoading: isOrganizationLoading } = useTenant();
   const [product, setProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isPartialLoading, setIsPartialLoading] = useState(true);
   const [selectedColor, setSelectedColor] = useState<ProductColor | null>(null);
   const [sizes, setSizes] = useState<ProductSize[]>([]);
   const [selectedSize, setSelectedSize] = useState<ProductSize | null>(null);
   const [loadingSizes, setLoadingSizes] = useState(false);
   const [quantity, setQuantity] = useState(1);
-  const [activeImage, setActiveImage] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [customFormFields, setCustomFormFields] = useState<FormField[]>([]);
+  const [customFormFields, setCustomFormFields] = useState<CustomFormField[]>([]);
+  const [formSettings, setFormSettings] = useState<ExtendedFormSettings | null>(null);
+  const [showStickyButton, setShowStickyButton] = useState(false);
+  
+  const [effectiveProduct, setEffectiveProduct] = useState<Product | null>(null);
+  const [effectivePrice, setEffectivePrice] = useState<number | null>(null);
+  
+  const [productData, setProductData] = useState<any>(null);
+  
+  const orderFormRef = useRef<HTMLDivElement>(null);
+  const dataFetchedRef = useRef(false);
 
   useEffect(() => {
+    const handleScroll = () => {
+      if (!orderFormRef.current) return;
+      
+      const orderFormPosition = orderFormRef.current.getBoundingClientRect().top;
+      const windowHeight = window.innerHeight;
+      
+      setShowStickyButton(orderFormPosition > windowHeight);
+    };
+    
+    window.addEventListener('scroll', handleScroll);
+    handleScroll();
+    
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
+
+  const scrollToOrderForm = () => {
+    if (orderFormRef.current) {
+      orderFormRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  useEffect(() => {
+    // منع التحميل المتكرر للبيانات عند إعادة تقديم المكون
+    if (dataFetchedRef.current) return;
+    
     const loadProduct = async () => {
       try {
         setIsLoading(true);
-        const productData = await getProductBySlug(currentOrganization.id, slug);
-        if (!productData) {
+        setIsPartialLoading(true);
+        setError(null); 
+        
+        console.log('بدء تحميل بيانات المنتج للمنظمة:', currentOrganization.id, 'والرابط:', slug);
+        
+        // تنفيذ التحميل المتوازي للبيانات بدلاً من انتظار كل خطوة
+        const productDataPromise = getProductPageData(currentOrganization.id, slug);
+        
+        // انتظار نتيجة الاستعلام
+        const data = await productDataPromise;
+        
+        if (!data || !data.product) {
+          console.error('لم يتم العثور على المنتج أو لم يتم تحميل البيانات بشكل صحيح');
           setError('المنتج غير موجود');
+          setIsLoading(false);
+          setIsPartialLoading(false);
           return;
         }
         
-        setProduct(productData as Product);
-        setActiveImage(productData.imageUrl);
+        console.log('تم تحميل بيانات المنتج بنجاح:', data.product.name);
+        console.log('تفاصيل تكوين صفحة الشراء:', data.product.purchase_page_config);
         
-        // If the product has colors, set the default one
-        if (productData.colors && productData.colors.length > 0) {
-          const defaultColor = productData.colors.find(c => c.is_default) || productData.colors[0];
-          setSelectedColor(defaultColor);
+        // تم تحميل البيانات الأساسية، نعرض المنتج ونستمر في تحميل التفاصيل
+        setProductData(data);
+        setProduct(data.product);
+        setEffectiveProduct(data.product);
+        setIsPartialLoading(false);
+        
+        // التحقق من وجود تكوين مؤقت العرض
+        if (data.product.purchase_page_config?.timer) {
+          console.log('تم العثور على تكوين المؤقت:', data.product.purchase_page_config.timer);
           
-          // إذا كان المنتج يستخدم المقاسات، قم بتحميل المقاسات للون الافتراضي
-          if (productData.use_sizes && defaultColor) {
-            loadSizesForColor(defaultColor.id, productData.id);
+          // التحقق مما إذا كان المؤقت مفعلاً
+          if (data.product.purchase_page_config.timer.enabled) {
+            console.log('المؤقت مفعل ويجب أن يظهر في الصفحة');
+          } else {
+            console.log('المؤقت غير مفعل');
+          }
+        } else {
+          console.log('لم يتم العثور على تكوين المؤقت في إعدادات صفحة الشراء');
+        }
+        
+        // تجهيز الألوان والمقاسات
+        if (data.colors && data.colors.length > 0) {
+          const defaultColor = data.colors.find(c => c.is_default) || data.colors[0];
+          if (defaultColor) {
+            setSelectedColor(defaultColor as ProductColor);
+            
+            if (data.product.use_sizes) {
+              loadSizesForColor(defaultColor.id, data.product.id);
+            }
+          }
+        }
+        
+        // تجهيز إعدادات النموذج
+        if (data.form_settings && data.form_settings.length > 0) {
+          const fs = data.form_settings[0];
+          const extendedSettings: ExtendedFormSettings = {
+            id: fs.id,
+            name: fs.name,
+            is_default: fs.is_default,
+            is_active: fs.is_active,
+            version: fs.version,
+            settings: fs.settings,
+            fields: fs.fields
+          };
+          setFormSettings(extendedSettings);
+          
+          if (fs.fields && Array.isArray(fs.fields)) {
+            const processedFields = fs.fields.map(field => ({
+              ...field,
+              isVisible: field.isVisible !== undefined ? field.isVisible : true
+            })) as CustomFormField[];
+            
+            setCustomFormFields(processedFields);
           }
         }
 
-        // تحميل إعدادات النموذج المخصصة للمنتج
-        try {
-          console.log('جاري تحميل إعدادات النموذج للمنتج:', productData.id);
-          const formFields = await getFormSettingsForProduct(currentOrganization.id, productData.id);
-          if (formFields && Array.isArray(formFields) && formFields.length > 0) {
-            console.log('تم تحميل حقول النموذج المخصصة للمنتج:', formFields);
-            setCustomFormFields(formFields);
-          } else {
-            console.log('لا توجد حقول مخصصة للمنتج، استخدام الحقول الافتراضية');
-            setCustomFormFields([]);
-          }
-        } catch (formError) {
-          console.error('Error loading form settings:', formError);
-          // لا ترمي خطأ فقط سجل في السجل واستمر بالحقول الافتراضية
-          setCustomFormFields([]);
-        }
+        // تعيين علامة لمنع تكرار التحميل
+        dataFetchedRef.current = true;
       } catch (error) {
         console.error('Error loading product:', error);
         setError('حدث خطأ أثناء تحميل المنتج');
@@ -109,44 +329,36 @@ const ProductPurchase = () => {
 
     if (slug && currentOrganization?.id) {
       loadProduct();
+    } else if (!isOrganizationLoading && !currentOrganization?.id) {
+      setError("Organization context is missing.");
+      setIsLoading(false);
+      setIsPartialLoading(false);
     }
-  }, [slug, currentOrganization]);
+  }, [slug, currentOrganization, isOrganizationLoading]);
 
-  // دالة جديدة لتحميل المقاسات الخاصة بلون معين
-  const loadSizesForColor = async (colorId: string, productId: string) => {
+  useEffect(() => {
+    if (effectiveProduct) {
+      let base = effectiveProduct.discount_price ?? effectiveProduct.price;
+      setEffectivePrice(base);
+    }
+  }, [effectiveProduct]);
+
+  const loadSizesForColor = (colorId: string, productId: string) => {
+    setLoadingSizes(true);
+    setSizes([]);
+    setSelectedSize(null);
+    
     try {
-      setLoadingSizes(true);
-      setSizes([]);
-      setSelectedSize(null);
-      
-      const { data, error } = await supabase
-        .from('product_sizes')
-        .select('*')
-        .eq('color_id', colorId)
-        .eq('product_id', productId);
-      
-      if (error) {
-        console.error('Error loading sizes:', error);
-        return;
-      }
-      
-      if (data && data.length > 0) {
-        const sizesData = data.map(size => ({
-          id: size.id,
-          color_id: size.color_id,
-          product_id: size.product_id,
-          size_name: size.size_name,
-          quantity: size.quantity,
-          price: size.price ? parseFloat(size.price) : undefined,
-          barcode: size.barcode,
-          is_default: size.is_default
-        }));
+      if (productData && productData.sizes) {
+        const filteredSizes = productData.sizes.filter(
+          (size: ProductSize) => size.color_id === colorId && size.product_id === productId
+        );
         
-        setSizes(sizesData);
-        
-        // تعيين المقاس الافتراضي
-        const defaultSize = sizesData.find(s => s.is_default) || sizesData[0];
-        setSelectedSize(defaultSize);
+        if (filteredSizes.length > 0) {
+          setSizes(filteredSizes);
+          const defaultSize = filteredSizes.find(s => s.is_default) || filteredSizes[0];
+          setSelectedSize(defaultSize);
+        }
       }
     } catch (err) {
       console.error('Error in loadSizesForColor:', err);
@@ -157,31 +369,24 @@ const ProductPurchase = () => {
 
   const handleColorSelect = (color: ProductColor) => {
     setSelectedColor(color);
-    // Reset selected size when color changes
     setSelectedSize(null);
     
-    // If color has its own image, set it as active
-    if (color.image_url) {
-      setActiveImage(color.image_url);
-    }
-    
-    // إذا كان المنتج يستخدم المقاسات، قم بتحميل المقاسات للون المحدد
     if (product?.use_sizes) {
       loadSizesForColor(color.id, product.id);
     }
   };
 
-  // دالة جديدة للتعامل مع اختيار المقاس
   const handleSizeSelect = (size: ProductSize) => {
     setSelectedSize(size);
-    
-    // تحديث الكمية المتاحة بناءً على المقاس المحدد
-    setQuantity(1);
+    setQuantity(1); 
+    if (product && effectiveProduct?.id !== product.id) {
+        setEffectiveProduct(product);
+        toast.info('تم العودة إلى المنتج الأصلي.');
+    }
   };
 
   const handleQuantityChange = (newQuantity: number) => {
-    // إذا كان هناك مقاس محدد، استخدم كمية المقاس، وإلا استخدم كمية اللون أو المنتج
-    const max = selectedSize ? selectedSize.quantity : (selectedColor ? selectedColor.quantity : (product?.stock_quantity || 1));
+    const max = selectedSize?.quantity ?? selectedColor?.quantity ?? product?.stock_quantity ?? 1;
     if (newQuantity > 0 && newQuantity <= max) {
       setQuantity(newQuantity);
     }
@@ -190,389 +395,263 @@ const ProductPurchase = () => {
   const calculatePrice = () => {
     if (!product) return 0;
     
-    // إذا كان هناك مقاس محدد وله سعر خاص، استخدمه
-    if (selectedSize && selectedSize.price !== undefined) {
-      return selectedSize.price;
-    }
+    if (selectedSize?.price != null) return selectedSize.price;
     
-    // If color has specific price, use it
-    if (selectedColor && selectedColor.price !== undefined) {
-      return selectedColor.price;
-    }
+    if (selectedColor?.price != null) return selectedColor.price;
     
-    // Otherwise use product price
-    return product.discount_price || product.price;
+    return product.discount_price ?? product.price;
   };
 
-  const calculateTotal = () => {
-    return calculatePrice() * quantity;
-  };
-
-  // دالة للحصول على الكمية المتاحة
   const getAvailableQuantity = () => {
-    if (selectedSize) {
-      return selectedSize.quantity;
-    }
-    
-    if (selectedColor) {
-      return selectedColor.quantity;
-    }
-    
-    return product?.stock_quantity || 0;
+    return selectedSize?.quantity ?? selectedColor?.quantity ?? product?.stock_quantity ?? 0;
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex flex-col min-h-screen">
-        <Navbar />
-        <div className="flex flex-col items-center justify-center min-h-screen">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-          <p className="text-lg font-medium text-muted-foreground animate-pulse">جاري تحميل المنتج...</p>
-        </div>
-        <StoreFooter />
-      </div>
-    );
+  // الحصول على تكوين المؤقت من المنتج
+  const timerConfig = product?.purchase_page_config?.timer;
+  console.log('تكوين المؤقت الحالي:', timerConfig);
+  
+  // الحصول على عروض الكمية
+  const quantityOffers = product?.purchase_page_config?.quantityOffers as any[] | undefined;
+
+  let activeOffer: any | null = null; 
+  if (quantityOffers && quantityOffers.length > 0) {
+    const applicableOffers = quantityOffers
+      .filter(offer => quantity >= offer.minQuantity)
+      .sort((a, b) => b.minQuantity - a.minQuantity);
+    
+    if (applicableOffers.length > 0) {
+      activeOffer = applicableOffers[0];
+    }
   }
 
-  if (error || !product) {
-    return (
-      <div className="flex flex-col min-h-screen">
-        <Navbar />
-        <div className="flex items-center justify-center min-h-screen">
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="text-center max-w-md mx-auto p-8 bg-red-50 dark:bg-red-900/20 rounded-lg shadow-lg"
-          >
-            <h2 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-4">عذراً!</h2>
-            <p className="text-lg text-red-700 dark:text-red-300 mb-6">{error || 'المنتج غير موجود'}</p>
-            <Button 
-              variant="outline" 
-              className="transition-all duration-300 hover:bg-red-100 dark:hover:bg-red-800/20"
-              onClick={() => navigate(-1)}
-            >
-              <ArrowRight className="ml-2 h-4 w-4" />
-              العودة للمتجر
-            </Button>
-          </motion.div>
-        </div>
-        <StoreFooter />
-      </div>
-    );
-  }
+  const handleAcceptOffer = (acceptedItem: UpsellDownsellItem, finalPrice: number, acceptedProduct: Product) => {
+    setEffectiveProduct(acceptedProduct); 
+    setEffectivePrice(finalPrice);
+    setQuantity(1); 
+    setSelectedColor(acceptedProduct.colors?.find(c => c.is_default) || acceptedProduct.colors?.[0] || null);
+    setSelectedSize(null);
+    if (acceptedProduct.use_sizes && acceptedProduct.colors?.length) {
+        const defaultColor = acceptedProduct.colors.find(c => c.is_default) || acceptedProduct.colors[0];
+        if (defaultColor) {
+             loadSizesForColor(defaultColor.id, acceptedProduct.id);
+        }
+    }
+
+    toast.success(`تم تغيير المنتج إلى: ${acceptedProduct.name}`);
+  };
+
+  // عرض بعض المعلومات مبكراً حتى لو لم تكتمل جميع البيانات
+  const shouldShowPartialContent = !isLoading && !error && product && !isPartialLoading;
+  const shouldShowFullContent = !isLoading && !error && product;
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
+    <div className="w-full min-h-screen bg-background">
       <Navbar />
-      <div className="container mx-auto px-4 py-8 flex-grow">
-        {/* شريط التنقل */}
-        <div className="flex items-center text-sm text-muted-foreground mb-8">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="p-0 h-auto hover:bg-transparent hover:text-primary"
-            onClick={() => navigate('/')}
-          >
-            الرئيسية
-          </Button>
-          <ChevronLeft className="mx-2 h-4 w-4" />
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="p-0 h-auto hover:bg-transparent hover:text-primary"
-            onClick={() => navigate('/products')}
-          >
-            المنتجات
-          </Button>
-          <ChevronLeft className="mx-2 h-4 w-4" />
-          <span className="text-foreground font-medium">{product.name}</span>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-12">
-          {/* صور المنتج */}
-          <motion.div 
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5 }}
-            className="space-y-6 lg:sticky lg:top-8 lg:self-start max-h-[calc(100vh-8rem)] overflow-hidden"
-            style={{ position: 'sticky' }}
-          >
-            <div className="aspect-square overflow-hidden rounded-2xl border bg-background shadow-sm">
-              <motion.img
-                key={activeImage}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.3 }}
-                src={activeImage}
-                alt={product.name}
-                className="h-full w-full object-cover"
-              />
-            </div>
-            
-            {/* الصور الإضافية */}
-            {(product.additional_images && product.additional_images.length > 0) ? (
-              <Carousel className="w-full">
-                <CarouselContent>
-                  {/* الصورة الرئيسية */}
-                  <CarouselItem className="basis-1/4 sm:basis-1/5 md:basis-1/6">
-                    <div 
-                      className={`relative aspect-square rounded-xl overflow-hidden border ${activeImage === product.imageUrl ? 'border-primary ring-2 ring-primary/20' : 'border-border'} cursor-pointer hover:opacity-90 transition-all duration-300`}
-                      onClick={() => setActiveImage(product.imageUrl)}
-                    >
-                      <img
-                        src={product.imageUrl}
-                        alt={product.name}
-                        className="h-full w-full object-cover"
-                      />
-                      {activeImage === product.imageUrl && (
-                        <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
-                          <Check className="h-4 w-4 text-primary" />
-                        </div>
-                      )}
-                    </div>
-                  </CarouselItem>
-                  
-                  {/* الصور الإضافية */}
-                  {product.additional_images.map((imageUrl, index) => (
-                    <CarouselItem key={index} className="basis-1/4 sm:basis-1/5 md:basis-1/6">
-                      <div 
-                        className={`relative aspect-square rounded-xl overflow-hidden border ${activeImage === imageUrl ? 'border-primary ring-2 ring-primary/20' : 'border-border'} cursor-pointer hover:opacity-90 transition-all duration-300`}
-                        onClick={() => setActiveImage(imageUrl)}
-                      >
-                        <img
-                          src={imageUrl}
-                          alt={`${product.name} - ${index + 1}`}
-                          className="h-full w-full object-cover"
-                        />
-                        {activeImage === imageUrl && (
-                          <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
-                            <Check className="h-4 w-4 text-primary" />
-                          </div>
-                        )}
-                      </div>
-                    </CarouselItem>
-                  ))}
-                </CarouselContent>
-                <CarouselPrevious className="left-0" />
-                <CarouselNext className="right-0" />
-              </Carousel>
-            ) : null}
-          </motion.div>
-
-          {/* تفاصيل المنتج */}
-          <motion.div 
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5 }}
-            className="space-y-8"
-          >
-            {/* العنوان والعلامات */}
-            <div>
-              <div className="flex flex-wrap gap-2 mb-3">
-                {product.is_new && (
-                  <Badge className="bg-blue-500 hover:bg-blue-600 rounded-full px-3">جديد</Badge>
-                )}
-                {product.discount_price && (
-                  <Badge className="bg-red-500 hover:bg-red-600 rounded-full px-3">
-                    خصم {Math.round(((product.price - product.discount_price) / product.price) * 100)}%
-                  </Badge>
-                )}
-                <Badge className="bg-green-500 hover:bg-green-600 rounded-full px-3" variant="secondary">
-                  متوفر
-                </Badge>
-              </div>
-              <h1 className="text-3xl font-bold text-foreground">{product.name}</h1>
-              
-              {/* التقييم */}
-              <div className="flex items-center mt-3">
-                {[...Array(5)].map((_, i) => (
-                  <Star 
-                    key={i} 
-                    className={`h-5 w-5 ${i < Math.floor(product.rating || 0) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} 
-                  />
-                ))}
-                <span className="mr-2 text-sm text-muted-foreground">
-                  {product.rating?.toFixed(1)} ({Math.floor(Math.random() * 100) + 50} تقييم)
-                </span>
-              </div>
-            </div>
-
-            {/* الأسعار */}
-            <div className="space-y-3 bg-muted/30 p-5 rounded-xl border">
-              <div className="flex items-center gap-3">
-                <span className="text-3xl font-bold text-primary">
-                  {calculatePrice().toLocaleString()} د.ج
-                </span>
-                
-                {product.discount_price && (
-                  <span className="text-lg text-muted-foreground line-through">
-                    {product.price.toLocaleString()} د.ج
-                  </span>
-                )}
-              </div>
-              
-              {/* حالة المخزون */}
-              <div className="text-sm flex items-center">
-                {getAvailableQuantity() > 0 ? (
-                  <>
-                    <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-                    <span className="text-green-600 dark:text-green-400">
-                      متوفر في المخزون ({getAvailableQuantity()} قطعة)
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span className="inline-block w-2 h-2 bg-red-500 rounded-full mr-2"></span>
-                    <span className="text-red-600 dark:text-red-400">غير متوفر</span>
-                  </>
-                )}
-              </div>
-
-              {/* مزايا إضافية */}
-              <div className="flex flex-col gap-2 pt-3 text-sm">
-                {product?.has_fast_shipping && (
-                  <div className="flex items-center text-muted-foreground">
-                    <Truck className="h-4 w-4 mr-2" />
-                    <span>{product.fast_shipping_text || 'شحن سريع لجميع الولايات (1-3 أيام)'}</span>
-                  </div>
-                )}
-                {product?.has_money_back && (
-                  <div className="flex items-center text-muted-foreground">
-                    <Box className="h-4 w-4 mr-2" />
-                    <span>{product.money_back_text || 'ضمان استرداد المال خلال 14 يوم'}</span>
-                  </div>
-                )}
-                {product?.has_quality_guarantee && (
-                  <div className="flex items-center text-muted-foreground">
-                    <Tag className="h-4 w-4 mr-2" />
-                    <span>{product.quality_guarantee_text || 'ضمان جودة المنتج'}</span>
-                  </div>
-                )}
-                {!product?.has_fast_shipping && !product?.has_money_back && !product?.has_quality_guarantee && (
-                  <>
-                    <div className="flex items-center text-muted-foreground">
-                      <Truck className="h-4 w-4 mr-2" />
-                      <span>شحن سريع لجميع الولايات (1-3 أيام)</span>
-                    </div>
-                    <div className="flex items-center text-muted-foreground">
-                      <Box className="h-4 w-4 mr-2" />
-                      <span>ضمان استرداد المال خلال 14 يوم</span>
-                    </div>
-                    <div className="flex items-center text-muted-foreground">
-                      <Tag className="h-4 w-4 mr-2" />
-                      <span>ضمان جودة المنتج</span>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* اختيار اللون */}
-            {product.colors && product.colors.length > 0 && (
-              <div className="space-y-3">
-                <h3 className="font-medium flex items-center">
-                  <span className="inline-block w-3 h-3 bg-primary rounded-full mr-2"></span>
-                  اختر اللون:
-                </h3>
-                <ProductColorSelector
-                  colors={product.colors}
-                  selectedColor={selectedColor}
-                  onSelectColor={handleColorSelect}
-                />
-              </div>
-            )}
-            
-            {/* اختيار المقاس - إضافة جديدة */}
-            {product.use_sizes && selectedColor && selectedColor.has_sizes && sizes.length > 0 && !loadingSizes && (
-              <div className="space-y-3">
-                <h3 className="font-medium flex items-center">
-                  <span className="inline-block w-3 h-3 bg-primary rounded-full mr-2"></span>
-                  اختر المقاس:
-                </h3>
-                <ProductSizeSelector
-                  sizes={sizes}
-                  selectedSize={selectedSize}
-                  onSelectSize={handleSizeSelect}
-                />
-              </div>
-            )}
-            
-            {/* حالة تحميل المقاسات */}
-            {product.use_sizes && selectedColor && selectedColor.has_sizes && loadingSizes && (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 className="h-6 w-6 animate-spin text-primary mr-2" />
-                <span className="text-sm text-muted-foreground">جاري تحميل المقاسات...</span>
-              </div>
-            )}
-            
-            {/* الكمية */}
-            <div className="space-y-3">
-              <h3 className="font-medium flex items-center">
-                <span className="inline-block w-3 h-3 bg-primary rounded-full mr-2"></span>
-                الكمية:
-              </h3>
-              <div className="flex items-center space-x-4 space-x-reverse">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-9 w-9 rounded-full"
-                  onClick={() => handleQuantityChange(quantity - 1)}
-                  disabled={quantity <= 1}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-                <span className="w-12 h-10 flex items-center justify-center text-center font-medium text-lg border rounded-lg">
-                  {quantity}
-                </span>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-9 w-9 rounded-full"
-                  onClick={() => handleQuantityChange(quantity + 1)}
-                  disabled={quantity >= getAvailableQuantity()}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            {/* نموذج الطلب (مباشرة بدون زر) */}
-            <motion.div
-              id="order-form-section"
+      <LoadingProgressBar isVisible={isLoading || isPartialLoading || isOrganizationLoading} />
+      <div className="container mx-auto py-4 px-4 md:px-6">
+        {isLoading || isOrganizationLoading ? (
+          <div className="flex flex-col items-center justify-center h-[60vh]">
+            <Loader2 className="w-12 h-12 animate-spin text-primary mb-4" />
+            <motion.span 
+              className="text-muted-foreground text-center"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className="mt-6 pt-6 border-t"
+              transition={{ delay: 0.2 }}
             >
-              <OrderForm
-                productId={product.id}
-                price={selectedSize?.price || product.price}
-                deliveryFee={product.delivery_fee || 0}
-                productColorId={selectedColor?.id || null}
-                productSizeId={selectedSize?.id || null}
-                sizeName={selectedSize?.size_name || null}
-                quantity={quantity}
-                customFields={customFormFields}
-              />
-            </motion.div>
-          </motion.div>
-        </div>
-        
-        {/* وصف المنتج - موضوع أسفل الصفحة بالكامل */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-          className="w-full mt-12 mb-8"
-        >
-          <div className="border-t pt-8">
-            <h2 className="text-2xl font-semibold mb-4">وصف المنتج</h2>
-            <div className="bg-muted/20 p-6 rounded-xl border">
-              <p className="text-muted-foreground leading-relaxed">{product.description}</p>
-            </div>
+              جاري تحميل المنتج...
+            </motion.span>
           </div>
-        </motion.div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center h-[60vh]">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-center"
+            >
+              <h2 className="text-2xl font-bold text-destructive mb-4">عذراً، حدث خطأ</h2>
+              <p className="text-muted-foreground mb-6">{error}</p>
+              <button 
+                onClick={() => navigate(-1)}
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-md"
+              >
+                العودة للخلف
+              </button>
+            </motion.div>
+          </div>
+        ) : shouldShowPartialContent ? (
+          <>
+            <div className="mb-6">
+              <ProductBreadcrumb 
+                productName={product.name}
+                categoryName={product.category ? product.category.name : "المنتجات"}
+                categorySlug={product.category ? product.category.slug : "products"}
+              />
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
+              <div className="order-1 md:order-1 mb-6 md:mb-0">
+                <div className="md:sticky md:top-24">
+                  <ProductGalleryWithAnimation 
+                    mainImage={product.thumbnail_image}
+                    additionalImages={product.additional_images || []}
+                    altText={product.name}
+                  />
+                </div>
+              </div>
+              
+              <div className="order-2 md:order-2 flex flex-col space-y-6">
+                <ProductMainInfo 
+                  product={product}
+                  calculatePrice={calculatePrice}
+                  getAvailableQuantity={getAvailableQuantity}
+                />
+                
+                {/* عرض مؤقت العرض إذا كان مفعلاً */}
+                {timerConfig?.enabled && (
+                  <ProductTimerSection timerConfig={timerConfig} />
+                )}
+                
+                {product.has_fast_shipping || product.has_money_back || product.has_quality_guarantee ? (
+                  <div className="mt-2 mb-4">
+                    <ProductFeaturesWithAnimation
+                      hasFastShipping={product.has_fast_shipping}
+                      hasMoneyBack={product.has_money_back}
+                      hasQualityGuarantee={product.has_quality_guarantee}
+                      fastShippingText={product.fast_shipping_text}
+                      moneyBackText={product.money_back_text}
+                      qualityGuaranteeText={product.quality_guarantee_text}
+                    />
+                  </div>
+                ) : null}
+                
+                <div className="mt-2 mb-4">
+                  <ProductOptionsWithAnimation
+                    colors={productData?.colors || []}
+                    sizes={sizes}
+                    selectedColor={selectedColor}
+                    selectedSize={selectedSize}
+                    onColorSelect={handleColorSelect}
+                    onSizeSelect={handleSizeSelect}
+                    quantity={quantity}
+                    maxQuantity={getAvailableQuantity()}
+                    onQuantityChange={handleQuantityChange}
+                    loadingSizes={loadingSizes}
+                    showSizes={product.use_sizes}
+                  />
+                </div>
+
+                {Array.isArray(quantityOffers) && quantityOffers.length > 0 && (
+                  <div className="mt-2 mb-6">
+                    <Suspense fallback={<SuspenseFallback />}>
+                      <QuantityOffersDisplay 
+                        offers={quantityOffers}
+                        selectedQuantity={quantity}
+                        basePrice={calculatePrice()}
+                        maxQuantity={getAvailableQuantity()}
+                        onQuantityChange={handleQuantityChange}
+                      />
+                    </Suspense>
+                  </div>
+                )}
+                
+                {shouldShowFullContent && (
+                  <div ref={orderFormRef} className="bg-card p-6 rounded-xl shadow-sm mb-8">
+                    <h2 className="text-2xl font-bold mb-4">طلب المنتج</h2>
+                    <Suspense fallback={<SuspenseFallback />}>
+                      <OrderForm
+                        productId={effectiveProduct?.id || product.id}
+                        productColorId={selectedColor?.id}
+                        productSizeId={selectedSize?.id}
+                        sizeName={selectedSize?.size_name}
+                        basePrice={calculatePrice()}
+                        activeOffer={activeOffer}
+                        quantity={quantity}
+                        customFields={customFormFields}
+                        formSettings={formSettings}
+                        productColorName={selectedColor?.name}
+                        productSizeName={selectedSize?.size_name}
+                      />
+                    </Suspense>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {shouldShowFullContent && (
+              <>
+                <div className="mt-2 mb-4 p-4 bg-amber-50 rounded-lg border border-amber-200 hidden">
+                  <h3 className="font-medium mb-2">بيانات العروض التشخيصية:</h3>
+                  <pre className="text-xs overflow-auto p-2 bg-white rounded">
+                    config exists: {product.purchase_page_config ? 'yes' : 'no'}<br/>
+                    upsells exist: {product.purchase_page_config?.upsells ? 'yes' : 'no'}<br/>
+                    upsells length: {product.purchase_page_config?.upsells?.length || 0}<br/>
+                    downsells exist: {product.purchase_page_config?.downsells ? 'yes' : 'no'}<br/>
+                    downsells length: {product.purchase_page_config?.downsells?.length || 0}
+                  </pre>
+                </div>
+
+                {product.purchase_page_config?.upsells?.length > 0 && (
+                  <div className="mt-4 mb-8">
+                    <h2 className="text-xl font-semibold mb-4 text-foreground flex items-center">
+                      <span className="inline-block w-1.5 h-6 bg-primary ml-2 rounded-sm"></span>
+                      عروض مميزة لك
+                    </h2>
+                    <Suspense fallback={<SuspenseFallback />}>
+                      <UpsellDownsellDisplay 
+                        items={product.purchase_page_config.upsells as any}
+                        type="upsell"
+                        onAcceptOffer={handleAcceptOffer}
+                        originalProductName={product.name}
+                      />
+                    </Suspense>
+                  </div>
+                )}
+                
+                {product.purchase_page_config?.downsells?.length > 0 && (
+                  <div className="mt-4 mb-8">
+                    <h2 className="text-xl font-semibold mb-4 text-foreground flex items-center">
+                      <span className="inline-block w-1.5 h-6 bg-primary ml-2 rounded-sm"></span>
+                      خيارات بديلة قد تهمك
+                    </h2>
+                    <Suspense fallback={<SuspenseFallback />}>
+                      <UpsellDownsellDisplay 
+                        items={product.purchase_page_config.downsells as any}
+                        type="downsell"
+                        onAcceptOffer={handleAcceptOffer}
+                        originalProductName={product.name}
+                      />
+                    </Suspense>
+                  </div>
+                )}
+                
+                <div className="mb-12 bg-card p-6 rounded-xl shadow-sm">
+                  <h2 className="text-2xl font-bold mb-4">وصف المنتج</h2>
+                  <ProductDescription
+                    description={product.description}
+                  />
+                </div>
+              </>
+            )}
+            
+            {showStickyButton && (
+              <motion.div
+                initial={{ y: 100, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                className="fixed bottom-4 left-0 right-0 z-50 px-4 md:hidden"
+              >
+                <button
+                  onClick={scrollToOrderForm}
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-primary text-primary-foreground rounded-lg shadow-lg"
+                >
+                  <ShoppingCart className="w-5 h-5" />
+                  <span>اطلب الآن</span>
+                </button>
+              </motion.div>
+            )}
+          </>
+        ) : null}
       </div>
+      
       <StoreFooter />
     </div>
   );

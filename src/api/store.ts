@@ -142,7 +142,11 @@ export async function getStoreInfoBySubdomain(subdomain: string): Promise<Organi
     
     if (settingsError) return null;
     
-    return settings;
+    // Explicitly cast theme_mode to the expected type
+    return {
+      ...settings,
+      theme_mode: settings.theme_mode as ('light' | 'dark') 
+    };
   } catch (error) {
     console.error('Error fetching store info:', error);
     return null;
@@ -208,8 +212,8 @@ export async function getFeaturedProducts(organizationId: string): Promise<Produ
       id: product.id,
       name: product.name,
       description: product.description || '',
-      price: parseFloat(product.price || '0'),
-      discount_price: product.compare_at_price ? parseFloat(product.compare_at_price) : undefined,
+      price: parseFloat(product.price?.toString() || '0'), // Convert to string before parseFloat
+      discount_price: product.compare_at_price ? parseFloat(product.compare_at_price.toString()) : undefined, // Convert to string
       imageUrl: product.thumbnail_image || '',
       category: 'عام', // قيمة افتراضية
       is_new: false,
@@ -269,8 +273,8 @@ export async function getAllProducts(organizationId: string): Promise<Product[]>
             id: product.id,
             name: product.name,
             description: product.description || '',
-            price: parseFloat(product.price || '0'),
-            discount_price: product.compare_at_price ? parseFloat(product.compare_at_price) : undefined,
+            price: parseFloat(product.price?.toString() || '0'), // Convert to string before parseFloat
+            discount_price: product.compare_at_price ? parseFloat(product.compare_at_price.toString()) : undefined, // Convert to string
             imageUrl: product.thumbnail_image || '',
             category: product.category || 'عام',
             stock_quantity: product.stock_quantity || 0,
@@ -285,17 +289,18 @@ export async function getAllProducts(organizationId: string): Promise<Product[]>
           }));
         }
         
-        if (!data || data.length === 0) {
+        // Check if data is an array before accessing length
+        if (!data || !Array.isArray(data) || data.length === 0) {
           return [];
         }
         
-        // تحويل البيانات إلى الشكل المطلوب
-        return data.map((product: any) => ({
+        // تحويل البيانات إلى الشكل المطلوب - Check if data is an array before mapping
+        return Array.isArray(data) ? data.map((product: any) => ({
           id: product.id,
           name: product.name,
           description: product.description || '',
-          price: parseFloat(product.price || '0'),
-          discount_price: product.compare_at_price ? parseFloat(product.compare_at_price) : undefined,
+          price: parseFloat(product.price?.toString() || '0'), // Convert to string before parseFloat
+          discount_price: product.compare_at_price ? parseFloat(product.compare_at_price.toString()) : undefined, // Convert to string
           imageUrl: product.thumbnail_image || '',
           category: product.category ? product.category.name : 'عام',
           stock_quantity: product.stock_quantity || 0,
@@ -310,7 +315,7 @@ export async function getAllProducts(organizationId: string): Promise<Product[]>
           // إضافة معلومات الفئة وتنسيقها بشكل صحيح
           category_data: product.category,
           subcategory_data: product.subcategory
-        }));
+        })) : [];
       },
       SHORT_CACHE_TTL, // استخدام تخزين مؤقت قصير المدى للمنتجات لأنها قد تتغير
       true // استخدام التخزين المؤقت في الذاكرة
@@ -443,7 +448,7 @@ export async function getServices(organizationId: string): Promise<Service[]> {
       id: service.id,
       name: service.name,
       description: service.description || '',
-      price: parseFloat(service.price || '0'),
+      price: parseFloat(service.price?.toString() || '0'), // Convert to string before parseFloat
       image: service.image || '',
       estimated_time: service.estimated_time || '',
       is_price_dynamic: service.is_price_dynamic || false,
@@ -451,7 +456,8 @@ export async function getServices(organizationId: string): Promise<Service[]> {
       slug: service.slug || service.id,
       badge: index === 0 ? 'الأكثر طلباً' : (index === 1 ? 'جديد' : undefined),
       badgeColor: index === 0 ? 'success' : (index === 1 ? 'default' : 'default') as 'default' | 'success' | 'warning',
-      features: service.features || []
+      // Check if features property exists before accessing it
+      features: ('features' in service && Array.isArray(service.features)) ? service.features : [] 
     }));
     
     return services;
@@ -829,87 +835,75 @@ export async function processOrder(
     totalPrice: number;
     deliveryFee: number;
     formData?: Record<string, any>; // بيانات النموذج المخصص
+    metadata?: Record<string, any> | null; // إضافة بيانات التعريف هنا
   }
 ) {
+  console.log("API: بدء معالجة الطلب مع البيانات:", orderData);
+  console.log("معرف المؤسسة:", organizationId);
+
+  // التحقق من وجود معرف المؤسسة
+  if (!organizationId) {
+    console.error("API: معرف المؤسسة مفقود. لا يمكن متابعة الطلب.");
+    return { error: "معرف المؤسسة مفقود" };
+  }
+  
+  const { 
+    fullName,
+    phone,
+    province,
+    municipality,
+    address,
+    city,
+    deliveryCompany,
+    deliveryOption,
+    paymentMethod,
+    notes,
+    productId,
+    productColorId,
+    productSizeId,
+    sizeName,
+    quantity,
+    unitPrice,
+    totalPrice,
+    deliveryFee,
+    formData,
+    metadata // استخلاص بيانات التعريف
+  } = orderData;
+
+  console.log("API: البيانات المستخلصة من الطلب:", {
+    fullName, phone, province, municipality, address, city,
+    deliveryCompany, deliveryOption, paymentMethod, notes,
+    productId, productColorId, productSizeId, sizeName,
+    quantity, unitPrice, totalPrice, deliveryFee, formData, metadata
+  });
+  
   try {
-    // تحقق من تعريف قيم المعلمات الأساسية
-    if (!organizationId) {
-      console.error("قيمة organizationId غير محددة!");
-      throw new Error("معرف المؤسسة غير محدد.");
-    }
+    const supabaseClient = await getSupabaseClient();
+    // Cast the arguments object to 'any' to bypass strict type checking for p_metadata
+    const { data, error } = await supabaseClient.rpc('process_online_order_new', {
+      p_full_name: fullName,
+      p_phone: phone,
+      p_province: province,
+      p_municipality: municipality,
+      p_address: address,
+      p_city: city, // إضافة المدينة هنا
+      p_delivery_company: deliveryCompany,
+      p_delivery_option: deliveryOption,
+      p_payment_method: paymentMethod,
+      p_notes: notes,
+      p_product_id: productId,
+      p_product_color_id: productColorId,
+      p_product_size_id: productSizeId,
+      p_size_name: sizeName,
+      p_quantity: quantity,
+      p_unit_price: unitPrice,
+      p_total_price: totalPrice,
+      p_delivery_fee: deliveryFee,
+      p_organization_id: organizationId, 
+      p_form_data: formData,
+      p_metadata: metadata // تمرير بيانات التعريف إلى الدالة
+    } as any); // Cast to any here
 
-    if (!orderData.productId) {
-      console.error("قيمة productId غير محددة!");
-      throw new Error("معرف المنتج غير محدد.");
-    }
-
-    // Log request data for debugging
-    console.log("Calling process_online_order_new with:", {
-      organizationId,
-      ...orderData
-    });
-
-    // توسيع تسجيل الأخطاء لتتبع مشكلة تجمد الصفحة
-    console.log("بدء محاولة الاتصال بوظيفة قاعدة البيانات...");
-    
-    // تحضير بيانات النموذج المخصص
-    const formDataJson = orderData.formData ? JSON.stringify(orderData.formData) : null;
-    console.log("بيانات النموذج المخصص:", formDataJson);
-    
-    // إعداد المعلمات مع التحقق من القيم NULL/undefined
-    const params = {
-      p_full_name: orderData.fullName,
-      p_phone: orderData.phone,
-      p_province: orderData.province,
-      p_municipality: orderData.municipality || orderData.province, // استخدام الولاية كقيمة بديلة
-      p_address: orderData.address || 'غير محدد',
-      p_city: orderData.city || orderData.municipality || orderData.province, // استخدام البلدية أو الولاية كقيمة للمدينة
-      p_delivery_company: orderData.deliveryCompany || '',
-      p_delivery_option: orderData.deliveryOption || 'home',
-      p_payment_method: orderData.paymentMethod || 'cod',
-      p_notes: orderData.notes || '',
-      p_product_id: orderData.productId,
-      p_product_color_id: orderData.productColorId || null,
-      p_product_size_id: orderData.productSizeId || null,
-      p_size_name: orderData.sizeName || null,
-      p_quantity: orderData.quantity || 1,
-      p_unit_price: orderData.unitPrice || 0,
-      p_total_price: orderData.totalPrice || 0,
-      p_delivery_fee: orderData.deliveryFee || 0,
-      p_organization_id: organizationId,
-      p_form_data: formDataJson
-    };
-    
-    console.log("المعلمات المستخدمة للاتصال:", params);
-    
-    // استخدام وظيفة معالجة الطلبات الجديدة بالبيانات المخصصة مع وقت انتظار أقصر
-    console.log("محاولة استدعاء RPC: process_online_order_new");
-    
-    // وضع وقت انتظار قصير للطلب
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => {
-        reject(new Error("تجاوز مهلة استدعاء RPC"));
-      }, 20000); // زيادة وقت الانتظار إلى 20 ثانية
-    });
-    
-    let rpcResponse;
-    try {
-      // استخدام Promise.race لتنفيذ وقت انتظار للطلب
-      const rpcPromise = supabase.rpc('process_online_order_new', params);
-      rpcResponse = await Promise.race([rpcPromise, timeoutPromise]);
-      console.log("تم استدعاء RPC بنجاح، جاري تحليل الاستجابة...");
-    } catch (rpcError) {
-      console.error("حدث خطأ أثناء استدعاء RPC:", rpcError);
-      throw new Error(`فشل الاتصال بقاعدة البيانات: ${rpcError instanceof Error ? rpcError.message : 'خطأ غير معروف'}`);
-    }
-    
-    const { data, error } = rpcResponse;
-    
-    console.log("استجابة من Supabase RPC:", { 
-      data: data ? 'موجود' : 'غير موجود', 
-      error: error ? `${error.code}: ${error.message}` : 'لا يوجد خطأ' 
-    });
-    
     if (error) {
       console.error('Error processing order:', error);
       console.error('Error code:', error.code);
@@ -940,27 +934,30 @@ export async function processOrder(
       throw new Error(detailedError);
     }
     
-    if (!data) {
+    // Cast data to 'any' before accessing properties not known by the generic Json type
+    const responseData = data as any; 
+
+    if (!responseData) {
       console.error('تم استلام استجابة فارغة من الخادم');
       throw new Error('لم يتم استلام أي بيانات من الخادم. يرجى المحاولة مرة أخرى.');
     }
 
     // Log success for debugging
-    console.log("Process order successful:", data);
+    console.log("Process order successful:", responseData);
     
     // إنشاء رقم طلب افتراضي إذا لم يكن موجودًا في الاستجابة
-    if (!data.order_number) {
+    if (!responseData.order_number) {
       console.warn("لم يتم تلقي رقم طلب من الخادم، سيتم استخدام قيمة افتراضية");
-      data.order_number = Math.floor(Math.random() * 10000);
+      responseData.order_number = Math.floor(Math.random() * 10000);
     }
     
     // Handle case where the stored procedure returned an error object
-    if (data && data.status === 'error') {
-      console.error('Function returned error:', data);
-      throw new Error(`Error from database: ${data.error}`);
+    if (responseData && responseData.status === 'error') {
+      console.error('Function returned error:', responseData);
+      throw new Error(`Error from database: ${responseData.error}`);
     }
 
-    return data;
+    return responseData; // Return the casted data
   } catch (error) {
     console.error('Error calling process_online_order_new:', error);
     if (error instanceof Error) {

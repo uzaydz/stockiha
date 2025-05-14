@@ -173,7 +173,7 @@ export default {
 				'rotate-border': 'rotate-border 4s linear infinite'
 			},
 			fontFamily: {
-				'cairo': ['Cairo', 'sans-serif'],
+				'sans': ['Tajawal', 'sans-serif'],
 				'tajawal': ['Tajawal', 'sans-serif'],
 			}
 		}

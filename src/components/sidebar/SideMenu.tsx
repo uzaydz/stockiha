@@ -40,7 +40,8 @@ import {
   Wallet,
   BanknoteIcon,
   Server,
-  Layout
+  Layout,
+  Globe
 } from 'lucide-react';
 
 const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
@@ -261,6 +262,13 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
           badge: '12'
         },
         {
+          title: 'الطلبات المتروكة',
+          icon: ShoppingBag,
+          href: '/dashboard/abandoned-orders',
+          requiredPermission: 'viewOrders',
+          badge: 'جديد'
+        },
+        {
           title: 'الفواتير',
           icon: FileText,
           href: '/dashboard/invoices',
@@ -405,6 +413,27 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
           icon: BarChart3,
           href: '/dashboard/analytics',
           requiredPermission: 'viewSalesReports',
+          badge: null
+        },
+      ]
+    },
+    {
+      group: 'النطاقات المخصصة',
+      icon: Globe,
+      requiredPermission: 'manageOrganizationSettings',
+      items: [
+        {
+          title: 'إعداد النطاقات',
+          icon: Globe,
+          href: '/dashboard/custom-domains',
+          requiredPermission: 'manageOrganizationSettings',
+          badge: 'جديد'
+        },
+        {
+          title: 'دليل النطاقات',
+          icon: FileText,
+          href: '/docs/custom-domains',
+          requiredPermission: 'manageOrganizationSettings',
           badge: null
         },
       ]

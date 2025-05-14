@@ -10,7 +10,9 @@ import {
   Building,
   CreditCard,
   Link2,
-  Settings2
+  Settings2,
+  BookOpen,
+  Globe
 } from 'lucide-react';
 
 // تعريف نوع البيانات للعلامات التبويب
@@ -34,7 +36,9 @@ const iconMap: Record<string, React.ReactNode> = {
   Building: <Building className="mr-2 h-4 w-4" />,
   CreditCard: <CreditCard className="mr-2 h-4 w-4" />,
   Link: <Link2 className="mr-2 h-4 w-4" />,
-  Settings: <Settings2 className="mr-2 h-4 w-4" />
+  Settings: <Settings2 className="mr-2 h-4 w-4" />,
+  BookOpen: <BookOpen className="mr-2 h-4 w-4" />,
+  Globe: <Globe className="mr-2 h-4 w-4" />
 };
 
 const SettingsNav: React.FC<SettingsNavProps> = ({

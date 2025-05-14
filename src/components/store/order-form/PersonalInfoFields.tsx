@@ -49,7 +49,9 @@ const PersonalInfoFields = ({ form }: PersonalInfoFieldsProps) => {
                   <Input 
                     placeholder="05XXXXXXXX" 
                     type="tel"
-                    className="pr-10 focus-visible:ring-primary transition-all border-muted-foreground/20 hover:border-primary/30"
+                    className="pr-10 focus-visible:ring-primary transition-all border-muted-foreground/20 hover:border-primary/30 !text-right"
+                    style={{ textAlign: 'right', direction: 'rtl' }}
+                    inputMode="tel"
                     {...field} 
                   />
                 </div>

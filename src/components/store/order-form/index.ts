@@ -1,7 +1,7 @@
 export { default as OrderSuccess } from './OrderSuccess';
 export { default as PersonalInfoFields } from './PersonalInfoFields';
 export { default as DeliveryInfoFields } from './DeliveryInfoFields';
-export { default as CustomFormFields } from './CustomFormFields';
+export { CustomFormFields } from './CustomFormFields';
 export { default as OrderSummary } from './OrderSummary';
 export * from './OrderFormTypes';
 
@@ -9,6 +9,13 @@ export * from './OrderFormTypes';
 export * from './DatabaseConnection';
 export * from './OrderFormSubmitter';
 export * from './OrderFormUtils';
+
+// تصدير الوظائف المتعلقة بمزودي الشحن المستنسخين
+export {
+  getShippingProviderClone,
+  getAvailableProvincesForClone,
+  calculateShippingFee
+} from './OrderFormUtils';
 
 // وظائف مساعدة مضافة
 // التحقق من اتصال قاعدة البيانات

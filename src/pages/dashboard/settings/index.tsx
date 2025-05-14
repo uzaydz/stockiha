@@ -14,13 +14,18 @@ import {
   Building, 
   CreditCard, 
   Link2, 
-  Settings2 
+  Settings2,
+  BookOpen,
+  Globe
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Link } from 'react-router-dom';
 
 // استيراد مكونات الإعدادات
 import AppearanceSettings from '@/components/settings/AppearanceSettings';
 import OrganizationSettingsPage from '@/components/settings/OrganizationSettings';
 import IntegrationsSettings from '@/components/settings/IntegrationsSettings';
+import DomainSettings from '@/components/settings/DomainSettings';
 
 const SettingsPage = () => {
   const { section = 'profile' } = useParams<{ section?: string }>();
@@ -51,9 +56,11 @@ const SettingsPage = () => {
     if (isOrgAdmin) {
       tabs.push(
         { id: 'organization', label: 'المؤسسة', icon: 'Building' },
+        { id: 'domains', label: 'النطاقات المخصصة', icon: 'Globe' },
         { id: 'billing', label: 'الفوترة والاشتراكات', icon: 'CreditCard' },
         { id: 'integrations', label: 'الربط والتكامل', icon: 'Link2' },
-        { id: 'advanced', label: 'إعدادات متقدمة', icon: 'Settings2' }
+        { id: 'advanced', label: 'إعدادات متقدمة', icon: 'Settings2' },
+        { id: 'docs', label: 'أدلة المساعدة', icon: 'BookOpen' }
       );
     }
     
@@ -73,12 +80,29 @@ const SettingsPage = () => {
         return <div>صفحة الإشعارات قيد الإنشاء...</div>;
       case 'organization':
         return <OrganizationSettingsPage />;
+      case 'domains':
+        return <DomainSettings />;
       case 'billing':
         return <div>صفحة الفوترة والاشتراكات قيد الإنشاء...</div>;
       case 'integrations':
         return <IntegrationsSettings />;
       case 'advanced':
         return <div>صفحة الإعدادات المتقدمة قيد الإنشاء...</div>;
+      case 'docs':
+        return (
+          <div className="space-y-4">
+            <h2 className="text-2xl font-bold">أدلة المساعدة</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="border rounded-lg p-4 hover:bg-muted transition-colors">
+                <h3 className="text-lg font-medium mb-2">دليل النطاقات المخصصة</h3>
+                <p className="text-sm text-muted-foreground mb-4">تعلم كيفية إعداد وتكوين النطاقات المخصصة لمتجرك الإلكتروني.</p>
+                <Button asChild variant="outline" size="sm">
+                  <Link to="/docs/custom-domains">عرض الدليل</Link>
+                </Button>
+              </div>
+            </div>
+          </div>
+        );
       default:
         return <div>صفحة غير موجودة</div>;
     }

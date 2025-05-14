@@ -5,46 +5,82 @@
 
 import { AxiosInstance, AxiosError } from 'axios';
 import { getYalidineApiClient, isNetworkError } from './api';
-import { 
-  Province, 
-  Municipality, 
-  Center, 
-  DeliveryFee, 
-  DeliveryType 
-} from './types';
+
+// تعريف أنواع محدثة لتتوافق مع جداول _global
+export interface Province {
+  id: number;
+  name: string;
+  // zone?: number; // Zone may not be available in yalidine_provinces_global
+  is_deliverable: boolean; 
+}
+
+export interface Municipality {
+  id: number;
+  name: string;
+  wilaya_id: number;
+  // wilaya_name?: string; // Wilaya name can be joined if needed, not directly in _municipalities_global
+  is_deliverable: boolean; 
+  has_stop_desk: boolean;  
+}
+
+export interface Center { // Keep as is, not directly modifying center logic now
+  center_id: number;
+  name: string;
+  address: string;
+  gps?: string;
+  commune_id: number;
+  commune_name: string;
+  wilaya_id: number;
+  wilaya_name: string;
+}
+
+// DeliveryFee type might be simplified or used by calculateDeliveryPrice internally
+export interface DeliveryFee {
+  from_wilaya_id?: number; // Added to make it more self-contained if needed
+  to_wilaya_id?: number;   // Added
+  commune_id?: number;     // Added
+  express_home: number | null; // تم التغيير من home_delivery_fee
+  express_desk: number | null; // تم التغيير من desk_delivery_fee
+  oversize_fee: number | null;
+}
+
+export type DeliveryType = 'home' | 'desk';
+
+import { supabase } from '@/lib/supabase-client';
+import { yalidineRateLimiter } from './rate-limiter';
 
 // وضع التطوير المحلي - يجب أن يتطابق مع قيمة DEV_MODE في ملف api.ts
 const DEV_MODE = false;
 
-// بيانات وهمية للولايات للاستخدام في وضع التطوير
+// بيانات وهمية للولايات للاستخدام في وضع التطوير - تم تحديث النوع
 const MOCK_PROVINCES: Province[] = [
-  { id: 16, name: "الجزائر", zone: 1, is_deliverable: 1 },
-  { id: 19, name: "سطيف", zone: 2, is_deliverable: 1 },
-  { id: 31, name: "وهران", zone: 3, is_deliverable: 1 },
-  { id: 23, name: "عنابة", zone: 2, is_deliverable: 1 },
-  { id: 25, name: "قسنطينة", zone: 2, is_deliverable: 1 },
-  { id: 9, name: "البليدة", zone: 1, is_deliverable: 1 },
-  { id: 15, name: "تيزي وزو", zone: 1, is_deliverable: 1 },
-  { id: 29, name: "معسكر", zone: 3, is_deliverable: 1 }
+  { id: 16, name: "الجزائر", is_deliverable: true },
+  { id: 19, name: "سطيف", is_deliverable: true },
+  { id: 31, name: "وهران", is_deliverable: true },
+  { id: 23, name: "عنابة", is_deliverable: true },
+  { id: 25, name: "قسنطينة", is_deliverable: true },
+  { id: 9, name: "البليدة", is_deliverable: true },
+  { id: 15, name: "تيزي وزو", is_deliverable: true },
+  { id: 29, name: "معسكر", is_deliverable: true }
 ];
 
-// بيانات وهمية للبلديات للاستخدام في وضع التطوير
+// بيانات وهمية للبلديات للاستخدام في وضع التطوير - تم تحديث النوع
 const MOCK_MUNICIPALITIES: Record<string, Municipality[]> = {
   '16': [
-    { id: 1601, name: "باب الوادي", wilaya_id: 16, wilaya_name: "الجزائر", has_stop_desk: 1, is_deliverable: 1 },
-    { id: 1602, name: "المحمدية", wilaya_id: 16, wilaya_name: "الجزائر", has_stop_desk: 1, is_deliverable: 1 },
-    { id: 1603, name: "برج الكيفان", wilaya_id: 16, wilaya_name: "الجزائر", has_stop_desk: 0, is_deliverable: 1 },
-    { id: 1604, name: "بئر مراد رايس", wilaya_id: 16, wilaya_name: "الجزائر", has_stop_desk: 1, is_deliverable: 1 }
+    { id: 1601, name: "باب الوادي", wilaya_id: 16, is_deliverable: true, has_stop_desk: true },
+    { id: 1602, name: "المحمدية", wilaya_id: 16, is_deliverable: true, has_stop_desk: true },
+    { id: 1603, name: "برج الكيفان", wilaya_id: 16, is_deliverable: true, has_stop_desk: false },
+    { id: 1604, name: "بئر مراد رايس", wilaya_id: 16, is_deliverable: true, has_stop_desk: true }
   ],
   '19': [
-    { id: 1901, name: "سطيف", wilaya_id: 19, wilaya_name: "سطيف", has_stop_desk: 1, is_deliverable: 1 },
-    { id: 1902, name: "العلمة", wilaya_id: 19, wilaya_name: "سطيف", has_stop_desk: 1, is_deliverable: 1 },
-    { id: 1903, name: "عين الكبيرة", wilaya_id: 19, wilaya_name: "سطيف", has_stop_desk: 0, is_deliverable: 1 }
+    { id: 1901, name: "سطيف", wilaya_id: 19, is_deliverable: true, has_stop_desk: true },
+    { id: 1902, name: "العلمة", wilaya_id: 19, is_deliverable: true, has_stop_desk: true },
+    { id: 1903, name: "عين الكبيرة", wilaya_id: 19, is_deliverable: true, has_stop_desk: false }
   ],
   '31': [
-    { id: 3101, name: "وهران", wilaya_id: 31, wilaya_name: "وهران", has_stop_desk: 1, is_deliverable: 1 },
-    { id: 3102, name: "عين الترك", wilaya_id: 31, wilaya_name: "وهران", has_stop_desk: 0, is_deliverable: 1 },
-    { id: 3103, name: "أرزيو", wilaya_id: 31, wilaya_name: "وهران", has_stop_desk: 1, is_deliverable: 1 }
+    { id: 3101, name: "وهران", wilaya_id: 31, is_deliverable: true, has_stop_desk: true },
+    { id: 3102, name: "عين الترك", wilaya_id: 31, is_deliverable: true, has_stop_desk: false },
+    { id: 3103, name: "أرزيو", wilaya_id: 31, is_deliverable: true, has_stop_desk: true }
   ]
 };
 
@@ -56,217 +92,145 @@ const MOCK_CENTERS: Record<string, Center[]> = {
   ]
 };
 
-// بيانات وهمية لأسعار التوصيل للاستخدام في وضع التطوير
-const MOCK_DELIVERY_FEES: Record<string, DeliveryFee> = {
-  // من الجزائر إلى سطيف
-  '16-19': {
-    from_wilaya_name: "الجزائر",
-    to_wilaya_name: "سطيف",
-    zone: 2,
-    retour_fee: 250,
-    cod_percentage: 0.75,
-    insurance_percentage: 0.75,
-    oversize_fee: 100,
-    per_commune: {
-      '1901': {
-        commune_id: 1901,
-        commune_name: "سطيف",
-        express_home: 600,
-        express_desk: 500,
-        economic_home: null,
-        economic_desk: null
-      },
-      '1902': {
-        commune_id: 1902,
-        commune_name: "العلمة",
-        express_home: 650,
-        express_desk: 550,
-        economic_home: null,
-        economic_desk: null
-      }
-    }
-  },
-  // من الجزائر إلى وهران
-  '16-31': {
-    from_wilaya_name: "الجزائر",
-    to_wilaya_name: "وهران",
-    zone: 3,
-    retour_fee: 300,
-    cod_percentage: 0.75,
-    insurance_percentage: 0.75,
-    oversize_fee: 120,
-    per_commune: {
-      '3101': {
-        commune_id: 3101,
-        commune_name: "وهران",
-        express_home: 700,
-        express_desk: 600,
-        economic_home: null,
-        economic_desk: null
-      }
-    }
-  }
+// بيانات وهمية لأسعار التوصيل - تم تعديلها لتناسب النوع الجديد DeliveryFee
+const MOCK_DELIVERY_FEES_CALC: Record<string, DeliveryFee[]> = {
+  // from_wilaya_id - to_wilaya_id
+  '16-19': [
+    { from_wilaya_id: 16, to_wilaya_id: 19, commune_id: 1901, express_home: 600, express_desk: 500, oversize_fee: 100 },
+    { from_wilaya_id: 16, to_wilaya_id: 19, commune_id: 1902, express_home: 650, express_desk: 550, oversize_fee: 100 },
+  ],
+  '16-31': [
+    { from_wilaya_id: 16, to_wilaya_id: 31, commune_id: 3101, express_home: 700, express_desk: 600, oversize_fee: 120 },
+  ],
+  // إضافة بيانات وهمية لولاية خنشلة (40) كمصدر
+  '40-10': [
+    { from_wilaya_id: 40, to_wilaya_id: 10, commune_id: 1008, express_home: 900, express_desk: 400, oversize_fee: 50 },
+  ],
+  '40-7': [
+    { from_wilaya_id: 40, to_wilaya_id: 7, commune_id: 714, express_home: 850, express_desk: 450, oversize_fee: 50 },
+  ]
 };
 
 /**
- * جلب قائمة الولايات من ياليدين
- * @param organizationId معرف المؤسسة
- * @returns قائمة بالولايات أو مصفوفة فارغة في حالة فشل العملية
+ * جلب قائمة الولايات من جدول yalidine_provinces_global
+ * @param organizationId (غير مستخدم حالياً، للاتساق مع الواجهات الأخرى إذا لزم الأمر لاحقًا)
+ * @returns قائمة بالولايات المتاحة
  */
-export async function getProvinces(organizationId: string): Promise<Province[]> {
+export async function getProvinces(organizationId?: string): Promise<Province[]> {
+  // في وضع التطوير، إرجاع بيانات وهمية
+  if (DEV_MODE) {
+    console.log('استخدام بيانات وهمية للولايات في وضع التطوير (getProvinces)');
+    return MOCK_PROVINCES;
+  }
+
   try {
-    console.log('جاري جلب قائمة الولايات من ياليدين');
+    console.log('جاري جلب قائمة الولايات من جدول yalidine_provinces_global');
+    const { data, error } = await supabase
+      .from('yalidine_provinces_global') // استخدام الجدول العالمي
+      .select('id, name, is_deliverable'); // تحديد الحقول المطلوبة، is_deliverable يجب أن يكون boolean في الجدول
     
-    const apiClient = await getYalidineApiClient(organizationId);
-    
-    if (!apiClient) {
-      throw new Error('فشل إنشاء عميل API ياليدين');
+    if (error) {
+      console.error('خطأ أثناء جلب الولايات من yalidine_provinces_global:', error);
+      throw error; // أو التعامل مع الخطأ بطريقة أخرى مثل إرجاع مصفوفة فارغة
     }
     
-    const response = await apiClient.get('wilayas/');
-    
-    // تحويل البيانات
-    const data = response.data;
-    console.log('تم استلام بيانات الولايات بنجاح');
-    
-    let wilayaData: any[] = [];
-    
-    if (Array.isArray(data)) {
-      wilayaData = data;
-      console.log(`تم العثور على ${wilayaData.length} ولاية`);
-    } else if (data && data.data && Array.isArray(data.data)) {
-      wilayaData = data.data;
-      console.log(`تم العثور على ${wilayaData.length} ولاية`);
-    } else {
-      console.error('تنسيق بيانات الولايات غير متوقع:', data);
+    if (data) {
+      console.log(`تم العثور على ${data.length} ولاية من yalidine_provinces_global`);
+      // تأكد من أن is_deliverable يتم تحويله بشكل صحيح إذا كان رقمًا في قاعدة البيانات
+      return data.map(p => ({ ...p, is_deliverable: Boolean(p.is_deliverable) }));
     }
-    
-    // ترجع البيانات كما هي من API ياليدين
-    return wilayaData;
-  } catch (error) {
-    const axiosError = error as AxiosError;
-    console.error('خطأ أثناء جلب الولايات من ياليدين:', axiosError);
-    
-    if (axiosError.response) {
-      console.error('رد الخادم:', axiosError.response.status, axiosError.response.data);
-    }
-    
-    // استخدام بيانات وهمية في وضع التطوير
-    if (DEV_MODE && isNetworkError(error)) {
-      console.log('استخدام بيانات وهمية للولايات في وضع التطوير');
-      return MOCK_PROVINCES;
-    }
-    
     return [];
+  } catch (error) {
+    console.error('فشل جلب الولايات:', error);
+    return []; // إرجاع مصفوفة فارغة في حالة الخطأ
   }
 }
 
 /**
- * جلب البلديات لولاية معينة من ياليدين
- * @param organizationId معرف المؤسسة
+ * جلب البلديات لولاية معينة من جدول yalidine_municipalities_global
+ * @param organizationId (غير مستخدم حالياً)
  * @param provinceId معرف الولاية
  * @returns قائمة بالبلديات أو مصفوفة فارغة في حالة فشل العملية
  */
 export async function getMunicipalities(
-  organizationId: string,
+  organizationId: string, // Kept for signature consistency if other internal calls expect it
   provinceId: string
 ): Promise<Municipality[]> {
+  // في وضع التطوير، إرجاع بيانات وهمية
+  if (DEV_MODE) {
+    console.log(`استخدام بيانات وهمية للبلديات للولاية ${provinceId} (getMunicipalities)`);
+    // التأكد من أن البيانات الوهمية متوافقة مع النوع Municipality المحدث
+    return MOCK_MUNICIPALITIES[provinceId]?.map(m => ({
+        ...m,
+        // الحقول البوليانية يجب أن تكون موجودة بالفعل في MOCK_MUNICIPALITIES المحدث
+    })) || [];
+  }
+
   try {
-    console.log(`جاري جلب البلديات للولاية ${provinceId} من ياليدين`);
-    
-    const apiClient = await getYalidineApiClient(organizationId);
-    
-    if (!apiClient) {
-      throw new Error('فشل إنشاء عميل API ياليدين');
+    console.log(`جاري جلب قائمة البلديات للولاية ${provinceId} من yalidine_municipalities_global`);
+    const { data, error } = await supabase
+      .from('yalidine_municipalities_global') // استخدام الجدول العالمي
+      .select('id, name, wilaya_id, is_deliverable, has_stop_desk') // تحديد الحقول المطلوبة
+      .eq('wilaya_id', parseInt(provinceId, 10));
+
+    if (error) {
+      console.error('خطأ أثناء جلب البلديات من yalidine_municipalities_global:', error);
+      throw error;
     }
-    
-    const response = await apiClient.get(`communes/?wilaya_id=${provinceId}`);
-    
-    // تحويل البيانات
-    const data = response.data;
-    console.log(`تم استلام بيانات البلديات للولاية ${provinceId} بنجاح`);
-    
-    let communeData: any[] = [];
-    
-    if (Array.isArray(data)) {
-      communeData = data;
-      console.log(`تم العثور على ${communeData.length} بلدية`);
-    } else if (data && data.data && Array.isArray(data.data)) {
-      communeData = data.data;
-      console.log(`تم العثور على ${communeData.length} بلدية`);
-    } else {
-      console.error('تنسيق بيانات البلديات غير متوقع:', data);
+
+    if (data) {
+      console.log(`تم العثور على ${data.length} بلدية للولاية ${provinceId}`);
+      // البيانات يجب أن تكون متوافقة مع النوع Municipality مباشرة
+      return data as Municipality[];
     }
-    
-    // ترجع البيانات كما هي من API ياليدين
-    return communeData;
+    return [];
   } catch (error) {
-    const axiosError = error as AxiosError;
-    console.error(`خطأ أثناء جلب البلديات للولاية ${provinceId} من ياليدين:`, axiosError);
-    
-    if (axiosError.response) {
-      console.error('رد الخادم:', axiosError.response.status, axiosError.response.data);
-    }
-    
-    // استخدام بيانات وهمية في وضع التطوير
-    if (DEV_MODE && isNetworkError(error)) {
-      console.log(`استخدام بيانات وهمية للبلديات للولاية ${provinceId} في وضع التطوير`);
-      
-      // إذا كانت هناك بيانات وهمية متاحة لهذه الولاية، استخدمها
-      if (MOCK_MUNICIPALITIES[provinceId]) {
-        return MOCK_MUNICIPALITIES[provinceId];
-      }
-      
-      // وإلا، قم بإنشاء بلديات وهمية لهذه الولاية
-      const provinceName = MOCK_PROVINCES.find(p => p.id.toString() === provinceId)?.name || `ولاية ${provinceId}`;
-      
-      return [
-        { id: parseInt(`${provinceId}01`), name: `بلدية 1 - ${provinceName}`, wilaya_id: parseInt(provinceId), wilaya_name: provinceName, has_stop_desk: 1, is_deliverable: 1 },
-        { id: parseInt(`${provinceId}02`), name: `بلدية 2 - ${provinceName}`, wilaya_id: parseInt(provinceId), wilaya_name: provinceName, has_stop_desk: 0, is_deliverable: 1 },
-        { id: parseInt(`${provinceId}03`), name: `بلدية 3 - ${provinceName}`, wilaya_id: parseInt(provinceId), wilaya_name: provinceName, has_stop_desk: 1, is_deliverable: 1 }
-      ];
-    }
-    
+    console.error(`فشل جلب البلديات للولاية ${provinceId}:`, error);
     return [];
   }
 }
 
 /**
  * جلب البلديات لولاية معينة وتصفيتها حسب نوع التوصيل
- * @param organizationId معرف المؤسسة
+ * @param organizationId معرف المؤسسة (غير مستخدم حالياً)
  * @param provinceId معرف الولاية
  * @param deliveryType نوع التوصيل (منزل أو مكتب)
  * @returns قائمة بالبلديات المصفاة حسب نوع التوصيل
  */
 export async function getMunicipalitiesByDeliveryType(
-  organizationId: string,
+  organizationId: string, // Kept for signature consistency
   provinceId: string,
-  deliveryType: DeliveryType
+  deliveryType: DeliveryType,
+  toWilayaName: string // تمت إضافته
 ): Promise<Municipality[]> {
   try {
-    console.log(`جاري جلب البلديات للولاية ${provinceId} وتصفيتها حسب نوع التوصيل: ${deliveryType}`);
+    // في وضع التطوير، قم بتصفية البيانات الوهمية المحدثة
+    if (DEV_MODE) {
+      console.log(`استخدام بيانات وهمية للبلديات للولاية ${provinceId} ونوع التوصيل ${deliveryType} (getMunicipalitiesByDeliveryType)`);
+      const mockCommunes = MOCK_MUNICIPALITIES[provinceId] || [];
+      return mockCommunes.filter(commune => 
+        deliveryType === 'home' ? commune.is_deliverable : commune.has_stop_desk
+      ).map(commune => ({ ...commune, wilaya_name: toWilayaName })); // تمت إضافة toWilayaName
+    }
+
+    // استدعاء الدالة الأساسية لجلب البلديات
+    const allMunicipalities = await getMunicipalities(organizationId, provinceId);
     
-    const municipalities = await getMunicipalities(organizationId, provinceId);
-    
-    console.log(`تم الحصول على ${municipalities.length} بلدية، جاري التصفية حسب نوع التوصيل: ${deliveryType}`);
-    
-    // تصفية البلديات حسب نوع التوصيل
-    const filteredMunicipalities = municipalities.filter(municipality => {
-      if (deliveryType === 'desk') {
-        // إظهار فقط البلديات التي تدعم التوصيل للمكتب
-        return municipality.has_stop_desk === 1;
-      } else if (deliveryType === 'home') {
-        // إظهار جميع البلديات القابلة للتوصيل للتوصيل المنزلي
-        return municipality.is_deliverable === 1;
+    // تصفية البلديات بناءً على نوع التوصيل باستخدام الحقول البوليانية الجديدة
+    const filteredMunicipalities = allMunicipalities.filter(municipality => {
+      if (deliveryType === 'home') {
+        return municipality.is_deliverable; // استخدام الحقل البولياني مباشرة
       }
-      return false;
-    });
+      if (deliveryType === 'desk') {
+        return municipality.has_stop_desk; // استخدام الحقل البولياني مباشرة
+      }
+      return false; // Should not happen if deliveryType is correctly 'home' or 'desk'
+    }).map(municipality => ({ ...municipality, wilaya_name: toWilayaName })); // تمت إضافة toWilayaName
     
-    console.log(`تم تصفية البلديات. العدد النهائي: ${filteredMunicipalities.length} بلدية`);
-    
+    console.log(`تم تصفية ${filteredMunicipalities.length} بلدية للولاية ${provinceId} ونوع التوصيل ${deliveryType}`);
     return filteredMunicipalities;
   } catch (error) {
-    console.error(`خطأ أثناء جلب وتصفية البلديات للولاية ${provinceId} حسب نوع التوصيل:`, error);
+    console.error(`فشل جلب البلديات المصفاة للولاية ${provinceId}:`, error);
     return [];
   }
 }
@@ -282,6 +246,24 @@ export async function getCenters(
   provinceId: string
 ): Promise<Center[]> {
   try {
+    // استخدام بيانات وهمية مباشرة في وضع التطوير
+    if (DEV_MODE) {
+      console.log(`استخدام بيانات وهمية لمراكز الاستلام للولاية ${provinceId} في وضع التطوير`);
+      
+      // إذا كانت هناك بيانات وهمية متاحة لهذه الولاية، استخدمها
+      if (MOCK_CENTERS[provinceId]) {
+        return MOCK_CENTERS[provinceId];
+      }
+      
+      // وإلا، قم بإنشاء مراكز وهمية لهذه الولاية
+      const provinceName = MOCK_PROVINCES.find(p => p.id.toString() === provinceId)?.name || `ولاية ${provinceId}`;
+      
+      return [
+        { center_id: parseInt(`${provinceId}001`), name: `مركز 1 - ${provinceName}`, address: `عنوان المركز 1 - ${provinceName}`, gps: "36.7814,3.0583", commune_id: parseInt(`${provinceId}01`), commune_name: `بلدية 1 - ${provinceName}`, wilaya_id: parseInt(provinceId), wilaya_name: provinceName },
+        { center_id: parseInt(`${provinceId}002`), name: `مركز 2 - ${provinceName}`, address: `عنوان المركز 2 - ${provinceName}`, gps: "36.7381,3.1289", commune_id: parseInt(`${provinceId}02`), commune_name: `بلدية 2 - ${provinceName}`, wilaya_id: parseInt(provinceId), wilaya_name: provinceName }
+      ];
+    }
+    
     const apiClient = await getYalidineApiClient(organizationId);
     
     if (!apiClient) {
@@ -307,31 +289,21 @@ export async function getCenters(
     
     // استخدام بيانات وهمية في وضع التطوير
     if (DEV_MODE && isNetworkError(error)) {
-      console.log(`استخدام بيانات وهمية لمراكز الاستلام للولاية ${provinceId} في وضع التطوير`);
+      console.log(`استخدام بيانات وهمية لمراكز الاستلام للولاية ${provinceId} بعد فشل الاتصال`);
       
       // إذا كانت هناك بيانات وهمية متاحة لهذه الولاية، استخدمها
       if (MOCK_CENTERS[provinceId]) {
         return MOCK_CENTERS[provinceId];
       }
       
-      // وإلا، قم بإنشاء مراكز وهمية لهذه الولاية
-      const provinceName = MOCK_PROVINCES.find(p => p.id.toString() === provinceId)?.name || `ولاية ${provinceId}`;
-      const municipalities = await getMunicipalitiesByDeliveryType(organizationId, provinceId, 'desk');
+      // وإلا، قم بإنشاء مركز وهمي لهذه الولاية
+      const provinceIdNum = parseInt(provinceId, 10);
+      const provinceName = MOCK_PROVINCES.find(p => p.id === provinceIdNum)?.name || `ولاية ${provinceIdNum}`;
       
-      if (municipalities.length === 0) {
-        return [];
-      }
-      
-      return municipalities.filter(m => m.has_stop_desk === 1).map(m => ({
-        center_id: parseInt(`${m.id}01`),
-        name: `مركز ${m.name}`,
-        address: `عنوان مركز ${m.name}`,
-        gps: "36.7814,3.0583",
-        commune_id: m.id,
-        commune_name: m.name,
-        wilaya_id: parseInt(provinceId),
-        wilaya_name: provinceName
-      }));
+      return [
+        { center_id: parseInt(`${provinceId}001`), name: `مركز 1 - ${provinceName}`, address: `عنوان المركز 1 - ${provinceName}`, gps: "36.7814,3.0583", commune_id: parseInt(`${provinceId}01`), commune_name: `بلدية 1 - ${provinceName}`, wilaya_id: provinceIdNum, wilaya_name: provinceName },
+        { center_id: parseInt(`${provinceId}002`), name: `مركز 2 - ${provinceName}`, address: `عنوان المركز 2 - ${provinceName}`, gps: "36.7381,3.1289", commune_id: parseInt(`${provinceId}02`), commune_name: `بلدية 2 - ${provinceName}`, wilaya_id: provinceIdNum, wilaya_name: provinceName }
+      ];
     }
     
     return [];
@@ -383,16 +355,18 @@ export async function getCentersByCommune(
       for (const key in MOCK_MUNICIPALITIES) {
         const municipality = MOCK_MUNICIPALITIES[key].find(m => m.id.toString() === communeId);
         
-        if (municipality && municipality.has_stop_desk === 1) {
+        if (municipality && municipality.has_stop_desk) {
+          // البحث عن اسم الولاية المطابق لـ wilaya_id الخاص بالبلدية
+          const currentWilayaName = MOCK_PROVINCES.find(p => p.id === municipality.wilaya_id)?.name || `ولاية ${municipality.wilaya_id}`;
           return [{
-            center_id: parseInt(`${municipality.id}01`),
+            center_id: parseInt(`${municipality.id}01`), // معرف وهمي فريد
             name: `مركز ${municipality.name}`,
             address: `عنوان مركز ${municipality.name}`,
-            gps: "36.7814,3.0583",
+            gps: "36.7814,3.0583", // إحداثيات وهمية
             commune_id: municipality.id,
             commune_name: municipality.name,
             wilaya_id: municipality.wilaya_id,
-            wilaya_name: municipality.wilaya_name
+            wilaya_name: currentWilayaName // استخدام اسم الولاية الذي تم البحث عنه
           }];
         }
       }
@@ -403,148 +377,264 @@ export async function getCentersByCommune(
 }
 
 /**
- * جلب معلومات رسوم التوصيل بين ولايتين
+ * حساب سعر التوصيل بناءً على الولاية المرسل منها، الولاية المرسل إليها، البلدية، نوع التوصيل، والوزن.
  * @param organizationId معرف المؤسسة
- * @param fromProvinceId معرف ولاية الإرسال
- * @param toProvinceId معرف ولاية الاستلام
- * @returns معلومات رسوم التوصيل أو null في حالة فشل العملية
- */
-export async function getDeliveryFees(
-  organizationId: string,
-  fromProvinceId: string,
-  toProvinceId: string
-): Promise<DeliveryFee | null> {
-  try {
-    const apiClient = await getYalidineApiClient(organizationId);
-    
-    if (!apiClient) {
-      throw new Error('فشل إنشاء عميل API ياليدين');
-    }
-    
-    const response = await apiClient.get(`fees/?from_wilaya_id=${fromProvinceId}&to_wilaya_id=${toProvinceId}`);
-    
-    return response.data;
-  } catch (error) {
-    console.error(`خطأ أثناء جلب رسوم التوصيل بين الولايتين ${fromProvinceId} و ${toProvinceId} من ياليدين:`, error);
-    
-    // استخدام بيانات وهمية في وضع التطوير
-    if (DEV_MODE && isNetworkError(error)) {
-      console.log(`استخدام بيانات وهمية لرسوم التوصيل بين الولايتين ${fromProvinceId} و ${toProvinceId} في وضع التطوير`);
-      
-      const mockFeeKey = `${fromProvinceId}-${toProvinceId}`;
-      
-      // إذا كانت هناك بيانات وهمية متاحة لهذه الرحلة، استخدمها
-      if (MOCK_DELIVERY_FEES[mockFeeKey]) {
-        return MOCK_DELIVERY_FEES[mockFeeKey];
-      }
-      
-      // وإلا، قم بإنشاء بيانات وهمية
-      const fromProvinceName = MOCK_PROVINCES.find(p => p.id.toString() === fromProvinceId)?.name || `ولاية ${fromProvinceId}`;
-      const toProvinceName = MOCK_PROVINCES.find(p => p.id.toString() === toProvinceId)?.name || `ولاية ${toProvinceId}`;
-      
-      // إنشاء بيانات وهمية للبلديات في الولاية المستلمة
-      const municipalities = await getMunicipalitiesByDeliveryType(organizationId, toProvinceId, 'home');
-      
-      if (municipalities.length === 0) {
-        return null;
-      }
-      
-      const perCommune: Record<string, any> = {};
-      
-      // إنشاء بيانات أسعار لكل بلدية
-      municipalities.forEach(municipality => {
-        perCommune[municipality.id.toString()] = {
-          commune_id: municipality.id,
-          commune_name: municipality.name,
-          express_home: 600 + Math.floor(Math.random() * 300),
-          express_desk: municipality.has_stop_desk === 1 ? 500 + Math.floor(Math.random() * 200) : null,
-          economic_home: null,
-          economic_desk: null
-        };
-      });
-      
-      return {
-        from_wilaya_name: fromProvinceName,
-        to_wilaya_name: toProvinceName,
-        zone: 2,
-        retour_fee: 250,
-        cod_percentage: 0.75,
-        insurance_percentage: 0.75,
-        oversize_fee: 100,
-        per_commune: perCommune
-      };
-    }
-    
-    return null;
-  }
-}
-
-/**
- * حساب سعر التوصيل
- * @param organizationId معرف المؤسسة
- * @param fromProvinceId معرف ولاية الإرسال
- * @param toProvinceId معرف ولاية الاستلام
- * @param toCommuneId معرف بلدية الاستلام
- * @param deliveryType نوع التوصيل (منزل أو مكتب)
- * @param weight وزن الشحنة (اختياري)
- * @returns سعر التوصيل أو null في حالة فشل العملية
+ * @param fromProvinceId معرف ولاية الإرسال (سيتم تجاهله واستخدام الولاية المحددة في إعدادات المؤسسة)
+ * @param toProvinceId معرف ولاية الاستقبال
+ * @param toCommuneId معرف بلدية الاستقبال
+ * @param deliveryType نوع التوصيل ('home' أو 'desk')
+ * @param weight وزن الطرد بالكيلوغرام
+ * @returns سعر التوصيل المحسوب أو null في حالة عدم توفر الرسوم
  */
 export async function calculateDeliveryPrice(
-  organizationId: string,
+  organizationId: string, 
   fromProvinceId: string,
   toProvinceId: string,
   toCommuneId: string,
   deliveryType: DeliveryType,
-  weight: number = 1
+  weight: number
 ): Promise<number | null> {
+  // جلب ولاية المصدر من إعدادات المؤسسة
+  let originWilayaId: number;
+  
   try {
-    const fees = await getDeliveryFees(organizationId, fromProvinceId, toProvinceId);
+    // استعلام عن إعدادات ياليدين للمؤسسة
+    const { data: settingsData, error: settingsError } = await supabase
+      .from('yalidine_settings_with_origin')
+      .select('origin_wilaya_id')
+      .eq('organization_id', organizationId)
+      .single();
     
-    if (!fees) {
-      throw new Error('فشل جلب رسوم التوصيل');
+    if (settingsError) {
+      console.error('خطأ أثناء جلب إعدادات ياليدين للمؤسسة:', settingsError);
+      return null;
     }
     
-    // حساب سعر التوصيل بناءً على البلدية ونوع التوصيل
-    let basePrice = 0;
-    
-    if (toCommuneId && fees.per_commune && fees.per_commune[toCommuneId]) {
-      const communeFees = fees.per_commune[toCommuneId];
-      
-      if (deliveryType === 'home' && communeFees.express_home !== null) {
-        basePrice = communeFees.express_home;
-      } else if (deliveryType === 'desk' && communeFees.express_desk !== null) {
-        basePrice = communeFees.express_desk;
-      } else {
-        throw new Error(`نوع التوصيل ${deliveryType} غير متوفر للبلدية ${toCommuneId}`);
+    if (!settingsData || !settingsData.origin_wilaya_id) {
+      console.error(`لم يتم العثور على ولاية المصدر في إعدادات المؤسسة ${organizationId}`);
+      console.log('استخدام ولاية المصدر من المعامل:', fromProvinceId);
+      originWilayaId = parseInt(fromProvinceId, 10);
+    } else {
+      originWilayaId = settingsData.origin_wilaya_id;
+      console.log(`تم العثور على ولاية المصدر في الإعدادات: ${originWilayaId}`);
+    }
+  } catch (error) {
+    console.error('فشل في جلب ولاية المصدر من إعدادات المؤسسة:', error);
+    console.log('استخدام ولاية المصدر من المعامل بعد حدوث خطأ:', fromProvinceId);
+    originWilayaId = parseInt(fromProvinceId, 10);
+  }
+  
+  console.log(`حساب سعر التوصيل: من ${originWilayaId} إلى ${toProvinceId} (بلدية ${toCommuneId}), النوع: ${deliveryType}, الوزن: ${weight}kg`);
+
+  const toWilayaIdNum = parseInt(toProvinceId, 10);
+  const toCommuneIdNum = parseInt(toCommuneId, 10);
+
+  let feeData: DeliveryFee | undefined;
+
+  if (DEV_MODE) {
+    console.log('استخدام بيانات وهمية لحساب سعر التوصيل (calculateDeliveryPrice)');
+    const mockKey = `${originWilayaId}-${toWilayaIdNum}`;
+    console.log(`البحث عن بيانات وهمية للمسار: ${mockKey}`);
+    const feesForRoute = MOCK_DELIVERY_FEES_CALC[mockKey];
+    if (feesForRoute) {
+      console.log(`تم العثور على ${feesForRoute.length} سجل رسوم للمسار ${mockKey}`);
+      feeData = feesForRoute.find(f => f.commune_id === toCommuneIdNum);
+      if (feeData) {
+        console.log(`تم العثور على رسوم للبلدية ${toCommuneIdNum}:`, feeData);
       }
     } else {
-      throw new Error(`لم يتم العثور على معلومات رسوم للبلدية ${toCommuneId}`);
+      console.log(`لم يتم العثور على بيانات رسوم للمسار ${mockKey}`);
     }
-    
-    // حساب رسوم الوزن الزائد
-    let oversizePrice = 0;
-    if (weight > 5 && fees.oversize_fee) {
-      oversizePrice = (weight - 5) * fees.oversize_fee;
+    if (!feeData) {
+        console.warn(`لم يتم العثور على بيانات رسوم وهمية لـ from:${originWilayaId}, to:${toWilayaIdNum}, commune:${toCommuneIdNum}`);
+        // يمكن إرجاع سعر وهمي افتراضي أو null
+        // للتبسيط، سنرجع null إذا لم نجد تطابقاً دقيقاً في الوهمي
+        // أو يمكنك إنشاء رسم وهمي عام هنا
+        // feeData = { express_home: 700, express_desk: 600, oversize_fee: 100, from_wilaya_id:originWilayaId, to_wilaya_id:toWilayaIdNum, commune_id: toCommuneIdNum };
+         return 750; // سعر وهمي افتراضي بسيط لتجنب الأعطال في وضع التطوير
     }
-    
-    // السعر النهائي = السعر الأساسي + رسوم الوزن الزائد
-    const finalPrice = basePrice + oversizePrice;
-    
-    return finalPrice;
-  } catch (error) {
-    console.error('خطأ أثناء حساب سعر التوصيل:', error);
-    
-    if (DEV_MODE && isNetworkError(error)) {
-      // في وضع التطوير، نقدم سعرًا افتراضيًا
-      console.log('استخدام سعر افتراضي للتوصيل في وضع التطوير');
-      
-      if (deliveryType === 'home') {
-        return 700;
-      } else {
-        return 600;
+  } else {
+    try {
+      console.log(`جاري الاستعلام عن رسوم الشحن من جدول 'yalidine_fees' للمؤسسة ${organizationId}`);
+      const { data, error } = await supabase
+        .from('yalidine_fees') // اسم الجدول الذي يحتوي على رسوم الشحن العالمية
+        .select('express_home, express_desk, oversize_fee, from_wilaya_id, to_wilaya_id, commune_id') // تم التغيير هنا
+        .eq('organization_id', organizationId) 
+        .eq('from_wilaya_id', originWilayaId) // استخدام ولاية المصدر من الإعدادات
+        .eq('to_wilaya_id', toWilayaIdNum)
+        .eq('commune_id', toCommuneIdNum)
+        .single(); // نتوقع سجل واحد فقط لكل تركيبة فريدة
+
+      if (error) {
+        console.error('خطأ أثناء جلب رسوم الشحن من yalidine_fees:', error);
+        // إذا كان الخطأ بسبب عدم وجود سجل (PGRST116: "Query result has no rows"), فهذا يعني أن الرسوم غير معرّفة
+        if (error.code === 'PGRST116') {
+            console.warn(`لا توجد رسوم شحن محددة للمسار: من ${originWilayaId} إلى ${toProvinceId}, بلدية ${toCommuneId}`);
+            return null;
+        } 
+        throw error; // لأخطاء أخرى
       }
+
+      if (!data) {
+        console.warn(`لم يتم العثور على رسوم شحن محددة للمسار: من ${originWilayaId} إلى ${toProvinceId}, بلدية ${toCommuneId}`);
+        return null;
+      }
+      feeData = data as DeliveryFee;
+      console.log('تم العثور على بيانات الرسوم:', feeData);
+
+    } catch (error) {
+      console.error('فشل حساب سعر التوصيل:', error);
+      return null;
     }
-    
+  }
+
+  if (!feeData) {
+    console.warn(`لا توجد بيانات رسوم متاحة لحساب السعر للمسار المحدد.`);
     return null;
   }
-} 
+
+  let basePrice = 0;
+  if (deliveryType === 'home') {
+    if (feeData.express_home === null || feeData.express_home === undefined) {
+        console.warn(`التوصيل للمنزل غير متوفر أو سعره غير محدد لهذه البلدية.`);
+        return null;
+    }
+    basePrice = feeData.express_home;
+  } else if (deliveryType === 'desk') {
+    if (feeData.express_desk === null || feeData.express_desk === undefined) {
+        console.warn(`التوصيل للمكتب غير متوفر أو سعره غير محدد لهذه البلدية.`);
+        return null;
+    }
+    basePrice = feeData.express_desk;
+  } else {
+    console.error(`نوع توصيل غير معروف: ${deliveryType}`);
+    return null;
+  }
+
+  // حساب رسوم الوزن الزائد
+  // نفترض أن الوزن الأساسي المضمن في السعر هو 1 كجم (أو يجب تحديد ذلك من إعدادات ياليدين)
+  // عادة ما يكون هناك حد أقصى للوزن قبل تطبيق رسوم إضافية، لنفترض 5 كجم كحد افتراضي إذا لم يكن محدداً
+  const BASE_WEIGHT_LIMIT_KG = 5; // هذا افتراض، يجب التحقق من سياسة ياليدين
+  let oversizeCharge = 0;
+
+  if (weight > BASE_WEIGHT_LIMIT_KG) {
+    if (feeData.oversize_fee === null || feeData.oversize_fee === undefined || feeData.oversize_fee <= 0) {
+        console.warn(`رسوم الوزن الزائد غير محددة أو غير صالحة، لن يتم حساب تكلفة إضافية للوزن.`);
+    } else {
+        const extraWeight = weight - BASE_WEIGHT_LIMIT_KG;
+        oversizeCharge = extraWeight * feeData.oversize_fee;
+        console.log(`تم حساب رسوم وزن زائد: ${oversizeCharge} لوزن إضافي ${extraWeight}kg`);
+    }
+  }
+
+  const totalPrice = basePrice + oversizeCharge;
+  console.log(`السعر الأساسي: ${basePrice}, رسوم الوزن الزائد: ${oversizeCharge}, السعر الإجمالي: ${totalPrice}`);
+  return totalPrice;
+}
+
+// تعديل وظيفة getDeliveryFees المهملة أيضًا لتستخدم ولاية المصدر
+async function getDeliveryFees(
+  organizationId: string,
+  fromWilayaId: string,
+  toWilayaId: string
+): Promise<DeliveryFee | null> { 
+  // هذه الدالة أصبحت مهملة وستُزال أو يُعاد تصميمها بالكامل
+  // خطأ LINT المشار إليه سابقاً (ID: 855f8b8b-02ff-4ad1-8523-08b9bc6200fe) موجود في البيانات الوهمية لهذه الدالة القديمة.
+  // بما أننا سنزيل الاعتماد عليها، سيتم حل الخطأ.
+  console.warn("getDeliveryFees is deprecated and should not be used directly for price calculation.");
+
+  // جلب ولاية المصدر من إعدادات المؤسسة
+  let originWilayaId: number;
+  
+  try {
+    // استعلام عن إعدادات ياليدين للمؤسسة
+    const { data: settingsData, error: settingsError } = await supabase
+      .from('yalidine_settings_with_origin')
+      .select('origin_wilaya_id')
+      .eq('organization_id', organizationId)
+      .single();
+    
+    if (settingsError) {
+      console.error('خطأ أثناء جلب إعدادات ياليدين للمؤسسة:', settingsError);
+      return null;
+    }
+    
+    if (!settingsData || !settingsData.origin_wilaya_id) {
+      console.error(`لم يتم العثور على ولاية المصدر في إعدادات المؤسسة ${organizationId}`);
+      return null;
+    }
+    
+    originWilayaId = settingsData.origin_wilaya_id;
+  } catch (error) {
+    console.error('فشل في جلب ولاية المصدر من إعدادات المؤسسة:', error);
+    return null;
+  }
+
+  if (DEV_MODE) {
+    console.log(`استخدام بيانات وهمية لرسوم التوصيل من ${originWilayaId} إلى ${toWilayaId} (getDeliveryFees - DEPRECATED)`);
+    const mockFeeKey = `${originWilayaId}-${toWilayaId}`;
+    if (MOCK_DELIVERY_FEES_CALC[mockFeeKey] && MOCK_DELIVERY_FEES_CALC[mockFeeKey].length > 0) {
+      // نرجع أول رسم مطابق كعينة، مع العلم أن هذه الدالة لم تعد تتطابق مع المنطق الجديد
+      return MOCK_DELIVERY_FEES_CALC[mockFeeKey][0];
+    }
+    // إنشاء بيانات وهمية مبسطة جداً إذا لم يوجد شيء
+    return {
+        from_wilaya_id: originWilayaId,
+        to_wilaya_id: parseInt(toWilayaId),
+        // commune_id is missing here, highlighting issues with old mock logic
+        express_home: 600, 
+        express_desk: 500,
+        oversize_fee: 100
+    };
+  }
+  
+  // المنطق الأصلي للاتصال بـ API أو قاعدة بيانات المؤسسة تم حذفه لأنه لم يعد مستخدماً
+  // وسيتم استبداله بالاستعلام المباشر من yalidine_fees في calculateDeliveryPrice
+  return null;
+}
+
+/**
+ * جلب معدل الوزن الزائد للمنطقة من نقطة نهاية /v1/fees/ لياليدين.
+ * @param organizationId معرف المؤسسة.
+ * @param fromWilayaId معرف ولاية المصدر.
+ * @param toWilayaId معرف ولاية الوجهة.
+ * @returns قيمة معدل الوزن الزائد للمنطقة، أو null.
+ */
+export async function getZoneOversizeRate(
+  organizationId: string,
+  fromWilayaId: string,
+  toWilayaId: string
+): Promise<number | null> {
+  // افتراض أن DEV_MODE و YalidineApiClient معرفان/مستوردان في هذا الملف
+  if (DEV_MODE) {
+    console.log(`[DEV_MODE] getZoneOversizeRate: from ${fromWilayaId} to ${toWilayaId}. Mock rate: 50`);
+    return 50; // معدل وهمي بسيط
+  }
+
+  try {
+    // تم التغيير هنا لاستخدام getYalidineApiClient بدلاً من YalidineApiClient.getInstance مباشرة
+    // إذا كان هذا يسبب مشكلة، يجب مراجعة كيفية تهيئة apiClient
+    const apiClient = await getYalidineApiClient(organizationId); 
+    
+    if (!apiClient) {
+      console.error(`[getZoneOversizeRate] No API client for org ${organizationId}`);
+      return null;
+    }
+
+    // استدعاء Yalidine API لجلب الرسوم
+    const response = await apiClient.get('fees', {
+      params: { from_wilaya_id: fromWilayaId, to_wilaya_id: toWilayaId },
+    });
+
+    // التحقق من وجود البيانات المطلوبة في الرد
+    if (response?.data && typeof response.data.oversize_fee === 'number') {
+      return response.data.oversize_fee;
+    } else {
+      console.warn('[getZoneOversizeRate] Oversize fee not in API response or invalid:', response.data);
+      return null;
+    }
+  } catch (error: any) {
+    console.error(`[getZoneOversizeRate] Error fetching zone oversize fee:`, error.message || error);
+    return null;
+  }
+}
