@@ -1,18 +1,22 @@
-// تصريح بـ React للتأكد من وجوده في النطاق العالمي
-import React from 'react';
+// استيراد النسخة العالمية من React
+import React from './lib/react-global.js';
 import ReactDOM from 'react-dom/client';
 
-// تطبيق الإصلاح العالمي إذا كان متاحا
-if (typeof window !== 'undefined' && window.__applyReactPolyfill) {
-  window.__applyReactPolyfill(React);
+// التأكد من أن window.React متاح قبل أي شيء آخر
+if (typeof window !== 'undefined' && (!window.React || !window.React.useLayoutEffect)) {
+  console.warn('تعريف React عالمياً من main.tsx');
+  window.React = window.React || React;
+  
+  // التأكد من توفر useLayoutEffect
+  if (!React.useLayoutEffect) {
+    console.warn('استبدال useLayoutEffect بـ useEffect في main.tsx');
+    React.useLayoutEffect = React.useEffect;
+  }
+  
+  if (!window.React.useLayoutEffect) {
+    window.React.useLayoutEffect = React.useLayoutEffect || React.useEffect;
+  }
 }
-
-// استيراد ملف إصلاح React
-import FixedReact from './lib/react-compat.js';
-
-// التأكد من استخدام الإصدار المصحح من React
-// إعادة تعيين React لضمان استخدام النسخة المصححة
-const ReactWithFixes = FixedReact;
 
 // Importar los polyfills específicos para env.mjs antes de cualquier otro módulo
 import './lib/env-polyfill';
@@ -47,6 +51,8 @@ declare global {
     electronAPI?: ElectronAPI;
     __REACT_POLYFILL_APPLIED?: boolean;
     __applyReactPolyfill?: (react: typeof React) => void;
+    React: typeof React;
+    ReactDOM: any;
   }
 
   // إضافة معلومات للنافذة لتعزيز كشف التنقلات المكررة
@@ -168,10 +174,9 @@ if (typeof window !== 'undefined') {
   }, true);
 }
 
-// التأكد من توفر الـ hooks الضرورية
-if (!React.useLayoutEffect) {
-  console.warn('تم اكتشاف نقص في useLayoutEffect في main.tsx، تطبيق الإصلاح مباشرة');
-  React.useLayoutEffect = React.useEffect;
+// التأكد من أن React موجود عالمياً مرة أخرى قبل التقديم
+if (typeof window !== 'undefined' && !window.React.createElement) {
+  window.React.createElement = React.createElement;
 }
 
 const TenantWithTheme = ({ children }: { children: React.ReactNode }) => {

@@ -37,6 +37,22 @@
           window.__REACT_POLYFILL_APPLIED = true;
         }
       };
+      
+      // تعريف React و React Hooks كمتغيرات عالمية
+      // هذا يحل مشكلة المكتبات التي تعتمد على وجود React عالمياً
+      // وخاصة useLayoutEffect
+      window.React = window.React || {};
+      window.ReactDOM = window.ReactDOM || {};
+      
+      // تعريف hooks أساسية إذا لم تكن موجودة
+      window.React.useLayoutEffect = function useLayoutEffectPolyfill() {
+        console.warn('استخدام useLayoutEffect مؤقت');
+        return undefined;
+      };
+      
+      window.React.useState = window.React.useState || function useStatePolyfill() { return [undefined, function() {}]; };
+      window.React.useEffect = window.React.useEffect || function useEffectPolyfill() {};
+      window.React.useRef = window.React.useRef || function useRefPolyfill() { return { current: null }; };
     </script>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -66,6 +82,8 @@
     <div id="root"></div>
     <!-- IMPORTANT: DO NOT REMOVE THIS SCRIPT TAG OR THIS VERY COMMENT! -->
     <script src="https://cdn.gpteng.co/gptengineer.js" type="module"></script>
+    <!-- تحميل React العالمي قبل أي ملف آخر لضمان توفر React -->
+    <script type="module" src="/src/lib/react-global.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

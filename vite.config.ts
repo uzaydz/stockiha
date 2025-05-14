@@ -177,8 +177,20 @@ export default defineConfig(({ mode }) => {
           manualChunks: (id) => {
             // تجزئة الكود للمكتبات الرئيسية
             if (id.includes('node_modules')) {
+              // مكتبات React الأساسية
               if (id.includes('react') || id.includes('react-dom')) {
                 return 'vendor-react';
+              }
+              // مكتبات تستخدم React hooks
+              if (
+                id.includes('@radix-ui') || 
+                id.includes('react-hook-form') || 
+                id.includes('@headlessui') ||
+                id.includes('use-') || 
+                id.includes('react-colorful') ||
+                id.includes('@floating-ui')
+              ) {
+                return 'vendor-react-hooks';
               }
               if (id.includes('@tanstack/react-query')) {
                 return 'vendor-query';
