@@ -1,26 +1,9 @@
-// استيراد النسخة العالمية من React
-import React from './lib/react-global.js';
+// تصريح بـ React للتأكد من وجوده في النطاق العالمي
+import React from 'react';
 import ReactDOM from 'react-dom/client';
 
-// تهيئة React العالمي والتأكد من توفر useLayoutEffect
-if (typeof window !== 'undefined') {
-  // التأكد من توفر React قبل أي عملية تحميل أخرى
-  window.React = window.React || React;
-  
-  // التأكد من توفر useLayoutEffect بشكل صريح
-  if (window.React && !window.React.useLayoutEffect) {
-    console.warn('ضمان توفر useLayoutEffect من main.tsx');
-    window.React.useLayoutEffect = React.useLayoutEffect || React.useEffect;
-  }
-
-  // نسخ الـ hooks الهامة إلى النافذة العالمية لدعم المكتبات التي تستخدمها بشكل مباشر
-  const essentialHooks = ['useLayoutEffect', 'useState', 'useEffect', 'useRef', 'useContext'];
-  essentialHooks.forEach(hookName => {
-    if (React[hookName] && !window[hookName]) {
-      window[hookName] = React[hookName];
-    }
-  });
-}
+// استيراد ملف إصلاح React
+import './lib/react-compat.js';
 
 // Importar los polyfills específicos para env.mjs antes de cualquier otro módulo
 import './lib/env-polyfill';
@@ -53,10 +36,6 @@ declare global {
     __LAST_URL_CHANGE_TIME: number;
     __PREVENT_DUPLICATE_RENDER: boolean;
     electronAPI?: ElectronAPI;
-    __REACT_POLYFILL_APPLIED?: boolean;
-    __applyReactPolyfill?: (react: typeof React) => void;
-    React: typeof React;
-    ReactDOM: any;
   }
 
   // إضافة معلومات للنافذة لتعزيز كشف التنقلات المكررة
@@ -176,11 +155,6 @@ if (typeof window !== 'undefined') {
       window.__LAST_NAVIGATION_TYPE = 'popState';
     }
   }, true);
-}
-
-// التأكد من أن React موجود عالمياً مرة أخرى قبل التقديم
-if (typeof window !== 'undefined' && !window.React.createElement) {
-  window.React.createElement = React.createElement;
 }
 
 const TenantWithTheme = ({ children }: { children: React.ReactNode }) => {

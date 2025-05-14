@@ -1,15 +1,16 @@
-import { defineConfig, loadEnv } from "vite";
+import { defineConfig, loadEnv, Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
-import { Plugin } from 'vite';
-import path from "path";
+import * as path from "path";
 import { componentTagger } from "lovable-tagger";
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
+import type { Connect, ViteDevServer } from 'vite';
+import { ServerResponse, IncomingMessage } from 'http';
 
 // تكوين استيراد ملفات Markdown كنصوص
 function rawContentPlugin(): Plugin {
   return {
     name: 'vite-plugin-raw-content',
-    transform(code, id) {
+    transform(code: string, id: string) {
       if (id.endsWith('?raw')) {
         const fileName = id.replace('?raw', '');
         if (fileName.endsWith('.md')) {
@@ -27,8 +28,8 @@ function rawContentPlugin(): Plugin {
 function contentTypePlugin(): Plugin {
   return {
     name: 'content-type-plugin',
-    configureServer(server) {
-      server.middlewares.use((req, res, next) => {
+    configureServer(server: ViteDevServer) {
+      server.middlewares.use((req: IncomingMessage, res: ServerResponse, next: Connect.NextFunction) => {
         // Set proper content type for HTML files
         if (req.url === '/' || req.url?.endsWith('.html')) {
           res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -40,7 +41,7 @@ function contentTypePlugin(): Plugin {
 }
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode }: { mode: string }) => {
   // تحميل متغيرات البيئة
   const env = loadEnv(mode, process.cwd(), '');
 
@@ -73,7 +74,7 @@ export default defineConfig(({ mode }) => {
           target: 'https://api.yalidine.app/v1',
           changeOrigin: true,
           secure: false,
-          rewrite: (path) => path.replace(/^\/yalidine-api/, ''),
+          rewrite: (path: string) => path.replace(/^\/yalidine-api/, ''),
           headers: {
             // إضافة رؤوس إضافية هنا إذا لزم الأمر
           },
@@ -88,14 +89,14 @@ export default defineConfig(({ mode }) => {
             // تنظيف رأس Origin لتجنب مشاكل CORS
             proxyReq.removeHeader('origin');
           },
-          configure: (proxy, _options) => {
-            proxy.on('error', (err, _req, _res) => {
+          configure: (proxy: any, _options: any) => {
+            proxy.on('error', (err: any, _req: any, _res: any) => {
               console.log('proxy error', err);
             });
-            proxy.on('proxyReq', (proxyReq, req, _res) => {
+            proxy.on('proxyReq', (proxyReq: any, req: any, _res: any) => {
               console.log('Sending Request to the Target:', req.method, req.url);
             });
-            proxy.on('proxyRes', (proxyRes, req, _res) => {
+            proxy.on('proxyRes', (proxyRes: any, req: any, _res: any) => {
               console.log('Received Response from the Target:', proxyRes.statusCode, req.url);
               // إضافة رؤوس CORS للاستجابة
               proxyRes.headers['Access-Control-Allow-Origin'] = '*';
@@ -108,7 +109,7 @@ export default defineConfig(({ mode }) => {
         '/api': {
           target: 'http://localhost:3001',
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api/, ''),
+          rewrite: (path: string) => path.replace(/^\/api/, ''),
         },
       }
     },
@@ -144,7 +145,7 @@ export default defineConfig(({ mode }) => {
       mainFields: ['browser', 'module', 'jsnext:main', 'jsnext']
     },
     define: {
-      '__dirname': JSON.stringify(path.dirname(new URL(import.meta.url).pathname)),
+      '__dirname': JSON.stringify('/'),
       'process.env': process.env,
       'process.type': JSON.stringify(process.env.NODE_ENV === 'production' ? 'renderer' : ''),
       // إضافة متغيرات لدعم Electron
@@ -174,51 +175,11 @@ export default defineConfig(({ mode }) => {
       // التأكد من أن جميع المسارات نسبية
       rollupOptions: {
         output: {
-          manualChunks: (id) => {
-            // ملفات preload وsetup تحمل أولاً
-            if (id.includes('/public/preload.js') || id.includes('/public/hooks-fix.js')) {
-              return 'react-preload';
-            }
-            
-            // ملفات React الأساسية تحمل بعد preload مباشرة
-            if (id.includes('react') && (id.includes('/react/') || id.includes('/react-dom/') || id.includes('/react/jsx'))) {
-              return 'vendor-react-base';
-            }
-            
-            // ملفات React العالمية والساكنة
-            if (id.includes('/src/lib/react-global.js') || id.includes('/src/lib/react-global')) {
-              return 'vendor-react-global';
-            }
-            
-            if (id.includes('/public/react-global-static.js')) {
-              return 'vendor-react-global';
-            }
-            
+          manualChunks: (id: string) => {
             // تجزئة الكود للمكتبات الرئيسية
             if (id.includes('node_modules')) {
-              // مكتبات React الأساسية - لكن ليست الأساسية بالكامل
               if (id.includes('react') || id.includes('react-dom')) {
-                return 'vendor-react-core';
-              }
-              
-              // مكتبات تستخدم React hooks (مع التأكد من تحميلها بعد React core)
-              if (
-                id.includes('@radix-ui') || 
-                id.includes('react-hook-form') || 
-                id.includes('@headlessui') ||
-                id.includes('use-') || 
-                id.includes('react-colorful') ||
-                id.includes('@floating-ui') ||
-                id.includes('framer-motion')
-              ) {
-                // تقسيمها حسب المكتبة لتقليل حجم كل ملف
-                if (id.includes('@radix-ui')) return 'vendor-radix-ui';
-                if (id.includes('react-hook-form')) return 'vendor-hook-form';
-                if (id.includes('@headlessui')) return 'vendor-headless-ui';
-                if (id.includes('@floating-ui')) return 'vendor-floating-ui';
-                if (id.includes('framer-motion')) return 'vendor-framer-motion';
-                
-                return 'vendor-react-hooks';
+                return 'vendor-react';
               }
               if (id.includes('@tanstack/react-query')) {
                 return 'vendor-query';
@@ -228,6 +189,17 @@ export default defineConfig(({ mode }) => {
               }
               if (id.includes('@mui') || id.includes('@emotion')) {
                 return 'vendor-mui';
+              }
+              if (id.includes('framer-motion')) {
+                return 'vendor-animation';
+              }
+              // تجميع مكتبات React Hooks بشكل منفصل
+              if (id.includes('react-use') || 
+                  id.includes('use-') ||
+                  id.includes('react-hook-form') || 
+                  id.includes('@hookform') ||
+                  id.includes('usehooks-ts')) {
+                return 'vendor-react-hooks';
               }
               // تجميع المكتبات الأخرى
               return 'vendor-others';
@@ -285,13 +257,13 @@ export default defineConfig(({ mode }) => {
         plugins: [
           {
             name: 'node-globals',
-            setup(build) {
+            setup(build: any) {
               // إعداد polyfills لوحدات Node.js
-              build.onResolve({ filter: /^stream$|^http$|^url$|^crypto$|^https$|^zlib$|^util$|^events$|^path$|^fs$|^assert$/ }, args => {
+              build.onResolve({ filter: /^stream$|^http$|^url$|^crypto$|^https$|^zlib$|^util$|^events$|^path$|^fs$|^assert$/ }, (args: any) => {
                 return { path: args.path, namespace: 'node-polyfills' };
               });
               
-              build.onLoad({ filter: /.*/, namespace: 'node-polyfills' }, args => {
+              build.onLoad({ filter: /.*/, namespace: 'node-polyfills' }, (args: any) => {
                 let contents = '';
                 if (args.path === 'stream') {
                   contents = `

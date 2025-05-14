@@ -1,4 +1,4 @@
-import { Database } from './database.types';
+import { Database as DatabaseTypes } from './database.types';
 
 // إضافة جدول domain_verifications إلى أنواع قاعدة البيانات
 declare module './database.types' {
@@ -49,7 +49,7 @@ declare module './database.types' {
             }
           ];
         };
-      } & Database['public']['Tables'];
+      } & DatabaseTypes['public']['Tables'];
     };
   }
 }

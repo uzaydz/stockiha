@@ -25,6 +25,8 @@ import { generateCustomDomainDnsInstructions } from '@/api/domain-verification-a
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { INTERMEDIATE_DOMAIN } from '@/lib/api/domain-verification';
 import { getDomainInfo } from '@/api/get-domain-direct';
+import { linkDomain } from '@/api/link-domain-direct';
+import { removeDomain } from '@/api/remove-domain-direct';
 
 // نمط للتحقق من صحة تنسيق النطاق
 const DOMAIN_REGEX = /^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+(([a-zA-Z]{2,})|(xn--[a-zA-Z0-9]+))$/;
@@ -169,10 +171,11 @@ const DomainSettings: React.FC = () => {
         return;
       }
       
-      if (data) {
-        setDomainStatus(data.status as DomainStatusType);
-        setStatusMessage(data.error_message || '');
-        setLastChecked(data.updated_at || '');
+      if (data && typeof data === 'object') {
+        const domainVerification = data as any;
+        setDomainStatus((domainVerification.status as DomainStatusType) || 'pending');
+        setStatusMessage(domainVerification.error_message || '');
+        setLastChecked(domainVerification.updated_at || '');
       }
     } catch (error) {
       console.error('خطأ في جلب معلومات التحقق من النطاق:', error);
@@ -291,21 +294,10 @@ const DomainSettings: React.FC = () => {
         }
         
         // 2. ربط النطاق بـ Vercel
-        const linkResponse = await fetch('/api/link-domain', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            domain: newDomain,
-            organizationId: organization.id
-          })
-        });
+        const result = await linkDomain(organization.id, newDomain);
         
-        const linkResult = await linkResponse.json();
-        
-        if (!linkResponse.ok || !linkResult.success) {
-          throw new Error(linkResult.error || 'فشل في ربط النطاق بـ Vercel');
+        if (!result.success) {
+          throw new Error(result.error || 'فشل في ربط النطاق بـ Vercel');
         }
         
         // 3. تحديث النطاق في قاعدة البيانات (استمر في استخدام الوظيفة الحالية للتوافق)
@@ -318,7 +310,7 @@ const DomainSettings: React.FC = () => {
         // 4. تحديث الحالة والمعلومات
         setDomainStatus('pending');
         setStatusMessage('تم ربط النطاق بنجاح! يرجى إعداد سجلات DNS الخاصة بك.');
-        setVerificationData(linkResult.data?.verification || null);
+        setVerificationData(result.data?.verification || null);
         setLastChecked(new Date().toISOString());
         
         // 5. تحديث بيانات المستأجر
@@ -356,20 +348,9 @@ const DomainSettings: React.FC = () => {
       setIsSaving(true);
       try {
         // 1. إزالة النطاق من Vercel
-        const response = await fetch('/api/remove-domain', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            domain: organization.domain,
-            organizationId: organization.id
-          })
-        });
+        const result = await removeDomain(organization.id, organization.domain);
         
-        const result = await response.json();
-        
-        if (!response.ok || !result.success) {
+        if (!result.success) {
           throw new Error(result.error || 'فشل في إزالة النطاق من Vercel');
         }
         

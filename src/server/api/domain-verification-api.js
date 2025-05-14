@@ -209,4 +209,109 @@ router.post('/link-domain', async (req, res) => {
   }
 });
 
+/**
+ * واجهة برمجة لإزالة نطاق مخصص
+ * POST /api/remove-domain
+ */
+router.post('/remove-domain', async (req, res) => {
+  try {
+    // استخراج البيانات من طلب API
+    const { domain, organizationId } = req.body;
+
+    if (!domain || !organizationId) {
+      return res.status(400).json({
+        success: false,
+        error: 'البيانات المطلوبة غير مكتملة. يرجى توفير domain و organizationId.'
+      });
+    }
+
+    // التحقق من أن النطاق مرتبط بالمؤسسة المحددة
+    const { data: organization, error: orgError } = await supabase
+      .from('organizations')
+      .select('domain')
+      .eq('id', organizationId)
+      .single();
+
+    if (orgError) {
+      return res.status(404).json({
+        success: false,
+        error: 'المؤسسة غير موجودة'
+      });
+    }
+
+    if (organization.domain !== domain) {
+      return res.status(400).json({
+        success: false,
+        error: 'النطاق غير مرتبط بهذه المؤسسة'
+      });
+    }
+
+    // الحصول على معلومات المشروع و token من البيئة
+    const VERCEL_TOKEN = process.env.VERCEL_TOKEN || process.env.VERCEL_API_TOKEN;
+    const VERCEL_PROJECT_ID = process.env.VERCEL_PROJECT_ID;
+
+    if (!VERCEL_TOKEN || !VERCEL_PROJECT_ID) {
+      return res.status(500).json({
+        success: false,
+        error: 'لم يتم تكوين متغيرات البيئة اللازمة للاتصال بـ Vercel API.'
+      });
+    }
+
+    // إزالة النطاق من Vercel
+    try {
+      const response = await fetch(`https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}/domains/${domain}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${VERCEL_TOKEN}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('خطأ في إزالة النطاق من Vercel:', errorData);
+      }
+    } catch (error) {
+      console.error('خطأ في إزالة النطاق من Vercel:', error);
+      // سنستمر في تنفيذ الحذف من قاعدة البيانات حتى لو فشل الحذف من Vercel
+    }
+
+    // إزالة النطاق من المؤسسة
+    const { error: updateError } = await supabase
+      .from('organizations')
+      .update({ domain: null })
+      .eq('id', organizationId);
+
+    if (updateError) {
+      return res.status(500).json({
+        success: false,
+        error: 'حدث خطأ أثناء إزالة النطاق من المؤسسة'
+      });
+    }
+
+    // حذف سجل التحقق بشكل مباشر بدلاً من استخدام RPC
+    const { error: deleteError } = await supabase
+      .from('domain_verifications')
+      .delete()
+      .eq('organization_id', organizationId)
+      .eq('domain', domain);
+
+    if (deleteError) {
+      console.error('خطأ في حذف سجل التحقق:', deleteError);
+    }
+
+    // إرجاع النتيجة
+    return res.status(200).json({
+      success: true,
+      message: 'تمت إزالة النطاق بنجاح'
+    });
+  } catch (error) {
+    console.error('خطأ غير متوقع أثناء إزالة النطاق:', error);
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'حدث خطأ غير متوقع'
+    });
+  }
+});
+
 export default router; 
