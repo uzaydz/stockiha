@@ -28,10 +28,10 @@ import React from 'react'; // يجب أن يكون هذا من أوائل الا
 import ReactDOM from 'react-dom/client';
 
 // إذا كنت بحاجة ماسة لجعل React متاحًا عالميًا (غير مستحسن بشكل عام):
-// (window as any).React = React;
+(window as any).React = React; // إلغاء تعليق هذا وتفعيله
 
 // استيراد ملف إصلاح React
-// import './lib/react-compat.js'; // تعليق هذا أيضًا مؤقتًا
+import './lib/react-compat.js'; // إلغاء تعليق هذا وتفعيله
 
 // Importar los polyfills específicos para env.mjs antes de cualquier otro módulo
 import './lib/env-polyfill';
