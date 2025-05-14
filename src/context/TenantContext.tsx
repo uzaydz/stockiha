@@ -177,6 +177,36 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const initialized = useRef(false);
   const loadingOrganization = useRef(false);
 
+  // التحقق من النطاق المخصص عند بدء التشغيل
+  useEffect(() => {
+    const checkCustomDomain = async () => {
+      const hostname = window.location.hostname;
+      
+      if (!hostname.includes('localhost')) {
+        const orgData = await getOrganizationFromCustomDomain(hostname);
+        if (orgData) {
+          console.log('تم العثور على معرف المؤسسة من النطاق المخصص:', orgData.id);
+          localStorage.setItem('bazaar_organization_id', orgData.id);
+          localStorage.setItem('bazaar_current_subdomain', orgData.subdomain);
+          
+          // تحديث الحالة
+          setOrganization({
+            id: orgData.id,
+            name: '',
+            subdomain: orgData.subdomain,
+            subscription_tier: 'premium',
+            subscription_status: 'active',
+            settings: {},
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+        }
+      }
+    };
+    
+    checkCustomDomain();
+  }, []);
+
   // مزامنة بيانات المؤسسة من AuthContext إلى TenantContext - محسنة
   useEffect(() => {
     if (authOrganization && !organization && !loadingOrganization.current) {
@@ -534,29 +564,4 @@ const updateOrganizationFromData = (orgData: any): Organization => {
     updated_at: orgData.updated_at,
     owner_id: orgData.owner_id
   };
-};
-
-// استخدام الوظيفة في useEffect للتحقق من النطاق المخصص
-useEffect(() => {
-  const checkCustomDomain = async () => {
-    const hostname = window.location.hostname;
-    
-    if (!hostname.includes('localhost')) {
-      const orgData = await getOrganizationFromCustomDomain(hostname);
-      if (orgData) {
-        console.log('تم العثور على معرف المؤسسة من النطاق المخصص:', orgData.id);
-        localStorage.setItem('bazaar_organization_id', orgData.id);
-        localStorage.setItem('bazaar_current_subdomain', orgData.subdomain);
-        
-        // تحديث الحالة
-        setOrganization({
-          id: orgData.id,
-          name: '',
-          subdomain: orgData.subdomain
-        });
-      }
-    }
-  };
-  
-  checkCustomDomain();
-}, []); 
+}; 
