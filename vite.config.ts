@@ -182,8 +182,6 @@ export default defineConfig(({ mode }: { mode: string }) => {
               if (id.includes('react') || 
                   id.includes('@tanstack/react-query') ||
                   id.includes('react-use') || 
-                  id.includes('react-hook-form') || 
-                  id.includes('@hookform') ||
                   id.includes('usehooks-ts') ||
                   id.includes('@radix-ui') ||
                   id.includes('@headlessui') ||
@@ -192,27 +190,34 @@ export default defineConfig(({ mode }: { mode: string }) => {
                   id.includes('next-themes') ||
                   id.includes('swr') ||
                   id.includes('@dnd-kit') || 
+                  id.includes('react-dnd') || 
                   id.includes('@tanstack/react-table') ||
                   id.includes('sonner') ||
                   id.includes('vaul') ||
                   id.includes('recharts') ||
                   id.includes('react-beautiful-dnd') ||
-                  id.includes('@mui/x-date-pickers')
+                  id.includes('@mui') || 
+                  id.includes('@emotion') || 
+                  id.includes('@tinymce/tinymce-react') || 
+                  id.includes('embla-carousel-react') || 
+                  id.includes('react-colorful') || 
+                  id.includes('react-day-picker') || 
+                  id.includes('react-intersection-observer') || 
+                  id.includes('react-markdown') || 
+                  id.includes('react-resizable-panels') || 
+                  id.includes('react-to-print') || 
+                  id.includes('react-window')
               ) {
                 return 'vendor-react';
               }
               if (id.includes('@supabase')) {
                 return 'vendor-supabase';
               }
-              if (id.includes('@mui') || id.includes('@emotion')) {
-                return 'vendor-mui';
+              if (id.includes('lodash-es') || id.includes('date-fns') || id.includes('dayjs')) {
+                return 'vendor-dates';
               }
-              // تقسيم المكتبات الأخرى بطريقة آمنة أكثر
               if (id.includes('axios') || id.includes('swr')) {
                 return 'vendor-data';
-              }
-              if (id.includes('date-fns') || id.includes('dayjs')) {
-                return 'vendor-dates';
               }
               if (id.includes('jspdf') || id.includes('html2canvas')) {
                 return 'vendor-pdf';
