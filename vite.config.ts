@@ -176,20 +176,24 @@ export default defineConfig(({ mode }: { mode: string }) => {
       rollupOptions: {
         output: {
           manualChunks: (id: string) => {
-            // تجزئة الكود للمكتبات الرئيسية
             if (id.includes('node_modules')) {
-              // تجميع React وكل المكتبات المتعلقة بـ React في حزمة واحدة
+              // React وجميع المكتبات المرتبطة به في حزمة واحدة
               if (id.includes('react') || 
-                  id.includes('react-dom') ||
+                  id.includes('react-dom') || 
+                  id.includes('@tanstack/react-query') ||
                   id.includes('react-use') || 
                   id.includes('use-') ||
                   id.includes('react-hook-form') || 
                   id.includes('@hookform') ||
-                  id.includes('usehooks-ts')) {
+                  id.includes('usehooks-ts') ||
+                  // إضافة المكتبات التي تستخدم React APIs مثل createContext
+                  id.includes('@radix-ui') ||
+                  id.includes('@headlessui') ||
+                  id.includes('framer-motion') ||
+                  id.includes('react-router') ||
+                  id.includes('cmdk')
+              ) {
                 return 'vendor-react';
-              }
-              if (id.includes('@tanstack/react-query')) {
-                return 'vendor-query';
               }
               if (id.includes('@supabase')) {
                 return 'vendor-supabase';
@@ -197,10 +201,17 @@ export default defineConfig(({ mode }: { mode: string }) => {
               if (id.includes('@mui') || id.includes('@emotion')) {
                 return 'vendor-mui';
               }
-              if (id.includes('framer-motion')) {
-                return 'vendor-animation';
+              // تقسيم المكتبات الأخرى بطريقة آمنة أكثر
+              if (id.includes('axios') || id.includes('swr')) {
+                return 'vendor-data';
               }
-              // تجميع المكتبات الأخرى
+              if (id.includes('date-fns') || id.includes('dayjs')) {
+                return 'vendor-dates';
+              }
+              if (id.includes('jspdf') || id.includes('html2canvas')) {
+                return 'vendor-pdf';
+              }
+              // المكتبات الأخرى
               return 'vendor-others';
             }
             // تجزئة مكونات صفحة المنتج

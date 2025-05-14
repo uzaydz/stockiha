@@ -1,17 +1,20 @@
+// إصلاح createContext وأخرى: تأكد من تحميل React APIs قبل أي شيء آخر
+(window as any).React = (window as any).React || {};
+
 // إصلاح useLayoutEffect قبل أي استيراد
 // تعريف مباشر في النطاق العالمي لضمان التنفيذ قبل أي شيء آخر
 (function() {
   if (typeof window !== 'undefined') {
     // محاولة التعرف على React العالمي
-    const _React = window.React || null;
-    if (_React && _React.useLayoutEffect) {
-      // احتفظ بنسخة من النسخة الأصلية
+    const _React = (window as any).React || null;
+    if (_React) {
+      // احتفظ بنسخة من النسخة الأصلية لـ useLayoutEffect إذا كانت موجودة
       const originalUseLayoutEffect = _React.useLayoutEffect;
       // استبدل بنسخة آمنة
       _React.useLayoutEffect = function() {
         return typeof window !== 'undefined' 
-          ? originalUseLayoutEffect.apply(this, arguments) 
-          : _React.useEffect.apply(this, arguments);
+          ? (originalUseLayoutEffect || _React.useEffect).apply(this, arguments) 
+          : (_React.useEffect || function(){}).apply(this, arguments);
       };
     }
   }
