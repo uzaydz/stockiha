@@ -175,9 +175,19 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks: (id) => {
+            // ملفات React الأساسية تحمل أولاً
+            if (id.includes('react') && (id.includes('/react/') || id.includes('/react-dom/'))) {
+              return 'vendor-react-core';
+            }
+            
+            // ترتيب تحميل الملفات الرئيسية
+            if (id.includes('/src/lib/react-global.js')) {
+              return 'react-setup';
+            }
+            
             // تجزئة الكود للمكتبات الرئيسية
             if (id.includes('node_modules')) {
-              // مكتبات React الأساسية
+              // مكتبات React الأساسية - لكن ليست الأساسية بالكامل
               if (id.includes('react') || id.includes('react-dom')) {
                 return 'vendor-react';
               }
@@ -188,7 +198,8 @@ export default defineConfig(({ mode }) => {
                 id.includes('@headlessui') ||
                 id.includes('use-') || 
                 id.includes('react-colorful') ||
-                id.includes('@floating-ui')
+                id.includes('@floating-ui') ||
+                id.includes('framer-motion')
               ) {
                 return 'vendor-react-hooks';
               }
@@ -200,9 +211,6 @@ export default defineConfig(({ mode }) => {
               }
               if (id.includes('@mui') || id.includes('@emotion')) {
                 return 'vendor-mui';
-              }
-              if (id.includes('framer-motion')) {
-                return 'vendor-animation';
               }
               // تجميع المكتبات الأخرى
               return 'vendor-others';

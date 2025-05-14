@@ -7,6 +7,9 @@
     <meta name="description" content="منصة الألعاب الشاملة - متجر ألعاب متكامل لبيع وإصلاح أجهزة الألعاب والإكسسوارات" />
     <meta name="author" content="Game Shop" />
     
+    <!-- تحميل React الساكن لمنع الأخطاء أثناء التحميل -->
+    <script src="/react-global-static.js"></script>
+    
     <!-- إضافة سكريبت للتعامل مع وضع الإضاءة -->
     <script>
       // حاول تطبيق الوضع المحفوظ قبل تحميل الصفحة لمنع وميض الشاشة
@@ -45,7 +48,7 @@
       window.ReactDOM = window.ReactDOM || {};
       
       // تعريف hooks أساسية إذا لم تكن موجودة
-      window.React.useLayoutEffect = function useLayoutEffectPolyfill() {
+      window.React.useLayoutEffect = window.React.useLayoutEffect || function useLayoutEffectPolyfill() {
         console.warn('استخدام useLayoutEffect مؤقت');
         return undefined;
       };
@@ -53,6 +56,21 @@
       window.React.useState = window.React.useState || function useStatePolyfill() { return [undefined, function() {}]; };
       window.React.useEffect = window.React.useEffect || function useEffectPolyfill() {};
       window.React.useRef = window.React.useRef || function useRefPolyfill() { return { current: null }; };
+      
+      // مكونات React الأساسية
+      window.React.createContext = window.React.createContext || function createContextPolyfill() {
+        return {
+          Provider: function Provider() {},
+          Consumer: function Consumer() {},
+          displayName: ''
+        };
+      };
+      
+      window.React.createElement = window.React.createElement || function createElementPolyfill(type, props, ...children) {
+        return { type, props, children };
+      };
+
+      window.React.Fragment = window.React.Fragment || Symbol('Fragment');
     </script>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
