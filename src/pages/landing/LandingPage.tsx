@@ -8,6 +8,7 @@ import { getFullStoreData, StoreData, getProductCategories, Category } from '@/a
 import StorePage from '@/components/store/StorePage';
 import { useTenant } from '@/context/TenantContext';
 import { Wifi, WifiOff } from 'lucide-react';
+import { getSupabaseClient } from '@/lib/supabase';
 
 // Nuevos componentes de la página de aterrizaje
 import HeroSection from '@/components/landing/HeroSection';
@@ -30,25 +31,48 @@ const LandingPage = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isScrolled, setIsScrolled] = useState(false);
   const [searchParams] = useSearchParams();
-  // Add a state to track if we've decided to show the store page to prevent flicker
   const [showStore, setShowStore] = useState<boolean | null>(null);
-  // Use a ref to track if data has been fetched to prevent multiple fetches
   const dataFetchedRef = useRef(false);
   
-  console.log('LandingPage: النطاق الفرعي الحالي =', currentSubdomain);
+  console.log('LandingPage: النطاق الحالي =', window.location.hostname);
   
-  // Determine whether to show store page once on initial load
+  // تحديد ما إذا كان يجب عرض المتجر أو صفحة الهبوط
   useEffect(() => {
     if (showStore === null) {
       const hostname = window.location.hostname;
       
-      // Check if we have a subdomain
+      // التحقق من النطاق المخصص
+      const checkCustomDomain = async () => {
+        try {
+          const supabase = getSupabaseClient();
+          const { data: orgData } = await supabase
+            .from('organizations')
+            .select('id, domain, subdomain')
+            .eq('domain', hostname)
+            .single();
+          
+          if (orgData) {
+            console.log('تم العثور على نطاق مخصص:', hostname);
+            setShowStore(true);
+            return;
+          }
+        } catch (error) {
+          console.error('خطأ في التحقق من النطاق المخصص:', error);
+        }
+      };
+      
+      // التحقق من النطاق المخصص أولاً
+      if (!hostname.includes('localhost')) {
+        checkCustomDomain();
+      }
+      
+      // التحقق من النطاق الفرعي
       if (currentSubdomain) {
         setShowStore(true);
         return;
       }
       
-      // Check for subdomain in localhost
+      // التحقق من النطاق الفرعي في localhost
       if (hostname.includes('.localhost')) {
         const parts = hostname.split('.');
         if (parts.length > 1 && parts[0] !== 'www' && parts[0] !== 'localhost') {
@@ -58,7 +82,7 @@ const LandingPage = () => {
         }
       }
       
-      // If we reach here, we should not show store page
+      // إذا وصلنا إلى هنا، نعرض صفحة الهبوط
       setShowStore(false);
     }
   }, [currentSubdomain, showStore]);

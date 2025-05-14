@@ -60,8 +60,27 @@ const isMainDomain = (hostname: string): boolean => {
 };
 
 // استخراج النطاق الفرعي من اسم المضيف
-const extractSubdomain = (hostname: string): string | null => {
+const extractSubdomain = async (hostname: string): Promise<string | null> => {
   console.log('TenantContext - استخراج النطاق الفرعي من:', hostname);
+  
+  // التحقق من النطاق المخصص أولاً
+  const checkCustomDomain = async (): Promise<string | null> => {
+    try {
+      const { data: orgData } = await getSupabaseClient()
+        .from('organizations')
+        .select('subdomain')
+        .eq('domain', hostname)
+        .single();
+      
+      if (orgData?.subdomain) {
+        console.log('TenantContext - تم العثور على نطاق مخصص:', hostname);
+        return orgData.subdomain;
+      }
+    } catch (error) {
+      console.error('TenantContext - خطأ في التحقق من النطاق المخصص:', error);
+    }
+    return null;
+  };
   
   // التعامل مع السابدومين في بيئة localhost المحلية
   if (hostname.includes('localhost')) {
@@ -106,6 +125,12 @@ const extractSubdomain = (hostname: string): string | null => {
     
     console.log('TenantContext - تم اكتشاف سابدومين:', subdomain);
     return subdomain;
+  }
+  
+  // التحقق من النطاق المخصص
+  const customDomainSubdomain = await checkCustomDomain();
+  if (customDomainSubdomain) {
+    return customDomainSubdomain;
   }
   
   // إذا لم نتمكن من استخراج نطاق فرعي، نعيد null
@@ -177,7 +202,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       
       try {
         // استخدام النطاق الفرعي الحالي أو استخراجه من اسم المضيف
-        const subdomain = currentSubdomain || extractSubdomain(window.location.hostname);
+        const subdomain = currentSubdomain || await extractSubdomain(window.location.hostname);
         console.log('بدء استرجاع بيانات المؤسسة - النطاق الفرعي:', subdomain);
         
         // أولاً نحاول العثور على المؤسسة بواسطة النطاق الرئيسي (الحالي)
@@ -407,7 +432,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       
       // إذا فشل استرداد البيانات بواسطة المعرف، نعود إلى الطريقة الاحتياطية
       // استخدام النطاق الفرعي الحالي أو استخراجه من اسم المضيف
-      const subdomain = currentSubdomain || extractSubdomain(window.location.hostname);
+      const subdomain = currentSubdomain || await extractSubdomain(window.location.hostname);
       
       // حذف التخزين المؤقت لضمان الحصول على أحدث البيانات
       localStorage.removeItem(`tenant:subdomain:${subdomain}`);
