@@ -146,10 +146,6 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
       dataFetchAttempted.current = true;
       
       try {
-        // التحقق مما إذا كنا في حالة إعادة تحميل الصفحة مع نطاق مخصص
-        const savedSubdomain = localStorage.getItem('bazaar_current_subdomain');
-        const currentHostname = window.location.hostname;
-        
         // التحقق من النطاق المخصص أولاً
         const customDomainOrg = await checkCustomDomain();
         if (customDomainOrg) {
@@ -158,10 +154,10 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
         }
         
         // استخدام النطاق الفرعي المخزن في حالة عدم وجود نطاق مخصص
-        // أو استخدام النطاق الفرعي الحالي إذا كان متاحًا
-        const subdomainToUse = savedSubdomain || currentSubdomain;
+        const savedSubdomain = localStorage.getItem('bazaar_current_subdomain');
         
-        if (subdomainToUse) {
+        if (savedSubdomain || currentSubdomain) {
+          const subdomainToUse = savedSubdomain || currentSubdomain;
           console.log('استخدام النطاق الفرعي لتحميل البيانات:', subdomainToUse);
           const data = await getFullStoreData(subdomainToUse);
           if (data) {
