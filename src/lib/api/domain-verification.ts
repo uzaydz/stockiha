@@ -6,7 +6,7 @@ import { DomainVerificationStatus } from '@/types/domain-verification';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 // النطاق الوسيط المستخدم للـ CNAME
-export const INTERMEDIATE_DOMAIN = 'connect.ktobi.online';
+export const INTERMEDIATE_DOMAIN = import.meta.env.VITE_INTERMEDIATE_DOMAIN || 'connect.ktobi.online';
 
 interface DomainStatus {
   status: 'unconfigured' | 'pending' | 'active' | 'error';

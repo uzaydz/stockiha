@@ -321,11 +321,14 @@ const App = () => (
                 {/* صفحة خدمات الإصلاح العامة */}
                 <Route path="/services" element={<PublicServiceTrackingPage />} />
 
-                {/* صفحات الهبوط المخصصة */}
-                <Route path="/:slug" element={<LandingPageView />} />
-
                 {/* صفحات التوثيق */}
                 <Route path="/docs/custom-domains" element={<CustomDomainsDocPage />} />
+
+                {/* الصفحة الرئيسية للمتجر - يتم توجيه النطاقات المخصصة إليها */}
+                <Route index element={<LandingPage />} />
+
+                {/* صفحات الهبوط المخصصة - يجب أن تكون في النهاية لتجنب توجيه النطاقات المخصصة إليها */}
+                <Route path="/:slug" element={<LandingPageView />} />
 
                 {/* صفحات إعداد المؤسسة */}
                 <Route

@@ -57,6 +57,15 @@ declare module './database.types' {
 // أنواع الحالة للتحقق من النطاق
 export type DomainVerificationStatus = 'pending' | 'active' | 'verified' | 'error';
 
+// واجهة استجابة حالة نطاق Vercel
+export interface DomainVerificationResponse {
+  verified: boolean;
+  reason: string;
+  message?: string;
+  verification?: any;
+  errorCode?: string;
+}
+
 // نموذج نتائج التحقق من DNS
 export interface DNSVerificationResult {
   success: boolean;

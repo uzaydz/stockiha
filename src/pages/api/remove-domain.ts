@@ -1,15 +1,14 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { linkDomainToVercelProject, verifyVercelDomainStatus } from '@/api/domain-verification-api';
 import { getSupabaseClient } from '@/lib/supabase';
+import { removeDomainFromVercelProject } from '@/api/domain-verification-api';
 
 /**
- * واجهة برمجة لربط نطاق مخصص للمتجر بمشروع Vercel
+ * واجهة برمجة لإزالة نطاق مخصص
  * 
- * POST /api/link-domain
- * Body: {
- *   domain: string  // اسم النطاق المخصص
- *   organizationId: string  // معرف المؤسسة المرتبطة بالنطاق
- * }
+ * POST /api/remove-domain
+ * Body:
+ *   domain: string  // النطاق المراد إزالته
+ *   organizationId: string  // معرف المؤسسة
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   // التحقق من أن الطلب هو POST
@@ -39,6 +38,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
+    // التحقق من أن النطاق مرتبط بالمؤسسة المحددة
+    const { data: organization, error: orgError } = await supabase
+      .from('organizations')
+      .select('domain')
+      .eq('id', organizationId)
+      .single();
+
+    if (orgError) {
+      return res.status(404).json({
+        success: false,
+        error: 'المؤسسة غير موجودة'
+      });
+    }
+
+    if (organization.domain !== domain) {
+      return res.status(400).json({
+        success: false,
+        error: 'النطاق غير مرتبط بهذه المؤسسة'
+      });
+    }
+
     // الحصول على معلومات المشروع و token من البيئة
     const VERCEL_TOKEN = process.env.VERCEL_TOKEN || process.env.VERCEL_API_TOKEN;
     const VERCEL_PROJECT_ID = process.env.VERCEL_PROJECT_ID;
@@ -57,71 +77,56 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    // ربط النطاق بمشروع Vercel
-    const linkResult = await linkDomainToVercelProject(
+    // إزالة النطاق من Vercel
+    const removeResult = await removeDomainFromVercelProject(
       domain,
       VERCEL_PROJECT_ID,
       VERCEL_TOKEN
     );
 
-    if (!linkResult.success) {
-      return res.status(400).json({
-        success: false,
-        error: linkResult.error || 'حدث خطأ أثناء ربط النطاق'
-      });
+    if (!removeResult.success) {
+      console.error('خطأ في إزالة النطاق من Vercel:', removeResult.error);
+      // سنستمر في تنفيذ الحذف من قاعدة البيانات حتى لو فشل الحذف من Vercel
     }
 
-    // تحديث النطاق في قاعدة البيانات
-    const { error: dbError } = await supabase
+    // إزالة النطاق من المؤسسة
+    const { error: updateError } = await supabase
       .from('organizations')
-      .update({ domain: domain })
+      .update({ domain: null })
       .eq('id', organizationId);
 
-    if (dbError) {
-      console.error('حدث خطأ أثناء تحديث النطاق في قاعدة البيانات:', dbError);
+    if (updateError) {
       return res.status(500).json({
         success: false,
-        error: 'حدث خطأ أثناء تحديث النطاق في قاعدة البيانات'
+        error: 'حدث خطأ أثناء إزالة النطاق من المؤسسة'
       });
     }
 
     try {
-      // التحقق من حالة النطاق (DNS و SSL)
-      const verificationStatus = await verifyVercelDomainStatus(
-        domain,
-        VERCEL_PROJECT_ID,
-        VERCEL_TOKEN
-      );
-
-      // إنشاء سجل في جدول domain_verifications لتتبع حالة النطاق
-      const { error: verificationError } = await supabase.rpc(
-        'upsert_domain_verification',
+      // حذف سجل التحقق باستخدام RPC
+      const { error: deleteError } = await supabase.rpc(
+        'delete_domain_verification',
         {
           p_organization_id: organizationId,
-          p_domain: domain,
-          p_status: verificationStatus.verified ? 'verified' : 'pending',
-          p_verification_data: linkResult.data?.verification || null
+          p_domain: domain
         }
       );
 
-      if (verificationError) {
-        console.error('حدث خطأ أثناء إنشاء سجل التحقق:', verificationError);
+      if (deleteError) {
+        console.error('خطأ في حذف سجل التحقق:', deleteError);
       }
-    } catch (verificationError) {
-      console.error('خطأ في التحقق من النطاق:', verificationError);
-      // لا نريد إيقاف العملية بسبب خطأ في التحقق
+    } catch (deleteError) {
+      console.error('خطأ غير متوقع في حذف سجل التحقق:', deleteError);
+      // سنتجاهل هذا الخطأ ونستمر
     }
 
     // إرجاع النتيجة
     return res.status(200).json({
       success: true,
-      data: {
-        domain: domain,
-        verification: linkResult.data?.verification || null
-      }
+      message: 'تمت إزالة النطاق بنجاح'
     });
   } catch (error) {
-    console.error('خطأ غير متوقع أثناء ربط النطاق:', error);
+    console.error('خطأ غير متوقع أثناء إزالة النطاق:', error);
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'حدث خطأ غير متوقع'

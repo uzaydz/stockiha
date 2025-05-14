@@ -3,6 +3,7 @@ import { getSupabaseClient } from '@/lib/supabase';
 import { useAuth } from './AuthContext';
 import { withCache, LONG_CACHE_TTL } from '@/lib/cache/storeCache';
 import { getOrganizationBySubdomain, getOrganizationByDomain } from '@/lib/api/subdomain';
+import { getOrganizationById } from '@/lib/api/organization';
 
 export type Organization = {
   id: string;
@@ -107,7 +108,8 @@ const extractSubdomain = (hostname: string): string | null => {
     return subdomain;
   }
   
-  console.log('TenantContext - لا يوجد سابدومين');
+  // إذا لم نتمكن من استخراج نطاق فرعي، نعيد null
+  console.log('TenantContext - لم يتم اكتشاف سابدومين صالح، استخدام null');
   return null;
 };
 
@@ -178,22 +180,62 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const subdomain = currentSubdomain || extractSubdomain(window.location.hostname);
         console.log('بدء استرجاع بيانات المؤسسة - النطاق الفرعي:', subdomain);
         
-        const org = await fetchOrganizationBySubdomain(subdomain);
+        // أولاً نحاول العثور على المؤسسة بواسطة النطاق الرئيسي (الحالي)
+        const currentHostname = window.location.hostname;
         
-        if (org) {
-          console.log('تم العثور على المؤسسة:', org.name);
-          setOrganization(updateOrganizationFromData(org));
-          
-          // حفظ معرف المؤسسة في التخزين المحلي للاستخدام لاحقاً
-          localStorage.setItem('bazaar_organization_id', org.id);
+        // محاولة البحث عن المؤسسة بواسطة النطاق الرئيسي
+        const orgByDomain = await getOrganizationByDomain(currentHostname);
+        
+        if (orgByDomain) {
+          console.log(`تم العثور على المؤسسة بواسطة النطاق الرئيسي: ${currentHostname}`);
+          setOrganization(updateOrganizationFromData(orgByDomain));
+          localStorage.setItem('bazaar_organization_id', orgByDomain.id);
           
           // تحقق ما إذا كان المستخدم الحالي هو مسؤول المؤسسة
-          if (user && user.id === org.owner_id) {
+          if (user && user.id === orgByDomain.owner_id) {
             setIsOrgAdmin(true);
           }
+        }
+        // محاولة البحث عن المؤسسة بواسطة النطاق الفرعي
+        else if (subdomain) {
+          const orgBySubdomain = await getOrganizationBySubdomain(subdomain);
+          
+          if (orgBySubdomain) {
+            console.log('تم العثور على المؤسسة:', orgBySubdomain.name);
+            setOrganization(updateOrganizationFromData(orgBySubdomain));
+            
+            // حفظ معرف المؤسسة في التخزين المحلي للاستخدام لاحقاً
+            localStorage.setItem('bazaar_organization_id', orgBySubdomain.id);
+            
+            // تحقق ما إذا كان المستخدم الحالي هو مسؤول المؤسسة
+            if (user && user.id === orgBySubdomain.owner_id) {
+              setIsOrgAdmin(true);
+            }
+          } else {
+            console.log('لم يتم العثور على مؤسسة بالنطاق الفرعي:', subdomain);
+            setOrganization(null);
+          }
         } else {
-          console.log('لم يتم العثور على مؤسسة بالنطاق الفرعي:', subdomain);
-          setOrganization(null);
+          // محاولة استخدام المعرف المخزن محلياً
+          const storedOrgId = localStorage.getItem('bazaar_organization_id');
+          if (storedOrgId) {
+            const orgById = await getOrganizationById(storedOrgId);
+            if (orgById) {
+              console.log('تم العثور على المؤسسة من التخزين المحلي:', orgById.name);
+              setOrganization(updateOrganizationFromData(orgById));
+              
+              // تحقق ما إذا كان المستخدم الحالي هو مسؤول المؤسسة
+              if (user && user.id === orgById.owner_id) {
+                setIsOrgAdmin(true);
+              }
+            } else {
+              console.log('لم يتم العثور على مؤسسة باستخدام المعرف المخزن محلياً');
+              setOrganization(null);
+            }
+          } else {
+            console.log('لا يوجد معرف مؤسسة مخزن محلياً');
+            setOrganization(null);
+          }
         }
         
         initialized.current = true;
@@ -208,7 +250,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
     
     loadTenantData();
-  }, [currentSubdomain, authLoading, user, fetchOrganizationBySubdomain, organization]);
+  }, [currentSubdomain, authLoading, user, organization, getOrganizationById, getOrganizationByDomain, getOrganizationBySubdomain]);
 
   // إنشاء مؤسسة جديدة - محسنة مع useCallback
   const createOrganization = useCallback(async (

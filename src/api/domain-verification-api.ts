@@ -1,5 +1,7 @@
 import { getSupabaseClient } from '@/lib/supabase';
-import { DNSVerificationResult, DomainVerificationStatus } from '@/types/domain-verification';
+import { DNSVerificationResult, DomainVerificationStatus, DomainVerificationResponse } from '@/types/domain-verification';
+import axios from 'axios';
+import { INTERMEDIATE_DOMAIN } from '@/lib/api/domain-verification';
 
 /**
  * التحقق من سجلات DNS للنطاق المخصص
@@ -75,47 +77,42 @@ export const updateDomainVerificationStatus = async (
   try {
     const supabase = await getSupabaseClient();
     
-    // البحث عن سجل التحقق الحالي
-    const { data: existingVerification, error: selectError } = await supabase
+    // التحقق من وجود سجل للنطاق
+    const { data: existingRecord } = await supabase
       .from('domain_verifications')
       .select('id')
       .eq('organization_id', organizationId)
       .eq('domain', domain)
       .maybeSingle();
     
-    if (selectError) {
-      console.error('خطأ في استعلام سجل التحقق:', selectError);
-      return false;
-    }
-    
     const now = new Date().toISOString();
     
-    if (existingVerification?.id) {
+    if (existingRecord) {
       // تحديث السجل الموجود
       const { error } = await supabase
         .from('domain_verifications')
         .update({
-          status,
+          status: status,
           error_message: errorMessage,
-          verified_at: status === 'active' || status === 'verified' ? now : null,
+          verified_at: (status === 'active' || status === 'verified') ? now : null,
           updated_at: now
         })
-        .eq('id', existingVerification.id);
+        .eq('id', existingRecord.id);
         
       return !error;
     } else {
       // إنشاء سجل جديد
       const { error } = await supabase
         .from('domain_verifications')
-        .insert({
+        .insert([{
           organization_id: organizationId,
-          domain,
-          status,
+          domain: domain,
+          status: status,
           error_message: errorMessage,
-          verified_at: status === 'active' || status === 'verified' ? now : null,
+          verified_at: (status === 'active' || status === 'verified') ? now : null,
           created_at: now,
           updated_at: now
-        });
+        }]);
         
       return !error;
     }
@@ -235,117 +232,290 @@ export const verifyAndUpdateDomainStatus = async (
 };
 
 /**
- * ربط نطاق مخصص بمشروع Vercel عبر واجهة برمجة التطبيقات
- * هذه الوظيفة تستخدم Vercel API لإضافة نطاق مخصص إلى مشروع محدد
+ * واجهة Vercel API للنطاقات
  */
-export const linkDomainToVercelProject = async (
-  customDomain: string,
+const VERCEL_API_URL = 'https://api.vercel.com';
+
+/**
+ * التحقق من حالة النطاق في Vercel
+ */
+export async function verifyVercelDomainStatus(
+  domain: string,
+  projectId: string,
+  vercelToken: string
+): Promise<DomainVerificationResponse> {
+  try {
+    // التحقق من صحة المعلمات
+    if (!domain || !projectId || !vercelToken) {
+      return {
+        verified: false,
+        reason: 'missing-parameters',
+        message: 'معلمات التحقق غير مكتملة'
+      };
+    }
+
+    // استعلام حالة النطاق من Vercel API
+    const response = await axios.get(
+      `${VERCEL_API_URL}/v9/projects/${projectId}/domains/${domain}`,
+      {
+        headers: {
+          Authorization: `Bearer ${vercelToken}`
+        }
+      }
+    );
+
+    // التحقق من أن الاستجابة صالحة
+    if (response.status >= 200 && response.status < 300 && response.data) {
+      const { verification, verified, error } = response.data;
+
+      if (verified) {
+        return {
+          verified: true,
+          reason: 'verified',
+          message: 'تم التحقق من النطاق بنجاح'
+        };
+      } else if (error?.code) {
+        return {
+          verified: false,
+          reason: error.code,
+          message: getVercelErrorMessage(error.code),
+          errorCode: error.code
+        };
+      } else {
+        // العودة بتفاصيل التحقق
+        return {
+          verified: false,
+          reason: 'pending-verification',
+          message: 'النطاق قيد التحقق',
+          verification
+        };
+      }
+    } else {
+      throw new Error('استجابة Vercel API غير صالحة');
+    }
+  } catch (error) {
+    console.error('خطأ في استعلام حالة النطاق من Vercel:', error);
+    
+    if (axios.isAxiosError(error)) {
+      // التعامل مع أخطاء Axios
+      const errorCode = error.response?.data?.error?.code || 'unknown-error';
+      const errorMessage = getVercelErrorMessage(errorCode);
+
+      return {
+        verified: false,
+        reason: errorCode,
+        message: errorMessage,
+        errorCode
+      };
+    }
+
+    // أخطاء أخرى
+    return {
+      verified: false,
+      reason: 'api-error',
+      message: error instanceof Error ? error.message : 'خطأ غير متوقع أثناء التحقق من النطاق'
+    };
+  }
+}
+
+/**
+ * ربط نطاق بمشروع Vercel
+ */
+export async function linkDomainToVercelProject(
+  domain: string,
   projectId: string,
   vercelToken: string
 ): Promise<{
   success: boolean;
   data?: any;
   error?: string;
-}> => {
+}> {
   try {
-    // تنظيف النطاق
-    const cleanDomain = customDomain.replace(/^https?:\/\//i, '').replace(/\/$/, '').toLowerCase();
-    
-    // استدعاء Vercel API
-    const response = await fetch(`https://api.vercel.com/v9/projects/${projectId}/domains`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${vercelToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ name: cleanDomain })
-    });
-    
-    const data = await response.json();
-    
-    if (!response.ok) {
-      console.error('خطأ في ربط النطاق مع Vercel:', data);
+    // التحقق من صحة المعلمات
+    if (!domain || !projectId || !vercelToken) {
       return {
         success: false,
-        error: data.error?.message || 'حدث خطأ أثناء ربط النطاق'
+        error: 'معلمات ربط النطاق غير مكتملة'
       };
     }
-    
-    return {
-      success: true,
-      data
-    };
+
+    console.log(`محاولة ربط النطاق ${domain} بمشروع Vercel ${projectId}`);
+
+    try {
+      // إضافة النطاق إلى مشروع Vercel
+      const response = await axios.post(
+        `${VERCEL_API_URL}/v9/projects/${projectId}/domains`,
+        { name: domain },
+        {
+          headers: {
+            Authorization: `Bearer ${vercelToken}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      // التحقق من أن الاستجابة صالحة
+      if (response.status >= 200 && response.status < 300 && response.data) {
+        console.log(`تم ربط النطاق ${domain} بمشروع Vercel بنجاح`);
+        return {
+          success: true,
+          data: response.data
+        };
+      } else {
+        throw new Error('استجابة Vercel API غير صالحة');
+      }
+    } catch (axiosError) {
+      if (axios.isAxiosError(axiosError)) {
+        // التحقق من أن النطاق مضاف بالفعل
+        if (axiosError.response?.status === 409) {
+          console.log(`النطاق ${domain} مضاف بالفعل للمشروع - اعتبار ذلك نجاحًا`);
+          // العودة بنجاح إذا كان النطاق مضاف بالفعل
+          return {
+            success: true,
+            data: {
+              name: domain,
+              apexName: domain,
+              message: 'النطاق مضاف بالفعل للمشروع'
+            }
+          };
+        }
+        
+        // أخطاء Axios أخرى
+        const errorMessage = axiosError.response?.data?.error?.message || 'خطأ في الاتصال بـ Vercel API';
+        console.error('خطأ Axios في ربط النطاق:', {
+          status: axiosError.response?.status,
+          message: errorMessage,
+          data: axiosError.response?.data
+        });
+        
+        return {
+          success: false,
+          error: errorMessage
+        };
+      } 
+      
+      // أخطاء أخرى
+      console.error('خطأ غير متوقع في ربط النطاق:', axiosError);
+      return {
+        success: false,
+        error: axiosError instanceof Error ? axiosError.message : 'حدث خطأ أثناء ربط النطاق'
+      };
+    }
   } catch (error) {
-    console.error('خطأ في ربط النطاق مع Vercel:', error);
+    console.error('خطأ عام في ربط النطاق بمشروع Vercel:', error);
+    
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'حدث خطأ غير متوقع'
+      error: error instanceof Error ? error.message : 'حدث خطأ أثناء ربط النطاق'
     };
   }
-};
+}
 
 /**
- * التحقق من حالة النطاق في Vercel
- * يستخدم Vercel API للتحقق من حالة النطاق ومعرفة إذا كان مكوّن بشكل صحيح
+ * حذف نطاق من مشروع Vercel
  */
-export const verifyVercelDomainStatus = async (
-  customDomain: string,
+export async function removeDomainFromVercelProject(
+  domain: string,
   projectId: string,
   vercelToken: string
-): Promise<{
-  verified: boolean;
-  configured: boolean;
-  message: string;
-}> => {
+): Promise<{ success: boolean; error?: string }> {
   try {
-    // تنظيف النطاق
-    const cleanDomain = customDomain.replace(/^https?:\/\//i, '').replace(/\/$/, '').toLowerCase();
-    
-    // استدعاء Vercel API
-    const response = await fetch(`https://api.vercel.com/v9/projects/${projectId}/domains/${cleanDomain}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${vercelToken}`,
-        'Content-Type': 'application/json'
+    // التحقق من صحة المعلمات
+    if (!domain || !projectId || !vercelToken) {
+      return {
+        success: false,
+        error: 'معلمات حذف النطاق غير مكتملة'
+      };
+    }
+
+    // حذف النطاق من مشروع Vercel
+    const response = await axios.delete(
+      `${VERCEL_API_URL}/v9/projects/${projectId}/domains/${domain}`,
+      {
+        headers: {
+          Authorization: `Bearer ${vercelToken}`
+        }
       }
-    });
-    
-    if (!response.ok) {
-      return {
-        verified: false,
-        configured: false,
-        message: 'النطاق غير متصل بالمشروع'
-      };
-    }
-    
-    const data = await response.json();
-    
-    if (data.verified) {
-      return {
-        verified: true,
-        configured: true,
-        message: 'النطاق مفعّل ويعمل بشكل صحيح'
-      };
-    } else if (data.verification && data.verification.length > 0) {
-      // هناك تحقق مطلوب
-      return {
-        verified: false,
-        configured: false,
-        message: 'النطاق يحتاج إلى التحقق من سجلات DNS'
-      };
-    } else {
-      return {
-        verified: false,
-        configured: false,
-        message: 'النطاق غير مكوّن بشكل صحيح'
-      };
-    }
+    );
+
+    return { success: response.status >= 200 && response.status < 300 };
   } catch (error) {
-    console.error('خطأ في التحقق من حالة النطاق في Vercel:', error);
+    console.error('خطأ في حذف النطاق من مشروع Vercel:', error);
+    
     return {
-      verified: false,
-      configured: false,
-      message: 'حدث خطأ أثناء التحقق من حالة النطاق'
+      success: false,
+      error: error instanceof Error ? error.message : 'خطأ غير متوقع أثناء حذف النطاق'
     };
   }
-}; 
+}
+
+/**
+ * الحصول على رسالة الخطأ المناسبة لرمز خطأ Vercel
+ */
+function getVercelErrorMessage(errorCode: string): string {
+  switch (errorCode) {
+    case 'not_found':
+      return 'لم يتم العثور على النطاق';
+    case 'domain_not_found':
+      return 'لم يتم العثور على النطاق في مشروع Vercel';
+    case 'domain_configuration_error':
+      return 'خطأ في تكوين النطاق. يرجى التحقق من إعدادات DNS الخاصة بك';
+    case 'domain_verification_failed':
+      return 'فشل التحقق من النطاق. يرجى التحقق من تكوين DNS الخاص بك';
+    case 'domain_taken':
+      return 'هذا النطاق مستخدم بالفعل في مشروع آخر';
+    case 'not_authorized':
+      return 'غير مصرح لك بإدارة هذا النطاق';
+    case 'forbidden':
+      return 'غير مسموح لك بتنفيذ هذا الإجراء';
+    case 'server_error':
+      return 'حدث خطأ في خادم Vercel. يرجى المحاولة مرة أخرى';
+    default:
+      return `خطأ غير معروف: ${errorCode}`;
+  }
+}
+
+/**
+ * إنشاء تعليمات DNS للنطاق المخصص
+ */
+export function generateCustomDomainDnsInstructions(
+  domain: string
+): { type: string; name: string; value: string; priority?: number }[] {
+  // إزالة www إذا كان موجودًا للحصول على النطاق الرئيسي
+  const baseDomain = domain.replace(/^www\./, '');
+  const isApex = domain === baseDomain;
+  
+  if (isApex) {
+    // النطاق الرئيسي يحتاج إلى سجل A و CNAME
+    return [
+      {
+        type: 'A',
+        name: '@',
+        value: '76.76.21.21'
+      },
+      {
+        type: 'CNAME',
+        name: 'www',
+        value: INTERMEDIATE_DOMAIN
+      }
+    ];
+  } else if (domain.startsWith('www.')) {
+    // نطاق www يحتاج فقط إلى CNAME
+    return [
+      {
+        type: 'CNAME',
+        name: 'www',
+        value: INTERMEDIATE_DOMAIN
+      }
+    ];
+  } else {
+    // نطاق فرعي آخر
+    return [
+      {
+        type: 'CNAME',
+        name: domain.split('.')[0],
+        value: INTERMEDIATE_DOMAIN
+      }
+    ];
+  }
+} 

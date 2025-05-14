@@ -666,6 +666,59 @@ export type Database = {
           },
         ]
       }
+      domain_verifications: {
+        Row: {
+          id: string
+          organization_id: string
+          domain: string
+          status: string
+          verification_code: string | null
+          verification_data: Json | null
+          verified_at: string | null
+          error_message: string | null
+          created_at: string | null
+          updated_at: string | null
+          last_checked: string | null
+          verification_message: string | null
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          domain: string
+          status: string
+          verification_code?: string | null
+          verification_data?: Json | null
+          verified_at?: string | null
+          error_message?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+          last_checked?: string | null
+          verification_message?: string | null
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          domain?: string
+          status?: string
+          verification_code?: string | null
+          verification_data?: Json | null
+          verified_at?: string | null
+          error_message?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+          last_checked?: string | null
+          verification_message?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "domain_verifications_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       employee_activities: {
         Row: {
           action_details: string | null
@@ -954,15 +1007,7 @@ export type Database = {
           organization_id?: string
           updated_at?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "flexi_networks_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       flexi_sales: {
         Row: {
@@ -3606,7 +3651,15 @@ export type Database = {
           name?: string
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "flexi_networks_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       shipping_rates: {
         Row: {
