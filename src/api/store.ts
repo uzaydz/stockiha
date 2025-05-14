@@ -574,29 +574,49 @@ export async function getFullStoreData(subdomain: string): Promise<StoreData | n
     // 4. جلب الفئات 
     let categories: Category[] = [];
     
-    if (isLoggedIn) {
+    try {
+      console.log("جلب الفئات للمؤسسة:", organizationId);
+      
+      // استخدام استعلام مباشر بدلاً من وظيفة getProductCategories لتحديد أين المشكلة
       const { data: categoriesData, error: categoriesError } = await supabaseClient
         .from('product_categories')
         .select('*')
         .eq('organization_id', organizationId);
-      
+        
       if (categoriesError) {
-        console.error('Error fetching product categories:', categoriesError);
-      } else if (categoriesData) {
-        categories = await getProductCategories(organizationId);
+        console.error('Error in direct categories query:', categoriesError);
+      } else if (categoriesData && categoriesData.length > 0) {
+        console.log(`تم العثور على ${categoriesData.length} فئة بالاستعلام المباشر`);
+        // تحويل البيانات إلى الشكل المطلوب
+        categories = categoriesData.map(category => ({
+          id: category.id,
+          name: category.name,
+          description: category.description || '',
+          icon: category.icon,
+          slug: category.slug,
+          product_count: 0  // سيتم تحديثه لاحقًا
+        }));
       }
-    } else {
-      // استخدام استعلام بسيط بدلاً من RPC للفئات
-      console.log("جلب الفئات للزائر");
+      
+      // استخدام getProductCategories كخطة بديلة
+      if (categories.length === 0) {
+        console.log("محاولة استخدام getProductCategories...");
+        const productCategories = await getProductCategories(organizationId);
+        if (productCategories && productCategories.length > 0) {
+          console.log(`تم الحصول على ${productCategories.length} فئة من getProductCategories`);
+          categories = productCategories;
+        }
+      }
+    } catch (catError) {
+      console.error('Error fetching categories:', catError);
+      // محاولة أخيرة
       try {
         categories = await getProductCategories(organizationId);
-      } catch (catError) {
-        console.error('Error fetching categories for public access:', catError);
+      } catch (e) {
+        console.error('Final attempt to fetch categories failed:', e);
       }
     }
     
-    // باقي الكود بدون تغيير...
-
     // 5. جمع البيانات في كائن واحد
     const storeData: StoreData = {
       name: organization.name,

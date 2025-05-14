@@ -210,7 +210,32 @@ const LandingPage = () => {
       const data = await getFullStoreData(subdomain);
       
       if (data) {
+        console.log('تم تحميل بيانات المتجر بنجاح، عدد الفئات:', data.categories?.length || 0);
         setStoreData(data);
+        
+        // تحميل الفئات مباشرة من قاعدة البيانات
+        if (data.categories?.length === 0 && data.name) {
+          console.log('محاولة تحميل الفئات مرة أخرى...');
+          try {
+            const supabase = getSupabaseClient();
+            const { data: orgData } = await supabase
+              .from('organizations')
+              .select('id')
+              .eq('subdomain', subdomain)
+              .single();
+              
+            if (orgData?.id) {
+              const categoriesData = await getProductCategories(orgData.id);
+              if (categoriesData && categoriesData.length > 0) {
+                console.log('تم تحميل الفئات بنجاح:', categoriesData.length);
+                data.categories = categoriesData;
+                setStoreData({ ...data });
+              }
+            }
+          } catch (catError) {
+            console.error('خطأ في تحميل الفئات مرة أخرى:', catError);
+          }
+        }
       } else {
         console.error('لم يتم العثور على بيانات للنطاق الفرعي:', subdomain);
         setError('لم نتمكن من العثور على متجر بهذا الاسم');

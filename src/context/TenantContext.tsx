@@ -138,6 +138,34 @@ const extractSubdomain = async (hostname: string): Promise<string | null> => {
   return null;
 };
 
+// إضافة وظيفة للتحقق من النطاق المخصص
+export const getOrganizationFromCustomDomain = async (hostname: string): Promise<{ id: string; subdomain: string } | null> => {
+  if (!hostname || hostname.includes('localhost')) return null;
+  
+  try {
+    const supabase = getSupabaseClient();
+    
+    // البحث عن المؤسسة باستخدام النطاق المخصص
+    const { data: orgData, error } = await supabase
+      .from('organizations')
+      .select('id, name, subdomain')
+      .eq('domain', hostname)
+      .maybeSingle();
+      
+    if (!error && orgData && orgData.id && orgData.subdomain) {
+      console.log(`تم العثور على مؤسسة بالنطاق المخصص: ${hostname}`, orgData.name);
+      return {
+        id: orgData.id,
+        subdomain: orgData.subdomain
+      };
+    }
+  } catch (error) {
+    console.error('خطأ في البحث عن المؤسسة بالنطاق المخصص:', error);
+  }
+  
+  return null;
+};
+
 export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading: authLoading, currentSubdomain, organization: authOrganization } = useAuth();
   const [organization, setOrganization] = useState<Organization | null>(null);
@@ -506,4 +534,29 @@ const updateOrganizationFromData = (orgData: any): Organization => {
     updated_at: orgData.updated_at,
     owner_id: orgData.owner_id
   };
-}; 
+};
+
+// استخدام الوظيفة في useEffect للتحقق من النطاق المخصص
+useEffect(() => {
+  const checkCustomDomain = async () => {
+    const hostname = window.location.hostname;
+    
+    if (!hostname.includes('localhost')) {
+      const orgData = await getOrganizationFromCustomDomain(hostname);
+      if (orgData) {
+        console.log('تم العثور على معرف المؤسسة من النطاق المخصص:', orgData.id);
+        localStorage.setItem('bazaar_organization_id', orgData.id);
+        localStorage.setItem('bazaar_current_subdomain', orgData.subdomain);
+        
+        // تحديث الحالة
+        setOrganization({
+          id: orgData.id,
+          name: '',
+          subdomain: orgData.subdomain
+        });
+      }
+    }
+  };
+  
+  checkCustomDomain();
+}, []); 

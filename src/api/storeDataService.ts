@@ -134,7 +134,54 @@ export async function clearStoreCache(subdomain: string): Promise<void> {
   console.log('[StoreDataService] تم مسح التخزين المؤقت للمتجر');
 }
 
+/**
+ * إعادة تحميل بيانات المتجر بشكل كامل وتجاوز التخزين المؤقت
+ * يستخدم في حالات تحديث أو وجود مشاكل في البيانات
+ */
+export async function forceReloadStoreData(subdomain: string): Promise<{
+  data: StoreData | null;
+  isLoading: boolean;
+}> {
+  console.log('[StoreDataService] إعادة تحميل البيانات بالكامل للنطاق الفرعي:', subdomain);
+  
+  try {
+    isDataLoading = true;
+    
+    // مسح التخزين المؤقت أولاً
+    const cacheKey = `store_data:${subdomain}`;
+    await clearCacheItem(cacheKey);
+    
+    // إعادة تعيين البيانات المخزنة في الذاكرة
+    lastLoadedSubdomain = null;
+    lastLoadedData = null;
+    
+    // تحميل البيانات مباشرة
+    const freshData = await getFullStoreData(subdomain);
+    
+    if (freshData) {
+      // تحديث البيانات في الذاكرة
+      lastLoadedSubdomain = subdomain;
+      lastLoadedData = freshData;
+      
+      // تخزين البيانات مؤقتاً
+      await setCacheData(cacheKey, freshData);
+      
+      console.log('[StoreDataService] تم إعادة تحميل البيانات بنجاح');
+      return { data: freshData, isLoading: false };
+    }
+    
+    console.error('[StoreDataService] فشل في إعادة تحميل بيانات المتجر');
+    return { data: null, isLoading: false };
+  } catch (error) {
+    console.error('[StoreDataService] خطأ في إعادة تحميل بيانات المتجر:', error);
+    return { data: null, isLoading: false };
+  } finally {
+    isDataLoading = false;
+  }
+}
+
 export default {
   getStoreDataFast,
-  clearStoreCache
+  clearStoreCache,
+  forceReloadStoreData
 }; 
