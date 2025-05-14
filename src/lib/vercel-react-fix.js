@@ -21,13 +21,17 @@
   }
   
   // إذا كان React غير موجود، أنشئ كائن React فارغ
+  // سنقوم بتعليق هذا الجزء أو تعديله ليكون أقل تدخلاً
+  /*
   if (!checkHasReact() && checkHasBrowser()) {
     // إنشاء كائن فارغ كـ polyfill
     window.React = window.React || {};
   }
+  */
   
   // إصلاح React APIs
-  if (checkHasBrowser() && window.React) {
+  // سنضيف تحققًا للتأكد من أن window.React موجود بالفعل قبل المتابعة
+  if (checkHasBrowser() && window.React && typeof window.React === 'object' && Object.keys(window.React).length > 0) {
     const _React = window.React;
     
     // إضافة واجهات برمجة React الشائعة

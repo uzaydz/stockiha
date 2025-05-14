@@ -141,6 +141,7 @@ export default defineConfig(({ mode }: { mode: string }) => {
         zlib: 'browserify-zlib',
         fs: 'memfs',
       },
+      dedupe: ['react', 'react-dom'],
       // تحسينات للتوافق مع Electron
       mainFields: ['browser', 'module', 'jsnext:main', 'jsnext']
     },
@@ -179,19 +180,24 @@ export default defineConfig(({ mode }: { mode: string }) => {
             if (id.includes('node_modules')) {
               // React وجميع المكتبات المرتبطة به في حزمة واحدة
               if (id.includes('react') || 
-                  id.includes('react-dom') || 
                   id.includes('@tanstack/react-query') ||
                   id.includes('react-use') || 
-                  id.includes('use-') ||
                   id.includes('react-hook-form') || 
                   id.includes('@hookform') ||
                   id.includes('usehooks-ts') ||
-                  // إضافة المكتبات التي تستخدم React APIs مثل createContext
                   id.includes('@radix-ui') ||
                   id.includes('@headlessui') ||
                   id.includes('framer-motion') ||
-                  id.includes('react-router') ||
-                  id.includes('cmdk')
+                  id.includes('cmdk') ||
+                  id.includes('next-themes') ||
+                  id.includes('swr') ||
+                  id.includes('@dnd-kit') || 
+                  id.includes('@tanstack/react-table') ||
+                  id.includes('sonner') ||
+                  id.includes('vaul') ||
+                  id.includes('recharts') ||
+                  id.includes('react-beautiful-dnd') ||
+                  id.includes('@mui/x-date-pickers')
               ) {
                 return 'vendor-react';
               }

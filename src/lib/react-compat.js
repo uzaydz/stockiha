@@ -26,7 +26,7 @@ if (typeof window !== 'undefined') {
     }
     
     // التأكد من وجود createContext
-    if (!_React.createContext) {
+    if (_React && !_React.createContext && React && typeof React.createContext === 'function') {
       _React.createContext = React.createContext;
     }
     
