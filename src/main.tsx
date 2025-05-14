@@ -31,7 +31,7 @@ import ReactDOM from 'react-dom/client';
 (window as any).React = React; // إلغاء تعليق هذا وتفعيله
 
 // استيراد ملف إصلاح React
-import './lib/react-compat.js'; // إلغاء تعليق هذا وتفعيله
+// import './lib/react-compat.js'; // تعليق هذا مرة أخرى للتجربة
 
 // Importar los polyfills específicos para env.mjs antes de cualquier otro módulo
 import './lib/env-polyfill';

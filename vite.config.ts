@@ -165,10 +165,10 @@ export default defineConfig(({ mode }: { mode: string }) => {
       sourcemap: !isProduction, // Source map only in development
       // تحسينات بناء Electron
       target: 'esnext',
-      minify: isProduction ? 'terser' : false,
+      minify: false, // تعطيل التصغير مؤقتًا للتشخيص
       terserOptions: isProduction ? {
         compress: {
-          drop_console: true,
+          drop_console: true, // قد نرغب في تعطيل هذا أيضًا لرؤية أي console.logs من المكتبات
           drop_debugger: true
         }
       } : undefined,
