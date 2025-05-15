@@ -54,7 +54,7 @@ export function SuppliersList() {
   useEffect(() => {
     // محاولة الحصول على organization_id من كائن المستخدم
     if (user && 'organization_id' in user) {
-      console.log("Found organization_id in user object:", (user as any).organization_id);
+      
       setOrganizationId((user as any).organization_id);
       return;
     }
@@ -62,13 +62,13 @@ export function SuppliersList() {
     // محاولة الحصول من التخزين المحلي
     const storedOrgId = localStorage.getItem('bazaar_organization_id');
     if (storedOrgId) {
-      console.log("Found organization_id in localStorage:", storedOrgId);
+      
       setOrganizationId(storedOrgId);
       return;
     }
     
     // القيمة الاحتياطية النهائية (يمكن تغييرها حسب احتياجك)
-    console.log("Using fallback organization ID");
+    
     setOrganizationId("10c02497-45d4-417a-857b-ad383816d7a0");
   }, [user]);
   
@@ -154,13 +154,13 @@ export function SuppliersList() {
     }
     
     try {
-      console.log('Saving supplier, organizationId:', organizationId);
-      console.log('Supplier data:', data);
+      
+      
       
       if (selectedSupplier) {
         // تحديث مورد موجود
         const updatedSupplier = await updateSupplier(organizationId, selectedSupplier.id, data);
-        console.log('Supplier updated result:', updatedSupplier);
+        
         
         if (!updatedSupplier) {
           throw new Error('فشل تحديث المورد');
@@ -173,7 +173,7 @@ export function SuppliersList() {
       } else {
         // إضافة مورد جديد
         const newSupplier = await createSupplier(organizationId, { ...data, rating: 0 });
-        console.log('New supplier result:', newSupplier);
+        
         
         if (!newSupplier) {
           throw new Error('فشل إضافة المورد');

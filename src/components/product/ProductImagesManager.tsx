@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { X, Plus, ArrowUp, ArrowDown } from 'lucide-react';
+import { X, Plus, ArrowUp, ArrowDown, ImageIcon, Image, ImagePlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
+import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import ImageUploader, { ImageUploaderRef } from '@/components/ui/ImageUploader';
 import MultiImageUploader from '@/components/ui/MultiImageUploader';
 
@@ -26,16 +26,6 @@ export default function ProductImagesManager({
 }: ProductImagesManagerProps) {
   // حفظ نسخة محلية من الصور الإضافية بعد الفلترة
   const [filteredAdditionalImages, setFilteredAdditionalImages] = useState<string[]>([]);
-  
-  // إضافة سجل للتشخيص
-  useEffect(() => {
-    console.log('ProductImagesManager mounted/updated:', {
-      mainImage,
-      additionalImages,
-      filteredCount: filteredAdditionalImages.length,
-      hasRef: !!thumbnailImageRef
-    });
-  }, [mainImage, additionalImages, filteredAdditionalImages, thumbnailImageRef]);
 
   // عندما تتغير الصور الإضافية من الخارج، قم بتصفيتها
   useEffect(() => {
@@ -45,64 +35,39 @@ export default function ProductImagesManager({
         .filter(url => url && url.trim() !== '') // إزالة الروابط الفارغة
         .filter(url => url !== mainImage); // إزالة الصورة الرئيسية
       
-      console.log('ProductImagesManager: تصفية الصور الإضافية:', {
-        before: additionalImages.length,
-        after: filtered.length,
-        mainImageRemoved: additionalImages.includes(mainImage)
-      });
-      
       setFilteredAdditionalImages(filtered);
     } else {
-      console.warn('ProductImagesManager: additionalImages غير صالحة:', additionalImages);
       setFilteredAdditionalImages([]);
     }
   }, [additionalImages, mainImage]);
 
-  // عند تغيير mainImage، سواء من المكون أو من الخارج، قم بتحديثه
+  // عند تغيير الصورة الرئيسية، تأكد من إزالتها من الصور الإضافية أيضًا
   useEffect(() => {
-    if (thumbnailImageRef?.current) {
-      // إذا كان هناك تحديث للصورة من الخارج ولا تتطابق مع الحالية في المرجع
-      const currentImage = thumbnailImageRef.current.getUploadedImageUrl();
-      if (mainImage && currentImage !== mainImage) {
-        console.log('تحديث الصورة الرئيسية من مصدر خارجي:', mainImage);
-        // تدفع عمليًا إلى تحديث المرجع إذا لزم الأمر
-      }
-    }
-    
-    // عند تغيير الصورة الرئيسية، تأكد من إزالتها من الصور الإضافية أيضًا
     if (mainImage && Array.isArray(additionalImages) && additionalImages.includes(mainImage)) {
       const filtered = additionalImages.filter(url => url !== mainImage);
       if (filtered.length !== additionalImages.length) {
-        console.log('ProductImagesManager: إزالة الصورة الرئيسية من الصور الإضافية بعد تغيير mainImage');
         onAdditionalImagesChange(filtered);
       }
     }
-  }, [mainImage, thumbnailImageRef, additionalImages, onAdditionalImagesChange]);
+  }, [mainImage, additionalImages, onAdditionalImagesChange]);
 
   // معالج تغيير الصورة الرئيسية
   const handleMainImageChange = (url: string) => {
-    console.log('ProductImagesManager: تم تحديث الصورة الرئيسية:', url);
     if (url && url.trim() !== '') {
       // عند تغيير الصورة الرئيسية، قم بإزالتها من الصور الإضافية إن وجدت
       if (Array.isArray(additionalImages) && additionalImages.includes(url)) {
-        console.log('ProductImagesManager: إزالة الصورة الرئيسية الجديدة من الصور الإضافية');
         const filtered = additionalImages.filter(img => img !== url);
         onAdditionalImagesChange(filtered);
       }
       
       onMainImageChange(url);
-    } else {
-      console.error('ProductImagesManager: تم استلام URL فارغ للصورة الرئيسية');
     }
   };
 
   // معالج تغيير الصور الإضافية
   const handleAdditionalImagesChange = (urls: string[]) => {
-    console.log('ProductImagesManager: تم تحديث الصور الإضافية:', urls);
-    
     // التحقق من أن urls مصفوفة
     if (!Array.isArray(urls)) {
-      console.error('ProductImagesManager: urls ليست مصفوفة:', urls);
       return;
     }
     
@@ -110,12 +75,6 @@ export default function ProductImagesManager({
     const filteredUrls = urls
       .filter(url => url && url.trim() !== '') // إزالة الروابط الفارغة
       .filter(url => url !== mainImage); // إزالة الصورة الرئيسية
-    
-    console.log('ProductImagesManager: الصور الإضافية بعد الفلترة:', {
-      before: urls.length,
-      after: filteredUrls.length,
-      mainImageRemoved: urls.includes(mainImage)
-    });
     
     if (JSON.stringify(filteredUrls) !== JSON.stringify(additionalImages)) {
       setFilteredAdditionalImages(filteredUrls);
@@ -125,52 +84,61 @@ export default function ProductImagesManager({
 
   return (
     <div className="space-y-6">
-      <div className="p-4 bg-amber-50 border border-amber-200 rounded-md mb-4">
-        <h4 className="font-bold text-amber-800 mb-2">تعليمات إضافة الصور</h4>
-        <ul className="text-sm text-amber-700 space-y-1 list-disc mr-5">
-          <li>الصورة الرئيسية <span className="font-bold">إلزامية</span> وستظهر كصورة أساسية للمنتج.</li>
-          <li>يمكنك إضافة حتى 8 صور إضافية من قسم "الصور الإضافية".</li>
-          <li>انتظر حتى يتم رفع كل صورة بنجاح قبل إضافة صورة أخرى (سترى رسالة "تم رفع الصورة بنجاح").</li>
-          <li>تأكد أن حجم الصورة لا يتجاوز 5 ميجابايت.</li>
-          <li>إذا واجهت مشكلة، جرب تحديث الصفحة وإعادة المحاولة.</li>
-        </ul>
-      </div>
-      
-      <div className="space-y-2">
-        <ImageUploader
-          label="الصورة الرئيسية*"
-          imageUrl={mainImage}
-          onImageUploaded={handleMainImageChange}
-          folder="product_thumbnails"
-          maxSizeInMB={5}
-          ref={thumbnailImageRef}
-          disableAutoCallback={disableAutoCallback}
-        />
-        <p className="text-xs text-muted-foreground text-right">
-          يفضل استخدام صورة مربعة بدقة عالية للحصول على أفضل عرض للمنتج
-        </p>
-      </div>
-
-      <div className="space-y-2">
-        <div className="mb-2">
-          <Label className="block text-right mb-1">الصور الإضافية</Label>
-          <div className="p-2 bg-blue-50 text-blue-700 rounded-md text-sm mb-2">
-            <strong>ملاحظة:</strong> يمكنك إضافة حتى 8 صور إضافية للمنتج. انقر على "إضافة صورة جديدة" أدناه لإضافة المزيد من الصور.
+      <Card className="border-2 shadow-sm hover:shadow-md transition-shadow">
+        <CardHeader className="pb-3 pt-4 px-5 bg-muted/20 flex flex-row items-center space-y-0 gap-2">
+          <ImageIcon className="h-5 w-5 text-primary" />
+          <h3 className="text-lg font-medium">إدارة صور المنتج</h3>
+        </CardHeader>
+        <CardContent className="p-5 space-y-6">
+          <div className="bg-blue-50 border border-blue-100 rounded-md p-3 text-sm text-blue-700">
+            <ul className="list-disc mr-5 space-y-1">
+              <li>الصورة الرئيسية <span className="font-bold">إلزامية</span> وستظهر كصورة أساسية للمنتج</li>
+              <li>يمكنك إضافة حتى 8 صور إضافية للمنتج</li>
+              <li>احرص على استخدام صور مربعة بجودة عالية للحصول على أفضل النتائج</li>
+            </ul>
           </div>
-        </div>
-        <MultiImageUploader
-          label=""
-          defaultImages={filteredAdditionalImages}
-          onImagesUploaded={handleAdditionalImagesChange}
-          folder="product_images"
-          maxSizeInMB={5}
-          maxImages={8}
-          disableAutoCallback={disableAutoCallback}
-        />
-        <p className="text-xs text-muted-foreground text-right">
-          يمكنك إعادة ترتيب الصور عن طريق تحريك المؤشر فوق الصورة واستخدام أزرار الترتيب.
-        </p>
-      </div>
+          
+          <div className="space-y-4 border border-muted p-4 rounded-md">
+            <div className="flex items-center gap-2 text-lg font-medium text-primary">
+              <Image className="h-5 w-5" />
+              الصورة الرئيسية*
+            </div>
+            <ImageUploader
+              label=""
+              imageUrl={mainImage}
+              onImageUploaded={handleMainImageChange}
+              folder="product_thumbnails"
+              maxSizeInMB={5}
+              ref={thumbnailImageRef}
+              disableAutoCallback={disableAutoCallback}
+              className="border-2 border-dashed border-primary/20 rounded-lg"
+            />
+            <p className="text-xs text-muted-foreground text-right">
+              يفضل استخدام صورة مربعة بدقة عالية للحصول على أفضل عرض
+            </p>
+          </div>
+
+          <div className="space-y-4 border border-muted p-4 rounded-md">
+            <div className="flex items-center gap-2 text-lg font-medium text-primary">
+              <ImagePlus className="h-5 w-5" />
+              الصور الإضافية (اختياري)
+            </div>
+            <MultiImageUploader
+              label=""
+              defaultImages={filteredAdditionalImages}
+              onImagesUploaded={handleAdditionalImagesChange}
+              folder="product_images"
+              maxSizeInMB={5}
+              maxImages={8}
+              disableAutoCallback={disableAutoCallback}
+              className="border-2 border-dashed border-primary/20 rounded-lg"
+            />
+            <p className="text-xs text-muted-foreground text-right">
+              يمكنك إضافة حتى 8 صور إضافية وإعادة ترتيبها حسب الحاجة
+            </p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 } 

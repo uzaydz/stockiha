@@ -34,7 +34,7 @@ const LandingPage = () => {
   const [showStore, setShowStore] = useState<boolean | null>(null);
   const dataFetchedRef = useRef(false);
   
-  console.log('LandingPage: النطاق الحالي =', window.location.hostname);
+  
   
   // تحديد ما إذا كان يجب عرض المتجر أو صفحة الهبوط
   useEffect(() => {
@@ -53,7 +53,7 @@ const LandingPage = () => {
           if (domainParts.length > 2 && domainParts[0].toLowerCase() !== 'www') {
             // جرب البحث في subdomain أولاً
             const possibleSubdomain = domainParts[0];
-            console.log(`النطاق يحتوي على أكثر من جزئين. محاولة البحث كنطاق فرعي: ${possibleSubdomain}`);
+            
             
             try {
               const { data: subdomainData, error: subdomainError } = await supabase
@@ -63,7 +63,7 @@ const LandingPage = () => {
                 .maybeSingle();
                 
               if (!subdomainError && subdomainData) {
-                console.log(`تم العثور على مؤسسة بالنطاق الفرعي: ${possibleSubdomain}`, subdomainData.name);
+                
                 orgData = subdomainData;
               }
             } catch (error) {
@@ -81,7 +81,7 @@ const LandingPage = () => {
                 .maybeSingle();
                 
               if (!domainError && domainData) {
-                console.log('تم العثور على نطاق مخصص:', hostname);
+                
                 orgData = domainData;
               }
             } catch (error) {
@@ -89,7 +89,7 @@ const LandingPage = () => {
               console.warn('خطأ في البحث كنطاق مخصص:', error);
               
               if (error && 'code' in (error as any) && (error as any).code === '406') {
-                console.log('خطأ 406 - محاولة البحث بطريقة مختلفة');
+                
                 
                 try {
                   // جلب كل المؤسسات ثم التصفية يدويًا
@@ -101,7 +101,7 @@ const LandingPage = () => {
                     // بحث يدوي عن مطابقة النطاق
                     const matchingOrg = allOrgs.find(org => org.domain === hostname);
                     if (matchingOrg) {
-                      console.log(`تم العثور على مؤسسة مطابقة للنطاق بالبحث اليدوي: ${hostname}`, matchingOrg.name);
+                      
                       orgData = matchingOrg;
                     }
                   }
@@ -114,7 +114,7 @@ const LandingPage = () => {
           
           // 3. إذا تم العثور على المؤسسة، قم بحفظ المعلومات وعرض المتجر
           if (orgData) {
-            console.log('تم العثور على المؤسسة:', orgData.name, 'معرف:', orgData.id);
+            
             
             // تحديث التخزين المحلي مباشرة
             localStorage.setItem('bazaar_organization_id', orgData.id);
@@ -149,7 +149,7 @@ const LandingPage = () => {
       if (hostname.includes('.localhost')) {
         const parts = hostname.split('.');
         if (parts.length > 1 && parts[0] !== 'www' && parts[0] !== 'localhost') {
-          console.log('اكتشاف يدوي للسابدومين على localhost:', parts[0]);
+          
           setShowStore(true);
           return;
         }
@@ -167,7 +167,7 @@ const LandingPage = () => {
     if (!currentSubdomain && hostname.includes('.localhost')) {
       const parts = hostname.split('.');
       if (parts.length > 1) {
-        console.log('اكتشاف يدوي للسابدومين على localhost:', parts[0]);
+        
         // قد نحتاج إلى معالجة خاصة هنا لعرض صفحة المتجر
         // يمكن استخدام تحديث الصفحة لجعل TenantContext يلتقط السابدومين بشكل صحيح
         if (!localStorage.getItem('attempted_subdomain_fix')) {
@@ -206,16 +206,16 @@ const LandingPage = () => {
     setError(null);
 
     try {
-      console.log('تحميل بيانات المتجر للنطاق الفرعي:', subdomain);
+      
       const data = await getFullStoreData(subdomain);
       
       if (data) {
-        console.log('تم تحميل بيانات المتجر بنجاح، عدد الفئات:', data.categories?.length || 0);
+        
         setStoreData(data);
         
         // تحميل الفئات مباشرة من قاعدة البيانات
         if (data.categories?.length === 0 && data.name) {
-          console.log('محاولة تحميل الفئات مرة أخرى...');
+          
           try {
             const supabase = getSupabaseClient();
             const { data: orgData } = await supabase
@@ -227,7 +227,7 @@ const LandingPage = () => {
             if (orgData?.id) {
               const categoriesData = await getProductCategories(orgData.id);
               if (categoriesData && categoriesData.length > 0) {
-                console.log('تم تحميل الفئات بنجاح:', categoriesData.length);
+                
                 data.categories = categoriesData;
                 setStoreData({ ...data });
               }

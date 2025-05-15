@@ -94,16 +94,16 @@ const Inventory = () => {
         return;
       }
       
-      console.log('التحقق من صلاحيات المستخدم للمخزون:', user);
+      
       
       // التحقق من صلاحية مشاهدة المخزون
       const hasViewPermission = await checkUserPermissions(user, 'viewInventory');
-      console.log('نتيجة التحقق من صلاحية viewInventory:', hasViewPermission);
+      
       setCanViewInventory(hasViewPermission);
       
       // التحقق من صلاحية تعديل المخزون
       const hasManagePermission = await checkUserPermissions(user, 'manageInventory');
-      console.log('نتيجة التحقق من صلاحية manageInventory:', hasManagePermission);
+      
       setCanManageInventory(hasManagePermission);
       
       setIsCheckingPermissions(false);
@@ -226,7 +226,7 @@ const Inventory = () => {
   const refreshProducts = async () => {
     // تجنب التحديثات المتزامنة
     if (isRefreshing) {
-      console.log('هناك عملية تحديث قيد التنفيذ بالفعل، تم تجاهل طلب التحديث');
+      
       return;
     }
     
@@ -239,11 +239,11 @@ const Inventory = () => {
     setIsRefreshing(true);
     
     try {
-      console.log('بدء تحديث قائمة المنتجات...');
+      
       
       // تحقق من حالة الاتصال
       if (!isOnline) {
-        console.log('نحن في وضع عدم الاتصال، سنحاول تحديث البيانات من التخزين المحلي');
+        
         
         try {
           // إنشاء اتصال مباشر بقاعدة بيانات Dexie المحلية
@@ -280,7 +280,7 @@ const Inventory = () => {
           // تحديث حالة المكونات
           setProducts(localProducts);
           setStats(getInventoryStats(localProducts));
-          console.log('تم تحديث المنتجات من التخزين المحلي', localProducts.length);
+          
         } catch (localError) {
           console.error('خطأ في تحديث المنتجات محليًا:', localError);
         }

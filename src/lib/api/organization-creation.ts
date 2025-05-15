@@ -11,7 +11,7 @@ export const createOrganizationSimple = async (
   settings: Record<string, any> = {}
 ): Promise<{ success: boolean; error: Error | null; organizationId?: string }> => {
   try {
-    console.log('استخدام الوظيفة البسيطة لإنشاء المنظمة:', { organizationName, subdomain, userId });
+    
     
     // استدعاء وظيفة RPC المبسطة
     const { data, error } = await supabaseAdmin.rpc(
@@ -36,7 +36,7 @@ export const createOrganizationSimple = async (
       };
     }
 
-    console.log('تم إنشاء المنظمة بنجاح باستخدام الطريقة المبسطة، المعرف:', data);
+    
     return { success: true, error: null, organizationId: data };
   } catch (error) {
     console.error('Exception in createOrganizationSimple:', error);
@@ -62,7 +62,7 @@ export const createOrganizationDirect = async (
       .maybeSingle();
       
     if (!checkError && existingOrg) {
-      console.log(`المنظمة موجودة بالفعل بالنطاق الفرعي "${subdomain}", المعرف: ${existingOrg.id}`);
+      
       
       // محاولة ربط المستخدم بالمنظمة الموجودة
       try {
@@ -76,7 +76,7 @@ export const createOrganizationDirect = async (
           .eq('id', userId);
           
         if (!userUpdateError) {
-          console.log(`تم ربط المستخدم بالمنظمة الموجودة بنجاح`);
+          
         }
       } catch (connectError) {
         console.error('خطأ أثناء محاولة ربط المستخدم بالمنظمة الموجودة:', connectError);
@@ -93,7 +93,7 @@ export const createOrganizationDirect = async (
       .maybeSingle();
       
     if (!ownerCheckError && existingOwnerOrg) {
-      console.log(`المستخدم مالك بالفعل لمنظمة موجودة، المعرف: ${existingOwnerOrg.id}`);
+      
       return { success: true, error: null, organizationId: existingOwnerOrg.id };
     }
     
@@ -113,11 +113,11 @@ export const createOrganizationDirect = async (
       .insert(orgData);
 
     if (insertError) {
-      console.log('Error in direct organization creation:', insertError);
+      
       
       // في حالة وجود خطأ تكرار البيانات أو ON CONFLICT، نبحث عن المؤسسة الموجودة
       if (insertError.code === '23505' || insertError.code === '42P10') {
-        console.log('تجاهل خطأ ON CONFLICT ومحاولة إيجاد المنظمة بطريقة بديلة');
+        
         
         // البحث مرة أخرى باستخدام النطاق الفرعي بعد محاولة الإدراج
         const { data: subData, error: subError } = await supabaseAdmin
@@ -138,7 +138,7 @@ export const createOrganizationDirect = async (
               })
               .eq('id', userId);
           } catch (userError) {
-            console.log('خطأ في تحديث معلومات المستخدم (غير حرج):', userError);
+            
           }
           
           return { success: true, error: null, organizationId: subData.id };
@@ -161,7 +161,7 @@ export const createOrganizationDirect = async (
     }
     
     const organizationId = createdOrg.id;
-    console.log(`تم إنشاء المؤسسة بنجاح مع المعرف: ${organizationId}`);
+    
 
     // 5. إضافة سجل تدقيق
     try {

@@ -51,7 +51,7 @@ export const useOfflineStatus = (): OfflineStatus => {
     const verifyConnection = async () => {
       const isReallyConnected = await checkInternetConnection();
       if (isReallyConnected !== isOnline) {
-        console.log(`تصحيح حالة الاتصال: من ${isOnline} إلى ${isReallyConnected}`);
+        
         if (!isReallyConnected && isOnline) {
           setWasOffline(true);
         }
@@ -89,7 +89,7 @@ export const useOfflineStatus = (): OfflineStatus => {
 
     // وظيفة التعامل مع حدث قطع الاتصال
     const handleOffline = () => {
-      console.log('تم اكتشاف حدث offline');
+      
       setIsOnline(false);
     };
 

@@ -159,22 +159,22 @@ const applySiteName = (siteName: string | null) => {
 
 // --- الدوال الوهمية لتهيئة بكسلات التتبع ---
 const initializeFacebookPixel = (pixelId: string) => {
-  console.log(`[Tracking] تهيئة بكسل فيسبوك: ${pixelId}`);
+  
   // TODO: إضافة كود تهيئة بكسل فيسبوك الفعلي هنا
 };
 
 const initializeTikTokPixel = (pixelId: string) => {
-  console.log(`[Tracking] تهيئة بكسل تيك توك: ${pixelId}`);
+  
   // TODO: إضافة كود تهيئة بكسل تيك توك الفعلي هنا
 };
 
 const initializeSnapchatPixel = (pixelId: string) => {
-  console.log(`[Tracking] تهيئة بكسل سناب شات: ${pixelId}`);
+  
   // TODO: إضافة كود تهيئة بكسل سناب شات الفعلي هنا
 };
 
 const initializeGooglePixel = (pixelId: string) => {
-  console.log(`[Tracking] تهيئة بكسل جوجل (Tag/Analytics): ${pixelId}`);
+  
   // TODO: إضافة كود تهيئة بكسل جوجل الفعلي هنا
 };
 // --- نهاية الدوال الوهمية ---
@@ -208,7 +208,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
     if (!targetOrgId) return;
     
     try {
-      console.log('Loading theme for organization ID:', targetOrgId);
+      
       
       // استخدام دالة getOrganizationTheme بدلاً من getOrganizationSettings للحصول على إعدادات الثيم
       const themeSettings = await getOrganizationTheme(targetOrgId);
@@ -307,7 +307,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
         if (orgSettings.custom_js) {
           try {
             const trackingSettings = JSON.parse(orgSettings.custom_js);
-            console.log("تم تحليل إعدادات التتبع بنجاح:", trackingSettings);
+            
 
             // --- منطق استدعاء تهيئة البكسلات ---
             const pixels = trackingSettings?.trackingPixels;
@@ -357,16 +357,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
           applySiteName(orgSettings.site_name);
         }
         
-        console.log('تم تطبيق إعدادات المؤسسة بنجاح', {
-          primaryColor: orgSettings.theme_primary_color,
-          secondaryColor: orgSettings.theme_secondary_color,
-          themeMode: orgSettings.theme_mode,
-          siteName: orgSettings.site_name,
-          favicon: orgSettings.favicon_url,
-          customCSS: !!orgSettings.custom_css,
-          customJS: !!orgSettings.custom_js,
-          organizationId: targetOrgId
-        });
+        
       }
     } catch (error) {
       console.error('خطأ في تحميل إعدادات المؤسسة:', error);
@@ -378,11 +369,11 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
           const parsedTheme = JSON.parse(cachedTheme);
           if (parsedTheme.primaryColor) {
             document.documentElement.style.setProperty('--primary', parsedTheme.primary);
-            console.log('تم استخدام اللون الرئيسي المخزن محليًا:', parsedTheme.primaryColor);
+            
           }
           if (parsedTheme.secondaryColor) {
             document.documentElement.style.setProperty('--secondary', parsedTheme.secondary);
-            console.log('تم استخدام اللون الثانوي المخزن محليًا:', parsedTheme.secondaryColor);
+            
           }
         }
       } catch (localStorageError) {

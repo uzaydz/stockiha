@@ -181,7 +181,7 @@ if (typeof window !== 'undefined') {
     globalThis.crypto = crypto;
   }
 
-  console.log('[Polyfills] Módulos de Node.js inicializados en el navegador');
+  
 }
 
 // Export for ESM usage

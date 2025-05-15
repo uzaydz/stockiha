@@ -77,10 +77,10 @@ const TrialStatusCard: React.FC<TrialStatusCardProps> = ({ onSelectPlan }) => {
     setDaysLeft(daysRemaining);
     
     // سجل للتشخيص
-    console.log(`[TrialStatusCard] تاريخ الإنشاء: ${org.created_at}`);
-    console.log(`[TrialStatusCard] تاريخ انتهاء الفترة التجريبية: ${trialEndDate.toISOString()}`);
-    console.log(`[TrialStatusCard] التاريخ الحالي: ${nowDateOnly.toISOString()}`);
-    console.log(`[TrialStatusCard] الأيام المتبقية: ${daysRemaining}`);
+    
+    
+    
+    
     
     // حساب النسبة المئوية المتبقية من الفترة التجريبية
     const progressPercentage = Math.max(0, Math.min(100, ((trialDays - daysRemaining) / trialDays) * 100));

@@ -70,7 +70,7 @@ export const continueWithOrganization = async (
       is_org_admin: true
     };
     
-    console.log('إنشاء/تحديث سجل المستخدم بالبيانات:', userData);
+    
 
     // استخدام upsert بدلاً من insert لتجنب الأخطاء
     const { error: userError } = await supabaseAdmin
@@ -177,11 +177,7 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
         trial_end_date: trialEndDate.toISOString()
       };
       
-      console.log('إنشاء منظمة جديدة باستخدام الوظيفة المحسنة:', {
-        name: data.organizationName,
-        subdomain: data.subdomain,
-        userId: authData.user.id
-      });
+      
       
       const result = await createOrganizationSafe(
         data.organizationName,

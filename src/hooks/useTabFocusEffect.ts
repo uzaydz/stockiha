@@ -66,7 +66,7 @@ export function useTabFocusEffect(
         const timeSinceLastFocus = now - lastFocusTime.current;
         
         // تسجيل للتصحيح
-        console.log(`[TabFocus] رجوع إلى التبويب بعد ${timeSinceLastFocus}ms، في بيئة Electron: ${isRunningInElectron}`);
+        
         
         // تنظيف أي عملية سابقة قبل تنفيذ الوظيفة من جديد
         if (cleanupRef.current) {

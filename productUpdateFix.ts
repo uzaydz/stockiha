@@ -10,7 +10,7 @@
 // استبدل وظيفة تحديث المنتج الحالية بهذه الوظيفة
 export const updateProduct = async (id: string, updates: UpdateProduct): Promise<Product> => {
   try {
-    console.log('تحديث المنتج بالبيانات:', updates);
+    
     
     // استخدام وظيفة RPC بدلاً من استعلام التحديث المباشر
     const { data: updatedProduct, error } = await supabase
@@ -43,11 +43,11 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
       console.warn(`تم تحديث المنتج لكن حدث خطأ في جلب العلاقات: ${fetchError.message}`);
       // إرجاع البيانات من الوظيفة الأولى على الأقل
       const product = updatedProduct[0];
-      console.log(`تم تحديث المنتج ${id} بنجاح:`, product.name);
+      
       return product;
     }
     
-    console.log(`تم تحديث المنتج ${id} بنجاح:`, productWithRelations.name);
+    
     return productWithRelations;
   } catch (error) {
     console.error(`خطأ عام في تحديث المنتج ${id}:`, error);

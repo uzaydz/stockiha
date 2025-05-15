@@ -197,7 +197,7 @@ export const SubscriptionService = {
     const trialDays = 5;
     const remainingDays = trialDays - diffDays;
     
-    console.log(`[SubscriptionService] تاريخ الإنشاء: ${createdAt}, الأيام المنقضية: ${diffDays}, المتبقي: ${remainingDays} أيام`);
+    
     
     return {
       isTrialActive: remainingDays > 0,

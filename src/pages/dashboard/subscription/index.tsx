@@ -74,20 +74,20 @@ const SubscriptionPage = () => {
   // محاولة تحديث بيانات المؤسسة عند تحميل الصفحة إذا كانت قيمتها فارغة
   useEffect(() => {
     if (!organization) {
-      console.log('محاولة تحديث بيانات المؤسسة عند تحميل الصفحة');
+      
       refreshOrganizationData();
       
       // استخدام معرف المؤسسة من localStorage مباشرة
       const storedOrgId = localStorage.getItem('bazaar_organization_id');
       if (storedOrgId) {
-        console.log('تم العثور على معرف المؤسسة في التخزين المحلي:', storedOrgId);
+        
         setOrganizationId(storedOrgId);
         
         // محاولة جلب الاشتراك مباشرة باستخدام معرف المؤسسة من localStorage
         fetchActiveSubscription(storedOrgId);
       }
     } else {
-      console.log('المؤسسة موجودة بالفعل في السياق:', organization.id);
+      
       setOrganizationId(organization.id);
     }
   }, [organization, refreshOrganizationData]);
@@ -96,7 +96,7 @@ const SubscriptionPage = () => {
   const fetchActiveSubscription = async (orgId: string) => {
     if (!orgId) return;
     
-    console.log('جلب الاشتراك النشط باستخدام معرف المؤسسة:', orgId);
+    
     
     try {
       // استخدام نهج أبسط للاستعلام لمعالجة خطأ 406
@@ -118,7 +118,7 @@ const SubscriptionPage = () => {
       const subscriptionData = activeSubscriptions.length > 0 ? activeSubscriptions[0] : null;
         
       if (subscriptionData) {
-        console.log('تم العثور على اشتراك نشط للمؤسسة:', subscriptionData.id);
+        
         
         // تحديث بيانات المؤسسة بمعرف الاشتراك المكتشف
         const { error: updateError } = await supabase
@@ -133,14 +133,14 @@ const SubscriptionPage = () => {
         if (updateError) {
           console.error('خطأ في تحديث معرف الاشتراك في بيانات المؤسسة:', updateError);
         } else {
-          console.log('تم تحديث معرف الاشتراك في بيانات المؤسسة');
+          
           await refreshOrganizationData();
         }
         
         // استمر بجلب بيانات الاشتراك
         fetchSubscriptionDetails(subscriptionData.id);
       } else {
-        console.log('لم يتم العثور على اشتراك نشط للمؤسسة');
+        
         setLoading(false);
       }
     } catch (error) {
@@ -153,7 +153,7 @@ const SubscriptionPage = () => {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.has('refresh')) {
-      console.log('تحديث بيانات المؤسسة عبر refreshOrganizationData');
+      
       refreshOrganizationData();
     }
   }, [window.location.search, refreshOrganizationData]);
@@ -185,15 +185,15 @@ const SubscriptionPage = () => {
   // جلب الاشتراك الحالي
   useEffect(() => {
     const fetchCurrentSubscription = async () => {
-      console.log('بيانات المؤسسة المتوفرة:', organization);
+      
       
       if (!organization) {
-        console.log('لا توجد بيانات مؤسسة متاحة');
+        
         return;
       }
       
       if (!organization.subscription_id) {
-        console.log('المؤسسة ليس لديها معرف اشتراك');
+        
         
         // التحقق من وجود اشتراك نشط في جدول الاشتراكات للمؤسسة
         try {
@@ -216,7 +216,7 @@ const SubscriptionPage = () => {
           const subscriptionData = activeSubscriptions.length > 0 ? activeSubscriptions[0] : null;
             
           if (subscriptionData) {
-            console.log('تم العثور على اشتراك نشط للمؤسسة:', subscriptionData.id);
+            
             
             // تحديث بيانات المؤسسة بمعرف الاشتراك المكتشف
             const { error: updateError } = await supabase
@@ -231,14 +231,14 @@ const SubscriptionPage = () => {
             if (updateError) {
               console.error('خطأ في تحديث معرف الاشتراك في بيانات المؤسسة:', updateError);
             } else {
-              console.log('تم تحديث معرف الاشتراك في بيانات المؤسسة');
+              
               await refreshOrganizationData();
             }
             
             // استمر بجلب بيانات الاشتراك
             fetchSubscriptionDetails(subscriptionData.id);
           } else {
-            console.log('لم يتم العثور على اشتراك نشط للمؤسسة');
+            
             setLoading(false);
           }
         } catch (error) {
@@ -260,7 +260,7 @@ const SubscriptionPage = () => {
   // دالة جلب تفاصيل الاشتراك - منفصلة لإعادة الاستخدام
   const fetchSubscriptionDetails = async (subscriptionId: string) => {
     try {
-      console.log('جلب تفاصيل الاشتراك للمعرف:', subscriptionId);
+      
       
       const { data, error } = await supabase
         .from('organization_subscriptions')
@@ -281,7 +281,7 @@ const SubscriptionPage = () => {
         return;
       }
       
-      console.log('تم جلب تفاصيل الاشتراك بنجاح:', data);
+      
       
       // تأكد من اختيار الدورة الفوترية الصحيحة بناءً على الاشتراك
       if (data.billing_cycle) {

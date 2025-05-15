@@ -156,15 +156,15 @@ export async function getStoreInfoBySubdomain(subdomain: string): Promise<Organi
 // جلب المنتجات المميزة
 export async function getFeaturedProducts(organizationId: string): Promise<Product[]> {
   try {
-    console.log('Fetching featured products for organization:', organizationId);
-    console.log('SUPABASE_URL:', process.env.NEXT_PUBLIC_SUPABASE_URL); // سجل عنوان Supabase
+    
+     // سجل عنوان Supabase
     
     if (!organizationId) {
       console.error('معرف المؤسسة فارغ أو غير محدد في getFeaturedProducts!');
       return [];
     }
     
-    console.log('Using supabase public client with anonymous credentials');
+    
     
     // استعلام بسيط جداً للتأكد من عمله - إضافة شرط is_active = true
     const supabaseClient = await getSupabaseClient();
@@ -175,8 +175,8 @@ export async function getFeaturedProducts(organizationId: string): Promise<Produ
       .eq('is_active', true) // إضافة شرط للتأكد من أن المنتج مفعل
       .limit(10);
     
-    console.log('Raw query completed. Error:', error ? error.message : 'None');
-    console.log('Products found:', productsRaw ? productsRaw.length : 0);
+    
+    
     
     if (error) {
       console.error('Error in getFeaturedProducts simple query:', error);
@@ -185,7 +185,7 @@ export async function getFeaturedProducts(organizationId: string): Promise<Produ
     }
     
     if (!productsRaw || productsRaw.length === 0) {
-      console.log('No products found for organization. Returning empty array.');
+      
       
       // لأغراض التصحيح - محاولة استعلام مباشر دون تحديد معرف المؤسسة
       const { data: allProducts, error: allError } = await supabaseClient
@@ -193,11 +193,11 @@ export async function getFeaturedProducts(organizationId: string): Promise<Produ
         .select('id, organization_id, is_active')
         .limit(5);
       
-      console.log('Debug query - total products in DB:', allProducts ? allProducts.length : 0);
+      
       if (allProducts && allProducts.length > 0) {
-        console.log('Sample product IDs:', allProducts.map(p => p.id).join(', '));
-        console.log('Sample org IDs:', allProducts.map(p => p.organization_id).join(', '));
-        console.log('Sample is_active values:', allProducts.map(p => p.is_active).join(', '));
+        
+        
+        
       }
       
       if (allError) {
@@ -225,7 +225,7 @@ export async function getFeaturedProducts(organizationId: string): Promise<Produ
       additional_images: []
     }));
     
-    console.log('Returning simplified products:', products.length);
+    
     return products;
   } catch (error) {
     console.error('Exception in getFeaturedProducts:', error);
@@ -423,7 +423,7 @@ export async function getProductCategories(organizationId: string): Promise<Cate
 // جلب الخدمات
 export async function getServices(organizationId: string): Promise<Service[]> {
   try {
-    console.log('Fetching services for organization:', organizationId);
+    
     // استعلام مبسط لجدول الخدمات
     const { data, error } = await supabase
       .from('services')
@@ -435,10 +435,10 @@ export async function getServices(organizationId: string): Promise<Service[]> {
       throw error;
     }
     
-    console.log('Services retrieved:', data?.length || 0, 'Raw data:', data);
+    
     
     if (!data || data.length === 0) {
-      console.log('No services found for the organization');
+      
       // إرجاع مصفوفة فارغة بدلاً من الخدمة الافتراضية
       return [];
     }
@@ -471,7 +471,7 @@ export async function getServices(organizationId: string): Promise<Service[]> {
 // جلب كل بيانات المتجر مرة واحدة
 export async function getFullStoreData(subdomain: string): Promise<StoreData | null> {
   try {
-    console.log('Fetching full store data for subdomain:', subdomain);
+    
     const startTime = Date.now();
     
     const supabaseClient = await getSupabaseClient();
@@ -488,13 +488,13 @@ export async function getFullStoreData(subdomain: string): Promise<StoreData | n
       return null;
     }
     
-    console.log('Found organization:', organization.name);
+    
     const organizationId = organization.id;
     
     // التحقق مما إذا كان المستخدم مسجل دخول
     const { data: sessionData } = await supabaseClient.auth.getSession();
     const isLoggedIn = !!sessionData.session?.user;
-    console.log("حالة تسجيل الدخول:", isLoggedIn ? "مسجل دخول" : "زائر");
+    
     
     // 2. جلب إعدادات المؤسسة (التلوين والمظهر)
     let settings;
@@ -549,7 +549,7 @@ export async function getFullStoreData(subdomain: string): Promise<StoreData | n
       }
     } else {
       // استخدام دالة get_store_settings مع معلمة p_public_access = true بدلاً من get_public_store_settings
-      console.log("استخدام get_store_settings مع p_public_access = true للزائر");
+      
       const { data: componentsData, error: componentsError } = await supabaseClient
         .rpc('get_store_settings', {
           p_organization_id: organizationId,
@@ -569,13 +569,13 @@ export async function getFullStoreData(subdomain: string): Promise<StoreData | n
       }
     }
     
-    console.log(`Fetched ${storeComponents.length} store components`);
+    
     
     // 4. جلب الفئات 
     let categories: Category[] = [];
     
     try {
-      console.log("جلب الفئات للمؤسسة:", organizationId);
+      
       
       // استخدام استعلام مباشر بدلاً من وظيفة getProductCategories لتحديد أين المشكلة
       const { data: categoriesData, error: categoriesError } = await supabaseClient
@@ -586,7 +586,7 @@ export async function getFullStoreData(subdomain: string): Promise<StoreData | n
       if (categoriesError) {
         console.error('Error in direct categories query:', categoriesError);
       } else if (categoriesData && categoriesData.length > 0) {
-        console.log(`تم العثور على ${categoriesData.length} فئة بالاستعلام المباشر`);
+        
         // تحويل البيانات إلى الشكل المطلوب
         categories = categoriesData.map(category => ({
           id: category.id,
@@ -600,10 +600,10 @@ export async function getFullStoreData(subdomain: string): Promise<StoreData | n
       
       // استخدام getProductCategories كخطة بديلة
       if (categories.length === 0) {
-        console.log("محاولة استخدام getProductCategories...");
+        
         const productCategories = await getProductCategories(organizationId);
         if (productCategories && productCategories.length > 0) {
-          console.log(`تم الحصول على ${productCategories.length} فئة من getProductCategories`);
+          
           categories = productCategories;
         }
       }
@@ -632,7 +632,7 @@ export async function getFullStoreData(subdomain: string): Promise<StoreData | n
     };
     
     const endTime = Date.now();
-    console.log(`Finished loading store data in ${(endTime - startTime) / 1000} seconds`);
+    
     
     return storeData;
   } catch (err) {
@@ -644,7 +644,7 @@ export async function getFullStoreData(subdomain: string): Promise<StoreData | n
 // جلب منتج محدد بواسطة الـslug
 export async function getProductBySlug(organizationId: string, slug: string): Promise<Product | null> {
   try {
-    console.log('Fetching product by slug:', slug, 'for organization:', organizationId);
+    
     
     // تحقق مما إذا كان الـ slug يمثل UUID (يحتوي على شرطات)
     const isUuid = slug.includes('-');
@@ -667,7 +667,7 @@ export async function getProductBySlug(organizationId: string, slug: string): Pr
       if (!slugError && slugData) {
         data = slugData;
         slugSearchSuccess = true;
-        console.log('Found product by slug:', slug);
+        
       }
     } catch (slugSearchError) {
       console.warn('Product not found by slug search');
@@ -687,7 +687,7 @@ export async function getProductBySlug(organizationId: string, slug: string): Pr
         
         if (!idError && idData) {
           data = idData;
-          console.log('Found product by ID:', slug);
+          
         }
       } catch (idSearchError) {
         console.warn('Product not found by ID search');
@@ -701,7 +701,7 @@ export async function getProductBySlug(organizationId: string, slug: string): Pr
         const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         
         if (supabaseUrl && supabaseAnonKey) {
-          console.log('Trying direct HTTP request for UUID:', slug);
+          
           
           const response = await fetch(
             `${supabaseUrl}/rest/v1/products?select=*&organization_id=eq.${organizationId}&id=eq.${slug}&is_active=eq.true&limit=1`,
@@ -720,7 +720,7 @@ export async function getProductBySlug(organizationId: string, slug: string): Pr
             const results = await response.json();
             if (results && results.length > 0) {
               data = results[0];
-              console.log('Found product via direct HTTP request:', slug);
+              
             }
           } else {
             console.warn('HTTP request failed with status:', response.status);
@@ -843,7 +843,7 @@ export async function processOrder(
     address: string;
     city?: string;
     deliveryCompany: string;
-    deliveryOption: "home" | "office";
+    deliveryOption: "home" | "office" | "desk";
     paymentMethod: string;
     notes: string;
     productId: string;
@@ -856,10 +856,11 @@ export async function processOrder(
     deliveryFee: number;
     formData?: Record<string, any>; // بيانات النموذج المخصص
     metadata?: Record<string, any> | null; // إضافة بيانات التعريف هنا
+    stop_desk_id?: string | null; // إضافة معرف مكتب الاستلام
   }
 ) {
-  console.log("API: بدء معالجة الطلب مع البيانات:", orderData);
-  console.log("معرف المؤسسة:", organizationId);
+  
+  
 
   // التحقق من وجود معرف المؤسسة
   if (!organizationId) {
@@ -887,48 +888,91 @@ export async function processOrder(
     totalPrice,
     deliveryFee,
     formData,
-    metadata // استخلاص بيانات التعريف
+    metadata,
+    stop_desk_id
   } = orderData;
 
-  console.log("API: البيانات المستخلصة من الطلب:", {
-    fullName, phone, province, municipality, address, city,
-    deliveryCompany, deliveryOption, paymentMethod, notes,
-    productId, productColorId, productSizeId, sizeName,
-    quantity, unitPrice, totalPrice, deliveryFee, formData, metadata
-  });
+  console.log(`[processOrder] type=${deliveryOption}, stop_desk_id=${stop_desk_id}`);
   
   try {
     const supabaseClient = await getSupabaseClient();
-    // Cast the arguments object to 'any' to bypass strict type checking for p_metadata
-    const { data, error } = await supabaseClient.rpc('process_online_order_new', {
+    
+    // استخدام التحويل الصريح (type casting) لتجاوز تدقيق المعاملات
+    const params = {
       p_full_name: fullName,
       p_phone: phone,
       p_province: province,
       p_municipality: municipality,
       p_address: address,
-      p_city: city, // إضافة المدينة هنا
+      p_city: city || '',
       p_delivery_company: deliveryCompany,
       p_delivery_option: deliveryOption,
       p_payment_method: paymentMethod,
-      p_notes: notes,
+      p_notes: notes || '',
       p_product_id: productId,
-      p_product_color_id: productColorId,
-      p_product_size_id: productSizeId,
-      p_size_name: sizeName,
+      p_product_color_id: productColorId || null,
+      p_product_size_id: productSizeId || null,
+      p_size_name: sizeName || '',
       p_quantity: quantity,
       p_unit_price: unitPrice,
       p_total_price: totalPrice,
       p_delivery_fee: deliveryFee,
-      p_organization_id: organizationId, 
-      p_form_data: formData,
-      p_metadata: metadata // تمرير بيانات التعريف إلى الدالة
-    } as any); // Cast to any here
+      p_organization_id: organizationId,
+      p_form_data: formData || null,
+      p_metadata: metadata || null,
+      p_stop_desk_id: stop_desk_id || null
+    };
+    
+    
+    
+    // استخدام "as any" لتجاوز تدقيق النوع في TypeScript
+    const { data, error } = await supabaseClient.rpc('process_online_order_new', params as any);
 
     if (error) {
       console.error('Error processing order:', error);
       console.error('Error code:', error.code);
       console.error('Error message:', error.message);
       console.error('Error details:', error.details);
+      
+      // تحقق مما إذا كانت المشكلة هي عدم وجود الدالة الجديدة
+      if (error.code === 'PGRST202') {
+        
+        
+        // إعادة صياغة المعاملات حسب الدالة القديمة
+        const fallbackParams = {
+          p_full_name: fullName,
+          p_phone: phone,
+          p_province: province,
+          p_address: address,
+          p_delivery_company: deliveryCompany,
+          p_payment_method: paymentMethod,
+          p_notes: notes || '',
+          p_product_id: productId,
+          p_product_color_id: productColorId || null,
+          p_quantity: quantity,
+          p_unit_price: unitPrice,
+          p_total_price: totalPrice,
+          p_delivery_fee: deliveryFee,
+          p_organization_id: organizationId
+        };
+        
+        
+        
+        try {
+          const fallbackResult = await supabaseClient.rpc('process_online_order', fallbackParams as any);
+          
+          if (fallbackResult.error) {
+            console.error('فشل أيضاً استدعاء process_online_order:', fallbackResult.error);
+            throw new Error(`فشل استدعاء الدالتين. الخطأ: ${fallbackResult.error.message}`);
+          }
+          
+          
+          return fallbackResult.data;
+        } catch (fallbackError) {
+          console.error('خطأ في استدعاء الدالة الاحتياطية:', fallbackError);
+          throw fallbackError;
+        }
+      }
       
       // Try to determine the specific error from the error message
       let detailedError = error.message;
@@ -955,7 +999,7 @@ export async function processOrder(
     }
     
     // Cast data to 'any' before accessing properties not known by the generic Json type
-    const responseData = data as any; 
+    const responseData = data as any;
 
     if (!responseData) {
       console.error('تم استلام استجابة فارغة من الخادم');
@@ -963,7 +1007,7 @@ export async function processOrder(
     }
 
     // Log success for debugging
-    console.log("Process order successful:", responseData);
+    
     
     // إنشاء رقم طلب افتراضي إذا لم يكن موجودًا في الاستجابة
     if (!responseData.order_number) {

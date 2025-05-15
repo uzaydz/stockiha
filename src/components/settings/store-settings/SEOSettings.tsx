@@ -81,7 +81,7 @@ const getDefaultSEOSettings = (settings: OrganizationSettings): SEOSettings => {
       // إزالة أي تعليقات أو أكواد جافاسكريبت غير صالحة
       if (customJsStr.includes('//') || customJsStr.includes('function')) {
         // إذا كانت البيانات تحتوي على تعليقات أو دوال، استخدم القيم الافتراضية
-        console.log('تم اكتشاف بيانات غير صالحة في custom_js، استخدام القيم الافتراضية لـ SEO');
+        
         // العودة مباشرة إلى القيم الافتراضية بدلاً من محاولة تحليل JSON
       } else {
         try {
@@ -196,7 +196,7 @@ const SEOSettings = ({ settings, updateSetting }: SEOSettingsProps) => {
         if (settings.custom_js) {
           // التحقق من وجود تعليقات أو دوال جافاسكريبت
           if (settings.custom_js.includes('//') || settings.custom_js.includes('function')) {
-            console.log('تم اكتشاف بيانات غير صالحة في custom_js، استخدام كائن جديد');
+            
           } else {
             // تحليل JSON والتأكد من أنه كائن
             const parsed = JSON.parse(settings.custom_js);

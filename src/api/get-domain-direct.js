@@ -25,7 +25,7 @@ export async function getDomainInfo(organizationId) {
       };
     }
 
-    console.log(`جلب معلومات النطاق للمؤسسة: ${organizationId}`);
+    
 
     // 1. جلب معلومات المؤسسة من قاعدة البيانات
     const { data: orgData, error: orgError } = await supabase
@@ -49,7 +49,7 @@ export async function getDomainInfo(organizationId) {
       };
     }
 
-    console.log('معلومات المؤسسة:', orgData);
+    
 
     // 2. جلب حالة التحقق من النطاق إذا كان النطاق موجودًا
     let verificationData = null;
@@ -66,7 +66,7 @@ export async function getDomainInfo(organizationId) {
         console.error('خطأ في استعلام معلومات التحقق من النطاق:', verificationError);
       } else {
         verificationData = verificationInfo;
-        console.log('معلومات التحقق من النطاق:', verificationData);
+        
       }
     }
 

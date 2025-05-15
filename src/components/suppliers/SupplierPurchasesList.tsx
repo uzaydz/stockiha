@@ -63,7 +63,7 @@ export function SupplierPurchasesList() {
   useEffect(() => {
     // محاولة الحصول على organization_id من كائن المستخدم
     if (user && 'organization_id' in user) {
-      console.log("Found organization_id in user object:", (user as any).organization_id);
+      
       setOrganizationId((user as any).organization_id);
       return;
     }
@@ -71,13 +71,13 @@ export function SupplierPurchasesList() {
     // محاولة الحصول من التخزين المحلي
     const storedOrgId = localStorage.getItem('bazaar_organization_id');
     if (storedOrgId) {
-      console.log("Found organization_id in localStorage:", storedOrgId);
+      
       setOrganizationId(storedOrgId);
       return;
     }
     
     // القيمة الاحتياطية النهائية (يمكن تغييرها حسب احتياجك)
-    console.log("Using fallback organization ID");
+    
     setOrganizationId("10c02497-45d4-417a-857b-ad383816d7a0");
   }, [user]);
   
@@ -230,18 +230,18 @@ export function SupplierPurchasesList() {
             <CardDescription>إدارة مشتريات الموردين وتتبع حالتها</CardDescription>
           </div>
           <Button onClick={() => {
-            console.log("Navigating to add new purchase page");
+            
             try {
               // نتأكد من أننا نستخدم window.location بدلاً من navigate في حالة وجود مشاكل مع الـ React Router
               if (window.location.pathname.includes('/new')) {
-                console.log("Already on new purchases page, refreshing");
+                
                 window.location.reload();
               } else {
                 navigate('/dashboard/suppliers/purchases/new');
                 // استخدم window.location كخطة بديلة إذا لم يعمل navigate
                 setTimeout(() => {
                   if (!window.location.pathname.includes('/new')) {
-                    console.log("Navigate failed, using direct location change");
+                    
                     window.location.href = '/dashboard/suppliers/purchases/new';
                   }
                 }, 100);

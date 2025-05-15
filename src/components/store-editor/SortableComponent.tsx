@@ -99,7 +99,7 @@ const SortableComponent: React.FC<SortableComponentProps> = ({
         )}
         onClick={(e) => {
           e.preventDefault();
-          console.log("تم اختيار المكون:", component.id, component.type);
+          
           onActivate();
         }}
       >

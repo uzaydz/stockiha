@@ -14,7 +14,7 @@ import SyncProducts from '@/components/product/SyncProducts';
 type CategoryObject = { id: string; name: string; slug: string };
 
 const Products = () => {
-  console.log("=== Products component initialized ===");
+  
   
   const { currentOrganization } = useTenant();
   const [products, setProducts] = useState<Product[]>([]);
@@ -31,7 +31,7 @@ const Products = () => {
 
   // Debug organization info
   useEffect(() => {
-    console.log("Current organization:", currentOrganization);
+    
   }, [currentOrganization]);
 
   // Fetch products data - simplified version with direct DB query
@@ -41,7 +41,7 @@ const Products = () => {
     
     const fetchProducts = async () => {
       if (!currentOrganization?.id) {
-        console.log("لا توجد مؤسسة حالية، لا يمكن جلب المنتجات");
+        
         if (isMounted) {
           setProducts([]);
           setFilteredProducts([]);
@@ -63,14 +63,14 @@ const Products = () => {
       }, 15000) as unknown as number;
       
       try {
-        console.log("بدء جلب المنتجات للمؤسسة:", currentOrganization.id);
+        
         
         // Create a new direct Supabase client to bypass potential issues
         const { createClient } = await import('@supabase/supabase-js');
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://wrnssatuvmumsczyldth.supabase.co';
         const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndybnNzYXR1dm11bXNjenlsZHRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMyNTgxMTYsImV4cCI6MjA1ODgzNDExNn0.zBT3h3lXQgcFqzdpXARVfU9kwRLvNiQrSdAJwMdojYY';
         
-        console.log("Creating direct Supabase client");
+        
         const directClient = createClient(supabaseUrl, supabaseAnonKey);
         
         // Implement direct query with a Promise.race to handle timeouts
@@ -85,7 +85,7 @@ const Products = () => {
           setTimeout(() => reject(new Error('Database query timeout')), 5000);
         });
         
-        console.log("Executing direct query with timeout");
+        
         const { data, error } = await Promise.race([
           directQueryPromise,
           timeoutPromise
@@ -96,14 +96,14 @@ const Products = () => {
           throw error;
         }
         
-        console.log("Direct query successful, found", data?.length || 0, "products");
+        
         
         if (!isMounted) {
-          console.log("Component unmounted, not updating state");
+          
           return;
         }
         
-        console.log(`تم جلب ${data.length} منتج`);
+        
         setProducts(data);
         setFilteredProducts(data);
       } catch (error) {
@@ -115,7 +115,7 @@ const Products = () => {
       } finally {
         clearTimeout(timeoutId);
         if (isMounted) {
-          console.log("Setting loading state to false");
+          
           setIsLoading(false);
         }
       }
@@ -196,7 +196,7 @@ const Products = () => {
   // Product refresh after operations
   const refreshProducts = async () => {
     if (!currentOrganization?.id) {
-      console.log("لا توجد مؤسسة حالية، لا يمكن تحديث المنتجات");
+      
       return;
     }
     
@@ -204,10 +204,10 @@ const Products = () => {
     setLoadError(null);
     
     try {
-      console.log("تحديث المنتجات للمؤسسة:", currentOrganization.id);
+      
       const productsData = await getProducts(currentOrganization.id);
       
-      console.log(`تم تحديث ${productsData.length} منتج`);
+      
       setProducts(productsData);
       toast.success('تم تحديث قائمة المنتجات بنجاح');
     } catch (error) {
@@ -291,69 +291,58 @@ const Products = () => {
 
   return (
     <Layout>
-      {isLoading ? (
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-lg">جاري تحميل المنتجات...</p>
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-6 w-full">
-          {/* Products Header with Title and Add Button */}
-          <div className="flex justify-between items-center">
-            <ProductsHeader 
-              productCount={filteredProducts.length}
-              onAddProduct={handleAddProduct}
-              products={filteredProducts}
-            />
-            
-            {/* إضافة زر المزامنة */}
-            {unsyncedCount > 0 && (
-              <SyncProducts 
-                count={unsyncedCount}
-                onSync={handleDummySync}
-                isSyncing={isSyncing}
-              />
-            )}
-          </div>
-          
-          {/* عرض رسالة الخطأ إذا كان هناك خطأ */}
-          {loadError ? (
-            renderErrorState()
-          ) : filteredProducts.length === 0 ? (
-            renderEmptyState()
-          ) : (
-            <>
-              {/* Filters Row */}
-              <ProductsFilter
-                searchQuery={searchQuery}
-                onSearchChange={setSearchQuery}
-                categories={categories}
-                selectedCategory={categoryFilter}
-                onCategoryChange={setCategoryFilter}
-                sortOption={sortOption}
-                onSortChange={setSortOption}
-                stockFilter={stockFilter}
-                onStockFilterChange={setStockFilter}
-              />
-              
-              {/* Products List */}
-              <ProductsList 
-                products={filteredProducts}
-                onRefreshProducts={refreshProducts}
-              />
-            </>
-          )}
-          
-          {/* Add Product Dialog */}
-          <AddProductDialog
-            open={isAddProductOpen}
-            onOpenChange={setIsAddProductOpen}
-            onProductAdded={refreshProducts}
+      <SyncProducts
+        isLoading={isLoading}
+        onSyncComplete={refreshProducts}
+        onUnsyncedCountChange={setUnsyncedCount}
+      />
+      
+      <div className="container mx-auto py-6">
+        <ProductsHeader
+          productCount={products.length}
+          onAddProduct={() => setIsAddProductOpen(true)}
+          products={products}
+          onAddProductClick={() => setIsAddProductOpen(true)}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          sortOption={sortOption}
+          onSortChange={setSortOption}
+          totalProducts={products.length}
+          onShowFilter={() => {}} // أضف وظيفة إظهار الفلتر هنا
+          isSyncing={isSyncing}
+          unsyncedCount={unsyncedCount}
+          onSync={handleDummySync}
+        />
+        
+        <div className="mt-6">
+          <ProductsFilter
+            onCategoryChange={setCategoryFilter}
+            categoryFilter={categoryFilter}
+            onStockFilterChange={setStockFilter}
+            stockFilter={stockFilter}
           />
         </div>
-      )}
+        
+        {loadError ? (
+          renderErrorState()
+        ) : isLoading ? (
+          <div className="flex justify-center items-center mt-10">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
+          </div>
+        ) : filteredProducts.length === 0 ? (
+          renderEmptyState()
+        ) : (
+          <div className="mt-6">
+            <ProductsList products={filteredProducts} onProductsChanged={refreshProducts} />
+          </div>
+        )}
+        
+        <AddProductDialog
+          open={isAddProductOpen}
+          onOpenChange={setIsAddProductOpen}
+          onProductAdded={refreshProducts}
+        />
+      </div>
     </Layout>
   );
 };

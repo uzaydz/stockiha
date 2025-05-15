@@ -1,0 +1,362 @@
+import { UseFormReturn } from "react-hook-form";
+import { CustomFormField, OrderFormValues, FormSettings } from "./OrderFormTypes";
+import { supabase } from '@/lib/supabase-client';
+
+/**
+ * تحديد الحقول المتوفرة في النموذج المخصص
+ */
+export const getAvailableCustomFields = (customFields: CustomFormField[]): Set<string> => {
+  const fieldNames = new Set<string>();
+  
+  if (!customFields || customFields.length === 0) {
+    return fieldNames;
+  }
+  
+  customFields.filter(field => field.isVisible).forEach(field => {
+    fieldNames.add(field.name);
+  });
+  
+  return fieldNames;
+};
+
+/**
+ * جمع البيانات من النموذج المخصص
+ * @param form - عنصر النموذج
+ * @param customFields - تعريف الحقول المخصصة
+ */
+export function collectCustomFormData(form: HTMLFormElement, customFields: CustomFormField[]): Record<string, any> | null {
+  try {
+    // تستخدم FormData لجمع البيانات من النموذج
+    const formData = new FormData(form);
+    const result: Record<string, any> = {};
+    
+    // جمع البيانات من حقول النموذج المخصصة
+    for (const field of customFields) {
+      if (!field.isVisible) continue;
+      
+      // معالجة الحقول حسب النوع
+      if (field.type === 'checkbox') {
+        result[field.name] = formData.get(field.name) === 'on';
+      } else if (field.type === 'radio') {
+        result[field.name] = formData.get(field.name);
+      } else {
+        result[field.name] = formData.get(field.name);
+      }
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('Error collecting custom form data:', error);
+    return null;
+  }
+}
+
+/**
+ * التحقق من صحة النموذج المخصص
+ * @param form - عنصر النموذج
+ * @param customFields - تعريف الحقول المخصصة
+ */
+export function validateCustomForm(form: HTMLFormElement, customFields: CustomFormField[]): { isValid: boolean; errorMessages: string[] } {
+  const errorMessages: string[] = [];
+  
+  // التحقق من حقول النموذج المخصصة
+  for (const field of customFields) {
+    if (!field.isVisible || !field.required) continue;
+    
+    const element = form.elements.namedItem(field.name) as HTMLInputElement | HTMLSelectElement | null;
+    if (!element) continue;
+    
+    let value = element.value.trim();
+    
+    // التحقق من القيمة حسب نوع الحقل
+    if (field.type === 'checkbox') {
+      if (!(element as HTMLInputElement).checked) {
+        errorMessages.push(`${field.label} مطلوب`);
+      }
+    } else if (value === '') {
+      errorMessages.push(`${field.label} مطلوب`);
+    } else if (field.validation) {
+      // التحقق من الطول
+      if (field.validation.minLength && value.length < field.validation.minLength) {
+        errorMessages.push(`${field.label} يجب أن يكون على الأقل ${field.validation.minLength} أحرف`);
+      }
+      
+      if (field.validation.maxLength && value.length > field.validation.maxLength) {
+        errorMessages.push(`${field.label} يجب أن لا يتجاوز ${field.validation.maxLength} أحرف`);
+      }
+      
+      // التحقق من النمط
+      if (field.validation.pattern) {
+        const regex = new RegExp(field.validation.pattern);
+        if (!regex.test(value)) {
+          errorMessages.push(field.validation.message || `${field.label} غير صحيح`);
+        }
+      }
+    }
+  }
+  
+  return {
+    isValid: errorMessages.length === 0,
+    errorMessages
+  };
+}
+
+/**
+ * نقل البيانات من النموذج المخصص إلى النموذج العادي
+ * @param formData - بيانات النموذج المخصص
+ * @param targetForm - النموذج الهدف
+ * @param customFields - تعريف الحقول المخصصة
+ */
+export function transferCustomFormData(formData: Record<string, any>, targetForm: any, customFields: CustomFormField[]): void {
+  // تحديد الحقول المشتركة
+  const commonFields = {
+    fullName: ['name', 'full_name', 'fullname'],
+    phone: ['phone', 'phone_number', 'phonenumber', 'mobile', 'cell'],
+    province: ['province', 'state', 'wilaya', 'region'],
+    municipality: ['municipality', 'city', 'town', 'commune'],
+    address: ['address', 'full_address', 'street_address'],
+    notes: ['notes', 'comment', 'comments', 'additional_info']
+  };
+  
+  // البحث في الحقول المخصصة ونقل القيم المناسبة
+  for (const [targetField, sourceNames] of Object.entries(commonFields)) {
+    for (const sourceName of sourceNames) {
+      const field = customFields.find(f => f.name.toLowerCase() === sourceName.toLowerCase() && f.isVisible);
+      if (field && formData[field.name]) {
+        targetForm.setValue(targetField, formData[field.name]);
+        break;
+      }
+    }
+  }
+}
+
+/**
+ * التحقق من اتصال قاعدة البيانات
+ */
+export async function checkDatabaseConnection(): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.from('health_check').select('*').limit(1);
+    return !error;
+  } catch (error) {
+    console.error('Database connection error:', error);
+    return false;
+  }
+}
+
+/**
+ * حساب رسوم التوصيل بناءً على إعدادات النموذج ومزود الشحن
+ * @param formSettings - إعدادات النموذج
+ * @param deliveryOption - خيار التوصيل (منزل أو مكتب)
+ * @param wilayaId - رقم الولاية
+ * @param shippingCloneId - رقم مزود الشحن المستنسخ (إذا كان موجود)
+ */
+export async function calculateShippingFee(
+  formSettings: FormSettings | null,
+  deliveryOption: 'home' | 'desk',
+  wilayaId?: number | string,
+  shippingCloneId?: number
+): Promise<number> {
+  // التحقق من وجود معرف مزود شحن مستنسخ
+  if (shippingCloneId) {
+    try {
+      // جلب بيانات المزود المستنسخ
+      const { data: cloneData, error: cloneError } = await supabase
+        .from('shipping_provider_clones')
+        .select('*')
+        .eq('id', shippingCloneId)
+        .single();
+      
+      if (cloneError || !cloneData) {
+        console.log('لم يتم العثور على مزود الشحن المستنسخ، استخدام القيمة الافتراضية');
+        return deliveryOption === 'home' ? 400 : 350;
+      }
+      
+      // التحقق من وجود أسعار موحدة
+      if (cloneData.use_unified_price) {
+        if (deliveryOption === 'home') {
+          // التحقق من التوصيل المجاني للمنزل
+          if (cloneData.is_free_delivery_home) {
+            return 0;
+          }
+          return cloneData.unified_home_price || 400;
+        } else {
+          // التحقق من التوصيل المجاني للمكتب
+          if (cloneData.is_free_delivery_desk) {
+            return 0;
+          }
+          return cloneData.unified_desk_price || 350;
+        }
+      } else if (wilayaId) {
+        // البحث عن أسعار مخصصة للولاية
+        const { data: priceData, error: priceError } = await supabase
+          .from('shipping_clone_prices')
+          .select('home_price, desk_price')
+          .eq('clone_id', shippingCloneId)
+          .eq('province_id', wilayaId.toString())
+          .single();
+        
+        if (priceError || !priceData) {
+          console.log('لم يتم العثور على أسعار مخصصة للولاية، استخدام الأسعار الموحدة');
+          if (deliveryOption === 'home') {
+            // التحقق من التوصيل المجاني للمنزل
+            if (cloneData.is_free_delivery_home) {
+              return 0;
+            }
+            return cloneData.unified_home_price || 400;
+          } else {
+            // التحقق من التوصيل المجاني للمكتب
+            if (cloneData.is_free_delivery_desk) {
+              return 0;
+            }
+            return cloneData.unified_desk_price || 350;
+          }
+        }
+        
+        // استخدام الأسعار المخصصة
+        if (deliveryOption === 'home') {
+          // التحقق من التوصيل المجاني للمنزل
+          if (cloneData.is_free_delivery_home) {
+            return 0;
+          }
+          return priceData.home_price || cloneData.unified_home_price || 400;
+        } else {
+          // التحقق من التوصيل المجاني للمكتب
+          if (cloneData.is_free_delivery_desk) {
+            return 0;
+          }
+          return priceData.desk_price || cloneData.unified_desk_price || 350;
+        }
+      }
+    } catch (error) {
+      console.error('خطأ في حساب رسوم التوصيل لمزود مستنسخ:', error);
+    }
+  }
+  
+  // التحقق من وجود إعدادات النموذج وتكامل الشحن
+  if (!formSettings || 
+      !formSettings.settings?.shipping_integration?.enabled || 
+      !formSettings.settings?.shipping_integration?.provider_id || 
+      !wilayaId) {
+    // إرجاع الرسوم الافتراضية إذا لم يكن هناك تكامل
+    return deliveryOption === 'home' ? 400 : 350;
+  }
+  
+  const providerId = formSettings.settings.shipping_integration.provider_id;
+  
+  try {
+    // البحث عن رسوم التوصيل في قاعدة البيانات
+    const { data, error } = await supabase
+      .from('shipping_rates')
+      .select('home_price, desk_price')
+      .eq('provider_id', providerId)
+      .eq('to_region', wilayaId.toString())
+      .single();
+    
+    if (error || !data) {
+      console.log('لم يتم العثور على رسوم للتوصيل، استخدام القيمة الافتراضية');
+      return deliveryOption === 'home' ? 400 : 350;
+    }
+    
+    // استخدام الرسوم المناسبة حسب نوع التوصيل
+    if (deliveryOption === 'home') {
+      return data.home_price || 400;
+    } else {
+      return data.desk_price || 350;
+    }
+  } catch (error) {
+    console.error('خطأ في حساب رسوم التوصيل:', error);
+    return deliveryOption === 'home' ? 400 : 350;
+  }
+}
+
+/**
+ * الحصول على معلومات مزود الشحن المستنسخ
+ * @param cloneId - معرف المزود المستنسخ
+ */
+export async function getShippingProviderClone(cloneId: number) {
+  console.log(`>> محاولة جلب مزود الشحن المستنسخ بالمعرف: ${cloneId}`);
+  
+  try {
+    const { data, error } = await supabase
+      .from('shipping_provider_clones')
+      .select('*')
+      .eq('id', cloneId)
+      .single();
+    
+    if (error) {
+      console.error('خطأ في جلب معلومات مزود الشحن المستنسخ:', error);
+      return null;
+    }
+    
+    console.log('>> تم جلب بيانات مزود الشحن المستنسخ بنجاح:', data);
+    console.log('>> حالة التوصيل للمنزل:', data.is_home_delivery_enabled);
+    console.log('>> حالة التوصيل للمكتب:', data.is_desk_delivery_enabled);
+    
+    return data;
+  } catch (error) {
+    console.error('خطأ في جلب معلومات مزود الشحن المستنسخ:', error);
+    return null;
+  }
+}
+
+/**
+ * الحصول على الولايات المتاحة لمزود الشحن المستنسخ
+ * @param cloneId - معرف المزود المستنسخ
+ * @param deliveryType - نوع التوصيل (منزل أو مكتب)
+ */
+export async function getAvailableProvincesForClone(cloneId: number, deliveryType: 'home' | 'desk') {
+  try {
+    // التحقق من معلومات المزود المستنسخ أولاً
+    const { data: cloneData, error: cloneError } = await supabase
+      .from('shipping_provider_clones')
+      .select('*')
+      .eq('id', cloneId)
+      .single();
+    
+    if (cloneError || !cloneData) {
+      console.error('خطأ في جلب معلومات مزود الشحن المستنسخ:', cloneError);
+      return [];
+    }
+    
+    // التحقق من نوع التوصيل المدعوم
+    if (deliveryType === 'home' && !cloneData.is_home_delivery_enabled) {
+      console.log('التوصيل للمنزل غير مدعوم لهذا المزود');
+      return [];
+    }
+    
+    if (deliveryType === 'desk' && !cloneData.is_desk_delivery_enabled) {
+      console.log('التوصيل للمكتب غير مدعوم لهذا المزود');
+      return [];
+    }
+    
+    // الحصول على أسعار التوصيل للولايات
+    const { data: pricesData, error: pricesError } = await supabase
+      .from('shipping_clone_prices')
+      .select('province_id, province_name, home_price, desk_price')
+      .eq('clone_id', cloneId);
+    
+    if (pricesError) {
+      console.error('خطأ في جلب أسعار التوصيل للولايات:', pricesError);
+      return [];
+    }
+    
+    // تصفية الولايات بناءً على نوع التوصيل
+    const availableProvinces = pricesData.filter(price => {
+      if (deliveryType === 'home') {
+        // إذا كان السعر المنزلي null، فهذا يعني أن التوصيل للمنزل غير متوفر في هذه الولاية
+        return price.home_price !== null;
+      } else {
+        // إذا كان سعر المكتب null، فهذا يعني أن التوصيل للمكتب غير متوفر في هذه الولاية
+        return price.desk_price !== null;
+      }
+    }).map(price => ({
+      id: price.province_id,
+      name: price.province_name
+    }));
+    
+    return availableProvinces;
+  } catch (error) {
+    console.error('خطأ في جلب الولايات المتاحة لمزود الشحن المستنسخ:', error);
+    return [];
+  }
+} 

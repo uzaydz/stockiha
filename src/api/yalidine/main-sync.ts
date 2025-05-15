@@ -27,17 +27,17 @@ export async function syncYalidineData(
   skipValidation: boolean = false
 ): Promise<boolean> {
   try {
-    console.log(`[SYNC] بدء مزامنة بيانات ياليدين للمنظمة: ${organizationId} مع forceUpdate=${forceUpdate}, skipValidation=${skipValidation}`);
+    
     
     // إعادة تعيين إحصائيات محدد المعدل
     if (typeof yalidineRateLimiter.resetStats === 'function') {
-      console.log('[SYNC] إعادة تعيين إحصائيات محدد المعدل');
+      
       yalidineRateLimiter.resetStats();
     }
     
     // تعيين حدود أعلى لمعدل الطلبات
     if (typeof yalidineRateLimiter.setRateLimits === 'function') {
-      console.log('[SYNC] تعيين حدود معدل الطلبات المناسبة');
+      
       yalidineRateLimiter.setRateLimits({
         perSecond: 2, // تقليل من 3 إلى 2 للأمان
         perMinute: 40, // زيادة من 20 إلى 40 حسب الطلب
@@ -49,7 +49,7 @@ export async function syncYalidineData(
     const syncStatus = createInitialSyncStatus();
     
     // تخزين حالة المزامنة مؤقتاً
-    console.log('[SYNC] تحديث حالة المزامنة في localStorage');
+    
     updateSyncStatus(syncStatus);
     
     // إعداد المهلة الزمنية لإيقاف المزامنة في حالة استمرارها لفترة طويلة
@@ -57,7 +57,7 @@ export async function syncYalidineData(
     const maxSyncTime = 45 * 60 * 1000; // 45 دقيقة كحد أقصى للمزامنة (زيادة من 15 دقائق)
     
     // إنشاء عميل API ياليدين
-    console.log('[SYNC] إنشاء عميل API ياليدين');
+    
     let apiClient;
     try {
       apiClient = await getYalidineApiClient(organizationId);
@@ -82,7 +82,7 @@ export async function syncYalidineData(
     }
     
     // تحديث حالة المزامنة بالنجاح مباشرة لجميع العناصر باستثناء الأسعار
-    console.log('[SYNC] تعيين حالة المزامنة للولايات والبلديات والمكاتب إلى "نجاح" مباشرة');
+    
     syncStatus.provinces.status = 'success';
     syncStatus.provinces.total = 58;
     syncStatus.provinces.added = 58;
@@ -97,7 +97,7 @@ export async function syncYalidineData(
     // التحقق من صلاحية بيانات الاعتماد (يمكن تجاوزه)
     let isCredentialsValid = true;
     if (!skipValidation) {
-      console.log('[SYNC] التحقق من صلاحية بيانات الاعتماد');
+      
       
       // استخدام وظيفة التحقق المحسنة
       isCredentialsValid = await validateYalidineCredentials(organizationId);
@@ -106,14 +106,14 @@ export async function syncYalidineData(
         console.error('[SYNC ERROR] فشل التحقق من صلاحية بيانات الاعتماد');
         console.warn('[SYNC] سيتم محاولة المزامنة على أي حال، ولكن قد تواجه مشاكل...');
       } else {
-        console.log('[SYNC] نجح التحقق من صلاحية بيانات الاعتماد');
+        
       }
     } else {
-      console.log('[SYNC] تم تجاوز التحقق من صلاحية بيانات الاعتماد (skipValidation=true)');
+      
     }
     
     // تخطي فحص البيانات العالمية تمامًا
-    console.log('[SYNC] تخطي فحص البيانات العالمية والاكتفاء بمزامنة الأسعار فقط');
+    
     
     try {
       // إنشاء وعد للمهلة الزمنية
@@ -140,7 +140,7 @@ export async function syncYalidineData(
       // إنشاء وعد للمزامنة الفعلية
       const syncPromise = (async () => {
         // مزامنة أسعار التوصيل من API مباشرة (الوحيدة التي ستنفذ فعليًا)
-        console.log("[SYNC] بدء مزامنة أسعار التوصيل (من API مباشرة)...");
+        
         syncStatus.fees.status = 'syncing';
         updateSyncStatus(syncStatus);
         
@@ -155,13 +155,13 @@ export async function syncYalidineData(
         
         syncStatus.fees.status = feesSuccess ? 'success' : 'failed';
         updateSyncStatus(syncStatus);
-        console.log(`[SYNC] نتيجة مزامنة أسعار التوصيل: ${feesSuccess ? 'ناجحة' : 'فاشلة'}`);
+        
         
         // اعتبار المزامنة ناجحة إذا نجحت عملية أسعار التوصيل
         const success = feesSuccess;
         
         if (success) {
-          console.log(`[SYNC] تمت مزامنة بيانات ياليدين للمنظمة ${organizationId} بنجاح`);
+          
         } else {
           console.warn(`[SYNC] فشلت مزامنة بيانات ياليدين للمنظمة ${organizationId}`);
         }

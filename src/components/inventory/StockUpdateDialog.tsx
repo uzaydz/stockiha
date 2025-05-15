@@ -81,7 +81,7 @@ export function StockUpdateDialog({
   
   // تسجيل حالة الفتح للتأكد من أن المكون يستجيب للتغييرات
   useEffect(() => {
-    console.log('حالة فتح الحوار:', open);
+    
     
     // إذا تم فتح الحوار، تحقق من حالة الاتصال مرة أخرى
     if (open) {
@@ -93,7 +93,7 @@ export function StockUpdateDialog({
             cache: 'no-store',
             headers: { 'Cache-Control': 'no-cache' }
           });
-          console.log('نتيجة فحص الاتصال عند فتح الحوار:', response.ok);
+          
           
           // لا نحتاج إلى تغيير الحالة لأن useOfflineStatus سيقوم بذلك
         } catch (error) {
@@ -137,7 +137,7 @@ export function StockUpdateDialog({
   // إعادة تعيين النموذج عند تغيير المنتج أو فتح النافذة
   useEffect(() => {
     if (open && product) {
-      console.log('إعادة تعيين النموذج مع بيانات المنتج:', product);
+      
       form.reset({
         stock_quantity: currentQuantity,
         adjustment: 0,
@@ -184,7 +184,7 @@ export function StockUpdateDialog({
   const updateProductLocally = (newQuantity: number) => {
     if (!product) return;
     
-    console.log(`تحديث المنتج محلياً: الكمية القديمة = ${currentQuantity}, الكمية الجديدة = ${newQuantity}`);
+    
     
     if (selectedSize && selectedColor) {
       // تحديث كمية المقاس المحدد والألوان والمنتج
@@ -256,17 +256,11 @@ export function StockUpdateDialog({
     product.updatedAt = new Date();
     
     // للمساعدة في التصحيح، نطبع المنتج المحدث
-    console.log('المنتج المحدث:', JSON.stringify({
-      product_id: product.id,
-      name: product.name,
-      stock_quantity: product.stock_quantity,
-      total_variants: product.colors?.length || 0,
-      updated_at: product.updatedAt
-    }, null, 2));
+    
   };
 
   const closeDialog = () => {
-    console.log('إغلاق الحوار');
+    
     onOpenChange(false);
   };
 
@@ -280,10 +274,10 @@ export function StockUpdateDialog({
     
     // 3. تنفيذ دالة استدعاء التحديث لتحديث القوائم في واجهة المستخدم
     try {
-      console.log('استدعاء دالة onStockUpdated للتحديث');
+      
       // استخدام Promise.resolve لمنع الانتظار وتفادي إعادة الاستدعاء المتكرر
       await Promise.resolve(onStockUpdated());
-      console.log('تم تنفيذ دالة onStockUpdated بنجاح');
+      
     } catch (successError) {
       console.error('خطأ في تنفيذ دالة onStockUpdated:', successError);
     }
@@ -326,11 +320,11 @@ export function StockUpdateDialog({
     if (!product) return;
     
     setIsSubmitting(true);
-    console.log('بدء تنفيذ ضبط المخزون بقيمة محددة:', values);
+    
     
     try {
       const userId = await getCurrentUserId();
-      console.log('معرف المستخدم الحالي:', userId);
+      
       
       // تحديد معرف المتغير (إذا كان هناك لون أو مقاس محدد)
       const variantId = values.size_id !== "all-sizes" ? values.size_id : 
@@ -347,7 +341,7 @@ export function StockUpdateDialog({
         created_by: userId
       });
       
-      console.log('نتيجة تعيين المخزون:', success);
+      
       
       if (success) {
         const variantName = selectedSize 
@@ -374,7 +368,7 @@ export function StockUpdateDialog({
     if (!product) return;
     
     setIsSubmitting(true);
-    console.log('بدء تنفيذ تعديل المخزون بمقدار:', values.adjustment);
+    
     
     try {
       // تأكد من أن قيمة التعديل هي عدد صحيح
@@ -396,17 +390,13 @@ export function StockUpdateDialog({
       }
       
       // تسجيل التعديل قبل المعالجة
-      console.log('تعديل المخزون بمقدار:', {
-        قيمة_التعديل: adjustment,
-        المخزون_الحالي: currentQuantity,
-        المخزون_المتوقع: Math.max(0, currentQuantity + adjustment)
-      });
+      
       
       // إضافة معالجة الأخطاء للحصول على معرف المستخدم
       let userId;
       try {
         userId = await getCurrentUserId();
-        console.log('معرف المستخدم الحالي:', userId);
+        
       } catch (userError) {
         console.error('فشل في الحصول على معرف المستخدم:', userError);
         userId = 'unknown'; // استخدام قيمة افتراضية في حالة الفشل
@@ -428,12 +418,12 @@ export function StockUpdateDialog({
           created_by: userId
         });
         
-        console.log('نتيجة تعديل المخزون:', success);
+        
         
         if (success) {
           // حساب الكمية الجديدة
           const newQuantity = Math.max(0, currentQuantity + adjustment);
-          console.log(`الكمية الجديدة: ${currentQuantity} + ${adjustment} = ${newQuantity}`);
+          
           
           // إظهار إشعار النجاح
           const action = adjustment > 0 ? 'إضافة' : 'خصم';
@@ -465,7 +455,7 @@ export function StockUpdateDialog({
   const onSubmit = async (values: StockUpdateValues) => {
     if (!product) return;
     
-    console.log(`بدء عملية تحديث المخزون (الوضع: ${activeTab})`, values);
+    
     
     if (activeTab === 'set') {
       await handleSetStock(values);
@@ -476,7 +466,7 @@ export function StockUpdateDialog({
 
   // Handle quick adjustments
   const handleQuickAdjustment = (amount: number) => {
-    console.log(`تعديل سريع للكمية: ${amount}`);
+    
     form.setValue('adjustment', amount);
   };
 

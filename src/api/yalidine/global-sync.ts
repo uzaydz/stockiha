@@ -19,7 +19,7 @@ const DEFAULT_ORGANIZATION_ID = process.env.NEXT_PUBLIC_YALIDINE_DEFAULT_ORG_ID 
  * @returns دائمًا true للإشارة إلى أن البيانات محدثة
  */
 export async function isGlobalDataUpToDate(): Promise<boolean> {
-  console.log('التحقق من البيانات العالمية... تخطي الفحص والعودة دائمًا بقيمة true');
+  
   return true;
 
   // تعليق الكود الأصلي للتحقق من البيانات العالمية
@@ -37,7 +37,7 @@ export async function isGlobalDataUpToDate(): Promise<boolean> {
     }
     
     if (!provincesData || provincesData.length === 0) {
-      console.log('البيانات العالمية للولايات غير موجودة');
+      
       return false;
     }
     
@@ -53,7 +53,7 @@ export async function isGlobalDataUpToDate(): Promise<boolean> {
     }
     
     if (!municipalitiesData || municipalitiesData.length === 0) {
-      console.log('البيانات العالمية للبلديات غير موجودة');
+      
       return false;
     }
     
@@ -70,7 +70,7 @@ export async function isGlobalDataUpToDate(): Promise<boolean> {
     }
     
     if (!updateInfo || !updateInfo.last_updated_at) {
-      console.log('لم يتم العثور على معلومات التحديث');
+      
       return false;
     }
     
@@ -80,11 +80,11 @@ export async function isGlobalDataUpToDate(): Promise<boolean> {
     const hoursSinceLastUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60);
     
     if (hoursSinceLastUpdate > 24) {
-      console.log(`آخر تحديث كان منذ ${hoursSinceLastUpdate.toFixed(1)} ساعة، يلزم التحديث`);
+      
       return false;
     }
     
-    console.log(`البيانات العالمية محدثة (آخر تحديث منذ ${hoursSinceLastUpdate.toFixed(1)} ساعة)`);
+    
     return true;
   } catch (error) {
     console.error('خطأ أثناء التحقق من حالة البيانات العالمية:', error);
@@ -98,7 +98,7 @@ export async function isGlobalDataUpToDate(): Promise<boolean> {
  */
 async function syncGlobalProvinces(apiClient: AxiosInstance): Promise<boolean> {
   try {
-    console.log('بدء مزامنة بيانات الولايات العالمية');
+    
     
     // محاولة جلب بيانات الولايات من API ياليدين
     const response = await apiClient.get('wilayas', { 
@@ -131,7 +131,7 @@ async function syncGlobalProvinces(apiClient: AxiosInstance): Promise<boolean> {
       return false;
     }
     
-    console.log(`تم العثور على ${provinces.length} ولاية`);
+    
     
     // حذف البيانات القديمة
     const { error: deleteError } = await supabase
@@ -161,7 +161,7 @@ async function syncGlobalProvinces(apiClient: AxiosInstance): Promise<boolean> {
       return false;
     }
     
-    console.log(`تم تحديث ${dataToInsert.length} ولاية بنجاح`);
+    
     return true;
   } catch (error) {
     console.error('خطأ أثناء مزامنة بيانات الولايات العالمية:', error);
@@ -174,7 +174,7 @@ async function syncGlobalProvinces(apiClient: AxiosInstance): Promise<boolean> {
  */
 async function syncGlobalMunicipalities(apiClient: AxiosInstance): Promise<boolean> {
   try {
-    console.log('بدء مزامنة بيانات البلديات العالمية');
+    
     
     // استخدام نهج التصفح لجلب جميع البلديات مرة واحدة
     let allMunicipalities: Municipality[] = [];
@@ -183,7 +183,7 @@ async function syncGlobalMunicipalities(apiClient: AxiosInstance): Promise<boole
     const pageSize = 100; // الحد الأقصى المسموح به
     
     while (hasMore) {
-      console.log(`جلب صفحة ${page} من البلديات...`);
+      
       
       try {
         const response = await yalidineRateLimiter.schedule(() => 
@@ -211,10 +211,10 @@ async function syncGlobalMunicipalities(apiClient: AxiosInstance): Promise<boole
           break;
         }
         
-        console.log(`تم جلب ${municipalities.length} بلدية من الصفحة ${page}`);
+        
         
         if (municipalities.length === 0) {
-          console.log('لا توجد بلديات في هذه الصفحة، توقف عن التصفح');
+          
           hasMore = false;
         } else {
           allMunicipalities = allMunicipalities.concat(municipalities);
@@ -235,7 +235,7 @@ async function syncGlobalMunicipalities(apiClient: AxiosInstance): Promise<boole
       }
     }
     
-    console.log(`تم جلب إجمالي ${allMunicipalities.length} بلدية`);
+    
     
     if (allMunicipalities.length === 0) {
       console.error('لم يتم جلب أي بلديات!');
@@ -265,7 +265,7 @@ async function syncGlobalMunicipalities(apiClient: AxiosInstance): Promise<boole
     for (let chunkIndex = 0; chunkIndex < municipalityChunks.length; chunkIndex++) {
       const chunk = municipalityChunks[chunkIndex];
       
-      console.log(`إدخال دفعة ${chunkIndex + 1}/${municipalityChunks.length} (${chunk.length} بلدية)`);
+      
       
       const dataToInsert = chunk.map((municipality: Municipality) => ({
         id: municipality.id,
@@ -286,14 +286,14 @@ async function syncGlobalMunicipalities(apiClient: AxiosInstance): Promise<boole
         console.error('خطأ أثناء إدخال دفعة من بيانات البلديات:', insertError);
       } else {
         insertedCount += dataToInsert.length;
-        console.log(`تم إدخال ${dataToInsert.length} بلدية. المجموع: ${insertedCount}`);
+        
       }
       
       // انتظار قصير بين عمليات الإدخال
       await new Promise(resolve => setTimeout(resolve, 200));
     }
     
-    console.log(`تم تحديث ${insertedCount} بلدية بنجاح`);
+    
     return insertedCount > 0;
   } catch (error) {
     console.error('خطأ أثناء مزامنة بيانات البلديات العالمية:', error);
@@ -306,7 +306,7 @@ async function syncGlobalMunicipalities(apiClient: AxiosInstance): Promise<boole
  */
 async function syncGlobalCenters(apiClient: AxiosInstance): Promise<boolean> {
   try {
-    console.log('بدء مزامنة بيانات مكاتب التوصيل العالمية');
+    
     
     // جلب جميع مكاتب التوصيل دفعة واحدة
     let allCenters: Center[] = [];
@@ -315,7 +315,7 @@ async function syncGlobalCenters(apiClient: AxiosInstance): Promise<boolean> {
     const pageSize = 100; // الحد الأقصى المسموح به
     
     while (hasMore) {
-      console.log(`جلب صفحة ${page} من مكاتب التوصيل...`);
+      
       
       try {
         const response = await yalidineRateLimiter.schedule(() => 
@@ -343,10 +343,10 @@ async function syncGlobalCenters(apiClient: AxiosInstance): Promise<boolean> {
           break;
         }
         
-        console.log(`تم جلب ${centers.length} مكتب توصيل من الصفحة ${page}`);
+        
         
         if (centers.length === 0) {
-          console.log('لا توجد مكاتب في هذه الصفحة، توقف عن التصفح');
+          
           hasMore = false;
         } else {
           allCenters = allCenters.concat(centers);
@@ -367,7 +367,7 @@ async function syncGlobalCenters(apiClient: AxiosInstance): Promise<boolean> {
       }
     }
     
-    console.log(`تم جلب إجمالي ${allCenters.length} مكتب توصيل`);
+    
     
     if (allCenters.length === 0) {
       console.error('لم يتم جلب أي مكاتب توصيل!');
@@ -397,7 +397,7 @@ async function syncGlobalCenters(apiClient: AxiosInstance): Promise<boolean> {
     for (let chunkIndex = 0; chunkIndex < centerChunks.length; chunkIndex++) {
       const chunk = centerChunks[chunkIndex];
       
-      console.log(`إدخال دفعة ${chunkIndex + 1}/${centerChunks.length} (${chunk.length} مكتب)`);
+      
       
       const dataToInsert = chunk.map(center => ({
         center_id: center.center_id,
@@ -418,14 +418,14 @@ async function syncGlobalCenters(apiClient: AxiosInstance): Promise<boolean> {
         console.error('خطأ أثناء إدخال دفعة من بيانات مكاتب التوصيل:', insertError);
       } else {
         insertedCount += dataToInsert.length;
-        console.log(`تم إدخال ${dataToInsert.length} مكتب. المجموع: ${insertedCount}`);
+        
       }
       
       // انتظار قصير بين عمليات الإدخال
       await new Promise(resolve => setTimeout(resolve, 200));
     }
     
-    console.log(`تم تحديث ${insertedCount} مكتب توصيل بنجاح`);
+    
     return insertedCount > 0;
   } catch (error) {
     console.error('خطأ أثناء مزامنة بيانات مكاتب التوصيل العالمية:', error);
@@ -438,8 +438,8 @@ async function syncGlobalCenters(apiClient: AxiosInstance): Promise<boolean> {
  * ملاحظة: تم تعديلها لتخطي المزامنة الفعلية وإرجاع true دائمًا
  */
 export async function syncAllGlobalData(): Promise<boolean> {
-  console.log('بدء مزامنة جميع البيانات العالمية لياليدين');
-  console.log('تخطي المزامنة الفعلية للبيانات العالمية وإرجاع نجاح مباشرة');
+  
+  
   
   // تحديث سجل آخر تحديث
   try {
@@ -459,10 +459,10 @@ export async function syncAllGlobalData(): Promise<boolean> {
   // تعليق الكود الأصلي للمزامنة الفعلية
   /*
   try {
-    console.log('بدء مزامنة جميع البيانات العالمية لياليدين');
+    
     
     // استخدام القيمة الافتراضية للمنظمة
-    console.log(`استخدام المنظمة ${DEFAULT_ORGANIZATION_ID} للوصول إلى API ياليدين`);
+    
     const apiClient = await getYalidineApiClient(DEFAULT_ORGANIZATION_ID);
     
     if (!apiClient) {
@@ -471,7 +471,7 @@ export async function syncAllGlobalData(): Promise<boolean> {
     }
     
     // مزامنة بيانات الولايات
-    console.log('=== مزامنة بيانات الولايات العالمية ===');
+    
     const provincesSuccess = await syncGlobalProvinces(apiClient);
     if (!provincesSuccess) {
       console.error('فشل مزامنة بيانات الولايات العالمية');
@@ -479,7 +479,7 @@ export async function syncAllGlobalData(): Promise<boolean> {
     }
     
     // مزامنة بيانات البلديات
-    console.log('=== مزامنة بيانات البلديات العالمية ===');
+    
     const municipalitiesSuccess = await syncGlobalMunicipalities(apiClient);
     if (!municipalitiesSuccess) {
       console.error('فشل مزامنة بيانات البلديات العالمية');
@@ -487,7 +487,7 @@ export async function syncAllGlobalData(): Promise<boolean> {
     }
     
     // تحديث وقت آخر تحديث
-    console.log('تحديث وقت آخر تحديث للبيانات العالمية');
+    
     const { error } = await supabase
       .from('yalidine_global_info')
       .upsert({ 
@@ -500,7 +500,7 @@ export async function syncAllGlobalData(): Promise<boolean> {
       return false;
     }
     
-    console.log('تمت مزامنة جميع البيانات العالمية بنجاح');
+    
     return true;
   } catch (error) {
     console.error('خطأ أثناء مزامنة البيانات العالمية:', error);
@@ -517,7 +517,7 @@ export async function syncAllGlobalData(): Promise<boolean> {
  */
 export async function syncGlobalProvincesOnly(organizationId: string): Promise<boolean> {
   try {
-    console.log(`[GLOBAL] مزامنة بيانات الولايات العالمية للمنظمة: ${organizationId}`);
+    
     
     // إنشاء عميل API ياليدين
     let apiClient;
@@ -537,7 +537,7 @@ export async function syncGlobalProvincesOnly(organizationId: string): Promise<b
     // مزامنة بيانات الولايات العالمية
     const provincesSuccess = await syncGlobalProvinces(apiClient);
     
-    console.log(`[GLOBAL] نتائج مزامنة البيانات العالمية: الولايات=${provincesSuccess ? 'نجاح' : 'فشل'}`);
+    
     
     return provincesSuccess;
   } catch (error) {

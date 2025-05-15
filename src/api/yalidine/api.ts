@@ -27,14 +27,14 @@ export async function getYalidineCredentials(organizationId: string): Promise<Ya
   try {
     // في وضع التطوير، نقوم بإرجاع بيانات اعتماد وهمية
     if (DEV_MODE) {
-      console.log('استخدام بيانات اعتماد وهمية في وضع التطوير');
+      
       return {
         api_id: 'dev_api_id',
         api_token: 'dev_api_token'
       };
     }
 
-    console.log('جاري جلب بيانات اعتماد ياليدين من قاعدة البيانات للمؤسسة:', organizationId);
+    
 
     const { data, error } = await supabase
       .from('shipping_provider_settings')
@@ -53,7 +53,7 @@ export async function getYalidineCredentials(organizationId: string): Promise<Ya
       return null;
     }
     
-    console.log('تم العثور على بيانات اعتماد ياليدين');
+    
     
     return {
       api_id: data.api_token,
@@ -63,7 +63,7 @@ export async function getYalidineCredentials(organizationId: string): Promise<Ya
     console.error('خطأ أثناء جلب بيانات اعتماد ياليدين:', error);
     
     if (DEV_MODE) {
-      console.log('استخدام بيانات اعتماد وهمية في وضع التطوير بعد حدوث خطأ');
+      
       return {
         api_id: 'dev_api_id',
         api_token: 'dev_api_token'
@@ -81,7 +81,7 @@ export async function getYalidineCredentials(organizationId: string): Promise<Ya
  * @returns عميل Axios مهيأ
  */
 export function createYalidineApiClient(credentials: YalidineCredentials, useProxy: boolean = false): AxiosInstance {
-  console.log('إنشاء عميل API ياليدين', useProxy ? 'باستخدام الوسيط المحلي' : 'مباشرة');
+  
   
   // استخدام الوسيط المحلي إذا تم طلبه - تأكد من استخدام الوسيط دائمًا لتجنب مشاكل CORS
   const baseURL = useProxy ? '/yalidine-api/' : YALIDINE_BASE_URL;
@@ -153,7 +153,7 @@ export async function getYalidineApiClient(
   organizationId: string, 
   useProxy?: boolean
 ): Promise<AxiosInstance | null> {
-  console.log('[API] بدء إنشاء عميل API ياليدين للمؤسسة:', organizationId);
+  
   
   // محاولة عدة مرات في حالة فشل الحصول على بيانات الاعتماد
   const maxRetries = 3;
@@ -162,7 +162,7 @@ export async function getYalidineApiClient(
   
   while (retries < maxRetries) {
     try {
-      console.log(`[API] محاولة جلب بيانات الاعتماد (${retries + 1}/${maxRetries})`);
+      
       const credentials = await getYalidineCredentials(organizationId);
       
       if (!credentials) {
@@ -180,20 +180,20 @@ export async function getYalidineApiClient(
         continue;
       }
       
-      console.log('[API] تم الحصول على بيانات الاعتماد بنجاح');
+      
       
       // دائمًا استخدم الوسيط في بيئة المتصفح لتجنب مشاكل CORS
       const shouldUseProxy = typeof window !== 'undefined' ? true : !!useProxy;
       
-      console.log(`[API] إنشاء عميل API ياليدين ${shouldUseProxy ? 'باستخدام الوسيط المحلي' : 'مباشرة'}`);
+      
       const apiClient = createYalidineApiClient(credentials, shouldUseProxy);
       
       // التحقق من الاتصال بواسطة طلب بسيط
       try {
-        console.log('[API] التحقق من الاتصال بواسطة طلب بسيط');
+        
         const testResponse = await apiClient.get('wilayas/1', { timeout: 5000 });
         if (testResponse.status === 200) {
-          console.log('[API] تم التحقق من الاتصال بنجاح');
+          
           return apiClient;
         } else {
           console.warn('[API] فشل اختبار الاتصال:', testResponse.status);
@@ -202,7 +202,7 @@ export async function getYalidineApiClient(
         console.error('[API] خطأ أثناء اختبار الاتصال:', testError);
         // حاول استخدام الوسيط إذا فشل الاتصال المباشر
         if (!shouldUseProxy) {
-          console.log('[API] محاولة استخدام الوسيط بعد فشل الاتصال المباشر');
+          
           const proxyClient = createYalidineApiClient(credentials, true);
           return proxyClient;
         }
@@ -232,11 +232,11 @@ export async function getYalidineApiClient(
  */
 export async function validateYalidineCredentials(organizationId: string): Promise<boolean> {
   try {
-    console.log('جاري التحقق من صحة بيانات اعتماد ياليدين للمؤسسة:', organizationId);
+    
     
     // في وضع التطوير، نعتبر بيانات الاعتماد صالحة دائمًا
     if (DEV_MODE) {
-      console.log('تم تجاوز التحقق من بيانات الاعتماد في وضع التطوير - اعتبار البيانات صالحة');
+      
       return true;
     }
 
@@ -253,14 +253,14 @@ export async function validateYalidineCredentials(organizationId: string): Promi
       return false;
     }
     
-    console.log('جاري التحقق من بيانات الاعتماد...');
+    
     
     // آلية التحقق متعددة المراحل
     let validationMethods = [
       // 1. محاولة استخدام وظيفة الخادم
       async () => {
         try {
-          console.log('محاولة 1: استخدام دالة RPC من الخادم...');
+          
           const { data, error } = await supabase.rpc('test_yalidine_connection', {
             api_id: credentials.api_id,
             api_token: credentials.api_token
@@ -272,7 +272,7 @@ export async function validateYalidineCredentials(organizationId: string): Promi
           }
           
           if (data && data.success) {
-            console.log('نجح التحقق عبر دالة RPC');
+            
             return true;
           }
           
@@ -287,11 +287,11 @@ export async function validateYalidineCredentials(organizationId: string): Promi
       // 2. محاولة الاتصال المباشر
       async () => {
         try {
-          console.log('محاولة 2: الاتصال المباشر بـ API ياليدين...');
+          
           const apiClient = createYalidineApiClient(credentials, false);
           const response = await apiClient.get('wilayas/', { timeout: 5000 });
           
-          console.log('نجح الاتصال المباشر');
+          
           return response.status === 200;
         } catch (e) {
           console.warn('فشل الاتصال المباشر:', e);
@@ -302,11 +302,11 @@ export async function validateYalidineCredentials(organizationId: string): Promi
       // 3. محاولة الاتصال عبر الوسيط المحلي
       async () => {
         try {
-          console.log('محاولة 3: الاتصال بـ API ياليدين عبر الوسيط المحلي...');
+          
           const apiClient = createYalidineApiClient(credentials, true);
           const response = await apiClient.get('wilayas/', { timeout: 5000 });
           
-          console.log('نجح الاتصال عبر الوسيط المحلي');
+          
           return response.status === 200;
         } catch (e) {
           console.warn('فشل الاتصال عبر الوسيط المحلي:', e);
@@ -316,16 +316,16 @@ export async function validateYalidineCredentials(organizationId: string): Promi
       
       // 4. فحص تنسيق بيانات الاعتماد للتأكد من صحتها
       async () => {
-        console.log('محاولة 4: التحقق من تنسيق بيانات الاعتماد...');
+        
         // إذا فشلت جميع المحاولات السابقة، نتحقق من التنسيق
         const formatValid = isValidCredentialFormat(credentials);
-        console.log('نتيجة التحقق من التنسيق:', formatValid);
+        
         return formatValid;
       },
       
       // 5. افتراض الصحة في حالة الشك (لتجنب عرقلة المستخدم)
       async () => {
-        console.log('محاولة 5: افتراض صحة البيانات كخيار أخير...');
+        
         return true;
       }
     ];

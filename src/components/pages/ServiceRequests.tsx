@@ -85,12 +85,12 @@ const ServiceRequests = () => {
         return;
       }
       
-      console.log('جاري جلب طلبات الخدمات للمنظمة:', currentOrganization.id);
+      
       
       // جلب طلبات الخدمات من قاعدة البيانات
       const data = await getServiceRequests(currentOrganization.id);
       
-      console.log('تم استرجاع البيانات:', data.length, 'طلب خدمة');
+      
       setServiceRequests(data);
       setFilteredRequests(data);
     } catch (error) {

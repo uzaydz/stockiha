@@ -41,13 +41,13 @@ const updateLocalStorageOrgId = (organizationId: string | null) => {
     if (organizationId) {
       const currentStoredId = localStorage.getItem('bazaar_organization_id');
       if (currentStoredId !== organizationId) {
-        console.log("تحديث معرف المؤسسة في التخزين المحلي من:", currentStoredId, "إلى:", organizationId);
+        
         localStorage.setItem('bazaar_organization_id', organizationId);
       }
     } else {
       // إذا كان المعرف فارغاً، قم بحذف المعرف المخزن
       localStorage.removeItem('bazaar_organization_id');
-      console.log("تم حذف معرف المؤسسة من التخزين المحلي");
+      
     }
   } catch (error) {
     console.error("خطأ في تحديث معرف المؤسسة في التخزين المحلي:", error);
@@ -61,7 +61,7 @@ const isMainDomain = (hostname: string): boolean => {
 
 // استخراج النطاق الفرعي من اسم المضيف
 const extractSubdomain = async (hostname: string): Promise<string | null> => {
-  console.log('TenantContext - استخراج النطاق الفرعي من:', hostname);
+  
   
   // التحقق من النطاق المخصص أولاً
   const checkCustomDomain = async (): Promise<string | null> => {
@@ -73,7 +73,7 @@ const extractSubdomain = async (hostname: string): Promise<string | null> => {
         .single();
       
       if (orgData?.subdomain) {
-        console.log('TenantContext - تم العثور على نطاق مخصص:', hostname);
+        
         return orgData.subdomain;
       }
     } catch (error) {
@@ -87,26 +87,26 @@ const extractSubdomain = async (hostname: string): Promise<string | null> => {
     const parts = hostname.split('.');
     // مثال: mystore.localhost:8080 أو mystore.localhost
     if (parts.length > 1 && parts[0] !== 'localhost' && parts[0] !== 'www') {
-      console.log('TenantContext - تم اكتشاف سابدومين محلي:', parts[0]);
+      
       return parts[0];
     }
     
     // إذا كان فقط localhost بدون سابدومين
     if (hostname === 'localhost') {
-      console.log('TenantContext - تم اكتشاف localhost بدون سابدومين، استخدام main كقيمة');
+      
       return 'main';
     }
   }
   
   // التعامل مع عناوين IP المحلية (127.0.0.1, etc.)
   if (hostname.match(/^127\.\d+\.\d+\.\d+$/) || hostname.match(/^\d+\.\d+\.\d+\.\d+$/)) {
-    console.log('TenantContext - تم اكتشاف عنوان IP محلي، استخدام main كقيمة');
+    
     return 'main';
   }
   
   // اختبار ما إذا كان النطاق الرئيسي
   if (isMainDomain(hostname)) {
-    console.log('TenantContext - تم اكتشاف النطاق الرئيسي، استخدام main كقيمة');
+    
     return 'main';
   }
   
@@ -119,11 +119,11 @@ const extractSubdomain = async (hostname: string): Promise<string | null> => {
     
     // لا نعتبر 'www' كنطاق فرعي حقيقي
     if (subdomain === 'www') {
-      console.log('TenantContext - تم اكتشاف www، استخدام main كقيمة');
+      
       return 'main';
     }
     
-    console.log('TenantContext - تم اكتشاف سابدومين:', subdomain);
+    
     return subdomain;
   }
   
@@ -134,7 +134,7 @@ const extractSubdomain = async (hostname: string): Promise<string | null> => {
   }
   
   // إذا لم نتمكن من استخراج نطاق فرعي، نعيد null
-  console.log('TenantContext - لم يتم اكتشاف سابدومين صالح، استخدام null');
+  
   return null;
 };
 
@@ -153,7 +153,7 @@ export const getOrganizationFromCustomDomain = async (hostname: string): Promise
       .maybeSingle();
       
     if (!error && orgData && orgData.id && orgData.subdomain) {
-      console.log(`تم العثور على مؤسسة بالنطاق المخصص: ${hostname}`, orgData.name);
+      
       return {
         id: orgData.id,
         subdomain: orgData.subdomain
@@ -185,7 +185,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (!hostname.includes('localhost')) {
         const orgData = await getOrganizationFromCustomDomain(hostname);
         if (orgData) {
-          console.log('تم العثور على معرف المؤسسة من النطاق المخصص:', orgData.id);
+          
           localStorage.setItem('bazaar_organization_id', orgData.id);
           localStorage.setItem('bazaar_current_subdomain', orgData.subdomain);
           
@@ -210,7 +210,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // مزامنة بيانات المؤسسة من AuthContext إلى TenantContext - محسنة
   useEffect(() => {
     if (authOrganization && !organization && !loadingOrganization.current) {
-      console.log('مزامنة بيانات المؤسسة من AuthContext:', authOrganization.name);
+      
       
       // تحويل بيانات المؤسسة من AuthContext إلى النموذج المطلوب لـ TenantContext
       setOrganization(updateOrganizationFromData(authOrganization));
@@ -233,7 +233,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         // محاولة العثور على المؤسسة بالنطاق الرئيسي
         const orgByDomain = await getOrganizationByDomain(currentHostname);
         if (orgByDomain) {
-          console.log(`تم العثور على المؤسسة بواسطة النطاق الرئيسي: ${currentHostname}`);
+          
           return orgByDomain;
         }
       }
@@ -261,11 +261,11 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       try {
         // استخدام النطاق الفرعي الحالي أو استخراجه من اسم المضيف
         const subdomain = currentSubdomain || await extractSubdomain(window.location.hostname);
-        console.log('بدء استرجاع بيانات المؤسسة - النطاق الفرعي:', subdomain);
+        
         
         // أولاً نحاول العثور على المؤسسة بواسطة النطاق الرئيسي (الحالي)
         const currentHostname = window.location.hostname;
-        console.log('اسم المضيف الحالي:', currentHostname);
+        
         
         // إلغاء التخزين المؤقت للتأكد من استدعاء البيانات المحدثة من قاعدة البيانات
         localStorage.removeItem(`tenant:domain:${currentHostname}`);
@@ -274,7 +274,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const orgByDomain = await getOrganizationByDomain(currentHostname);
         
         if (orgByDomain) {
-          console.log(`تم العثور على المؤسسة بواسطة النطاق الرئيسي: ${currentHostname}`, orgByDomain);
+          
           setOrganization(updateOrganizationFromData(orgByDomain));
           localStorage.setItem('bazaar_organization_id', orgByDomain.id);
           
@@ -288,7 +288,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           const orgBySubdomain = await getOrganizationBySubdomain(subdomain);
           
           if (orgBySubdomain) {
-            console.log('تم العثور على المؤسسة:', orgBySubdomain.name);
+            
             setOrganization(updateOrganizationFromData(orgBySubdomain));
             
             // حفظ معرف المؤسسة في التخزين المحلي للاستخدام لاحقاً
@@ -299,7 +299,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               setIsOrgAdmin(true);
             }
           } else {
-            console.log('لم يتم العثور على مؤسسة بالنطاق الفرعي:', subdomain);
+            
             
             // محاولة استخدام المعرف المخزن محلياً كاحتياطي
             tryLoadFromLocalStorage();
@@ -323,12 +323,12 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // وظيفة مساعدة لتحميل المؤسسة من التخزين المحلي
     const tryLoadFromLocalStorage = async () => {
       const storedOrgId = localStorage.getItem('bazaar_organization_id');
-      console.log('محاولة تحميل المؤسسة من التخزين المحلي بمعرف:', storedOrgId);
+      
       
       if (storedOrgId) {
         const orgById = await getOrganizationById(storedOrgId);
         if (orgById) {
-          console.log('تم العثور على المؤسسة من التخزين المحلي:', orgById.name);
+          
           setOrganization(updateOrganizationFromData(orgById));
           
           // تحقق ما إذا كان المستخدم الحالي هو مسؤول المؤسسة
@@ -336,11 +336,11 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             setIsOrgAdmin(true);
           }
         } else {
-          console.log('لم يتم العثور على مؤسسة باستخدام المعرف المخزن محلياً');
+          
           setOrganization(null);
         }
       } else {
-        console.log('لا يوجد معرف مؤسسة مخزن محلياً');
+        
         setOrganization(null);
       }
     };
@@ -433,12 +433,12 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     loadingOrganization.current = true;
 
     try {
-      console.log('بدء تحديث بيانات المؤسسة بشكل كامل...');
+      
       
       // مسح كل التخزين المؤقت المتعلق بالمؤسسة
       const orgId = localStorage.getItem('bazaar_organization_id');
       if (orgId) {
-        console.log(`مسح التخزين المؤقت للمؤسسة: ${orgId}`);
+        
         localStorage.removeItem(`organization:${orgId}`);
         
         // مسح أي تخزين مؤقت آخر متعلق بالمؤسسة
@@ -451,14 +451,14 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
         
         keysToRemove.forEach(key => {
-          console.log(`حذف مفتاح التخزين المؤقت: ${key}`);
+          
           localStorage.removeItem(key);
         });
       }
       
       // استخدام معرف المؤسسة لجلب البيانات المحدثة مباشرة
       if (orgId) {
-        console.log(`جلب بيانات المؤسسة مباشرة باستخدام المعرف: ${orgId}`);
+        
         const supabaseClient = await getSupabaseClient();
         
         const { data: orgData, error: orgError } = await supabaseClient
@@ -473,8 +473,8 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
         
         if (orgData) {
-          console.log('تم جلب بيانات المؤسسة بنجاح:', orgData.name);
-          console.log('النطاق المخصص:', orgData.domain || 'لا يوجد');
+          
+          
           
           setOrganization(updateOrganizationFromData(orgData));
           localStorage.setItem('bazaar_organization_id', orgData.id);

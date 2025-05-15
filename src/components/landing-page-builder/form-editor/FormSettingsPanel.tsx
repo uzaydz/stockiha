@@ -167,8 +167,8 @@ const FormSettingsPanel: React.FC<FormSettingsPanelProps> = ({ settings, onSetti
   
   // تحديث الإعدادات بقيم جديدة
   const updateSettings = (path: string, value: any) => {
-    console.log(`FormSettingsPanel - Updating path: ${path} with value:`, value);
-    console.log('FormSettingsPanel - Current advancedSettings before update:', advancedSettings);
+    
+    
     
     // استنساخ الإعدادات الحالية
     const newAdvancedSettings = JSON.parse(JSON.stringify(advancedSettings));
@@ -183,7 +183,7 @@ const FormSettingsPanel: React.FC<FormSettingsPanelProps> = ({ settings, onSetti
     }
     current[pathParts[pathParts.length - 1]] = value;
     
-    console.log('FormSettingsPanel - New advancedSettings after update:', newAdvancedSettings);
+    
     
     // تحديث الإعدادات
     const updatedSettings = {
@@ -191,21 +191,21 @@ const FormSettingsPanel: React.FC<FormSettingsPanelProps> = ({ settings, onSetti
       advancedSettings: newAdvancedSettings
     };
     
-    console.log('FormSettingsPanel - Sending full updated settings:', updatedSettings);
+    
     onSettingsChange(updatedSettings);
   };
   
   // استخدام نموذج جاهز
   const applyPreset = (presetId: string) => {
-    console.log(`FormSettingsPanel - Applying preset: ${presetId}`);
+    
     const preset = PRESET_STYLES.find(p => p.id === presetId);
     if (preset) {
       const updatedSettings = {
         ...settings,
         advancedSettings: JSON.parse(JSON.stringify(preset.settings))
       };
-      console.log('FormSettingsPanel - Preset settings:', preset.settings);
-      console.log('FormSettingsPanel - Full updated settings with preset:', updatedSettings);
+      
+      
       onSettingsChange(updatedSettings);
     }
   };

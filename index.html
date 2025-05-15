@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     
     <!-- سياسة أمان المحتوى المُحسّنة للعمل في بيئتي التطوير والإنتاج -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.gpteng.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://api.yalidine.app https://*.vercel.app ws://localhost:* wss://localhost:* http://localhost:* http://127.0.0.1:* ws://127.0.0.1:*; img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://cdn.jsdelivr.net https://images.unsplash.com https://maps.googleapis.com https://*.googleusercontent.com;" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.gpteng.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://api.yalidine.app https://procolis.com https://*.vercel.app ws://localhost:* wss://localhost:* http://localhost:* http://127.0.0.1:* ws://127.0.0.1:*; img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://cdn.jsdelivr.net https://images.unsplash.com https://maps.googleapis.com https://*.googleusercontent.com;" />
 
     <title>منصة الألعاب الشاملة</title>
     <meta name="description" content="منصة الألعاب الشاملة - متجر ألعاب متكامل لبيع وإصلاح أجهزة الألعاب والإكسسوارات" />
@@ -25,6 +25,18 @@
     <script>
       window.process = window.process || { env: {} };
       window.global = window.global || window;
+      
+      // تعريف module و require لمنع أخطاء في الملفات المجمعة
+      if (typeof window !== 'undefined' && typeof module === 'undefined') {
+        window.module = { exports: {} };
+      }
+      if (typeof window !== 'undefined' && typeof exports === 'undefined') {
+        window.exports = window.module.exports;
+      }
+      if (typeof window !== 'undefined' && typeof require === 'undefined') {
+        window.require = function(name) { return {}; };
+        window.require.main = window.module;
+      }
     </script>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">

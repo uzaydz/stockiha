@@ -37,14 +37,14 @@ export const syncProductImages = async (productId: string): Promise<boolean> => 
       ? product.images.filter(img => img !== product.thumbnail_image)
       : [];
     
-    console.log(`[syncProductImages] المنتج ${productId} لديه ${additionalImages.length} صورة إضافية في المصفوفة و ${existingImageUrls.length} صورة في جدول الصور`);
+    
     
     // 4. إضافة الصور الموجودة في مصفوفة images ولكنها غير موجودة في جدول product_images
     let addedCount = 0;
     for (let i = 0; i < additionalImages.length; i++) {
       const imageUrl = additionalImages[i];
       if (!existingImageUrls.includes(imageUrl)) {
-        console.log(`[syncProductImages] إضافة صورة ${imageUrl} إلى جدول product_images`);
+        
         
         const { data, error } = await supabase
           .from('product_images')
@@ -62,7 +62,7 @@ export const syncProductImages = async (productId: string): Promise<boolean> => 
       }
     }
     
-    console.log(`[syncProductImages] تمت إضافة ${addedCount} صورة جديدة إلى جدول product_images`);
+    
     
     return true;
   } catch (error) {
@@ -89,11 +89,11 @@ export const migrateProductImages = async (): Promise<{ success: boolean, migrat
     }
     
     if (!products || products.length === 0) {
-      console.log('No products found with multiple images');
+      
       return { success: true, migratedProducts: 0, totalImages: 0 };
     }
     
-    console.log(`Found ${products.length} products with potential additional images`);
+    
     
     let migratedProducts = 0;
     let totalImages = 0;

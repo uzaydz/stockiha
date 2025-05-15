@@ -112,7 +112,7 @@ export class YalidineApiClient {
    */
   async fetchWilayasDirectly() {
     try {
-      console.log('جلب الولايات مباشرة من API ياليدين');
+      
       
       // تسجيل طلب API
       await this.supabase.rpc('log_yalidine_api_request', {
@@ -135,7 +135,7 @@ export class YalidineApiClient {
       }
       
       const wilayasData = response.data.data;
-      console.log(`تم استلام ${wilayasData.length} ولاية من API`);
+      
       
       // تخزين البيانات في قاعدة البيانات
       for (const wilaya of wilayasData) {
@@ -670,7 +670,7 @@ export class YalidineApiClient {
 //   'your-organization-id'
 // );
 // 
-// yalidineClient.getWilayas().then(result => console.log(result)); 
+// yalidineClient.getWilayas().then(result =>  
 
 // بيانات احتياطية للولايات للاستخدام في حالة فشل طلبات API
 const FALLBACK_WILAYAS = [

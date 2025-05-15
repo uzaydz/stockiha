@@ -93,7 +93,7 @@ const SalesTable = () => {
   // تحديث الطلبات المفلترة عند تغيير البيانات
   useEffect(() => {
     if (!isLoading && orders.length > 0) {
-      console.log('فلترة الطلبات، العدد الإجمالي:', orders.length);
+      
       let result = [...orders].filter(order => !order.isOnline);
       
       // تطبيق البحث

@@ -71,7 +71,7 @@ const PaymentHistory: React.FC = () => {
         setIsLoading(true);
         
         // استعلام مباشر لجميع الطلبات والمدفوعات للمؤسسة (بما في ذلك المدفوعة بالكامل)
-        console.log('جاري الاستعلام عن سجل المدفوعات التاريخي للمؤسسة:', currentOrganization.id);
+        
         
         const { data: ordersData, error: ordersError } = await supabase
           .from('orders')
@@ -97,7 +97,7 @@ const PaymentHistory: React.FC = () => {
           throw ordersError;
         }
         
-        console.log('تم استلام بيانات الطلبات:', ordersData ? ordersData.length : 0);
+        
         
         // تحويل بيانات الطلبات إلى سجلات تاريخية
         const allRecords: PaymentRecord[] = [];
@@ -147,7 +147,7 @@ const PaymentHistory: React.FC = () => {
           });
         }
         
-        console.log('إجمالي السجلات المستخرجة من الاستعلام المباشر:', allRecords.length);
+        
         
         if (allRecords.length === 0) {
           console.warn('لم يتم استخراج أي سجلات من الاستعلام المباشر');
@@ -160,7 +160,7 @@ const PaymentHistory: React.FC = () => {
         setRecords(allRecords);
         
         if (allRecords.length > 0) {
-          console.log('تم تعيين السجلات بنجاح! عدد السجلات:', allRecords.length);
+          
         }
       } catch (error) {
         console.error('خطأ في تحميل سجلات المدفوعات:', error);

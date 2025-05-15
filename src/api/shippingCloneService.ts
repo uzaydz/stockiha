@@ -186,11 +186,11 @@ export async function getShippingProviderClone(
 ): Promise<ShippingProviderClone | null> {
   try {
     if (!cloneId) {
-      console.log('>> لم يتم توفير معرف مزود الشحن المستنسخ');
+      
       return null;
     }
 
-    console.log(`>> جاري جلب إعدادات مزود الشحن المستنسخ بمعرف: ${cloneId}`);
+    
     
     const { data, error } = await supabase
       .from('shipping_provider_clones')
@@ -206,7 +206,7 @@ export async function getShippingProviderClone(
       return null;
     }
     
-    console.log(`>> تم العثور على إعدادات مزود الشحن المستنسخ:`, data);
+    
     return data as ShippingProviderClone;
   } catch (error) {
     console.error('خطأ أثناء جلب إعدادات مزود الشحن المستنسخ:', error);

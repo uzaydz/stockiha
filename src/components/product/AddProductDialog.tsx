@@ -146,13 +146,13 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
           role: userData?.role || user.user_metadata?.role,
         };
         
-        console.log('AddProductDialog: بيانات المستخدم للتحقق من الصلاحيات:', mergedUserData);
+        
         
         // التحقق من صلاحية إضافة المنتجات فقط
         let canAddProducts = false;
         try {
           canAddProducts = await checkUserPermissions(mergedUserData, 'addProducts');
-          console.log('AddProductDialog: نتيجة التحقق من صلاحية إضافة المنتجات:', canAddProducts);
+          
         } catch (permError) {
           console.error('AddProductDialog: خطأ في التحقق من الصلاحية:', permError);
           // في حالة حدوث خطأ، نستخدم الطريقة البديلة
@@ -181,11 +181,7 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
         // النتيجة النهائية: إما أن يكون مسؤولاً أو لديه الصلاحية المحددة
         const fallbackPermission = isAdmin || hasExplicitPermission;
         
-        console.log('AddProductDialog: استخدام طريقة التحقق البديلة:', {
-          isAdmin,
-          hasExplicitPermission,
-          fallbackPermission
-        });
+        
         
         setHasPermission(fallbackPermission);
         setShowPermissionAlert(!fallbackPermission);
@@ -218,7 +214,7 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
           .single();
         
         if (!userError && userData?.organization_id && isValidUUID(userData.organization_id)) {
-          console.log('Usando organization_id del usuario actual:', userData.organization_id);
+          
           setOrganizationId(userData.organization_id);
           localStorage.setItem('bazaar_organization_id', userData.organization_id);
           return;
@@ -238,7 +234,7 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
         // Usar el primer organization_id válido que encontremos
         for (const user of usersList) {
           if (user.organization_id && isValidUUID(user.organization_id)) {
-            console.log('Usando organization_id de otro usuario como fallback:', user.organization_id);
+            
             setOrganizationId(user.organization_id);
             // Guardar en localStorage para futuras referencias
             localStorage.setItem('bazaar_organization_id', user.organization_id);
@@ -257,7 +253,7 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
         console.error('Error al buscar organizaciones:', orgError);
       } else if (orgList && orgList.length > 0) {
         const orgId = orgList[0].id;
-        console.log('Usando ID de organización de la tabla organizations:', orgId);
+        
         setOrganizationId(orgId);
         localStorage.setItem('bazaar_organization_id', orgId);
         return;
@@ -265,7 +261,7 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
       
       // Solución temporal: usar un ID hardcodeado
       const hardcodedId = '7519afc0-d068-4235-a0f2-f92935772e0c'; // Reemplazar con un ID válido conocido
-      console.log('SOLUCIÓN TEMPORAL: Usando ID de organización hardcodeado:', hardcodedId);
+      
       setOrganizationId(hardcodedId);
       localStorage.setItem('bazaar_organization_id', hardcodedId);
       
@@ -281,7 +277,7 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
-        console.log('No authenticated user found');
+        
         return null;
       }
       
@@ -298,7 +294,7 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
       }
       
       if (data?.organization_id && isValidUUID(data.organization_id)) {
-        console.log('Found user organization_id:', data.organization_id);
+        
         return data.organization_id;
       }
       
@@ -313,11 +309,11 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
   useEffect(() => {
     // Obtener el ID de la organización si no está disponible en el contexto
     const getOrganizationId = () => {
-      console.log('Current organization from context:', currentOrganization);
+      
       
       // Intentar obtener el ID desde el contexto
       if (currentOrganization?.id && isValidUUID(currentOrganization.id)) {
-        console.log('Using organization ID from context:', currentOrganization.id);
+        
         setOrganizationId(currentOrganization.id);
         return;
       }
@@ -332,10 +328,10 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
       
       for (const key of keysToTry) {
         const storedId = localStorage.getItem(key);
-        console.log(`Checking localStorage key "${key}":`, storedId);
+        
         
         if (storedId && isValidUUID(storedId)) {
-          console.log(`Using organization ID from localStorage (${key}):`, storedId);
+          
           setOrganizationId(storedId);
           return;
         }
@@ -344,10 +340,10 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
       // Intentar obtener desde sessionStorage
       for (const key of keysToTry) {
         const sessionId = sessionStorage.getItem(key);
-        console.log(`Checking sessionStorage key "${key}":`, sessionId);
+        
         
         if (sessionId && isValidUUID(sessionId)) {
-          console.log(`Using organization ID from sessionStorage (${key}):`, sessionId);
+          
           setOrganizationId(sessionId);
           return;
         }
@@ -379,8 +375,8 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
   
   // Verificación adicional de que tenemos un ID válido
   useEffect(() => {
-    console.log('Current organizationId state:', organizationId);
-    console.log('Is valid UUID:', isValidUUID(organizationId));
+    
+    
   }, [organizationId]);
   
   // استرجاع الفئات
@@ -516,7 +512,7 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
   }, [watchPrice, useVariantPrices, productColors]);
 
   const handleAdditionalImagesChange = (urls: string[]) => {
-    console.log('AddProductDialog: تم تغيير الصور الإضافية:', urls);
+    
     // تأكد من أن urls ليست فارغة وهي مصفوفة
     if (!Array.isArray(urls)) {
       console.error('AddProductDialog: تم استلام قيمة غير صالحة للصور الإضافية:', urls);
@@ -579,14 +575,14 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
 
   // تعديل دالة التعامل مع تغيير الصورة الرئيسية
   const handleMainImageChange = (url: string) => {
-    console.log('تم تغيير الصورة الرئيسية:', url);
+    
   };
 
   const onSubmit = async (values: ProductFormValues) => {
     setIsSubmitting(true);
-    console.log('تقديم نموذج إضافة المنتج:', values);
-    console.log('قيمة use_sizes عند التقديم:', values.use_sizes);
-    console.log('قيمة متغير الحالة useSizes عند التقديم:', useSizes);
+    
+    
+    
     
     try {
       // التأكد من وجود صورة رئيسية
@@ -608,7 +604,7 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
       
       // إذا كان هناك ألوان بمقاسات لكن use_sizes غير مفعل، نقوم بتفعيله
       if (hasSizesInColors && !values.use_sizes) {
-        console.log('تم اكتشاف ألوان بمقاسات، تفعيل use_sizes تلقائياً');
+        
         values.use_sizes = true;
       }
       
@@ -661,22 +657,22 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
         slug: `${values.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`
       };
       
-      console.log('بيانات إنشاء المنتج:', productData);
-      console.log('قيمة use_sizes في بيانات الإدخال:', productData.use_sizes);
+      
+      
         
       // إنشاء المنتج
       const product = await createProduct(productData);
           
       if (product) {
-        console.log('تم إنشاء المنتج بنجاح:', product);
+        
         
         // إضافة الألوان والمقاسات إذا كان المنتج يدعم المتغيرات
         if (values.has_variants && productColors.length > 0) {
-          console.log('بدء إضافة الألوان والمقاسات...');
+          
             
           for (const color of productColors) {
             try {
-              console.log('إضافة اللون:', color);
+              
               
               // تحديث حالة has_sizes
               const colorHasSize = values.use_sizes && (color.has_sizes || (color.sizes && color.sizes.length > 0));
@@ -694,14 +690,14 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
                 has_sizes: colorHasSize
               };
               
-              console.log('بيانات إنشاء اللون:', colorData);
+              
               const createdColor = await createProductColor(colorData);
               const colorId = createdColor.id; // استخراج معرف اللون من الكائن المسترجع
-              console.log('تم إنشاء اللون بنجاح، معرف اللون:', colorId);
+              
               
               // إضافة المقاسات إذا كان اللون يدعم المقاسات
               if (values.use_sizes && colorHasSize && color.sizes && color.sizes.length > 0) {
-                console.log(`إضافة ${color.sizes.length} مقاس للون ${color.name}...`);
+                
                 
                 for (const size of color.sizes) {
                   try {
@@ -716,9 +712,9 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
                       is_default: size.is_default
                     };
                     
-                    console.log('بيانات إنشاء المقاس:', sizeData);
+                    
                     const sizeId = await createProductSize(sizeData);
-                    console.log('تم إنشاء المقاس بنجاح، معرف المقاس:', sizeId);
+                    
                   } catch (sizeError) {
                     console.error('خطأ في إنشاء المقاس:', sizeError);
                   }
@@ -732,7 +728,7 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
             
         // إضافة الصور الإضافية
         if (additionalImages.length > 0) {
-          console.log('بدء إضافة الصور الإضافية...');
+          
             
           for (let i = 0; i < additionalImages.length; i++) {
             try {
@@ -742,7 +738,7 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
                 sort_order: i
               };
                 
-              console.log(`إضافة الصورة ${i+1}:`, imageData);
+              
               await createProductImage(imageData);
             } catch (imageError) {
               console.error(`خطأ في إضافة الصورة ${i+1}:`, imageError);
@@ -752,7 +748,7 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
             
         // إضافة مراحل أسعار الجملة
         if (wholesaleTiers.length > 0) {
-          console.log('بدء إضافة مراحل أسعار الجملة...');
+          
             
           for (const tier of wholesaleTiers) {
             if (!tier.min_quantity || tier.min_quantity <= 0 || !tier.price || tier.price < 0) {
@@ -768,7 +764,7 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
                 organization_id: organizationId
               };
                 
-              console.log('إضافة مرحلة سعرية:', tierData);
+              
               await createWholesaleTier(tierData);
             } catch (tierError) {
               console.error('خطأ في إضافة مرحلة سعرية:', tierError);
@@ -806,7 +802,7 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
         toast.error('يرجى تسجيل الدخول مرة أخرى لإضافة منتجات');
         return false;
       }
-      console.log('Active session found');
+      
       return true;
     } catch (error) {
       console.error('Error checking auth session:', error);
@@ -928,7 +924,7 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
         generatedSku = await generateAutomaticSku(categoryShortName, brandShortName, organizationId);
       } else {
         // استخدام الوظيفة المحلية لتوليد SKU عند عدم الاتصال
-        console.log('توليد SKU محلياً في وضع عدم الاتصال');
+        
         generatedSku = generateLocalSku(categoryShortName, brandShortName);
       }
       
@@ -960,7 +956,7 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
         generatedBarcode = await generateAutomaticBarcode();
       } else {
         // استخدام الوظيفة المحلية لتوليد الباركود عند عدم الاتصال
-        console.log('توليد باركود محلياً في وضع عدم الاتصال');
+        
         generatedBarcode = generateLocalEAN13();
       }
       

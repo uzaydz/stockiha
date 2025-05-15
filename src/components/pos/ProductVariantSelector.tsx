@@ -44,14 +44,7 @@ export default function ProductVariantSelector({
 
   // طباعة تشخيصية للمساعدة في تحديد المشكلة
   useEffect(() => {
-    console.log("ProductVariantSelector تم تحميله:", {
-      productName: product.name,
-      productId: product.id,
-      hasVariants: product.has_variants,
-      useSizes: product.use_sizes,
-      colors: product.colors,
-      colorsCount: product.colors?.length
-    });
+    
   }, [product]);
 
   // تلقائياً اختر اللون الافتراضي أو الأول
@@ -72,11 +65,11 @@ export default function ProductVariantSelector({
   useEffect(() => {
     if (selectedColorId && product.use_sizes && selectedColor?.has_sizes) {
       setLoadingSizes(true);
-      console.log("تحميل المقاسات للون:", selectedColorId);
+      
       
       getProductSizes(selectedColorId)
         .then(sizeData => {
-          console.log("تم تحميل المقاسات:", sizeData);
+          
           // نستخدم Type Assertion للتأكد من توافق البيانات مع الواجهة ProductSize
           setSizes(sizeData as ProductSize[]);
           setSelectedSizeId(null); // إعادة تعيين المقاس المحدد

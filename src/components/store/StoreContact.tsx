@@ -53,7 +53,7 @@ const StoreContact = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // يمكن إضافة رمز لمعالجة النموذج هنا (إرسال البيانات إلى الخادم)
-    console.log("Form submitted:", formData);
+    
     
     // إعادة تعيين النموذج بعد الإرسال
     setFormData({

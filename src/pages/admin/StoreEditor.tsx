@@ -113,7 +113,7 @@ const StoreEditor = () => {
             components={components}
             activeComponent={activeComponent}
             onActivateComponent={(component) => {
-              console.log("تفعيل المكون في الصفحة الرئيسية:", component.id, component.type);
+              
               // التأكد من تحديث activeComponent بأحدث إصدار من components
               const updatedComponent = components.find(c => c.id === component.id);
               if (updatedComponent) {
@@ -126,7 +126,7 @@ const StoreEditor = () => {
             onRemoveComponent={removeComponent}
             onAddComponent={addComponent}
             onUpdateSettings={(id, settings) => {
-              console.log("تحديث إعدادات المكون:", id, settings);
+              
               updateComponentSettings(id, settings);
             }}
             onDragEnd={handleDragEnd}

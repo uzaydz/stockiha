@@ -71,7 +71,7 @@ export const continueWithOrganization = async (
       is_org_admin: true
     };
     
-    console.log('Creating user record with data:', JSON.stringify(userData, null, 2));
+    
 
     const { error: userError } = await supabaseAdmin
       .from('users')
@@ -173,7 +173,7 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
       if (trialPlanError) {
         console.error('Error fetching trial plan:', trialPlanError);
         // في حالة عدم وجود خطة تجريبية، نستخدم الخطة الأساسية
-        console.log('Using basic plan as fallback since trial plan not found');
+        
       }
 
       const trialEndDate = new Date();
@@ -194,7 +194,7 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
         }
       };
       
-      console.log('Creating organization with data:', JSON.stringify(organizationData, null, 2));
+      
       
       // استخدام الوظيفة البسيطة لإنشاء المؤسسة بدلاً من الوظائف الأخرى
       const result = await createOrganizationSimple(
@@ -271,7 +271,7 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
           .maybeSingle();
           
         if (!checkError && existingOrg) {
-          console.log(`وجدت منظمة موجودة مسبقاً بالمعرف: ${existingOrg.id}`);
+          
           return await continueWithOrganization(
             existingOrg.id, 
             authData.user.id, 
@@ -292,7 +292,7 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
           );
           
           if (!simpleError && simpleOrgId) {
-            console.log(`تم إنشاء المنظمة باستخدام create_organization_simple، المعرف: ${simpleOrgId}`);
+            
             return await continueWithOrganization(
               simpleOrgId, 
               authData.user.id, 

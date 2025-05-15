@@ -19,8 +19,8 @@ export const hasVercelConfig = (): boolean => {
   const token = getVercelToken();
   const projectId = getVercelProjectId();
   
-  console.log('Token:', token);
-  console.log('Project ID:', projectId);
+  
+  
   
   // التحقق من وجود القيم
   return !!token && !!projectId;

@@ -141,12 +141,7 @@ function applyTheme(theme: StoreTheme): void {
   }
   
   // طباعة تأكيد في وحدة التحكم
-  console.log("[ThemeLoader] تم تطبيق الثيم:", {
-    primaryColor: theme.primaryColor,
-    secondaryColor: theme.secondaryColor,
-    darkMode: theme.darkMode,
-    hasCustomCSS: !!theme.customCss
-  });
+  
 }
 
 /**
@@ -214,13 +209,13 @@ export function initializeTheme(subdomain?: string): void {
   
   // إذا كان هناك ثيم محفوظ ويخص نفس النطاق الفرعي، نطبقه
   if (storedTheme && (!subdomain || storedTheme.subdomain === subdomain)) {
-    console.log('[ThemeLoader] تطبيق الثيم المحفوظ');
+    
     applyTheme(storedTheme);
     return;
   }
   
   // تطبيق الثيم الافتراضي
-  console.log('[ThemeLoader] تطبيق الثيم الافتراضي');
+  
   applyDefaultTheme();
 }
 

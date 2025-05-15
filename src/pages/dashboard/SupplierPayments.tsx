@@ -34,7 +34,7 @@ export default function SupplierPayments() {
   useEffect(() => {
     // محاولة الحصول على organization_id من كائن المستخدم
     if (user && 'organization_id' in user) {
-      console.log("Found organization_id in user object:", (user as any).organization_id);
+      
       setOrganizationId((user as any).organization_id);
       return;
     }
@@ -42,13 +42,13 @@ export default function SupplierPayments() {
     // محاولة الحصول من التخزين المحلي
     const storedOrgId = localStorage.getItem('bazaar_organization_id');
     if (storedOrgId) {
-      console.log("Found organization_id in localStorage:", storedOrgId);
+      
       setOrganizationId(storedOrgId);
       return;
     }
     
     // القيمة الاحتياطية النهائية (يمكن تغييرها حسب احتياجك)
-    console.log("Using fallback organization ID");
+    
     setOrganizationId("10c02497-45d4-417a-857b-ad383816d7a0");
   }, [user]);
   
@@ -102,24 +102,24 @@ export default function SupplierPayments() {
   
   // فتح النافذة المنبثقة تلقائيًا إذا كان المسار يتضمن new
   useEffect(() => {
-    console.log("Current path:", location.pathname);
+    
     const isNewPayment = location.pathname.endsWith('/new');
     
-    console.log("Is new payment:", isNewPayment);
+    
     
     if (isNewPayment) {
-      console.log("Opening dialog for new payment");
+      
       setSelectedPayment(null);
       setDialogOpen(true);
     } else {
-      console.log("Closing dialog - no new path");
+      
       setDialogOpen(false);
     }
   }, [location.pathname]);
   
   // إغلاق النافذة المنبثقة
   const handleCloseDialog = () => {
-    console.log("Closing dialog, navigating to main payments list");
+    
     navigate('/dashboard/suppliers/payments');
   };
   
@@ -165,7 +165,7 @@ export default function SupplierPayments() {
         is_full_payment: is_full_payment || false
       };
       
-      console.log("Recording payment with data:", paymentData, "Is full payment:", is_full_payment);
+      
       
       // تنفيذ تسجيل المدفوعات
       let result;
@@ -266,7 +266,7 @@ export default function SupplierPayments() {
         <SupplierPaymentDialog
           open={dialogOpen}
           onOpenChange={(open) => {
-            console.log("Dialog open state changed to:", open);
+            
             setDialogOpen(open);
             if (!open) {
               handleCloseDialog();

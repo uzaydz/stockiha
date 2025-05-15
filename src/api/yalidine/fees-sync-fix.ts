@@ -107,7 +107,7 @@ export async function fixYalidineFeeTable(): Promise<boolean> {
       if (error) {
         console.error(`[FEES_FIX] خطأ في إضافة العمود ${column.name}:`, error);
       } else {
-        console.log(`[FEES_FIX] تم التحقق من العمود ${column.name}`);
+        
       }
     }
     
@@ -128,7 +128,7 @@ export async function fixYalidineFeeTable(): Promise<boolean> {
       return false;
     }
     
-    console.log('[FEES_FIX] تم إصلاح جدول الرسوم بنجاح');
+    
     return true;
   } catch (error) {
     console.error('[FEES_FIX] خطأ في إصلاح جدول الرسوم:', error);
@@ -145,7 +145,7 @@ export async function saveFeesBatch(fees: any[], organizationId: string): Promis
   }
   
   try {
-    console.log(`[FEES_FIX] حفظ ${fees.length} سجل أسعار`);
+    
     
     // معالجة البيانات قبل الحفظ للتأكد من تطابق أسماء الحقول
     const formattedFees = fees.map(fee => ({
@@ -203,7 +203,7 @@ export async function retryFailedSync(fees: any[], organizationId: string): Prom
       batches.push(fees.slice(i, i + batchSize));
     }
     
-    console.log(`[FEES_FIX] إعادة محاولة حفظ ${fees.length} سجل في ${batches.length} دفعة`);
+    
     
     let successCount = 0;
     let failCount = 0;
@@ -218,10 +218,10 @@ export async function retryFailedSync(fees: any[], organizationId: string): Prom
         failCount += batches[i].length;
       }
       
-      console.log(`[FEES_FIX] دفعة ${i+1}/${batches.length}: ${result.message}`);
+      
     }
     
-    console.log(`[FEES_FIX] اكتملت إعادة المحاولة: نجاح=${successCount}, فشل=${failCount}`);
+    
     return successCount > 0;
   } catch (error) {
     console.error('[FEES_FIX] خطأ في إعادة محاولة المزامنة:', error);
@@ -303,7 +303,7 @@ export async function checkYalidineTriggersStatus(): Promise<{
   message: string;
 }> {
   try {
-    console.log('[FEES_FIX] التحقق من حالة محفزات ياليدين...');
+    
     
     // 1. التحقق من عدد السجلات في جدول yalidine_fees
     const { count: feesCount, error: feesError } = await supabase
@@ -325,7 +325,7 @@ export async function checkYalidineTriggersStatus(): Promise<{
         newFeesCount = count;
       }
     } catch (e) {
-      console.log('[FEES_FIX] لا يمكن الوصول إلى جدول yalidine_fees_new');
+      
     }
     
     // 3. محاولة التحقق من حالة المحفز (قد يتطلب صلاحيات أعلى)
@@ -341,7 +341,7 @@ export async function checkYalidineTriggersStatus(): Promise<{
         triggerStatus = triggerData === 'D' ? 'معطل' : 'مفعل';
       }
     } catch (e) {
-      console.log('[FEES_FIX] لا يمكن التحقق من حالة المحفز:', e);
+      
     }
     
     return {
@@ -375,7 +375,7 @@ export async function applyYalidineTriggerFix(): Promise<{
   message: string;
 }> {
   try {
-    console.log('[FEES_FIX] تنفيذ إصلاح محفز ياليدين...');
+    
     
     const { data, error } = await supabase.rpc(
       'fix_yalidine_redirect_trigger',
@@ -418,7 +418,7 @@ export async function saveFeesBatch(
   }
   
   try {
-    console.log(`[FEES_FIX] محاولة حفظ ${fees.length} سجل بالطريقة البديلة`);
+    
     
     // 1. تعديل البيانات للتأكد من توافقها مع هيكل الجدول
     const processedFees = fees.map(fee => ({
@@ -458,7 +458,7 @@ export async function saveFeesBatch(
       
       // محاولة الحفظ بطريقة أخرى - بدفعات أصغر
       if (fees.length > 20) {
-        console.log('[FEES_FIX] تقسيم البيانات إلى دفعات أصغر...');
+        
         
         const batchSize = 20;
         let successCount = 0;
@@ -477,7 +477,7 @@ export async function saveFeesBatch(
             
             if (!batchError) {
               successCount += batch.length;
-              console.log(`[FEES_FIX] تم حفظ دفعة بنجاح (${i/batchSize + 1}/${Math.ceil(processedFees.length/batchSize)})`);
+              
             } else {
               console.error(`[FEES_FIX] خطأ في حفظ الدفعة ${i/batchSize + 1}:`, batchError);
             }
@@ -531,7 +531,7 @@ export async function migrateFeesFromNewTable(
   organizationId: string
 ): Promise<{ success: boolean; message: string; count: number }> {
   try {
-    console.log('[FEES_FIX] محاولة نقل البيانات من جدول yalidine_fees_new...');
+    
     
     // التحقق من وجود بيانات في الجدول الجديد
     const { count, error: countError } = await supabase

@@ -133,7 +133,7 @@ const AdvancedSettings = ({ settings, updateSetting }: AdvancedSettingsProps) =>
           placeholder="<!-- أضف شيفرة HTML لنهاية الصفحة (قبل إغلاق وسم body) هنا -->
 
 <script>
-  console.log('تم تحميل الصفحة بنجاح!');
+  
   
   // كود مخصص للتتبع أو إضافة ميزات خاصة
   document.addEventListener('DOMContentLoaded', function() {
@@ -170,7 +170,7 @@ const AdvancedSettings = ({ settings, updateSetting }: AdvancedSettingsProps) =>
     // تكرار على جميع العناصر بأمان
     Array.from(productButtons).forEach(function(button) {
       button.addEventListener('click', function(event) {
-        console.log('تم النقر على منتج');
+        
       });
     });
     
@@ -180,7 +180,7 @@ const AdvancedSettings = ({ settings, updateSetting }: AdvancedSettingsProps) =>
   
   function addCustomBehaviors() {
     // يمكنك إضافة وظائف إضافية هنا
-    console.log('تم تهيئة السلوكيات المخصصة بنجاح');
+    
   }
 })();`}
           helpText="أضف أكواد JavaScript لإضافة وظائف تفاعلية للمتجر. ملاحظات هامة: (1) غلف الكود داخل IIFE (2) تجنب استخدام الرموز الخاصة مثل : في المحددات (3) انتظر تحميل DOM باستخدام أحداث load أو DOMContentLoaded (4) استخدم var بدلاً من let/const للتوافق الأفضل (5) استخدم وظائف الاختبار مثل if/else بدلاً من العوامل الثلاثية."

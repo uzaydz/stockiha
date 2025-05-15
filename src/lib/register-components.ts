@@ -33,7 +33,7 @@ export function registerComponent(component: {
   // تسجيل المكون في المستودع
   componentsRegistry[type] = component;
   
-  console.log(`تم تسجيل مكون: ${component.name} (${type})`);
+  
   
   return component;
 }

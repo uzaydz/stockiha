@@ -40,16 +40,13 @@ export default function TemplateLoader({ productId, onLoad }: TemplateLoaderProp
         
         // التحقق من وجود القالب في المخزن المؤقت أولاً
         if (templateCache.has(cacheKey)) {
-          console.log("استخدام القالب من المخزن المؤقت:", templateCache.get(cacheKey)?.name);
+          
           onLoad(templateCache.get(cacheKey) || null);
           setIsLoading(false);
           return;
         }
         
-        console.log("محاولة تحميل قالب صفحة الشكر:", {
-          tenant_id: tenant.id,
-          productId: productId || "لا يوجد"
-        });
+        
         
         // 1. التحقق إذا كان هناك قوالب في قاعدة البيانات (استعلام مباشر للتحسين)
         const { count, error: countError } = await supabase
@@ -60,7 +57,7 @@ export default function TemplateLoader({ productId, onLoad }: TemplateLoaderProp
         if (countError) {
           console.error("خطأ في التحقق من وجود قوالب:", countError);
         } else {
-          console.log(`عدد قوالب الشكر الموجودة: ${count}`);
+          
           
           // إذا لم تكن هناك قوالب على الإطلاق، استخدم القالب الافتراضي مباشرة
           if (count === 0) {
@@ -76,7 +73,7 @@ export default function TemplateLoader({ productId, onLoad }: TemplateLoaderProp
         
         // إذا كان هناك معرف للمنتج، نحاول تحميل قالب مخصص له
         if (productId) {
-          console.log(`بحث عن قالب مخصص للمنتج بمعرف: ${productId}`);
+          
           
           try {
             // تحسين الاستعلام لجلب جميع القوالب المخصصة في استعلام واحد
@@ -90,7 +87,7 @@ export default function TemplateLoader({ productId, onLoad }: TemplateLoaderProp
             if (error) {
               console.error("خطأ في تحميل القوالب:", error);
             } else if (templates && templates.length > 0) {
-              console.log(`تم تحميل ${templates.length} قالب محتمل للمنتج`);
+              
               
               // البحث يدويًا عن القالب الذي يحتوي على معرف المنتج في المصفوفة
               specificTemplate = templates.find(template => 
@@ -100,22 +97,22 @@ export default function TemplateLoader({ productId, onLoad }: TemplateLoaderProp
               );
               
               if (specificTemplate) {
-                console.log("تم العثور على قالب مخصص للمنتج:", specificTemplate.name);
+                
                 templateCache.set(cacheKey, specificTemplate);
                 onLoad(specificTemplate);
                 setIsLoading(false);
                 return;
               } else {
-                console.log("لم يتم العثور على قالب مخصص للمنتج في القوالب المحملة");
+                
               }
             } else {
-              console.log("لم يتم العثور على قوالب خاصة بالمنتجات");
+              
             }
           } catch (specificError) {
             console.error("خطأ أثناء البحث عن القالب المخصص:", specificError);
           }
           
-          console.log("لم يتم العثور على قالب مخصص للمنتج، جاري البحث عن القالب الافتراضي...");
+          
         }
         
         // 2. البحث عن القالب الافتراضي
@@ -134,11 +131,11 @@ export default function TemplateLoader({ productId, onLoad }: TemplateLoaderProp
         
         // 3. إذا وجدنا قالب افتراضي
         if (defaultTemplate) {
-          console.log("تم العثور على القالب الافتراضي:", defaultTemplate.name);
+          
           templateCache.set(`${tenant.id}:default`, defaultTemplate);
           onLoad(defaultTemplate);
         } else {
-          console.log("لم يتم العثور على أي قالب، استخدام القالب المضمّن...");
+          
           
           // 4. في حالة عدم وجود أي قالب، نستخدم القالب الافتراضي المضمّن
           const fallbackTemplate = createFallbackTemplate(tenant.id);

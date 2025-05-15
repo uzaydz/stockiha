@@ -31,7 +31,7 @@ export default function SupplierPurchases() {
   useEffect(() => {
     // محاولة الحصول على organization_id من كائن المستخدم
     if (user && 'organization_id' in user) {
-      console.log("Found organization_id in user object:", (user as any).organization_id);
+      
       setOrganizationId((user as any).organization_id);
       return;
     }
@@ -39,13 +39,13 @@ export default function SupplierPurchases() {
     // محاولة الحصول من التخزين المحلي
     const storedOrgId = localStorage.getItem('bazaar_organization_id');
     if (storedOrgId) {
-      console.log("Found organization_id in localStorage:", storedOrgId);
+      
       setOrganizationId(storedOrgId);
       return;
     }
     
     // القيمة الاحتياطية النهائية (يمكن تغييرها حسب احتياجك)
-    console.log("Using fallback organization ID");
+    
     setOrganizationId("10c02497-45d4-417a-857b-ad383816d7a0");
   }, [user]);
   
@@ -103,7 +103,7 @@ export default function SupplierPurchases() {
       if (!organizationId || !purchaseId || purchaseId === 'new') return;
       
       try {
-        console.log("Loading purchase details, ID:", purchaseId);
+        
         const purchaseData = await getPurchaseById(organizationId, purchaseId);
         if (purchaseData) {
           setSelectedPurchase(purchaseData.purchase);
@@ -132,30 +132,30 @@ export default function SupplierPurchases() {
   
   // فتح النافذة المنبثقة تلقائيًا إذا كان المسار يتضمن new أو معرف شراء
   useEffect(() => {
-    console.log("Current path:", location.pathname);
+    
     const isNewPurchase = location.pathname.endsWith('/new');
     const hasPurchaseId = purchaseId && purchaseId !== 'new';
     
-    console.log("Is new purchase:", isNewPurchase);
-    console.log("Has purchase ID:", hasPurchaseId);
+    
+    
     
     if (isNewPurchase) {
-      console.log("Opening dialog for new purchase");
+      
       setSelectedPurchase(null);
       setSelectedPurchaseItems([]);
       setDialogOpen(true);
     } else if (hasPurchaseId) {
-      console.log("Opening dialog for existing purchase:", purchaseId);
+      
       setDialogOpen(true);
     } else {
-      console.log("Closing dialog - no purchase ID or new path");
+      
       setDialogOpen(false);
     }
   }, [location.pathname, purchaseId]);
   
   // إغلاق النافذة المنبثقة والعودة إلى قائمة المشتريات
   const handleCloseDialog = () => {
-    console.log("Closing dialog");
+    
     setDialogOpen(false);
     setSelectedPurchase(null);
     setSelectedPurchaseItems([]);
@@ -190,7 +190,7 @@ export default function SupplierPurchases() {
         });
       } else {
         // إضافة مشتريات جديدة
-        console.log("Creating new purchase with data:", data);
+        
         
         // حفظ حالة المشتريات المطلوبة
         const requestedStatus = data.status;
@@ -218,10 +218,10 @@ export default function SupplierPurchases() {
         }
         
         const items = data.items.map((item: any) => {
-          console.log("معالجة عنصر المشتريات:", item);
+          
           // إذا كان product_id هو "none" أو قيمة فارغة، نضع null
           const productId = item.product_id === 'none' || !item.product_id ? null : item.product_id;
-          console.log("معرف المنتج بعد المعالجة:", productId);
+          
           
           return {
             product_id: productId,
@@ -232,20 +232,20 @@ export default function SupplierPurchases() {
           };
         });
         
-        console.log("Formatted purchase data:", purchaseData);
-        console.log("Formatted items:", items);
+        
+        
         
         try {
           const newPurchase = await createPurchase(organizationId, purchaseData, items);
           if (newPurchase) {
-            console.log("تم إنشاء المشتريات بنجاح:", newPurchase);
+            
             
             // إذا كان المستخدم قد طلب حالة "مؤكدة"، قم بتحديث الحالة
             if (requestedStatus === 'confirmed') {
-              console.log("تحديث حالة المشتريات إلى مؤكدة...");
+              
               try {
                 const updated = await updatePurchaseStatus(organizationId, newPurchase.id, 'confirmed');
-                console.log("تم تحديث حالة المشتريات:", updated);
+                
               } catch (updateError) {
                 console.error("خطأ أثناء تحديث حالة المشتريات:", updateError);
               }
@@ -253,12 +253,12 @@ export default function SupplierPurchases() {
             
             // تحقق من حالة المشتريات المنشأة
             if (requestedStatus === 'confirmed') {
-              console.log("المشتريات مؤكدة. تحقق من تحديث المخزون...");
+              
               // يمكن إضافة تأخير قصير للسماح للمشغلات بالتنفيذ
               setTimeout(async () => {
                 try {
                   // محاولة التحقق من تحديث المخزون (اختياري)
-                  console.log("التحقق من تحديثات المخزون المرتبطة بـ:", newPurchase.id);
+                  
                 } catch (checkError) {
                   console.error("خطأ أثناء التحقق من تحديث المخزون:", checkError);
                 }
@@ -326,7 +326,7 @@ export default function SupplierPurchases() {
       <SupplierPurchaseDialog
         open={dialogOpen}
         onOpenChange={(open) => {
-          console.log("Dialog open state changed to:", open);
+          
           setDialogOpen(open);
           if (!open) {
             handleCloseDialog();

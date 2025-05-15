@@ -15,7 +15,7 @@ export const initSupabaseForElectron = () => {
     return; // Solo aplicar en Electron
   }
 
-  console.log('[Supabase] Inicializando entorno para Electron');
+  
 
   // Asegurar que los objetos globales estén disponibles
   if (!window.global) {
@@ -33,7 +33,7 @@ export const initSupabaseForElectron = () => {
     globalThis.Buffer = window.Buffer;
     globalThis.process = window.process;
     
-    console.log('[Supabase] Entorno configurado correctamente para Electron');
+    
   } catch (error) {
     console.error('[Supabase] Error al configurar el entorno para Electron:', error);
   }

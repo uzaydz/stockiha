@@ -16,7 +16,7 @@ export const getOrganizationId = async (currentUser: any = null): Promise<string
           .single();
           
         if (orgData) {
-          console.log("استخدام معرف المؤسسة من النطاق المخصص:", hostname, orgData.id);
+          
           // تحديث التخزين المحلي بالمعرف الصحيح
           localStorage.setItem('bazaar_organization_id', orgData.id);
           localStorage.setItem('bazaar_current_subdomain', orgData.subdomain);
@@ -37,7 +37,7 @@ export const getOrganizationId = async (currentUser: any = null): Promise<string
         .single();
         
       if (!userError && userData?.organization_id) {
-        console.log("استخدام معرف المؤسسة من بيانات المستخدم الحالي:", userData.organization_id);
+        
         
         // تحديث التخزين المحلي بالمعرف الصحيح
         localStorage.setItem('bazaar_organization_id', userData.organization_id);
@@ -49,7 +49,7 @@ export const getOrganizationId = async (currentUser: any = null): Promise<string
     // 2. محاولة الحصول من التخزين المحلي
     const storedOrgId = localStorage.getItem('bazaar_organization_id');
     if (storedOrgId) {
-      console.log("استخدام معرف المؤسسة من التخزين المحلي:", storedOrgId);
+      
       
       // التحقق من صحة المعرف المخزن
       const { data: orgExists, error: orgError } = await supabase
@@ -73,7 +73,7 @@ export const getOrganizationId = async (currentUser: any = null): Promise<string
     const userInfo = sessionData?.session?.user?.user_metadata;
     
     if (userInfo && userInfo.organization_id) {
-      console.log("استخدام معرف المؤسسة من بيانات الجلسة:", userInfo.organization_id);
+      
       localStorage.setItem('bazaar_organization_id', userInfo.organization_id);
       return userInfo.organization_id;
     }
@@ -91,7 +91,7 @@ export const getOrganizationId = async (currentUser: any = null): Promise<string
     }
     
     if (orgs?.id) {
-      console.log("تم العثور على معرف المؤسسة من قاعدة البيانات:", orgs.id);
+      
       // حفظ المعرف في التخزين المحلي للاستخدام اللاحق
       localStorage.setItem('bazaar_organization_id', orgs.id);
       return orgs.id;
@@ -126,7 +126,7 @@ export const ensureGuestCustomer = async () => {
     
     // إذا لم يكن العميل الزائر موجوداً في جدول customers، قم بإنشائه
     if (!existingGuest) {
-      console.log('إنشاء عميل زائر افتراضي في جدول customers...');
+      
       
       if (!organizationId) {
         console.warn('لا يمكن إنشاء العميل الزائر: لم يتم العثور على معرف المؤسسة');
@@ -149,7 +149,7 @@ export const ensureGuestCustomer = async () => {
       }
     } else if (existingGuest && !existingGuest.organization_id && organizationId) {
       // إذا كان العميل الزائر موجودًا ولكن بدون معرف مؤسسة، قم بتحديثه
-      console.log('تحديث العميل الزائر الموجود بمعرف المؤسسة...');
+      
       
       const { error: updateError } = await supabase
         .from('customers')

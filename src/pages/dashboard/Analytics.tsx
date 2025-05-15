@@ -38,28 +38,18 @@ const Analytics: React.FC = () => {
   // تحميل بيانات التحليلات عند تغيير الفترة أو المؤسسة
   useEffect(() => {
     if (!currentOrganization?.id) {
-      console.log('لا يوجد معرف منظمة متاح:', currentOrganization);
+      
       return;
     }
     
-    console.log('تحميل بيانات التحليلات للمنظمة:', {
-      organizationId: currentOrganization.id,
-      organizationName: currentOrganization.name,
-      period,
-      customDateRange
-    });
+    
     
     const fetchAnalyticsData = async () => {
       try {
         setIsLoading(true);
         setError(null);
         
-        console.log('بدء استدعاء واجهة برمجة التطبيقات:', {
-          organizationId: currentOrganization.id,
-          period,
-          startDate: period === 'custom' ? customDateRange.start : undefined,
-          endDate: period === 'custom' ? customDateRange.end : undefined
-        });
+        
         
         // استخدام البيانات الحقيقية من الـ API
         const data = await getAllAnalytics(
@@ -71,7 +61,7 @@ const Analytics: React.FC = () => {
         
         // التأكد من أن بيانات المصروفات موجودة
         if (!data.expenses || !data.expenses.categories || Object.keys(data.expenses.categories).length === 0) {
-          console.log('مصروفات فارغة - استخدام بيانات تجريبية للمصروفات');
+          
           
           // إذا كانت المصروفات فارغة، استخدم بيانات تجريبية للمصروفات
           data.expenses = {
@@ -86,7 +76,7 @@ const Analytics: React.FC = () => {
           };
         }
         
-        console.log('بيانات التحليلات المستلمة من API:', data);
+        
         setAnalyticsData(data);
       } catch (err) {
         console.error('خطأ في تحميل بيانات التحليلات:', err);
@@ -95,7 +85,7 @@ const Analytics: React.FC = () => {
         
         // استخدام بيانات تجريبية في حالة الفشل للعرض
         const mockData = getMockAnalyticsData(period);
-        console.log('استخدام بيانات تجريبية بدلاً من ذلك:', mockData);
+        
         setAnalyticsData(mockData);
       } finally {
         setIsLoading(false);
@@ -107,19 +97,19 @@ const Analytics: React.FC = () => {
 
   // معالج تغيير الفترة
   const handlePeriodChange = (newPeriod: AnalyticsPeriod) => {
-    console.log('تغيير الفترة من', period, 'إلى', newPeriod);
+    
     setPeriod(newPeriod);
   };
   
   // معالج تغيير نطاق التاريخ المخصص
   const handleDateRangeChange = (start: Date, end: Date) => {
-    console.log('تغيير نطاق التاريخ المخصص:', { start, end });
+    
     setCustomDateRange({ start, end });
   };
   
   // معالج تطبيق نطاق التاريخ المخصص
   const handleApplyCustomRange = () => {
-    console.log('تطبيق نطاق التاريخ المخصص:', customDateRange);
+    
     setRefreshTrigger(prev => prev + 1);
   };
 

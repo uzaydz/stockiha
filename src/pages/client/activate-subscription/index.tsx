@@ -33,14 +33,14 @@ type FormValues = z.infer<typeof formSchema>;
 const getOrganizationIdFromMultipleSources = async (user: any, organization: any) => {
   // 1. Intenta obtener de la propiedad organization del contexto de autenticación
   if (organization?.id) {
-    console.log("Usando organization ID del contexto de auth:", organization.id);
+    
     return organization.id;
   }
 
   // 2. Intenta obtener del localStorage
   const storedOrgId = localStorage.getItem('bazaar_organization_id');
   if (storedOrgId) {
-    console.log("Usando organization ID del localStorage:", storedOrgId);
+    
     return storedOrgId;
   }
 
@@ -54,7 +54,7 @@ const getOrganizationIdFromMultipleSources = async (user: any, organization: any
         .single();
 
       if (!error && userData?.organization_id) {
-        console.log("Usando organization ID de la tabla de usuarios:", userData.organization_id);
+        
         // Guarda para futuras referencias
         localStorage.setItem('bazaar_organization_id', userData.organization_id);
         return userData.organization_id;

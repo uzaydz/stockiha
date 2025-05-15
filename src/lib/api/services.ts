@@ -61,7 +61,7 @@ export async function getServices(organizationId?: string) {
       return [];
     }
     
-    console.log("جلب الخدمات للمؤسسة:", organizationId);
+    
     
     // إضافة تأخير بسيط لمنع مشاكل التزامن
     await new Promise(resolve => setTimeout(resolve, 300));
@@ -79,10 +79,10 @@ export async function getServices(organizationId?: string) {
 
     // طباعة البيانات المفصلة للتصحيح
     if (!data || data.length === 0) {
-      console.log(`لم يتم العثور على خدمات للمؤسسة ${organizationId}. تأكد من صحة معرف المؤسسة.`);
+      
     } else {
-      console.log(`تم جلب ${data.length} خدمة للمؤسسة ${organizationId}`);
-      console.log('أول خدمة:', data[0]?.name, 'معرف الخدمة:', data[0]?.id);
+      
+      
     }
     
     // التحقق من البيانات قبل إرجاعها
@@ -93,13 +93,13 @@ export async function getServices(organizationId?: string) {
     
     // تسجيل محاولة إعادة الاتصال
     try {
-      console.log('محاولة إعادة الاتصال بقاعدة البيانات...');
+      
       const { data: retryData } = await supabase
         .from('services')
         .select('count')
         .eq('organization_id', organizationId);
         
-      console.log('نتيجة إعادة الاتصال:', retryData);
+      
     } catch (retryError) {
       console.error('فشلت محاولة إعادة الاتصال:', retryError);
     }
@@ -361,7 +361,7 @@ export async function updateBookingStatus(id: string, status: ServiceBooking['st
                 status: 'sent'
               });
               
-              console.log('WhatsApp message sent successfully to:', customerPhone);
+              
             } catch (msgError) {
               console.error('Error sending WhatsApp message:', msgError);
               
@@ -433,7 +433,7 @@ export async function getServiceRequests(organizationId: string) {
       return [];
     }
     
-    console.log("جلب طلبات الخدمات للمؤسسة:", organizationId);
+    
     
     // طباعة قائمة معرفات المؤسسات التي تمتلك خدمات
     const { data: orgData, error: orgError } = await supabase
@@ -443,8 +443,8 @@ export async function getServiceRequests(organizationId: string) {
     
     if (!orgError && orgData) {
       const uniqueOrgs = [...new Set(orgData.map(item => item.organization_id))];
-      console.log("المؤسسات التي تمتلك خدمات:", uniqueOrgs);
-      console.log("هل المؤسسة الحالية في القائمة؟", uniqueOrgs.includes(organizationId));
+      
+      
     }
     
     // استعلام الحصول على الخدمات مع تفاصيل التقدم
@@ -464,14 +464,14 @@ export async function getServiceRequests(organizationId: string) {
 
     // طباعة البيانات المفصلة للتصحيح
     if (!data || data.length === 0) {
-      console.log(`لم يتم العثور على طلبات خدمات للمؤسسة ${organizationId}. تأكد من صحة معرف المؤسسة.`);
+      
       
       // محاولة البحث عن الخدمات باستخدام أي معرف مؤسسة إذا لم تجد الخدمات بالمعرف الحالي
       if (orgData && orgData.length > 0) {
         const uniqueOrgs = [...new Set(orgData.map(item => item.organization_id))];
         if (uniqueOrgs.length > 0) {
           const alternativeOrgId = uniqueOrgs[0];
-          console.log(`محاولة جلب الخدمات باستخدام معرف مؤسسة بديل: ${alternativeOrgId}`);
+          
           
           const { data: altData, error: altError } = await supabase
             .from('service_bookings')
@@ -483,12 +483,12 @@ export async function getServiceRequests(organizationId: string) {
             .order('id', { ascending: false });
             
           if (!altError && altData && altData.length > 0) {
-            console.log(`تم العثور على ${altData.length} خدمة في المؤسسة البديلة.`);
+            
           }
         }
       }
     } else {
-      console.log(`تم جلب ${data.length} طلب خدمة للمؤسسة ${organizationId}`);
+      
     }
     
     // التحقق من البيانات قبل إرجاعها

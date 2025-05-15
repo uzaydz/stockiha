@@ -15,7 +15,7 @@ export function useReactQueryState() {
   useEffect(() => {
     // منع التحديث التلقائي في بيئة المتصفح
     if (!isRunningInElectron) {
-      console.log('[QueryState] تعطيل التحديث التلقائي في بيئة المتصفح');
+      
       queryClient.setDefaultOptions({
         queries: {
           refetchOnMount: false,
@@ -38,7 +38,7 @@ export function useReactQueryState() {
     const handlePageLoad = () => {
       // إذا كنا في متصفح، نمنع التحديث التلقائي
       if (!isRunningInElectron) {
-        console.log('[QueryState] تعطيل التحديث التلقائي عند تحميل الصفحة في المتصفح');
+        
         queryClient.setDefaultOptions({
           queries: {
             refetchOnMount: false,
@@ -58,10 +58,10 @@ export function useReactQueryState() {
         
         // في Electron فقط، نسمح بالتحديث المحدود
         if (now - lastStateTime < staleDuration) {
-          console.log('[QueryState] العودة خلال فترة قصيرة في Electron، السماح بالتحديث المحدود');
+          
           queryClient.invalidateQueries({ type: 'active' });
         } else {
-          console.log('[QueryState] البيانات قديمة في Electron، السماح بإعادة التحميل الكامل');
+          
           queryClient.invalidateQueries();
         }
       } catch (error) {
@@ -74,7 +74,7 @@ export function useReactQueryState() {
       if (document.visibilityState === 'visible') {
         // إذا كنا في متصفح، نمنع تحديث البيانات عند العودة للتبويب
         if (!isRunningInElectron) {
-          console.log('[QueryState] منع تحديث البيانات عند العودة للتبويب في المتصفح');
+          
           queryClient.resumePausedMutations(); // استئناف المعاملات فقط
           return;
         }
@@ -84,17 +84,17 @@ export function useReactQueryState() {
         const now = Date.now();
         const fastReturnThreshold = 1 * 60 * 1000; // 1 دقيقة
         
-        console.log('[QueryState] العودة للتبويب في Electron، جاري تحديث البيانات');
+        
         
         // استئناف العمليات المتوقفة
         queryClient.resumePausedMutations();
         
         // إبطال صلاحية الاستعلامات النشطة فقط
         if (now - lastStateTime < fastReturnThreshold) {
-          console.log('[QueryState] عودة سريعة في Electron، تحديث البيانات الأساسية فقط');
+          
           // queryClient.invalidateQueries({ type: 'active' }); // تم التعليق لمنع الإبطال هنا أيضاً
         } else {
-          console.log('[QueryState] عودة بطيئة في Electron، تحديث كل البيانات');
+          
           // queryClient.invalidateQueries(); // تم التعليق لمنع الإبطال هنا أيضاً
         }
       } else {

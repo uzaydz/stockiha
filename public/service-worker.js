@@ -12,11 +12,11 @@ const urlsToCache = [
 
 // Instalación del Service Worker
 self.addEventListener('install', event => {
-  console.log('[Service Worker] Instalando...');
+  
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        console.log('[Service Worker] Almacenando en caché archivos...');
+        
         return cache.addAll(urlsToCache);
       })
       .then(() => self.skipWaiting())
@@ -25,14 +25,14 @@ self.addEventListener('install', event => {
 
 // Activación del Service Worker
 self.addEventListener('activate', event => {
-  console.log('[Service Worker] Activando...');
+  
   // Eliminar cachés antiguas
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
         cacheNames.map(cache => {
           if (cache !== CACHE_NAME) {
-            console.log('[Service Worker] Eliminando caché antigua:', cache);
+            
             return caches.delete(cache);
           }
         })
@@ -98,7 +98,7 @@ self.addEventListener('sync', event => {
 
 // Función para sincronizar datos
 async function syncData() {
-  console.log('[Service Worker] Sincronizando datos...');
+  
   // Aquí se podría implementar la lógica de sincronización
   // utilizando IndexedDB o el cliente para acceder a la base de datos local
 

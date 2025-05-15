@@ -283,13 +283,7 @@ const AddEmployeeDialog = ({ onEmployeeAdded }: AddEmployeeDialogProps) => {
         }, 5 * 60 * 1000); // 5 minutes
       }
       
-      console.log('Creating employee with data:', {
-        email: formData.email,
-        name: formData.name,
-        phone: formData.phone || null,
-        role: 'employee',
-        permissions: permissions
-      });
+      
       
       const newEmployee = await createEmployee(
         formData.email,
@@ -304,7 +298,7 @@ const AddEmployeeDialog = ({ onEmployeeAdded }: AddEmployeeDialogProps) => {
         }
       );
       
-      console.log('Employee created successfully:', newEmployee);
+      
       
       toast({
         title: 'تمت العملية بنجاح',

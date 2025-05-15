@@ -43,7 +43,7 @@ const StoreHeader = ({
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     // إجراء البحث هنا
-    console.log('البحث عن:', searchQuery);
+    
     setIsSearchOpen(false);
   };
 

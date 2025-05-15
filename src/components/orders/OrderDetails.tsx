@@ -29,7 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { formatPrice } from "@/lib/utils";
-import { Phone, Mail, MapPin, ExternalLink, ClipboardList, PackageCheck, Truck, RefreshCcw, User, Map, CreditCard, Globe, Store } from "lucide-react";
+import { Phone, Mail, MapPin, ExternalLink, ClipboardList, PackageCheck, Truck, RefreshCcw, User, Map, CreditCard, Globe, Store, Building } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import FormDataViewer from './FormDataViewer';
 
@@ -605,17 +605,35 @@ const OrderDetails = ({
                       <span>
                         البلدية: {
                           order.form_data?.municipality || 
-                          order.shipping_address?.municipality || 
+                          order.shipping_address?.municipality ||
+                          (order.metadata?.shipping_details?.stop_desk_commune_name) ||
                           "غير محدد"
                         }
                       </span>
                     </div>
+                    
+                    {/* مكتب الاستلام */}
+                    {(order.shipping_option === 'desk' || order.form_data?.deliveryOption === 'desk') && (
+                      <div className="flex items-center text-sm">
+                        <Building className="w-4 h-4 ml-1 opacity-70" />
+                        <span>
+                          مكتب الاستلام: {
+                            order.stop_desk_id || 
+                            order.metadata?.shipping_details?.stop_desk_name ||
+                            order.metadata?.shipping_details?.stop_desk_id ||
+                            "غير محدد"
+                          }
+                        </span>
+                      </div>
+                    )}
                     
                     {/* العنوان التفصيلي */}
                     <div className="flex items-start text-sm">
                       <MapPin className="w-4 h-4 ml-1 mt-0.5 opacity-70" />
                       <span>
                         العنوان: {
+                          order.shipping_option === 'desk' ? 
+                          `استلام من مكتب ${order.metadata?.shipping_details?.stop_desk_name || "ياليدين"}` :
                           order.form_data?.address || 
                           order.shipping_address?.street_address || 
                           "غير محدد"

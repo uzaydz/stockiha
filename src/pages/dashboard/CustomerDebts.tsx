@@ -70,28 +70,23 @@ const CustomerDebts: React.FC = () => {
     }
 
     if (!currentOrganization?.id) {
-      console.log('لا يوجد معرف منظمة متاح:', currentOrganization);
+      
       return;
     }
     
-    console.log('تحميل بيانات الديون للمنظمة:', {
-      organizationId: currentOrganization.id,
-      organizationName: currentOrganization.name,
-    });
+    
     
     const fetchDebtsData = async () => {
       try {
         setIsLoading(true);
         setError(null);
         
-        console.log('بدء استدعاء واجهة برمجة التطبيقات للديون:', {
-          organizationId: currentOrganization.id,
-        });
+        
         
         // استخدام البيانات الحقيقية من الـ API
         const data = await getDebtsData(currentOrganization.id);
         
-        console.log('بيانات الديون المستلمة من API:', data);
+        
         setDebtsData(data);
       } catch (err) {
         console.error('خطأ في تحميل بيانات الديون:', err);
@@ -100,7 +95,7 @@ const CustomerDebts: React.FC = () => {
         
         // استخدام بيانات تجريبية في حالة الفشل للعرض
         const mockData = getMockDebtsData();
-        console.log('استخدام بيانات تجريبية بدلاً من ذلك:', mockData);
+        
         setDebtsData(mockData);
       } finally {
         setIsLoading(false);

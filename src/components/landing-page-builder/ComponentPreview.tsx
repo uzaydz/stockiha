@@ -27,7 +27,7 @@ const ComponentPreview: React.FC<ComponentPreviewProps> = ({ component }) => {
   
   // التأكد من أن المكون يتم تحديثه بشكل صحيح عند تغيير الإعدادات
   useEffect(() => {
-    console.log('Preview component updated with settings:', component.settings);
+    
   }, [component.settings]);
   
   if (!component.isActive) {

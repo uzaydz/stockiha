@@ -75,7 +75,7 @@ export const trackPageLoad = async (url: string, organizationId?: string, subdom
     // Store metrics in the database
     await supabase.from('performance_metrics').insert(metrics);
     
-    console.log('Performance metrics tracked:', metrics);
+    
   } catch (error) {
     console.error('Error tracking performance metrics:', error);
     // Fail silently - don't affect user experience if tracking fails

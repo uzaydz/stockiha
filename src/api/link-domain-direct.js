@@ -33,13 +33,7 @@ export async function linkDomain(domain, organizationId) {
     const VERCEL_PROJECT_ID = getVercelProjectId();
     const hasConfig = hasVercelConfig();
 
-    console.log('Vercel Configuration:', { 
-      hasToken: !!VERCEL_TOKEN, 
-      hasProjectId: !!VERCEL_PROJECT_ID,
-      configValid: hasConfig,
-      domain,
-      organizationId
-    });
+    
 
     if (!hasConfig) {
       return {
@@ -55,7 +49,7 @@ export async function linkDomain(domain, organizationId) {
       .eq('id', organizationId)
       .single();
     
-    console.log('معلومات المؤسسة قبل التحديث:', organizationBefore);
+    
 
     // ربط النطاق بمشروع Vercel
     const linkResult = await linkDomainToVercelProject(
@@ -78,7 +72,7 @@ export async function linkDomain(domain, organizationId) {
       .split(':')[0]               // إزالة المنفذ (مثل :3000)
       .split('/')[0];              // إزالة المسارات
 
-    console.log(`تحديث النطاق في قاعدة البيانات: "${cleanDomain}" للمؤسسة ID: ${organizationId}`);
+    
 
     // تحديث النطاق في قاعدة البيانات
     const { data: updateData, error: dbError } = await supabase
@@ -95,7 +89,7 @@ export async function linkDomain(domain, organizationId) {
       };
     }
 
-    console.log('نتيجة تحديث قاعدة البيانات:', updateData);
+    
 
     // التحقق من نجاح تحديث المؤسسة
     const { data: organizationAfter } = await supabase
@@ -104,7 +98,7 @@ export async function linkDomain(domain, organizationId) {
       .eq('id', organizationId)
       .single();
     
-    console.log('معلومات المؤسسة بعد التحديث:', organizationAfter);
+    
 
     try {
       // التحقق من حالة النطاق (DNS و SSL)
@@ -136,7 +130,7 @@ export async function linkDomain(domain, organizationId) {
           .eq('id', existingRecord.id)
           .select();
           
-        console.log('تحديث سجل التحقق الموجود:', updatedVerification, verificationUpdateError);
+        
       } else {
         // إنشاء سجل جديد
         const { data: newVerification, error: verificationInsertError } = await supabase
@@ -151,7 +145,7 @@ export async function linkDomain(domain, organizationId) {
           }])
           .select();
           
-        console.log('إنشاء سجل تحقق جديد:', newVerification, verificationInsertError);
+        
       }
     } catch (verificationError) {
       console.error('خطأ في التحقق من النطاق:', verificationError);

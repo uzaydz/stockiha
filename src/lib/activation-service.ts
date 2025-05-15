@@ -117,8 +117,8 @@ export const ActivationService = {
       const organizationId = data.organizationId || data.organization_id;
       const activationCode = data.activationCode || data.activation_code;
 
-      console.log('Activation attempt with organization ID:', organizationId);
-      console.log('Activation code:', activationCode);
+      
+      
 
       if (!organizationId) {
         console.error('No organization ID provided for activation');
@@ -144,10 +144,7 @@ export const ActivationService = {
       }
 
       // استدعاء وظيفة تفعيل الاشتراك مباشرة
-      console.log('Calling activate_subscription with params:', {
-        p_activation_code: activationCode,
-        p_organization_id: organizationId
-      });
+      
 
       const { data: result, error } = await supabase.rpc(
         'activate_subscription',
@@ -165,12 +162,12 @@ export const ActivationService = {
         };
       }
       
-      console.log('Activation result:', result);
+      
       
       const activationResult = result[0];
       
       // طباعة معرف الاشتراك للتأكد من وجوده
-      console.log('Activation result subscription_id:', activationResult.subscription_id);
+      
       
       return {
         success: activationResult.success,

@@ -153,7 +153,7 @@ const FeaturedProducts = ({
   useEffect(() => {
     // إذا كان سياق المؤسسة لا يزال يتم تحميله، انتظر
     if (isTenantLoading) {
-      console.log('تحميل سياق المؤسسة، انتظار...');
+      
       return;
     }
     
@@ -171,7 +171,7 @@ const FeaturedProducts = ({
     }
     
     // تحديد معرف المؤسسة للتأكيد
-    console.log('FeaturedProducts: استخدام معرف المؤسسة:', effectiveOrgId);
+    
     
     // جلب المنتجات حسب الطريقة المحددة
     const fetchProductData = async () => {

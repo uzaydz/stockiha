@@ -21,13 +21,13 @@ export async function getStoreDataFast(subdomain: string): Promise<{
   // If there's already a pending request for this subdomain, return that promise
   // to prevent duplicate requests
   if (pendingPromise && lastLoadedSubdomain === subdomain) {
-    console.log('[StoreDataService] Reusing pending request for:', subdomain);
+    
     return pendingPromise;
   }
 
   // التحقق من وجود بيانات متاحة مباشرة من الذاكرة
   if (lastLoadedSubdomain === subdomain && lastLoadedData) {
-    console.log('[StoreDataService] تم استخدام البيانات المخزنة في الذاكرة');
+    
     return { data: lastLoadedData, isLoading: isDataLoading };
   }
   
@@ -39,7 +39,7 @@ export async function getStoreDataFast(subdomain: string): Promise<{
       const cachedData = await getCacheData<StoreData>(cacheKey, STORE_DATA_CACHE_TTL);
       
       if (cachedData) {
-        console.log('[StoreDataService] تم استخدام البيانات المخزنة مؤقتاً');
+        
         
         // تحديث البيانات في الذاكرة
         lastLoadedSubdomain = subdomain;
@@ -55,7 +55,7 @@ export async function getStoreDataFast(subdomain: string): Promise<{
       try {
         isDataLoading = true;
         
-        console.log('[StoreDataService] جلب بيانات جديدة للمتجر...');
+        
         const freshData = await getFullStoreData(subdomain);
         
         if (freshData) {
@@ -96,7 +96,7 @@ async function refreshDataInBackground(subdomain: string): Promise<void> {
   try {
     isDataLoading = true;
     
-    console.log('[StoreDataService] تحديث البيانات في الخلفية...');
+    
     const freshData = await getFullStoreData(subdomain);
     
     if (freshData) {
@@ -108,7 +108,7 @@ async function refreshDataInBackground(subdomain: string): Promise<void> {
       const cacheKey = `store_data:${subdomain}`;
       await setCacheData(cacheKey, freshData);
       
-      console.log('[StoreDataService] تم تحديث البيانات بنجاح في الخلفية');
+      
     }
   } catch (error) {
     console.error('[StoreDataService] خطأ في تحديث البيانات في الخلفية:', error);
@@ -131,7 +131,7 @@ export async function clearStoreCache(subdomain: string): Promise<void> {
     lastLoadedSubdomain = null;
   }
   
-  console.log('[StoreDataService] تم مسح التخزين المؤقت للمتجر');
+  
 }
 
 /**
@@ -142,7 +142,7 @@ export async function forceReloadStoreData(subdomain: string): Promise<{
   data: StoreData | null;
   isLoading: boolean;
 }> {
-  console.log('[StoreDataService] إعادة تحميل البيانات بالكامل للنطاق الفرعي:', subdomain);
+  
   
   try {
     isDataLoading = true;
@@ -166,7 +166,7 @@ export async function forceReloadStoreData(subdomain: string): Promise<{
       // تخزين البيانات مؤقتاً
       await setCacheData(cacheKey, freshData);
       
-      console.log('[StoreDataService] تم إعادة تحميل البيانات بنجاح');
+      
       return { data: freshData, isLoading: false };
     }
     

@@ -101,9 +101,9 @@ export default function ProductAssignment({
         
         setProducts(formattedProducts);
         setFilteredProducts(formattedProducts);
-        console.log(`تم تحميل ${formattedProducts.length} منتج`);
+        
       } else {
-        console.log('لم يتم العثور على منتجات');
+        
         setProducts([]);
         setFilteredProducts([]);
       }
@@ -134,9 +134,9 @@ export default function ProductAssignment({
         }));
         
         setCategories(formattedCategories);
-        console.log(`تم تحميل ${formattedCategories.length} فئة`);
+        
       } else {
-        console.log('لم يتم العثور على فئات');
+        
         setCategories([]);
       }
     } catch (error) {
@@ -192,7 +192,7 @@ export default function ProductAssignment({
     
     setSelectedProducts(newSelectedProducts);
     
-    console.log(`تحديث المنتجات المحددة (${newSelectedProducts.length} منتج)`, newSelectedProducts);
+    
     
     const updatedTemplate = {
       ...template,
@@ -220,7 +220,7 @@ export default function ProductAssignment({
     const allProductIds = filteredProducts.map(product => product.id);
     setSelectedProducts(allProductIds);
     
-    console.log(`تحديد كل المنتجات (${allProductIds.length} منتج)`, allProductIds);
+    
     
     const updatedTemplate = {
       ...template,

@@ -54,7 +54,7 @@ const Employees = () => {
       // التحقق من حالة المستخدم أولاً
       const status = await checkCurrentUserStatus();
       setUserStatus(status);
-      console.log('User status:', status);
+      
       
       // تحميل بيانات الموظفين
       loadEmployees();
@@ -66,14 +66,14 @@ const Employees = () => {
   const loadEmployees = async () => {
     setLoading(true);
     try {
-      console.log('Loading employees and stats...');
+      
       
       // استيراد وظيفة تحديث الموظفين
       const { updateEmployeesWithMissingOrganizationId } = await import('@/lib/api/employees');
       
       // تحديث الموظفين الذين ليس لديهم معرف مؤسسة
       await updateEmployeesWithMissingOrganizationId();
-      console.log('Updated employees with missing organization ID');
+      
       
       const [employeesData, statsData] = await Promise.all([
         getEmployees(),
@@ -81,7 +81,7 @@ const Employees = () => {
       ]);
       
       if (employeesData.length === 0) {
-        console.log('⚠️ No employees found. User metadata:', userStatus);
+        
       }
       
       setEmployees(employeesData);

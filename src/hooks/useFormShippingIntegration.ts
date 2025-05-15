@@ -39,7 +39,7 @@ export function useFormShippingIntegration({ enabled, provider }: ShippingIntegr
   
   // يمكن استخدام هذا لتخزين القيم في حقول النموذج
   const setFieldValue = useCallback((field: string, value: any) => {
-    console.log('تم تعيين قيمة الحقل:', field, value);
+    
     // يمكنك هنا تنفيذ أي منطق إضافي لتعيين قيم الحقول
   }, []);
 
@@ -112,7 +112,7 @@ export function useFormShippingIntegration({ enabled, provider }: ShippingIntegr
           setLoading(false);
           
           // تسجيل عدد البلديات المتاحة
-          console.log(`تم العثور على ${data.length} بلدية متاحة لنوع التوصيل ${deliveryType}`);
+          
           
           // إذا كان نوع التوصيل هو مكتب، تحقق من وجود بلديات بها مكاتب استلام
           if (deliveryType === 'desk' && data.length === 0) {

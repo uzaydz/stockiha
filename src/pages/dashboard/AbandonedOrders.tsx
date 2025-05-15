@@ -129,6 +129,21 @@ const AbandonedOrders = () => {
   useEffect(() => {
     const fetchLocations = async () => {
       try {
+        // البحث في التخزين المؤقت أولاً
+        const cachedProvinces = localStorage.getItem('abandoned_orders_provinces');
+        const cachedMunicipalities = localStorage.getItem('abandoned_orders_municipalities');
+        const cacheExpiry = localStorage.getItem('abandoned_orders_cache_expiry');
+        
+        // التحقق من صلاحية البيانات المخزنة (7 أيام)
+        const isValidCache = cacheExpiry && parseInt(cacheExpiry) > Date.now();
+        
+        if (isValidCache && cachedProvinces && cachedMunicipalities) {
+          // استخدام البيانات المخزنة
+          setProvinces(JSON.parse(cachedProvinces));
+          setMunicipalities(JSON.parse(cachedMunicipalities));
+          return;
+        }
+        
         // استرجاع الولايات
         const { data: provincesData, error: provincesError } = await supabase
           .from('yalidine_provinces_global')
@@ -154,6 +169,12 @@ const AbandonedOrders = () => {
           municipalitiesMap[municipality.id.toString()] = municipality;
         });
         
+        // تخزين البيانات في الذاكرة المحلية لمدة 7 أيام
+        const expiryTime = Date.now() + (7 * 24 * 60 * 60 * 1000); // 7 أيام
+        localStorage.setItem('abandoned_orders_provinces', JSON.stringify(provincesMap));
+        localStorage.setItem('abandoned_orders_municipalities', JSON.stringify(municipalitiesMap));
+        localStorage.setItem('abandoned_orders_cache_expiry', expiryTime.toString());
+        
         setProvinces(provincesMap);
         setMunicipalities(municipalitiesMap);
       } catch (error) {
@@ -171,130 +192,148 @@ const AbandonedOrders = () => {
     setLoading(true);
     
     try {
-      // استعلام للحصول على الطلبات المتروكة من جدول abandoned_carts
-      const { data: cartsData, error } = await supabase
-        .from('abandoned_carts')
-        .select(`
-          id,
-          organization_id,
-          product_id,
-          product_color_id,
-          product_size_id,
-          quantity,
-          customer_name,
-          customer_phone,
-          customer_email,
-          province,
-          municipality,
-          address,
-          delivery_option,
-          payment_method,
-          notes,
-          custom_fields_data,
-          calculated_delivery_fee,
-          subtotal,
-          discount_amount,
-          total_amount,
-          status,
-          last_activity_at,
-          created_at,
-          updated_at,
-          cart_items
-        `)
-        .eq('organization_id', currentOrganization.id)
-        .eq('status', 'pending');
+      // تحقق من وجود الجدول المُجمع بطريقة محسنة
+      let useView = true;
+      const viewCheck = await supabase.from('abandoned_carts_view').select('id', { count: 'exact', head: true });
+      
+      // إذا كان هناك خطأ، فهذا يعني أن الجدول المُجمع غير موجود
+      if (viewCheck.error) {
+        useView = false;
+      }
+      
+      let cartsData;
+      let error;
+      
+      // استخدام الجدول المناسب بناءً على نتيجة الفحص
+      if (useView) {
+        // استخدام الجدول المُجمع
+        const result = await supabase.from('abandoned_carts_view')
+          .select('*')
+          .eq('organization_id', currentOrganization.id)
+          .eq('status', 'pending');
+          
+        cartsData = result.data;
+        error = result.error;
+      } else {
+        // استخدام الجدول الأساسي
+        const result = await supabase.from('abandoned_carts')
+          .select(`
+            id,
+            organization_id,
+            product_id,
+            customer_name,
+            customer_phone,
+            customer_email,
+            province,
+            municipality,
+            address,
+            delivery_option,
+            payment_method,
+            notes,
+            custom_fields_data,
+            calculated_delivery_fee,
+            subtotal,
+            discount_amount,
+            total_amount,
+            status,
+            last_activity_at,
+            created_at,
+            updated_at,
+            cart_items
+          `)
+          .eq('organization_id', currentOrganization.id)
+          .eq('status', 'pending');
+          
+        cartsData = result.data;
+        error = result.error;
+      }
       
       if (error) throw error;
       
-      // معالجة البيانات المسترجعة
-      if (cartsData) {
-        // تحويل البيانات إلى التنسيق المطلوب
-        const processedOrders: AbandonedOrder[] = await Promise.all(
-          cartsData.map(async (cart: any) => {
-            // معالجة العناصر في السلة للحصول على معلوماتها
-            let itemsWithDetails = [];
-            
-            if (cart.cart_items && Array.isArray(cart.cart_items)) {
-              itemsWithDetails = await Promise.all(
-                cart.cart_items.map(async (item: any) => {
-                  let productDetails = null;
-                  
-                  if (item.product_id) {
-                    // استعلام صحيح للحصول على معلومات المنتج
-                    const { data: productData } = await supabase
-                      .from('products')
-                      .select('id, name, thumbnail_image, price')
-                      .eq('id', item.product_id)
-                      .single();
-                    
-                    if (productData) {
-                      productDetails = {
-                        name: productData.name,
-                        image_url: productData.thumbnail_image // استخدام الحقل الصحيح
-                      };
-                      
-                      // إضافة معلومات المنتج إلى العنصر
-                      return {
-                        ...item,
-                        product_name: productData.name,
-                        price: productData.price
-                      };
-                    }
-                  }
-                  
-                  return item;
-                })
-              );
-            }
-            
-            // الحصول على معلومات المنتج الرئيسي
-            let productDetails = null;
-            
-            if (cart.product_id) {
-              const { data: productData } = await supabase
-                .from('products')
-                .select('name, thumbnail_image')
-                .eq('id', cart.product_id)
-                .single();
+      // استعلام مجمع واحد للحصول على كل معرفات المنتجات
+      if (cartsData && cartsData.length > 0) {
+        // جمع كل معرفات المنتجات من السلات
+        const productIds = new Set();
+        
+        cartsData.forEach((cart: any) => {
+          if (cart.product_id) productIds.add(cart.product_id);
+          
+          if (cart.cart_items && Array.isArray(cart.cart_items)) {
+            cart.cart_items.forEach((item: any) => {
+              if (item.product_id) productIds.add(item.product_id);
+            });
+          }
+        });
+        
+        // استعلام واحد للحصول على معلومات كل المنتجات
+        const { data: productsData } = await supabase
+          .from('products')
+          .select('id, name, thumbnail_image, price')
+          .in('id', Array.from(productIds));
+        
+        // تخزين معلومات المنتجات في قاموس للبحث السريع
+        const productsMap: Record<string, any> = {};
+        if (productsData) {
+          productsData.forEach(product => {
+            productsMap[product.id] = product;
+          });
+        }
+        
+        // معالجة البيانات لجميع السلات دفعة واحدة
+        const processedOrders: AbandonedOrder[] = cartsData.map((cart: any) => {
+          // حساب عدد الساعات منذ آخر نشاط - يمكن الحصول عليه من الـ view
+          const lastActivity = new Date(cart.last_activity_at);
+          const now = new Date();
+          const diffHours = cart.abandoned_hours || (now.getTime() - lastActivity.getTime()) / (1000 * 60 * 60);
+          
+          // معالجة العناصر في السلة
+          let processedCartItems = cart.cart_items;
+          if (cart.cart_items && Array.isArray(cart.cart_items)) {
+            processedCartItems = cart.cart_items.map((item: any) => {
+              const productInfo = item.product_id ? productsMap[item.product_id] : null;
               
-              if (productData) {
-                productDetails = {
-                  name: productData.name,
-                  image_url: productData.thumbnail_image // استخدام الحقل الصحيح
-                };
-              }
-            }
-            
-            // حساب عدد الساعات منذ آخر نشاط
-            const lastActivity = new Date(cart.last_activity_at);
-            const now = new Date();
-            const diffHours = (now.getTime() - lastActivity.getTime()) / (1000 * 60 * 60);
-            
-            // معالجة البلدية والولاية بالأسماء بدلاً من الأرقام
-            let provinceText = cart.province;
-            let municipalityText = cart.municipality;
-            
-            if (cart.province && provinces[cart.province]) {
-              provinceText = provinces[cart.province].name_ar || provinces[cart.province].name;
-            }
-            
-            if (cart.municipality && municipalities[cart.municipality]) {
-              municipalityText = municipalities[cart.municipality].name_ar || municipalities[cart.municipality].name;
-            }
-            
-            return {
-              ...cart,
-              abandoned_hours: diffHours,
-              productDetails,
-              cart_items: itemsWithDetails.length > 0 ? itemsWithDetails : cart.cart_items,
-              province_name: provinceText,
-              municipality_name: municipalityText
-            };
-          })
-        );
+              return {
+                ...item,
+                product_name: productInfo?.name || item.product_name,
+                price: productInfo?.price || item.price
+              };
+            });
+          }
+          
+          // معلومات المنتج الرئيسي
+          const mainProductInfo = cart.product_id ? productsMap[cart.product_id] : null;
+          const productDetails = mainProductInfo ? {
+            name: mainProductInfo.name,
+            image_url: mainProductInfo.thumbnail_image
+          } : null;
+          
+          // معلومات الولاية والبلدية
+          let provinceText = cart.province_name || cart.province;
+          let municipalityText = cart.municipality_name || cart.municipality;
+          
+          if (cart.province && provinces[cart.province]) {
+            provinceText = provinces[cart.province].name_ar || provinces[cart.province].name;
+          }
+          
+          if (cart.municipality && municipalities[cart.municipality]) {
+            municipalityText = municipalities[cart.municipality].name_ar || municipalities[cart.municipality].name;
+          }
+          
+          return {
+            ...cart,
+            abandoned_hours: diffHours,
+            productDetails,
+            cart_items: processedCartItems,
+            province_name: provinceText,
+            municipality_name: municipalityText
+          };
+        });
         
         setAbandonedOrders(processedOrders);
         setFilteredOrders(processedOrders);
+      } else {
+        setAbandonedOrders([]);
+        setFilteredOrders([]);
       }
     } catch (error) {
       console.error('خطأ في استرجاع الطلبات المتروكة:', error);
@@ -315,65 +354,110 @@ const AbandonedOrders = () => {
     setStatsLoading(true);
     
     try {
-      // استعلام لحساب إحصائيات الطلبات المتروكة
-      const { data: countData, error: countError } = await supabase
-        .from('abandoned_carts')
-        .select('id, total_amount, created_at', { count: 'exact' })
+      // محاولة استخدام الجدول المُجمع للإحصائيات إذا كان موجوداً
+      let statsData: AbandonedOrdersStats;
+      
+      const { data: statsFromView, error: viewError } = await supabase
+        .from('abandoned_carts_stats')
+        .select('*')
         .eq('organization_id', currentOrganization.id)
-        .eq('status', 'pending');
+        .single();
       
-      if (countError) throw countError;
-      
-      // احتساب القيمة الإجمالية
-      const totalValue = countData ? countData.reduce((sum, order: any) => sum + (parseFloat(order.total_amount) || 0), 0) : 0;
-      
-      // احتساب عدد الطلبات اليومية والأسبوعية والشهرية
-      const now = new Date();
-      const oneDayAgo = new Date(now);
-      oneDayAgo.setDate(now.getDate() - 1);
-      
-      const oneWeekAgo = new Date(now);
-      oneWeekAgo.setDate(now.getDate() - 7);
-      
-      const oneMonthAgo = new Date(now);
-      oneMonthAgo.setMonth(now.getMonth() - 1);
-      
-      const todayCount = countData ? countData.filter((order: any) => new Date(order.created_at) >= oneDayAgo).length : 0;
-      const weekCount = countData ? countData.filter((order: any) => new Date(order.created_at) >= oneWeekAgo).length : 0;
-      const monthCount = countData ? countData.filter((order: any) => new Date(order.created_at) >= oneMonthAgo).length : 0;
-      
-      // إنشاء البيانات للرسوم البيانية
-      let labels: string[] = [];
-      let chartData: number[] = [];
-      
-      if (timeRange === 'today') {
-        labels = ['9 ص', '12 م', '3 م', '6 م', '9 م'];
-        chartData = [2, 4, 3, 2, 1]; // بيانات وهمية، يمكن استبدالها بحساب فعلي
-      } else if (timeRange === 'week') {
-        labels = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
-        chartData = [8, 12, 7, 9, 5, 3, 2]; // بيانات وهمية
-      } else if (timeRange === 'month') {
-        labels = ['الأسبوع 1', 'الأسبوع 2', 'الأسبوع 3', 'الأسبوع 4'];
-        chartData = [22, 35, 28, 14]; // بيانات وهمية
+      // إذا كان الجدول موجود، استخدمه
+      if (!viewError && statsFromView) {
+        // إنشاء البيانات للرسوم البيانية - يمكن تعديلها لاستخدام بيانات حقيقية
+        let labels: string[] = [];
+        let chartData: number[] = [];
+        
+        if (timeRange === 'today') {
+          labels = ['9 ص', '12 م', '3 م', '6 م', '9 م'];
+          chartData = [2, 4, 3, 2, 1]; // يمكن استبدالها بحساب فعلي 
+        } else if (timeRange === 'week') {
+          labels = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+          chartData = [8, 12, 7, 9, 5, 3, 2]; // بيانات وهمية
+        } else if (timeRange === 'month') {
+          labels = ['الأسبوع 1', 'الأسبوع 2', 'الأسبوع 3', 'الأسبوع 4'];
+          chartData = [22, 35, 28, 14]; // بيانات وهمية
+        } else {
+          labels = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو'];
+          chartData = [55, 70, 45, 90, 110, 85]; // بيانات وهمية
+        }
+        
+        statsData = {
+          totalCount: statsFromView.total_count || 0,
+          totalValue: statsFromView.total_value || 0,
+          todayCount: statsFromView.today_count || 0,
+          weekCount: statsFromView.week_count || 0,
+          monthCount: statsFromView.month_count || 0,
+          averageValue: statsFromView.avg_value || 0,
+          recoveryRate: 18.5, // نسبة افتراضية، يمكن حسابها بشكل دقيق
+          conversionRate: 23.2, // نسبة افتراضية، يمكن حسابها بشكل دقيق
+          timeSeries: {
+            labels,
+            data: chartData,
+          },
+        };
       } else {
-        labels = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو'];
-        chartData = [55, 70, 45, 90, 110, 85]; // بيانات وهمية
+        // استخدم الاستعلام القديم إذا لم يكن الجدول المُجمع موجوداً
+        const { data: countData, error: countError } = await supabase
+          .from('abandoned_carts')
+          .select('id, total_amount, created_at', { count: 'exact' })
+          .eq('organization_id', currentOrganization.id)
+          .eq('status', 'pending');
+        
+        if (countError) throw countError;
+        
+        // احتساب القيمة الإجمالية
+        const totalValue = countData ? countData.reduce((sum, order: any) => sum + (parseFloat(order.total_amount) || 0), 0) : 0;
+        
+        // احتساب عدد الطلبات اليومية والأسبوعية والشهرية
+        const now = new Date();
+        const oneDayAgo = new Date(now);
+        oneDayAgo.setDate(now.getDate() - 1);
+        
+        const oneWeekAgo = new Date(now);
+        oneWeekAgo.setDate(now.getDate() - 7);
+        
+        const oneMonthAgo = new Date(now);
+        oneMonthAgo.setMonth(now.getMonth() - 1);
+        
+        const todayCount = countData ? countData.filter((order: any) => new Date(order.created_at) >= oneDayAgo).length : 0;
+        const weekCount = countData ? countData.filter((order: any) => new Date(order.created_at) >= oneWeekAgo).length : 0;
+        const monthCount = countData ? countData.filter((order: any) => new Date(order.created_at) >= oneMonthAgo).length : 0;
+        
+        // إنشاء البيانات للرسوم البيانية
+        let labels: string[] = [];
+        let chartData: number[] = [];
+        
+        if (timeRange === 'today') {
+          labels = ['9 ص', '12 م', '3 م', '6 م', '9 م'];
+          chartData = [2, 4, 3, 2, 1]; // بيانات وهمية، يمكن استبدالها بحساب فعلي
+        } else if (timeRange === 'week') {
+          labels = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+          chartData = [8, 12, 7, 9, 5, 3, 2]; // بيانات وهمية
+        } else if (timeRange === 'month') {
+          labels = ['الأسبوع 1', 'الأسبوع 2', 'الأسبوع 3', 'الأسبوع 4'];
+          chartData = [22, 35, 28, 14]; // بيانات وهمية
+        } else {
+          labels = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو'];
+          chartData = [55, 70, 45, 90, 110, 85]; // بيانات وهمية
+        }
+        
+        statsData = {
+          totalCount: countData ? countData.length : 0,
+          totalValue,
+          todayCount,
+          weekCount,
+          monthCount,
+          averageValue: countData && countData.length > 0 ? Math.round(totalValue / countData.length) : 0,
+          recoveryRate: 18.5, // نسبة افتراضية، يمكن حسابها بشكل دقيق
+          conversionRate: 23.2, // نسبة افتراضية، يمكن حسابها بشكل دقيق
+          timeSeries: {
+            labels,
+            data: chartData,
+          },
+        };
       }
-      
-      const statsData: AbandonedOrdersStats = {
-        totalCount: countData ? countData.length : 0,
-        totalValue,
-        todayCount,
-        weekCount,
-        monthCount,
-        averageValue: countData && countData.length > 0 ? Math.round(totalValue / countData.length) : 0,
-        recoveryRate: 18.5, // نسبة افتراضية، يمكن حسابها بشكل دقيق
-        conversionRate: 23.2, // نسبة افتراضية، يمكن حسابها بشكل دقيق
-        timeSeries: {
-          labels,
-          data: chartData,
-        },
-      };
       
       setStats(statsData);
     } catch (error) {
@@ -728,7 +812,7 @@ const AbandonedOrders = () => {
                 loading={loading}
                 onRowClick={(order) => {
                   // عند النقر على الصف، يمكن فتح نافذة تفاصيل الطلب
-                  console.log("Row clicked:", order.id);
+                  
                 }}
                 onRecoverOrder={(order) => handleRecoverOrders([order])}
                 onSendReminder={(order) => handleSendReminders([order])}

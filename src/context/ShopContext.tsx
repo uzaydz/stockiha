@@ -75,12 +75,12 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const fetchProducts = useCallback(async (organizationId: string) => {
     // Skip if already loading
     if (loadingProducts.current) {
-      console.log('طلب جلب المنتجات قيد التنفيذ بالفعل، تخطي الطلب الجديد');
+      
       return [];
     }
     
     loadingProducts.current = true;
-    console.log('بدء جلب المنتجات للمؤسسة:', organizationId);
+    
     
     // إنشاء وقت انتهاء مهلة للاستعلام
     const timeoutPromise = new Promise<Product[]>((_, reject) => {
@@ -95,7 +95,7 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const productsPromise = withCache<Product[]>(
         `shop_products:${organizationId}`,
         async () => {
-          console.log('جلب المنتجات من قاعدة البيانات');
+          
           
           // استخدام استعلام مباشر لتجنب المشاكل
           const { data: productsData, error: productsError } = await supabase
@@ -109,7 +109,7 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             return [];
           }
           
-          console.log('تم استرجاع المنتجات بنجاح. عدد المنتجات:', productsData.length);
+          
           
           // تبسيط تحويل البيانات لتحسين الأداء
           return productsData.map(product => mapSupabaseProductToProduct(product));
@@ -130,7 +130,7 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // دالة محسنة لجلب الطلبات
   const fetchOrders = useCallback(async (organizationId: string) => {
-    console.log('بدء جلب الطلبات للمؤسسة:', organizationId);
+    
     
     // إنشاء وقت انتهاء مهلة للاستعلام
     const timeoutPromise = new Promise<Order[]>((_, reject) => {
@@ -145,7 +145,7 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const ordersPromise = withCache<Order[]>(
         `shop_orders:${organizationId}`,
         async () => {
-          console.log('جلب الطلبات من قاعدة البيانات');
+          
           
           // استخدام استعلام مباشر وبسيط
           const { data: ordersData, error: ordersError } = await supabase
@@ -159,7 +159,7 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             return [];
           }
           
-          console.log('تم استرجاع الطلبات بنجاح. عدد الطلبات:', ordersData.length);
+          
           
           // تحويل البيانات - معالجة الوعود بشكل صحيح
           const orderPromises = ordersData.map(order => mapSupabaseOrderToOrder(order));
@@ -182,11 +182,11 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       // Skip if already initialized and data is loaded
       if (isInitialized.current && products.length > 0 && orders.length > 0) {
-        console.log('البيانات محملة بالفعل، تخطي عملية التحميل');
+        
         return;
       }
 
-      console.log('بدء تحميل بيانات المتجر');
+      
       setIsLoading(true);
       
       // الحصول على معرف المنظمة
@@ -198,7 +198,7 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return;
       }
       
-      console.log('معرف المنظمة:', organizationId);
+      
       setCurrentOrganization({ id: organizationId });
       
       // التأكد من وجود عميل زائر
@@ -224,7 +224,7 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // معالجة نتائج المنتجات
       if (fetchedProducts.status === 'fulfilled') {
         setProducts(fetchedProducts.value);
-        console.log(`تم تحميل ${fetchedProducts.value.length} منتج بنجاح`);
+        
       } else {
         console.error('فشل في تحميل المنتجات:', fetchedProducts.reason);
       }
@@ -232,14 +232,14 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // معالجة نتائج الطلبات
       if (fetchedOrders.status === 'fulfilled') {
         setOrders(fetchedOrders.value);
-        console.log(`تم تحميل ${fetchedOrders.value.length} طلب بنجاح`);
+        
       } else {
         console.error('فشل في تحميل الطلبات:', fetchedOrders.reason);
       }
       
       // جلب المستخدمين بشكل منفصل (لا نستخدم Promise.allSettled لأننا نحتاج إلى معالجة الخطأ مباشرة)
       try {
-        console.log('جلب بيانات المستخدمين');
+        
         const { data: usersData, error: usersError } = await supabase
           .from('users')
           .select('*')
@@ -281,7 +281,7 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.error('Error in users fetch:', usersError);
       }
       
-      console.log('اكتمل تحميل بيانات المتجر بنجاح');
+      
       isInitialized.current = true;
     } catch (error) {
       console.error('Error in fetchData:', error);

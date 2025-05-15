@@ -31,7 +31,7 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
 
   // تعيين المكون النشط بشكل صحيح
   const selectActiveComponent = (component: StoreComponent | null) => {
-    console.log("تعيين المكون النشط:", component?.id, component?.type);
+    
     // التأكد من أخذ أحدث نسخة من الكمبوننت من المصفوفة
     if (component) {
       const updatedComponent = components.find(c => c.id === component.id) || component;
@@ -56,7 +56,7 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
       
       // التحقق مما إذا كان المستخدم مسجل دخول
       const isLoggedIn = await isUserLoggedIn();
-      console.log("حالة تسجيل الدخول:", isLoggedIn ? "مسجل دخول" : "زائر");
+      
       
       let data, error;
       
@@ -70,7 +70,7 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
         error = result.error;
       } else {
         // استخدام وظيفة get_store_settings للزوار مع p_public_access = true
-        console.log("استخدام get_store_settings مع p_public_access = true للزائر");
+        
         const result = await supabase.rpc('get_store_settings', {
           p_organization_id: organizationId,
           p_public_access: true
@@ -81,7 +81,7 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
 
       if (error) {
         console.error('Error fetching store components:', error);
-        console.log('Error details:', error.details, 'Error hint:', error.hint);
+        
         toast({
           title: 'خطأ في جلب مكونات المتجر',
           description: error.message,
@@ -106,13 +106,13 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
         
         // تعيين المكون النشط الأول إذا لم يكن هناك مكون نشط
         if (!activeComponent && mappedComponents.length > 0) {
-          console.log("تعيين المكون النشط الأول:", mappedComponents[0]);
+          
           setActiveComponent(mappedComponents[0]);
         } else if (activeComponent) {
           // إذا كان هناك مكون نشط، نتأكد من تحديثه
           const updatedActiveComponent = mappedComponents.find(c => c.id === activeComponent.id);
           if (updatedActiveComponent) {
-            console.log("تحديث المكون النشط:", updatedActiveComponent);
+            
             setActiveComponent(updatedActiveComponent);
           }
         }
@@ -333,7 +333,7 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
       });
 
       // تأكيد التحديث بنجاح
-      console.log('Component settings updated successfully:', id);
+      
     } catch (error: any) {
       console.error('Error updating component settings:', error);
       
@@ -471,7 +471,7 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
         description: 'تم تحديث ترتيب المكونات بنجاح'
       });
 
-      console.log('Components order updated successfully');
+      
     } catch (error: any) {
       console.error('Error updating components order:', error);
       toast({
@@ -537,7 +537,7 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
     try {
       // استخدام الوظيفة المحسنة لمسح التخزين المؤقت باستخدام معرف المؤسسة مباشرة
       await clearStoreCacheByOrganizationId(orgId);
-      console.log(`تم مسح التخزين المؤقت للمتجر بنجاح للمؤسسة: ${orgId}`);
+      
     } catch (error) {
       console.error('Error clearing store cache:', error);
     }

@@ -57,7 +57,7 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
     // Force exit loading state after 5 seconds to prevent infinite loading
     forceTimerRef.current = setTimeout(() => {
       if (dataLoading) {
-        console.log("Force exiting loading state after timeout");
+        
         setDataLoading(false);
       }
     }, 5000);
@@ -118,7 +118,7 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
       }
       
       if (orgData) {
-        console.log('تم العثور على نطاق مخصص:', hostname, 'للمؤسسة:', orgData.name);
+        
         
         // حفظ معرف المنظمة في localStorage للاستخدام عند إعادة تحميل الصفحة
         localStorage.setItem('bazaar_organization_id', orgData.id);
@@ -130,7 +130,7 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
           const storeData = await getFullStoreData(orgData.subdomain);
           
           if (storeData) {
-            console.log('تم تحميل بيانات المتجر بنجاح للنطاق المخصص، عدد الفئات:', storeData.categories?.length || 0);
+            
             setStoreData(storeData);
             
             // التعامل مع إعدادات المتجر
@@ -141,11 +141,11 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
             
             // تحميل الفئات إذا كانت غير موجودة
             if (!storeData.categories || storeData.categories.length === 0) {
-              console.log('جاري تحميل الفئات مباشرة لمعرف المؤسسة:', orgData.id);
+              
               try {
                 const categoriesData = await getProductCategories(orgData.id);
                 if (categoriesData && categoriesData.length > 0) {
-                  console.log('تم تحميل الفئات بنجاح:', categoriesData.length);
+                  
                   storeData.categories = categoriesData;
                   setStoreData({ ...storeData });
                 }
@@ -185,7 +185,7 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
         
         if (savedSubdomain || currentSubdomain) {
           const subdomainToUse = savedSubdomain || currentSubdomain;
-          console.log('استخدام النطاق الفرعي لتحميل البيانات:', subdomainToUse);
+          
           const data = await getFullStoreData(subdomainToUse);
           if (data) {
             setStoreData(data);
@@ -213,7 +213,7 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
     document.title = `${storeName} - المتجر الإلكتروني`;
   }, [storeName]);
 
-  console.log("StorePage render state:", { dataLoading, hasData: Object.keys(storeData).length > 0 });
+  
 
   // إضافة زر إعادة تحميل البيانات للحالات الطارئة
   const handleReload = async () => {

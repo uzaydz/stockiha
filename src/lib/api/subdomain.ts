@@ -39,16 +39,16 @@ export const getOrganizationBySubdomain = async (subdomain: string) => {
     
     // إذا كان هناك معرف مؤسسة محفوظ محلياً، نستخدمه بدلاً من النطاق الفرعي
     if (orgId) {
-      console.log('استخدام معرف المؤسسة من التخزين المحلي للنطاق الفرعي www:', orgId);
+      
       return getOrganizationById(orgId);
     }
     
-    console.log('النطاق الفرعي www غير صالح وليس هناك معرف مؤسسة محفوظ');
+    
     return null;
   }
   
   try {
-    console.log(`محاولة جلب المؤسسة باستخدام النطاق الفرعي: ${subdomain}`);
+    
     const supabaseClient = await getSupabaseClient();
     
     // البحث عن المنظمة بواسطة النطاق الفرعي
@@ -64,11 +64,11 @@ export const getOrganizationBySubdomain = async (subdomain: string) => {
     }
     
     if (!data) {
-      console.log(`لم يتم العثور على مؤسسة بالنطاق الفرعي: ${subdomain}`);
+      
       return null;
     }
     
-    console.log(`تم العثور على المؤسسة بنجاح بالنطاق الفرعي: ${subdomain}`, data.name);
+    
     return data;
   } catch (error) {
     console.error(`خطأ أثناء جلب المؤسسة بالنطاق الفرعي ${subdomain}:`, error);
@@ -81,7 +81,7 @@ export const getOrganizationBySubdomain = async (subdomain: string) => {
  */
 export const getOrganizationByDomain = async (domain: string) => {
   if (!domain) {
-    console.log('النطاق فارغ، لا يمكن البحث عن المؤسسة');
+    
     return null;
   }
   
@@ -102,10 +102,10 @@ export const getOrganizationByDomain = async (domain: string) => {
   // إزالة أي مسارات بعد النطاق
   cleanDomain = cleanDomain.split('/')[0];
   
-  console.log(`النطاق بعد التنظيف: "${cleanDomain}"`);
+  
   
   try {
-    console.log(`محاولة جلب المؤسسة باستخدام النطاق الرئيسي: ${cleanDomain}`);
+    
     const supabaseClient = await getSupabaseClient();
     
     // طباعة عدد المؤسسات التي تستخدم نطاقات مخصصة (للتشخيص)
@@ -115,8 +115,8 @@ export const getOrganizationByDomain = async (domain: string) => {
       .not('domain', 'is', null);
       
     if (!countError && orgWithDomains) {
-      console.log(`عدد المؤسسات ذات النطاقات المخصصة: ${orgWithDomains.length}`);
-      console.log('النطاقات المخصصة الموجودة:', orgWithDomains.map(org => ({id: org.id, name: org.name, domain: org.domain})));
+      
+      
     }
     
     // التحقق أولاً إذا كان النطاق يحتوي على عدة أجزاء (مثل subdomain.domain.com)
@@ -125,7 +125,7 @@ export const getOrganizationByDomain = async (domain: string) => {
     if (domainParts.length > 2 && domainParts[0].toLowerCase() !== 'www') {
       // جرب البحث في subdomain أولاً
       const possibleSubdomain = domainParts[0];
-      console.log(`النطاق يحتوي على أكثر من جزئين. محاولة البحث كنطاق فرعي: ${possibleSubdomain}`);
+      
       
       const { data: subdomainData, error: subdomainError } = await supabaseClient
         .from('organizations')
@@ -134,7 +134,7 @@ export const getOrganizationByDomain = async (domain: string) => {
         .maybeSingle();
         
       if (!subdomainError && subdomainData) {
-        console.log(`تم العثور على مؤسسة بالنطاق الفرعي: ${possibleSubdomain}`, subdomainData.name);
+        
         return subdomainData;
       }
     }
@@ -147,14 +147,14 @@ export const getOrganizationByDomain = async (domain: string) => {
       .maybeSingle();
     
     // طباعة معلومات تشخيصية عن الاستعلام
-    console.log(`استعلام عن النطاق: "${cleanDomain}", النتيجة:`, data ? `موجود (${data.name})` : 'غير موجود');
+    
     
     if (error) {
       console.error(`خطأ أثناء البحث عن المؤسسة بالنطاق الرئيسي ${cleanDomain}:`, error);
       
       // التحقق مما إذا كان خطأ 406 (Not Acceptable)
       if (error.code === '406') {
-        console.log('خطأ 406 - محاولة البحث بطريقة مختلفة');
+        
         
         // محاولة البحث عن كل المؤسسات ثم التصفية يدويًا
         const { data: allOrgs, error: allOrgsError } = await supabaseClient
@@ -165,7 +165,7 @@ export const getOrganizationByDomain = async (domain: string) => {
           // بحث يدوي عن مطابقة النطاق
           const matchingOrg = allOrgs.find(org => org.domain === cleanDomain);
           if (matchingOrg) {
-            console.log(`تم العثور على مؤسسة مطابقة للنطاق بالبحث اليدوي: ${cleanDomain}`, matchingOrg.name);
+            
             return matchingOrg;
           }
         }
@@ -175,7 +175,7 @@ export const getOrganizationByDomain = async (domain: string) => {
     }
     
     if (!data) {
-      console.log(`لم يتم العثور على مؤسسة بالنطاق الرئيسي: ${cleanDomain}`);
+      
       
       // محاولة أخرى بحذف علامات التشكيل للتعامل مع النطاقات العربية
       const { data: dataAlt, error: errorAlt } = await supabaseClient
@@ -185,14 +185,14 @@ export const getOrganizationByDomain = async (domain: string) => {
         .maybeSingle();
         
       if (!errorAlt && dataAlt) {
-        console.log(`تم العثور على مؤسسة مطابقة جزئياً للنطاق: ${cleanDomain} => ${dataAlt.domain}`);
+        
         return dataAlt;
       }
       
       return null;
     }
     
-    console.log(`تم العثور على المؤسسة بنجاح بالنطاق الرئيسي: ${cleanDomain}`, data.name);
+    
     return data;
   } catch (error) {
     console.error(`خطأ أثناء جلب المؤسسة بالنطاق الرئيسي ${cleanDomain}:`, error);
@@ -205,7 +205,7 @@ export const getOrganizationByDomain = async (domain: string) => {
  */
 export const getOrganizationById = async (organizationId: string) => {
   try {
-    console.log(`محاولة جلب المؤسسة باستخدام المعرف: ${organizationId}`);
+    
     const supabaseClient = await getSupabaseClient();
     const { data, error } = await supabaseClient
       .from('organizations')
@@ -219,7 +219,7 @@ export const getOrganizationById = async (organizationId: string) => {
     }
 
     if (data) {
-      console.log(`تم العثور على المؤسسة: ${data.name}, المعرف: ${data.id}`);
+      
     }
 
     return data;

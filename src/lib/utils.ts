@@ -183,7 +183,7 @@ export const isElectron = (): boolean => {
   
   // وضع علامة على الصفحة لتوضيح أننا في متصفح
   if (typeof window !== 'undefined' && !(window as any).__IS_BROWSER_ENV_DETECTED) {
-    console.log('[ENV] تم تحديد بيئة المتصفح، تجاهل فحوصات إلكترون اللاحقة');
+    
     (window as any).__IS_BROWSER_ENV_DETECTED = true;
   }
   

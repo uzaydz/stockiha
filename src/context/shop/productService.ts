@@ -85,11 +85,11 @@ export const deleteProduct = async (productId: string) => {
 
 // وظيفة لتحديث مخزون المنتجات بعد البيع
 export const updateProductsInventory = async (orderItems: any[], currentOrganizationId: string | undefined) => {
-  console.log("Starting inventory update for order items:", orderItems);
+  
   
   // استخراج معرفات المنتجات الفريدة
   const productIds = [...new Set(orderItems.map(item => item.productId))];
-  console.log("Products to update inventory for:", productIds.join(', '));
+  
   
   for (const productId of productIds) {
     // حساب إجمالي الكمية المطلوبة لهذا المنتج
@@ -99,7 +99,7 @@ export const updateProductsInventory = async (orderItems: any[], currentOrganiza
       
     const productName = orderItems.find(item => item.productId === productId)?.productName || 'Unknown Product';
     
-    console.log(`Processing item: ${productName} (${productId}), quantity: ${quantity}`);
+    
     
     try {
       // الحصول على معلومات المخزون الحالية
@@ -119,11 +119,11 @@ export const updateProductsInventory = async (orderItems: any[], currentOrganiza
         continue;
       }
       
-      console.log(`Current stock for ${productName}: ${product.stock}, last updated: ${product.last_updated}`);
+      
       
       // حساب المخزون الجديد
       const newStock = (product.stock || 0) - quantity;
-      console.log(`Calculated new stock: ${newStock} (${product.stock} - ${quantity})`);
+      
       
       try {
         // إضافة سجل في جدول inventory_log
@@ -158,7 +158,7 @@ export const updateProductsInventory = async (orderItems: any[], currentOrganiza
         if (updateError) {
           console.error(`Error updating inventory for product ${productId}:`, updateError);
         } else {
-          console.log(`Successfully updated inventory for ${productName} to ${newStock}`);
+          
         }
       } catch (error) {
         console.error(`Error in inventory update process for ${productName}:`, error);
@@ -168,5 +168,5 @@ export const updateProductsInventory = async (orderItems: any[], currentOrganiza
     }
   }
   
-  console.log("Inventory update completed for all products");
+  
 }; 

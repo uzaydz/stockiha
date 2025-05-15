@@ -53,7 +53,7 @@ function createInventoryItemId(productId: string, variantId: string | null): str
 
 // محاولة لحذف قاعدة البيانات القديمة لمنع التداخل
 try {
-  console.log('محاولة حذف قاعدة البيانات القديمة...');
+  
   Dexie.delete('inventoryDB');
 } catch (deleteError) {
   console.warn('لم نتمكن من حذف قاعدة البيانات القديمة:', deleteError);
@@ -78,7 +78,7 @@ export async function getProductStock(productId: string, variantId?: string): Pr
     const normalizedVariantId = variantId ?? null;
     const itemId = createInventoryItemId(productId, normalizedVariantId);
     
-    console.log('البحث عن مخزون المنتج:', { productId, variantId: normalizedVariantId, itemId });
+    
     
     // البحث عن عنصر المخزون باستخدام المعرف
     const item = await inventoryDB.inventory
@@ -87,7 +87,7 @@ export async function getProductStock(productId: string, variantId?: string): Pr
       .first();
     
     if (item) {
-      console.log('تم العثور على المخزون:', item);
+      
       return item.stock_quantity;
     }
     
@@ -98,7 +98,7 @@ export async function getProductStock(productId: string, variantId?: string): Pr
       .filter(item => item.variant_id === normalizedVariantId)
       .toArray();
     
-    console.log('العناصر المعثور عليها بواسطة product_id:', items);
+    
     
     if (items.length > 0) {
       return items[0].stock_quantity;
@@ -144,12 +144,7 @@ export async function updateProductStock(data: {
   };
   
   try {
-    console.log('معالجة تحديث المخزون:', {
-      id: itemId,
-      product_id: data.product_id,
-      variant_id: variantId,
-      quantity: data.quantity
-    });
+    
     
     // بدء معاملة قاعدة البيانات
     await inventoryDB.transaction('rw', [inventoryDB.inventory, inventoryDB.transactions], async () => {
@@ -173,19 +168,13 @@ export async function updateProductStock(data: {
           }
         }
         
-        console.log('العنصر المعثور عليه:', item);
+        
         
         if (item) {
           // حساب الكمية الجديدة (لا تسمح بقيم سالبة)
           const newQuantity = Math.max(0, item.stock_quantity + data.quantity);
           
-          console.log('تحديث عنصر موجود في المخزون:', {
-            id: itemId,
-            product_id: data.product_id,
-            variant_id: variantId,
-            old_quantity: item.stock_quantity,
-            new_quantity: newQuantity
-          });
+          
           
           // تحديث العنصر الموجود
           await inventoryDB.inventory.put({
@@ -197,12 +186,7 @@ export async function updateProductStock(data: {
             synced: false
           });
         } else {
-          console.log('إضافة عنصر جديد للمخزون:', {
-            id: itemId,
-            product_id: data.product_id,
-            variant_id: variantId,
-            quantity: Math.max(0, data.quantity)
-          });
+          
           
           // إنشاء عنصر جديد
           await inventoryDB.inventory.add({
@@ -217,14 +201,14 @@ export async function updateProductStock(data: {
         
         // إضافة العملية إلى جدول العمليات
         await inventoryDB.transactions.add(transaction);
-        console.log('تمت إضافة العملية بنجاح:', transaction.id);
+        
       } catch (innerError) {
         console.error('خطأ داخلي في تحديث المخزون:', innerError);
         throw innerError;
       }
     });
     
-    console.log('تم تحديث المخزون محليًا بنجاح');
+    
     return transaction;
   } catch (error) {
     console.error('خطأ في تحديث المخزون محليًا:', error);
@@ -253,7 +237,7 @@ export async function syncInventoryData(): Promise<number> {
       .toArray();
     
     if (unsyncedTransactions.length === 0) {
-      console.log('لا توجد عمليات للمزامنة');
+      
       return 0;
     }
     
@@ -357,7 +341,7 @@ export async function syncInventoryData(): Promise<number> {
       .filter(item => item.synced === false)
       .modify({ synced: true });
     
-    console.log(`تمت مزامنة ${syncedCount} من ${unsyncedTransactions.length} عملية`);
+    
     return syncedCount;
   } catch (error) {
     console.error('خطأ في مزامنة بيانات المخزون:', error);
@@ -463,7 +447,7 @@ export async function loadInventoryDataFromServer(): Promise<number> {
       }
     });
     
-    console.log(`تم تحميل ${inventoryData.length} عنصر من بيانات المخزون`);
+    
     return inventoryData.length;
   } catch (error) {
     console.error('خطأ في تحميل بيانات المخزون من الخادم:', error);

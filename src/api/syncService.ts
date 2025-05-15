@@ -130,7 +130,7 @@ export const syncProduct = async (product: LocalProduct): Promise<boolean> => {
             if (remoteUpdatedAt > localUpdatedAt && !product.conflictResolution) {
               // استراتيجية تلقائية لحل التضارب: محلي أو بعيد أو دمج
               // هنا نستخدم "محلي" للمخزون و"بعيد" للبقية
-              console.log('تم اكتشاف تضارب في البيانات، جاري تطبيق استراتيجية حل التضارب');
+              
               
               try {
                 // جلب بيانات المنتج الكاملة من الخادم
@@ -788,8 +788,8 @@ export const synchronizeWithServer = async (): Promise<boolean> => {
     // ثم معالجة قائمة المزامنة
     const queueResult = await processSyncQueue();
     
-    console.log(`تمت المزامنة: ${productsResult.success} منتجات، ${customersResult.success} عملاء، ${addressesResult.success} عناوين، ${queueResult.processed} عناصر من القائمة`);
-    console.log(`فشل: ${productsResult.failed} منتجات، ${customersResult.failed} عملاء، ${addressesResult.failed} عناوين، ${queueResult.failed} عناصر من القائمة`);
+    
+    
     
     return true;
   } catch (error) {

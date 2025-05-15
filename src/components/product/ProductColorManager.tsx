@@ -143,16 +143,16 @@ const ProductColorManager = ({
   };
 
   const onManageSizesClick = (colorId: string) => {
-    console.log('تم النقر على إدارة المقاسات للون:', colorId);
-    console.log('حالة استخدام المقاسات:', useSizes);
+    
+    
     
     const selectedColor = colors.find(c => c.id === colorId);
-    console.log('بيانات اللون المحدد:', selectedColor);
+    
     
     if (selectedColor && selectedColor.sizes) {
-      console.log('المقاسات المخزنة للون:', selectedColor.sizes);
+      
     } else {
-      console.log('لا توجد مقاسات مخزنة للون المحدد');
+      
     }
     
     setSelectedColorId(colorId);
@@ -179,7 +179,7 @@ const ProductColorManager = ({
           generatedBarcode = `TEMP-${timestamp}-${random}`;
         }
       } else {
-        console.log('توليد باركود متغير محلياً في وضع عدم الاتصال');
+        
         
         // في وضع عدم الاتصال، استخدم الوظيفة المحلية لتوليد باركود للمتغير
         // قد نستخدم الباركود الحالي للمتغير الذي نقوم بتعديله كأساس
@@ -284,7 +284,7 @@ const ProductColorManager = ({
     if (productId && productId !== '') {
       // تحديث المقاسات للون المحدد في قاعدة البيانات
       // سيتم استدعاء هذا فقط عند تعديل منتج موجود بالفعل
-      console.log('محاولة تحديث المقاسات للمنتج المحفوظ:', productId);
+      
     }
 
     // تحديث المقاسات للون المحدد في الذاكرة فقط
@@ -321,12 +321,12 @@ const ProductColorManager = ({
       ) {
         // وضع علامة التحميل
         setLoadingSizes(prev => ({ ...prev, [selectedColorId]: true }));
-        console.log('محاولة تحميل المقاسات من الخادم للون:', selectedColorId);
+        
         
         // إجراء عملية التحميل
         getProductSizes(selectedColorId)
           .then(sizes => {
-            console.log('تم تحميل المقاسات من الخادم:', sizes);
+            
             
             // إضافة معرف اللون إلى قائمة الألوان التي تم تحميلها
             loadedColorIds.current.add(selectedColorId);
@@ -355,10 +355,10 @@ const ProductColorManager = ({
             loadedColorIds.current.add(selectedColorId);
           });
       } else if (selectedColor && selectedColor.id.startsWith('temp-')) {
-        console.log('تم تخطي تحميل المقاسات لأن معرّف اللون مؤقت:', selectedColor.id);
+        
         loadedColorIds.current.add(selectedColorId); // تجنب إعادة المحاولة
       } else if (selectedColor && selectedColor.sizes && selectedColor.sizes.length > 0) {
-        console.log('استخدام المقاسات المخزنة مسبقاً:', selectedColor.sizes.length);
+        
         loadedColorIds.current.add(selectedColorId); // تجنب إعادة المحاولة
       }
     }

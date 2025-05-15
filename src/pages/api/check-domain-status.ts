@@ -42,12 +42,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const VERCEL_TOKEN = process.env.VERCEL_TOKEN || process.env.VERCEL_API_TOKEN;
     const VERCEL_PROJECT_ID = process.env.VERCEL_PROJECT_ID;
 
-    console.log('Vercel Configuration:', { 
-      hasToken: !!VERCEL_TOKEN, 
-      hasProjectId: !!VERCEL_PROJECT_ID,
-      domain,
-      organizationId
-    });
+    
 
     if (!VERCEL_TOKEN || !VERCEL_PROJECT_ID) {
       return res.status(500).json({

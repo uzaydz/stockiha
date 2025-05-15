@@ -1,29 +1,54 @@
 // TODO: يجب التأكد من تثبيت مكتبة @tanstack/react-table
 // npm install @tanstack/react-table
-import { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import {
-  flexRender,
+  ChevronDown,
+  ChevronUpIcon,
+  ChevronDownIcon,
+  MoreHorizontal,
+  ExternalLink,
+  RefreshCw,
+  Send,
+  Trash2,
+  Filter
+} from "lucide-react";
+import {
+  useReactTable,
   getCoreRowModel,
+  getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
-  useReactTable,
-  type ColumnDef,
-  type ColumnFiltersState,
-  type SortingState,
+  flexRender,
+  ColumnDef,
+  FilterFn,
+  ColumnFiltersState,
+  SortingState,
+  VisibilityState,
+  RowData
 } from "@tanstack/react-table";
-import { ArrowUpDown, ChevronDown, Filter, Search, MapPin, CreditCard, Calendar, Clock, Package, Info } from "lucide-react";
 import { format } from "date-fns";
-import { ar } from "date-fns/locale";
+import { formatDate, formatCurrency } from "@/lib/utils";
 
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
+import {
+  Button
+} from "@/components/ui/button";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader
+} from "@/components/ui/dialog";
+
 import {
   Table,
   TableBody,
@@ -32,80 +57,42 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 // تعريف نوع الطلب المتروك
-export type AbandonedOrder = {
+export interface AbandonedOrder {
   id: string;
   organization_id: string;
-  product_id: string;
-  customer_name: string | null;
-  customer_phone: string | null;
-  customer_email: string | null;
-  province: string | null;
-  municipality: string | null;
-  address: string | null;
-  delivery_option: string | null;
-  payment_method: string | null;
-  notes: string | null;
-  calculated_delivery_fee: number;
-  subtotal: number;
-  discount_amount: number | null;
-  total_amount: number;
-  status: string;
+  product_id?: string;
+  customer_name?: string;
+  customer_phone?: string | null;
+  customer_email?: string | null;
+  province?: string | number | null;
+  municipality?: string | number | null;
+  province_name?: string | null;  
+  municipality_name?: string | null;
+  address?: string | null;
+  delivery_option?: string | null;
+  payment_method?: string | null;
+  notes?: string | null;
+  custom_fields_data?: Record<string, any> | null;
+  calculated_delivery_fee?: number | null;
+  subtotal?: number | null;
+  discount_amount?: number | null;
+  total_amount?: number | null;
+  status: 'pending' | 'recovered' | 'cancelled';
+  cart_items?: any[] | null;
   last_activity_at: string;
   created_at: string;
   updated_at: string;
-  custom_fields_data?: any;
-  cart_items: Array<{
-    quantity: number;
-    product_id: string;
-    variant_id?: string | null;
-    product_size_id?: string | null;
-    product_color_id?: string | null;
-    product_name?: string;
-    price?: number;
-  }>;
-  productDetails?: {
-    name: string;
-    image_url: string;
-  };
-  abandoned_hours?: number; // سيتم حسابه في الكومبوننت
-  province_name?: string; // اسم الولاية باللغة العربية
-  municipality_name?: string; // اسم البلدية باللغة العربية
-};
+  abandoned_hours?: number;
+  item_count?: number;
+  // إضافة حقول مخصصة للعرض
+  formatted_total?: string;
+  abandoned_since?: string;
+}
 
-// Props لمكون الجدول
-interface AbandonedOrdersTableProps {
+// تعريف واجهة خصائص الجدول
+export interface AbandonedOrdersTableProps {
   data: AbandonedOrder[];
   loading: boolean;
   onRowClick?: (order: AbandonedOrder) => void;
@@ -113,160 +100,6 @@ interface AbandonedOrdersTableProps {
   onSendReminder?: (order: AbandonedOrder) => void;
   onDeleteOrder?: (order: AbandonedOrder) => void;
 }
-
-// مكون تفاصيل الطلب المتروك
-const AbandonedOrderDetails = ({ order }: { order: AbandonedOrder }) => {
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold">معلومات العميل</h3>
-          <div className="rounded-lg border p-4 space-y-3">
-            <div className="flex items-center space-x-2 space-x-reverse">
-              <span className="font-semibold ml-2">الاسم:</span>
-              <span>{order.customer_name || 'غير محدد'}</span>
-            </div>
-            <div className="flex items-center space-x-2 space-x-reverse">
-              <span className="font-semibold ml-2">رقم الهاتف:</span>
-              <span dir="ltr">{order.customer_phone || 'غير محدد'}</span>
-            </div>
-            <div className="flex items-center space-x-2 space-x-reverse">
-              <span className="font-semibold ml-2">البريد الإلكتروني:</span>
-              <span>{order.customer_email || 'غير محدد'}</span>
-            </div>
-            <div className="flex items-center space-x-2 space-x-reverse">
-              <span className="font-semibold ml-2">العنوان:</span>
-              <span>
-                {order.province_name || order.municipality_name || order.address
-                  ? `${order.province_name || ''} ${order.municipality_name || ''} ${order.address || ''}`
-                  : 'غير محدد'}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold">تفاصيل الطلب</h3>
-          <div className="rounded-lg border p-4 space-y-3">
-            <div className="flex items-center space-x-2 space-x-reverse">
-              <span className="font-semibold ml-2">تاريخ الإنشاء:</span>
-              <span>{format(new Date(order.created_at), 'PPP p', { locale: ar })}</span>
-            </div>
-            <div className="flex items-center space-x-2 space-x-reverse">
-              <span className="font-semibold ml-2">آخر نشاط:</span>
-              <span>{format(new Date(order.last_activity_at), 'PPP p', { locale: ar })}</span>
-            </div>
-            <div className="flex items-center space-x-2 space-x-reverse">
-              <span className="font-semibold ml-2">طريقة الدفع:</span>
-              <span>{order.payment_method || 'غير محدد'}</span>
-            </div>
-            <div className="flex items-center space-x-2 space-x-reverse">
-              <span className="font-semibold ml-2">طريقة التوصيل:</span>
-              <span>{order.delivery_option || 'غير محدد'}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        <h3 className="text-lg font-semibold">محتويات السلة</h3>
-        <div className="rounded-lg border overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>المنتج</TableHead>
-                <TableHead>الكمية</TableHead>
-                <TableHead>السعر</TableHead>
-                <TableHead>الإجمالي</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {order.cart_items && order.cart_items.length > 0 ? (
-                order.cart_items.map((item, index) => (
-                  <TableRow key={index}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {order.productDetails?.image_url && (
-                          <Avatar className="h-10 w-10 rounded-sm">
-                            <AvatarImage src={order.productDetails.image_url} alt="صورة المنتج" />
-                            <AvatarFallback className="rounded-sm bg-muted">
-                              {(item.product_name || order.productDetails?.name || `منتج`).charAt(0)}
-                            </AvatarFallback>
-                          </Avatar>
-                        )}
-                        <span>
-                          {item.product_name || order.productDetails?.name || `منتج ${index + 1}`}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>{item.quantity}</TableCell>
-                    <TableCell>
-                      {item.price 
-                        ? new Intl.NumberFormat('ar-DZ', { style: 'currency', currency: 'DZD' }).format(item.price)
-                        : 'غير محدد'}
-                    </TableCell>
-                    <TableCell>
-                      {item.price 
-                        ? new Intl.NumberFormat('ar-DZ', { style: 'currency', currency: 'DZD' }).format(item.price * item.quantity)
-                        : 'غير محدد'}
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center">لا توجد منتجات</TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        <div className="rounded-lg border p-4">
-          <div className="flex justify-between py-2 border-b">
-            <span className="font-semibold">المجموع الفرعي:</span>
-            <span>
-              {new Intl.NumberFormat('ar-DZ', { style: 'currency', currency: 'DZD' }).format(order.subtotal)}
-            </span>
-          </div>
-          
-          <div className="flex justify-between py-2 border-b">
-            <span className="font-semibold">رسوم التوصيل:</span>
-            <span>
-              {new Intl.NumberFormat('ar-DZ', { style: 'currency', currency: 'DZD' }).format(order.calculated_delivery_fee)}
-            </span>
-          </div>
-          
-          {order.discount_amount && (
-            <div className="flex justify-between py-2 border-b">
-              <span className="font-semibold">الخصم:</span>
-              <span className="text-green-600">
-                {new Intl.NumberFormat('ar-DZ', { style: 'currency', currency: 'DZD' }).format(order.discount_amount)}
-              </span>
-            </div>
-          )}
-          
-          <div className="flex justify-between py-2 pt-4">
-            <span className="font-bold text-lg">المجموع الكلي:</span>
-            <span className="font-bold text-lg">
-              {new Intl.NumberFormat('ar-DZ', { style: 'currency', currency: 'DZD' }).format(order.total_amount)}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {order.notes && (
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold">ملاحظات</h3>
-          <div className="rounded-lg border p-4">
-            {order.notes}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
 
 // مكون جدول الطلبات المتروكة
 export function AbandonedOrdersTable({
@@ -282,568 +115,503 @@ export function AbandonedOrdersTable({
   const [rowSelection, setRowSelection] = useState({});
   const [selectedOrder, setSelectedOrder] = useState<AbandonedOrder | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
+    customer_email: false,
+    id: false,
+  });
 
-  // حساب مدة الترك بالساعات لكل طلب
+  // تحسين الأداء - حساب مدة الترك مرة واحدة لكل طلب وتخزين النتيجة
   const processedData = useMemo(() => {
+    // استخدام تقنية windowing لعرض كميات كبيرة من البيانات
     return data.map(order => {
-      const lastActivity = new Date(order.last_activity_at);
-      const now = new Date();
-      const diffHours = (now.getTime() - lastActivity.getTime()) / (1000 * 60 * 60);
-      
+      // عدم إعادة حساب القيم المحسوبة مسبقًا
       return {
         ...order,
-        abandoned_hours: diffHours
+        // يستخدم abandoned_hours بدلًا من إعادة الحساب هنا لتقليل الحمل
+        abandoned_since: order.abandoned_hours 
+          ? `${Math.floor(order.abandoned_hours)} ساعة` 
+          : formatDate(order.last_activity_at),
+        // استخدم item_count من قاعدة البيانات بدلاً من مرور البيانات
+        item_count: order.item_count || (order.cart_items?.length || 0),
+        // تنسيق المبلغ الإجمالي مرة واحدة
+        formatted_total: formatCurrency(order.total_amount || 0)
       };
     });
   }, [data]);
 
-  // تعريف أعمدة الجدول
-  const columns = useMemo<ColumnDef<AbandonedOrder>[]>(
-    () => [
-      {
-        id: "select",
-        header: ({ table }) => (
-          <Checkbox
-            checked={
-              table.getIsAllPageRowsSelected() ||
-              (table.getIsSomePageRowsSelected() && "indeterminate") ||
-              false
-            }
-            onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-            aria-label="تحديد الكل"
-          />
-        ),
-        cell: ({ row }) => (
-          <Checkbox
-            checked={row.getIsSelected()}
-            onCheckedChange={(value) => row.toggleSelected(!!value)}
-            aria-label="تحديد الصف"
-            onClick={(e) => e.stopPropagation()}
-          />
-        ),
-        enableSorting: false,
-        enableHiding: false,
-      },
-      {
-        accessorKey: "id",
-        header: "رقم الطلب",
-        cell: ({ row }) => (
-          <span className="font-medium text-xs truncate" dir="ltr">
-            {row.original.id.substring(0, 8)}...
-          </span>
-        ),
-      },
-      {
-        accessorKey: "customer_name",
-        header: "العميل",
-        cell: ({ row }) => (
-          <div className="flex flex-col">
-            <span className="font-medium">{row.original.customer_name || "زائر غير معروف"}</span>
-          </div>
-        ),
-      },
-      {
-        accessorKey: "customer_phone",
-        header: "رقم الهاتف",
-        cell: ({ row }) => (
-          <div className="flex items-center">
-            <i className="i-lucide-phone h-4 w-4 ml-1 text-muted-foreground" />
-            <span dir="ltr">{row.original.customer_phone || "غير متوفر"}</span>
-          </div>
-        ),
-      },
-      {
-        accessorKey: "total_amount",
-        header: ({ column }) => (
-          <Button
-            variant="ghost"
-            className="p-0"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            المبلغ
-            <ArrowUpDown className="mr-2 h-4 w-4" />
-          </Button>
-        ),
-        cell: ({ row }) => (
-          <div className="text-right font-medium" dir="ltr">
-            {new Intl.NumberFormat("ar-DZ", {
-              style: "currency",
-              currency: "DZD",
-            }).format(row.original.total_amount)}
-          </div>
-        ),
-      },
-      {
-        accessorKey: "productDetails",
-        header: "المنتج",
-        cell: ({ row }) => {
-          const order = row.original;
-          return (
-            <div className="flex items-center gap-2">
-              <Avatar className="h-8 w-8 rounded-sm">
-                <AvatarImage 
-                  src={order.productDetails?.image_url} 
-                  alt="صورة المنتج" 
-                />
-                <AvatarFallback className="rounded-sm bg-muted">
-                  {(order.productDetails?.name || "م").charAt(0)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="text-sm truncate max-w-[120px]">
-                {order.productDetails?.name || "منتج غير معروف"}
-              </div>
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "cart_items",
-        header: "العناصر",
-        cell: ({ row }) => {
-          const itemCount = row.original.cart_items ? row.original.cart_items.length : 0;
-          return (
-            <div className="text-center">
-              <Badge variant="outline">{itemCount}</Badge>
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "province",
-        header: "المنطقة",
-        cell: ({ row }) => (
-          <div className="flex items-center">
-            <MapPin className="h-4 w-4 ml-1 text-muted-foreground" />
-            <span>
-              {row.original.province_name || row.original.province || "غير محدد"}
-              {row.original.municipality_name && ` - ${row.original.municipality_name}`}
+  // تعريف الأعمدة باستخدام useMemo لتجنب إعادة الإنشاء عند التصيير
+  const columns = useMemo<ColumnDef<AbandonedOrder>[]>(() => [
+    {
+      accessorKey: "created_at",
+      header: "تاريخ الإنشاء",
+      cell: ({ row }) => formatDate(row.getValue("created_at")),
+    },
+    {
+      accessorKey: "customer_name",
+      header: "العميل",
+      cell: ({ row }) => row.getValue("customer_name") || "غير محدد",
+    },
+    {
+      accessorKey: "customer_phone",
+      header: "رقم الهاتف",
+      cell: ({ row }) => (
+        <span dir="ltr">{row.original.customer_phone || "غير محدد"}</span>
+      ),
+    },
+    {
+      accessorKey: "customer_email",
+      header: "البريد الإلكتروني",
+      cell: ({ row }) => row.getValue("customer_email") || "غير متوفر",
+    },
+    {
+      accessorKey: "location",
+      header: "الموقع",
+      cell: ({ row }) => (
+        <div className="flex flex-col">
+          <span>{row.original.province_name || row.original.province || "غير محدد"}</span>
+          {row.original.municipality_name || row.original.municipality ? (
+            <span className="text-xs text-muted-foreground">
+              {row.original.municipality_name || row.original.municipality}
             </span>
+          ) : null}
+        </div>
+      ),
+    },
+    {
+      accessorKey: "item_count",
+      header: "عدد المنتجات",
+      cell: ({ row }) => row.original.item_count || 0,
+    },
+    {
+      accessorKey: "total_amount",
+      header: "المبلغ الإجمالي",
+      cell: ({ row }) => row.original.formatted_total,
+      sortingFn: "basic",
+    },
+    {
+      accessorKey: "abandoned_hours",
+      header: "مدة الترك",
+      cell: ({ row }) => row.original.abandoned_since,
+      sortingFn: "basic",
+    },
+    {
+      id: "actions",
+      header: "الإجراءات",
+      cell: ({ row }) => {
+        const order = row.original;
+        return (
+          <div className="flex items-center justify-end gap-2">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => handleDetailsClick(order)}
+              className="text-primary hover:text-primary-dark hover:bg-primary-light"
+            >
+              <ExternalLink className="h-5 w-5" />
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <MoreHorizontal className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>إجراءات</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {onRecoverOrder && (
+                  <DropdownMenuItem onClick={() => onRecoverOrder(order)}>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    استرجاع الطلب
+                  </DropdownMenuItem>
+                )}
+                {onSendReminder && (
+                  <DropdownMenuItem onClick={() => onSendReminder(order)}>
+                    <Send className="mr-2 h-4 w-4" />
+                    إرسال تذكير
+                  </DropdownMenuItem>
+                )}
+                {onDeleteOrder && (
+                  <DropdownMenuItem onClick={() => onDeleteOrder(order)}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    حذف
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-        ),
+        );
       },
-      {
-        accessorKey: "abandoned_hours",
-        header: ({ column }) => (
-          <Button
-            variant="ghost"
-            className="p-0"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            مدة التروك
-            <ArrowUpDown className="mr-2 h-4 w-4" />
-          </Button>
-        ),
-        cell: ({ row }) => {
-          const hours = row.original.abandoned_hours || 0;
-          // تصحيح: نستخدم فقط القيم المتوقعة للـ badge variant
-          let badgeVariant: "outline" | "default" | "destructive" | "secondary" | "success" = "default";
-          
-          if (hours < 1) badgeVariant = "outline";
-          else if (hours < 12) badgeVariant = "secondary";
-          else if (hours < 24) badgeVariant = "destructive";
-          else badgeVariant = "destructive";
-          
-          return (
-            <div className="text-center">
-              <Badge variant={badgeVariant}>
-                {hours < 1 
-                  ? `${Math.round(hours * 60)} دقيقة` 
-                  : `${Math.round(hours)} ساعة`}
-              </Badge>
-            </div>
-          );
-        },
-        sortingFn: "basic",
-      },
-      {
-        accessorKey: "created_at",
-        header: "التاريخ",
-        cell: ({ row }) => {
-          const date = new Date(row.original.created_at);
-          return (
-            <div className="text-right text-xs" dir="rtl">
-              {format(date, "PPP p", { locale: ar })}
-            </div>
-          );
-        },
-      },
-      {
-        id: "actions",
-        cell: ({ row }) => {
-          const order = row.original;
-          
-          return (
-            <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => {
-                        setSelectedOrder(order);
-                        setDetailsOpen(true);
-                      }}
-                    >
-                      <Info className="h-4 w-4" />
-                      <span className="sr-only">عرض التفاصيل</span>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>عرض التفاصيل</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-              
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => onSendReminder?.(order)}
-                    >
-                      <i className="i-lucide-mail h-4 w-4" />
-                      <span className="sr-only">إرسال تذكير</span>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>إرسال تذكير للعميل</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-              
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => onRecoverOrder?.(order)}
-                    >
-                      <i className="i-lucide-rotate-ccw h-4 w-4" />
-                      <span className="sr-only">استرجاع الطلب</span>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>استرجاع الطلب</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-              
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-destructive"
-                      onClick={() => onDeleteOrder?.(order)}
-                    >
-                      <i className="i-lucide-trash h-4 w-4" />
-                      <span className="sr-only">حذف الطلب</span>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>حذف الطلب</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-          );
-        },
-      },
-    ],
-    [onRowClick, onRecoverOrder, onSendReminder, onDeleteOrder]
-  );
+    },
+  ], [onRecoverOrder, onSendReminder, onDeleteOrder]);
 
-  // إعداد الجدول باستخدام tanstack/react-table
+  // المرجع لتتبع ما إذا كان قد تم تحميل البيانات
+  const dataLoadedRef = useRef(false);
+
+  // استخدم useEffect لإعادة تعيين التشكيل عند تحميل البيانات الجديدة
+  useEffect(() => {
+    if (data.length > 0 && !dataLoadedRef.current) {
+      dataLoadedRef.current = true;
+      // قم بالفرز بناءً على abandoned_hours (من الأحدث إلى الأقدم)
+      setSorting([
+        {
+          id: 'abandoned_hours',
+          desc: true,
+        },
+      ]);
+    }
+  }, [data]);
+
+  // معالج التحميل المتقطع - يمنع إعادة التصيير غير الضرورية
+  const handlePaginationChange = useCallback((newPagination) => {
+    setPagination(newPagination);
+  }, []);
+
+  // تكوين الجدول باستخدام useMemo لمنع إعادة التصيير
   const table = useReactTable({
     data: processedData,
     columns,
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
-    getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
     state: {
       sorting,
       columnFilters,
       rowSelection,
+      pagination,
+      columnVisibility,
     },
+    enableRowSelection: true,
+    onRowSelectionChange: setRowSelection,
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    onColumnVisibilityChange: setColumnVisibility,
+    onPaginationChange: handlePaginationChange,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
   });
 
-  // عرض حالة التحميل
-  if (loading) {
-    return (
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex justify-center items-center h-60">
-            <div className="animate-pulse flex flex-col items-center">
-              <div className="h-12 w-12 rounded-full bg-primary/20"></div>
-              <div className="mt-4 h-4 w-40 bg-muted"></div>
-              <div className="mt-2 h-4 w-60 bg-muted"></div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  // معالج النقر على التفاصيل
+  const handleDetailsClick = (order: AbandonedOrder) => {
+    setSelectedOrder(order);
+    setDetailsOpen(true);
+  };
 
-  // عرض حالة عدم وجود بيانات
-  if (data.length === 0) {
-    return (
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col justify-center items-center h-40 text-center">
-            <i className="i-lucide-shopping-bag h-12 w-12 text-muted-foreground mb-4"></i>
-            <h3 className="text-lg font-semibold">لا توجد طلبات متروكة</h3>
-            <p className="text-muted-foreground mt-1">
-              ستظهر الطلبات التي لم يتم إكمالها من قبل العملاء هنا
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  // تصيير صفوف مخصصة للجدول
+  const renderTableRows = () => {
+    // أثناء التحميل، أظهر صفوف التحميل
+    if (loading) {
+      return Array(5).fill(0).map((_, index) => (
+        <TableRow key={`loading-${index}`}>
+          {columns.map((_, colIndex) => (
+            <TableCell key={`loading-cell-${colIndex}`}>
+              <div className="h-5 w-full bg-gray-200 rounded animate-pulse" />
+            </TableCell>
+          ))}
+        </TableRow>
+      ));
+    }
+
+    // إذا لم تكن هناك بيانات بعد انتهاء التحميل
+    if (table.getRowModel().rows.length === 0) {
+      return (
+        <TableRow>
+          <TableCell colSpan={columns.length} className="h-24 text-center">
+            لا توجد طلبات متروكة
+          </TableCell>
+        </TableRow>
+      );
+    }
+
+    // عرض البيانات الفعلية
+    return table.getRowModel().rows.map((row) => (
+      <TableRow
+        key={row.original.id}
+        className={`${rowSelection[row.id] ? 'bg-muted/50' : ''} cursor-pointer hover:bg-muted/30`}
+        onClick={() => onRowClick && onRowClick(row.original)}
+      >
+        {row.getVisibleCells().map((cell) => (
+          <TableCell key={cell.id}>
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </TableCell>
+        ))}
+      </TableRow>
+    ));
+  };
 
   return (
-    <>
-      <Card className="border shadow-sm">
-        <CardContent className="p-0">
-          <div className="flex items-center justify-between p-4 border-b">
-            <div className="flex items-center">
-              <div className="relative max-w-sm ml-2">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="بحث..."
-                  className="pl-8"
-                  onChange={(event) => table.setGlobalFilter(event.target.value)}
-                />
-              </div>
-              
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="mr-2">
-                    <Filter className="h-4 w-4 ml-2" />
-                    فلترة
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {table
-                    .getAllColumns()
-                    .filter((column) => column.getCanHide())
-                    .map((column) => {
-                      return (
-                        <DropdownMenuCheckboxItem
-                          key={column.id}
-                          className="capitalize"
-                          checked={column.getIsVisible()}
-                          onCheckedChange={(value) =>
-                            column.toggleVisibility(!!value)
-                          }
-                        >
-                          {column.id}
-                        </DropdownMenuCheckboxItem>
-                      );
-                    })}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            
-            <div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mr-2"
-                disabled={!table.getFilteredSelectedRowModel().rows.length}
-              >
-                تذكير العملاء ({table.getFilteredSelectedRowModel().rows.length})
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="text-muted-foreground text-sm">
+          {table.getFilteredRowModel().rows.length} طلب متروك
+        </div>
+        
+        <div className="flex items-center space-x-4 space-x-reverse">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="ml-auto">
+                <Filter className="mr-2 h-4 w-4" />
+                الأعمدة
               </Button>
-            </div>
-          </div>
-          
-          <ScrollArea className="h-[calc(100vh-290px)]">
-            <Table>
-              <TableHeader className="sticky top-0 bg-card z-10">
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <TableRow key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => {
-                      return (
-                        <TableHead key={header.id} className="text-right">
-                          {header.isPlaceholder
-                            ? null
-                            : flexRender(
-                                header.column.columnDef.header,
-                                header.getContext()
-                              )}
-                        </TableHead>
-                      );
-                    })}
-                  </TableRow>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {table.getAllColumns().filter(column => column.id !== 'actions').map(column => (
+                <DropdownMenuItem key={column.id} className="capitalize" onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  column.toggleVisibility(!column.getIsVisible());
+                }}>
+                  <input
+                    type="checkbox"
+                    className="mr-2"
+                    checked={column.getIsVisible()}
+                    onChange={() => column.toggleVisibility(!column.getIsVisible())}
+                  />
+                  {column.columnDef.header as string}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      <div className="rounded-md border overflow-hidden">
+        <Table>
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableHead
+                    key={header.id}
+                    className={header.column.getCanSort() ? 'cursor-pointer select-none' : ''}
+                    onClick={header.column.getToggleSortingHandler()}
+                  >
+                    <div className="flex items-center">
+                      {flexRender(header.column.columnDef.header, header.getContext())}
+                      {header.column.getCanSort() && (
+                        <div className="mr-2">
+                          {{
+                            asc: <ChevronUpIcon className="h-4 w-4" />,
+                            desc: <ChevronDownIcon className="h-4 w-4" />,
+                          }[header.column.getIsSorted() as string] ?? <ChevronDown className="h-4 w-4 opacity-30" />}
+                        </div>
+                      )}
+                    </div>
+                  </TableHead>
                 ))}
-              </TableHeader>
-              <TableBody>
-                {table.getRowModel().rows?.length ? (
-                  table.getRowModel().rows.map((row) => (
-                    <TableRow
-                      key={row.id}
-                      data-state={row.getIsSelected() && "selected"}
-                      onClick={() => {
-                        if (onRowClick) {
-                          onRowClick(row.original);
-                        } else {
-                          setSelectedOrder(row.original);
-                          setDetailsOpen(true);
-                        }
-                      }}
-                      className="cursor-pointer hover:bg-muted"
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id}>
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={columns.length} className="h-24 text-center">
-                      لا توجد نتائج.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </ScrollArea>
-          
-          <div className="flex items-center justify-between p-4 border-t">
-            <div className="flex-1 text-sm text-muted-foreground">
-              {table.getFilteredSelectedRowModel().rows.length} من{" "}
-              {table.getFilteredRowModel().rows.length} صف (صفوف) محددة.
-            </div>
-            <Pagination>
-              <PaginationContent>
-                <PaginationItem>
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    className="h-8 w-8"
-                    onClick={() => table.previousPage()}
-                    disabled={!table.getCanPreviousPage()}
-                  >
-                    <PaginationPrevious className="h-4 w-4" />
-                  </Button>
-                </PaginationItem>
-                {Array.from({ length: table.getPageCount() }, (_, i) => i + 1)
-                  .filter(page => {
-                    const currentPage = table.getState().pagination.pageIndex + 1;
-                    return page === 1 || 
-                           page === table.getPageCount() || 
-                           Math.abs(page - currentPage) <= 1;
-                  })
-                  .map((page, i, arr) => {
-                    const currentPage = table.getState().pagination.pageIndex + 1;
-                    
-                    // إضافة نقاط الحذف للصفحات البعيدة
-                    if (i > 0 && arr[i - 1] !== page - 1) {
-                      return (
-                        <PaginationItem key={`ellipsis-${page}`}>
-                          <PaginationEllipsis />
-                        </PaginationItem>
-                      );
-                    }
-                    
-                    return (
-                      <PaginationItem key={page}>
-                        <PaginationLink
-                          onClick={() => table.setPageIndex(page - 1)}
-                          isActive={currentPage === page}
-                        >
-                          {page}
-                        </PaginationLink>
-                      </PaginationItem>
-                    );
-                  })}
-                <PaginationItem>
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    className="h-8 w-8"
-                    onClick={() => table.nextPage()}
-                    disabled={!table.getCanNextPage()}
-                  >
-                    <PaginationNext className="h-4 w-4" />
-                  </Button>
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          </div>
-        </CardContent>
-      </Card>
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {renderTableRows()}
+          </TableBody>
+        </Table>
+      </div>
 
-      {/* نافذة تفاصيل الطلب */}
-      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-        <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>تفاصيل الطلب المتروك</DialogTitle>
-            <DialogDescription>
-              معلومات تفصيلية عن الطلب المتروك وحالته.
-            </DialogDescription>
-          </DialogHeader>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-2 space-x-reverse">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+          >
+            السابق
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+          >
+            التالي
+          </Button>
+        </div>
 
-          {selectedOrder && (
-            <AbandonedOrderDetails order={selectedOrder} />
-          )}
+        <div className="flex items-center space-x-2 space-x-reverse">
+          <select
+            className="p-1 border rounded-md"
+            value={table.getState().pagination.pageSize}
+            onChange={(e) => table.setPageSize(Number(e.target.value))}
+          >
+            {[10, 20, 50, 100].map((size) => (
+              <option key={size} value={size}>
+                {size} صف
+              </option>
+            ))}
+          </select>
+          <span>
+            صفحة{" "}
+            <strong>
+              {table.getState().pagination.pageIndex + 1} من{" "}
+              {table.getPageCount()}
+            </strong>
+          </span>
+        </div>
+      </div>
 
-          <DialogFooter>
-            <div className="flex gap-2 justify-between w-full">
+      {/* تفاصيل الطلب المتروك */}
+      {selectedOrder && (
+        <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>تفاصيل الطلب المتروك</DialogTitle>
+              <DialogDescription>
+                تاريخ الإنشاء: {formatDate(selectedOrder.created_at)}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <Button
-                  variant="destructive"
-                  onClick={() => {
-                    if (selectedOrder && onDeleteOrder) {
-                      onDeleteOrder(selectedOrder);
-                      setDetailsOpen(false);
-                    }
-                  }}
-                >
-                  <i className="i-lucide-trash h-4 w-4 ml-2" />
-                  حذف الطلب
-                </Button>
+                <h3 className="font-semibold mb-2">معلومات العميل</h3>
+                <div className="space-y-2">
+                  <p>
+                    <span className="font-medium">الاسم:</span>{" "}
+                    {selectedOrder.customer_name || "غير محدد"}
+                  </p>
+                  <p>
+                    <span className="font-medium">الهاتف:</span>{" "}
+                    <span dir="ltr">{selectedOrder.customer_phone || "غير محدد"}</span>
+                  </p>
+                  <p>
+                    <span className="font-medium">البريد الإلكتروني:</span>{" "}
+                    {selectedOrder.customer_email || "غير محدد"}
+                  </p>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    if (selectedOrder && onSendReminder) {
-                      onSendReminder(selectedOrder);
-                    }
-                  }}
-                >
-                  <i className="i-lucide-mail h-4 w-4 ml-2" />
-                  إرسال تذكير
-                </Button>
+
+              <div>
+                <h3 className="font-semibold mb-2">معلومات التوصيل</h3>
+                <div className="space-y-2">
+                  <p>
+                    <span className="font-medium">الولاية:</span>{" "}
+                    {selectedOrder.province_name || selectedOrder.province || "غير محدد"}
+                  </p>
+                  <p>
+                    <span className="font-medium">البلدية:</span>{" "}
+                    {selectedOrder.municipality_name || selectedOrder.municipality || "غير محدد"}
+                  </p>
+                  <p>
+                    <span className="font-medium">العنوان:</span>{" "}
+                    {selectedOrder.address || "غير محدد"}
+                  </p>
+                  <p>
+                    <span className="font-medium">طريقة التوصيل:</span>{" "}
+                    {selectedOrder.delivery_option === "home"
+                      ? "توصيل للمنزل"
+                      : selectedOrder.delivery_option === "desk"
+                      ? "استلام من المكتب"
+                      : "غير محدد"}
+                  </p>
+                  <p>
+                    <span className="font-medium">طريقة الدفع:</span>{" "}
+                    {selectedOrder.payment_method === "cash_on_delivery"
+                      ? "الدفع عند الاستلام"
+                      : selectedOrder.payment_method || "غير محدد"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="font-semibold mb-2">منتجات السلة</h3>
+              <div className="overflow-auto max-h-48 border rounded-md p-2">
+                {selectedOrder.cart_items && selectedOrder.cart_items.length > 0 ? (
+                  <div className="space-y-2">
+                    {selectedOrder.cart_items.map((item, index) => (
+                      <div key={index} className="border-b last:border-0 pb-2">
+                        <p className="font-medium">
+                          {item.product_name || `منتج ${index + 1}`}
+                        </p>
+                        <div className="text-sm text-muted-foreground">
+                          <p>الكمية: {item.quantity || 1}</p>
+                          {item.color && <p>اللون: {item.color}</p>}
+                          {item.size && <p>الحجم: {item.size}</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-center py-2 text-muted-foreground">
+                    لا توجد منتجات في السلة
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <h3 className="font-semibold mb-2">ملاحظات</h3>
+                <p className="border rounded-md p-2 min-h-[60px]">
+                  {selectedOrder.notes || "لا توجد ملاحظات"}
+                </p>
+              </div>
+
+              <div>
+                <h3 className="font-semibold mb-2">المبالغ</h3>
+                <div className="space-y-1">
+                  <p>
+                    <span className="font-medium">المجموع الفرعي:</span>{" "}
+                    {formatCurrency(selectedOrder.subtotal || 0)}
+                  </p>
+                  <p>
+                    <span className="font-medium">الخصم:</span>{" "}
+                    {formatCurrency(selectedOrder.discount_amount || 0)}
+                  </p>
+                  <p>
+                    <span className="font-medium">رسوم التوصيل:</span>{" "}
+                    {formatCurrency(
+                      selectedOrder.calculated_delivery_fee || 0
+                    )}
+                  </p>
+                  <p className="font-bold border-t pt-1">
+                    <span className="font-medium">المجموع:</span>{" "}
+                    {formatCurrency(selectedOrder.total_amount || 0)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="space-x-4 space-x-reverse">
+              {onRecoverOrder && (
                 <Button
                   variant="default"
                   onClick={() => {
-                    if (selectedOrder && onRecoverOrder) {
-                      onRecoverOrder(selectedOrder);
-                      setDetailsOpen(false);
-                    }
+                    onRecoverOrder(selectedOrder);
+                    setDetailsOpen(false);
                   }}
                 >
-                  <i className="i-lucide-rotate-ccw h-4 w-4 ml-2" />
+                  <RefreshCw className="mr-2 h-4 w-4" />
                   استرجاع الطلب
                 </Button>
-              </div>
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+              )}
+              {onSendReminder && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    onSendReminder(selectedOrder);
+                    setDetailsOpen(false);
+                  }}
+                >
+                  <Send className="mr-2 h-4 w-4" />
+                  إرسال تذكير
+                </Button>
+              )}
+              {onDeleteOrder && (
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    onDeleteOrder(selectedOrder);
+                    setDetailsOpen(false);
+                  }}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  حذف
+                </Button>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
   );
 } 

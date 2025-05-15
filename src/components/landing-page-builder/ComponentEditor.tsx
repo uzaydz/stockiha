@@ -184,7 +184,7 @@ const ComponentEditor: React.FC<ComponentEditorProps> = ({
   // Function to update component settings
   const handleUpdateSettings = (settings: Record<string, any>) => {
     // ضمان أن التحديث ينتشر بشكل صحيح
-    console.log('Updating settings:', settings);
+    
     onUpdateSettings(settings);
   };
   
@@ -254,7 +254,7 @@ const ComponentEditor: React.FC<ComponentEditorProps> = ({
           component={component} 
           onSave={(updatedComponent) => {
             // استخراج الإعدادات من المكون المحدث وتمريرها
-            console.log('CtaButton settings updated:', updatedComponent.settings);
+            
             handleUpdateSettings(updatedComponent.settings);
           }} 
         />;

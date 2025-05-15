@@ -60,11 +60,11 @@ export default function ThankYouPage() {
       setIsLoadingOrder(true);
       setErrorLoadingOrder(null);
       try {
-        console.log(`Fetching order data for order number: ${orderNumberParam}`);
+        
         const fetchedOrder = await getOrderByOrderNumber(orderNumberParam);
 
         if (fetchedOrder) {
-          console.log("Order data fetched successfully:", fetchedOrder);
+          
           // حساب تاريخ التسليم المقدر
           const deliveryDate = new Date();
           deliveryDate.setDate(deliveryDate.getDate() + 3);
@@ -106,7 +106,7 @@ export default function ThankYouPage() {
     if (templateLoadedRef.current) return;
     templateLoadedRef.current = true;
     
-    console.log("تم تحميل القالب:", loadedTemplate?.name || "القالب الافتراضي");
+    
     setTemplate(loadedTemplate);
     setIsTemplateLoading(false);
   };
@@ -115,7 +115,7 @@ export default function ThankYouPage() {
   useEffect(() => {
     // *** تعديل الشرط ليعتمد على orderInfo بدلاً من orderInfo.orderNumber ***
     if (orderInfo && !templateLoadedRef.current) {
-      console.log("طلب تحميل القالب بعد تحميل بيانات الطلب");
+      
       setIsTemplateLoading(true);
     }
   }, [orderInfo]); // الاعتماد على كائن orderInfo بأكمله

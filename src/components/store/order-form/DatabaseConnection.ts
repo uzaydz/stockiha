@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
  */
 export const checkDatabaseConnection = async (): Promise<boolean> => {
   try {
-    console.log("التحقق من الاتصال بـ Supabase...");
+    
     // محاولة تنفيذ استعلام بسيط للتأكد من وجود اتصال
     const { data, error } = await supabase.from('inventory_log')
       .select('id')
@@ -16,7 +16,7 @@ export const checkDatabaseConnection = async (): Promise<boolean> => {
       return false;
     }
     
-    console.log("تم التحقق من الاتصال بـ Supabase بنجاح");
+    
     return true;
   } catch (error) {
     console.error("استثناء أثناء التحقق من الاتصال:", error);

@@ -9,7 +9,10 @@ const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 // const ENCRYPTION_KEY = Deno.env.get("YOUR_ENCRYPTION_KEY")!;
 
 serve(async (req: Request) => {
+   // DEBUG LOG
+
   if (req.method === "OPTIONS") {
+     // DEBUG LOG
     return new Response("ok", {
       headers: {
         "Access-Control-Allow-Origin": "*",
@@ -19,16 +22,19 @@ serve(async (req: Request) => {
   }
 
   if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method Not Allowed" }), {
+    console.warn(`[save-global-yalidine-config] Method Not Allowed: ${req.method}`); // DEBUG LOG
+    return new Response(JSON.stringify({ error: "Method Not Allowed", received_method: req.method }), {
       status: 405,
       headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
     });
   }
 
+   // DEBUG LOG
   try {
     const { apiKey, apiToken } = await req.json();
 
     if (!apiKey || !apiToken) {
+       // DEBUG LOG
       return new Response(JSON.stringify({ error: "API Key and API Token are required." }), {
         status: 400,
         headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
@@ -59,7 +65,7 @@ serve(async (req: Request) => {
       .single();
 
     if (error) {
-      console.error("Error updating Yalidine config:", error);
+      console.error("[save-global-yalidine-config] Error updating Yalidine config in DB:", error); // DEBUG LOG
       return new Response(JSON.stringify({ error: error.message }), {
         status: 500,
         headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
@@ -67,21 +73,23 @@ serve(async (req: Request) => {
     }
 
     if (!data) {
+        console.warn("[save-global-yalidine-config] Failed to update configuration or configuration not found (id=1)."); // DEBUG LOG
         return new Response(JSON.stringify({ error: "Failed to update configuration or configuration not found." }), {
             status: 404, 
             headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
         });
     }
-
+     // DEBUG LOG
     return new Response(JSON.stringify({ message: "Configuration saved successfully.", data }), {
       headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
       status: 200,
     });
 
   } catch (e) {
-    console.error("Unhandled error in save-global-yalidine-config:", e);
+    console.error("[save-global-yalidine-config] Unhandled error in POST handler:", e); // DEBUG LOG
     // Check if the error is from req.json() failing (e.g. invalid JSON)
     if (e instanceof SyntaxError && e.message.includes("JSON")) {
+        console.warn("[save-global-yalidine-config] Invalid JSON payload received."); // DEBUG LOG
         return new Response(JSON.stringify({ error: "Invalid JSON payload." }), {
             status: 400, 
             headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
@@ -99,5 +107,5 @@ serve(async (req: Request) => {
 //   // Implement actual encryption logic here (e.g., using AES)
 //   // This is just a placeholder
 //   console.warn("Data is NOT being encrypted in this example!");
-//   return `encrypted(${text})_with_key(${key.substring(0,4)}...`;
+//   return \`encrypted(\${text})_with_key(\${key.substring(0,4)}...\`;
 // }

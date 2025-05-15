@@ -37,13 +37,13 @@ export function useShippingProviders() {
         if (providerError) throw providerError;
         
         if (!allProviders || allProviders.length === 0) {
-          console.log('لم يتم العثور على مزودي خدمات شحن');
+          
           setProviders([]);
           setIsLoading(false);
           return;
         }
 
-        console.log('تم العثور على مزودي خدمات الشحن:', allProviders);
+        
         
         // Then get the organization's shipping provider settings
         const { data: orgSettings, error: settingsError } = await supabase
@@ -69,7 +69,7 @@ export function useShippingProviders() {
           };
         });
         
-        console.log('مزودي خدمات الشحن مع الإعدادات:', mergedProviders);
+        
         setProviders(mergedProviders);
       } catch (err) {
         console.error('Error fetching shipping providers:', err);

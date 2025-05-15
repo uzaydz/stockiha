@@ -45,16 +45,16 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
       // أولاً، تحقق من التخزين المؤقت
       const cachedSubscription = getCachedSubscriptionStatus();
       if (cachedSubscription) {
-        console.log('[SubscriptionCheck] استخدام معلومات الاشتراك من التخزين المؤقت');
+        
         
         // إذا كان الاشتراك نشطًا أو الفترة التجريبية سارية
         if (cachedSubscription.isActive) {
-          console.log('[SubscriptionCheck] اشتراك نشط موجود (من التخزين المؤقت)');
+          
           // تحديث وقت انتهاء الصلاحية
           refreshCache();
           return;
         } else {
-          console.log('[SubscriptionCheck] الاشتراك غير نشط أو منتهي (من التخزين المؤقت)');
+          
           navigate('/dashboard/subscription');
           return;
         }
@@ -67,7 +67,7 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
 
       // التحقق من وجود اشتراك نشط
       if (org.subscription_status === 'active' && org.subscription_id) {
-        console.log('[SubscriptionCheck] اشتراك نشط موجود');
+        
         isSubscriptionActive = true;
         subscriptionInfo = {
           isActive: true,
@@ -91,7 +91,7 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
           
           isTrialActive = trialEndDateOnly >= nowDateOnly;
           logMessage = `[SubscriptionCheck] الفترة التجريبية ${isTrialActive ? 'نشطة' : 'منتهية'} حسب trial_end_date: ${org.settings.trial_end_date}`;
-          console.log(logMessage);
+          
           
           if (isTrialActive) {
             isSubscriptionActive = true;
@@ -107,7 +107,7 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
           isTrialActive = trialActive;
           
           logMessage = `[SubscriptionCheck] الفترة التجريبية ${isTrialActive ? 'نشطة' : 'منتهية'} حسب تاريخ الإنشاء. الأيام المتبقية: ${daysLeft}`;
-          console.log(logMessage);
+          
           
           if (isTrialActive) {
             isSubscriptionActive = true;
@@ -121,12 +121,12 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
       }
 
       // تخزين نتيجة التحقق في التخزين المؤقت
-      console.log('[SubscriptionCheck] تخزين معلومات الاشتراك في التخزين المؤقت:', subscriptionInfo);
+      
       cacheSubscriptionStatus(subscriptionInfo);
 
       // إذا كان الاشتراك غير نشط، إعادة التوجيه إلى صفحة الاشتراك
       if (!isSubscriptionActive) {
-        console.log('[SubscriptionCheck] إعادة التوجيه إلى صفحة الاشتراك');
+        
         navigate('/dashboard/subscription');
       }
     };

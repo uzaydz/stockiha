@@ -379,7 +379,7 @@ export function setupCacheCleanup(): void {
     }
     
     if (cleanupCount > 0) {
-      console.log(`[Cache] تم تنظيف ${cleanupCount} عنصر من التخزين المؤقت`);
+      
       cacheStats.deleted += cleanupCount;
     }
   }, 30 * 60 * 1000);

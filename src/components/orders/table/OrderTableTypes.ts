@@ -44,6 +44,7 @@ export type Order = {
   slug: string | null;
   customer_order_number: number | null;
   created_from?: string;
+  stop_desk_id?: string | null;
   // حقول تأكيد الإتصال الجديدة
   call_confirmation_status_id?: number | null;
   call_confirmation_notes?: string | null;

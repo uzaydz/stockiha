@@ -61,10 +61,7 @@ const SalesSummary: React.FC<SalesSummaryProps> = ({ data, period }) => {
   const { theme } = useTheme();
   
   useEffect(() => {
-    console.log('SalesSummary - البيانات المستلمة:', {
-      data,
-      period
-    });
+    
   }, [data, period]);
 
   // تحويل فترة التحليل إلى نص عربي

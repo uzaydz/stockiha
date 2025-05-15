@@ -19,43 +19,118 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  AlertCircle,
-  CheckCircle2,
-  Download,
-  Eye,
   Loader2,
   MoreHorizontal,
-  Package,
-  PackageCheck,
-  Printer,
-  Truck,
   X,
-  ClipboardList,
-  XCircle
+  XCircle,
+  Package as PackageIcon,
+  Truck as TruckIcon,
+  CheckCircle2 as CheckCircle2Icon,
+  Eye as EyeIcon,
+  Printer as PrinterIcon,
+  Download as DownloadIcon,
+  ClipboardList as ClipboardListIcon,
+  Send as SendIcon,
 } from "lucide-react";
-import { OrderActionsDropdownProps } from "./OrderTableTypes";
+import { OrderActionsDropdownProps, Order } from "./OrderTableTypes";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useTenant } from "@/context/TenantContext";
+import { useToast } from "@/hooks/use-toast";
 
 const OrderActionsDropdown = ({
   order,
   onUpdateStatus,
-  hasUpdatePermission,
-  hasCancelPermission,
+  hasUpdatePermission = true,
+  hasCancelPermission = true,
 }: OrderActionsDropdownProps) => {
+  const { currentOrganization } = useTenant();
+  const { toast } = useToast();
   const [isUpdating, setIsUpdating] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [isSendingToYalidine, setIsSendingToYalidine] = useState(false);
+
+  const handleSendToYalidine = async () => {
+    if (!currentOrganization || !order.id) {
+      toast({
+        title: "خطأ",
+        description: "لم يتم العثور على معلومات المؤسسة أو معرّف الطلب.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      toast({
+        title: "خطأ في الإعداد",
+        description: "بيانات Supabase (URL أو Anon Key) غير مهيأة في متغيرات البيئة.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const functionUrl = `${supabaseUrl}/functions/v1/send-order-to-yalidine`;
+
+    setIsSendingToYalidine(true);
+    toast({ title: "جاري إرسال الطلب إلى Yalidine...", description: `الطلب رقم ${order.id}` });
+
+    try {
+      const response = await fetch(functionUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": supabaseAnonKey,
+          "Authorization": `Bearer ${supabaseAnonKey}`
+        },
+        body: JSON.stringify({ orderId: order.id }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        const errorData = result;
+        const errorMessage = errorData?.message || errorData?.error?.message || "فشل إرسال الطلب إلى Yalidine.";
+        throw new Error(errorMessage);
+      }
+      
+      if(!result.success) {
+         throw new Error(result.message || "فشل إرسال الطلب إلى Yalidine (حسب استجابة الدالة).");
+      }
+
+      toast({
+        title: "تم الإرسال بنجاح!",
+        description: `تم إرسال الطلب ${order.id} إلى Yalidine. رقم التتبع: ${result.tracking_id}`,
+        variant: "default",
+        className: "bg-green-100 border-green-400 text-green-700",
+      });
+      if (onUpdateStatus) {
+        onUpdateStatus(order.id, "processing");
+      }
+
+    } catch (error: any) {
+      console.error("Error sending to Yalidine:", error);
+      toast({
+        title: "فشل إرسال الطلب",
+        description: error.message || "حدث خطأ غير متوقع.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingToYalidine(false);
+    }
+  };
 
   const handleStatusUpdate = async (newStatus: string) => {
     if (newStatus === "cancelled") {
       setShowCancelConfirm(true);
       return;
     }
-
     setIsUpdating(true);
     try {
-      await onUpdateStatus(order.id, newStatus);
+      if (onUpdateStatus) await onUpdateStatus(order.id, newStatus);
     } catch (error) {
       console.error("فشل تحديث حالة الطلب:", error);
+      toast({ title: "خطأ", description: "فشل تحديث حالة الطلب.", variant: "destructive" });
     } finally {
       setIsUpdating(false);
     }
@@ -64,105 +139,69 @@ const OrderActionsDropdown = ({
   const handleCancelOrder = async () => {
     setIsUpdating(true);
     try {
-      await onUpdateStatus(order.id, "cancelled");
+      if (onUpdateStatus) await onUpdateStatus(order.id, "cancelled");
       setShowCancelConfirm(false);
     } catch (error) {
       console.error("فشل إلغاء الطلب:", error);
+      toast({ title: "خطأ", description: "فشل إلغاء الطلب.", variant: "destructive" });
     } finally {
       setIsUpdating(false);
     }
   };
 
   const handleViewOrderDetails = () => {
-    // سيتم ربط ذلك بصفحة تفاصيل الطلب لاحقاً
     window.open(`/dashboard/orders/${order.id}`, "_blank");
   };
 
   const handlePrintInvoice = () => {
-    // سيتم تنفيذ طباعة الفاتورة لاحقاً
-    console.log("طباعة فاتورة الطلب:", order.id);
+    toast({ title: "ميزة قيد التطوير", description: "طباعة الفاتورة ستكون متاحة قريباً."});
   };
 
-  // إعداد الإجراءات حسب حالة الطلب الحالية
-  const availableActions = [];
+  const handleDownloadInvoice = () => {
+    toast({ title: "ميزة قيد التطوير", description: "تنزيل الفاتورة سيكون متاحاً قريباً."});
+  };
 
-  if (order.status === "pending") {
-    hasUpdatePermission && availableActions.push({
-      id: "process",
-      label: "بدء المعالجة",
-      icon: Package,
-      action: () => handleStatusUpdate("processing"),
-      className: "text-blue-600 hover:bg-blue-50",
-    });
-  }
+  const handleTrackShipment = () => {
+    toast({ title: "ميزة قيد التطوير", description: "تتبع الشحنة سيكون متاحاً قريباً."});
+  };
 
-  if (order.status === "processing") {
-    hasUpdatePermission && availableActions.push({
-      id: "ship",
-      label: "تم الشحن",
-      icon: Truck,
-      action: () => handleStatusUpdate("shipped"),
-      className: "text-indigo-600 hover:bg-indigo-50",
-    });
-  }
+  const actionsMap: {[key: string]: {id: string, label: string, icon: React.ElementType, action: () => void, className?: string, disabled?: boolean, separator?: boolean}} = {
+    process: { id: "process", label: "بدء المعالجة", icon: PackageIcon, action: () => handleStatusUpdate("processing"), className: "text-blue-600 hover:bg-blue-50" },
+    ship: { id: "ship", label: "تم الشحن", icon: TruckIcon, action: () => handleStatusUpdate("shipped"), className: "text-indigo-600 hover:bg-indigo-50" },
+    deliver: { id: "deliver", label: "تم التسليم", icon: CheckCircle2Icon, action: () => handleStatusUpdate("delivered"), className: "text-green-600 hover:bg-green-50" },
+    view_details: { id: "view_details", label: "عرض التفاصيل", icon: EyeIcon, action: handleViewOrderDetails, className: "hover:bg-slate-50" },
+    print_invoice: { id: "print_invoice", label: "طباعة الفاتورة", icon: PrinterIcon, action: handlePrintInvoice, className: "hover:bg-slate-50" },
+    download_invoice: { id: "download_invoice", label: "تنزيل الفاتورة", icon: DownloadIcon, action: handleDownloadInvoice, className: "hover:bg-slate-50" },
+    track_shipment: { id: "track_shipment", label: "تتبع الشحنة", icon: ClipboardListIcon, action: handleTrackShipment, className: "hover:bg-slate-50" },
+    send_to_yalidine: { id: "send_to_yalidine", label: "إرسال إلى Yalidine", icon: SendIcon, action: handleSendToYalidine, className: "text-green-700 hover:bg-green-50", disabled: isSendingToYalidine },
+    cancel: { id: "cancel", label: "إلغاء الطلب", icon: X, action: () => setShowCancelConfirm(true), className: "text-rose-600 hover:bg-rose-50", separator: true },
+  };
 
-  if (order.status === "shipped") {
-    hasUpdatePermission && availableActions.push({
-      id: "deliver",
-      label: "تم التسليم",
-      icon: CheckCircle2,
-      action: () => handleStatusUpdate("delivered"),
-      className: "text-green-600 hover:bg-green-50",
-    });
-  }
-
-  // إضافة إجراءات عامة متاحة دائماً
-  availableActions.push(
-    {
-      id: "view",
-      label: "عرض التفاصيل",
-      icon: Eye,
-      action: handleViewOrderDetails,
-      className: "hover:bg-slate-50",
-    },
-    {
-      id: "print",
-      label: "طباعة الفاتورة",
-      icon: Printer,
-      action: handlePrintInvoice,
-      className: "hover:bg-slate-50",
-    },
-    {
-      id: "download",
-      label: "تنزيل الفاتورة",
-      icon: Download,
-      action: handlePrintInvoice, // نفس الإجراء مؤقتاً
-      className: "hover:bg-slate-50",
-    },
-    {
-      id: "track",
-      label: "تتبع الشحنة",
-      icon: ClipboardList,
-      action: () => console.log("تتبع الشحنة:", order.id),
-      className: "hover:bg-slate-50",
+  const getAvailableActions = () => {
+    const actionKeys: string[] = [];
+    if (hasUpdatePermission) {
+      if (order.status === "pending") actionKeys.push("process");
+      if (order.status === "processing") actionKeys.push("ship");
+      if (order.status === "shipped") actionKeys.push("deliver");
     }
-  );
+    
+    actionKeys.push("view_details", "print_invoice", "download_invoice", "track_shipment");
 
-  // إضافة خيار الإلغاء إذا كان الطلب ليس ملغياً أو مكتملاً
-  if (
-    hasCancelPermission &&
-    order.status !== "cancelled" &&
-    order.status !== "delivered"
-  ) {
-    availableActions.push({
-      id: "cancel",
-      label: "إلغاء الطلب",
-      icon: X,
-      action: () => handleStatusUpdate("cancelled"),
-      className: "text-rose-600 hover:bg-rose-50",
-      separator: true,
-    });
-  }
+    if (hasCancelPermission && order.status !== "cancelled" && order.status !== "delivered") {
+      actionKeys.push("cancel");
+    }
+
+    // Safely check for yalidine_tracking_id, assuming it might be missing from the Order type for now
+    const hasYalidineTracking = order['yalidine_tracking_id'] !== undefined && order['yalidine_tracking_id'] !== null && order['yalidine_tracking_id'] !== '';
+    const canSendToYalidine = (order.status === 'processing' || order.status === 'pending') && !hasYalidineTracking;
+    
+    if (hasUpdatePermission && canSendToYalidine) {
+      actionKeys.unshift("send_to_yalidine");
+    }
+    return actionKeys.map(key => actionsMap[key]).filter(Boolean);
+  };
+
+  const currentRenderableActions = getAvailableActions();
 
   return (
     <>
@@ -172,7 +211,7 @@ const OrderActionsDropdown = ({
             <TooltipTrigger asChild>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-slate-100">
-                  {isUpdating ? (
+                  {isUpdating || isSendingToYalidine ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <MoreHorizontal className="h-4 w-4" />
@@ -187,22 +226,28 @@ const OrderActionsDropdown = ({
           </Tooltip>
           <DropdownMenuContent 
             align="start" 
-            className="w-52 p-1 rounded-lg border border-muted shadow-lg"
+            className="w-56 p-1 rounded-lg border border-muted shadow-lg"
           >
             <DropdownMenuLabel className="text-xs font-medium text-muted-foreground px-2 py-1.5">
               إجراءات الطلب
             </DropdownMenuLabel>
             <DropdownMenuSeparator className="my-1" />
-            {availableActions.map((action, index) => (
-              <Fragment key={action.id}>
-                {action.separator && index > 0 && <DropdownMenuSeparator className="my-1" />}
+            {currentRenderableActions.map((actionItem, index) => (
+              <Fragment key={actionItem.id}>
+                {actionItem.separator && index > 0 && <DropdownMenuSeparator className="my-1" />}
                 <DropdownMenuItem
-                  onClick={action.action}
-                  disabled={isUpdating}
-                  className={`${action.className} rounded-md my-1 focus:bg-slate-100 gap-2 px-2 py-1.5`}
+                  onClick={actionItem.action}
+                  disabled={actionItem.disabled || isUpdating || (actionItem.id === 'send_to_yalidine' && isSendingToYalidine)}
+                  className={`flex items-center gap-2 px-2 py-1.5 text-sm rounded-md cursor-pointer transition-colors ${actionItem.className || ''} ${
+                    (actionItem.disabled || isUpdating || (actionItem.id === 'send_to_yalidine' && isSendingToYalidine)) ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
                 >
-                  <action.icon className="h-4 w-4 flex-shrink-0" />
-                  <span>{action.label}</span>
+                  { (actionItem.id === "send_to_yalidine" && isSendingToYalidine) || (isUpdating && (actionItem.id === 'process' || actionItem.id === 'ship' || actionItem.id === 'deliver' || actionItem.id === 'cancel')) ? (
+                    <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    actionItem.icon && <actionItem.icon className="ml-2 h-4 w-4" />
+                  )}
+                  <span>{actionItem.label}</span>
                 </DropdownMenuItem>
               </Fragment>
             ))}
@@ -210,7 +255,6 @@ const OrderActionsDropdown = ({
         </DropdownMenu>
       </TooltipProvider>
 
-      {/* تأكيد إلغاء الطلب */}
       <AlertDialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>
         <AlertDialogContent dir="rtl" className="max-w-md bg-white p-6 rounded-xl shadow-2xl border-0">
           <AlertDialogHeader>
@@ -218,24 +262,20 @@ const OrderActionsDropdown = ({
               <XCircle className="text-rose-500 h-6 w-6" />
               تأكيد إلغاء الطلب
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-base mt-2 text-center">
-              هل أنت متأكد من رغبتك في إلغاء هذا الطلب؟
-              <br />
-              <span className="text-rose-500 font-medium">لا يمكن التراجع عن هذا الإجراء.</span>
+            <AlertDialogDescription className="text-center text-gray-600 pt-2">
+              هل أنت متأكد أنك تريد إلغاء هذا الطلب؟ لا يمكن التراجع عن هذا الإجراء.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="gap-3 flex-row-reverse mt-6 justify-center">
-            <AlertDialogCancel className="mt-0 border-rose-100 text-rose-600 hover:bg-rose-50">إلغاء العملية</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleCancelOrder}
-              className="bg-rose-600 hover:bg-rose-700"
+          <AlertDialogFooter className="flex justify-center gap-3 pt-4">
+            <AlertDialogCancel className="px-6 py-2 text-sm rounded-md border border-gray-300 hover:bg-gray-100 transition-colors">
+              تراجع
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleCancelOrder} 
+              className="px-6 py-2 text-sm rounded-md bg-rose-500 text-white hover:bg-rose-600 transition-colors"
+              disabled={isUpdating}
             >
-              {isUpdating ? (
-                <Loader2 className="h-4 w-4 animate-spin ml-2" />
-              ) : (
-                <AlertCircle className="h-4 w-4 ml-2" />
-              )}
-              <span>تأكيد إلغاء الطلب</span>
+              {isUpdating ? <Loader2 className="h-4 w-4 animate-spin" /> : "نعم، قم بالإلغاء"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

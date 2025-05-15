@@ -1,3 +1,6 @@
+// استيراد ملف polyfill لـ module قبل أي استيراد آخر
+import './lib/module-polyfill';
+
 // إصلاح createContext وأخرى: تأكد من تحميل React APIs قبل أي شيء آخر
 // (window as any).React = (window as any).React || {}; // إزالة أو تعليق هذا
 
@@ -105,7 +108,7 @@ if (typeof window !== 'undefined') {
       
       // إيقاف إعادة التحميل المستمر
       if (window.__ROUTER_EVENTS_PAUSED) {
-        console.log('[Router] استئناف أحداث التوجيه بعد العودة للتبويب');
+        
         window.__ROUTER_EVENTS_PAUSED = false;
       }
     } else {
@@ -117,7 +120,7 @@ if (typeof window !== 'undefined') {
       
       // إيقاف مؤقت لأحداث التوجيه
       window.__ROUTER_EVENTS_PAUSED = true;
-      console.log('[Router] إيقاف مؤقت لأحداث التوجيه');
+      
     }
   });
 
@@ -129,7 +132,7 @@ if (typeof window !== 'undefined') {
   window.history.pushState = function() {
     // فحص الحالة النشطة للتطبيق
     if (window.__ROUTER_EVENTS_PAUSED) {
-      console.log('[Router] تجاهل pushState أثناء التبديل بين علامات التبويب');
+      
       return;
     }
     
@@ -137,7 +140,7 @@ if (typeof window !== 'undefined') {
     
     // تجنب التنقلات المكررة
     if (window.history.__latestUrl === url) {
-      console.log('[Router] تجنب التنقل المكرر إلى:', url);
+      
       return;
     }
     
@@ -158,14 +161,14 @@ if (typeof window !== 'undefined') {
   // إعادة تعريف replaceState بطريقة مماثلة
   window.history.replaceState = function() {
     if (window.__ROUTER_EVENTS_PAUSED) {
-      console.log('[Router] تجاهل replaceState أثناء التبديل بين علامات التبويب');
+      
       return;
     }
     
     const [state, title, url] = arguments;
     
     if (window.history.__latestUrl === url) {
-      console.log('[Router] تجنب استبدال الحالة المكرر:', url);
+      
       return;
     }
     
@@ -178,7 +181,7 @@ if (typeof window !== 'undefined') {
   // تعديل سلوك التنقل الخلفي/الأمامي لمنع إعادة التحميل غير الضرورية
   window.addEventListener('popstate', (event) => {
     if (window.__ROUTER_EVENTS_PAUSED) {
-      console.log('[Router] تجاهل حدث popstate أثناء التبديل بين التبويبات');
+      
       event.stopImmediatePropagation();
     } else {
       window.__LAST_NAVIGATION_TYPE = 'popState';

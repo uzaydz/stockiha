@@ -32,12 +32,15 @@ export function DeliveryInfoFields({
   isLoadingWilayas = false,
   isLoadingCommunes = false,
   shippingProviderSettings,
+  yalidineCenters = [],
+  isLoadingYalidineCenters = false,
 }: DeliveryInfoFieldsProps) {
-  // التحقق من خيارات التوصيل المتاحة بناءً على إعدادات مزود الشحن
+  // +++ Log Entry Point +++
+  
+
   const isHomeDeliveryEnabled = !shippingProviderSettings || shippingProviderSettings.is_home_delivery_enabled;
   const isDeskDeliveryEnabled = !shippingProviderSettings || shippingProviderSettings.is_desk_delivery_enabled;
   
-  // تحديد خيارات التوصيل المتاحة
   const availableDeliveryOptions = DELIVERY_OPTIONS.filter(option => {
     if (option.id === 'home') {
       return isHomeDeliveryEnabled;
@@ -47,13 +50,22 @@ export function DeliveryInfoFields({
     return true;
   });
   
-  // إذا كان هناك خيار واحد فقط متاح، نعيين القيمة الافتراضية
   if (availableDeliveryOptions.length === 1 && form) {
+    // +++ Log Before setTimeout +++
+    
     setTimeout(() => {
-      form.setValue('deliveryOption', availableDeliveryOptions[0].id);
+      // +++ Log Inside setTimeout +++
+      
+      form.setValue('deliveryOption', availableDeliveryOptions[0].id, { shouldValidate: true, shouldDirty: true });
+      
     }, 0);
   }
   
+  // +++ Log Watched Values before return +++
+  const watchedDeliveryOptionForRender = form.watch('deliveryOption');
+  const watchedProvinceForRender = form.watch('province');
+  
+
   // حقول معلومات التوصيل
   return (
     <div className="space-y-4">
@@ -63,210 +75,310 @@ export function DeliveryInfoFields({
       <FormField
         control={form.control}
         name="deliveryOption"
-        render={({ field }) => (
-          <FormItem className="space-y-2">
-            <FormLabel>خيار التوصيل *</FormLabel>
-            <FormControl>
-              <RadioGroup
-                onValueChange={(value) => {
-                  field.onChange(value);
-                  console.log(`تغيير خيار التوصيل إلى: ${value}`);
-                  
-                  // إذا تم تغيير خيار التوصيل وكان هناك ولاية محددة، نقوم بإعادة تحميل البلديات
-                  if (form.watch('province') && hasShippingIntegration) {
-                    // إعادة تعيين البلدية المحددة
-                    form.setValue('municipality', '');
+        render={({ field }) => {
+          // +++ Log in deliveryOption render +++
+          
+          return (
+            <FormItem className="space-y-2">
+              <FormLabel>خيار التوصيل *</FormLabel>
+              <FormControl>
+                <RadioGroup
+                  onValueChange={(value) => {
+                    field.onChange(value);
+                    const currentDeliveryOption = value as 'home' | 'desk';
+                    const currentProvinceValue = form.watch('province');
+                    // +++ Log in deliveryOption onValueChange +++
                     
-                    // إعادة استدعاء تغيير الولاية لتحميل البلديات الجديدة المتوافقة مع نوع التوصيل الجديد
-                    if (onWilayaChange) {
-                      onWilayaChange(form.watch('province'));
+
+                    if (currentDeliveryOption === 'desk') {
+                      form.setValue('municipality', '', { shouldValidate: false }); 
+                      
+                    } else if (currentDeliveryOption === 'home') {
+                      form.setValue('stopDeskId', '', { shouldValidate: false }); 
+                      
                     }
+
+                    // إذا كانت الولاية محددة، قم بإعادة تشغيل منطق تحميل القائمة
+                    if (currentProvinceValue && hasShippingIntegration && onWilayaChange) {
+                      onWilayaChange(currentProvinceValue); 
+                    }
+                  }}
+                  defaultValue={field.value}
+                  className="flex flex-col space-y-2"
+                >
+                  {availableDeliveryOptions.map((option) => (
+                    <div key={option.id} className="flex items-center space-x-3 space-x-reverse">
+                      <RadioGroupItem value={option.id} id={`option-${option.id}`} className="border-input dark:border-border" />
+                      <Label htmlFor={`option-${option.id}`} className="flex items-center">
+                        {option.id === 'home' ? (
+                          <Home className="ml-2 h-5 w-5 text-muted-foreground" />
+                        ) : (
+                          <Building className="ml-2 h-5 w-5 text-muted-foreground" />
+                        )}
+                        {option.name}
+                        {hasShippingIntegration && (
+                          <span className="mr-1 text-xs text-muted-foreground">
+                            {option.id === 'home' ? ' (رسوم أعلى)' : ' (رسوم أقل)'}
+                          </span>
+                        )}
+                        {(option.id === 'home' && shippingProviderSettings?.is_free_delivery_home) && (
+                          <span className="mr-1 text-xs text-green-600 font-medium">
+                            (مجاني!)
+                          </span>
+                        )}
+                        {(option.id === 'desk' && shippingProviderSettings?.is_free_delivery_desk) && (
+                          <span className="mr-1 text-xs text-green-600 font-medium">
+                            (مجاني!)
+                          </span>
+                        )}
+                      </Label>
+                    </div>
+                  ))}
+                </RadioGroup>
+              </FormControl>
+              <FormMessage />
+              {shippingProviderSettings && (
+                <div className="text-xs text-blue-600 dark:text-blue-400">
+                  {isHomeDeliveryEnabled && isDeskDeliveryEnabled 
+                    ? "تتوفر خيارات التوصيل للمنزل والاستلام من المكتب"
+                    : isHomeDeliveryEnabled 
+                      ? "يتوفر التوصيل للمنزل فقط" 
+                      : isDeskDeliveryEnabled 
+                        ? "يتوفر الاستلام من المكتب فقط"
+                        : "لا تتوفر خيارات توصيل حاليًا"
                   }
-                }}
-                defaultValue={field.value}
-                className="flex flex-col space-y-2"
-              >
-                {availableDeliveryOptions.map((option) => (
-                  <div key={option.id} className="flex items-center space-x-3 space-x-reverse">
-                    <RadioGroupItem value={option.id} id={`option-${option.id}`} className="border-input dark:border-border" />
-                    <Label htmlFor={`option-${option.id}`} className="flex items-center">
-                      {option.id === 'home' ? (
-                        <Home className="ml-2 h-5 w-5 text-muted-foreground" />
-                      ) : (
-                        <Building className="ml-2 h-5 w-5 text-muted-foreground" />
-                      )}
-                      {option.name}
-                      {hasShippingIntegration && (
-                        <span className="mr-1 text-xs text-muted-foreground">
-                          {option.id === 'home' ? ' (رسوم أعلى)' : ' (رسوم أقل)'}
-                        </span>
-                      )}
-                      {(option.id === 'home' && shippingProviderSettings?.is_free_delivery_home) && (
-                        <span className="mr-1 text-xs text-green-600 font-medium">
-                          (مجاني!)
-                        </span>
-                      )}
-                      {(option.id === 'desk' && shippingProviderSettings?.is_free_delivery_desk) && (
-                        <span className="mr-1 text-xs text-green-600 font-medium">
-                          (مجاني!)
-                        </span>
-                      )}
-                    </Label>
-                  </div>
-                ))}
-              </RadioGroup>
-            </FormControl>
-            <FormMessage />
-            {shippingProviderSettings && (
-              <div className="text-xs text-blue-600 dark:text-blue-400">
-                {isHomeDeliveryEnabled && isDeskDeliveryEnabled 
-                  ? "تتوفر خيارات التوصيل للمنزل والاستلام من المكتب"
-                  : isHomeDeliveryEnabled 
-                    ? "يتوفر التوصيل للمنزل فقط" 
-                    : isDeskDeliveryEnabled 
-                      ? "يتوفر الاستلام من المكتب فقط"
-                      : "لا تتوفر خيارات توصيل حاليًا"
-                }
-              </div>
-            )}
-          </FormItem>
-        )}
+                </div>
+              )}
+            </FormItem>
+          );
+        }}
       />
       
       {/* حقل اختيار الولاية */}
       <FormField
         control={form.control}
         name="province"
-        render={({ field }) => (
-          <FormItem className="space-y-2">
-            <FormLabel>الولاية *</FormLabel>
-            <Select
-              onValueChange={(value) => {
-                field.onChange(value);
-                // استدعاء دالة تغيير الولاية إذا كانت متوفرة
-                if (onWilayaChange) {
-                  onWilayaChange(value);
-                }
-              }}
-              defaultValue={field.value}
-            >
-              <FormControl>
-                <SelectTrigger disabled={isLoadingWilayas}>
-                  <SelectValue placeholder="اختر الولاية" />
-                </SelectTrigger>
-              </FormControl>
-              <SelectContent>
-                {isLoadingWilayas ? (
-                  <div className="p-2">
-                    <Skeleton className="h-8 w-full mb-2 dark:bg-muted" />
-                    <Skeleton className="h-8 w-full mb-2 dark:bg-muted" />
-                    <Skeleton className="h-8 w-full dark:bg-muted" />
-                  </div>
-                ) : provinces.length > 0 ? (
-                  provinces.map((province) => (
-                    <SelectItem key={province.id} value={province.id.toString()}>
-                      {province.name}
-                        </SelectItem>
-                      ))
-                    ) : (
-                  PROVINCES.map((province) => (
-                    <SelectItem key={province} value={province}>
-                          {province}
-                        </SelectItem>
-                      ))
-                )}
-              </SelectContent>
-            </Select>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      {/* حقل البلدية */}
-      <FormField
-        control={form.control}
-        name="municipality"
-        render={({ field }) => (
-          <FormItem className="space-y-2">
-            <FormLabel>البلدية *</FormLabel>
-            {hasShippingIntegration && form.watch('province') ? (
+        render={({ field }) => {
+          // +++ Log in province render +++
+          
+          return (
+            <FormItem className="space-y-2">
+              <FormLabel>الولاية *</FormLabel>
               <Select
-                onValueChange={field.onChange}
+                onValueChange={(value) => {
+                  field.onChange(value);
+                  // +++ Log in province onValueChange +++
+                  
+                  form.setValue('municipality', '', { shouldValidate: false });
+                  form.setValue('stopDeskId', '', { shouldValidate: false });
+
+                  if (onWilayaChange) {
+                    onWilayaChange(value); 
+                  }
+                }}
                 defaultValue={field.value}
-                disabled={isLoadingCommunes || !form.watch('province')}
               >
                 <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder={
-                      isLoadingCommunes 
-                        ? "جاري تحميل البلديات..." 
-                        : (municipalities.length > 0 
-                          ? "اختر البلدية" 
-                          : form.watch('deliveryOption') === 'home'
-                            ? "لا توجد بلديات متاحة للتوصيل المنزلي"
-                            : "لا توجد مكاتب متاحة في هذه الولاية")
-                    } />
+                  <SelectTrigger disabled={isLoadingWilayas}>
+                    <SelectValue placeholder="اختر الولاية" />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {isLoadingCommunes ? (
+                  {isLoadingWilayas ? (
                     <div className="p-2">
                       <Skeleton className="h-8 w-full mb-2 dark:bg-muted" />
                       <Skeleton className="h-8 w-full mb-2 dark:bg-muted" />
                       <Skeleton className="h-8 w-full dark:bg-muted" />
                     </div>
-                  ) : municipalities.length > 0 ? (
-                    municipalities.map((commune) => (
-                      <SelectItem key={commune.id} value={commune.id.toString()}>
-                        {commune.name}
-                        {form.watch('deliveryOption') === 'office' && (
-                          <span className="mr-2 text-xs text-muted-foreground">
-                            (مكتب متاح)
-                          </span>
-                        )}
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <SelectItem disabled value="no_municipalities">
-                      {form.watch('deliveryOption') === 'home'
-                        ? "لا توجد بلديات متاحة للتوصيل المنزلي"
-                        : "لا توجد مكاتب متاحة في هذه الولاية"}
-                    </SelectItem>
+                  ) : provinces.length > 0 ? (
+                    provinces.map((province) => (
+                      <SelectItem key={province.id} value={province.id.toString()}>
+                        {province.name}
+                          </SelectItem>
+                        ))
+                      ) : (
+                    PROVINCES.map((province) => (
+                      <SelectItem key={province} value={province}>
+                            {province}
+                          </SelectItem>
+                        ))
                   )}
                 </SelectContent>
               </Select>
-            ) : (
-              <FormControl>
-                <Input
-                  placeholder="أدخل اسم البلدية"
-                  {...field}
-                  className="rtl:text-right"
-                />
-              </FormControl>
-            )}
-            <FormMessage />
-          </FormItem>
-        )}
+              <FormMessage />
+            </FormItem>
+          );
+        }}
       />
 
-      {/* حقل العنوان */}
-      <FormField
-        control={form.control}
-        name="address"
-        render={({ field }) => (
-          <FormItem className="space-y-2">
-            <FormLabel>العنوان التفصيلي *</FormLabel>
-            <FormControl>
-              <Textarea
-                placeholder="أدخل العنوان التفصيلي (الشارع، الحي، الخ)"
-                {...field}
-                className="rtl:text-right dark:border-border"
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
+      {/* حقل البلدية - يعرض فقط إذا كان التوصيل للمنزل */}
+      {(() => {
+        const currentDeliveryOption = form.watch('deliveryOption');
+        
+        if (currentDeliveryOption === 'home') {
+          
+          return (
+            <FormField
+              control={form.control}
+              name="municipality"
+              render={({ field }) => (
+                <FormItem className="space-y-2">
+                  <FormLabel>البلدية *</FormLabel>
+                  {hasShippingIntegration && form.watch('province') ? (
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value}
+                      disabled={isLoadingCommunes || !form.watch('province')}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder={
+                            isLoadingCommunes 
+                              ? "جاري تحميل البلديات..." 
+                              : (municipalities && municipalities.length > 0 
+                                ? "اختر البلدية" 
+                                : "لا توجد بلديات متاحة للتوصيل المنزلي")
+                          } />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {isLoadingCommunes ? (
+                          <div className="p-2">
+                            <Skeleton className="h-8 w-full mb-2 dark:bg-muted" />
+                            <Skeleton className="h-8 w-full mb-2 dark:bg-muted" />
+                            <Skeleton className="h-8 w-full dark:bg-muted" />
+                          </div>
+                        ) : municipalities && municipalities.length > 0 ? (
+                          municipalities.map((commune) => (
+                            <SelectItem key={commune.id} value={commune.id.toString()}>
+                              {commune.name}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem disabled value="no_municipalities">
+                            لا توجد بلديات متاحة للتوصيل المنزلي
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <FormControl>
+                      <Input
+                        placeholder="أدخل اسم البلدية"
+                        {...field}
+                        className="rtl:text-right"
+                      />
+                    </FormControl>
+                  )}
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          );
+        }
+        return null; // Return null if conditions are not met for this block
+      })()}
+
+      {/* حقل مكتب الاستلام (Yalidine Center) - يعرض فقط إذا كان التوصيل للمكتب */}
+      {(() => {
+        const currentDeliveryOption = form.watch('deliveryOption');
+        
+        if (currentDeliveryOption === 'desk' && hasShippingIntegration) {
+          
+          return (
+            <FormField
+              control={form.control}
+              name="stopDeskId"
+              render={({ field }) => {
+                // +++ Log in stopDeskId render +++
+                
+                return (
+                  <FormItem className="space-y-2">
+                    <FormLabel>مكتب الاستلام *</FormLabel>
+                    {form.watch('province') ? (
+                      <Select
+                        onValueChange={(selectedValue) => {
+                          // +++ Log in stopDeskId onValueChange +++
+                          
+                          field.onChange(selectedValue);
+                          
+                          form.trigger('stopDeskId');
+                        }}
+                        value={field.value || ""}
+                        disabled={isLoadingYalidineCenters || !form.watch('province') || yalidineCenters.length === 0}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder={
+                              isLoadingYalidineCenters
+                                ? "جاري تحميل مكاتب الاستلام..."
+                                : (yalidineCenters && yalidineCenters.length > 0
+                                  ? "اختر مكتب الاستلام"
+                                  : "لا توجد مكاتب استلام لهذه الولاية")
+                            } />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {isLoadingYalidineCenters ? (
+                            <div className="p-2">
+                              <Skeleton className="h-8 w-full mb-2 dark:bg-muted" />
+                              <Skeleton className="h-8 w-full mb-2 dark:bg-muted" />
+                              <Skeleton className="h-8 w-full dark:bg-muted" />
+                            </div>
+                          ) : yalidineCenters && yalidineCenters.length > 0 ? (
+                            yalidineCenters.map((center) => (
+                              <SelectItem key={center.center_id} value={center.center_id.toString()}>
+                                {center.name} ({center.commune_name})
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem disabled value="no_centers_available">
+                             لا توجد مكاتب استلام متاحة
+                            </SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        الرجاء اختيار الولاية أولاً لعرض مكاتب الاستلام.
+                      </p>
+                    )}
+                    <FormMessage>
+                      {!field.value && form.formState.isSubmitted && "يرجى اختيار مكتب الاستلام"}
+                    </FormMessage>
+                    <p className="text-xs text-muted-foreground">
+                      <AlertCircle className="inline-block w-3 h-3 ml-1" />
+                      مهم: تأكد من اختيار مكتب الاستلام للتوصيل السريع للطلبية
+                    </p>
+                  </FormItem>
+                );
+              }}
+            />
+          );
+        }
+        return null; // Return null if conditions are not met for this block
+      })()}
+
+      {/* حقل العنوان - يعرض إذا كان التوصيل للمنزل أو للمكتب (لأن yalidine قد تطلبه لمكتب الاستلام أيضاً) */}
+      {((form.watch('deliveryOption') === 'home' && hasShippingIntegration) || (form.watch('deliveryOption') === 'desk' && hasShippingIntegration)) && (
+        <FormField
+          control={form.control}
+          name="address"
+          render={({ field }) => (
+            <FormItem className="space-y-2">
+              <FormLabel>العنوان التفصيلي *</FormLabel>
+              <FormControl>
+                <Textarea
+                  placeholder="أدخل العنوان التفصيلي (الشارع، الحي، الخ)"
+                  {...field}
+                  className="rtl:text-right dark:border-border"
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      )}
 
       {/* حقل شركة التوصيل */}
       <FormField

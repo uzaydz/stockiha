@@ -48,7 +48,7 @@ const RequireTenant = ({ children }: RequireTenantProps) => {
     // If we're on a localhost subdomain, try redirecting to the main dashboard
     // This is mostly for development since in production we'd want to show an error
     if (isLocalhost) {
-      console.log("[RequireTenant] Invalid subdomain on localhost, redirecting to main dashboard.");
+      
       return <Navigate to="/dashboard" replace />;
     }
     
@@ -72,7 +72,7 @@ const RequireTenant = ({ children }: RequireTenantProps) => {
 
   // إذا لم تكن هناك مؤسسة، تحقق من وجود مؤسسة في AuthContext قبل إعادة التوجيه
   if (!currentOrganization && !isTenant) {
-    console.log("[RequireTenant] No current organization found and user is not a tenant, redirecting to dashboard.");
+    
     return <Navigate to="/dashboard" replace />;
   }
 

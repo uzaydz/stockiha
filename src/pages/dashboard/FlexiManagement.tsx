@@ -107,13 +107,13 @@ export default function FlexiManagement() {
     setLoadingFlexi(true);
     try {
       const networks = await getFlexiNetworks();
-      console.log('شبكات الفليكسي المستلمة:', networks);
+      
       setFlexiNetworks(networks);
       
       // جلب الأرصدة بعد تأخير قصير للتأكد من استكمال أي عمليات سابقة
       await new Promise(resolve => setTimeout(resolve, 500));
       const balances = await getFlexiBalances();
-      console.log('أرصدة الفليكسي المستلمة:', balances);
+      
       setFlexiBalances(balances);
       
       // التحقق مما إذا كانت هناك شبكات بدون أرصدة
@@ -196,9 +196,9 @@ export default function FlexiManagement() {
       // اختيار المعرف الأول المتوفر من الخيارات
       const finalOrgId = storedOrgId || organizationId || fallbackOrgId;
       
-      console.log('معرف المنظمة النهائي المستخدم (للرصيد):', finalOrgId);
-      console.log('تحديث رصيد شبكة الفليكسي معرف:', selectedFlexiNetwork);
-      console.log('الرصيد الجديد:', parseFloat(newBalance));
+      
+      
+      
       
       await updateFlexiBalance(selectedFlexiNetwork, parseFloat(newBalance), finalOrgId);
       
@@ -208,12 +208,12 @@ export default function FlexiManagement() {
       });
       
       // إضافة تأخير قبل إعادة تحميل البيانات
-      console.log('انتظار قبل إعادة تحميل البيانات...');
+      
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       // إعادة تحميل البيانات
       await fetchFlexiData();
-      console.log('تم إعادة تحميل البيانات بعد التحديث');
+      
     } catch (error) {
       toast({
         variant: 'destructive',
@@ -245,7 +245,7 @@ export default function FlexiManagement() {
       // اختيار المعرف الأول المتوفر من الخيارات
       const finalOrgId = storedOrgId || organizationId || fallbackOrgId;
       
-      console.log('معرف المنظمة النهائي المستخدم (للعملة):', finalOrgId);
+      
       
       await updateCurrencyBalance(selectedCurrency, parseFloat(newBalance), finalOrgId);
       toast({
@@ -281,8 +281,8 @@ export default function FlexiManagement() {
       const storedOrgId = localStorage.getItem('organization_id');
       
       // عمل فحص إضافي للمعرف المخزن في local storage
-      console.log('معرف المؤسسة من التخزين المحلي:', storedOrgId);
-      console.log('معرف المؤسسة من بيانات المستخدم:', organizationId);
+      
+      
       
       // استخدام المعرف الاحتياطي في حالة كل شيء آخر فشل
       const fallbackOrgId = "fed872f9-1ade-4351-b020-5598fda976fe";
@@ -290,7 +290,7 @@ export default function FlexiManagement() {
       // اختيار المعرف الأول المتوفر من الخيارات
       const finalOrgId = storedOrgId || organizationId || fallbackOrgId;
       
-      console.log('معرف المؤسسة النهائي المستخدم للفليكسي:', finalOrgId);
+      
       
       // إضافة شبكة فليكسي جديدة باستخدام وظيفة RPC الآمنة مع تمرير معرف المؤسسة
       await addFlexiNetwork({
@@ -345,7 +345,7 @@ export default function FlexiManagement() {
       // اختيار المعرف الأول المتوفر من الخيارات
       const finalOrgId = storedOrgId || organizationId || fallbackOrgId;
       
-      console.log('معرف المؤسسة النهائي المستخدم للعملات:', finalOrgId);
+      
       
       await addDigitalCurrency({
         ...newCurrency,
@@ -527,7 +527,7 @@ export default function FlexiManagement() {
                     <TableBody>
                       {flexiNetworks.map(network => {
                         const balance = flexiBalances.find(b => b.network_id === network.id);
-                        console.log(`عرض الرصيد للشبكة ${network.name}:`, balance ? balance.balance : '(لا يوجد رصيد)');
+                        
                         return (
                           <TableRow key={network.id}>
                             <TableCell className="font-medium">
@@ -624,7 +624,7 @@ export default function FlexiManagement() {
                     <TableBody>
                       {digitalCurrencies.map(currency => {
                         const balance = currencyBalances.find(b => b.currency_id === currency.id);
-                        console.log(`عرض الرصيد للعملة ${currency.name}:`, balance);
+                        
                         return (
                           <TableRow key={currency.id}>
                             <TableCell className="font-medium">

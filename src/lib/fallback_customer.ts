@@ -8,13 +8,13 @@ import { supabase } from './supabase';
  */
 export async function ensureCustomerExists(customerId: string | null | undefined, organizationId: string | null | undefined): Promise<string> {
   try {
-    console.log("التحقق من وجود العميل:", customerId);
+    
     
     // إذا كان المعرف فارغًا، استخدام معرف العميل الزائر
     if (!customerId || customerId === 'guest' || customerId === 'walk-in') {
       const guestId = '00000000-0000-0000-0000-000000000000';
       await ensureGuestCustomerExists(organizationId);
-      console.log("استخدام معرف العميل الزائر");
+      
       return guestId;
     }
     
@@ -31,7 +31,7 @@ export async function ensureCustomerExists(customerId: string | null | undefined
     
     // إذا كان العميل موجودًا، استخدام المعرف الأصلي
     if (customerData) {
-      console.log("العميل موجود في جدول العملاء");
+      
       return customerId;
     }
     
@@ -48,7 +48,7 @@ export async function ensureCustomerExists(customerId: string | null | undefined
     
     // إذا كان العميل موجودًا في جدول المستخدمين، إنشاء سجل له في جدول العملاء
     if (userData) {
-      console.log("العميل موجود في جدول المستخدمين، إنشاء سجل في جدول العملاء");
+      
       
       const { error: insertError } = await supabase
         .from('customers')
@@ -73,7 +73,7 @@ export async function ensureCustomerExists(customerId: string | null | undefined
     }
     
     // العميل غير موجود في أي من الجدولين، استخدام معرف العميل الزائر
-    console.log("العميل غير موجود في أي من الجدولين، استخدام معرف العميل الزائر");
+    
     const guestId = '00000000-0000-0000-0000-000000000000';
     await ensureGuestCustomerExists(organizationId);
     return guestId;
@@ -93,7 +93,7 @@ export async function ensureCustomerExists(customerId: string | null | undefined
  */
 export async function ensureGuestCustomerExists(organizationId: string | null | undefined): Promise<void> {
   try {
-    console.log("التأكد من وجود العميل الزائر في جدول العملاء");
+    
     
     // إذا لم يكن هناك معرف مؤسسة، محاولة الحصول على المعرف الافتراضي
     if (!organizationId) {
@@ -124,7 +124,7 @@ export async function ensureGuestCustomerExists(organizationId: string | null | 
     
     // إذا لم يكن العميل الزائر موجودًا، إنشاء سجل له
     if (!guestData) {
-      console.log("إنشاء سجل للعميل الزائر في جدول العملاء");
+      
       
       const { error: insertError } = await supabase
         .from('customers')

@@ -50,7 +50,7 @@ export interface DebtsData {
  */
 export const getDebtsData = async (organizationId: string): Promise<DebtsData> => {
   try {
-    console.log('getDebtsData - بدء الاستدعاء', { organizationId });
+    
     
     if (!organizationId) {
       throw new Error("معرف المؤسسة مطلوب");
@@ -81,7 +81,7 @@ export const getDebtsData = async (organizationId: string): Promise<DebtsData> =
         }
       : { total_debts: 0, total_partial_payments: 0 };
 
-    console.log('بيانات الملخص بعد التحويل:', summary);
+    
 
     // استعلام للديون حسب العميل (نستخدم الوظيفة الجديدة get_debts_by_customer)
     const { data: customerDebtsData, error: customerDebtsError } = await supabase.rpc(
@@ -184,7 +184,7 @@ export const getDebtsData = async (organizationId: string): Promise<DebtsData> =
       customerDebts
     };
     
-    console.log('getDebtsData - النتيجة النهائية:', result);
+    
     return result;
   } catch (error) {
     console.error('خطأ في الحصول على بيانات الديون:', error);
@@ -204,7 +204,7 @@ export const recordDebtPayment = async (
   isFullPayment: boolean
 ): Promise<any> => {
   try {
-    console.log('recordDebtPayment - بدء الاستدعاء', { orderId, amountPaid, isFullPayment });
+    
     
     if (!orderId) {
       throw new Error("معرف الطلب مطلوب");
@@ -258,7 +258,7 @@ export const recordDebtPayment = async (
       throw transactionError;
     }
 
-    console.log('recordDebtPayment - تم تسجيل الدفع بنجاح:', transactionData);
+    
     return { success: true, transactionId: transactionData };
   } catch (error) {
     console.error('خطأ في تسجيل دفع الدين:', error);

@@ -167,7 +167,7 @@ export async function calculateShippingFee(
         .single();
       
       if (cloneError || !cloneData) {
-        console.log('لم يتم العثور على مزود الشحن المستنسخ، استخدام القيمة الافتراضية');
+        
         return deliveryOption === 'home' ? 400 : 350;
       }
       
@@ -196,7 +196,7 @@ export async function calculateShippingFee(
           .single();
         
         if (priceError || !priceData) {
-          console.log('لم يتم العثور على أسعار مخصصة للولاية، استخدام الأسعار الموحدة');
+          
           if (deliveryOption === 'home') {
             // التحقق من التوصيل المجاني للمنزل
             if (cloneData.is_free_delivery_home) {
@@ -253,7 +253,7 @@ export async function calculateShippingFee(
       .single();
     
     if (error || !data) {
-      console.log('لم يتم العثور على رسوم للتوصيل، استخدام القيمة الافتراضية');
+      
       return deliveryOption === 'home' ? 400 : 350;
     }
     
@@ -274,7 +274,7 @@ export async function calculateShippingFee(
  * @param cloneId - معرف المزود المستنسخ
  */
 export async function getShippingProviderClone(cloneId: number) {
-  console.log(`>> محاولة جلب مزود الشحن المستنسخ بالمعرف: ${cloneId}`);
+  
   
   try {
     const { data, error } = await supabase
@@ -288,9 +288,9 @@ export async function getShippingProviderClone(cloneId: number) {
       return null;
     }
     
-    console.log('>> تم جلب بيانات مزود الشحن المستنسخ بنجاح:', data);
-    console.log('>> حالة التوصيل للمنزل:', data.is_home_delivery_enabled);
-    console.log('>> حالة التوصيل للمكتب:', data.is_desk_delivery_enabled);
+    
+    
+    
     
     return data;
   } catch (error) {
@@ -320,12 +320,12 @@ export async function getAvailableProvincesForClone(cloneId: number, deliveryTyp
     
     // التحقق من نوع التوصيل المدعوم
     if (deliveryType === 'home' && !cloneData.is_home_delivery_enabled) {
-      console.log('التوصيل للمنزل غير مدعوم لهذا المزود');
+      
       return [];
     }
     
     if (deliveryType === 'desk' && !cloneData.is_desk_delivery_enabled) {
-      console.log('التوصيل للمكتب غير مدعوم لهذا المزود');
+      
       return [];
     }
     

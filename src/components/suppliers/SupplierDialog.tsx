@@ -116,7 +116,7 @@ export function SupplierDialog({
   
   const onSubmit = async (data: FormValues) => {
     try {
-      console.log('Form submitted with data:', data);
+      
       // أضف رسالة حالة أثناء الحفظ
       toast({
         title: 'جاري الحفظ',

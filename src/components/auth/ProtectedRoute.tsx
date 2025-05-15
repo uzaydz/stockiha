@@ -32,7 +32,7 @@ const ProtectedRoute = ({
   const [authCheckAttempts, setAuthCheckAttempts] = useState(0);
   const [permissionsCached, setPermissionsCached] = useState(false);
 
-  console.log(`ProtectedRoute initialization - Path: ${location.pathname}, Loading: ${loading}, User: ${!!user}, Session: ${!!session}, Subdomain: ${currentSubdomain}`);
+  
 
   useEffect(() => {
     // عند تغيير المسار، تحقق من وجود تخزين مؤقت للتحقق السابق
@@ -74,11 +74,11 @@ const ProtectedRoute = ({
     const checkUserPermissions = async () => {
       // تخطي التحقق إذا كانت المعلومات مخزنة مؤقتًا
       if (permissionsCached) {
-        console.log("استخدام معلومات الصلاحيات من التخزين المؤقت");
+        
         return;
       }
       
-      console.log(`Checking user permissions - User: ${!!user}, Loading: ${loading}, Attempts: ${authCheckAttempts}`);
+      
       if (user) {
         setCheckingPermissions(true);
         try {
@@ -102,7 +102,7 @@ const ProtectedRoute = ({
               });
             }
           }
-          console.log("User permission check completed successfully");
+          
         } catch (error) {
           console.error('Error checking user permissions:', error);
           setIsAdmin(false);
@@ -113,7 +113,7 @@ const ProtectedRoute = ({
       } else {
         // If there's no user, we can consider the check done
         if (!loading) {
-          console.log("No user found and not loading, marking initial check as done");
+          
           setInitialCheckDone(true);
         }
       }
@@ -130,7 +130,7 @@ const ProtectedRoute = ({
     // Add a safety check to prevent infinite loading
     const timeout = setTimeout(() => {
       if (!initialCheckDone && authCheckAttempts < 3) {
-        console.log("Permission check timeout - forcing status update");
+        
         setAuthCheckAttempts(prev => prev + 1);
         setInitialCheckDone(true);
       }
@@ -145,9 +145,9 @@ const ProtectedRoute = ({
     
     // This regex will match 'dashbord' when it's not part of another word
     if (/\/dashbord($|\/|\?)/.test(currentUrl)) {
-      console.log("Detected incorrect dashboard URL path:", currentUrl);
+      
       const correctedUrl = currentUrl.replace(/\/dashbord($|\/|\?)/, '/dashboard$1');
-      console.log("Correcting to:", correctedUrl);
+      
       window.location.replace(correctedUrl);
       return;
     }
@@ -157,14 +157,14 @@ const ProtectedRoute = ({
   useEffect(() => {
     const verifyAuthState = async () => {
       if (!user && !loading && initialCheckDone) {
-        console.log("Verifying auth state directly with Supabase");
+        
         try {
           const { data } = await supabase.auth.getSession();
           if (data.session) {
-            console.log("Session found in Supabase but not in context, forcing reload");
+            
             window.location.reload();
           } else {
-            console.log("No session found in direct Supabase check either");
+            
           }
         } catch (error) {
           console.error("Error verifying auth state:", error);
@@ -182,7 +182,7 @@ const ProtectedRoute = ({
   // Only show loading if we haven't completed the initial check or we're still checking permissions
   // تعديل: عرض التحميل فقط إذا كان التحميل الأولي جارياً أو فقد المستخدم
   if ((loading && !initialCheckDone) || (!user && loading)) {
-    console.log("ProtectedRoute initial loading - loading:", loading, "initialCheckDone:", initialCheckDone, "user:", !!user);
+    
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -195,17 +195,17 @@ const ProtectedRoute = ({
 
   // Double check both user and session to confirm authentication
   if (!user || !session) {
-    console.log("User not authenticated, redirecting to login - user:", !!user, "session:", !!session, "path:", location.pathname);
+    
     
     // Don't redirect if we're already on the login page to prevent loops
     if (location.pathname === '/login') {
-      console.log("Already on login page, not redirecting to prevent loop");
+      
       return children ? <>{children}</> : <Outlet />;
     }
     
     // Force clear any existing authentication data if present
     if (localStorage.getItem('authSessionExists')) {
-      console.log("Clearing stale authentication data");
+      
       localStorage.removeItem('authSessionExists');
       localStorage.removeItem('authSessionLastUpdated');
       // Force reload to clear any invalid session data
@@ -228,7 +228,7 @@ const ProtectedRoute = ({
     const redirectCount = parseInt(sessionStorage.getItem('loginRedirectCount') || '0');
     
     if (lastRedirectTime && (currentTime - parseInt(lastRedirectTime)) < 3000 && redirectCount > 3) {
-      console.log("Multiple redirects detected in short time, preventing loop");
+      
       sessionStorage.removeItem('lastLoginRedirect');
       sessionStorage.setItem('loginRedirectCount', '0');
       
@@ -268,7 +268,7 @@ const ProtectedRoute = ({
   }
 
   // المستخدم مسجل دخوله ولديه الصلاحيات المطلوبة
-  console.log("User is authenticated and has permissions, rendering protected content for path:", location.pathname);
+  
   return children ? <>{children}</> : <Outlet />;
 };
 

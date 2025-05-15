@@ -101,11 +101,11 @@ export default function ThankYouPageEditor() {
         throw error;
       }
       
-      console.log(`تم تحميل ${templatesData?.length || 0} قالب من قاعدة البيانات`);
+      
       
       // إذا لم تكن هناك قوالب، قم بإنشاء قالب افتراضي
       if (!templatesData || templatesData.length === 0) {
-        console.log("لا توجد قوالب، جاري إنشاء قالب افتراضي");
+        
         
         const defaultTemplate: ThankYouTemplate = {
           name: "القالب الافتراضي",
@@ -177,7 +177,7 @@ export default function ThankYouPageEditor() {
       
       // تأكد من أن معرفات المنتجات هي مصفوفة صالحة
       if (templateToSave.product_ids && !Array.isArray(templateToSave.product_ids)) {
-        console.log("تحويل product_ids إلى مصفوفة", templateToSave.product_ids);
+        
         templateToSave.product_ids = [templateToSave.product_ids];
       }
       
@@ -186,10 +186,7 @@ export default function ThankYouPageEditor() {
         templateToSave.product_ids = [];
       }
       
-      console.log("حفظ القالب بمعلومات المنتجات:", {
-        applies_to: templateToSave.applies_to,
-        productCount: templateToSave.product_ids?.length || 0
-      });
+      
       
       // قم بحفظ القالب في قاعدة البيانات
       const { data, error } = await supabase

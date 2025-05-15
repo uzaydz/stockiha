@@ -79,7 +79,7 @@ const SortableItem = React.forwardRef<HTMLDivElement, SortableItemProps>(({
     onActivate(id);
     
     // سجل تصحيح الأخطاء
-    console.log('تم تنشيط المكون:', component.type, 'بدون فتح نافذة منبثقة');
+    
     
     // لا نقوم بفتح النافذة المنبثقة لأي مكون
     // setShowEditModal(true); -- تم تعطيل هذا السطر

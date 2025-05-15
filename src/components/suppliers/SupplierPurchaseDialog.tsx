@@ -149,7 +149,7 @@ export function SupplierPurchaseDialog({
       });
     } else if (selectedSupplierId) {
       // إذا كان هناك مورد محدد، استخدمه كقيمة افتراضية
-      console.log("Setting default supplier ID to:", selectedSupplierId);
+      
       form.setValue('supplier_id', selectedSupplierId);
     }
   }, [purchase, form, selectedSupplierId]);
@@ -201,7 +201,7 @@ export function SupplierPurchaseDialog({
   
   // عند الإرسال
   const onSubmit = async (data: FormValues) => {
-    console.log("Form submitted with data:", data);
+    
     
     // التحقق من وجود عناصر في المشتريات
     if (!data.items || data.items.length === 0) {
@@ -232,7 +232,7 @@ export function SupplierPurchaseDialog({
   
   // الإغلاق مع استدعاء onClose إن وجد
   const handleDialogClose = () => {
-    console.log("Dialog closing manually");
+    
     if (onClose) {
       onClose();
     }
@@ -240,7 +240,7 @@ export function SupplierPurchaseDialog({
   
   // استدعاء عند اختيار منتج
   const handleProductSelect = (index: number, productId: string) => {
-    console.log(`اختيار المنتج: ${productId} للعنصر بالمؤشر ${index}`);
+    
     
     if (productId === "none") {
       // إذا كان المستخدم قد اختار "بدون منتج"، تأكد من أن له وصف
@@ -250,18 +250,18 @@ export function SupplierPurchaseDialog({
       }
       // تعيين product_id إلى null صراحةً
       form.setValue(`items.${index}.product_id`, null);
-      console.log(`تم تعيين قيمة product_id إلى null للعنصر ${index}`);
+      
       return;
     }
     
     const product = products.find(p => p.id === productId);
     if (product) {
-      console.log(`تم العثور على المنتج: ${product.name}، يتم تعيين القيم في النموذج`);
+      
       // تعيين قيمة product_id صراحةً أولاً
       form.setValue(`items.${index}.product_id`, productId);
       form.setValue(`items.${index}.description`, product.name);
       form.setValue(`items.${index}.unit_price`, product.price);
-      console.log(`تم تعيين البيانات للعنصر ${index}: المنتج=${productId}, الوصف=${product.name}, السعر=${product.price}`);
+      
     } else {
       console.error(`لم يتم العثور على المنتج بالمعرف: ${productId}`);
     }
@@ -280,7 +280,7 @@ export function SupplierPurchaseDialog({
   
   return (
     <Dialog open={open} onOpenChange={(newOpen) => {
-      console.log("Dialog open state changing to:", newOpen);
+      
       if (!newOpen && onClose && open) {
         // عند الإغلاق
         handleDialogClose();

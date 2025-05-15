@@ -60,7 +60,7 @@ export const logout = async (): Promise<boolean> => {
 // وظيفة إنشاء عميل جديد
 export const createCustomer = async (customerData: { name: string; email?: string; phone?: string }): Promise<User | null> => {
   try {
-    console.log("createCustomer: بدء إنشاء عميل جديد:", customerData);
+    
     
     // إنشاء معرف فريد للعميل
     const customerId = uuidv4();
@@ -80,7 +80,7 @@ export const createCustomer = async (customerData: { name: string; email?: strin
     const isOnline = window.navigator.onLine;
     
     if (!isOnline) {
-      console.log("جهازك غير متصل بالإنترنت. إنشاء العميل محلياً وإضافته إلى طابور المزامنة...");
+      
       
       // استخدام createLocalCustomer بدلاً من الإضافة المباشرة
       try {
@@ -131,7 +131,7 @@ export const createCustomer = async (customerData: { name: string; email?: strin
         console.error('فشل إضافة العميل إلى جدول customers:', customerError);
         
         // إذا فشلت الإضافة، نضيف العميل محلياً ونضيفه إلى طابور المزامنة
-        console.log('إضافة العميل إلى التخزين المحلي وطابور المزامنة...');
+        
         
         const localCustomer = await createLocalCustomer({
           name: customerData.name,
@@ -176,7 +176,7 @@ export const createCustomer = async (customerData: { name: string; email?: strin
         newCustomerFromCustomersTable
       ]));
       
-      console.log("تم إنشاء العميل بنجاح في جدول customers:", newCustomerFromCustomersTable);
+      
       return newCustomerFromCustomersTable;
     } catch (error) {
       console.error('خطأ في عملية إنشاء العميل:', error);

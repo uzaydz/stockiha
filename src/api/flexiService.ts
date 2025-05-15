@@ -39,7 +39,7 @@ export async function getFlexiNetworks(forceOrganizationId?: string): Promise<Fl
       }
     }
     
-    console.log('معرف المنظمة المستخدم للحصول على الشبكات:', organizationId);
+    
     
     // استخدام وظيفة get_all_flexi_networks الموجودة بالفعل
     const { data, error } = await supabase
@@ -57,7 +57,7 @@ export async function getFlexiNetworks(forceOrganizationId?: string): Promise<Fl
     
     // تجميع جميع معرفات المنظمات الموجودة في البيانات
     const availableOrganizations = new Set(data.map(n => n.organization_id));
-    console.log('المنظمات المتاحة في الشبكات:', Array.from(availableOrganizations));
+    
     
     // فلترة البيانات بمعرف المنظمة
     let filteredData = data.filter(network => network.organization_id === organizationId);
@@ -68,7 +68,7 @@ export async function getFlexiNetworks(forceOrganizationId?: string): Promise<Fl
       filteredData = data; // استخدام جميع البيانات بدلاً من الفلترة
     }
     
-    console.log(`تم استلام ${data.length} شبكة، وبعد المعالجة أصبح ${filteredData.length} شبكة معروضة`);
+    
     
     return filteredData;
   } catch (error) {
@@ -165,7 +165,7 @@ export async function getFlexiBalances(forceOrganizationId?: string): Promise<Fl
       return [];
     }
     
-    console.log(`تم استلام ${data.length} سجل من قاعدة البيانات`);
+    
     
     // محاولة الحصول على معرف المنظمة بعدة طرق
     let organizationId = forceOrganizationId;
@@ -197,11 +197,11 @@ export async function getFlexiBalances(forceOrganizationId?: string): Promise<Fl
       }
     }
     
-    console.log('معرف المنظمة المستخدم لتصفية الأرصدة:', organizationId);
+    
     
     // تجميع جميع معرفات المنظمات الموجودة في البيانات
     const availableOrganizations = new Set(data.map(b => b.organization_id));
-    console.log('المنظمات المتاحة في البيانات:', Array.from(availableOrganizations));
+    
     
     // 1. فلترة الأرصدة بحسب المنظمة
     let orgBalances = data.filter(b => b.organization_id === organizationId);
@@ -228,12 +228,12 @@ export async function getFlexiBalances(forceOrganizationId?: string): Promise<Fl
     }
     
     const result = Array.from(latestBalances.values());
-    console.log(`تم تصفية الأرصدة: ${result.length} سجل من أصل ${data.length} سجل كلي`);
+    
     
     // طباعة الأرصدة للتحقق
     if (result.length > 0) {
       const networks = result.map(b => `${b.network_id}: ${b.balance}`).join(', ');
-      console.log(`الأرصدة النهائية: ${networks}`);
+      
     }
     
     return result;
@@ -258,7 +258,7 @@ export async function updateFlexiBalance(networkId: string, newBalance: number, 
     throw new Error('فشل في تحديث رصيد الفليكسي');
   }
   
-  console.log('تم تحديث الرصيد بنجاح، معرف السجل:', data);
+  
 }
 
 // الحصول على مبيعات الفليكسي

@@ -24,20 +24,20 @@ const MAIN_TABLES = [
 
 async function exportDatabaseSchema() {
   try {
-    console.log('بدء استخراج هيكل قاعدة البيانات...');
+    
     
     // التحقق من وجود الدوال المطلوبة
     const supabase = getSupabaseAdmin();
     
     // التحقق مما إذا كانت وظيفة get_complete_db_schema موجودة
-    console.log('التحقق من وجود دالة get_complete_db_schema...');
+    
     const { data: functionExists, error: functionError } = await supabase.rpc('check_function_exists', {
       function_name: 'get_complete_db_schema'
     });
     
     if (functionError) {
       console.error('خطأ في التحقق من وجود الدالة:', functionError);
-      console.log('إنشاء دالة get_complete_db_schema...');
+      
       
       // قراءة ملف SQL وتنفيذه
       const sqlFilePath = path.join(__dirname, '../sql/create_complete_schema_extractor.sql');
@@ -55,23 +55,23 @@ async function exportDatabaseSchema() {
           return;
         }
         
-        console.log('تم إنشاء الدالة بنجاح');
+        
       } else {
         console.error(`ملف SQL غير موجود: ${sqlFilePath}`);
         return;
       }
     } else {
-      console.log('دالة get_complete_db_schema موجودة بالفعل');
+      
     }
     
     // التحقق من وجود دالة get_available_tables
-    console.log('التحقق من وجود دالة get_available_tables...');
+    
     const { data: tablesFunction, error: tablesError } = await supabase.rpc('check_function_exists', {
       function_name: 'get_available_tables'
     });
     
     if (tablesError || !tablesFunction) {
-      console.log('إنشاء دالة get_available_tables...');
+      
       
       const sqlFilePath = path.join(__dirname, '../sql/create_get_available_tables_function.sql');
       
@@ -86,17 +86,17 @@ async function exportDatabaseSchema() {
         if (createError) {
           console.error('خطأ في إنشاء الدالة:', createError);
         } else {
-          console.log('تم إنشاء دالة get_available_tables بنجاح');
+          
         }
       } else {
         console.error(`ملف SQL غير موجود: ${sqlFilePath}`);
       }
     } else {
-      console.log('دالة get_available_tables موجودة بالفعل');
+      
     }
     
     // استخراج هيكل قاعدة البيانات
-    console.log('استخراج هيكل قاعدة البيانات...');
+    
     const { data: schema, error: schemaError } = await supabase.rpc('get_complete_db_schema');
     
     if (schemaError) {
@@ -116,10 +116,10 @@ async function exportDatabaseSchema() {
     fs.writeFileSync(schemaFilePath, schema, 'utf8');
     
     // استخراج البيانات من الجداول المحددة
-    console.log('استخراج البيانات من الجداول...');
+    
     
     for (const table of MAIN_TABLES) {
-      console.log(`استخراج بيانات جدول ${table}...`);
+      
       const { data, error } = await supabase.from(table).select('*');
       
       if (error) {
@@ -130,14 +130,14 @@ async function exportDatabaseSchema() {
       if (data && data.length > 0) {
         const dataFilePath = path.join(outputDir, `${table}-data.json`);
         fs.writeFileSync(dataFilePath, JSON.stringify(data, null, 2), 'utf8');
-        console.log(`تم حفظ بيانات جدول ${table} (${data.length} سجل)`);
+        
       } else {
-        console.log(`جدول ${table} لا يحتوي على بيانات`);
+        
       }
     }
     
-    console.log('تم استخراج قاعدة البيانات بنجاح');
-    console.log(`تم حفظ الملفات في المجلد: ${outputDir}`);
+    
+    
     
     return { success: true };
   } catch (error) {
@@ -150,7 +150,7 @@ async function exportDatabaseSchema() {
 exportDatabaseSchema()
   .then(result => {
     if (result.success) {
-      console.log('اكتمل التنفيذ بنجاح');
+      
     } else {
       console.error('فشل التنفيذ');
     }

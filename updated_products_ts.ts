@@ -5,7 +5,7 @@
 
 export const updateProduct = async (id: string, updates: UpdateProduct): Promise<Product> => {
   try {
-    console.log('تحديث المنتج بالبيانات:', updates);
+    
     
     // استخدام وظيفة RPC بسيطة لتحديث المنتج
     const { data: updateSuccess, error: updateError } = await supabase
@@ -39,7 +39,7 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
       throw new Error(`لم يتم العثور على المنتج بعد التحديث: ${id}`);
     }
     
-    console.log(`تم تحديث المنتج ${id} بنجاح:`, updatedProduct.name);
+    
     return updatedProduct;
   } catch (error) {
     console.error(`خطأ عام في تحديث المنتج ${id}:`, error);

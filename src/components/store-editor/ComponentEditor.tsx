@@ -31,7 +31,7 @@ const ComponentEditor: React.FC<ComponentEditorProps> = ({ component, onUpdate }
 
   // تحديث الإعدادات عند تغيير المكون
   useEffect(() => {
-    console.log('تغيير المكون النشط:', component.type, component.id);
+    
     setEditableSettings({ ...settings });
   }, [component.id, settings]);
 
@@ -87,7 +87,7 @@ const ComponentEditor: React.FC<ComponentEditorProps> = ({ component, onUpdate }
 
   // محرر المكون حسب النوع
   const renderEditor = () => {
-    console.log("نوع المكون الحالي:", type);
+    
     
     const editorProps = {
       settings: editableSettings,

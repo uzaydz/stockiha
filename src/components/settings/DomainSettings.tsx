@@ -114,12 +114,12 @@ const DomainSettings: React.FC = () => {
     setIsLoading(true);
     
     try {
-      console.log('جلب معلومات النطاق مباشرة من قاعدة البيانات...');
+      
       
       const result = await getDomainInfo(organization.id);
       
       if (result.success && result.data) {
-        console.log('تم جلب معلومات النطاق بنجاح:', result.data);
+        
         
         if (result.data.domain) {
           setActualDomain(result.data.domain);

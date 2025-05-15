@@ -28,7 +28,7 @@ export class DomainSyncService {
     errors: number;
   }> {
     if (this.isSyncing) {
-      console.log('عملية مزامنة أخرى قيد التنفيذ، تخطي...');
+      
       return {
         success: false,
         processed: 0,

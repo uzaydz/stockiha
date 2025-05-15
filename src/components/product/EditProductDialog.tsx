@@ -123,14 +123,14 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
           role: userData?.role || user.user_metadata?.role,
         };
         
-        console.log('EditProductDialog: بيانات المستخدم بعد الدمج:', mergedUserData);
+        
 
         // استخدام نفس دالة فحص الصلاحيات المستخدمة في ProductsList
         // انتظار حل الوعد (Promise) لاستلام نتيجة التحقق
         const canEditPromise = checkUserPermissions(mergedUserData, 'editProducts');
         const canEdit = await canEditPromise;
         
-        console.log('EditProductDialog: نتيجة التحقق من صلاحية التعديل:', canEdit);
+        
         
         // تحديث حالة الصلاحية
         setHasPermission(canEdit);
@@ -242,16 +242,16 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
           setUseSizes(productUseSizes);
           form.setValue('use_sizes', productUseSizes);
           
-          console.log('تحميل المنتج مع استخدام المقاسات:', productUseSizes);
-          console.log('ألوان المنتج المحملة:', colors);
-          console.log('قيمة use_sizes في المنتج الأصلي:', (product as any)?.use_sizes);
-          console.log('قيمة use_sizes بعد التحويل إلى Boolean:', productUseSizes);
-          console.log('قيمة form.getValues(\'use_sizes\') بعد التعيين:', form.getValues('use_sizes'));
-          console.log('قيمة متغير الحالة useSizes بعد التعيين:', useSizes);
+          
+          
+          
+          
+          
+          
           
           // فحص المقاسات لكل لون
           if (productUseSizes) {
-            console.log('البدء في فحص مقاسات الألوان...');
+            
             
             // نستخدم مصفوفة من الوعود لتحميل مقاسات جميع الألوان في نفس الوقت
             const loadPromises = colors.map(async (color) => {
@@ -259,13 +259,13 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
                 if (color.has_sizes) {
                   // المقاسات للألوان التي تم تعيين has_sizes = true
                   const sizes = await getProductSizes(color.id);
-                  console.log(`تم تحميل ${sizes.length} مقاس للون ${color.name} (${color.id})`, sizes);
+                  
                   return { colorId: color.id, sizes, found: sizes.length > 0 };
                 } else {
                   // فحص ما إذا كان هناك مقاسات للألوان التي تم تعيين has_sizes = false
                   const sizes = await getProductSizes(color.id);
                   if (sizes.length > 0) {
-                    console.log(`وجدنا ${sizes.length} مقاس للون ${color.name} على الرغم من أن has_sizes = false!`, sizes);
+                    
                     return { colorId: color.id, sizes, found: true };
                   }
                 }
@@ -299,7 +299,7 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
             
             // تحديث الحالة فقط إذا كانت هناك تغييرات
             if (hasUpdates) {
-              console.log('تم تحديث مقاسات الألوان:', updatedColors);
+              
               setProductColors(updatedColors);
               setOriginalProductColors([...updatedColors]);
             }
@@ -311,7 +311,7 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
             // ترتيب الصور حسب sort_order
             const sortedImages = productImages.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
             const additionalImageUrls = sortedImages.map(img => img.image_url);
-            console.log('الصور الإضافية المحملة من جدول product_images:', additionalImageUrls);
+            
             setAdditionalImages(additionalImageUrls);
             setOriginalAdditionalImages(additionalImageUrls);
             
@@ -322,7 +322,7 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
           else if (product.images && Array.isArray(product.images)) {
             // استبعاد الصورة الرئيسية من الصور الإضافية
             const additionalImageUrls = product.images.filter(img => img !== product.thumbnail_image);
-            console.log('الصور الإضافية المحملة من حقل images:', additionalImageUrls);
+            
             setAdditionalImages(additionalImageUrls);
             setOriginalAdditionalImages(additionalImageUrls);
             
@@ -341,15 +341,15 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
 
           // تأكد من تعيين organization_id
           if (product.organization_id) {
-            console.log('تعيين معرف المؤسسة من المنتج المحمل:', product.organization_id);
+            
             setOrganizationId(product.organization_id);
           }
 
           // تحميل مراحل أسعار الجملة
           try {
-            console.log(`بدء تحميل مراحل أسعار الجملة للمنتج ${product.id}`);
+            
             const tiersData = await getWholesaleTiers(product.id);
-            console.log(`تم تحميل ${tiersData.length} مرحلة سعرية للجملة:`, tiersData);
+            
             setWholesaleTiers(tiersData);
           } catch (tierError) {
             console.error('خطأ في تحميل مراحل أسعار الجملة:', tierError);
@@ -418,7 +418,7 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
   }, [watchPrice, useVariantPrices, productColors]);
 
   const handleAdditionalImagesChange = (urls: string[]) => {
-    console.log('EditProductDialog: تم تغيير الصور الإضافية:', urls);
+    
     // تأكد من أن urls ليست فارغة وهي مصفوفة
     if (!Array.isArray(urls)) {
       console.error('EditProductDialog: تم استلام قيمة غير صالحة للصور الإضافية:', urls);
@@ -427,7 +427,7 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
     
     // تأكد من عدم وجود قيم فارغة
     const filteredUrls = urls.filter(url => url && url.trim() !== '');
-    console.log('EditProductDialog: الصور الإضافية بعد الفلترة:', filteredUrls);
+    
     
     setAdditionalImages(filteredUrls);
     // تحديث الصور في النموذج أيضاً
@@ -435,7 +435,7 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
   };
 
   const handleProductColorsChange = (colors: ProductColor[]) => {
-    console.log('تحديث ألوان المنتج:', colors);
+    
     
     // تأكد من حفظ مقاسات كل لون إذا كان له مقاسات
     const updatedColors = colors.map(color => {
@@ -502,25 +502,25 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
 
   // تعديل دالة التعامل مع تغيير الصورة الرئيسية
   const handleMainImageChange = (url: string) => {
-    console.log('تم تغيير الصورة الرئيسية:', url);
+    
   };
 
   const handleWholesaleTiersChange = (tiers: WholesaleTier[]) => {
-    console.log('handleWholesaleTiersChange:', { tiersCount: tiers.length, organizationId });
+    
     setWholesaleTiers(tiers);
   };
 
   // Add useEffect to set the organizationId from the product's organization_id
   useEffect(() => {
     if (product?.organization_id) {
-      console.log('Setting organizationId from product:', product.organization_id);
+      
       setOrganizationId(product.organization_id);
     } else {
       console.warn('No organization_id found in product:', product);
       // Try to get organization ID from environment variable
       const defaultOrgId = process.env.NEXT_PUBLIC_DEFAULT_ORGANIZATION_ID;
       if (defaultOrgId) {
-        console.log('Using default organization ID from env variables:', defaultOrgId);
+        
         setOrganizationId(defaultOrgId);
       }
     }
@@ -528,9 +528,9 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
 
   const onSubmit = async (values: ProductFormValues) => {
     setIsSubmitting(true);
-    console.log('تقديم نموذج تعديل المنتج:', values);
-    console.log('قيمة use_sizes عند التقديم:', values.use_sizes);
-    console.log('قيمة متغير الحالة useSizes عند التقديم:', useSizes);
+    
+    
+    
     
     try {
       // التحقق من الصلاحيات
@@ -591,12 +591,12 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
         updated_at: new Date().toISOString(),
       };
       
-      console.log('بيانات تحديث المنتج:', updateData);
-      console.log('قيمة use_sizes في بيانات التحديث:', updateData.use_sizes);
+      
+      
       
       // إذا تم تغيير SKU، تحقق من عدم وجود تكرار
       if (values.sku !== product.sku) {
-        console.log('التحقق من SKU:', { newSku: values.sku, currentSku: product.sku });
+        
         const { data: existingSku } = await supabase
           .from('products')
           .select('id')
@@ -615,12 +615,12 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
           sku: values.sku
         };
 
-        console.log('تحديث المنتج مع SKU جديد:', updateDataWithSku);
+        
         
         // التحقق من حالة الاتصال
         if (!navigator.onLine) {
           // استخدام وظيفة التخزين المحلي في حالة عدم الاتصال
-          console.log('تحديث المنتج في وضع عدم الاتصال');
+          
           
           // استخدام وظيفة تحديث المنتج من واجهة Offline-First
           const updatedProduct = await updateOfflineProduct(product.id, updateDataWithSku);
@@ -640,8 +640,8 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
           const updatedProduct = await updateOnlineProduct(product.id, updateDataWithSku);
           
           if (updatedProduct) {
-            console.log('تم تحديث المنتج بنجاح، القيم المرجعة:', updatedProduct);
-            console.log('قيمة use_sizes في المنتج بعد التحديث:', (updatedProduct as any)?.use_sizes);
+            
+            
             toast.success('تم تحديث المنتج بنجاح');
             onProductUpdated();
             onOpenChange(false);
@@ -650,7 +650,7 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
           console.error('Error updating product:', error);
           
           // في حالة فشل التحديث عبر الإنترنت، نستخدم التخزين المحلي كاحتياطي
-          console.log('محاولة التخزين المحلي كحل احتياطي');
+          
           const updatedProduct = await updateOfflineProduct(product.id, updateDataWithSku);
           
           if (updatedProduct) {
@@ -663,12 +663,12 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
         }
       } else {
         // تحديث بدون تغيير SKU
-        console.log('تحديث المنتج بدون تغيير SKU:', updateData);
+        
         
         // التحقق من حالة الاتصال
         if (!navigator.onLine) {
           // استخدام وظيفة التخزين المحلي في حالة عدم الاتصال
-          console.log('تحديث المنتج في وضع عدم الاتصال');
+          
           
           // استخدام وظيفة تحديث المنتج من واجهة Offline-First
           const updatedProduct = await updateOfflineProduct(product.id, updateData);
@@ -688,8 +688,8 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
           const updatedProduct = await updateOnlineProduct(product.id, updateData);
           
           if (updatedProduct) {
-            console.log('تم تحديث المنتج بنجاح، القيم المرجعة:', updatedProduct);
-            console.log('قيمة use_sizes في المنتج بعد التحديث:', (updatedProduct as any)?.use_sizes);
+            
+            
             toast.success('تم تحديث المنتج بنجاح');
             onProductUpdated();
             onOpenChange(false);
@@ -698,7 +698,7 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
           console.error('Error updating product:', error);
           
           // في حالة فشل التحديث عبر الإنترنت، نستخدم التخزين المحلي كاحتياطي
-          console.log('محاولة التخزين المحلي كحل احتياطي');
+          
           const updatedProduct = await updateOfflineProduct(product.id, updateData);
           
           if (updatedProduct) {
@@ -811,14 +811,14 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
       try {
         // أولاً: احصل على الصور الحالية
         const existingImages = await getProductImages(product.id);
-        console.log('EditProductDialog: الصور الموجودة في جدول product_images:', existingImages);
+        
 
         // ثانياً: احذف الصور التي لم تعد موجودة
         let deletionErrors = 0;
         let deletionPromises = [];
         for (const img of existingImages) {
           if (!additionalImages.includes(img.image_url)) {
-            console.log('EditProductDialog: حذف الصورة غير المستخدمة:', img.image_url);
+            
             try {
               const deletePromise = deleteProductImage(img.id)
                 .catch(error => {
@@ -838,7 +838,7 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
 
         // ثالثاً: أضف الصور الجديدة
         if (additionalImages && additionalImages.length > 0) {
-          console.log('EditProductDialog: تحديث الصور الإضافية في جدول product_images:', additionalImages);
+          
           const existingUrls = existingImages.map(img => img.image_url);
           let additionErrors = 0;
           let additionPromises = [];
@@ -847,7 +847,7 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
             const imageUrl = additionalImages[i];
             // تجاهل الصورة إذا كانت هي نفسها الصورة الرئيسية
             if (!existingUrls.includes(imageUrl)) {
-              console.log('EditProductDialog: إضافة صورة جديدة:', imageUrl);
+              
               try {
                 const addPromise = createProductImage({
                   product_id: product.id,
@@ -855,7 +855,7 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
                   sort_order: i
                 })
                 .then(response => {
-                  console.log(`EditProductDialog: تم إضافة الصورة ${i+1} بنجاح:`, response);
+                  
                 })
                 .catch(error => {
                   console.error(`EditProductDialog: خطأ في إضافة الصورة ${i+1}:`, error);
@@ -868,7 +868,7 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
                 additionErrors++;
               }
             } else {
-              console.log(`EditProductDialog: الصورة ${i+1} هي نفسها الصورة الرئيسية:`, imageUrl);
+              
             }
           }
           

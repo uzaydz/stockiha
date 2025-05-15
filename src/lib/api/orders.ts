@@ -15,7 +15,7 @@ export const getOrders = async (organizationId?: string): Promise<Order[]> => {
       return [];
     }
     
-    console.log("جلب الطلبات للمؤسسة:", organizationId);
+    
     
     const { data, error } = await supabase
       .from('orders')
@@ -28,7 +28,7 @@ export const getOrders = async (organizationId?: string): Promise<Order[]> => {
       throw error;
     }
 
-    console.log(`تم جلب ${data?.length || 0} طلب للمؤسسة ${organizationId}`);
+    
     return data || [];
   } catch (error) {
     console.error('خطأ غير متوقع أثناء جلب الطلبات:', error);

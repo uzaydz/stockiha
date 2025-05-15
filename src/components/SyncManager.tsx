@@ -36,16 +36,11 @@ const SyncManager: React.FC<SyncManagerProps> = ({
   
   // طباعة تشخيصية عند بدء تشغيل المكون
   React.useEffect(() => {
-    console.log('[SyncManager] تهيئة المكون:', { 
-      isRunningInElectron, 
-      autoSync, 
-      forceDisable,
-      isSyncEnabled: isRunningInElectron && autoSync && !forceDisable 
-    });
+    
     
     // تعيين علامة عالمية لمنع المزامنة في المتصفح
     if (typeof window !== 'undefined' && !isRunningInElectron) {
-      console.log('[SyncManager] تعطيل المزامنة في بيئة المتصفح');
+      
       (window as any).__SYNC_DISABLED_IN_BROWSER = true;
     }
   }, [isRunningInElectron, autoSync, forceDisable]);
@@ -77,7 +72,7 @@ const SyncManager: React.FC<SyncManagerProps> = ({
     // منع المزامنة إذا كانت معطلة أو في وضع عدم الاتصال أو خلال عملية مزامنة حالية
     if (!isSyncEnabled || !isOnline || isSyncing) {
       if (!isRunningInElectron) {
-        console.log('[SyncManager] المزامنة معطلة في بيئة المتصفح');
+        
       }
       return;
     }
@@ -85,7 +80,7 @@ const SyncManager: React.FC<SyncManagerProps> = ({
     try {
       // فحص إضافي لمنع المزامنة في المتصفح
       if (!isRunningInElectron || (window as any).__SYNC_DISABLED_IN_BROWSER) {
-        console.log('[SyncManager] محاولة مزامنة في المتصفح تم منعها');
+        
         return;
       }
 
@@ -93,13 +88,13 @@ const SyncManager: React.FC<SyncManagerProps> = ({
       setSyncError(null);
       onSyncStatusChange?.(true);
 
-      console.log('بدء المزامنة في بيئة Electron');
+      
       const success = await synchronizeWithServer();
 
       if (success) {
         setLastSyncTime(new Date());
         setSyncError(null);
-        console.log('تمت المزامنة بنجاح');
+        
       } else {
         setSyncError('فشلت عملية المزامنة. سيتم إعادة المحاولة لاحقاً.');
       }
@@ -130,7 +125,7 @@ const SyncManager: React.FC<SyncManagerProps> = ({
 
       // فحص إضافي للتأكد من أننا في Electron
       if (!isRunningInElectron || (window as any).__SYNC_DISABLED_IN_BROWSER) {
-        console.log('[SyncManager] تجاهل حدث تغيير رؤية الصفحة في المتصفح');
+        
         return;
       }
 
@@ -141,11 +136,11 @@ const SyncManager: React.FC<SyncManagerProps> = ({
           window.clearTimeout(syncTimeoutRef.current);
         }
 
-        console.log('العودة للتبويب في Electron - جدولة مزامنة بعد 3 ثوانٍ');
+        
 
         // تنفيذ المزامنة بعد 3 ثوانٍ للتأكد من استقرار التطبيق
         syncTimeoutRef.current = window.setTimeout(() => {
-          console.log('تنفيذ المزامنة المجدولة بعد عودة التبويب');
+          
           performSync();
         }, 3000);
       }
@@ -166,7 +161,7 @@ const SyncManager: React.FC<SyncManagerProps> = ({
   useEffect(() => {
     // تنفيذ المزامنة فقط في Electron عند استعادة الاتصال
     if (isOnline && isSyncEnabled && isRunningInElectron) {
-      console.log('استعادة الاتصال في Electron - تنفيذ المزامنة');
+      
       performSync();
     }
   }, [isOnline, lastOnlineChange, isSyncEnabled, isRunningInElectron]);
@@ -178,7 +173,7 @@ const SyncManager: React.FC<SyncManagerProps> = ({
 
     const interval = setInterval(() => {
       if (isOnline && !isSyncing && document.visibilityState === 'visible') {
-        console.log('تنفيذ المزامنة الدورية في Electron');
+        
         performSync();
       }
     }, syncInterval);
@@ -197,7 +192,7 @@ const SyncManager: React.FC<SyncManagerProps> = ({
     if (isOnline) {
       // تنفيذ المزامنة بعد تحميل المكون بـ 2 ثانية
       const initialSyncTimeout = setTimeout(() => {
-        console.log('تنفيذ المزامنة الأولية في Electron');
+        
         performSync();
       }, 2000);
       

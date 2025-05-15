@@ -23,7 +23,7 @@ export const getUserSettings = async (userId: string): Promise<UserSettings | nu
     if (error) {
       if (status === 406 || error.code === 'PGRST116') {
         // تعني أنه لا توجد إعدادات للمستخدم - نعيد القيم الافتراضية
-        console.log('لا توجد إعدادات للمستخدم، نستخدم القيم الافتراضية');
+        
         return getDefaultUserSettings(userId);
       }
       
@@ -140,7 +140,7 @@ export const updateUserSettings = async (
     if (checkError) {
       if (status === 406 || checkError.code === 'PGRST116') {
         // لا توجد إعدادات، نقوم بإنشائها
-        console.log('إنشاء إعدادات جديدة للمستخدم');
+        
         const defaultSettings = getDefaultUserSettings(userId);
         
         const newSettings = {
@@ -224,7 +224,7 @@ export const getOrganizationSettings = async (organizationId: string): Promise<O
     return withCache<OrganizationSettings | null>(
       `organization_settings:${organizationId}`,
       async () => {
-        console.log('Getting organization settings for organization ID:', organizationId);
+        
         
         const supabase = getSupabaseClient();
         
@@ -240,7 +240,7 @@ export const getOrganizationSettings = async (organizationId: string): Promise<O
         if (error) {
           if (status === 406 || error.code === 'PGRST116') {
             // لا توجد إعدادات للمؤسسة - نستخدم القيم من themeSettings أو القيم الافتراضية
-            console.log('No settings found for organization, using theme settings or default values:', organizationId);
+            
             const defaultSettings = getDefaultOrganizationSettings(organizationId);
             
             // دمج القيم من themeSettings مع الإعدادات الافتراضية
@@ -413,7 +413,7 @@ export const updateOrganizationSettings = async (
   payload: UpdateSettingsPayload
 ): Promise<OrganizationSettings | null> => {
   try {
-    console.log('Updating organization settings for organization ID:', organizationId);
+    
     
     if (!organizationId) {
       console.error('No organization ID provided for settings update');
@@ -652,7 +652,7 @@ export const logSettingChange = async (
       // Just log the error without throwing
       console.warn('Failed to log setting change:', error.message || error);
     } else {
-      console.log('Setting change logged successfully');
+      
     }
   } catch (error: any) {
     // Just log the error without throwing

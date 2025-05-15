@@ -60,7 +60,7 @@ const ViewProductDialog = ({ product, open, onOpenChange }: ViewProductDialogPro
             // ترتيب الصور حسب sort_order
             const sortedImages = images.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
             const imageUrls = sortedImages.map(img => img.image_url);
-            console.log('تم تحميل الصور الإضافية للعرض:', imageUrls);
+            
             setAdditionalImages(imageUrls);
           }
         } catch (error) {

@@ -25,7 +25,7 @@ const Invoices = () => {
       setIsLoading(true);
       try {
         if (!currentOrganization) {
-          console.log("لا توجد مؤسسة حالية، لا يمكن جلب الفواتير");
+          
           setInvoices([]);
           return;
         }

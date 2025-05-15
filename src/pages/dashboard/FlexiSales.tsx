@@ -90,7 +90,7 @@ export default function FlexiSales() {
       // إذا كان المستخدم قد اختار عرض جميع البيانات، نقوم بمسح معرف المنظمة من localStorage
       if (showAllData) {
         localStorage.removeItem('organization_id');
-        console.log('تم إزالة فلترة المنظمة، سيتم عرض جميع البيانات');
+        
       } else {
         // الحصول على معرف المنظمة من المستخدم
         const organizationId = 
@@ -100,7 +100,7 @@ export default function FlexiSales() {
           localStorage.getItem('organization_id') ||
           "7519afc0-d068-4235-a0f2-f92935772e0c"; // استخدام معرف افتراضي إذا لم يتوفر
 
-        console.log('معرف المنظمة المستخدم في fetchFlexiData:', organizationId);
+        
 
         // حفظ معرف المنظمة في التخزين المحلي لضمان الاتساق بين مختلف API
         if (organizationId) {
@@ -112,7 +112,7 @@ export default function FlexiSales() {
       const networks = await getFlexiNetworks();
       const balances = await getFlexiBalances();
       
-      console.log(`تم استلام ${networks.length} شبكة و ${balances.length} رصيد`);
+      
       
       setFlexiNetworks(networks);
       setFlexiBalances(balances);
@@ -267,14 +267,8 @@ export default function FlexiSales() {
         console.warn(`تنبيه: منظمة الشبكة (${selectedNetwork.organization_id}) تختلف عن المنظمة الحالية (${organizationId})`);
       }
       
-      console.log('معرف المنظمة المستخدم في عملية البيع:', organizationId);
-      console.log('تفاصيل عملية البيع:', {
-        network_id: flexiSaleData.network_id,
-        currentBalance,
-        remainingBalance,
-        amount,
-        organization_id: organizationId
-      });
+      
+      
       
       try {
         // إتمام عملية البيع
@@ -446,7 +440,7 @@ export default function FlexiSales() {
       // استخدام المعرف المكتشف أو المعرف المؤقت
       const finalOrgId = organizationId || tempOrgId;
       
-      console.log('معرف المنظمة المستخدم في عملية البيع:', finalOrgId);
+      
       
       try {
         // إتمام عملية البيع

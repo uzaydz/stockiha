@@ -73,6 +73,7 @@ import CustomizeProductPurchasePage from '@/pages/dashboard/CustomizeProductPurc
 import CustomDomainsDocPage from './pages/docs/CustomDomainsDocPage';
 import DomainSettings from '@/components/settings/DomainSettings';
 import StoreRouter from '@/components/routing/StoreRouter';
+import ProductForm from "./pages/ProductForm";
 
 // Super Admin Pages
 import SuperAdminDashboard from '@/pages/super-admin/SuperAdminDashboard';
@@ -96,7 +97,7 @@ import { isElectron } from '@/lib/isElectron';
 const isRunningInElectron = isElectron();
 
 // تسجيل بيئة التطبيق بوضوح
-console.log('[APP] نوع البيئة:', isRunningInElectron ? 'Electron' : 'متصفح');
+
 
 // وضع علامة عالمية على نوع البيئة
 if (typeof window !== 'undefined') {
@@ -104,7 +105,7 @@ if (typeof window !== 'undefined') {
   
   // منع المزامنة والتحديث التلقائي في المتصفح
   if (!isRunningInElectron) {
-    console.log('[APP] تعطيل المزامنة والتحديث التلقائي في المتصفح');
+    
     (window as any).__SYNC_DISABLED_IN_BROWSER = true;
     (window as any).__PREVENT_AUTO_REFRESH = true;
   }
@@ -172,7 +173,7 @@ if (typeof window !== 'undefined') {
 
   // ضبط إعدادات ReactQuery لمنع التحديث التلقائي في المتصفح
   if (!isRunningInElectron) {
-    console.log('[ReactQuery] ضبط إعدادات لمنع التحديث التلقائي في نسخة الويب');
+    
     queryClient.setDefaultOptions({
       queries: {
         refetchOnWindowFocus: false,
@@ -188,7 +189,7 @@ if (typeof window !== 'undefined') {
     if (document.visibilityState === 'visible') {
       // في Electron فقط، نقوم بإلغاء صلاحية الاستعلامات الحالية للحصول على أحدث البيانات
       if (isRunningInElectron) {
-        console.log('[ReactQuery] تحديث الاستعلامات بعد العودة للنافذة في Electron');
+        
         
         // استئناف الـ mutations قيد التنفيذ
         queryClient.resumePausedMutations();
@@ -197,7 +198,7 @@ if (typeof window !== 'undefined') {
         // queryClient.invalidateQueries(); // تم التعليق لمنع إعادة الجلب الفورية عند كل عودة للتبويب في Electron
       } else {
         // في المتصفح، فقط نستأنف المعاملات دون تحديث الاستعلامات
-        console.log('[ReactQuery] منع تحديث الاستعلامات في المتصفح عند العودة للنافذة');
+        
         queryClient.resumePausedMutations();
         
         // تأكيد تعطيل التحديث التلقائي في المتصفح
@@ -212,7 +213,7 @@ if (typeof window !== 'undefined') {
       }
     } else {
       // تسجيل الابتعاد عن النافذة
-      console.log('مغادرة علامة التبويب - إيقاف العمليات غير الضرورية');
+      
       queryClient.cancelQueries();
     }
   });
@@ -238,12 +239,12 @@ const SyncManagerWrapper = () => {
 const TabFocusHandler = ({ children }: { children: React.ReactNode }) => {
   useTabFocusEffect({
     onFocus: () => {
-      console.log('عودة إلى علامة التبويب - استخدام البيانات المخزنة مؤقتًا');
+      
       // عند العودة بعد فترة طويلة، يمكن تحديث بعض البيانات الهامة
       // لكن معظم البيانات ستبقى مخزنة وجاهزة للاستخدام
     },
     onBlur: () => {
-      console.log('مغادرة علامة التبويب - إيقاف العمليات غير الضرورية');
+      
       // إيقاف أي طلبات قيد التنفيذ
       const queryClient = (window as any).__REACT_QUERY_GLOBAL_CLIENT;
       if (queryClient) {
@@ -578,6 +579,16 @@ const App = () => (
                           <Products />
                         </PermissionGuard>
                       </SubscriptionCheck>
+                    } />
+                    <Route path="/dashboard/product/new" element={
+                      <PermissionGuard requiredPermissions={['addProducts']}>
+                        <ProductForm />
+                      </PermissionGuard>
+                    } />
+                    <Route path="/dashboard/product/:id" element={
+                      <PermissionGuard requiredPermissions={['editProducts']}>
+                        <ProductForm />
+                      </PermissionGuard>
                     } />
                     <Route path="/dashboard/products/:productId/customize-purchase-page" element={
                       <SubscriptionCheck>

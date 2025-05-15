@@ -30,7 +30,7 @@ const ActivateWithCode = () => {
     const getOrganizationId = async () => {
       // 1. أولاً نحاول الحصول على المعرف من الكونتكست
       if (organization?.id) {
-        console.log("استخدام معرف المؤسسة من كونتكست المصادقة:", organization.id);
+        
         setOrganizationId(organization.id);
         return;
       }
@@ -38,7 +38,7 @@ const ActivateWithCode = () => {
       // 2. نحاول الحصول عليه من localStorage
       const storedOrgId = localStorage.getItem('bazaar_organization_id');
       if (storedOrgId) {
-        console.log("استخدام معرف المؤسسة من التخزين المحلي:", storedOrgId);
+        
         setOrganizationId(storedOrgId);
         return;
       }
@@ -53,7 +53,7 @@ const ActivateWithCode = () => {
             .single();
 
           if (!error && userData?.organization_id) {
-            console.log("استخدام معرف المؤسسة من بيانات المستخدم:", userData.organization_id);
+            
             setOrganizationId(userData.organization_id);
             // نحفظ المعرف في localStorage للمرات القادمة
             localStorage.setItem('bazaar_organization_id', userData.organization_id);
@@ -79,8 +79,8 @@ const ActivateWithCode = () => {
     }
     
     // طباعة معلومات المؤسسة للتشخيص
-    console.log('Organization in ActivateWithCode:', organization);
-    console.log('Organization ID to use:', organizationId);
+    
+    
     
     if (!organizationId) {
       console.error('Missing organization ID in ActivateWithCode component');
@@ -95,7 +95,7 @@ const ActivateWithCode = () => {
     setLoading(true);
     
     try {
-      console.log('Trying to activate with organization ID:', organizationId);
+      
       
       // استخدام خدمة التفعيل من ActivationService بدلاً من استدعاء RPC مباشرة
       const result = await ActivationService.activateSubscription({
@@ -111,7 +111,7 @@ const ActivateWithCode = () => {
         // تحديث بيانات المؤسسة في قاعدة البيانات مع معرف الاشتراك
         try {
           if (result.subscription_id) {
-            console.log('تحديث المؤسسة بمعرف الاشتراك الجديد:', result.subscription_id);
+            
             
             const { error: updateError } = await supabase
               .from('organizations')
@@ -126,7 +126,7 @@ const ActivateWithCode = () => {
             if (updateError) {
               console.error('خطأ في تحديث بيانات المؤسسة:', updateError);
             } else {
-              console.log('تم تحديث بيانات المؤسسة بنجاح');
+              
             }
           } else {
             console.error('لم يتم العثور على معرف الاشتراك في نتيجة التفعيل');

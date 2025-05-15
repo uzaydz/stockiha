@@ -647,29 +647,10 @@ export function ExpenseList({ showRecurringOnly }: { showRecurringOnly?: boolean
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               // onClick={() => handleEdit(expense)}
-                              onClick={() => console.log("Editar", expense)}
-                              className="gap-2 focus:text-primary"
-                            >
-                              <FileEdit className="h-4 w-4" />
-                              تعديل
-                            </DropdownMenuItem>
-                            {/* Revisar si existe receipt_url antes de mostrar el botón */}
-                            {typeof expense.receipt_url === 'string' && expense.receipt_url && (
-                              <DropdownMenuItem
-                                onClick={() => window.open(expense.receipt_url as string, "_blank")}
-                                className="gap-2 focus:text-blue-600 dark:focus:text-blue-400"
-                              >
-                                <Receipt className="h-4 w-4" />
-                                عرض الإيصال
-                              </DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem
-                              onClick={() => handleDelete(expense.id)}
-                              className="gap-2 focus:text-red-600 dark:focus:text-red-400"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              حذف
-                            </DropdownMenuItem>
+                              onClick={() => {
+                                setSelectedExpense(null);
+                              }}
+                            />
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -680,80 +661,7 @@ export function ExpenseList({ showRecurringOnly }: { showRecurringOnly?: boolean
             </Table>
           </div>
         )}
-
-        {data && data.count > 0 && (
-          <div className="flex items-center justify-between p-4 border-t border-border">
-            <div className="text-sm text-muted-foreground">
-              عرض {(page - 1) * 10 + 1} إلى {Math.min(page * 10, data.count)} من إجمالي {data.count} مصروف
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage(Math.max(1, page - 1))}
-                disabled={page === 1}
-                className="gap-1 border-border"
-              >
-                <ChevronRight className="h-4 w-4" />
-                السابق
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage(page + 1)}
-                disabled={page * 10 >= data.count}
-                className="gap-1 border-border"
-              >
-                التالي
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        )}
       </Card>
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>هل أنت متأكد من رغبتك في الحذف؟</AlertDialogTitle>
-            <AlertDialogDescription>
-              هل أنت متأكد من رغبتك في حذف هذا المصروف؟
-              {typeof expenseToDelete === 'object' && expenseToDelete && expenseToDelete.is_recurring && (
-                <span className="block mt-2 font-medium text-destructive">
-                  سيتم حذف هذا المصروف المتكرر وجميع مدفوعاته المستقبلية.
-                </span>
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>إلغاء</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={confirmDelete}
-              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
-            >
-              {deleteExpenseMutation.isPending && (
-                <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-              )}
-              حذف
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Edit Expense Drawer - Comentado temporalmente */}
-      {/*
-      {selectedExpense && (
-        <ExpenseDrawer
-          expense={selectedExpense}
-          open={isEditDrawerOpen}
-          onClose={() => {
-            setIsEditDrawerOpen(false);
-            setSelectedExpense(null);
-          }}
-        />
-      )}
-      */}
     </div>
   );
 } 

@@ -56,7 +56,7 @@ export default function ExpensesPage() {
         
         if (userData && userData.organization_id) {
           localStorage.setItem('currentOrganizationId', userData.organization_id);
-          console.log('تم تخزين معرف المنظمة في التخزين المحلي:', userData.organization_id);
+          
           
           // بعد الحصول على معرف المنظمة، تحقق من وجود فئات المصروفات
           await ensureExpenseCategories(userData.organization_id);
@@ -64,7 +64,7 @@ export default function ExpensesPage() {
           // إذا لم يكن هناك معرف منظمة للمستخدم، قم بتخزين القيمة الافتراضية
           const defaultOrgId = '11111111-1111-1111-1111-111111111111';
           localStorage.setItem('currentOrganizationId', defaultOrgId);
-          console.log('تم تخزين معرف المنظمة الافتراضي في التخزين المحلي');
+          
           
           // استخدم معرف المنظمة الافتراضي لإنشاء فئات المصروفات
           await ensureExpenseCategories(defaultOrgId);
@@ -83,7 +83,7 @@ export default function ExpensesPage() {
           
         // إذا لم تكن هناك فئات، قم بإنشاء الفئات الافتراضية
         if (!existingCategories || existingCategories.length === 0) {
-          console.log('لا توجد فئات مصروفات، سيتم إنشاء الفئات الافتراضية');
+          
           
           const defaultCategories = [
             { name: 'الرواتب', organization_id: organizationId },
@@ -102,10 +102,10 @@ export default function ExpensesPage() {
           if (error) {
             console.error('خطأ في إنشاء فئات المصروفات الافتراضية:', error);
           } else {
-            console.log('تم إنشاء فئات المصروفات الافتراضية بنجاح');
+            
           }
         } else {
-          console.log(`تم العثور على ${existingCategories.length} فئة مصروفات موجودة مسبقاً`);
+          
         }
       } catch (error) {
         console.error('خطأ في التحقق من فئات المصروفات:', error);

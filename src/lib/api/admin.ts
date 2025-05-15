@@ -111,7 +111,7 @@ export const registerAdmin = async (
  */
 export const isUserAdminByEmail = async (email: string, organizationId: string): Promise<boolean> => {
   try {
-    console.log(`Checking if user with email ${email} is admin for organization ${organizationId}`);
+    
     
     const { data, error } = await supabase
       .from('users')
@@ -123,7 +123,7 @@ export const isUserAdminByEmail = async (email: string, organizationId: string):
     if (error) {
       if (error.code === 'PGRST116') {
         // لم يتم العثور على المستخدم
-        console.log(`No user found with email ${email} in organization ${organizationId}`);
+        
         return false;
       }
       console.error('Error checking admin status by email:', error);

@@ -155,11 +155,11 @@ const OrganizationBrandSettings = () => {
         return;
       }
 
-      console.log('Active user ID before RPC call:', session.user.id);
+      
       if (currentOrganization?.id) {
-          console.log('Current organization ID from context before RPC call:', currentOrganization.id);
+          
       } else {
-          console.log('Current organization or ID is not available in context before RPC call.');
+          
       }
       
       // Actualizar configuración

@@ -157,7 +157,7 @@ export async function getFormSettingsForProduct(organizationId: string, productI
 // الحصول على كامل إعدادات النموذج بما في ذلك إعدادات الشحن لمنتج معين
 export async function getFullFormSettingsForProduct(organizationId: string, productId: string): Promise<FormSettings | null> {
   try {
-    console.log(`جاري البحث عن نموذج للمنتج ${productId} في المؤسسة ${organizationId}`);
+    
     
     // Enfoque completo: Recuperar todos los form_settings y filtrar manualmente
     // para evitar problemas con la sintaxis de consulta de JSON de Supabase
@@ -181,22 +181,22 @@ export async function getFullFormSettingsForProduct(organizationId: string, prod
     }
 
     if (!data || data.length === 0) {
-      console.log('لم يتم العثور على أي نماذج');
+      
       return null;
     }
     
-    console.log(`تم العثور على ${data.length} نماذج نشطة`);
+    
     
     // البحث عن النموذج المخصص للمنتج باستخدام طباعة تفصيلية
     for (const form of data) {
-      console.log(`فحص النموذج: ${form.name} (${form.id})`);
-      console.log(`هل النموذج افتراضي: ${form.is_default}`);
-      console.log(`عدد المنتجات المرتبطة: ${form.product_ids?.length || 0}`);
+      
+      
+      
       
       if (form.product_ids && Array.isArray(form.product_ids)) {
-        console.log(`قائمة معرفات المنتجات: ${form.product_ids.join(', ')}`);
+        
         if (form.product_ids.includes(productId)) {
-          console.log(`تم العثور على نموذج مخصص للمنتج: ${form.name}`);
+          
           return {
             id: form.id,
             name: form.name,
@@ -223,7 +223,7 @@ export async function getFullFormSettingsForProduct(organizationId: string, prod
     // البحث عن النموذج الافتراضي إذا لم يتم العثور على نموذج مخصص
     const defaultForm = data.find(form => form.is_default === true);
     if (defaultForm) {
-      console.log(`استخدام النموذج الافتراضي: ${defaultForm.name}`);
+      
     }
 
     // Usar el formulario específico del producto si se encuentra,
@@ -236,7 +236,7 @@ export async function getFullFormSettingsForProduct(organizationId: string, prod
                         }) ||
                         data[0];
     
-    console.log(`النموذج المختار النهائي: ${selectedForm.name} (${selectedForm.id})`);
+    
 
     // تحويل البيانات إلى كائن FormSettings
     return {

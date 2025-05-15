@@ -45,9 +45,9 @@ const SalesOverview = () => {
   const [salesByPaymentMethod, setSalesByPaymentMethod] = useState<Array<{name: string; value: number}>>([]);
   
   useEffect(() => {
-    console.log('[SalesOverview] Component Mounted');
+    
     return () => {
-      console.log('[SalesOverview] Component Will Unmount');
+      
     };
   }, []);
   

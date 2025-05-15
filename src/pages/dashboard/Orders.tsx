@@ -262,7 +262,7 @@ const Orders = () => {
       if (error) throw error;
       
       // <-- START: Added log for raw Supabase data -->
-      console.log("Raw ordersData from Supabase:", ordersData);
+      
       // <-- END: Added log for raw Supabase data -->
 
       // <-- START: Cast ordersData to any[] -->
@@ -498,7 +498,7 @@ const Orders = () => {
       });
       
       // <-- START: Added log for processed orders -->
-      console.log("Processed orders before setting state:", processedOrders);
+      
       // <-- END: Added log for processed orders -->
 
       // تخزين البيانات في ذاكرة التخزين المؤقت

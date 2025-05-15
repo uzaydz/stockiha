@@ -80,7 +80,7 @@ export const getInventoryProducts = async (page = 1, limit = 50): Promise<{
   // تحضير قائمة المنتجات النهائية باستخدام وظيفة التحويل الموحدة
   const products: Product[] = productsData.map(product => mapProductFromDatabase(product));
   
-  console.log(`تم جلب ${products.length} منتج من المخزون للمؤسسة: ${organizationId || 'غير معروفة'}`);
+  
   return {
     products,
     totalCount: count || products.length
@@ -455,7 +455,7 @@ export const getProductsToReorder = async (): Promise<Product[]> => {
       return product.stock_quantity < reorderLevel;
     });
     
-    console.log(`تم جلب ${productsToReorder.length} منتج يحتاج إعادة طلب للمؤسسة: ${organizationId || 'غير معروفة'}`);
+    
     return productsToReorder.map(mapProductFromDatabase);
   } catch (error) {
     console.error('Error fetching products to reorder:', error);
@@ -479,7 +479,7 @@ export async function getProductStock(productId: string, variantId?: string): Pr
     
     // التحقق ما إذا كان المستخدم متصلاً بالإنترنت
     if (!navigator.onLine) {
-      console.log('استخدام التخزين المحلي للمخزون (غير متصل)');
+      
       return await inventoryDB.getProductStock(productId, variantId);
     }
     
@@ -526,7 +526,7 @@ async function checkServerConnection(): Promise<boolean> {
   try {
     // 1. التحقق أولاً من الاتصال بالإنترنت بشكل عام
     if (!navigator.onLine) {
-      console.log('المتصفح يشير إلى عدم وجود اتصال بالإنترنت');
+      
       return false;
     }
     
@@ -552,7 +552,7 @@ async function checkServerConnection(): Promise<boolean> {
         return false;
       }
       
-      console.log('تم التحقق من الاتصال بـ Supabase بنجاح');
+      
       return true;
     } catch (supabaseError) {
       console.warn('فشل التحقق من الاتصال بـ Supabase:', supabaseError);
@@ -716,12 +716,7 @@ export async function updateProductStock(data: {
     }
 
     // تسجيل المعلومات قبل التحديث
-    console.log('بيانات تحديث المخزون:', {
-      product_id: data.product_id, 
-      variant_id: data.variant_id ?? null,
-      quantity: data.quantity,
-      reason: data.reason
-    });
+    
     
     // التأكد من أن variant_id هو null وليس undefined
     const stockUpdateData = {
@@ -758,7 +753,7 @@ export async function updateProductStock(data: {
           synced: false
         };
         
-        console.log('محاولة إضافة سجل مباشر:', directInventoryItem);
+        
         toast.warning('جاري محاولة إصلاح قاعدة البيانات المحلية...');
         
         // إضافة سجل للعمليات بشكل مباشر
@@ -776,7 +771,7 @@ export async function updateProductStock(data: {
     
     // إذا كان المستخدم غير متصل، اكتفِ بالتخزين المحلي
     if (!isConnected) {
-      console.log('تم تخزين تحديث المخزون محليًا وسيتم مزامنته لاحقًا (غير متصل بالخادم)');
+      
       toast.info('تم تخزين التغييرات محليًا وسيتم مزامنتها عند استعادة الاتصال');
       return true;
     }
@@ -952,7 +947,7 @@ export async function updateProductStock(data: {
         if (!canUpdateProduct) {
           toast.info('تم تسجيل العملية ولكن تحديث المخزون سيتم مزامنته لاحقًا');
         } else {
-          console.log('تم مزامنة تحديث المخزون مع الخادم بنجاح');
+          
         }
         
         return true;
@@ -1226,7 +1221,7 @@ export async function getProductInventoryHistory(productId: string, variantId?: 
     const normalizedVariantId = variantId || null;
     
     if (!navigator.onLine) {
-      console.log('استخدام التخزين المحلي لسجل المخزون (غير متصل)');
+      
       return await inventoryDB.getProductTransactions(productId, normalizedVariantId);
     }
     
@@ -1268,7 +1263,7 @@ export async function getProductInventoryHistory(productId: string, variantId?: 
     }
     
     // في حالة عدم وجود بيانات من الخادم أو حدوث خطأ، استخدم التخزين المحلي
-    console.log('استخدام التخزين المحلي لسجل المخزون');
+    
     return await inventoryDB.getProductTransactions(productId, normalizedVariantId);
   } catch (error) {
     console.error('خطأ في الحصول على سجل المخزون:', error);
@@ -1295,7 +1290,7 @@ export async function loadInventoryData(): Promise<boolean> {
     const itemsCount = await inventoryDB.loadInventoryDataFromServer();
     
     if (itemsCount > 0) {
-      console.log(`تم تحميل ${itemsCount} عنصر من بيانات المخزون`);
+      
       return true;
     } else {
       console.warn('لم يتم تحميل أي بيانات مخزون من الخادم');
@@ -1311,7 +1306,7 @@ export async function loadInventoryData(): Promise<boolean> {
  * تهيئة نظام المخزون
  */
 export function initInventorySystem(): void {
-  console.log('تهيئة نظام المخزون...');
+  
   
   // تعيين مستمع لحالة الاتصال لمزامنة البيانات عند استعادة الاتصال
   if (typeof window !== 'undefined') {
@@ -1322,11 +1317,11 @@ export function initInventorySystem(): void {
         const isConnected = await checkServerConnection();
         
         if (!isConnected) {
-          console.log('التحقق من الاتصال فشل، لن تتم المزامنة الآن');
+          
           return;
         }
         
-        console.log('تم استعادة الاتصال، جاري التحقق من وجود بيانات للمزامنة...');
+        
         
         // الحصول على عدد العمليات غير المتزامنة
         const unsyncedCount = await inventoryDB.getUnsyncedTransactionsCount();
@@ -1338,13 +1333,13 @@ export function initInventorySystem(): void {
           setTimeout(async () => {
             try {
               const syncResult = await syncInventoryData();
-              console.log(`نتيجة المزامنة: تمت مزامنة ${syncResult} عملية`);
+              
             } catch (syncError) {
               console.error('فشل في مزامنة البيانات بعد استعادة الاتصال:', syncError);
             }
           }, 2000);
         } else {
-          console.log('لا توجد عمليات للمزامنة');
+          
         }
       } catch (error) {
         console.error('خطأ أثناء محاولة المزامنة بعد استعادة الاتصال:', error);
@@ -1353,7 +1348,7 @@ export function initInventorySystem(): void {
     
     // إضافة مستمع لحدث استعادة الاتصال
     window.addEventListener('online', () => {
-      console.log('تم اكتشاف حدث online، جاري التحقق من الاتصال...');
+      
       
       // محاولة المزامنة بعد تأخير قصير للتأكد من استقرار الاتصال
       setTimeout(attemptSyncOnReconnect, 1000);
@@ -1378,7 +1373,7 @@ export function initInventorySystem(): void {
         
         // إذا انتقلنا من حالة غير متصل إلى متصل، حاول المزامنة
         if (!lastConnectionState && isConnected) {
-          console.log('تم اكتشاف استعادة الاتصال من خلال المراقبة الدورية');
+          
           attemptSyncOnReconnect();
         }
         

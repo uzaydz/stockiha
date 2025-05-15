@@ -22,13 +22,7 @@ const ExpenseTracking: React.FC<ExpenseTrackingProps> = ({ data }) => {
   const { expenses } = data;
   
   // إضافة تتبع للبيانات
-  console.log('ExpenseTracking - البيانات المستلمة:', {
-    totalSales: data.totalSales,
-    totalProfit: data.totalProfit,
-    expenses: expenses,
-    expenseCategories: Object.keys(expenses.categories),
-    expenseValues: Object.values(expenses.categories)
-  });
+  
   
   // إذا كانت المصروفات فارغة، استخدم بيانات توضيحية
   const expenseCategories = Object.keys(expenses.categories);
@@ -36,7 +30,7 @@ const ExpenseTracking: React.FC<ExpenseTrackingProps> = ({ data }) => {
   
   // استخدام بيانات افتراضية إذا كانت المصروفات فارغة
   if (expenseCategories.length === 0) {
-    console.log('استخدام بيانات افتراضية للمصروفات');
+    
     expenses.categories = {
       'الرواتب': 10000,
       'الإيجار': 5000,

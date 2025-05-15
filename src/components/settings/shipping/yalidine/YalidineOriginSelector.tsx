@@ -37,13 +37,13 @@ export default function YalidineOriginSelector({
           .order('name');
         
         if (!organizationError && organizationData && organizationData.length > 0) {
-          console.log(`تم العثور على ${organizationData.length} ولاية خاصة بالمؤسسة`);
+          
           allWilayas = [...organizationData as YalidineWilaya[]];
         }
         
         // 2. جلب البيانات العالمية إذا لم تكن هناك بيانات خاصة أو لاستكمال البيانات
         if (allWilayas.length === 0) {
-          console.log('استخدام البيانات العالمية للولايات');
+          
           const { data: globalData, error: globalError } = await supabase
             .from('yalidine_provinces_global')
             .select('id, name, zone, is_deliverable')
@@ -54,7 +54,7 @@ export default function YalidineOriginSelector({
           }
           
           if (globalData && globalData.length > 0) {
-            console.log(`تم العثور على ${globalData.length} ولاية في البيانات العالمية`);
+            
             allWilayas = [...globalData as YalidineWilaya[]];
           }
         }
@@ -68,7 +68,7 @@ export default function YalidineOriginSelector({
           new Map(allWilayas.map(wilaya => [wilaya.id, wilaya])).values()
         );
         
-        console.log(`تم تحميل ${uniqueWilayas.length} ولاية فريدة`);
+        
         setWilayas(uniqueWilayas);
         
         // استرجاع ولاية المصدر من localStorage إذا لم تكن محددة
@@ -76,7 +76,7 @@ export default function YalidineOriginSelector({
           try {
             const syncOptions = JSON.parse(localStorage.getItem('yalidine_sync_options') || '{}');
             if (syncOptions.sourceProvinceId) {
-              console.log(`استرجاع ولاية المصدر ${syncOptions.sourceProvinceId} من localStorage`);
+              
               setOriginWilayaId(parseInt(syncOptions.sourceProvinceId));
             }
           } catch (e) {
@@ -126,7 +126,7 @@ export default function YalidineOriginSelector({
         const syncOptions = JSON.parse(localStorage.getItem('yalidine_sync_options') || '{}');
         syncOptions.sourceProvinceId = originWilayaId;
         localStorage.setItem('yalidine_sync_options', JSON.stringify(syncOptions));
-        console.log(`تم حفظ ولاية المصدر ${originWilayaId} في localStorage`);
+        
       } catch (e) {
         console.error('خطأ في حفظ خيارات المزامنة:', e);
       }
@@ -175,7 +175,7 @@ export default function YalidineOriginSelector({
                 onValueChange={(value) => {
                   if (setOriginWilayaId) {
                     const provinceId = parseInt(value);
-                    console.log(`تم اختيار الولاية: ${provinceId}`);
+                    
                     setOriginWilayaId(provinceId);
                     
                     // حفظ مؤقت في localStorage

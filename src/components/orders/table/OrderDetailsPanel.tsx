@@ -15,17 +15,56 @@ import {
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
-import { Clock, Home, Mail, MapPin, Phone, User, PhoneCall } from "lucide-react";
+import { Clock, Home, Mail, MapPin, Phone, User, PhoneCall, Building } from "lucide-react";
 import { OrderDetailsPanelProps } from "./OrderTableTypes";
 import CallConfirmationBadge from "../CallConfirmationBadge";
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase-client";
 
 const OrderDetailsPanel = ({ order }: OrderDetailsPanelProps) => {
+  const [stopDeskDetails, setStopDeskDetails] = useState<{ name?: string, commune_name?: string } | null>(null);
+
+  // دالة للبحث عن معلومات مكتب الاستلام والبلدية
+  useEffect(() => {
+    const fetchStopDeskDetails = async () => {
+      // البحث فقط إذا كان نوع التوصيل للمكتب ولدينا معرف المكتب
+      if (
+        (order.shipping_option === 'desk' || order.form_data?.deliveryOption === 'desk') &&
+        (order.stop_desk_id || order.form_data?.stopDeskId)
+      ) {
+        try {
+          console.log("[OrderDetailsPanel] جاري البحث عن معرف المكتب:", order.stop_desk_id || order.form_data?.stopDeskId);
+          const stopDeskId = order.stop_desk_id || order.form_data?.stopDeskId;
+          const { data, error } = await supabase
+            .from('yalidine_centers_global')
+            .select('center_id, name, commune_id, wilaya_id, commune_name')
+            .eq('center_id', stopDeskId)
+            .single();
+
+          if (!error && data) {
+            console.log("[OrderDetailsPanel] تم العثور على بيانات المكتب:", data);
+            setStopDeskDetails({
+              name: data.name,
+              commune_name: data.commune_name
+            });
+          } else {
+            console.error("[OrderDetailsPanel] لم يتم العثور على بيانات المكتب:", error);
+          }
+        } catch (error) {
+          console.error("[OrderDetailsPanel] خطأ في البحث عن معلومات المكتب:", error);
+        }
+      }
+    };
+
+    fetchStopDeskDetails();
+  }, [order]);
+
   // Debug logs to check the order structure
-  console.log("Order details:", order);
-  console.log("Shipping address:", order.shipping_address);
-  console.log("Form data:", order.form_data);
-  console.log("Shipping address ID:", order.shipping_address_id);
-  console.log("Shipping option:", order.shipping_option);
+  
+  
+  
+  
+  
   
   const hasItems = order.order_items && order.order_items.length > 0;
   const hasCustomer = !!order.customer;
@@ -401,7 +440,9 @@ const OrderDetailsPanel = ({ order }: OrderDetailsPanelProps) => {
                         {order.form_data.municipality && (
                           <div className="flex items-start">
                             <span className="font-medium w-24">البلدية:</span>
-                            <span>{order.form_data.municipality}</span>
+                            <span className="text-primary font-medium">
+                              {stopDeskDetails?.commune_name || order.form_data.municipality}
+                            </span>
                           </div>
                         )}
                         
@@ -422,6 +463,18 @@ const OrderDetailsPanel = ({ order }: OrderDetailsPanelProps) => {
                             </span>
                           </div>
                         )}
+                        
+                        {/* إظهار معلومات مكتب الاستلام إذا كان نوع التوصيل هو desk */}
+                        {(order.shipping_option === 'desk' || order.form_data.deliveryOption === 'desk') && (
+                          <div className="flex items-start">
+                            <span className="font-medium w-24">مكتب الاستلام:</span>
+                            <span className="text-primary font-medium">
+                              {stopDeskDetails?.name 
+                                ? `${stopDeskDetails.name} (${order.stop_desk_id || order.form_data?.stopDeskId})` 
+                                : `مكتب رقم ${order.stop_desk_id || order.form_data?.stopDeskId || 'غير محدد'}`}
+                            </span>
+                          </div>
+                        )}
                       </>
                     )}
                     
@@ -439,6 +492,36 @@ const OrderDetailsPanel = ({ order }: OrderDetailsPanelProps) => {
                           <div className="flex items-start">
                             <span className="font-medium w-24">البلدية:</span>
                             <span>{order.shipping_address.municipality}</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    
+                    {/* معلومات من metadata إذا كانت متوفرة */}
+                    {order.metadata?.shipping_details && (
+                      <>
+                        {order.metadata.shipping_details.stop_desk_commune_name && 
+                         !order.form_data?.municipality && 
+                         !order.shipping_address?.municipality && (
+                          <div className="flex items-start">
+                            <span className="font-medium w-24">البلدية:</span>
+                            <span>{order.metadata.shipping_details.stop_desk_commune_name}</span>
+                          </div>
+                        )}
+                        
+                        {/* إظهار معلومات مكتب الاستلام إذا كان نوع التوصيل هو الاستلام من المكتب */}
+                        {(order.shipping_option === 'desk' || order.form_data?.deliveryOption === 'desk') && (
+                          <div className="flex items-start">
+                            <span className="font-medium w-24">مكتب الاستلام:</span>
+                            <span className="text-primary">
+                              {stopDeskDetails?.name 
+                                ? `${stopDeskDetails.name} (${order.stop_desk_id || order.form_data?.stopDeskId})` 
+                                : order.form_data?.stopDeskId
+                                  ? `مكتب رقم ${order.form_data.stopDeskId}`
+                                  : order.stop_desk_id
+                                    ? `مكتب رقم ${order.stop_desk_id}`
+                                    : "غير محدد"}
+                            </span>
                           </div>
                         )}
                       </>

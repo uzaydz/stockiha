@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
+import { FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from 'lucide-react';
+import { Loader2, Package, LayoutGrid, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { UseFormReturn } from "react-hook-form";
 import { ProductFormValues } from "@/types/product";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { 
   generateAutomaticSku, 
   generateAutomaticBarcode 
@@ -34,17 +36,13 @@ export default function ProductInventory({ form, organizationId = '', hasVariant
       if (navigator.onLine) {
         try {
           sku = await generateAutomaticSku(organizationId);
-          console.log('تم توليد SKU من الخادم:', sku);
         } catch (error) {
-          console.error('خطأ في توليد SKU من الخادم:', error);
           // عند فشل الطلب من الخادم، نجرب الطريقة المحلية
           sku = await generateLocalSku();
-          console.log('تم توليد SKU محلياً:', sku);
         }
       } else {
         // إذا كان المستخدم غير متصل بالإنترنت، نستخدم التوليد المحلي مباشرة
         sku = await generateLocalSku();
-        console.log('تم توليد SKU محلياً (بسبب عدم الاتصال):', sku);
       }
       
       if (sku) {
@@ -54,7 +52,6 @@ export default function ProductInventory({ form, organizationId = '', hasVariant
         toast.error('فشل في توليد رمز SKU');
       }
     } catch (error) {
-      console.error('خطأ عام في توليد SKU:', error);
       toast.error('حدث خطأ أثناء توليد رمز SKU');
     } finally {
       setGeneratingSku(false);
@@ -70,17 +67,13 @@ export default function ProductInventory({ form, organizationId = '', hasVariant
       if (navigator.onLine) {
         try {
           barcode = await generateAutomaticBarcode();
-          console.log('تم توليد الباركود من الخادم:', barcode);
         } catch (error) {
-          console.error('خطأ في توليد الباركود من الخادم:', error);
           // عند فشل الطلب من الخادم، نجرب الطريقة المحلية
           barcode = generateLocalEAN13();
-          console.log('تم توليد الباركود محلياً:', barcode);
         }
       } else {
         // إذا كان المستخدم غير متصل بالإنترنت، نستخدم التوليد المحلي مباشرة
         barcode = generateLocalEAN13();
-        console.log('تم توليد الباركود محلياً (بسبب عدم الاتصال):', barcode);
       }
       
       if (barcode) {
@@ -90,7 +83,6 @@ export default function ProductInventory({ form, organizationId = '', hasVariant
         toast.error('فشل في توليد الباركود');
       }
     } catch (error) {
-      console.error('خطأ عام في توليد الباركود:', error);
       toast.error('حدث خطأ أثناء توليد الباركود');
     } finally {
       setGeneratingBarcode(false);
@@ -98,97 +90,56 @@ export default function ProductInventory({ form, organizationId = '', hasVariant
   };
 
   return (
-    <div className="space-y-4">
-      <FormField
-        control={form.control}
-        name="stock_quantity"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>الكمية في المخزون*</FormLabel>
-            <FormControl>
-              <Input 
-                type="number" 
-                min="0" 
-                step="1" 
-                placeholder="0"
-                {...field}
-                onChange={(e) => {
-                  field.onChange(parseInt(e.target.value));
-                }}
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-4">
-          <FormField
-            control={form.control}
-            name="sku"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>رمز المنتج (SKU)*</FormLabel>
-                <div className="flex gap-2">
-                  <FormControl>
-                    <Input placeholder="رمز المنتج" {...field} />
-                  </FormControl>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={handleGenerateSku}
-                    disabled={generatingSku}
-                  >
-                    {generatingSku ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      'توليد'
-                    )}
-                  </Button>
-                </div>
-                <FormDescription>
-                  رمز تعريفي فريد للمنتج في نظامك
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+    <div className="space-y-6">
+      <Card className="overflow-hidden border-2 shadow-sm hover:shadow-md transition-shadow">
+        <div className="bg-muted/30 p-3 border-b flex items-center gap-2">
+          <LayoutGrid className="h-5 w-5 text-primary" />
+          <h3 className="text-lg font-medium">إدارة المخزون</h3>
         </div>
-
-        <div className="space-y-4">
-          <FormField
-            control={form.control}
-            name="barcode"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>الباركود</FormLabel>
-                <div className="flex gap-2">
-                  <FormControl>
-                    <Input placeholder="رمز الباركود (اختياري)" {...field} />
-                  </FormControl>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={handleGenerateBarcode}
-                    disabled={generatingBarcode}
-                  >
-                    {generatingBarcode ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      'توليد'
-                    )}
-                  </Button>
-                </div>
-                <FormDescription>
-                  رمز EAN-13 لاستخدامه مع قارئات الباركود
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-      </div>
+        <CardContent className="p-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <FormField
+              control={form.control}
+              name="stock_quantity"
+              render={({ field }) => (
+                <FormItem>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                      <Package size={18} />
+                    </span>
+                    <span className="absolute right-3 top-[13px] text-xs text-muted-foreground">
+                      الكمية في المخزون*
+                    </span>
+                    <FormControl>
+                      <Input 
+                        type="number" 
+                        min="0" 
+                        step="1" 
+                        placeholder="0"
+                        className="pt-6 pl-10 bg-background border-2 h-16 focus:border-primary transition-colors"
+                        {...field}
+                        onChange={(e) => {
+                          field.onChange(parseInt(e.target.value));
+                        }}
+                      />
+                    </FormControl>
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            {hasVariants ? (
+              <div className="flex items-center justify-center h-16 bg-muted/20 rounded-md">
+                <Badge variant="outline" className="flex items-center gap-1">
+                  <Info className="h-3 w-3" />
+                  <span>يتم إدارة المخزون بناءً على المتغيرات</span>
+                </Badge>
+              </div>
+            ) : null}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 } 

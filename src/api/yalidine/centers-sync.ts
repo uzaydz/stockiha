@@ -15,7 +15,7 @@ import { getSyncStatus, updateSyncStatus } from './sync-status';
  */
 export async function syncCenters(organizationId: string, apiClient: AxiosInstance): Promise<boolean> {
   try {
-    console.log(`[SYNC] بدء مزامنة بيانات مكاتب التوصيل للمنظمة: ${organizationId} من البيانات العالمية`);
+    
     
     // تحديث حالة التقدم
     const syncStatus = getSyncStatus();
@@ -36,14 +36,14 @@ export async function syncCenters(organizationId: string, apiClient: AxiosInstan
       return false;
     }
     
-    console.log(`[INFO] تم العثور على ${globalCenters.length} مكتب توصيل في البيانات العالمية`);
+    
     
     // تحديث حالة التقدم
     syncStatus.centers.total = globalCenters.length;
     updateSyncStatus(syncStatus);
     
     // حذف البيانات القديمة
-    console.log('[INFO] حذف بيانات مكاتب التوصيل القديمة للمنظمة');
+    
     const { error: deleteError } = await supabase
       .from('yalidine_centers')
       .delete()
@@ -64,14 +64,14 @@ export async function syncCenters(organizationId: string, apiClient: AxiosInstan
       centerChunks.push(globalCenters.slice(i, i + chunkSize));
     }
     
-    console.log(`[INFO] تقسيم مكاتب التوصيل إلى ${centerChunks.length} مجموعة للإدخال`);
+    
     
     // إدخال البيانات على دفعات
     let insertedCount = 0;
     for (let chunkIndex = 0; chunkIndex < centerChunks.length; chunkIndex++) {
       const chunk = centerChunks[chunkIndex];
       try {
-        console.log(`[INFO] إدخال المجموعة ${chunkIndex + 1}/${centerChunks.length} (${chunk.length} مكتب)`);
+        
         
         const dataToInsert = chunk.map((center) => ({
           center_id: center.center_id,
@@ -97,7 +97,7 @@ export async function syncCenters(organizationId: string, apiClient: AxiosInstan
           // تحديث عدد العناصر المدخلة
           syncStatus.centers.added = insertedCount;
           updateSyncStatus(syncStatus);
-          console.log(`[INFO] تم إدخال ${dataToInsert.length} مكتب. المجموع: ${insertedCount}`);
+          
         }
         
         // انتظار قصير بين عمليات الإدخال
@@ -112,7 +112,7 @@ export async function syncCenters(organizationId: string, apiClient: AxiosInstan
     syncStatus.centers.status = 'success';
     updateSyncStatus(syncStatus);
     
-    console.log(`[SUCCESS] تم نسخ ${insertedCount} مكتب توصيل من البيانات العالمية للمنظمة ${organizationId}`);
+    
     return true;
   } catch (error) {
     console.error('[ERROR] خطأ أثناء مزامنة بيانات مكاتب التوصيل:', error);

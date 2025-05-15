@@ -11,10 +11,7 @@ export const isValidUUID = (uuid: string) => {
 
 // دوال تحويل البيانات من Supabase إلى التطبيق
 export const mapSupabaseProductToProduct = (product: SupabaseProduct): Product => {
-  console.log('تحويل بيانات المنتج:', product.name, { 
-    has_variants: product.has_variants, 
-    use_sizes: product.use_sizes 
-  });
+  
   
   return {
     id: product.id,

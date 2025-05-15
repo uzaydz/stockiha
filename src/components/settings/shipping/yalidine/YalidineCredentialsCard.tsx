@@ -33,7 +33,7 @@ export default function YalidineCredentialsCard({
     setIsEnabled(checked);
     
     try {
-      console.log('Toggling enabled state to:', checked);
+      
       
       // Always save the new enabled state
       await saveSettings({
@@ -75,7 +75,7 @@ export default function YalidineCredentialsCard({
     setTestResult(null);
 
     try {
-      console.log('Testing connection with API ID:', apiToken, 'API Token:', apiKey);
+      
       
       // Create an instance of the shipping service with Yalidine provider
       const shippingService = createShippingService(
@@ -109,11 +109,7 @@ export default function YalidineCredentialsCard({
   const handleSaveSettings = async () => {
     setIsSaving(true);
     try {
-      console.log('Saving settings:', {
-        is_enabled: isEnabled,
-        api_token: apiToken,
-        api_key: apiKey
-      });
+      
       
       await saveSettings({
         is_enabled: isEnabled,

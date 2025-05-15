@@ -69,11 +69,11 @@ const GuaranteesComponentEditor: React.FC<GuaranteesComponentEditorProps> = ({
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
   
   // إضافة سجلات التصحيح
-  console.log("GuaranteesComponentEditor rendering with settings:", settings);
+  
   
   // تحديث الإعدادات
   const handleSettingsChange = (key: string, value: any) => {
-    console.log(`Updating setting ${key}:`, value);
+    
     
     onUpdate({
       ...settings,

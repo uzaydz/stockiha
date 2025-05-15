@@ -38,7 +38,7 @@ const StoreProducts = () => {
       setIsLoading(true);
       try {
         if (!currentOrganization) {
-          console.log("لا توجد مؤسسة حالية، لا يمكن جلب المنتجات");
+          
           setProducts([]);
           setFilteredProducts([]);
           return;

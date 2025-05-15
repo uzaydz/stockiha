@@ -17,7 +17,7 @@ export async function getDigitalCurrencies(): Promise<DigitalCurrency[]> {
     throw new Error('فشل في الحصول على العملات الرقمية');
   }
   
-  console.log('تم استرجاع العملات الرقمية:', data);
+  
   return data || [];
 }
 
@@ -39,7 +39,7 @@ export async function addDigitalCurrency(currency: Partial<DigitalCurrency>): Pr
     throw new Error('فشل في إضافة عملة رقمية جديدة');
   }
   
-  console.log('تمت إضافة العملة الرقمية بنجاح، المعرف:', data);
+  
   
   // إعادة استرجاع البيانات المضافة باستخدام وظيفة RPC
   const { data: newCurrency, error: fetchError } = await supabase
@@ -103,7 +103,7 @@ export async function getCurrencyBalances(): Promise<CurrencyBalance[]> {
   }
   
   // تحسين عرض بيانات الرصيد في لوجات التصحيح
-  console.log('بيانات أرصدة العملات المستلمة:', JSON.stringify(data, null, 2));
+  
   
   // إذا كانت البيانات فارغة، يتم إرجاع مصفوفة فارغة
   if (!data || data.length === 0) {
@@ -128,7 +128,7 @@ export async function updateCurrencyBalance(currencyId: string, newBalance: numb
     throw new Error('فشل في تحديث رصيد العملة الرقمية');
   }
   
-  console.log('تم تحديث رصيد العملة بنجاح، معرف السجل:', data);
+  
 }
 
 // الحصول على مبيعات العملات

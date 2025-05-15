@@ -166,7 +166,7 @@ export type Category = Database['public']['Tables']['product_categories']['Row']
 export type Subcategory = Database['public']['Tables']['product_subcategories']['Row'];
 
 export const getProducts = async (organizationId?: string, includeInactive: boolean = false): Promise<Product[]> => {
-  console.log("=== getProducts called with organizationId:", organizationId, "includeInactive:", includeInactive, "===");
+  
   
   try {
     if (!organizationId) {
@@ -174,10 +174,10 @@ export const getProducts = async (organizationId?: string, includeInactive: bool
       return [];
     }
     
-    console.log("جلب المنتجات للمؤسسة:", organizationId);
+    
     
     // Use a simpler approach with consistent logging
-    console.log("Starting Supabase query for products...");
+    
     
     // Always use the same query pattern for consistent behavior
     let query = supabase
@@ -192,7 +192,7 @@ export const getProducts = async (organizationId?: string, includeInactive: bool
       query = query.eq('is_active', true);
     }
     
-    console.log("Executing database query...");
+    
     const { data, error } = await query;
     
     if (error) {
@@ -200,7 +200,7 @@ export const getProducts = async (organizationId?: string, includeInactive: bool
       return [];
     }
     
-    console.log(`Query successful. تم جلب ${data?.length || 0} منتج للمؤسسة ${organizationId}`);
+    
     return (data as any) || [];
   } catch (error) {
     console.error('خطأ غير متوقع أثناء جلب المنتجات:', error);
@@ -331,7 +331,7 @@ export const searchProductsByName = async (
 };
 
 export const createProduct = async (productData: InsertProduct) => {
-  console.log('بدء عملية إنشاء منتج جديد');
+  
   
   try {
     // Verificar que organization_id sea un UUID válido
@@ -375,7 +375,7 @@ export const createProduct = async (productData: InsertProduct) => {
     
     // Convertir cadenas vacías en campos UUID a null
     if (productData.subcategory_id === '') {
-      console.log('Convirtiendo subcategory_id vacío a null');
+      
       productData.subcategory_id = null;
     }
     
@@ -411,14 +411,7 @@ export const createProduct = async (productData: InsertProduct) => {
       throw new Error('حقل category مطلوب في قاعدة البيانات');
     }
     
-    console.log('بيانات المنتج قبل الإرسال:', {
-      ...productData,
-      thumbnail_image: productData.thumbnail_image ? 'موجودة' : 'غير موجودة',
-      images_count: productData.images?.length,
-      category: productData.category,
-      category_id: productData.category_id,
-      organization_id: productData.organization_id
-    });
+    
     
     // Crear copia del objeto para evitar modificar el original directamente
     const productToInsert = {
@@ -435,12 +428,12 @@ export const createProduct = async (productData: InsertProduct) => {
       throw new Error('Authentication required. Please sign in again.');
     }
     
-    console.log('Enviando solicitud de inserción a Supabase with organization_id:', productToInsert.organization_id);
-    console.log('Category ID:', productToInsert.category_id);
-    console.log('Subcategory ID:', productToInsert.subcategory_id);
+    
+    
+    
     
     // Para depuración, vamos a imprimir todo el objeto que se enviará
-    console.log('Objeto completo a insertar:', JSON.stringify(productToInsert, null, 2));
+    
     
     // Uso del cliente importado directamente como alternativa
     const { data, error } = await clientSupabase
@@ -515,7 +508,7 @@ export const createProduct = async (productData: InsertProduct) => {
       throw new Error('لم يتم إرجاع بيانات بعد إنشاء المنتج');
     }
     
-    console.log('تم إنشاء المنتج بنجاح مع المعرف:', data.id);
+    
     return data as any;
   } catch (error) {
     console.error('خطأ في دالة createProduct:', error);
@@ -525,7 +518,7 @@ export const createProduct = async (productData: InsertProduct) => {
 
 export const updateProduct = async (id: string, updates: UpdateProduct): Promise<Product> => {
   try {
-    console.log('تحديث المنتج بالبيانات:', updates);
+    
     
     // استخدام وظيفة RPC بسيطة لتحديث المنتج
     const { data: updateSuccess, error: updateError } = await supabase
@@ -559,7 +552,7 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
       throw new Error(`لم يتم العثور على المنتج بعد التحديث: ${id}`);
     }
     
-    console.log(`تم تحديث المنتج ${id} بنجاح:`, updatedProduct.name);
+    
     return updatedProduct as any;
   } catch (error) {
     console.error(`خطأ عام في تحديث المنتج ${id}:`, error);
@@ -583,7 +576,7 @@ export const deleteProduct = async (id: string, forceDisable: boolean = false): 
 
     // إذا كان المنتج مرتبطًا بطلبات والخيار forceDisable مفعل، قم بتعطيله بدلاً من حذفه
     if ((orderItems && orderItems.length > 0) && forceDisable) {
-      console.log(`المنتج ${id} مرتبط بطلبات سابقة، سيتم تعطيله بدلاً من حذفه`);
+      
       await disableProduct(id);
       return;
     }
@@ -731,7 +724,7 @@ export const createSubcategory = async (subcategory: { category_id: string; name
  * Get wholesale tiers for a product
  */
 export const getWholesaleTiers = async (productId: string) => {
-  console.log(`Starting to fetch wholesale tiers for product ${productId}`);
+  
   
   if (!productId) {
     console.error('Invalid product ID provided to getWholesaleTiers:', productId);
@@ -750,7 +743,7 @@ export const getWholesaleTiers = async (productId: string) => {
       throw error;
     }
 
-    console.log(`Successfully retrieved ${data?.length || 0} wholesale tiers for product ${productId}`);
+    
     return data || [];
   } catch (error) {
     console.error(`Exception in getWholesaleTiers for product ${productId}:`, error);
@@ -767,7 +760,7 @@ export const createWholesaleTier = async (tier: {
   price: number;
   organization_id: string;
 }) => {
-  console.log('بدء إنشاء مرحلة سعرية جديدة للجملة:', tier);
+  
   
   // التحقق من وجود البيانات الإلزامية
   if (!tier.product_id || !tier.organization_id) {
@@ -796,7 +789,7 @@ export const createWholesaleTier = async (tier: {
       throw insertError;
     }
     
-    console.log('تم إنشاء مرحلة سعرية للجملة بنجاح، جاري استرجاع البيانات...');
+    
     
     // ثم استرجاع أحدث سجل تم إنشاؤه لهذا المنتج
     const { data, error: selectError } = await supabase
@@ -817,7 +810,7 @@ export const createWholesaleTier = async (tier: {
       throw new Error('فشل استرجاع مرحلة سعرية للجملة بعد إنشائها');
     }
 
-    console.log('تم استرجاع مرحلة سعرية للجملة بنجاح:', data);
+    
     return data;
   } catch (error) {
     console.error('استثناء عند إنشاء مرحلة سعرية للجملة:', error);
@@ -835,7 +828,7 @@ export const updateWholesaleTier = async (
     price?: number;
   }
 ) => {
-  console.log(`بدء تحديث مرحلة سعرية للجملة بالمعرف ${tierId}:`, updates);
+  
   
   try {
     // إضافة وقت التحديث
@@ -855,7 +848,7 @@ export const updateWholesaleTier = async (
       throw updateError;
     }
     
-    console.log(`تم تحديث مرحلة سعرية للجملة ${tierId} بنجاح، جاري جلب البيانات المحدثة...`);
+    
     
     // استعلام منفصل للحصول على البيانات المحدثة
     const { data, error: selectError } = await supabase
@@ -873,7 +866,7 @@ export const updateWholesaleTier = async (
       throw new Error(`لم يتم العثور على مرحلة سعرية بعد التحديث: ${tierId}`);
     }
 
-    console.log(`تم جلب بيانات مرحلة سعرية محدثة ${tierId} بنجاح:`, data);
+    
     return data;
   } catch (error) {
     console.error(`خطأ عام في تحديث مرحلة سعرية للجملة ${tierId}:`, error);
@@ -885,7 +878,7 @@ export const updateWholesaleTier = async (
  * Delete a wholesale tier
  */
 export const deleteWholesaleTier = async (tierId: string) => {
-  console.log(`بدء حذف مرحلة سعرية للجملة بالمعرف ${tierId}`);
+  
   
   if (!tierId) {
     console.error('محاولة حذف مرحلة سعرية بدون توفير معرف');
@@ -903,7 +896,7 @@ export const deleteWholesaleTier = async (tierId: string) => {
       throw error;
     }
 
-    console.log(`تم حذف مرحلة سعرية للجملة ${tierId} بنجاح`);
+    
     return true;
   } catch (error) {
     console.error(`خطأ عام في حذف مرحلة سعرية للجملة ${tierId}:`, error);
@@ -965,7 +958,7 @@ export const generateAutomaticSku = async (
         
         // التحقق إذا كان هناك منتجات بنفس الرمز
         if (existingProducts && existingProducts.length > 0) {
-          console.log('تم العثور على رمز SKU موجود بالفعل، جاري توليد رمز جديد');
+          
           return generateAutomaticSku(categoryShortName, brandShortName, organizationId);
         }
       } catch (checkError) {
@@ -1145,7 +1138,7 @@ const validateEAN13Locally = (barcode: string): boolean => {
  * يستخدم لإخفاء المنتج من نقاط البيع والواجهة الأمامية مع الحفاظ على العلاقات في قاعدة البيانات
  */
 export const disableProduct = async (id: string): Promise<Product> => {
-  console.log(`بدء تعطيل المنتج ${id}`);
+  
   
   try {
     // تحديث المنتج ليكون معطلاً
@@ -1169,7 +1162,7 @@ export const disableProduct = async (id: string): Promise<Product> => {
       throw new Error(`لم يتم العثور على المنتج بعد التعطيل: ${id}`);
     }
     
-    console.log(`تم تعطيل المنتج ${id} بنجاح`);
+    
     return data as any;
   } catch (error) {
     console.error(`خطأ عام في تعطيل المنتج ${id}:`, error);
@@ -1181,7 +1174,7 @@ export const disableProduct = async (id: string): Promise<Product> => {
  * إعادة تفعيل منتج معطل
  */
 export const enableProduct = async (id: string): Promise<Product> => {
-  console.log(`بدء تفعيل المنتج ${id}`);
+  
   
   try {
     // تحديث المنتج ليكون مفعلاً
@@ -1205,7 +1198,7 @@ export const enableProduct = async (id: string): Promise<Product> => {
       throw new Error(`لم يتم العثور على المنتج بعد التفعيل: ${id}`);
     }
     
-    console.log(`تم تفعيل المنتج ${id} بنجاح`);
+    
     return data as any;
   } catch (error) {
     console.error(`خطأ عام في تفعيل المنتج ${id}:`, error);
@@ -1226,7 +1219,7 @@ export const updateProductPurchaseConfig = async (
   }
 
   try {
-    console.log(`Updating purchase page config for product ${productId}:`, config);
+    
     // تحويل الكائن إلى JSON قبل إرساله لقاعدة البيانات
     const jsonConfig = config ? JSON.parse(JSON.stringify(config)) : null;
     
@@ -1239,7 +1232,7 @@ export const updateProductPurchaseConfig = async (
     // إضافة shipping_clone_id إلى التحديث إذا كان موجوداً في التكوين
     if (config && 'shipping_clone_id' in config) {
       updateData.shipping_clone_id = config.shipping_clone_id;
-      console.log(`Also updating shipping_clone_id directly to: ${config.shipping_clone_id}`);
+      
     }
     
     const { data, error } = await supabase
@@ -1263,7 +1256,7 @@ export const updateProductPurchaseConfig = async (
       throw new Error(`Product not found after updating purchase page config: ${productId}`);
     }
 
-    console.log(`Successfully updated purchase page config for product ${productId}`);
+    
     return data as any;
   } catch (error) {
     console.error(`Unexpected error updating purchase page config for product ${productId}:`, error);

@@ -8,7 +8,7 @@ const formattedBase = apiBase.endsWith('/') ? apiBase.slice(0, -1) : apiBase;
 // تحديد BASE_URL النهائي
 const BASE_URL = formattedBase || '';
 
-console.log('API Base URL:', BASE_URL);
+
 
 // التعرف على ما إذا كانت القاعدة المستخدمة هي Supabase
 const isSupabaseUrl = BASE_URL.includes('supabase');
@@ -27,7 +27,7 @@ export const apiClient = axios.create({
 // إضافة معترضات لمعالجة الأخطاء بشكل موحد
 apiClient.interceptors.request.use(
   (config) => {
-    console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url}`);
+    
     
     // إضافة التوكن المناسب استناداً إلى نوع الواجهة
     if (isSupabaseUrl) {
@@ -55,7 +55,7 @@ apiClient.interceptors.request.use(
 
 apiClient.interceptors.response.use(
   (response) => {
-    console.log(`[API Response] ${response.status} ${response.config.url}`);
+    
     return response;
   },
   (error) => {

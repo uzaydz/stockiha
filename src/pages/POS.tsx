@@ -66,7 +66,7 @@ const POS = () => {
   // تعديل: مباشرة تعيين المنتجات من متجر التطبيق
   useEffect(() => {
     if (shopProducts.length > 0) {
-      console.log("تم العثور على المنتجات من السياق:", shopProducts.length);
+      
       setProducts(shopProducts);
     }
   }, [shopProducts]);
@@ -106,26 +106,15 @@ const POS = () => {
   const addItemToCart = (product: Product) => {
     // تحقق خاص لمنتج "أسيمة قنطري"
     if (product.name === 'أسيمة قنطري') {
-      console.log('تم اختيار منتج أسيمة قنطري:', {
-        id: product.id,
-        has_variants: product.has_variants,
-        use_sizes: product.use_sizes,
-        colors: product.colors,
-        colorsLength: product.colors?.length
-      });
+      
     }
     
     // طباعة تشخيصية لبيانات المنتج
-    console.log("بيانات المنتج:", product.name, {
-      has_variants: product.has_variants,
-      use_sizes: product.use_sizes,
-      colors: product.colors,
-      colorsLength: product.colors?.length
-    });
+    
     
     // تحقق محسن من متغيرات المنتج
     if ((product.has_variants || product.use_sizes) || (product.colors && product.colors.length > 0)) {
-      console.log("فتح نافذة المتغيرات للمنتج:", product.name);
+      
       // فتح نافذة اختيار المتغيرات
       setSelectedProductForVariant(product);
       setIsVariantDialogOpen(true);
@@ -576,7 +565,7 @@ const POS = () => {
       setCurrentOrder(newOrder);
       
       // هام: addOrder تقوم بتحديث المخزون تلقائيًا - أي وظيفة إضافية لتحديث المخزون ستؤدي إلى تحديثه مرتين
-      console.log("إرسال الطلب إلى قاعدة البيانات وتحديث المخزون...");
+      
       await addOrder(newOrder);
       
       toast.success("تم إنشاء الطلب بنجاح");

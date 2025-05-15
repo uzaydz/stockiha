@@ -37,16 +37,16 @@ export const prepareOrderData = (props: OrderFormSubmitterProps, customFormData?
     metadata
   } = props;
 
-  console.log("------ بدء إعداد بيانات الطلب ------");
-  console.log("القيم المستلمة من النموذج:", values);
-  console.log("البيانات المخصصة المستلمة:", customFormData);
+  
+  
+  
 
   // استخراج معرف النموذج المخصص ومزود الشحن المستنسخ من البيانات
   const form_id = values.form_id || null;
   const shipping_clone_id = values.shipping_clone_id || null;
   
-  console.log("معرف النموذج المخصص:", form_id);
-  console.log("معرف مزود الشحن المستنسخ:", shipping_clone_id);
+  
+  
 
   // استخدام البيانات المخصصة إذا كانت متوفرة
   const fullName = customFormData?.fullName || values.fullName || "زائر";
@@ -55,15 +55,23 @@ export const prepareOrderData = (props: OrderFormSubmitterProps, customFormData?
   const municipality = customFormData?.municipality || values.municipality || "غير محدد";
   const address = customFormData?.address || values.address || "غير محدد";
   const city = municipality; // استخدام البلدية كمدينة
+  
+  // استخراج stop_desk_id من النموذج أو البيانات المخصصة
+  const stop_desk_id = customFormData?.stop_desk_id || customFormData?.stopDeskId || values.stopDeskId || null;
+  
+  console.log(`[OrderFormSubmitter] إعداد بيانات الطلب، stop_desk_id: ${stop_desk_id}`);
 
-  console.log("البيانات النهائية المستخدمة:", {
-    fullName,
-    phone,
-    province,
-    municipality,
-    address,
-    city
-  });
+  // إضافة معلومات تفصيلية أكثر في metadata
+  let enhancedMetadata: Record<string, any> = { ...metadata };
+  
+  // إضافة معلومات الشحن
+  enhancedMetadata.shipping_details = {
+    ...enhancedMetadata.shipping_details,
+    province_id: province,
+    commune_id: municipality,
+    stop_desk_id: stop_desk_id,
+    delivery_option: customFormData?.deliveryOption || values.deliveryOption
+  };
 
   const orderData = {
     // معلومات شخصية
@@ -100,14 +108,17 @@ export const prepareOrderData = (props: OrderFormSubmitterProps, customFormData?
     form_id: form_id,
     shipping_clone_id: shipping_clone_id,
     
+    // إضافة معرف مكتب الاستلام
+    stop_desk_id: stop_desk_id,
+    
     // بيانات النموذج المخصص (إذا كانت موجودة)
     formData: customFormData,
 
     // Add metadata to the prepared order data
-    metadata: metadata 
+    metadata: enhancedMetadata 
   };
   
-  console.log("------ انتهاء إعداد بيانات الطلب ------");
+  
   return orderData;
 };
 
@@ -122,19 +133,19 @@ export const attemptOrderSubmission = async (
   // تحديد مهلة زمنية لمنع الانتظار للأبد
   const timeoutPromise = new Promise((_, reject) => {
     setTimeout(() => {
-      console.log("تجاوز مهلة معالجة الطلب");
+      
       reject(new Error("انتهت مهلة معالجة الطلب"));
     }, 15000); // 15 ثانية كحد أقصى
   });
   
   // بدء إرسال الطلب
-  console.log(`محاولة إرسال الطلب ${retryCount > 0 ? '(محاولة رقم ' + (retryCount + 1) + ')' : ''}...`);
+  
   const orderPromise = processOrder(organizationId, orderData);
   
   try {
     // استخدام Promise.race لتحديد مهلة زمنية
     const result = await Promise.race([orderPromise, timeoutPromise]) as any;
-    console.log("نتيجة معالجة الطلب:", result);
+    
     return result;
   } catch (error) {
     console.error("خطأ في محاولة إرسال الطلب:", error);
@@ -176,7 +187,7 @@ export const submitOrderForm = async (props: OrderFormSubmitterProps): Promise<b
     // إعداد بيانات الطلب
     const orderData = prepareOrderData(props, formData);
     
-    console.log("بيانات الطلب الجاهزة للإرسال:", orderData);
+    
     
     // إعداد معلمات محاولة إعادة الإرسال
     let retryCount = 0;

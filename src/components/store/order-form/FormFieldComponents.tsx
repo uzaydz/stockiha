@@ -279,16 +279,23 @@ export const MunicipalityField = ({
               
               setExtendedFields(updatedFields);
               
-              // تحديث القيمة في النموذج الأساسي
+              // تحديث القيمة في النموذج الأساسي - تحسين معالجة القيمة
               if (field.name && municipalityId) {
-                setValue(field.name, municipalityId);
-                
-                if (updateValue) {
-                  updateValue(field.name, municipalityId);
+                // تأكد من وجود قيمة صالحة
+                if (municipalityId !== "" && municipalityId !== "undefined" && municipalityId !== null) {
+                  setValue(field.name, municipalityId);
+                  
+                  // استخدام التابع updateValue لنقل القيمة للنموذج الرئيسي
+                  if (updateValue) {
+                    updateValue(field.name, municipalityId);
+                    
+                    // تأكيد تحديث القيمة
+                    
+                  }
+                  
+                  // إعادة حساب سعر التوصيل إذا تغيرت البلدية
+                  recalculateAndSetDeliveryPrice(selectedDeliveryType, provinceId, municipalityId);
                 }
-                
-                // إعادة حساب سعر التوصيل إذا تغيرت البلدية
-                recalculateAndSetDeliveryPrice(selectedDeliveryType, provinceId, municipalityId);
               }
             }}
           >
@@ -341,8 +348,8 @@ export const RadioField = ({
   
   // إذا كان الحقل هو نوع التوصيل الثابت ولدينا إعدادات مزود الشحن، تحقق من الخيارات المتاحة
   if (isDeliveryTypeField && shippingProviderSettings) {
-    console.log(">> استخدام RadioField لعرض خيارات التوصيل");
-    console.log(">> بيانات مزود الشحن:", shippingProviderSettings);
+    
+    
     
     const isHomeDeliveryEnabled = shippingProviderSettings.is_home_delivery_enabled !== false;
     const isDeskDeliveryEnabled = shippingProviderSettings.is_desk_delivery_enabled !== false;
@@ -353,14 +360,7 @@ export const RadioField = ({
     const isFreeHomeDelivery = shippingProviderSettings.is_free_delivery_home === true;
     const isFreeDeskDelivery = shippingProviderSettings.is_free_delivery_desk === true;
     
-    console.log(">> خيارات التوصيل المتاحة:", {
-      isHomeDeliveryEnabled,
-      isDeskDeliveryEnabled,
-      homePrice,
-      deskPrice,
-      isFreeHomeDelivery,
-      isFreeDeskDelivery
-    });
+    
     
     // تعديل الخيارات المتاحة بناءً على إعدادات مزود الشحن
     let availableOptions = field.options || [];
@@ -439,13 +439,13 @@ export const RadioField = ({
         // تحديث النموذج الأساسي
         if (updateValue) {
           updateValue(field.name, option.value);
-          console.log(`>> تحديث حقل ${field.name} في النموذج الأساسي بقيمة: ${option.value}`);
+          
         }
         
         // تحديث قيمة deliveryOption في النموذج الأساسي
         if (updateValue) {
           updateValue('deliveryOption', option.value);
-          console.log(`>> تحديث نوع التوصيل في النموذج الأساسي من حقل نوع التوصيل الثابت: ${option.value}`);
+          
         }
       }
       
@@ -528,13 +528,13 @@ export const RadioField = ({
                   // تحديث النموذج الأساسي
                   if (updateValue) {
                     updateValue(field.name, option.value);
-                    console.log(`>> تحديث حقل ${field.name} في النموذج الأساسي بقيمة: ${option.value}`);
+                    
                   }
                   
                   // تحديث قيمة deliveryOption في النموذج الأساسي
                   if (updateValue) {
                     updateValue('deliveryOption', option.value);
-                    console.log(`>> تحديث نوع التوصيل في النموذج الأساسي من حقل نوع التوصيل الثابت: ${option.value}`);
+                    
                   }
                   
                   const provinceField = extendedFields.find(f => f.type === 'province');
@@ -620,14 +620,14 @@ export const RadioField = ({
                   // تحديث النموذج الأساسي
                   if (updateValue) {
                     updateValue(field.name, e.target.value);
-                    console.log(`>> تحديث حقل ${field.name} في النموذج الأساسي بقيمة: ${e.target.value}`);
+                    
                   }
                   
                   // إذا كان الحقل متعلق بنوع التوصيل، قم بتحديث قيمة deliveryOption في النموذج الأساسي
                   if (field.name === 'deliveryOption' || field.name === 'fixedDeliveryType') {
                     if (updateValue) {
                       updateValue('deliveryOption', e.target.value);
-                      console.log(`>> تحديث نوع التوصيل في النموذج الأساسي من حقل ${field.name}: ${e.target.value}`);
+                      
                     }
                     
                     const provinceField = extendedFields.find(f => f.type === 'province');

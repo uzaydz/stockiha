@@ -94,7 +94,7 @@ export function DomainSettingsCard({
           throw new Error(linkResult.error || 'فشل في ربط النطاق');
         }
 
-        console.log('تم ربط النطاق بنجاح:', linkResult.data);
+        
 
         // تحديث حالة النطاق في المكون محلياً
         setDomain(linkResult.data.domain);
@@ -141,7 +141,7 @@ export function DomainSettingsCard({
 
   // وظيفة مساعدة لمسح التخزين المؤقت
   const clearCaches = (orgId: string) => {
-    console.log('مسح التخزين المؤقت للمؤسسة:', orgId);
+    
     
     // مسح أي تخزين مؤقت للمؤسسة
     if (orgId) {
@@ -150,7 +150,7 @@ export function DomainSettingsCard({
       // مسح التخزين المؤقت المتعلق بالنطاق والمستأجر
       Object.keys(localStorage).forEach(key => {
         if (key.includes(orgId) || key.includes('tenant:') || key.includes('domain:')) {
-          console.log('حذف مفتاح التخزين المؤقت:', key);
+          
           localStorage.removeItem(key);
         }
       });

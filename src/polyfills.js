@@ -8,7 +8,7 @@ window.process = process;
 
 // وحدات Node.js الأساسية
 import stream from 'stream-browserify';
-import path from 'path-browserify';
+import * as path from 'path-browserify';
 import util from 'util';
 import assert from 'assert';
 import http from 'stream-http';

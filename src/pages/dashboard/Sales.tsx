@@ -21,9 +21,9 @@ export default function Sales() {
 
   // <-- إضافة تسجيل تحميل/إلغاء تحميل -->
   useEffect(() => {
-    console.log('[Sales Component] Mounted');
+    
     return () => {
-      console.log('[Sales Component] Will Unmount');
+      
     };
   }, []);
 

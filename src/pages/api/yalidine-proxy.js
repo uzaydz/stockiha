@@ -54,7 +54,7 @@ export default async function handler(req, res) {
     }
     
     // إعادة توجيه الطلب إلى API ياليدين
-    console.log(`[YALIDINE-PROXY] توجيه طلب إلى: ${apiUrl}`);
+    
     const response = await axios(options);
     
     // إرسال الاستجابة إلى العميل

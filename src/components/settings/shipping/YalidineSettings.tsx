@@ -112,7 +112,7 @@ export default function YalidineSettings() {
   // Update local state when settings are loaded
   useEffect(() => {
     if (settings) {
-      console.log('Settings loaded:', settings);
+      
       setIsEnabled(settings.is_enabled);
       setApiToken(settings.api_token || '');
       setApiKey(settings.api_key || '');
@@ -257,7 +257,7 @@ export default function YalidineSettings() {
       
       // استخدام forceUpdate=true لضمان تحديث البيانات بغض النظر عن آخر تحديث
       // لكن بدون skipValidation لأننا تحققنا من صلاحية البيانات بالفعل
-      console.log(`بدء عملية المزامنة مع forceUpdate=true`, currentOrganization.id);
+      
       const success = await syncYalidineData(currentOrganization.id, true, false);
       
       if (success) {
@@ -303,7 +303,7 @@ export default function YalidineSettings() {
     setIsEnabled(checked);
     
     try {
-      console.log('Toggling enabled state to:', checked);
+      
       
       // Always save the new enabled state
       await handleSaveSettings({
@@ -347,7 +347,7 @@ export default function YalidineSettings() {
     setTestResult(null);
 
     try {
-      console.log('Testing connection with API ID:', apiToken, 'API Token:', apiKey);
+      
       
       // Create an instance of the shipping service with Yalidine provider
       // استخدام القيم كما هي بدون عكس
@@ -387,7 +387,7 @@ export default function YalidineSettings() {
 
   // وظيفة لإعادة تعيين كل شيء وإعادة المزامنة من الصفر
   const handleForceReset = () => {
-    console.log('إعادة تعيين كاملة للمزامنة من الصفر');
+    
     
     // إظهار رسالة للمستخدم
     toast({
@@ -403,7 +403,7 @@ export default function YalidineSettings() {
     try {
       const allKeys = Object.keys(localStorage);
       const yalidineKeys = allKeys.filter(key => key.includes('yalidine'));
-      console.log('جاري حذف مفاتيح localStorage المتعلقة بياليدين:', yalidineKeys);
+      
       yalidineKeys.forEach(key => localStorage.removeItem(key));
     } catch (e) {
       console.error('فشل حذف مفاتيح localStorage:', e);
@@ -422,7 +422,7 @@ export default function YalidineSettings() {
     // إعادة تعيين محدد المعدل بشكل كامل
     if (typeof yalidineRateLimiter.resetStats === 'function') {
       yalidineRateLimiter.resetStats();
-      console.log('تم إعادة تعيين محدد المعدل بنجاح');
+      
     } else {
       console.warn('فشل الوصول إلى وظيفة resetStats في محدد المعدل');
     }
@@ -438,7 +438,7 @@ export default function YalidineSettings() {
         // @ts-ignore
         yalidineRateLimiter.queue = [];
         
-        console.log('تم تنظيف حالة محدد المعدل بنجاح');
+        
       } catch (error) {
         console.error('حدث خطأ أثناء تنظيف حالة محدد المعدل:', error);
       }
@@ -459,7 +459,7 @@ export default function YalidineSettings() {
         return;
       }
       
-      console.log('بدء مزامنة جديدة بعد إعادة التعيين');
+      
       
       // استخدام handleSyncData بدلاً من تكرار الكود
       // هذا يضمن اتباع نفس المنطق في كل مكان

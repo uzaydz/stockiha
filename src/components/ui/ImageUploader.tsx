@@ -52,7 +52,7 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
   useEffect(() => {
     // تجنب طباعة رسائل التصحيح المتكررة في البيئة الإنتاجية
     if (process.env.NODE_ENV !== 'production') {
-      console.log("ImageUploader received imageUrl:", imageUrl);
+      
     }
     
     if (imageUrl && imageUrl.trim() !== "") {
@@ -61,7 +61,7 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
         const localKey = imageUrl.replace('local:', '');
         const base64Content = localStorage.getItem(localKey);
         if (base64Content) {
-          console.log("تم تحويل الصورة من البروتوكول المحلي إلى base64 مباشر");
+          
           setPreview(base64Content);
           setUploadedImageUrl(base64Content);
           // استدعاء callback لتحديث قيمة URL في الكود الخارجي أيضًا
@@ -169,11 +169,7 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
               // حساب نسبة الضغط
               const compressionRatio = ((file.size - compressedFile.size) / file.size * 100).toFixed(2);
               
-              console.log('تم ضغط الصورة:', {
-                originalSize: `${(file.size / 1024).toFixed(2)} KB`,
-                compressedSize: `${(compressedFile.size / 1024).toFixed(2)} KB`,
-                compressionRatio: `${compressionRatio}%`
-              });
+              
               
               resolve(compressedFile);
             },
@@ -238,12 +234,7 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
         throw new Error('الملف المقدم ليس ملفًا صالحًا');
       }
       
-      console.log('رفع الصورة إلى Supabase - معلومات الملف:', {
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        lastModified: file.lastModified
-      });
+      
       
       // استخدام formData بدلاً من تمرير الملف مباشرة
       const formData = new FormData();
@@ -269,7 +260,7 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
         .from("organization-assets")
         .getPublicUrl(filePath);
       
-      console.log('تم رفع الصورة بنجاح إلى Supabase:', urlData.publicUrl);
+      
       return urlData.publicUrl;
     } catch (error) {
       console.error('خطأ في رفع الصورة إلى Supabase:', error);
@@ -334,11 +325,7 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
       const file = event.target.files[0];
       
       // تسجيل معلومات الملف الأصلي
-      console.log('معلومات الملف الأصلي:', {
-        name: file.name,
-        size: file.size,
-        type: file.type
-      });
+      
       
       // --- إعادة تمكين الضغط ---
       const compressedFile = await compressImage(file);
@@ -357,11 +344,7 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
       // const filePath = `${folder}/${organizationFolder}/${uniqueFileName}`; // استخدام الاسم الفريد المولد - تم الإلغاء
       
       // تسجيل معلومات عملية الرفع
-      console.log('ImageUploader: جاري رفع الصورة:', { // إعادة تسمية الرسالة
-        filePath,
-        fileSize: compressedFile.size,
-        fileType: compressedFile.type
-      });
+      
       
       try {
         // رفع الصورة إلى Supabase

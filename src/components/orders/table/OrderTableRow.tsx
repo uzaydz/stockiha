@@ -41,7 +41,7 @@ const OrdersTableRow = ({
   if (!order) return null;
 
   // <-- START: Added log for received order prop -->
-  console.log(`OrderTableRow received order (ID: ${order.id}):`, order);
+  
   // <-- END: Added log for received order prop -->
 
   // استخراج بيانات الطلب للعرض
@@ -154,7 +154,7 @@ const OrdersTableRow = ({
               {/* <-- START: Added log for offer condition --> */}
               {(() => {
                 const hasOffer = order.metadata && typeof order.metadata === 'object' && 'applied_quantity_offer' in order.metadata;
-                console.log(`Order ID ${order.id} - Has applied_quantity_offer in metadata?`, hasOffer, order.metadata);
+                
                 if (hasOffer) {
                   return (
                      <Badge variant="outline" className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-800 border-blue-300">

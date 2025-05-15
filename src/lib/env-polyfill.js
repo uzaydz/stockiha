@@ -19,7 +19,7 @@ export function initEnvPolyfill() {
     window.process = window.process || { env: {} };
     globalThis.process = globalThis.process || window.process;
     
-    console.log('[EnvPolyfill] Inicializado correctamente');
+    
   }
 }
 

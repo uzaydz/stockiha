@@ -127,7 +127,7 @@ export const getSalesSummary = async (
   endDate?: Date
 ): Promise<SalesSummary> => {
   try {
-    console.log('getSalesSummary - بدء الاستدعاء', { organizationId, period, startDate, endDate });
+    
     
     if (!organizationId) {
       throw new Error("معرف المؤسسة مطلوب");
@@ -136,11 +136,11 @@ export const getSalesSummary = async (
     // الحصول على معرف المستخدم الحالي
     const { data: { user } } = await supabase.auth.getUser();
     const userId = user?.id || '00000000-0000-0000-0000-000000000000'; // استخدام معرف افتراضي إذا كان المستخدم غير مسجل دخوله
-    console.log('getSalesSummary - معرف المستخدم الحالي:', userId);
+    
 
     // حساب نطاقات التاريخ
     const { dateRange, prevDateRange } = getDateRanges(period, startDate, endDate);
-    console.log('getSalesSummary - نطاقات التاريخ', { dateRange, prevDateRange });
+    
 
     // استعلام لإجمالي المبيعات والطلبات
     const { data: currentPeriodData, error: currentError } = await supabase.rpc(
@@ -152,7 +152,7 @@ export const getSalesSummary = async (
       }
     );
 
-    console.log('getSalesSummary - بيانات الملخص', { currentPeriodData, currentError });
+    
     
     if (currentError) {
       console.error('خطأ في استعلام ملخص المبيعات:', currentError);
@@ -182,7 +182,7 @@ export const getSalesSummary = async (
       }
     );
 
-    console.log('getSalesSummary - بيانات الفترة السابقة', { prevPeriodData, prevError });
+    
     
     if (prevError) {
       console.error('خطأ في استعلام الفترة السابقة:', prevError);
@@ -270,7 +270,7 @@ export const getSalesSummary = async (
       }
     };
     
-    console.log('getSalesSummary - البيانات النهائية:', result);
+    
     return result;
   } catch (error) {
     console.error('خطأ في الحصول على ملخص المبيعات:', error);
@@ -292,7 +292,7 @@ export const getMonthlySales = async (
   endDate?: Date
 ): Promise<MonthlySales> => {
   try {
-    console.log('getMonthlySales - بدء الاستدعاء', { organizationId, period });
+    
     
     if (!organizationId) {
       throw new Error("معرف المؤسسة مطلوب");
@@ -301,7 +301,7 @@ export const getMonthlySales = async (
     // الحصول على معرف المستخدم الحالي
     const { data: { user } } = await supabase.auth.getUser();
     const userId = user?.id || '00000000-0000-0000-0000-000000000000'; // استخدام معرف افتراضي إذا كان المستخدم غير مسجل دخوله
-    console.log('getMonthlySales - معرف المستخدم الحالي:', userId);
+    
 
     // تحديد نطاق التاريخ
     const { dateRange } = getDateRanges(period, startDate, endDate);
@@ -318,7 +318,7 @@ export const getMonthlySales = async (
       }
     );
 
-    console.log('getMonthlySales - بيانات المبيعات حسب الفترة', { data, error });
+    
     
     if (error) {
       console.error('خطأ في استعلام المبيعات الشهرية:', error);
@@ -352,7 +352,7 @@ export const getMonthlySales = async (
       }
     });
 
-    console.log('getMonthlySales - النتيجة النهائية', { salesByMonth });
+    
     return { salesByMonth };
   } catch (error) {
     console.error('خطأ في الحصول على المبيعات الشهرية:', error);
@@ -376,7 +376,7 @@ export const getTopProducts = async (
   limit: number = 5
 ): Promise<TopProducts> => {
   try {
-    console.log('getTopProducts - بدء الاستدعاء', { organizationId, period, limit });
+    
     
     if (!organizationId) {
       throw new Error("معرف المؤسسة مطلوب");
@@ -385,7 +385,7 @@ export const getTopProducts = async (
     // الحصول على معرف المستخدم الحالي
     const { data: { user } } = await supabase.auth.getUser();
     const userId = user?.id || '00000000-0000-0000-0000-000000000000'; // استخدام معرف افتراضي إذا كان المستخدم غير مسجل دخوله
-    console.log('getTopProducts - معرف المستخدم الحالي:', userId);
+    
 
     // تحديد نطاق التاريخ
     const { dateRange } = getDateRanges(period, startDate, endDate);
@@ -402,7 +402,7 @@ export const getTopProducts = async (
       }
     );
 
-    console.log('getTopProducts - بيانات أعلى المنتجات', { data, error });
+    
     
     if (error) {
       console.error('خطأ في استعلام أعلى المنتجات:', error);
@@ -421,7 +421,7 @@ export const getTopProducts = async (
       quantity: item.total_quantity
     }));
 
-    console.log('getTopProducts - النتيجة النهائية', { topProducts });
+    
     return { topProducts };
   } catch (error) {
     console.error('خطأ في الحصول على أعلى المنتجات:', error);
@@ -445,7 +445,7 @@ export const getTopCategories = async (
   limit: number = 5
 ): Promise<TopCategories> => {
   try {
-    console.log('getTopCategories - بدء الاستدعاء', { organizationId, period, limit });
+    
     
     if (!organizationId) {
       throw new Error("معرف المؤسسة مطلوب");
@@ -454,7 +454,7 @@ export const getTopCategories = async (
     // الحصول على معرف المستخدم الحالي
     const { data: { user } } = await supabase.auth.getUser();
     const userId = user?.id || '00000000-0000-0000-0000-000000000000'; // استخدام معرف افتراضي إذا كان المستخدم غير مسجل دخوله
-    console.log('getTopCategories - معرف المستخدم الحالي:', userId);
+    
 
     // تحديد نطاق التاريخ
     const { dateRange } = getDateRanges(period, startDate, endDate);
@@ -471,7 +471,7 @@ export const getTopCategories = async (
       }
     );
 
-    console.log('getTopCategories - بيانات أعلى الفئات', { data, error });
+    
     
     if (error) {
       console.error('خطأ في استعلام أعلى الفئات:', error);
@@ -510,7 +510,7 @@ export const getExpenses = async (
   endDate?: Date
 ): Promise<ExpensesData> => {
   try {
-    console.log('getExpenses - بدء الاستدعاء', { organizationId, period });
+    
     
     if (!organizationId) {
       throw new Error("معرف المؤسسة مطلوب");
@@ -519,7 +519,7 @@ export const getExpenses = async (
     // الحصول على معرف المستخدم الحالي
     const { data: { user } } = await supabase.auth.getUser();
     const userId = user?.id || '00000000-0000-0000-0000-000000000000'; // استخدام معرف افتراضي إذا كان المستخدم غير مسجل دخوله
-    console.log('getExpenses - معرف المستخدم الحالي:', userId);
+    
 
     // تحديد نطاق التاريخ
     const { dateRange } = getDateRanges(period, startDate, endDate);
@@ -535,7 +535,7 @@ export const getExpenses = async (
       }
     );
 
-    console.log('getExpenses - بيانات إجمالي المصروفات', { totalData, totalError });
+    
     
     if (totalError) {
       console.error('خطأ في استعلام إجمالي المصروفات:', totalError);
@@ -558,7 +558,7 @@ export const getExpenses = async (
       }
     );
 
-    console.log('getExpenses - بيانات المصروفات حسب الفئة', { categoryData, categoryError });
+    
     
     if (categoryError) {
       console.error('خطأ في استعلام المصروفات حسب الفئة:', categoryError);
@@ -579,7 +579,7 @@ export const getExpenses = async (
       categories
     };
     
-    console.log('getExpenses - النتيجة النهائية', result);
+    
     return result;
   } catch (error) {
     console.error('خطأ في الحصول على بيانات المصروفات:', error);
@@ -595,7 +595,7 @@ export const getInventoryStatus = async (
   organizationId: string
 ): Promise<InventoryData> => {
   try {
-    console.log('getInventoryStatus - بدء الاستدعاء', { organizationId });
+    
     
     if (!organizationId) {
       throw new Error("معرف المؤسسة مطلوب");
@@ -604,7 +604,7 @@ export const getInventoryStatus = async (
     // الحصول على معرف المستخدم الحالي
     const { data: { user } } = await supabase.auth.getUser();
     const userId = user?.id || '00000000-0000-0000-0000-000000000000'; // استخدام معرف افتراضي إذا كان المستخدم غير مسجل دخوله
-    console.log('getInventoryStatus - معرف المستخدم الحالي:', userId);
+    
 
     // استعلام لحالة المخزون
     const { data, error } = await supabase.rpc(
@@ -615,7 +615,7 @@ export const getInventoryStatus = async (
       }
     );
 
-    console.log('getInventoryStatus - بيانات حالة المخزون', { data, error });
+    
     
     if (error) {
       console.error('خطأ في استعلام حالة المخزون:', error);
@@ -640,7 +640,7 @@ export const getInventoryStatus = async (
       totalItems: inventoryStatus.total_products || 0
     };
     
-    console.log('getInventoryStatus - النتيجة النهائية', result);
+    
     return result;
   } catch (error) {
     console.error('خطأ في الحصول على حالة المخزون:', error);
@@ -662,7 +662,7 @@ export const getAllAnalytics = async (
   endDate?: Date
 ): Promise<AnalyticsData> => {
   try {
-    console.log('getAllAnalytics - بدء الاستدعاء', { organizationId, period, startDate, endDate });
+    
     
     // استدعاء جميع وظائف التحليلات
     const [salesSummary, monthlySales, topProducts, topCategories, expenses, inventory] = await Promise.all([
@@ -692,7 +692,7 @@ export const getAllAnalytics = async (
       inventory: inventory
     };
     
-    console.log('getAllAnalytics - البيانات النهائية:', analyticsData);
+    
     return analyticsData;
   } catch (error) {
     console.error('خطأ في الحصول على جميع التحليلات:', error);

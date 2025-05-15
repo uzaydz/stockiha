@@ -104,7 +104,7 @@ const PermissionGuard = ({
                           (user as any).is_org_admin === true;
         
         if (isAdmin || isOrgAdmin) {
-          console.log('[PermissionGuard] المستخدم مسؤول أو مدير، يتم السماح بالوصول');
+          
           setHasPermission(true);
           setIsChecking(false);
           return;
@@ -128,14 +128,7 @@ const PermissionGuard = ({
         const hasAnyPermission = permissionChecks.some(result => result === true);
         
         // طباعة معلومات تشخيصية
-        console.log('[PermissionGuard] تشخيص الصلاحيات:', {
-          path: location.pathname,
-          requiredPermissions,
-          permissionChecks,
-          hasAnyPermission,
-          userRole,
-          isOrgAdmin
-        });
+        
         
         setHasPermission(hasAnyPermission);
       } catch (error) {

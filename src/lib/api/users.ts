@@ -28,7 +28,7 @@ export const getUserById = async (id: string): Promise<User | null> => {
   if (error) {
     // إذا كان الخطأ هو عدم وجود نتائج، نعيد null بدلاً من رفع استثناء
     if (error.code === 'PGRST116') {
-      console.log(`No user found with ID ${id}`);
+      
       return null;
     }
     console.error(`Error fetching user ${id}:`, error);
@@ -39,7 +39,7 @@ export const getUserById = async (id: string): Promise<User | null> => {
 };
 
 export const getUserByEmail = async (email: string): Promise<User | null> => {
-  console.log(`Attempting to find user by email: ${email}`);
+  
   
   const { data, error } = await supabase
     .from('users')
@@ -50,14 +50,14 @@ export const getUserByEmail = async (email: string): Promise<User | null> => {
   if (error) {
     // If no user is found, don't throw an error
     if (error.code === 'PGRST116') {
-      console.log(`No user found with email ${email}`);
+      
       return null;
     }
     console.error(`Error fetching user by email ${email}:`, error);
     throw error;
   }
 
-  console.log(`Successfully found user with email ${email}:`, data.id);
+  
   return data;
 };
 
@@ -128,20 +128,20 @@ export const getCurrentUserProfile = async (): Promise<User | null> => {
       
       // إذا وجدنا المستخدم بواسطة البريد الإلكتروني
       if (userByEmail) {
-        console.log(`Found user with email ${authData.user.email}, returning existing user`);
+        
         return userByEmail;
       }
     }
     
     // إذا لم نجد المستخدم عن طريق المعرف أو البريد الإلكتروني
-    console.log("User not found in users table, creating an entry based on auth data");
+    
     
     // إنشاء سجل للمستخدم بناءً على بيانات المصادقة فقط إذا لم يتم العثور عليه بطريقة أخرى
     if (authData.user.email) {
       // تحقق مرة أخرى من عدم وجود مستخدم بنفس البريد الإلكتروني
       const existingUser = await getUserByEmail(authData.user.email);
       if (existingUser) {
-        console.log(`User with email ${authData.user.email} already exists`);
+        
         return existingUser;
       }
       
@@ -188,7 +188,7 @@ export const getUserPermissionsByEmail = async (email: string): Promise<any | nu
 
     if (error) {
       if (error.code === 'PGRST116') {
-        console.log(`No user or permissions found for email ${email}`);
+        
         return null;
       }
       console.error(`Error fetching permissions for user with email ${email}:`, error);

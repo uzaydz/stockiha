@@ -20,11 +20,11 @@ const StoreRouter = () => {
       setIsLoading(true);
       const hostname = window.location.hostname;
       
-      console.log('StoreRouter: التحقق من النطاق:', hostname);
+      
       
       // تخطي الفحص للـ localhost بدون سابدومين
       if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        console.log('StoreRouter: الدومين هو localhost، عرض صفحة الهبوط');
+        
         setIsStore(false);
         setIsLoading(false);
         return;
@@ -34,22 +34,22 @@ const StoreRouter = () => {
       const subdomain = extractSubdomainFromHostname(hostname);
       
       if (subdomain && subdomain !== 'www') {
-        console.log('StoreRouter: اكتشاف سابدومين:', subdomain);
+        
         const organization = await getOrganizationBySubdomain(subdomain);
         
         if (organization) {
-          console.log('StoreRouter: تم العثور على مؤسسة بالسابدومين:', organization.name);
+          
           localStorage.setItem('bazaar_organization_id', organization.id);
           localStorage.setItem('bazaar_current_subdomain', subdomain);
           setOrganizationId(organization.id);
           
           // تحميل بيانات المتجر
           try {
-            console.log('StoreRouter: تحميل بيانات المتجر للسابدومين:', subdomain);
+            
             const data = await getFullStoreData(subdomain);
             if (data) {
               setStoreData(data);
-              console.log('StoreRouter: تم تحميل بيانات المتجر بنجاح');
+              
             }
           } catch (error) {
             console.error('StoreRouter: خطأ في تحميل بيانات المتجر:', error);
@@ -65,7 +65,7 @@ const StoreRouter = () => {
       const organization = await getOrganizationByDomain(hostname);
       
       if (organization) {
-        console.log('StoreRouter: تم العثور على مؤسسة بالدومين المخصص:', organization.name);
+        
         localStorage.setItem('bazaar_organization_id', organization.id);
         localStorage.setItem('bazaar_current_subdomain', organization.subdomain || '');
         setOrganizationId(organization.id);
@@ -73,11 +73,11 @@ const StoreRouter = () => {
         // تحميل بيانات المتجر
         if (organization.subdomain) {
           try {
-            console.log('StoreRouter: تحميل بيانات المتجر للسابدومين:', organization.subdomain);
+            
             const data = await getFullStoreData(organization.subdomain);
             if (data) {
               setStoreData(data);
-              console.log('StoreRouter: تم تحميل بيانات المتجر بنجاح');
+              
             }
           } catch (error) {
             console.error('StoreRouter: خطأ في تحميل بيانات المتجر:', error);
@@ -90,7 +90,7 @@ const StoreRouter = () => {
       }
       
       // 3. لم يتم العثور على مؤسسة، عرض صفحة الهبوط
-      console.log('StoreRouter: لم يتم العثور على مؤسسة، عرض صفحة الهبوط');
+      
       setIsStore(false);
       setIsLoading(false);
     };

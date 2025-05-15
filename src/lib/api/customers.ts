@@ -23,7 +23,7 @@ export const getCustomers = async (): Promise<Customer[]> => {
     return [];
   }
   
-  console.log('Fetching customers for organization:', organizationId);
+  
   
   // Get all customers from the organization
   const { data: orgCustomers, error } = await supabase

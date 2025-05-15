@@ -45,7 +45,7 @@ export function getSyncStatus(): SyncStatus {
   }
   
   // إذا لم نجد حالة صالحة، نعيد كائن افتراضي
-  console.log('إنشاء حالة مزامنة افتراضية جديدة');
+  
   const initialStatus = createInitialSyncStatus();
   updateSyncStatus(initialStatus);
   return initialStatus;
@@ -64,7 +64,7 @@ export function updateSyncStatus(status: SyncStatus): void {
     };
     
     localStorage.setItem('yalidine_sync_status', JSON.stringify(statusWithTimestamp));
-    console.log(`[SYNC_STATUS] تم تحديث حالة المزامنة في ${timestamp}`);
+    
   } catch (error) {
     console.error('خطأ في تحديث حالة المزامنة:', error);
   }
@@ -91,7 +91,7 @@ export function updatePartialSyncStatus(
     
     // عرض معلومات التحديث فقط إذا كان التحديث مهماً
     if (updates.status || updates.total > 0 || updates.added > 0) {
-      console.log(`[SYNC_STATUS] تحديث حالة ${category}:`, updates);
+      
     }
   } catch (error) {
     console.error(`خطأ في التحديث الجزئي لحالة المزامنة (${category}):`, error);
@@ -114,7 +114,7 @@ export function updateFeeSyncStatus(total: number, added: number, status: SyncSt
     if (added > previousAdded && previousAdded > 0) {
       const progressChange = added - previousAdded;
       const progressPercent = Math.round((added / Math.max(total, 1)) * 100);
-      console.log(`[FEES_SYNC] تقدم المزامنة: ${added}/${total} (${progressPercent}%)، تمت إضافة ${progressChange} ولاية جديدة`);
+      
       
       // تقدير الوقت المتبقي
       if (added > 5 && added < total) {
@@ -123,10 +123,10 @@ export function updateFeeSyncStatus(total: number, added: number, status: SyncSt
         const estimatedRemainingMs = remainingItems * avgTimePerItem;
         const estimatedMinutes = Math.ceil(estimatedRemainingMs / 60000);
         
-        console.log(`[FEES_SYNC] الوقت المتبقي التقديري: ${estimatedMinutes} دقيقة`);
+        
       }
     } else {
-      console.log(`[FEES_SYNC] تقدم المزامنة: ${added}/${total} (${status})`);
+      
     }
     
     // تحديث حالة أسعار التوصيل

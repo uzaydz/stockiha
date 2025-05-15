@@ -87,16 +87,16 @@ const DiagnosticsPanel = ({ isVisible, setIsVisible, createTestProduct, orgId })
   const [accessCheckResults, setAccessCheckResults] = useState<any>(null);
   const [checkingAccess, setCheckingAccess] = useState(false);
 
-  console.log("DiagnosticsPanel - currentOrganization:", currentOrganization);
-  console.log("DiagnosticsPanel - user:", user);
-  console.log("DiagnosticsPanel - orgId:", orgId);
+  
+  
+  
 
   // وظيفة للتحقق من اتصال قاعدة البيانات
   const handleCheckDbConnection = async () => {
     try {
       setDbConnectionChecking(true);
       const result = await checkDatabaseConnection();
-      console.log("Database connection check result:", result);
+      
       setDbConnectionStatus({
         success: result.success,
         message: result.success ? 'تم الاتصال بقاعدة البيانات بنجاح' : `فشل الاتصال: ${result.error}`
@@ -122,7 +122,7 @@ const DiagnosticsPanel = ({ isVisible, setIsVisible, createTestProduct, orgId })
     try {
       setCheckingAccess(true);
       const result = await checkOrganizationAccess(user.id, orgId);
-      console.log("Organization access check result:", result);
+      
       setAccessCheckResults(result);
       toast.success(result.hasAccess ? 
         "لديك صلاحية الوصول إلى هذه المؤسسة" : 
@@ -144,7 +144,7 @@ const DiagnosticsPanel = ({ isVisible, setIsVisible, createTestProduct, orgId })
 
     try {
       const result = await testUserData(user.id);
-      console.log("User data test result:", result);
+      
       setUserDataResults(result);
       if (result.success) {
         toast.success("تم جلب بيانات المستخدم بنجاح");
@@ -161,7 +161,7 @@ const DiagnosticsPanel = ({ isVisible, setIsVisible, createTestProduct, orgId })
   const handleClearLocalOrgId = () => {
     try {
       localStorage.removeItem('bazaar_organization_id');
-      console.log("تم حذف معرف المؤسسة من التخزين المحلي");
+      
       toast.success("تم حذف معرف المؤسسة من التخزين المحلي. سيتم إعادة تحميل الصفحة...");
       setTimeout(() => {
         window.location.reload();
@@ -194,14 +194,14 @@ const DiagnosticsPanel = ({ isVisible, setIsVisible, createTestProduct, orgId })
 
   const handleRefreshContexts = async () => {
     try {
-      console.log("===== بدء تحديث السياقات يدوياً =====");
+      
       // أولاً، تحديث سياق المؤسسة
       await refreshOrganizationData();
       // ثم، تحديث سياق المتجر بعد تأخير قصير للتأكد من تحديث سياق المؤسسة أولاً
       setTimeout(() => {
         refreshData();
       }, 300);
-      console.log("===== تم طلب تحديث السياقات =====");
+      
     } catch (error) {
       console.error("خطأ في تحديث السياقات:", error);
     }
@@ -211,7 +211,7 @@ const DiagnosticsPanel = ({ isVisible, setIsVisible, createTestProduct, orgId })
     try {
       if (currentOrganization?.id) {
         localStorage.setItem('bazaar_organization_id', currentOrganization.id);
-        console.log("تم حفظ معرف المؤسسة يدوياً:", currentOrganization.id);
+        
         toast.success("تم حفظ معرف المؤسسة بنجاح. جاري إعادة تحميل الصفحة...");
         
         // إعادة تحميل الصفحة بعد ثانية واحدة
@@ -245,8 +245,8 @@ const DiagnosticsPanel = ({ isVisible, setIsVisible, createTestProduct, orgId })
       toast.success("المعرف المخزن يتطابق مع معرف المؤسسة الحالي");
     } else {
       toast.error("المعرف المخزن لا يتطابق مع معرف المؤسسة الحالي");
-      console.log("المعرف المخزن:", storedOrgId);
-      console.log("معرف المؤسسة الحالي:", currentOrganization.id);
+      
+      
     }
   };
 
@@ -411,7 +411,7 @@ const getDashboardStats = async (
   endDate?: Date
 ): Promise<DashboardStats | null> => {
   try {
-    console.log("جلب إحصائيات لوحة التحكم للمؤسسة:", orgId, "للفترة:", period);
+    
     
     if (!orgId) {
       console.error("معرف المؤسسة مفقود");
@@ -426,11 +426,11 @@ const getDashboardStats = async (
       return null;
     }
 
-    console.log("===== بيانات التحليلات المستلمة =====");
-    console.log("إجمالي المبيعات:", analyticsData.totalSales);
-    console.log("إجمالي الطلبات:", analyticsData.totalOrders);
-    console.log("إجمالي الأرباح:", analyticsData.totalProfit);
-    console.log("================================");
+    
+    
+    
+    
+    
     
     // تحويل بيانات التحليلات إلى تنسيق DashboardStats
     const dashboardStats: DashboardStats = {
@@ -469,12 +469,12 @@ const getDashboardStats = async (
       }
     };
     
-    console.log("===== إحصائيات لوحة التحكم النهائية =====");
-    console.log("المبيعات:", dashboardStats.sales);
-    console.log("الإيرادات:", dashboardStats.revenue);
-    console.log("الأرباح:", dashboardStats.profits);
-    console.log("الطلبات:", dashboardStats.orders);
-    console.log("=====================================");
+    
+    
+    
+    
+    
+    
     
     return dashboardStats;
   } catch (error) {
@@ -485,7 +485,7 @@ const getDashboardStats = async (
 
 // توليد بيانات فارغة للوحة التحكم
 const getEmptyDashboardStats = (): DashboardStats => {
-  console.log("استخدام بيانات فارغة للوحة التحكم");
+  
   return {
     sales: {
       daily: 0,
@@ -526,12 +526,12 @@ const getEmptyDashboardStats = (): DashboardStats => {
 // دالة لجلب بيانات لوحة التحكم باستخدام React Query
 const fetchDashboardStats = async (orgId: string, period: AnalyticsPeriod, startDate?: Date, endDate?: Date): Promise<DashboardStats> => {
   if (!orgId) {
-    console.log("No organization ID available, returning empty stats");
+    
     return getEmptyDashboardStats();
   }
 
   try {
-    console.log("Fetching dashboard stats for organization:", orgId);
+    
     const statsData = await getDashboardStats(orgId, period, startDate, endDate);
     return statsData || getEmptyDashboardStats();
   } catch (error) {
@@ -646,13 +646,13 @@ const Dashboard = () => {
   
   // معالج تغيير الفترة الزمنية
   const handleTimeframeChange = (newTimeframe: TimeframeType) => {
-    console.log("تغيير الفترة الزمنية إلى:", newTimeframe);
+    
     setTimeframe(newTimeframe);
   };
 
   // معالج تغيير الفترة الزمنية المخصصة
   const handleCustomDateChange = (startDate: Date, endDate: Date) => {
-    console.log("تغيير نطاق التاريخ المخصص:", { startDate, endDate });
+    
     setCustomDateRange({
       start: startDate,
       end: endDate
@@ -661,7 +661,7 @@ const Dashboard = () => {
   
   // دالة منفصلة لإنشاء منتج اختباري
   const createTestProduct = async () => {
-    console.log("createTestProduct function called");
+    
     try {
       if (!orgId) {
         console.error("معرف المؤسسة غير متوفر. يرجى الانتظار لاكتمال تحميل بيانات المؤسسة");
@@ -669,19 +669,19 @@ const Dashboard = () => {
         return;
       }
       
-      console.log("إنشاء منتج اختباري للمؤسسة:", orgId);
+      
       
       let categoryId;
       
-      console.log("Checking for product categories");
+      
       const { data: categories, error: catError } = await supabase
         .from('product_categories')
         .select('id')
         .eq('organization_id', orgId)
         .limit(1);
       
-      console.log("Categories query result:", categories);
-      console.log("Categories query error:", catError);
+      
+      
       
       if (catError) {
         console.error("خطأ في التحقق من فئات المنتجات:", catError);
@@ -689,7 +689,7 @@ const Dashboard = () => {
       }
       
       if (categories?.length === 0 || !categories) {
-        console.log("إنشاء فئة منتجات جديدة");
+        
         const { data: newCat, error: newCatError } = await supabase
           .from('product_categories')
           .insert({
@@ -700,8 +700,8 @@ const Dashboard = () => {
           .select('id')
           .single();
           
-        console.log("New category creation result:", newCat);
-        console.log("New category creation error:", newCatError);
+        
+        
           
         if (newCatError) {
           console.error("خطأ في إنشاء فئة المنتجات:", newCatError);
@@ -719,7 +719,7 @@ const Dashboard = () => {
       const productSlug = `test-product-${Math.floor(Math.random() * 10000)}`;
       
       // إنشاء منتج اختباري
-      console.log("Creating test product with category ID:", categoryId);
+      
       const testProduct: InsertProduct = {
         name: productName,
         description: 'هذا منتج اختباري تم إنشاؤه لأغراض التشخيص',
@@ -746,7 +746,7 @@ const Dashboard = () => {
       };
       
       const createdProduct = await createProduct(testProduct);
-      console.log("تم إنشاء المنتج بنجاح:", createdProduct);
+      
       
       toast.success("تم إنشاء منتج اختباري بنجاح");
       
@@ -762,13 +762,13 @@ const Dashboard = () => {
   // عرض بيانات التشخيص بدون إعادة تصيير الصفحة
   useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
-      console.log("=========== معلومات تشخيصية ===========");
-      console.log("النطاق الفرعي:", currentSubdomain);
-      console.log("معرف المؤسسة:", currentOrganization?.id);
-      console.log("اسم المؤسسة:", currentOrganization?.name);
-      console.log("النطاق الفرعي للمؤسسة:", currentOrganization?.subdomain);
-      console.log("تحميل المؤسسة:", orgLoading ? "جاري" : "مكتمل");
-      console.log("=======================================");
+      
+      
+      
+      
+      
+      
+      
     }
   }, [currentOrganization, currentSubdomain, orgLoading]);
   

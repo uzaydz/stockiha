@@ -32,7 +32,7 @@ export const getActiveSubscriptionByOrgId = async (organizationId: string) => {
  */
 export const getOrganizationById = async (organizationId: string) => {
   try {
-    console.log(`محاولة جلب المؤسسة باستخدام المعرف: ${organizationId}`);
+    
     const supabaseClient = await getSupabaseClient();
     const { data, error } = await supabaseClient
       .from('organizations')
@@ -46,7 +46,7 @@ export const getOrganizationById = async (organizationId: string) => {
     }
 
     if (data) {
-      console.log(`تم العثور على المؤسسة: ${data.name}, المعرف: ${data.id}`);
+      
     }
 
     return data;

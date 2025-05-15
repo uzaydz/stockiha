@@ -54,13 +54,7 @@ export async function removeDomain(domain, organizationId) {
     const VERCEL_PROJECT_ID = getVercelProjectId();
     const hasConfig = hasVercelConfig();
 
-    console.log('Vercel Configuration:', { 
-      hasToken: !!VERCEL_TOKEN, 
-      hasProjectId: !!VERCEL_PROJECT_ID,
-      configValid: hasConfig,
-      domain,
-      organizationId
-    });
+    
 
     if (!hasConfig) {
       return {

@@ -39,7 +39,7 @@ export default async function handler(
         console.error('فشل في تعطيل المحفز:', error);
         
         // محاولة تنفيذ استعلام SQL مباشر (قد لا يكون مسموحاً به)
-        console.log('محاولة تنفيذ استعلام SQL مباشر...');
+        
         try {
           const { data: directData, error: directError } = await supabase.rpc(
             'execute_sql',
@@ -68,7 +68,7 @@ export default async function handler(
             });
           }
           
-          console.log('تم تنفيذ الاستعلام المباشر بنجاح');
+          
           return res.status(200).json({
             success: true,
             message: 'تم تعطيل المحفز بنجاح (باستخدام الاستعلام المباشر)',

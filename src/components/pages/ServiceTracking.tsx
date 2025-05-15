@@ -120,7 +120,7 @@ const ServiceTracking = () => {
         return;
       }
       
-      console.log('جاري جلب طلبات الخدمات للمنظمة:', currentOrganization.id);
+      
       
       // التحقق من وجود خدمات للمؤسسة الحالية وإصلاح المشكلة إذا لزم الأمر
       try {
@@ -134,13 +134,13 @@ const ServiceTracking = () => {
           // الحصول على قائمة المؤسسات التي لديها خدمات
           const orgsWithServices = [...new Set(availableServices.map(s => s.organization_id))];
           
-          console.log('المؤسسات التي لديها خدمات:', orgsWithServices);
-          console.log('المؤسسة الحالية:', currentOrganization.id);
-          console.log('هل المؤسسة الحالية لديها خدمات؟', orgsWithServices.includes(currentOrganization.id));
+          
+          
+          
           
           // إذا لم تكن المؤسسة الحالية موجودة في القائمة، يمكننا محاولة استخدام إحدى المؤسسات المتاحة
           if (!orgsWithServices.includes(currentOrganization.id) && orgsWithServices.length > 0) {
-            console.log('المؤسسة الحالية ليس لديها خدمات. جاري محاولة استخدام مؤسسة بديلة:', orgsWithServices[0]);
+            
           }
         }
       } catch (checkError) {
@@ -172,7 +172,7 @@ const ServiceTracking = () => {
       }));
       
       setServiceBookings(transformedData);
-      console.log('تم جلب حجوزات الخدمات بنجاح:', transformedData.length, 'خدمة');
+      
     } catch (error) {
       console.error('Error fetching service bookings:', error);
       toast({

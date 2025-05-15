@@ -59,11 +59,7 @@ export function isElectron(): boolean {
   // تحقق إضافي: Electron يضيف عادة بعض الخصائص المحددة
   if (typeof window !== 'undefined' && !hasDiagnosticRun) {
     // طباعة تشخيصية لتحديد المشكلة - مرة واحدة فقط
-    console.log('[isElectron] التشخيص:', {
-      hasElectronAPI: !!(window as any).electronAPI,
-      hasElectronProcess: typeof (window as any).process === 'object' && (window as any).process?.type === 'renderer',
-      userAgent: navigator?.userAgent
-    });
+    
     hasDiagnosticRun = true; // وضع علامة بأن التشخيص قد تم تنفيذه
   }
 

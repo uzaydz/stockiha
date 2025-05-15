@@ -93,7 +93,7 @@ const CustomizeProductPurchasePage = () => {
 
   const handleSave = () => {
     if (!productId) return;
-    console.log('CustomizeProductPurchasePage: Saving currentConfig.quantityOffers:', JSON.stringify(currentConfig.quantityOffers, null, 2));
+    
     mutation.mutate({ productId, config: currentConfig });
   };
 

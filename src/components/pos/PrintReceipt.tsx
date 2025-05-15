@@ -104,18 +104,18 @@ const PrintReceipt: React.FC<PrintReceiptProps> = ({
   }): string => {
     // استخدام كود التتبع العام من قاعدة البيانات
     if (service.public_tracking_code) {
-      console.log("استخدام كود التتبع العام:", service.public_tracking_code);
+      
       return service.public_tracking_code;
     }
     
     // احتياطياً: استخدام رقم الطلب
-    console.log("استخدام رقم الطلب:", orderNumber);
+    
     return orderNumber;
   };
 
   // الحصول على كود التتبع للوصل بالكامل
   const receiptTrackingCode = selectedServices.length > 0 ? getTrackingCode(selectedServices[0]) : orderNumber;
-  console.log("رمز التتبع النهائي للوصل:", receiptTrackingCode);
+  
 
   // توليد رابط QR Code للملصق
   useEffect(() => {

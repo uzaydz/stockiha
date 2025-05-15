@@ -195,7 +195,7 @@ export default function YalidineDataSync({
         sourceProvinceId: selectedSourceProvince
       }));
       
-      console.log(`بدء عملية المزامنة مع ولاية المصدر: ${selectedSourceProvince}`, currentOrganizationId);
+      
       
       // استخدام وظيفة المزامنة الجديدة
       const success = await syncFees(currentOrganizationId, undefined, {
@@ -298,7 +298,7 @@ export default function YalidineDataSync({
     // إيقاف معالج قائمة الانتظار في نظام معدل الطلبات
     if (yalidineRateLimiter && typeof yalidineRateLimiter.cancelProcessing === 'function') {
       yalidineRateLimiter.cancelProcessing();
-      console.log("[SYNC] تم إيقاف معالج قائمة انتظار الطلبات");
+      
     }
     
     // تحديث حالة المزامنة إلى ملغاة

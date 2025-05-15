@@ -1,8 +1,10 @@
+// @ts-nocheck
+/* إيقاف فحص TypeScript لملف Deno Edge Function لأنه يستخدم دوال متوفرة فقط في بيئة Deno وليس Node.js */
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { AbandonedCartData, CustomFieldData, corsHeaders, AbandonedCartItem } from '../_shared/types.ts';
 
-console.log('Function save-abandoned-cart loaded. CORS Headers:', corsHeaders);
+
 
 // Local enum definition for robustness, matching _shared/types.ts
 enum AbandonedCartStatus { 
@@ -51,23 +53,96 @@ function determineVariantId(
   return null;
 }
 
+// إنشاء قائمة جاهزة للتخزين المؤقت
+let cartCache: Map<string, { payload: any, timestamp: number }> = new Map();
+// وقت انتهاء صلاحية التخزين المؤقت (10 دقائق بالمللي ثانية)
+const CACHE_EXPIRY = 10 * 60 * 1000;
+// الحد الأدنى للوقت بين طلبات نفس المستخدم (بالمللي ثانية) - زيادة من 30 ثانية إلى 60 ثانية
+const MINIMUM_SAVE_INTERVAL = 60 * 1000;
+
+// دالة لتنظيف التخزين المؤقت وإزالة العناصر منتهية الصلاحية
+function cleanupCache() {
+  const now = Date.now();
+  for (const [key, { timestamp }] of cartCache.entries()) {
+    if (now - timestamp > CACHE_EXPIRY) {
+      cartCache.delete(key);
+    }
+  }
+}
+
+// تنظيف التخزين المؤقت كل 5 دقائق
+setInterval(cleanupCache, 5 * 60 * 1000);
+
+// دالة لفحص ما إذا كانت البيانات الجديدة مختلفة بشكل كبير عن البيانات المخزنة
+function hasSignificantChanges(oldPayload: any, newPayload: any): boolean {
+  // إذا كان هناك اختلاف في الحقول الأساسية (مثل رقم الهاتف، الاسم، العنوان)، فهذا يعتبر تغييرًا مهمًا
+  const criticalFields = ['customer_phone', 'customer_name', 'customer_email', 'province', 'municipality', 'address'];
+  
+  for (const field of criticalFields) {
+    // تجاهل التغييرات الطفيفة في الاسم (حرف بحرف)
+    if (field === 'customer_name' && 
+        typeof oldPayload[field] === 'string' && 
+        typeof newPayload[field] === 'string') {
+      
+      // إذا كان الفرق في طول الاسم أقل من 3 أحرف، لا نعتبره تغييراً جوهرياً
+      if (Math.abs(oldPayload[field]?.length - newPayload[field]?.length) < 3) {
+        continue;
+      }
+    }
+    
+    if (oldPayload[field] !== newPayload[field]) {
+      return true;
+    }
+  }
+  
+  // تحقق مما إذا كانت العناصر في السلة قد تغيرت
+  const oldItems = Array.isArray(oldPayload.cart_items) ? oldPayload.cart_items : [];
+  const newItems = Array.isArray(newPayload.cart_items) ? newPayload.cart_items : [];
+  
+  if (oldItems.length !== newItems.length) {
+    return true;
+  }
+  
+  // تحقق من الاختلافات في العناصر الموجودة
+  for (let i = 0; i < oldItems.length; i++) {
+    if (oldItems[i].product_id !== newItems[i].product_id || 
+        oldItems[i].quantity !== newItems[i].quantity ||
+        oldItems[i].product_color_id !== newItems[i].product_color_id ||
+        oldItems[i].product_size_id !== newItems[i].product_size_id) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+// تحسين أداء معالجة الطلبات المتروكة باستخدام الطابور والمعالجة الدفعية
 serve(async (req: Request) => {
-  console.log(`Timestamp: ${new Date().toISOString()}`);
-  console.log(`Received request: ${req.method} ${req.url}`);
-  console.log('Request headers:');
+  
+  
+  
   for (const [key, value] of req.headers.entries()) {
-    console.log(`  ${key}: ${value}`);
+    
   }
 
-  console.log(`Received request: ${req.method} ${req.url}`);
+  
 
   if (req.method === 'OPTIONS') {
-    console.log('Handling OPTIONS request');
-    return new Response('ok', { headers: corsHeaders });
+    
+    return new Response(null, {
+      status: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'apikey, Authorization, x-client-info, Content-Type',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      },
+    });
   }
 
   try {
+    // @ts-ignore
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    // @ts-ignore
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
     if (!supabaseUrl || !supabaseServiceKey) {
@@ -85,9 +160,9 @@ serve(async (req: Request) => {
     let flatPayload: FrontendFlatPayload;
     let requestBodyAsText: string = ''; // Variable to store the raw text
     try {
-      console.log('Attempting to read request body as text...');
+      
       requestBodyAsText = await req.text();
-      console.log('Request body as text:', requestBodyAsText);
+      
 
       if (!requestBodyAsText || requestBodyAsText.trim() === '') {
         console.error('Request body is empty after reading as text.');
@@ -100,9 +175,9 @@ serve(async (req: Request) => {
         });
       }
 
-      console.log('Attempting to parse the read text body with JSON.parse()...');
+      
       flatPayload = JSON.parse(requestBodyAsText);
-      console.log('Successfully parsed flatPayload from text:', flatPayload);
+      
     } catch (parsingError: any) {
       console.error('Error during JSON.parse(requestBodyAsText):', parsingError.message);
       console.error('JSON.parse() stack trace:', parsingError.stack);
@@ -115,6 +190,35 @@ serve(async (req: Request) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400, 
       });
+    }
+
+    // إنشاء مفتاح فريد للطلب المتروك
+    const cacheKey = `${flatPayload.organization_id}:${flatPayload.customer_phone}:${flatPayload.product_id || 'no-product'}`;
+    
+    // التحقق من التخزين المؤقت لتجنب الطلبات المتكررة
+    const cached = cartCache.get(cacheKey);
+    const now = Date.now();
+    
+    // التحقق من آخر تحديث - إذا كان التحديث الأخير حديثًا جدًا (أقل من الحد الأدنى المسموح به)
+    if (cached && (now - cached.timestamp < MINIMUM_SAVE_INTERVAL)) {
+      
+      
+      // في حالة التحديث المتكرر خلال فترة قصيرة، تحقق مما إذا كانت هناك تغييرات كبيرة
+      if (!hasSignificantChanges(cached.payload, flatPayload)) {
+        
+        return new Response(
+          JSON.stringify({ 
+            id: cached.payload.id || 'cached',
+            message: 'لم يتم حفظ الطلب - لم يتم اكتشاف تغييرات مهمة وآخر تحديث كان حديثًا جدًا'
+          }),
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200
+          }
+        );
+      }
+      
+      
     }
 
     // Transform flatPayload to AbandonedCartData
@@ -160,7 +264,8 @@ serve(async (req: Request) => {
     } else if (cartData.product_id && typeof cartData.quantity !== 'undefined') {
       cartData.cart_items = [{
         product_id: cartData.product_id,
-        quantity: cartData.quantity,
+        // قوة التحويل لضمان أن الكمية عدد
+        quantity: typeof cartData.quantity === 'number' ? cartData.quantity : 1,
         product_color_id: cartData.product_color_id,
         product_size_id: cartData.product_size_id,
         // variant_id can be omitted if not applicable or derived elsewhere if needed
@@ -177,7 +282,7 @@ serve(async (req: Request) => {
         status: 400,
       });
     }
-    console.log(`Processing cart for org: ${cartData.organization_id}, phone: ${cartData.customer_phone}`);
+    
 
     // DATABASE OPERATIONS (using transformed cartData)
     const { data: existingCart, error: fetchError } = await supabaseAdmin
@@ -195,7 +300,7 @@ serve(async (req: Request) => {
     }
 
     if (existingCart && existingCart.status === AbandonedCartStatus.PENDING) {
-      console.log(`Existing PENDING cart found (ID: ${existingCart.id}). Merging and updating.`);
+      
       
       const existingCartItems = Array.isArray(existingCart.cart_items) ? existingCart.cart_items : [];
       const currentCartItems = Array.isArray(cartData.cart_items) ? cartData.cart_items : [];
@@ -205,6 +310,49 @@ serve(async (req: Request) => {
       const currentCustomFields = Array.isArray(cartData.custom_fields_data) ? cartData.custom_fields_data : [];
       const mergedCustomFields = mergeCustomFields(existingCustomFields, currentCustomFields);
       
+      // قبل التحديث، تحقق مما إذا كان هناك تغييرات فعلية
+      const hasItemsChanged = JSON.stringify(existingCartItems) !== JSON.stringify(mergedItems);
+      const hasFieldsChanged = Object.entries(cartData).some(([key, value]) => {
+        // تجاهل cart_items لأننا قمنا بالتحقق منها بالفعل
+        if (key === 'cart_items') return false;
+        
+        // تجاهل الحقول التي لا تحتاج إلى مقارنة
+        if (key === 'status' || key === 'created_at' || key === 'updated_at' || key === 'last_activity_at') return false;
+        
+        // مقارنة القيمة الحالية مع القيمة الموجودة
+        return value !== undefined && value !== null && value !== existingCart[key];
+      });
+      
+      if (!hasItemsChanged && !hasFieldsChanged) {
+        
+        
+        // التحديث الوحيد هو last_activity_at للإشارة إلى أن المستخدم لا يزال نشطًا
+        const { data: updatedCart, error: updateError } = await supabaseAdmin
+          .from('abandoned_carts')
+          .update({
+            last_activity_at: new Date().toISOString()
+          })
+          .eq('id', existingCart.id)
+          .select()
+          .single();
+          
+        if (updateError) {
+          console.error('Error updating last_activity_at:', updateError);
+          throw updateError;
+        }
+        
+        // تحديث التخزين المؤقت
+        cartCache.set(cacheKey, {
+          payload: updatedCart,
+          timestamp: now
+        });
+        
+        return new Response(JSON.stringify(updatedCart), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // تحديث السلة الموجودة بالبيانات المدمجة
       const updatePayload: Partial<AbandonedCartData> = {
         ...cartData, // Base new data on transformed cartData
         cart_items: mergedItems,
@@ -225,10 +373,25 @@ serve(async (req: Request) => {
         console.error('Error updating abandoned cart:', updateError);
         throw updateError;
       }
-      console.log('Abandoned cart updated successfully:', updatedData);
+      
+
+      // تحديث التخزين المؤقت بالبيانات الجديدة والنتيجة
+      cartCache.set(cacheKey, { 
+        payload: updatedData,
+        timestamp: now
+      });
+
+      // إشعار بحاجة تحديث الجداول المجمعة
+      try {
+        // إرسال إشعار بتحديث الجداول المجمعة
+        await supabaseAdmin.rpc('notify_refresh_materialized_views');
+      } catch (error) {
+        console.error('Error notifying for materialized view refresh (non-critical):', error);
+      }
+
       return new Response(JSON.stringify(updatedData), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
     } else {
-      console.log('No existing PENDING cart found or status not PENDING. Creating new cart.');
+      
       const insertPayload: AbandonedCartData = {
         ...cartData, // Base new data on transformed cartData
         status: AbandonedCartStatus.PENDING, // Ensure status is PENDING for new cart
@@ -247,7 +410,22 @@ serve(async (req: Request) => {
         console.error('Error inserting new abandoned cart:', insertError);
         throw insertError;
       }
-      console.log('Abandoned cart saved successfully:', newData);
+      
+
+      // تحديث التخزين المؤقت بالبيانات الجديدة والنتيجة
+      cartCache.set(cacheKey, { 
+        payload: newData,
+        timestamp: now
+      });
+
+      // إشعار بحاجة تحديث الجداول المجمعة
+      try {
+        // إرسال إشعار بتحديث الجداول المجمعة
+        await supabaseAdmin.rpc('notify_refresh_materialized_views');
+      } catch (error) {
+        console.error('Error notifying for materialized view refresh (non-critical):', error);
+      }
+
       return new Response(JSON.stringify(newData), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 201 });
     }
 
@@ -338,4 +516,4 @@ function mergeCustomFields(existingFields: CustomFieldData[], newFields: CustomF
     return Array.from(fieldMap.values());
 }
 
-console.log('Function save-abandoned-cart ready.');
+

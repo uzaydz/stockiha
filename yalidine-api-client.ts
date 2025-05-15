@@ -493,4 +493,4 @@ export class YalidineApiClient {
 //   'your-yalidine-api-token'
 // );
 // 
-// yalidineClient.getWilayas().then(result => console.log(result)); 
+// yalidineClient.getWilayas().then(result =>  

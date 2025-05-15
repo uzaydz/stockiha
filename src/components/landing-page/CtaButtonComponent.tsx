@@ -163,7 +163,7 @@ const CtaButtonComponent: React.FC<CtaButtonComponentProps> = ({ settings }) => 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (scrollToId) {
       e.preventDefault();
-      console.log(`محاولة التمرير إلى العنصر: #${scrollToId}`);
+      
       
       // محاولة العثور على العنصر بعدة طرق
       let element = document.getElementById(scrollToId);
@@ -179,7 +179,7 @@ const CtaButtonComponent: React.FC<CtaButtonComponentProps> = ({ settings }) => 
             const elementsByData = document.querySelector(`[data-section-id="${scrollToId}"], [data-id="${scrollToId}"], [data-form-id="${scrollToId}"], .section-${scrollToId}`);
             if (elementsByData) {
               element = elementsByData as HTMLElement;
-              console.log(`تم العثور على العنصر بواسطة سمات البيانات: ${scrollToId}`);
+              
             }
           } catch (err) {
             console.error("خطأ أثناء البحث باستخدام محدد البيانات:", err);
@@ -190,14 +190,14 @@ const CtaButtonComponent: React.FC<CtaButtonComponentProps> = ({ settings }) => 
             const elementsByClass = document.getElementsByClassName(scrollToId);
             if (elementsByClass.length > 0) {
               element = elementsByClass[0] as HTMLElement;
-              console.log(`تم العثور على العنصر بواسطة الفئة: ${scrollToId}`);
+              
             }
           }
         } else {
-          console.log(`تم العثور على العنصر باستخدام معرف النموذج الديناميكي: form-section-${scrollToId}`);
+          
         }
       } else {
-        console.log(`تم العثور على العنصر بنجاح: #${scrollToId}`);
+        
       }
       
       if (element) {

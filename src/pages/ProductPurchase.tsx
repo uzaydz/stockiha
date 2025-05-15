@@ -56,21 +56,21 @@ const ProductMainInfo = ({ product, ...props }) => {
 
 // مكون فرعي لعرض العداد التنازلي
 const ProductTimerSection = ({ timerConfig }) => {
-  console.log("تفاصيل المؤقت:", timerConfig);
+  
   
   // إذا لم يكن هناك تكوين للمؤقت أو لم يكن مفعلاً
   if (!timerConfig) {
-    console.log("لم يتم توفير تكوين المؤقت");
+    
     return null;
   }
   
   if (!timerConfig.enabled) {
-    console.log("المؤقت غير مفعل");
+    
     return null;
   }
   
   if (!timerConfig.endDate) {
-    console.log("لم يتم تحديد تاريخ انتهاء للمؤقت");
+    
     return null;
   }
   
@@ -80,12 +80,7 @@ const ProductTimerSection = ({ timerConfig }) => {
   const timerTextAbove = timerConfig.textAbove || timerConfig.message || "العرض ينتهي خلال:";
   const timerTextBelow = timerConfig.textBelow || "سارع بالطلب قبل انتهاء العرض - الكمية محدودة";
   
-  console.log("معلومات المؤقت النهائية:", { 
-    enabled: timerConfig.enabled, 
-    endDate: timerConfig.endDate,
-    textAbove: timerTextAbove,
-    textBelow: timerTextBelow
-  });
+  
   
   // استخدام تعليمة key لإجبار React على إعادة رسم المكون عند تغير البيانات
   return (
@@ -242,7 +237,7 @@ const ProductPurchase = () => {
         setIsPartialLoading(true);
         setError(null); 
         
-        console.log('بدء تحميل بيانات المنتج للمنظمة:', currentOrganization.id, 'والرابط:', slug);
+        
         
         // تنفيذ التحميل المتوازي للبيانات بدلاً من انتظار كل خطوة
         const productDataPromise = getProductPageData(currentOrganization.id, slug);
@@ -258,8 +253,8 @@ const ProductPurchase = () => {
           return;
         }
         
-        console.log('تم تحميل بيانات المنتج بنجاح:', data.product.name);
-        console.log('تفاصيل تكوين صفحة الشراء:', data.product.purchase_page_config);
+        
+        
         
         // تم تحميل البيانات الأساسية، نعرض المنتج ونستمر في تحميل التفاصيل
         setProductData(data);
@@ -269,16 +264,16 @@ const ProductPurchase = () => {
         
         // التحقق من وجود تكوين مؤقت العرض
         if (data.product.purchase_page_config?.timer) {
-          console.log('تم العثور على تكوين المؤقت:', data.product.purchase_page_config.timer);
+          
           
           // التحقق مما إذا كان المؤقت مفعلاً
           if (data.product.purchase_page_config.timer.enabled) {
-            console.log('المؤقت مفعل ويجب أن يظهر في الصفحة');
+            
           } else {
-            console.log('المؤقت غير مفعل');
+            
           }
         } else {
-          console.log('لم يتم العثور على تكوين المؤقت في إعدادات صفحة الشراء');
+          
         }
         
         // تجهيز الألوان والمقاسات
@@ -408,7 +403,7 @@ const ProductPurchase = () => {
 
   // الحصول على تكوين المؤقت من المنتج
   const timerConfig = product?.purchase_page_config?.timer;
-  console.log('تكوين المؤقت الحالي:', timerConfig);
+  
   
   // الحصول على عروض الكمية
   const quantityOffers = product?.purchase_page_config?.quantityOffers as any[] | undefined;

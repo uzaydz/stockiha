@@ -7,14 +7,14 @@ export const checkDatabaseConnection = async (): Promise<{
   error?: string;
   details?: any;
 }> => {
-  console.log('Checking database connection...');
+  
   try {
     // التحقق من الاتصال بإستخدام استعلام بسيط
     const { data, error } = await supabase.from('debug_logs').select('id').limit(1);
     
     // إذا لم تكن جداول التصحيح موجودة بعد
     if (error && error.code === '42P01') { // relation does not exist
-      console.log('Debug logs table does not exist yet. Checking connection with another table...');
+      
       // استخدام جدول آخر موجود
       const { data: usersData, error: usersError } = await supabase.from('users').select('id').limit(1);
       
@@ -66,7 +66,7 @@ export const checkOrganizationAccess = async (
   error?: string;
   details?: any;
 }> => {
-  console.log(`Checking organization access for user ${userId} to org ${organizationId}...`);
+  
   try {
     // التحقق من وجود المؤسسة
     const { data: orgData, error: orgError } = await supabase
@@ -86,7 +86,7 @@ export const checkOrganizationAccess = async (
     }
     
     if (!orgData) {
-      console.log('Organization not found');
+      
       return {
         success: true,
         hasAccess: false,
@@ -113,7 +113,7 @@ export const checkOrganizationAccess = async (
     
     // التحقق من تطابق معرف المؤسسة
     const hasAccess = userData.organization_id === organizationId;
-    console.log(`User ${userId} access to organization ${organizationId}: ${hasAccess ? 'GRANTED' : 'DENIED'}`);
+    
     
     // تسجيل محاولة الوصول في جدول السجلات
     try {
@@ -156,13 +156,13 @@ export const testUserData = async (userId: string): Promise<{
   userData?: any;
   error?: string;
 }> => {
-  console.log(`Testing user data retrieval for user ${userId}...`);
+  
   try {
     // جلب بيانات المستخدم
     const { data: authData } = await supabase.auth.getUser();
     
     if (!authData.user) {
-      console.log('No authenticated user found');
+      
       return {
         success: false,
         error: 'No authenticated user found'
@@ -185,7 +185,7 @@ export const testUserData = async (userId: string): Promise<{
     }
     
     if (!userData) {
-      console.log('User not found in users table');
+      
       return {
         success: false,
         error: 'User not found in users table'

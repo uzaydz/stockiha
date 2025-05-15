@@ -47,7 +47,7 @@ const StoreFooter = ({
   const handleNewsletterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // إجراء الاشتراك في النشرة البريدية
-    console.log('تم الاشتراك في النشرة البريدية');
+    
   };
 
   const footerLinks = [

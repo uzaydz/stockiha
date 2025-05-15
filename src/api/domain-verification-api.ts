@@ -339,7 +339,7 @@ export async function linkDomainToVercelProject(
       };
     }
 
-    console.log(`محاولة ربط النطاق ${domain} بمشروع Vercel ${projectId}`);
+    
 
     try {
       // إضافة النطاق إلى مشروع Vercel
@@ -356,7 +356,7 @@ export async function linkDomainToVercelProject(
 
       // التحقق من أن الاستجابة صالحة
       if (response.status >= 200 && response.status < 300 && response.data) {
-        console.log(`تم ربط النطاق ${domain} بمشروع Vercel بنجاح`);
+        
         return {
           success: true,
           data: response.data
@@ -368,7 +368,7 @@ export async function linkDomainToVercelProject(
       if (axios.isAxiosError(axiosError)) {
         // التحقق من أن النطاق مضاف بالفعل
         if (axiosError.response?.status === 409) {
-          console.log(`النطاق ${domain} مضاف بالفعل للمشروع - اعتبار ذلك نجاحًا`);
+          
           // العودة بنجاح إذا كان النطاق مضاف بالفعل
           return {
             success: true,

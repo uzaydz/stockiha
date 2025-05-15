@@ -21,28 +21,35 @@ import {
 import { Badge } from '@/components/ui/badge';
 
 interface ProductsFilterProps {
-  searchQuery: string;
-  onSearchChange: (value: string) => void;
-  categories: string[];
-  selectedCategory: string | null;
-  onCategoryChange: (value: string | null) => void;
-  sortOption: string;
-  onSortChange: (value: string) => void;
-  stockFilter: string;
-  onStockFilterChange: (value: string) => void;
+  searchQuery?: string;
+  onSearchChange?: (value: string) => void;
+  categories?: string[];
+  selectedCategory?: string | null;
+  onCategoryChange?: (value: string | null) => void;
+  sortOption?: string;
+  onSortChange?: (value: string) => void;
+  stockFilter?: string;
+  onStockFilterChange?: (value: string) => void;
+  categoryFilter?: string | null;
+  onCategoryFilterChange?: (value: string | null) => void;
 }
 
 const ProductsFilter = ({
-  searchQuery,
-  onSearchChange,
-  categories,
-  selectedCategory,
-  onCategoryChange,
-  sortOption,
-  onSortChange,
-  stockFilter,
-  onStockFilterChange,
+  searchQuery = '',
+  onSearchChange = () => {},
+  categories = [],
+  selectedCategory = null,
+  onCategoryChange = () => {},
+  sortOption = 'newest',
+  onSortChange = () => {},
+  stockFilter = 'all',
+  onStockFilterChange = () => {},
+  categoryFilter = null,
+  onCategoryFilterChange
 }: ProductsFilterProps) => {
+  const effectiveCategoryFilter = categoryFilter ?? selectedCategory;
+  const effectiveOnCategoryChange = onCategoryFilterChange ?? onCategoryChange;
+
   return (
     <div className="bg-background border rounded-lg p-4 shadow-sm">
       <div className="flex flex-col md:flex-row gap-4">
@@ -71,15 +78,15 @@ const ProductsFilter = ({
         {/* Category Filter */}
         <div className="w-full md:w-[200px]">
           <Select
-            value={selectedCategory || 'all'}
-            onValueChange={(value) => onCategoryChange(value === 'all' ? null : value)}
+            value={effectiveCategoryFilter || 'all'}
+            onValueChange={(value) => effectiveOnCategoryChange(value === 'all' ? null : value)}
           >
             <SelectTrigger>
               <SelectValue placeholder="كل الفئات" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">كل الفئات</SelectItem>
-              {categories.map((category) => (
+              {Array.isArray(categories) && categories.map((category) => (
                 <SelectItem key={category} value={category}>
                   {category}
                 </SelectItem>
@@ -138,16 +145,16 @@ const ProductsFilter = ({
       </div>
 
       {/* Active Filters */}
-      {(selectedCategory || stockFilter !== 'all') && (
+      {(effectiveCategoryFilter || stockFilter !== 'all') && (
         <div className="flex flex-wrap gap-2 mt-3">
-          {selectedCategory && (
+          {effectiveCategoryFilter && (
             <Badge variant="secondary" className="gap-2">
-              الفئة: {selectedCategory}
+              الفئة: {effectiveCategoryFilter}
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-4 w-4 p-0 hover:bg-transparent"
-                onClick={() => onCategoryChange(null)}
+                onClick={() => effectiveOnCategoryChange(null)}
               >
                 <X className="h-3 w-3" />
                 <span className="sr-only">إزالة الفلتر</span>

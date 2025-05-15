@@ -3,6 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import YalidineSettings from './shipping/YalidineSettings';
+import ZRExpressSettings from './shipping/ZRExpressSettings';
 import { Package, Truck, TruckIcon, Package2, Copy } from 'lucide-react';
 
 interface ShippingSettingsProps {
@@ -69,16 +70,7 @@ export default function ShippingSettings({ onNavigateToClones }: ShippingSetting
             </TabsContent>
             
             <TabsContent value="zrexpress" className="space-y-4 mt-4">
-              <div className="flex flex-col items-center justify-center py-10 px-6 border border-dashed rounded-lg">
-                <TruckIcon className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-xl font-semibold mb-2">ZR Express</h3>
-                <p className="text-center text-muted-foreground mb-4">
-                  تكامل مع خدمة ZR Express للشحن والتوصيل سيكون متاحاً قريباً
-                </p>
-                <div className="flex items-center text-sm text-blue-500">
-                  <span>قريباً</span>
-                </div>
-              </div>
+              <ZRExpressSettings />
             </TabsContent>
             
             <TabsContent value="mayesto" className="space-y-4 mt-4">

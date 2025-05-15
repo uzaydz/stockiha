@@ -55,7 +55,7 @@ const AppearanceSettings = () => {
       // جلب إعدادات المؤسسة
       if (currentOrganization?.id) {
         try {
-          console.log('Fetching organization settings for:', currentOrganization.id);
+          
           const orgSettingsData = await getOrganizationSettings(currentOrganization.id);
           
           // Verificamos que las configuraciones pertenecen a la organización actual
@@ -71,7 +71,7 @@ const AppearanceSettings = () => {
               setEnableCustomCSS(true);
             }
           } else {
-            console.log('Using default organization settings');
+            
             // Si no hay configuraciones para esta organización, o son de otra organización,
             // utilizamos valores por defecto
             setPrimaryColor('#0099ff');

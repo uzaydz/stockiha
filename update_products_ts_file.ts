@@ -5,7 +5,7 @@
 
 export const updateProduct = async (id: string, updates: UpdateProduct): Promise<Product> => {
   try {
-    console.log('تحديث المنتج بالبيانات:', updates);
+    
     
     // استخدام وظيفة RPC المخصصة لتحديث المنتج وإرجاع البيانات المحدثة مع العلاقات
     const { data, error } = await supabase
@@ -26,7 +26,7 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
     // تحويل البيانات إلى نموذج المنتج
     const product = data as unknown as Product;
     
-    console.log(`تم تحديث المنتج ${id} بنجاح:`, product.name);
+    
     return product;
   } catch (error) {
     console.error(`خطأ عام في تحديث المنتج ${id}:`, error);

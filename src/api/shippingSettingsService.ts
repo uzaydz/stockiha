@@ -46,7 +46,7 @@ export class ShippingSettingsService {
 
       // If table doesn't exist, create tables and insert default providers
       if (checkError && checkError.code === '42P01') { // 42P01 is PostgreSQL's error code for "table does not exist"
-        console.log('Shipping tables do not exist, creating them...');
+        
         
         // Create shipping_providers table
         await supabase.rpc('create_shipping_tables');

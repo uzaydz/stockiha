@@ -70,14 +70,7 @@ const PurchaseTimer = ({
   useEffect(() => {
     if (isClient && !loggedRef.current) {
       loggedRef.current = true;
-      console.log('حالة مؤقت الشراء:', { 
-        isClient, 
-        targetDate: targetDate.toString(), 
-        isInvalid: isNaN(targetDate.getTime()),
-        difference,
-        isPastDate: difference <= 0,
-        endDate
-      });
+      
     }
   }, [isClient, targetDate, difference, endDate]);
   
@@ -85,7 +78,7 @@ const PurchaseTimer = ({
   if (!isClient || isNaN(targetDate.getTime())) {
     // تجنب الطباعة المتكررة
     if (!loggedRef.current) {
-      console.log('لا يمكن عرض المؤقت: إما ليس على العميل أو تاريخ غير صالح');
+      
       loggedRef.current = true;
     }
     return null;
@@ -100,7 +93,7 @@ const PurchaseTimer = ({
     if (!showPastDateTimer) {
       // تجنب الطباعة المتكررة
       if (!loggedRef.current) {
-        console.log('لا يمكن عرض المؤقت: التاريخ في الماضي');
+        
         loggedRef.current = true;
       }
       return null;
@@ -108,7 +101,7 @@ const PurchaseTimer = ({
     
     // تجنب الطباعة المتكررة
     if (!loggedRef.current) {
-      console.log('عرض المؤقت رغم أن التاريخ في الماضي');
+      
       loggedRef.current = true;
     }
     // نستمر لعرض المؤقت مع قيم افتراضية للعرض

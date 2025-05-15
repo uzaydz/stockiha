@@ -33,7 +33,7 @@ export async function checkYalidineConfiguration(organizationId: string): Promis
   data?: any;
 }> {
   try {
-    console.log('فحص تكوين ياليدين لـ المؤسسة:', organizationId);
+    
     
     // التحقق من وجود جدول shipping_provider_settings
     const { data: tableInfo, error: tableError } = await supabase
@@ -49,7 +49,7 @@ export async function checkYalidineConfiguration(organizationId: string): Promis
       };
     }
     
-    console.log('جدول بيانات الشحن موجود، جاري فحص بيانات المؤسسة');
+    
     
     // التحقق من وجود بيانات اعتماد ياليدين للمؤسسة المحددة
     const { data: yalidineSettings, error: settingsError } = await supabase
@@ -76,7 +76,7 @@ export async function checkYalidineConfiguration(organizationId: string): Promis
       };
     }
     
-    console.log('تم العثور على بيانات اعتماد ياليدين للمؤسسة');
+    
     
     // إخفاء معلومات حساسة قبل الإرجاع
     const safeData = {
@@ -107,7 +107,7 @@ export async function checkYalidineConfiguration(organizationId: string): Promis
  */
 export async function getProvinces(organizationId: string): Promise<Province[]> {
   try {
-    console.log('جلب الولايات من ياليدين');
+    
     const provinces = await fetchProvinces(organizationId);
     
     // ترتيب الولايات أبجديًا بالعربية
@@ -130,7 +130,7 @@ export async function getMunicipalities(
   deliveryType: DeliveryType
 ): Promise<Municipality[]> {
   try {
-    console.log(`جلب البلديات للولاية ${provinceId} مع نوع التوصيل ${deliveryType}`);
+    
     
     // استخدام الوظيفة المخصصة لتصفية البلديات حسب نوع التوصيل
     const municipalities = await getMunicipalitiesByDeliveryType(
@@ -158,7 +158,7 @@ export async function getCenters(
   provinceId: string
 ): Promise<Center[]> {
   try {
-    console.log(`جلب مراكز الاستلام للولاية ${provinceId}`);
+    
     
     const centers = await fetchCenters(organizationId, provinceId);
     
@@ -181,7 +181,7 @@ export async function getCentersByCommune(
   communeId: string
 ): Promise<Center[]> {
   try {
-    console.log(`جلب مراكز الاستلام للبلدية ${communeId}`);
+    
     
     const centers = await fetchCentersByCommune(organizationId, communeId);
     
@@ -212,7 +212,7 @@ export async function getDeliveryPrice(
   weight?: number
 ): Promise<number | null> {
   try {
-    console.log(`حساب سعر التوصيل من ${fromProvinceId} إلى ${toProvinceId} (${toCommuneId})`);
+    
     
     const price = await calculateYalidineDeliveryPrice(
       organizationId,

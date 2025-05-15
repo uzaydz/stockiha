@@ -3,7 +3,7 @@
  * يوفر واجهة موحدة للوصول إلى وظائف Electron أو محاكاتها في المتصفح
  */
 
-console.log('Inicializando puente de Electron');
+
 
 /**
  * التحقق مما إذا كان التطبيق يعمل في بيئة Electron
@@ -16,10 +16,7 @@ export const isElectron = () => {
   if (typeof window !== 'undefined') {
     // طباعة معلومات البيئة للتشخيص
     if (!window.__ENV_DETECTED) {
-      console.log('[ENV] تحديد البيئة:', { 
-        hasElectronAPI,
-        isInElectron: hasElectronAPI
-      });
+      
       window.__ENV_DETECTED = true;
     }
   }
@@ -36,7 +33,7 @@ export const invoke = async (channel, ...args) => {
   }
   
   // محاكاة الوظائف الأساسية للاختبار والتطوير
-  console.log(`[ElectronMock] محاكاة استدعاء ${channel}`, args);
+  
   
   // محاكاة نتائج بناءً على القناة
   switch (channel) {
@@ -63,7 +60,7 @@ export const send = (channel, ...args) => {
   }
   
   // محاكاة الوظائف الأساسية للاختبار والتطوير
-  console.log(`[ElectronMock] محاكاة إرسال ${channel}`, args);
+  
 };
 
 /**
@@ -80,7 +77,7 @@ export const on = (channel, callback) => {
     return () => {}; // وظيفة تنظيف فارغة
   }
   
-  console.log(`[ElectronMock] محاكاة الاستماع إلى ${channel}`);
+  
   return () => {}; // وظيفة تنظيف فارغة
 };
 
@@ -92,6 +89,6 @@ const electronBridge = {
   on
 };
 
-console.log('Puente de Electron inicializado correctamente');
+
 
 export default electronBridge; 

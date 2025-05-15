@@ -142,10 +142,7 @@ export async function getSupplierById(organizationId: string, supplierId: string
 // Create a new supplier
 export async function createSupplier(organizationId: string, supplier: Omit<Supplier, 'id' | 'created_at' | 'updated_at'>): Promise<Supplier | null> {
   try {
-    console.log('Creating new supplier with data:', {
-      ...supplier,
-      organization_id: organizationId,
-    });
+    
     
     const { data, error } = await supabase
       .from('suppliers')
@@ -161,7 +158,7 @@ export async function createSupplier(organizationId: string, supplier: Omit<Supp
       throw error;
     }
     
-    console.log('Supplier created successfully:', data);
+    
     return data;
   } catch (error) {
     console.error('Error creating supplier:', error);
@@ -311,8 +308,8 @@ export async function createPurchase(
   items: Omit<SupplierPurchaseItem, 'id' | 'purchase_id' | 'total_price' | 'tax_amount'>[]
 ): Promise<SupplierPurchase | null> {
   try {
-    console.log("Creating purchase with organization ID:", organizationId);
-    console.log("Items to be created:", items);
+    
+    
     
     // تحقق من صحة البيانات
     if (!items || items.length === 0) {
@@ -350,7 +347,7 @@ export async function createPurchase(
     while (attempt < maxRetries && !purchaseResult) {
       attempt++;
       try {
-        console.log(`Attempt ${attempt} to create purchase`);
+        
         
         // Use a simpler query without .select() initially to reduce stack depth
         const { error } = await supabase
@@ -385,7 +382,7 @@ export async function createPurchase(
         }
         
         purchaseResult = data;
-        console.log("Purchase created successfully, ID:", purchaseResult.id);
+        
       } catch (retryError) {
         console.error(`Error on attempt ${attempt}:`, retryError);
         if (attempt === maxRetries) throw retryError;
@@ -399,7 +396,7 @@ export async function createPurchase(
     
     // Handle items insertion only if purchase was created successfully
     if (items.length > 0 && purchaseResult) {
-      console.log(`Inserting ${items.length} purchase items`);
+      
       
       // Process items in small batches with sufficient delays between batches
       const BATCH_SIZE = 3;
@@ -410,7 +407,7 @@ export async function createPurchase(
       }
       
       for (const [batchIndex, batch] of batches.entries()) {
-        console.log(`Processing batch ${batchIndex + 1} of ${batches.length}`);
+        
         
         // Calculate tax_amount and total_price for each item
         const formattedItems = batch.map(item => {
@@ -418,7 +415,7 @@ export async function createPurchase(
           const unit_price = Number(item.unit_price) || 0;
           const tax_rate = Number(item.tax_rate) || 0;
           
-          console.log(`Formatting item: product_id=${item.product_id}, description=${item.description}, quantity=${quantity}`);
+          
           
           // Don't include tax_amount and total_price as they are generated columns
           return {
@@ -438,7 +435,7 @@ export async function createPurchase(
         while (itemAttempt < maxRetries && !itemsInserted) {
           itemAttempt++;
           try {
-            console.log(`Batch ${batchIndex + 1}, attempt ${itemAttempt} to insert items`);
+            
             
             // Simple insert without .select() to reduce stack depth
             const { error: itemsError } = await supabase
@@ -456,7 +453,7 @@ export async function createPurchase(
             }
             
             itemsInserted = true;
-            console.log(`Batch ${batchIndex + 1} inserted successfully`);
+            
           } catch (itemRetryError) {
             console.error(`Error on batch ${batchIndex + 1}, attempt ${itemAttempt}:`, itemRetryError);
             if (itemAttempt === maxRetries) throw itemRetryError;
@@ -476,7 +473,7 @@ export async function createPurchase(
         }
       }
       
-      console.log("All purchase items created successfully");
+      
     }
     
     return purchaseResult;
@@ -493,7 +490,7 @@ export async function updatePurchaseStatus(
   status: SupplierPurchase['status']
 ): Promise<boolean> {
   try {
-    console.log(`Updating purchase ${purchaseId} to status: ${status}`);
+    
     
     // First, get the current status to check if we're changing to 'confirmed'
     const { data: currentPurchase, error: fetchError } = await supabase
@@ -507,7 +504,7 @@ export async function updatePurchaseStatus(
       throw fetchError;
     }
     
-    console.log(`Current purchase status: ${currentPurchase.status}, changing to: ${status}`);
+    
     
     // Prevent double confirmation - if already confirmed, don't confirm again
     if (status === 'confirmed' && currentPurchase.status === 'confirmed') {
@@ -541,11 +538,11 @@ export async function updatePurchaseStatus(
       throw error;
     }
     
-    console.log(`Successfully updated purchase ${purchaseId} to ${status}`);
+    
     
     // If we changed to 'confirmed', verify inventory update happened
     if (status === 'confirmed' && currentPurchase.status !== 'confirmed') {
-      console.log('Checking if inventory was updated via trigger...');
+      
       
       // Wait a moment for trigger to execute
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -560,7 +557,7 @@ export async function updatePurchaseStatus(
       if (logError) {
         console.error('Error checking inventory logs:', logError);
       } else {
-        console.log(`Found ${logEntries?.length || 0} inventory log entries for this purchase`);
+        
         
         // If no log entries found, try to manually update inventory
         if (!logEntries || logEntries.length === 0) {
@@ -575,7 +572,7 @@ export async function updatePurchaseStatus(
           if (itemsError) {
             console.error('Error fetching purchase items:', itemsError);
           } else if (purchaseItems && purchaseItems.length > 0) {
-            console.log(`Found ${purchaseItems.length} purchase items to update inventory for`);
+            
             
             // Process each item to update inventory
             for (const item of purchaseItems) {
@@ -630,12 +627,12 @@ export async function updatePurchaseStatus(
               if (logError) {
                 console.error(`Error logging inventory change for product ${item.product_id}:`, logError);
               } else {
-                console.log(`Successfully updated inventory for product ${item.product_id}: ${currentStock} -> ${newStock}`);
+                
               }
             }
           }
         } else {
-          console.log('Inventory log entries:', logEntries);
+          
           
           // Verify that product stock was actually updated
           for (const entry of logEntries) {
@@ -650,7 +647,7 @@ export async function updatePurchaseStatus(
               continue;
             }
             
-            console.log(`Product ${entry.product_id} current stock: ${product.stock_quantity}, expected: ${entry.new_stock}`);
+            
             
             // If stock doesn't match the expected value, update it
             if (product.stock_quantity !== entry.new_stock) {
@@ -667,7 +664,7 @@ export async function updatePurchaseStatus(
               if (updateError) {
                 console.error(`Error fixing stock for product ${entry.product_id}:`, updateError);
               } else {
-                console.log(`Fixed stock for product ${entry.product_id}: ${product.stock_quantity} -> ${entry.new_stock}`);
+                
               }
             }
           }
@@ -707,7 +704,7 @@ export async function recordPayment(
       
       // إذا كان المبلغ المتبقي أقل من 0.01، فقد تم دفعه بالفعل
       if (remainingAmount < 0.01) {
-        console.log("المشتريات مدفوعة بالفعل. المبلغ المتبقي:", remainingAmount);
+        
         return null;
       }
       
@@ -715,8 +712,8 @@ export async function recordPayment(
       const specifiedAmount = Number(payment.amount);
       
       // تسجيل معلومات التصحيح
-      console.log(`تسديد كامل للمشتريات ${payment.purchase_id}:`);
-      console.log(`المبلغ المحدد: ${specifiedAmount}, المبلغ المتبقي الحقيقي: ${remainingAmount}`);
+      
+      
       
       // إنشاء سجل الدفع باستخدام المبلغ المتبقي بالضبط
       const { data: paymentData, error: paymentError } = await supabase
@@ -812,9 +809,9 @@ export async function recordPayment(
         updateData.status = purchaseStatus;
         
         // تسجيل المعلومات للتصحيح
-        console.log(`تحديث بيانات المشتريات ${payment.purchase_id}:`);
-        console.log(`المبلغ الإجمالي: ${totalAmount}, المبلغ المدفوع: ${newPaidAmount}, المتبقي: ${balanceDue}`);
-        console.log(`حالة المشتريات: ${purchaseStatus}, حالة الدفع: ${paymentStatus}`);
+        
+        
+        
         
         const { error: purchaseUpdateError } = await supabase
           .from('supplier_purchases')

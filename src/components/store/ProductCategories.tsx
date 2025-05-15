@@ -116,7 +116,7 @@ const mapRealCategoriesToExtended = (categories: CategoryType[]): ExtendedCatego
       // استخراج عدد المنتجات من الفئة المستلمة من API
       // @ts-ignore - نتجاهل خطأ TypeScript لأن واجهة Category قد تختلف بين الملفات
       const productsCount = category.product_count || 0;
-      console.log(`Category ${category.name} has ${productsCount} products according to API`);
+      
       
       return {
         id: category.id,

@@ -148,11 +148,8 @@ export class YalidineShippingService extends BaseShippingService {
       credentials
     );
     
-    console.log('Creating Yalidine API client with credentials:', credentials);
-    console.log('Creating Yalidine API client with headers:', {
-      'X-API-ID': credentials.token,   // API ID هو token (الرقم) في نظامنا
-      'X-API-TOKEN': credentials.key    // API Token هو key (الرمز الطويل) في نظامنا
-    });
+    
+    
     
     this.apiClient = axios.create({
       baseURL: this.baseUrl,
@@ -170,29 +167,25 @@ export class YalidineShippingService extends BaseShippingService {
    */
   async testCredentials(): Promise<TestCredentialsResult> {
     try {
-      console.log('Attempting to test credentials by fetching wilayas...');
+      
       
       const response = await this.apiClient.get('wilayas');
       
-      console.log('Received API response:', {
-        status: response.status,
-        data: response.data,
-        headers: response.headers
-      });
+      
       
       // تحقق من نجاح الاتصال بناءً على بنية البيانات الصحيحة من ياليدين
       if (response.status === 200 && 
          (Array.isArray(response.data) || 
           (response.data && response.data.data && Array.isArray(response.data.data)))) {
         
-        console.log('API connection successful, received data from Yalidine');
+        
         return {
           success: true,
           message: 'تم الاتصال بنجاح بخدمة ياليدين'
         };
       }
       
-      console.log('API connection failed: Response has unexpected format', response.data);
+      
       return {
         success: false,
         message: 'الاتصال غير ناجح، تحقق من بيانات الاعتماد'

@@ -88,12 +88,12 @@ export default function Services() {
         return;
       }
       
-      console.log('جاري جلب الخدمات للمنظمة:', currentOrganization.id, 'الاسم:', currentOrganization.name);
+      
       
       // احصل على الخدمات من قاعدة البيانات
       const data = await getServices(currentOrganization.id);
       
-      console.log('تم استرجاع البيانات:', data.length, 'خدمة');
+      
       setServices(data);
       setFilteredServices(data);
     } catch (error) {
@@ -112,7 +112,7 @@ export default function Services() {
 
   // التأثير الأولي لجلب الخدمات
   useEffect(() => {
-    console.log('تغيرت المنظمة الحالية:', currentOrganization?.id);
+    
     
     if (currentOrganization && hasViewPermission) {
       // إضافة تأخير بسيط للتأكد من أن حالة المنظمة تم تحديثها بشكل كامل

@@ -24,11 +24,7 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
     let defaultType = field.defaultValue || 'home';
     
     if (shippingProviderSettings) {
-      console.log(">> DeliveryTypeField - فحص إعدادات مزود الشحن:", {
-        id: shippingProviderSettings.id,
-        is_home_delivery_enabled: shippingProviderSettings.is_home_delivery_enabled,
-        is_desk_delivery_enabled: shippingProviderSettings.is_desk_delivery_enabled
-      });
+      
       
       // التحقق بشكل صريح من نوع القيم
       homeEnabled = shippingProviderSettings.is_home_delivery_enabled === true;
@@ -37,19 +33,19 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
       // تحديد النوع الافتراضي بناءً على الخيارات المتاحة
       if (!homeEnabled && deskEnabled) {
         defaultType = 'desk';
-        console.log(">> DeliveryTypeField - اختيار المكتب تلقائيًا (المنزل غير متاح)");
+        
       } else if (homeEnabled && !deskEnabled) {
         defaultType = 'home';
-        console.log(">> DeliveryTypeField - اختيار المنزل تلقائيًا (المكتب غير متاح)");
+        
       }
       
       // الحالة الخاصة: لم يتم تمكين أي خيارات
       if (!homeEnabled && !deskEnabled) {
         homeEnabled = true; // تفعيل المنزل افتراضيًا
-        console.log(">> DeliveryTypeField - تفعيل المنزل افتراضيًا (لم يتم تمكين أي خيارات)");
+        
       }
     } else {
-      console.log(">> DeliveryTypeField - لا توجد إعدادات مزود شحن، استخدام الإعدادات الافتراضية");
+      
     }
     
     return { homeEnabled, deskEnabled, defaultType };
@@ -58,7 +54,7 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
   // تحديد القيمة الافتراضية بناءً على الإعدادات
   const getDefaultValue = () => {
     const { defaultType } = detectDeliveryOptions();
-    console.log(">> DeliveryTypeField - القيمة الافتراضية المحددة:", defaultType);
+    
     return defaultType;
   };
   
@@ -78,7 +74,7 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
   useEffect(() => {
     // تجنب التنفيذ المبكر قبل تحميل الإعدادات
     if (!shippingProviderSettings && !settingsProcessedRef.current) {
-      console.log(">> DeliveryTypeField - انتظار تحميل إعدادات مزود الشحن");
+      
       return;
     }
     
@@ -91,11 +87,7 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
     initializationTimeoutRef.current = setTimeout(() => {
       const { homeEnabled, deskEnabled, defaultType } = detectDeliveryOptions();
       
-      console.log(">> DeliveryTypeField - بعد فحص الإعدادات، الخيارات المتاحة:", {
-        homeEnabled,
-        deskEnabled,
-        defaultType
-      });
+      
       
       // تحديث حالة الخيارات المتاحة
       setIsHomeDeliveryEnabled(homeEnabled);
@@ -103,7 +95,7 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
       
       // إذا لم يتم التهيئة بعد، قم بتهيئة القيمة الافتراضية
       if (!hasInitialized) {
-        console.log(">> DeliveryTypeField - تهيئة القيم لأول مرة");
+        
         
         // تحديث قيمة المكون المحلية
         setSelectedDeliveryType(defaultType);
@@ -137,10 +129,10 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
       }
       // إذا تم التهيئة بالفعل، لكن هناك تغيير في الإعدادات، قم بتحديث الخيار المحدد إذا لزم الأمر
       else if (selectedDeliveryType === 'home' && !homeEnabled && deskEnabled) {
-        console.log(">> DeliveryTypeField - تبديل من المنزل إلى المكتب بسبب تغيير الإعدادات");
+        
         updateDeliveryOption('desk');
       } else if (selectedDeliveryType === 'desk' && !deskEnabled && homeEnabled) {
-        console.log(">> DeliveryTypeField - تبديل من المكتب إلى المنزل بسبب تغيير الإعدادات");
+        
         updateDeliveryOption('home');
       }
       
@@ -156,26 +148,20 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
     };
   }, [shippingProviderSettings]);
   
-  console.log(">> DeliveryTypeField - خيارات التوصيل المتاحة:", {
-    isHomeDeliveryEnabled,
-    isDeskDeliveryEnabled,
-    selectedDeliveryType,
-    fieldName: field.name,
-    hasSettings: !!shippingProviderSettings
-  });
+  
   
   // تحديث القيمة المحددة والنموذج عند تغيير نوع التوصيل
   const updateDeliveryOption = (type: string) => {
     // التحقق من صلاحية الخيار المطلوب
     if (type === 'home' && !isHomeDeliveryEnabled) {
       type = 'desk'; // استخدام المكتب بدلاً من المنزل إذا كان المنزل غير متاح
-      console.log(">> DeliveryTypeField - تغيير القيمة من 'home' إلى 'desk' لأن التوصيل للمنزل غير متاح");
+      
     } else if (type === 'desk' && !isDeskDeliveryEnabled) {
       type = 'home'; // استخدام المنزل بدلاً من المكتب إذا كان المكتب غير متاح
-      console.log(">> DeliveryTypeField - تغيير القيمة من 'desk' إلى 'home' لأن التوصيل للمكتب غير متاح");
+      
     }
     
-    console.log(">> DeliveryTypeField - تحديث نوع التوصيل إلى:", type);
+    
     setSelectedDeliveryType(type);
     
     // تحديث قيمة react-hook-form إذا كان الحقل له اسم
@@ -218,8 +204,7 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
   
   // عرض الحالات الخاصة للخيار الواحد
   if (forceOneOption) {
-    console.log(">> DeliveryTypeField - عرض خيار واحد فقط للتوصيل:", 
-      isHomeDeliveryEnabled ? "المنزل فقط" : "المكتب فقط");
+    
     
     // خيار المنزل فقط
     if (isHomeDeliveryEnabled && !isDeskDeliveryEnabled) {

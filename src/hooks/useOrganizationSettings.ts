@@ -141,7 +141,7 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
                 const parsedData = JSON.parse(orgSettings.custom_js);
                 customJsData = parsedData;
               } catch (parseError) {
-                console.log('تم اكتشاف بيانات غير صالحة في custom_js، استخدام كائن جديد');
+                
                 // في حالة فشل التحليل، نستخدم كائن جديد
                 customJsData = {
                   trackingPixels: {
@@ -242,8 +242,8 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
         return;
       }
 
-      console.log('Active user ID in saveSettings:', session.user.id);
-      console.log('Organization ID in saveSettings:', organizationId);
+      
+      
 
       // إنشاء كائن بيانات custom_js جديد بدلاً من محاولة استرجاع البيانات القديمة
       let customJsData: CustomJsData = {
@@ -262,7 +262,7 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
               existingSeoSettings = existingData.seoSettings;
             }
           } catch (parseError) {
-            console.log('تم اكتشاف بيانات غير صالحة في custom_js، استخدام القيم الافتراضية لـ SEO');
+            
           }
           
           if (existingSeoSettings) {
@@ -279,7 +279,7 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
       // إنشاء عميل supabase جديد مع الجلسة المحدثة
       const freshSupabase = getSupabaseClient();
       
-      console.log('Saving organization settings...');
+      
       
       // تأكد من تحويل البيانات إلى نص JSON بشكل صحيح
       const safeCustomJsStr = JSON.stringify(customJsData);
@@ -299,11 +299,11 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
         display_text_with_logo: settings.display_text_with_logo
       });
       
-      console.log('Organization settings update result:', updateResult);
+      
       
       // حفظ إعدادات SEO بشكل منفصل في جدول store_settings
       if (customJsData.seoSettings) {
-        console.log('Saving SEO settings...');
+        
         try {
           const { data, error } = await freshSupabase.rpc('update_store_seo_settings', {
             _organization_id: organizationId,
@@ -315,7 +315,7 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
             throw error;
           }
           
-          console.log('تم حفظ إعدادات SEO بنجاح', data);
+          
         } catch (error) {
           console.error('استثناء أثناء حفظ إعدادات SEO', error);
           // استمر بالعملية حتى مع وجود خطأ في SEO

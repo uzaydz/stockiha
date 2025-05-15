@@ -115,13 +115,13 @@ export const updateServiceBookingStatus = async (
       const { data: userData } = await supabase.auth.getUser();
       if (userData && userData.user) {
         createdBy = userData.user.id;
-        console.log('User ID from auth:', createdBy);
+        
       } else {
         createdBy = '00000000-0000-0000-0000-000000000000'; // استخدام معرف افتراضي
-        console.log('Using default user ID');
+        
       }
     } else {
-      console.log('Current user ID:', createdBy);
+      
     }
     
     // بيانات تقدم الخدمة
@@ -135,7 +135,7 @@ export const updateServiceBookingStatus = async (
       slug: `progress-${new Date().getTime()}-${Math.floor(Math.random() * 1000)}`
     };
     
-    console.log('Adding service progress:', progressData);
+    
     
     const { data: insertedProgress, error: progressError } = await supabase
       .from('service_progress')
@@ -145,7 +145,7 @@ export const updateServiceBookingStatus = async (
     if (progressError) {
       console.error('Error adding service progress:', progressError);
     } else {
-      console.log('Service progress added successfully:', insertedProgress);
+      
     }
     
     // إذا كانت الحالة مكتملة، قم بتحديث وقت الإكمال
@@ -205,7 +205,7 @@ export const getServiceBookings = async (organizationId: string | undefined): Pr
       throw new Error('لم يتم العثور على معرف منظمة صالح');
     }
     
-    console.log('جلب طلبات الخدمات للمنظمة:', organizationId);
+    
     
     // الحصول على جميع حجوزات الخدمات مع تفاصيل الطلب
     const { data, error } = await supabase
@@ -221,7 +221,7 @@ export const getServiceBookings = async (organizationId: string | undefined): Pr
       throw new Error('فشل في جلب حجوزات الخدمات');
     }
     
-    console.log('تم استرجاع طلبات الخدمات بنجاح:', data?.length || 0);
+    
     
     // تحويل البيانات إلى النموذج المناسب
     const result = await Promise.all((data || []).map(async (booking) => {

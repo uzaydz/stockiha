@@ -34,9 +34,9 @@ export default function WholesaleTierManager({
   const loadTiers = async () => {
     setIsLoading(true);
     try {
-      console.log(`Loading wholesale tiers for product ID: ${productId}`);
+      
       const tiersData = await getWholesaleTiers(productId);
-      console.log(`Successfully loaded ${tiersData.length} wholesale tiers:`, tiersData);
+      
       setTiers(tiersData);
       onChange?.(tiersData);
     } catch (error) {
@@ -73,12 +73,7 @@ export default function WholesaleTierManager({
       // For new product without ID, just update the local state
       if (!productId.startsWith('temp-') && !productId.includes('new')) {
         
-        console.log('إضافة مرحلة سعرية جديدة مع البيانات:', {
-          product_id: productId,
-          min_quantity: maxQuantity,
-          price: defaultPrice * 0.9,
-          organization_id: organizationId
-        });
+        
         
         try {
           // إنشاء مرحلة سعرية جديدة للجملة
@@ -92,7 +87,7 @@ export default function WholesaleTierManager({
           const newTier = await createWholesaleTier(newTierData);
           
           if (newTier) {
-            console.log('تم إنشاء مرحلة سعرية جديدة بنجاح:', newTier);
+            
             const updatedTiers = [...tiers, newTier];
             setTiers(updatedTiers);
             onChange?.(updatedTiers);
@@ -109,7 +104,7 @@ export default function WholesaleTierManager({
       }
       
       // If we're in product creation mode or API call failed, use a temp ID
-      console.log('إنشاء مرحلة سعرية مؤقتة للمنتج الجديد');
+      
       
       // حل مشكلة TypeScript باستخدام نوع بيانات متوافق مع الواجهة
       const tempTier: WholesaleTier = {
@@ -151,10 +146,10 @@ export default function WholesaleTierManager({
       // If tier exists in the database, update it
       const tier = tiers[index];
       if (tier.id && !tier.id.startsWith('temp-') && !tier.id.includes('new')) {
-        console.log(`Updating tier ${tier.id} ${field} to ${value}`);
+        
         try {
           const updated = await updateWholesaleTier(tier.id, { [field]: value });
-          console.log('Tier update successful:', updated);
+          
         } catch (updateError) {
           console.error(`Error updating tier ${field}:`, updateError);
           toast.error('حدث خطأ أثناء تحديث المرحلة السعرية');
@@ -181,11 +176,11 @@ export default function WholesaleTierManager({
       
       // If tier exists in the database, delete it
       if (tier.id && !tier.id.startsWith('temp-') && !tier.id.includes('new')) {
-        console.log(`Deleting tier ${tier.id} from database`);
+        
         try {
           const result = await deleteWholesaleTier(tier.id);
           if (result) {
-            console.log(`Successfully deleted tier ${tier.id}`);
+            
             toast.success('تم حذف المرحلة السعرية بنجاح');
           }
         } catch (deleteError) {
@@ -194,7 +189,7 @@ export default function WholesaleTierManager({
           // Don't call loadTiers here to avoid UI confusion
         }
       } else {
-        console.log(`Removed temporary tier at index ${index}`);
+        
         toast.success('تم حذف المرحلة السعرية');
       }
     } catch (error) {

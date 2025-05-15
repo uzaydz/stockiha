@@ -139,7 +139,7 @@ class YalidineRateLimiter {
     
     // طباعة الإحصائيات للتشخيص
     if (secondCount >= this.config.perSecond || minuteCount >= this.config.perMinute) {
-      console.log(`[RateLimiter] هل يمكن إجراء طلب آخر؟ (ثانية=${secondCount}/${this.config.perSecond}, دقيقة=${minuteCount}/${this.config.perMinute})`);
+      
     }
     
     let waitTime = 0;
@@ -151,7 +151,7 @@ class YalidineRateLimiter {
       waitTime = Math.max(waitTime, secondWait);
       
       if (secondWait > 0) {
-        console.log(`[RateLimiter] تم الوصول إلى حد الثانية (${secondCount}/${this.config.perSecond})، الانتظار ${secondWait}ms`);
+        
       }
     }
     
@@ -161,7 +161,7 @@ class YalidineRateLimiter {
       waitTime = Math.max(waitTime, minuteWait);
       
       if (minuteWait > 0) {
-        console.log(`[RateLimiter] تم الوصول إلى حد الدقيقة (${minuteCount}/${this.config.perMinute})، الانتظار ${minuteWait}ms`);
+        
       }
     }
     
@@ -171,7 +171,7 @@ class YalidineRateLimiter {
       waitTime = Math.max(waitTime, hourWait);
       
       if (hourWait > 0) {
-        console.log(`[RateLimiter] تم الوصول إلى حد الساعة (${hourCount}/${this.config.perHour})، الانتظار ${hourWait}ms`);
+        
       }
     }
     
@@ -181,7 +181,7 @@ class YalidineRateLimiter {
       waitTime = Math.max(waitTime, dayWait);
       
       if (dayWait > 0) {
-        console.log(`[RateLimiter] تم الوصول إلى حد اليوم (${dayCount}/${this.config.perDay})، الانتظار ${dayWait}ms`);
+        
       }
     }
     
@@ -199,7 +199,7 @@ class YalidineRateLimiter {
         
         // إظهار حالة الانتظار لفترات الانتظار الطويلة
         if (remainingWait > 0 && remainingWait % 5000 === 0) {
-          console.log(`[RateLimiter] باقي ${remainingWait}ms للانتظار...`);
+          
         }
       }
       
@@ -274,7 +274,7 @@ class YalidineRateLimiter {
         this.dayCounter.requests = this.dayCounter.requests.slice(-MAX_REQUESTS_TO_KEEP.day);
       }
       
-      console.log('[RateLimiter] تم تنظيف سجل الطلبات القديمة للحفاظ على الأداء');
+      
     }
   }
 
@@ -362,7 +362,7 @@ class YalidineRateLimiter {
    */
   public async schedule<T>(task: () => Promise<T>): Promise<T> {
     return new Promise((resolve, reject) => {
-      console.log('[RateLimiter] إضافة مهمة جديدة إلى قائمة الانتظار');
+      
       
       // إعادة تعيين معالجة القائمة إذا كانت عالقة لأكثر من 20 ثانية (تقليل من 30 ثانية)
       const now = Date.now();
@@ -381,7 +381,7 @@ class YalidineRateLimiter {
       // إضافة مهمة جديدة إلى قائمة الانتظار
       this.queue.push(async () => {
         try {
-          console.log('[RateLimiter] تنفيذ مهمة من قائمة الانتظار');
+          
           
           // تنفيذ المهمة مع آلية إعادة المحاولة البسيطة
           let result: T;
@@ -392,7 +392,7 @@ class YalidineRateLimiter {
           while (attempts < maxAttempts) {
             try {
               result = await task();
-              console.log('[RateLimiter] تم تنفيذ المهمة بنجاح');
+              
               resolve(result);
               
               // الخروج من الحلقة بعد النجاح
@@ -452,7 +452,7 @@ class YalidineRateLimiter {
           reject(error);
         });
       } else {
-        console.log(`[RateLimiter] المهمة في قائمة الانتظار، المعالجة جارية بالفعل (طول القائمة=${this.queue.length})`);
+        
       }
     });
   }
@@ -463,16 +463,16 @@ class YalidineRateLimiter {
   private async processQueue(): Promise<void> {
     // إذا كانت المعالجة جارية بالفعل أو القائمة فارغة، فلا تفعل شيئًا
     if (this.isProcessing) {
-      console.log(`[RateLimiter] تخطي معالجة القائمة - المعالجة جارية بالفعل (طول القائمة=${this.queue.length})`);
+      
       return;
     }
     
     if (this.queue.length === 0) {
-      console.log('[RateLimiter] تخطي معالجة القائمة - القائمة فارغة');
+      
       return;
     }
     
-    console.log(`[RateLimiter] بدء معالجة القائمة (طول القائمة=${this.queue.length})`);
+    
     this.isProcessing = true;
     this.lastProcessingStartTime = Date.now();
     
@@ -503,7 +503,7 @@ class YalidineRateLimiter {
         // الحد الأقصى لعدد المهام المتوازية - زيادة عدد المهام المتوازية لتحسين الأداء
         const maxParallelTasks = 10;
         
-        console.log(`[RateLimiter] هل يمكن إجراء طلب آخر؟ (ثانية=${this.secondCounter.counter}/${this.config.perSecond}, دقيقة=${this.minuteCounter.counter}/${this.config.perMinute})`);
+        
         
         // تحديد عدد المهام التي يمكن تنفيذها بالتوازي
         const availableSlots = Math.min(
@@ -515,7 +515,7 @@ class YalidineRateLimiter {
           // جمع المهام التي سيتم تنفيذها بالتوازي
           const tasksToExecute = [];
           
-          console.log(`[RateLimiter] سيتم تنفيذ ${availableSlots} مهمة/مهام بالتوازي`);
+          
           
           for (let i = 0; i < availableSlots; i++) {
             if (this.queue.length > 0) {
@@ -541,7 +541,7 @@ class YalidineRateLimiter {
             
             // إعادة تعيين عداد محاولات الانتظار عند نجاح التنفيذ
             this.currentWaitAttempts = 0;
-            console.log(`[RateLimiter] تمت إعادة تعيين عداد محاولات الانتظار بعد تنفيذ ${tasksToExecute.length} مهمة بنجاح`);
+            
           }
         } else {
           // حساب وقت الانتظار المطلوب
@@ -558,15 +558,15 @@ class YalidineRateLimiter {
             // في حالة الوصول إلى حد الدقيقة، ننتظر فترة أطول (على الأقل 1 ثانية)
             // وحتى ربع القيمة الفعلية المتبقية لضمان عدم الدوران المستمر
             adjustedDelay = Math.max(1000, Math.min(15000, delay / 4));
-            console.log(`[RateLimiter] تم الوصول إلى حد الدقيقة (${this.minuteCounter.counter}/${this.config.perMinute})، الانتظار ${adjustedDelay}ms`);
+            
           } else if (isSecondLimit) {
             // في حالة الوصول إلى حد الثانية فقط، ننتظر فترة قصيرة نسبيًا
             adjustedDelay = Math.max(100, Math.min(1000, delay / 5));
-            console.log(`[RateLimiter] تم الوصول إلى حد الثانية (${this.secondCounter.counter}/${this.config.perSecond})، الانتظار ${adjustedDelay}ms`);
+            
           } else {
             // في حالات أخرى، ننتظر فترة قصيرة جدًا
             adjustedDelay = Math.max(5, Math.min(100, delay / 10));
-            console.log(`[RateLimiter] الانتظار ${adjustedDelay}ms قبل المحاولة مرة أخرى`);
+            
           }
           
           // زيادة عداد محاولات الانتظار
@@ -586,7 +586,7 @@ class YalidineRateLimiter {
         this.lastProcessingStartTime = Date.now();
       }
       
-      console.log('[RateLimiter] انتهت معالجة القائمة');
+      
     } catch (error) {
       console.error('[RateLimiter] خطأ أثناء معالجة قائمة الانتظار:', error);
     } finally {
@@ -651,7 +651,7 @@ class YalidineRateLimiter {
     this.isProcessing = false;
     this.lastProcessingStartTime = null;
     this.queue = [];
-    console.log('[RateLimiter] تمت إعادة تعيين جميع العدادات والإحصائيات والحالة بالكامل');
+    
   }
 
   /**
@@ -675,16 +675,16 @@ class YalidineRateLimiter {
     const queueLength = this.queue.length;
     this.queue = [];
     
-    console.log(`[RateLimiter] تم إلغاء معالجة صف الانتظار وإزالة ${queueLength} مهمة معلقة`);
+    
     
     // إعادة جدولة المهام بعد فترة انتظار إذا كان هناك مهام معلقة
     if (pendingTasks.length > 0) {
-      console.log(`[RateLimiter] سيتم محاولة إعادة جدولة ${pendingTasks.length} مهمة معلقة بعد فترة انتظار`);
+      
       
       // انتظار فترة (2 دقيقة) قبل إعادة جدولة المهام
       setTimeout(() => {
         if (pendingTasks.length > 0) {
-          console.log(`[RateLimiter] إعادة جدولة ${pendingTasks.length} مهمة كانت معلقة`);
+          
           
           // إعادة المهام إلى قائمة الانتظار
           this.queue = [...pendingTasks];
@@ -707,7 +707,7 @@ class YalidineRateLimiter {
     if (config.perMinute) this.config.perMinute = config.perMinute;
     if (config.perHour) this.config.perHour = config.perHour;
     if (config.perDay) this.config.perDay = config.perDay;
-    console.log(`[RateLimiter] تم تعيين حدود جديدة - ثانية: ${this.config.perSecond}, دقيقة: ${this.config.perMinute}, ساعة: ${this.config.perHour}, يوم: ${this.config.perDay}`);
+    
   }
 
   /**

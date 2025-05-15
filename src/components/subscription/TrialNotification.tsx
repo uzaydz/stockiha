@@ -71,10 +71,10 @@ export const TrialNotification: React.FC = () => {
     setDaysLeft(daysRemaining);
     
     // سجل للتشخيص
-    console.log(`[TrialNotification] تاريخ الإنشاء: ${org.created_at}`);
-    console.log(`[TrialNotification] تاريخ انتهاء الفترة التجريبية: ${trialEndDate.toISOString()}`);
-    console.log(`[TrialNotification] التاريخ الحالي: ${nowDateOnly.toISOString()}`);
-    console.log(`[TrialNotification] الأيام المتبقية: ${daysRemaining}`);
+    
+    
+    
+    
     
     // عرض الإشعار إذا كان متبقي 3 أيام أو أقل
     setShowNotification(diffDays <= 3 && diffDays > 0);

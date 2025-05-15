@@ -163,13 +163,13 @@ export class OrdersService {
       
       // If auto shipping is enabled, create a shipping order
       if (yalidineSettings && yalidineSettings.is_enabled && yalidineSettings.auto_shipping) {
-        console.log('Auto shipping enabled, creating shipping order...');
+        
         
         // Create shipping order asynchronously (fire and forget)
         createShippingOrderForOrder(organizationId, orderId)
           .then(result => {
             if (result.success) {
-              console.log(`Shipping order created: ${result.trackingNumber}`);
+              
               
               // Update the order with shipping information
               this.updateOrder(orderId, {

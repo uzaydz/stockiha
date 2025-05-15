@@ -118,14 +118,14 @@ const CountdownOffersEditor: React.FC<CountdownOffersEditorProps> = ({
       try {
         // الحصول على معرف المؤسسة الحالي من السياق أو التخزين المحلي كاحتياطي
         const organizationId = currentOrganization?.id || localStorage.getItem('currentOrganizationId');
-        console.log("معرف المؤسسة المستخدم:", organizationId);
+        
         
         if (!organizationId) {
           throw new Error('لم يتم العثور على معرف المؤسسة');
         }
         
         const fetchedProducts = await getProducts(organizationId);
-        console.log("تم جلب المنتجات بنجاح:", fetchedProducts.length);
+        
         
         if (fetchedProducts.length === 0) {
           console.warn("لم يتم العثور على منتجات للمؤسسة");
@@ -173,7 +173,7 @@ const CountdownOffersEditor: React.FC<CountdownOffersEditorProps> = ({
 
   // اختيار منتج للعرض
   const selectProduct = (product: Product) => {
-    console.log("تم اختيار المنتج:", product);
+    
     
     // التأكد من وجود المنتج وبياناته الأساسية
     if (!product.id || !product.name || !product.thumbnail_image) {
@@ -190,13 +190,7 @@ const CountdownOffersEditor: React.FC<CountdownOffersEditorProps> = ({
       ? calculateDiscountPercentage(product.compare_at_price, product.price) 
       : 0;
     
-    console.log("تعيين بيانات العرض:", {
-      productId: product.id,
-      productName: product.name,
-      originalPrice,
-      discountedPrice,
-      discountPercentage
-    });
+    
     
     setOfferToAdd({
       productId: product.id,
@@ -221,7 +215,7 @@ const CountdownOffersEditor: React.FC<CountdownOffersEditorProps> = ({
 
   // إضافة عرض جديد
   const addOffer = () => {
-    console.log("محاولة إضافة عرض جديد، المنتج المحدد:", selectedProduct);
+    
     
     if (!selectedProduct) {
       console.error("لم يتم تحديد منتج");
@@ -246,7 +240,7 @@ const CountdownOffersEditor: React.FC<CountdownOffersEditorProps> = ({
       endDate: offerToAdd.endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
     };
     
-    console.log("إضافة عرض جديد:", newOffer);
+    
     
     if (editingIndex !== null) {
       // تحديث عرض موجود
@@ -272,7 +266,7 @@ const CountdownOffersEditor: React.FC<CountdownOffersEditorProps> = ({
 
   // تحرير عرض موجود
   const editOffer = (index: number) => {
-    console.log("تحرير العرض رقم:", index);
+    
     const offer = settings.offers?.[index];
     if (!offer) {
       console.error("لم يتم العثور على العرض المطلوب تعديله");
@@ -292,7 +286,7 @@ const CountdownOffersEditor: React.FC<CountdownOffersEditorProps> = ({
       slug: offer.productSlug,
       compare_at_price: offer.originalPrice
     };
-    console.log("تعيين بيانات المنتج للتعديل:", productData);
+    
     setSelectedProduct(productData);
     
     // تعيين بيانات العرض للتعديل
@@ -307,13 +301,13 @@ const CountdownOffersEditor: React.FC<CountdownOffersEditorProps> = ({
       discountPercentage: offer.discountPercentage,
       endDate: offer.endDate
     };
-    console.log("تعيين بيانات العرض للتعديل:", offerData);
+    
     setOfferToAdd(offerData);
     
     // تعيين تاريخ انتهاء العرض
     try {
       const date = new Date(offer.endDate);
-      console.log("تعيين تاريخ انتهاء العرض:", date);
+      
       setSelectedEndDate(date);
     } catch (error) {
       console.error("خطأ في تعيين تاريخ انتهاء العرض:", error);

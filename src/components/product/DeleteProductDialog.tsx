@@ -71,7 +71,7 @@ const DeleteProductDialog = ({ product, open, onOpenChange, onProductDeleted }: 
         };
         
         // طباعة بيانات التصحيح
-        console.log('مكون DeleteProductDialog - بيانات المستخدم للتحقق:', mergedUserData);
+        
         
         // التحقق من الصلاحيات - يجب انتظار حل الوعد (Promise)
         const canDeletePromise = checkUserPermissions(mergedUserData, 'deleteProducts');
@@ -79,17 +79,17 @@ const DeleteProductDialog = ({ product, open, onOpenChange, onProductDeleted }: 
         // انتظار نتيجة الوعد
         const canDelete = await canDeletePromise;
         
-        console.log(`مكون DeleteProductDialog - نتيجة التحقق من صلاحية الحذف: ${canDelete}`);
+        
         
         if (isMounted) {
           setHasPermission(canDelete);
           
           // إظهار تنبيه إذا لم يكن لدى المستخدم الصلاحية
           if (!canDelete) {
-            console.log('المستخدم ليس لديه صلاحية الحذف، إظهار التنبيه');
+            
             setShowPermissionAlert(true);
           } else {
-            console.log('المستخدم لديه صلاحية الحذف، إخفاء التنبيه');
+            
             setShowPermissionAlert(false);
           }
         }
@@ -145,7 +145,7 @@ const DeleteProductDialog = ({ product, open, onOpenChange, onProductDeleted }: 
   const handleDelete = async () => {
     // التحقق مرة أخرى من الصلاحيات قبل محاولة الحذف
     if (!hasPermission) {
-      console.log('فشل التحقق من الصلاحيات في handleDelete');
+      
       setShowPermissionAlert(true);
       return;
     }
@@ -167,7 +167,7 @@ const DeleteProductDialog = ({ product, open, onOpenChange, onProductDeleted }: 
         toast.error('لا يمكن حذف المنتج لأنه مستخدم في طلبات سابقة. يمكنك تعطيل المنتج بدلاً من حذفه.');
       } else if (error.code === 'PGRST301') {
         // خطأ صلاحيات قاعدة البيانات
-        console.log('خطأ PGRST301: ليس لديك صلاحية كافية في قاعدة البيانات');
+        
         setShowPermissionAlert(true);
       } else {
         toast.error('حدث خطأ أثناء حذف المنتج');
@@ -180,7 +180,7 @@ const DeleteProductDialog = ({ product, open, onOpenChange, onProductDeleted }: 
   const handleDisable = async () => {
     // التحقق من الصلاحيات قبل محاولة التعطيل
     if (!hasPermission) {
-      console.log('فشل التحقق من الصلاحيات في handleDisable');
+      
       setShowPermissionAlert(true);
       return;
     }
@@ -200,14 +200,14 @@ const DeleteProductDialog = ({ product, open, onOpenChange, onProductDeleted }: 
   };
 
   const handleClose = () => {
-    console.log('تم استدعاء handleClose');
+    
     setShowPermissionAlert(false);
     onOpenChange(false);
   };
 
   // إذا كان المستخدم لا يملك الصلاحية، أظهر نافذة تنبيه
   if (showPermissionAlert) {
-    console.log('عرض نافذة الصلاحيات غير كافية');
+    
     return (
       <AlertDialog open={open} onOpenChange={handleClose}>
         <AlertDialogContent>

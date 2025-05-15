@@ -7,9 +7,9 @@ import localforage from 'localforage';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-console.log('إنشاء عميل Supabase...');
-console.log('URL: ' + supabaseUrl);
-console.log('ANON_KEY length: ' + supabaseAnonKey.length + ' characters');
+
+
+
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error('عدم وجود متغيرات البيئة المطلوبة لـ Supabase!');
@@ -144,18 +144,18 @@ export const getSupabaseClient = () => {
     try {
       // إنشاء عميل Supabase
       supabaseInstance = createClient<Database>(supabaseUrl, supabaseAnonKey, options);
-      console.log('تم إنشاء عميل Supabase بنجاح');
+      
       
       // إضافة مستمع لأحداث المصادقة لرصد المشاكل
       supabaseInstance.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_OUT') {
-          console.log('User signed out from Supabase');
+          
         } else if (event === 'SIGNED_IN') {
-          console.log('User signed in to Supabase');
+          
         } else if (event === 'TOKEN_REFRESHED') {
-          console.log('Supabase token refreshed');
+          
         } else if (event === 'USER_UPDATED') {
-          console.log('User data updated in Supabase');
+          
         }
       });
     } catch (error) {
@@ -208,13 +208,13 @@ export const supabase = new Proxy({} as ReturnType<typeof createClient<Database>
 if (typeof window !== 'undefined') {
   // عند استعادة الاتصال
   window.addEventListener('online', () => {
-    console.log('تم استعادة الاتصال بالإنترنت، جاري مزامنة البيانات...');
+    
     // يمكن هنا استدعاء وظائف المزامنة للبيانات المحلية مع السيرفر
   });
   
   // عند فقدان الاتصال
   window.addEventListener('offline', () => {
-    console.log('تم فقدان الاتصال بالإنترنت، تحويل إلى وضع العمل المحلي...');
+    
   });
 }
 

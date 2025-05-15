@@ -65,7 +65,7 @@ const Navbar = () => {
         if (hostname.split('.').length > 2) {
           // سابدومين مثل: mystore.example.com
           const currentSubdomain = hostname.split('.')[0];
-          console.log('استخدام النطاق الفرعي للبحث:', currentSubdomain);
+          
           
           // استخدام دالة get_organization_info_by_subdomain للبحث بواسطة النطاق الفرعي
           query = supabase.rpc('get_organization_info_by_subdomain', {
@@ -73,7 +73,7 @@ const Navbar = () => {
           });
         } else {
           // نطاق مخصص مثل: example.com
-          console.log('استخدام النطاق المخصص للبحث:', hostname);
+          
           
           // استخدام دالة get_organization_info_by_domain للبحث بواسطة النطاق المخصص
           query = supabase.rpc('get_organization_info_by_domain', {

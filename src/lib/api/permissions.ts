@@ -18,7 +18,7 @@ export const refreshUserData = async (userId: string) => {
   // أولاً تحقق من التخزين المؤقت
   const cachedPermissions = getCachedPermissions();
   if (cachedPermissions) {
-    console.log('استخدام بيانات المستخدم من التخزين المؤقت');
+    
     return cachedPermissions;
   }
   
@@ -97,7 +97,7 @@ export const checkUserPermissions = async (
   requiredPermission: keyof EmployeePermissions
 ): Promise<boolean> => {
   if (!user) {
-    console.log('لا يوجد مستخدم للتحقق من الصلاحيات');
+    
     return false;
   }
   
@@ -105,7 +105,7 @@ export const checkUserPermissions = async (
   const cachedPermissions = getCachedPermissions();
   if (cachedPermissions) {
     // منطق التحقق نفسه ولكن باستخدام البيانات المخزنة مؤقتاً
-    console.log('استخدام البيانات المخزنة مؤقتاً للتحقق من الصلاحيات:', requiredPermission);
+    
     
     // تفقد البيانات المخزنة على أنها تحتوي على كل المعلومات الضرورية
     const isActive = 
@@ -132,25 +132,25 @@ export const checkUserPermissions = async (
       
     // التحقق من أن المستخدم نشط أولاً
     if (!isActive) {
-      console.log('المستخدم غير نشط (من التخزين المؤقت)');
+      
       return false;
     }
     
     // المستخدم هو مدير عام
     if (isSuperAdmin) {
-      console.log('المستخدم هو مدير عام (من التخزين المؤقت)');
+      
       return true;
     }
     
     // المستخدم هو مدير المؤسسة
     if (isOrgAdmin) {
-      console.log('المستخدم هو مدير المؤسسة (من التخزين المؤقت)');
+      
       return true;
     }
     
     // المستخدم له دور مدير أو مالك
     if (userRole === 'admin' || userRole === 'owner') {
-      console.log('المستخدم هو مدير أو مالك (من التخزين المؤقت)');
+      
       return true;
     }
     
@@ -167,11 +167,11 @@ export const checkUserPermissions = async (
     
     // التحقق من الصلاحية المطلوبة في الأذونات المخزنة
     if (permissions && (permissions[requiredPermission] === true || permissions[requiredPermission] === 'true')) {
-      console.log(`المستخدم لديه الصلاحية ${requiredPermission} (من التخزين المؤقت)`);
+      
       return true;
     }
     
-    console.log(`المستخدم ليس لديه الصلاحية ${requiredPermission} (من التخزين المؤقت)`);
+    
     return false;
   }
   
@@ -180,15 +180,7 @@ export const checkUserPermissions = async (
   const userToCheck = updatedUser || user;
   
   // طباعة معلومات المستخدم للتصحيح
-  console.log('بيانات المستخدم للتحقق من الصلاحيات:', {
-    id: userToCheck.id,
-    email: userToCheck.email,
-    role: userToCheck.role || userToCheck.user_metadata?.role,
-    isOrgAdmin: userToCheck.is_org_admin || userToCheck.user_metadata?.is_org_admin,
-    isSuperAdmin: userToCheck.is_super_admin || userToCheck.user_metadata?.is_super_admin,
-    permissions: userToCheck.permissions || userToCheck.user_metadata?.permissions,
-    requiredPermission
-  });
+  
 
   // البحث عن الصلاحيات في مكانين محتملين اعتمادًا على هيكل بيانات المستخدم
   let permissions = {};
@@ -196,20 +188,20 @@ export const checkUserPermissions = async (
   // الطريقة 1: البيانات الوصفية في الكائن user.user_metadata
   if (userToCheck.user_metadata?.permissions) {
     permissions = userToCheck.user_metadata.permissions;
-    console.log('وجدت الصلاحيات في user_metadata', permissions);
+    
   } 
   // الطريقة 2: البيانات الوصفية في الكائن user.app_metadata
   else if (userToCheck.app_metadata?.permissions) {
     permissions = userToCheck.app_metadata.permissions;
-    console.log('وجدت الصلاحيات في app_metadata', permissions);
+    
   }
   // الطريقة 3: مباشرة في الكائن user
   else if (userToCheck.permissions) {
     permissions = userToCheck.permissions;
-    console.log('وجدت الصلاحيات مباشرة في كائن المستخدم', permissions);
+    
   }
   
-  console.log('الصلاحيات المستخرجة:', permissions);
+  
   
   // البحث عن الأدوار والصلاحيات الخاصة في مكانين محتملين
   const isActive = 
@@ -234,37 +226,32 @@ export const checkUserPermissions = async (
     userToCheck.app_metadata?.role || 
     '';
   
-  console.log('الصلاحيات المستخرجة بعد التحليل:', {
-    isActive,
-    isSuperAdmin,
-    isOrgAdmin,
-    userRole
-  });
+  
   
   // تخزين معلومات الصلاحيات في التخزين المؤقت للمرات القادمة
   cachePermissions(userToCheck);
   
   // التحقق من أن المستخدم نشط أولاً
   if (!isActive) {
-    console.log('المستخدم غير نشط');
+    
     return false;
   }
   
   // المستخدم هو مدير عام
   if (isSuperAdmin) {
-    console.log('المستخدم هو مدير عام، لديه جميع الصلاحيات');
+    
     return true;
   }
   
   // المستخدم هو مدير المؤسسة
   if (isOrgAdmin) {
-    console.log('المستخدم هو مدير المؤسسة، لديه جميع صلاحيات المؤسسة');
+    
     return true;
   }
   
   // المستخدم له دور مدير أو مالك
   if (userRole === 'admin' || userRole === 'owner') {
-    console.log('المستخدم هو مدير أو مالك، لديه جميع الصلاحيات');
+    
     return true;
   }
   
@@ -272,7 +259,7 @@ export const checkUserPermissions = async (
   if (requiredPermission === 'viewInventory') {
     // المكان الأول للتحقق: في كائن البيانات الوصفية للمستخدم
     if (userToCheck.user_metadata?.permissions?.viewInventory === true) {
-      console.log('المستخدم لديه صلاحية viewInventory في البيانات الوصفية للمستخدم');
+      
       return true;
     }
     
@@ -281,13 +268,13 @@ export const checkUserPermissions = async (
        (permissions['viewInventory'] === true || 
         permissions['manageInventory'] === true || 
         permissions['manageProducts'] === true)) {
-      console.log('المستخدم لديه صلاحية viewInventory أو manageInventory أو manageProducts في كائن permissions');
+      
       return true;
     }
     
     // التحقق في المستخدم مباشرة للحالات الاستثنائية
     if (userToCheck.viewInventory === true || userToCheck.manageInventory === true || userToCheck.manageProducts === true) {
-      console.log('المستخدم لديه صلاحية viewInventory أو manageInventory أو manageProducts بشكل مباشر');
+      
       return true;
     }
     
@@ -296,11 +283,11 @@ export const checkUserPermissions = async (
        (permissions['viewInventory'] === 'true' || 
         permissions['manageInventory'] === 'true' || 
         permissions['manageProducts'] === 'true')) {
-      console.log('المستخدم لديه صلاحية viewInventory أو manageInventory أو manageProducts كقيمة نصية في كائن permissions');
+      
       return true;
     }
     
-    console.log('المستخدم ليس لديه صلاحية viewInventory بعد كل عمليات التحقق');
+    
     return false;
   }
   
@@ -308,7 +295,7 @@ export const checkUserPermissions = async (
   if (requiredPermission === 'manageInventory') {
     // المكان الأول للتحقق: في كائن البيانات الوصفية للمستخدم
     if (userToCheck.user_metadata?.permissions?.manageInventory === true) {
-      console.log('المستخدم لديه صلاحية manageInventory في البيانات الوصفية للمستخدم');
+      
       return true;
     }
     
@@ -316,13 +303,13 @@ export const checkUserPermissions = async (
     if (permissions && 
        (permissions['manageInventory'] === true || 
         permissions['manageProducts'] === true)) {
-      console.log('المستخدم لديه صلاحية manageInventory أو manageProducts في كائن permissions');
+      
       return true;
     }
     
     // التحقق في المستخدم مباشرة للحالات الاستثنائية
     if (userToCheck.manageInventory === true || userToCheck.manageProducts === true) {
-      console.log('المستخدم لديه صلاحية manageInventory أو manageProducts بشكل مباشر');
+      
       return true;
     }
     
@@ -330,11 +317,11 @@ export const checkUserPermissions = async (
     if (permissions && 
        (permissions['manageInventory'] === 'true' || 
         permissions['manageProducts'] === 'true')) {
-      console.log('المستخدم لديه صلاحية manageInventory أو manageProducts كقيمة نصية في كائن permissions');
+      
       return true;
     }
     
-    console.log('المستخدم ليس لديه صلاحية manageInventory بعد كل عمليات التحقق');
+    
     return false;
   }
   
@@ -344,7 +331,7 @@ export const checkUserPermissions = async (
       Boolean(permissions['editProducts']) || 
       Boolean(permissions['manageProducts']);
       
-    console.log(`التحقق من صلاحية تعديل المنتجات: ${canEdit}`);
+    
     return canEdit;
   }
   
@@ -353,13 +340,13 @@ export const checkUserPermissions = async (
       Boolean(permissions['deleteProducts']) || 
       Boolean(permissions['manageProducts']);
       
-    console.log(`التحقق من صلاحية حذف المنتجات: ${canDelete}`);
+    
     return canDelete;
   }
   
   // التحقق من الصلاحية المباشرة
   const hasPermission = Boolean(permissions[requiredPermission as keyof typeof permissions]);
-  console.log(`التحقق من الصلاحية ${requiredPermission}: ${hasPermission}`);
+  
   
   return hasPermission;
 }; 

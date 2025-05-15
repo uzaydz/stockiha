@@ -92,7 +92,7 @@ export default function ShippingProviderForm({
         
         if (result.success && result.data) {
           setWilayas(result.data);
-          console.log(`Loaded ${result.data.length} wilayas (from ${result.fromCache ? 'cache' : 'API'})`);
+          
         } else {
           console.error('Failed to load wilayas:', result);
         }
@@ -116,7 +116,7 @@ export default function ShippingProviderForm({
         
         if (result.success && result.data) {
           setCommunes(result.data);
-          console.log(`Loaded ${result.data.length} communes (from ${result.fromCache ? 'cache' : 'API'})`);
+          
         } else {
           console.error('Failed to load communes:', result);
         }
@@ -135,7 +135,7 @@ export default function ShippingProviderForm({
       
       if (result.success && result.data) {
         setCenters(result.data);
-        console.log(`Loaded ${result.data.length} centers (from ${result.fromCache ? 'cache' : 'API'})`);
+        
       } else {
         console.error('Failed to load centers:', result);
       }
@@ -150,7 +150,7 @@ export default function ShippingProviderForm({
     
     // تحقق من التخزين المؤقت المحلي أولاً
     if (feesCache[cacheKey]) {
-      console.log(`Using cached shipping fees for ${cacheKey}`);
+      
       return feesCache[cacheKey];
     }
     
@@ -158,7 +158,7 @@ export default function ShippingProviderForm({
       const result = await yalidineClient.getShippingFees(fromWilayaId, toWilayaId);
       
       if (result.success && result.data) {
-        console.log(`Loaded shipping fees (from ${result.fromCache ? 'cache' : 'API'})`);
+        
         
         // تخزين النتيجة في التخزين المؤقت المحلي
         setFeesCache(prev => ({
@@ -195,7 +195,7 @@ export default function ShippingProviderForm({
       const result = await yalidineClient.createParcel(parcelData);
       
       if (result.success) {
-        console.log('Parcel created successfully:', result.data);
+        
         return result.data;
       } else {
         console.error('Failed to create parcel:', result);

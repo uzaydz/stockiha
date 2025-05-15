@@ -73,7 +73,7 @@ export async function checkAndUpdateData(
   try {
     // في حالة طلب التحديث الإجباري
     if (forceUpdate) {
-      console.log(`بدء التحديث الإجباري لبيانات ${dataType} للمنظمة ${organizationId}`);
+      
       return await syncFunction(organizationId, true);
     }
     
@@ -89,10 +89,10 @@ export async function checkAndUpdateData(
       (now.getTime() - lastUpdate.getTime() > 7 * 24 * 60 * 60 * 1000);
     
     if (needsUpdate) {
-      console.log(`بيانات ${dataType} بحاجة إلى تحديث للمنظمة ${organizationId}`);
+      
       return await syncFunction(organizationId, true);
     } else {
-      console.log(`بيانات ${dataType} محدثة بالفعل للمنظمة ${organizationId}. آخر تحديث: ${lastUpdate.toISOString()}`);
+      
       return true;
     }
   } catch (error) {

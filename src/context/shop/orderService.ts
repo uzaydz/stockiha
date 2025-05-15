@@ -14,13 +14,13 @@ export const addOrder = async (
   currentOrganizationId: string | undefined
 ): Promise<Order> => {
   try {
-    console.log("بدء إنشاء طلب جديد...");
+    
     
     // التحقق من وجود العميل وإنشائه إذا لم يكن موجودًا
     const customerId = await ensureCustomerExists(order.customerId, currentOrganizationId);
     
-    console.log(`إنشاء الطلب باستخدام العميل: ${customerId}`);
-    console.log(`معرف المؤسسة الحالية: ${currentOrganizationId}`);
+    
+    
     
     const orderSlug = `order-${new Date().getTime()}`;
     
@@ -58,16 +58,16 @@ export const addOrder = async (
     }
     
     const newOrderId = orderData[0].id;
-    console.log(`تم إنشاء الطلب بنجاح، معرف الطلب: ${newOrderId}`);
+    
     
     // إضافة عناصر الطلب - حل جذري
     if (order.items && order.items.length > 0) {
-      console.log(`إضافة ${order.items.length} عنصر للطلب...`);
+      
       
       try {
         // إضافة معلومات المنتجات لتحديث المخزون بشكل صحيح
         // السطر التالي يحتاج إلى تغيير لتحديث مخزون المتغيرات (الألوان والمقاسات)
-        console.log("تحديث مخزون المنتجات...");
+        
         
         // تحديث مخزون المنتجات مع الأخذ بالاعتبار متغيرات الألوان والمقاسات
         for (const item of order.items) {
@@ -76,12 +76,7 @@ export const addOrder = async (
             const hasVariantInfo = item.variant_info && (item.variant_info.colorId || item.variant_info.sizeId);
             
             if (hasVariantInfo) {
-              console.log("تحديث مخزون المنتج مع متغيرات:", {
-                productId: item.productId,
-                colorId: item.variant_info.colorId,
-                sizeId: item.variant_info.sizeId,
-                quantity: item.quantity
-              });
+              
               
               // تحديد المعرف الذي سيستخدم لتحديث المخزون
               let variantId = null;
@@ -120,7 +115,7 @@ export const addOrder = async (
                     if (updateError) {
                       console.error('خطأ في تحديث مخزون المقاس:', updateError);
                     } else {
-                      console.log(`تم تحديث مخزون المقاس ${item.variant_info.sizeId} من ${currentQuantity} إلى ${newQuantity}`);
+                      
                       
                       // تحديث كمية اللون المرتبط (إذا كان هناك لون)
                       if (item.variant_info.colorId) {
@@ -154,7 +149,7 @@ export const addOrder = async (
                     if (updateError) {
                       console.error('خطأ في تحديث مخزون اللون:', updateError);
                     } else {
-                      console.log(`تم تحديث مخزون اللون ${item.variant_info.colorId} من ${currentQuantity} إلى ${newQuantity}`);
+                      
                       
                       // تحديث كمية المنتج الأساسي
                       await updateProductQuantityFromColors(item.productId);
@@ -173,7 +168,7 @@ export const addOrder = async (
         }
       } catch (error) {
         console.error("خطأ عام في معالجة العناصر:", error);
-        console.log("تم إنشاء الطلب بنجاح لكن بدون جميع العناصر");
+        
       }
     }
     
@@ -207,8 +202,8 @@ const addServiceBookings = async (
   employeeId: string | undefined,
   organizationId: string | undefined
 ) => {
-  console.log("معالجة خدمات الطلب:", services.length, "خدمة");
-  console.log("معرف المؤسسة الحالية للخدمات:", organizationId);
+  
+  
   
   // معالجة كل خدمة على حدة مع الحفاظ على معرف العميل الخاص بها
   for (const service of services) {
@@ -219,12 +214,12 @@ const addServiceBookings = async (
       // 2. جلب اسم العميل واستخدامه بدلاً من "زائر" الافتراضي
       let customerName = "زائر"; // القيمة الافتراضية
       
-      console.log(`جلب معلومات العميل (${customerId}) للخدمة ${service.serviceName}`);
+      
       
       // إذا كان العميل مرتبطًا بالخدمة، استخدم اسمه مباشرة
       if (service.customer_name) {
         customerName = service.customer_name;
-        console.log(`استخدام اسم العميل من الخدمة مباشرة: ${customerName}`);
+        
       }
       // استخراج اسم العميل من الطلب إذا كان متاحًا
       else if (defaultCustomerId && defaultCustomerId !== 'guest' && defaultCustomerId !== 'walk-in') {
@@ -237,7 +232,7 @@ const addServiceBookings = async (
           
         if (customerData?.name) {
           customerName = customerData.name;
-          console.log(`استخدام اسم العميل من قاعدة البيانات: ${customerName}`);
+          
         }
       }
       
@@ -252,10 +247,10 @@ const addServiceBookings = async (
           .maybeSingle();
           
         if (!userExists) {
-          console.log(`العميل غير موجود في جدول users: ${customerId}، سيتم استخدام null`);
+          
           validCustomerId = null;
         } else {
-          console.log(`تم التحقق من وجود العميل في جدول users: ${customerId}`);
+          
         }
       }
      
@@ -277,15 +272,10 @@ const addServiceBookings = async (
         organization_id: organizationId
       };
       
-      console.log("بيانات حجز الخدمة:", JSON.stringify({
-        id: serviceBookingData.id,
-        service_name: serviceBookingData.service_name,
-        customer_id: serviceBookingData.customer_id,
-        organization_id: serviceBookingData.organization_id
-      }));
+      
       
       // 5. إدراج حجز الخدمة في قاعدة البيانات
-      console.log("محاولة إدراج حجز الخدمة...");
+      
       
       try {
         let insertedBookingData = null;
@@ -299,7 +289,7 @@ const addServiceBookings = async (
           
           // في حالة كان الخطأ متعلقًا بالعميل، حاول مرة أخرى مع معرف عميل فارغ
           if (serviceBookingError.message.includes('service_bookings_customer_id_fkey')) {
-            console.log("محاولة إعادة الإدراج مع قيمة null للعميل");
+            
             
             const { data: retryData, error: retryError } = await supabase
               .from('service_bookings')
@@ -310,7 +300,7 @@ const addServiceBookings = async (
               console.error(`فشلت المحاولة الثانية لإدراج الخدمة: ${retryError.message}`);
               continue;
             } else {
-              console.log(`تم إدراج حجز الخدمة بنجاح في المحاولة الثانية`);
+              
               insertedBookingData = retryData;
             }
           } else {
@@ -318,7 +308,7 @@ const addServiceBookings = async (
             continue;
           }
         } else {
-          console.log(`تم إدراج حجز الخدمة بنجاح`);
+          
           insertedBookingData = insertedBooking;
         }
         
@@ -327,7 +317,7 @@ const addServiceBookings = async (
           // تحقق من صلاحية معرف المسؤول
           let createdById = employeeId || "";
           if (!createdById || createdById === "walk-in" || createdById === "guest") {
-            console.log("استخدام معرف المسؤول الافتراضي");
+            
             const { data: userData } = await supabase.auth.getUser();
             createdById = userData?.user?.id || null;
           }
@@ -341,7 +331,7 @@ const addServiceBookings = async (
               .maybeSingle();
             
             if (!userExists) {
-              console.log(`المسؤول غير موجود في جدول users: ${createdById}، سيتم استخدام null`);
+              
               createdById = null;
             }
           }
@@ -362,7 +352,7 @@ const addServiceBookings = async (
           if (progressError) {
             console.warn(`لم يتم إضافة تقدم أولي للخدمة: ${progressError.message}`);
           } else {
-            console.log(`تم إضافة تقدم أولي للخدمة بنجاح`);
+            
           }
         } catch (error) {
           console.error(`خطأ في إضافة تقدم أولي للخدمة: ${error}`);
@@ -512,7 +502,7 @@ async function updateColorQuantityFromSizes(colorId: string) {
     if (updateError) {
       console.error('خطأ في تحديث كمية اللون:', updateError);
     } else {
-      console.log(`تم تحديث كمية اللون ${colorId} إلى ${totalQuantity} (من مجموع المقاسات)`);
+      
     }
   } catch (error) {
     console.error('خطأ في تحديث كمية اللون من المقاسات:', error);
@@ -544,7 +534,7 @@ async function updateProductQuantityFromColors(productId: string) {
     if (updateError) {
       console.error('خطأ في تحديث كمية المنتج:', updateError);
     } else {
-      console.log(`تم تحديث كمية المنتج ${productId} إلى ${totalQuantity} (من مجموع الألوان)`);
+      
     }
   } catch (error) {
     console.error('خطأ في تحديث كمية المنتج من الألوان:', error);
@@ -578,7 +568,7 @@ async function updateProductStock(productId: string, quantity: number) {
     if (updateError) {
       console.error('خطأ في تحديث مخزون المنتج:', updateError);
     } else {
-      console.log(`تم تحديث مخزون المنتج ${productId} من ${currentStock} إلى ${newStock}`);
+      
     }
   } catch (error) {
     console.error('خطأ في تحديث مخزون المنتج:', error);

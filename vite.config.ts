@@ -91,13 +91,13 @@ export default defineConfig(({ mode }: { mode: string }) => {
           },
           configure: (proxy: any, _options: any) => {
             proxy.on('error', (err: any, _req: any, _res: any) => {
-              console.log('proxy error', err);
+              
             });
             proxy.on('proxyReq', (proxyReq: any, req: any, _res: any) => {
-              console.log('Sending Request to the Target:', req.method, req.url);
+              
             });
             proxy.on('proxyRes', (proxyRes: any, req: any, _res: any) => {
-              console.log('Received Response from the Target:', proxyRes.statusCode, req.url);
+              
               // إضافة رؤوس CORS للاستجابة
               proxyRes.headers['Access-Control-Allow-Origin'] = '*';
               proxyRes.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, PATCH, OPTIONS';
@@ -122,6 +122,31 @@ export default defineConfig(({ mode }: { mode: string }) => {
       nodePolyfills({
         // Whether to polyfill `node:` protocol imports.
         protocolImports: true,
+        // مكتبات مطلوبة للعمل في المتصفح
+        include: [
+          'path',
+          'util', 
+          'stream', 
+          'buffer', 
+          'process',
+          'events',
+          'assert',
+          'http',
+          'https',
+          'os',
+          'url',
+          'zlib',
+          'querystring',
+          'crypto',
+          'fs'
+        ],
+        // ضبط المكتبات لتعمل في المتصفح
+        globals: {
+          Buffer: true,
+          process: true,
+          global: true,
+          module: true
+        },
       }),
       mode === 'development' &&
       componentTagger(),

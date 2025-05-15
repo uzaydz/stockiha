@@ -72,7 +72,7 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
   useEffect(() => {
     // طباعة فقط عند التقديم الأولي لتجنب السجلات المتكررة
     if (initialRenderRef.current) {
-      console.log('[SideMenu] تم تحميل القائمة الجانبية، المجموعة النشطة:', activeGroup);
+      
       initialRenderRef.current = false;
     }
 
@@ -90,7 +90,7 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
               const isVisible = sidebarElement.offsetParent !== null;
               if (menuIsVisibleRef.current !== isVisible) {
                 menuIsVisibleRef.current = isVisible;
-                console.log(`[SideMenu] تغيرت حالة القائمة الجانبية: ${isVisible ? 'ظاهرة' : 'مخفية'}`);
+                
               }
             }
           }
@@ -145,7 +145,7 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
     // تحديث الحالة فوراً باستخدام الحالة السابقة
     setActiveGroup(prevGroup => {
       const newState = prevGroup === group ? null : group;
-      console.log('تبديل المجموعة:', group, 'الحالة الجديدة:', newState);
+      
       return newState;
     });
   }, []);
@@ -154,12 +154,12 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        console.log('[SideMenu] العودة إلى التبويب، المجموعة النشطة:', activeGroup);
+        
         
         // إعادة تأكيد رؤية القائمة الجانبية
         const sidebarElement = document.getElementById('sidebar-container');
         if (sidebarElement && window.getComputedStyle(sidebarElement).display === 'none') {
-          console.log('[SideMenu] إعادة إظهار القائمة الجانبية بعد العودة للتبويب');
+          
           sidebarElement.style.display = 'block';
         }
       }
@@ -573,7 +573,7 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
   useEffect(() => {
     // تحديد المجموعة النشطة عند تغيير المسار
     if (currentGroup && currentGroup !== activeGroup) {
-      console.log('تغيير المجموعة النشطة من التأثير:', currentGroup);
+      
       setActiveGroup(currentGroup);
     }
   }, [currentPath]);

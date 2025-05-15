@@ -13,7 +13,7 @@ import axios from 'axios';
  */
 export async function validateYalidineCredentials(organizationId: string): Promise<boolean> {
   try {
-    console.log(`التحقق من صلاحية مفاتيح ياليدين للمنظمة: ${organizationId}`);
+    
     
     // تنظيف محدد المعدل قبل البدء للتأكد من عدم وجود حالة عالقة
     if (typeof yalidineRateLimiter.resetStats === 'function') {
@@ -33,13 +33,10 @@ export async function validateYalidineCredentials(organizationId: string): Promi
       return false;
     }
     
-    console.log('تم العثور على بيانات اعتماد ياليدين:', { 
-      token: settings.api_token ? '***' + settings.api_token.substring(settings.api_token.length - 4) : 'غير متوفر',
-      key: settings.api_key ? '***' + settings.api_key.substring(settings.api_key.length - 4) : 'غير متوفر'
-    });
+    
     
     // استخدام نفس طريقة إنشاء العميل المباشرة كما في وظيفة testCredentials الناجحة
-    console.log('إنشاء عميل API مباشر للتحقق...');
+    
     
     const directClient = axios.create({
       baseURL: '/yalidine-api/',
@@ -54,27 +51,23 @@ export async function validateYalidineCredentials(organizationId: string): Promi
     });
     
     try {
-      console.log('محاولة التحقق من صلاحية البيانات باستخدام نفس مسار wilayas...');
+      
       
       // استخدام مسار wilayas بدلاً من wilayas/1
       const response = await directClient.get('wilayas');
       
-      console.log('Received API response:', {
-        status: response.status,
-        data: response.data ? 'Data received' : 'No data',
-        headers: response.headers
-      });
+      
       
       // نفس منطق التحقق المستخدم في testCredentials
       if (response.status === 200 && 
          (Array.isArray(response.data) || 
           (response.data && response.data.data && Array.isArray(response.data.data)))) {
         
-        console.log('تم التحقق من صلاحية بيانات الاعتماد بنجاح');
+        
         return true;
       }
       
-      console.log('فشل التحقق من صلاحية البيانات - تنسيق غير متوقع للرد');
+      
       return false;
     } catch (apiError: any) {
       console.error('خطأ أثناء التحقق من صلاحية البيانات:', apiError);

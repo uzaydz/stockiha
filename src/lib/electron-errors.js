@@ -86,7 +86,7 @@ export const registerGlobalErrorHandler = () => {
       }
     });
     
-    console.log('[ElectronErrors] Manejadores de errores registrados');
+    
   }
 };
 

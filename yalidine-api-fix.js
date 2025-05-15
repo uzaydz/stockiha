@@ -4,7 +4,7 @@
  * are being swapped during API calls and data processing
  */
 
-const { createClient } = require('@supabase/supabase-js');
+import { createClient } from '@supabase/supabase-js';
 
 // Configure Supabase client
 const supabaseUrl = process.env.SUPABASE_URL || 'https://your-project-url.supabase.co';
@@ -15,7 +15,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
  * Main fix function to correct the direction swapping issue
  */
 async function fixYalidineDirectionSwap() {
-  console.log('Starting Yalidine direction swap fix...');
+  
   
   try {
     // 1. Ensure the triggers are disabled
@@ -33,7 +33,7 @@ async function fixYalidineDirectionSwap() {
     // 3. Correct existing data by swapping directions
     await swapDirectionsInExistingData(orgId, originWilayaId);
     
-    console.log('Yalidine direction swap fix completed successfully.');
+    
     return true;
   } catch (error) {
     console.error('Error fixing Yalidine direction swap:', error);
@@ -45,11 +45,11 @@ async function fixYalidineDirectionSwap() {
  * Disable the redirect trigger to prevent data from being moved to yalidine_fees_new
  */
 async function disableRedirectTrigger() {
-  console.log('Disabling yalidine_fees_redirect_trigger...');
+  
   
   try {
     await supabase.rpc('disable_yalidine_redirect_trigger');
-    console.log('Redirect trigger disabled successfully.');
+    
     return true;
   } catch (error) {
     console.error('Error disabling redirect trigger:', error);
@@ -61,7 +61,7 @@ async function disableRedirectTrigger() {
       `);
       
       if (sqlError) throw sqlError;
-      console.log('Redirect trigger disabled using direct SQL.');
+      
       return true;
     } catch (sqlError) {
       console.error('Failed to disable trigger using direct SQL:', sqlError);
@@ -74,7 +74,7 @@ async function disableRedirectTrigger() {
  * Get the origin wilaya ID for an organization from settings
  */
 async function getOrganizationOriginWilaya(organizationId) {
-  console.log(`Getting origin wilaya for organization ${organizationId}...`);
+  
   
   try {
     // Try to get the origin wilaya from settings
@@ -90,7 +90,7 @@ async function getOrganizationOriginWilaya(organizationId) {
     const originWilayaId = settings?.settings?.origin_wilaya_id;
     
     if (originWilayaId) {
-      console.log(`Found origin wilaya ID: ${originWilayaId}`);
+      
       return originWilayaId;
     }
     
@@ -101,12 +101,12 @@ async function getOrganizationOriginWilaya(organizationId) {
     if (originError) throw originError;
     
     if (origin) {
-      console.log(`Found origin wilaya ID from RPC: ${origin}`);
+      
       return origin;
     }
     
     // Default to Algiers (16) if no other option works
-    console.log('No origin wilaya found, defaulting to Algiers (16)');
+    
     return 16;
   } catch (error) {
     console.error('Error getting origin wilaya:', error);
@@ -119,7 +119,7 @@ async function getOrganizationOriginWilaya(organizationId) {
  * Swap the direction in existing data to correct the issue
  */
 async function swapDirectionsInExistingData(organizationId, originWilayaId) {
-  console.log(`Swapping directions in existing data for organization ${organizationId}...`);
+  
   
   try {
     // Get current data
@@ -131,11 +131,11 @@ async function swapDirectionsInExistingData(organizationId, originWilayaId) {
     if (error) throw error;
     
     if (!currentFees || currentFees.length === 0) {
-      console.log('No existing fees data found to swap.');
+      
       return;
     }
     
-    console.log(`Found ${currentFees.length} fee records to process.`);
+    
     
     // Process in batches to avoid overwhelming the database
     const batchSize = 50;
@@ -145,11 +145,11 @@ async function swapDirectionsInExistingData(organizationId, originWilayaId) {
       batches.push(currentFees.slice(i, i + batchSize));
     }
     
-    console.log(`Processing in ${batches.length} batches of max ${batchSize} records.`);
+    
     
     for (let i = 0; i < batches.length; i++) {
       const batch = batches[i];
-      console.log(`Processing batch ${i + 1} of ${batches.length}...`);
+      
       
       // First, delete the existing records
       const idsToDelete = batch.map(fee => fee.id);
@@ -193,35 +193,46 @@ async function swapDirectionsInExistingData(organizationId, originWilayaId) {
       
       if (insertError) throw insertError;
       
-      console.log(`Batch ${i + 1} processed successfully.`);
+      
     }
     
-    console.log('All data direction swaps completed successfully.');
+    
   } catch (error) {
     console.error('Error swapping directions in existing data:', error);
     throw error;
   }
 }
 
-// Execute the fix if this script is run directly
-if (require.main === module) {
+// نشغل الإصلاح فقط إذا كان هذا الملف يتم تنفيذه مباشرة
+// يمكن ضبط isMainModule من الخارج أو استخدام import.meta
+// const isMainModule = import.meta.url.endsWith('/yalidine-api-fix.js');
+const isMainModule = false; // نضبطه لـ false افتراضيًا، ويمكن تغييره عند الاستيراد
+
+if (isMainModule) {
   fixYalidineDirectionSwap()
     .then(success => {
       if (success) {
-        console.log('✅ Yalidine direction swap fix completed successfully.');
-        process.exit(0);
+        
+        if (typeof process !== 'undefined' && process.exit) {
+          process.exit(0);
+        }
       } else {
         console.error('❌ Yalidine direction swap fix failed.');
-        process.exit(1);
+        if (typeof process !== 'undefined' && process.exit) {
+          process.exit(1);
+        }
       }
     })
     .catch(error => {
       console.error('❌ Uncaught error in Yalidine direction swap fix:', error);
-      process.exit(1);
+      if (typeof process !== 'undefined' && process.exit) {
+        process.exit(1);
+      }
     });
 }
 
-module.exports = {
+// استبدال module.exports بـ export
+export {
   fixYalidineDirectionSwap,
   disableRedirectTrigger,
   getOrganizationOriginWilaya,

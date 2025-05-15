@@ -8,6 +8,8 @@ interface GeneralSettingsTabProps {
   editFormData: {
     name: string;
     is_active: boolean;
+    api_token: string;
+    api_key: string;
   };
   setEditFormData: React.Dispatch<React.SetStateAction<any>>;
 }
@@ -58,6 +60,45 @@ const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({
                 onCheckedChange={(checked) => setEditFormData(prev => ({ ...prev, is_active: checked }))}
               />
             </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* API Credentials */}
+      <div className="bg-card p-6 rounded-lg border shadow-sm">
+        <h3 className="text-lg font-semibold mb-4 flex items-center">
+          بيانات اعتماد API
+        </h3>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="api_token" className="text-sm font-medium">
+              Token (الرمز المميز)
+            </Label>
+            <Input
+              id="api_token"
+              placeholder="أدخل API Token"
+              value={editFormData.api_token || ''}
+              onChange={(e) => setEditFormData(prev => ({ ...prev, api_token: e.target.value }))}
+              className="w-full"
+            />
+            <p className="text-xs text-muted-foreground">
+              الرمز المميز للوصول إلى API الخاص بشركة التوصيل.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="api_key" className="text-sm font-medium">
+              Key (المفتاح)
+            </Label>
+            <Input
+              id="api_key"
+              placeholder="أدخل API Key"
+              value={editFormData.api_key || ''}
+              onChange={(e) => setEditFormData(prev => ({ ...prev, api_key: e.target.value }))}
+              className="w-full"
+            />
+            <p className="text-xs text-muted-foreground">
+              المفتاح السري للوصول إلى API الخاص بشركة التوصيل.
+            </p>
           </div>
         </div>
       </div>

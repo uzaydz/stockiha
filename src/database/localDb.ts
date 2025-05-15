@@ -265,10 +265,10 @@ export async function hydrateLocalDB() {
     const keys = await productsForageInstance.keys();
     
     if (keys.length === 0) {
-      console.log('Local DB is empty, initializing...');
+      
       // يمكن تنفيذ منطق لتعبئة التخزين المحلي هنا إذا لزم الأمر
     } else {
-      console.log('Local DB already has data');
+      
     }
   } catch (error) {
     console.error('Error hydrating local DB:', error);

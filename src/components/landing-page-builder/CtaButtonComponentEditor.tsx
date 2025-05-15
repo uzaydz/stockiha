@@ -195,7 +195,7 @@ export function CtaButtonComponentEditor({
     
     // إجراء الحفظ فقط عند وجود تغييرات فعلية
     if (hasChanges) {
-      // console.log("تم العثور على تغييرات، يتم التحديث...");
+      // 
       onSave({
         ...component,
         settings: {

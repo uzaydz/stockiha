@@ -32,7 +32,7 @@ export interface Product {
  */
 export const getProducts = async (organizationId: string): Promise<Product[]> => {
   try {
-    console.log('Fetching products for organization:', organizationId);
+    
     
     const { data, error } = await supabase
       .from('products')

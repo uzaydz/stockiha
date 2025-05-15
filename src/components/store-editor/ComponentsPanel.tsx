@@ -90,7 +90,7 @@ const ComponentsPanel: React.FC<ComponentsPanelProps> = ({
               <ComponentEditor
                 component={activeComponent}
                 onUpdate={(settings) => {
-                  console.log("تحديث إعدادات المكون في اللوحة:", activeComponent.id, activeComponent.type);
+                  
                   onUpdateSettings(activeComponent.id, settings);
                 }}
               />

@@ -302,7 +302,7 @@ const BulkBarcodePrinter = ({
       const selectedProductsData = products.filter(p => selectedProductsIds.includes(p.id));
       
       // إضافة طباعة تصحيحية لتتبع المنتجات المختارة
-      console.log('المنتجات المختارة:', selectedProductsData);
+      
       
       // إعداد مصفوفة لجميع العناصر التي سيتم طباعتها
       const itemsToPrint: {
@@ -317,7 +317,7 @@ const BulkBarcodePrinter = ({
       
       // إضافة المنتجات العادية غير المتغيرة
       const regularProducts = selectedProductsData.filter(p => !p.has_variants);
-      console.log('المنتجات العادية:', regularProducts);
+      
       
       regularProducts.forEach(product => {
         // عدد النسخ لكل منتج
@@ -335,12 +335,12 @@ const BulkBarcodePrinter = ({
       
       // إضافة المنتجات ذات الألوان والمقاسات
       const variantProducts = selectedProductsData.filter(p => p.has_variants);
-      console.log('منتجات متعددة الألوان:', variantProducts);
+      
       
       variantProducts.forEach(product => {
         // طباعة معلومات المنتج للتشخيص
-        console.log(`معالجة المنتج: ${product.name} (${product.id})`);
-        console.log(`الألوان المتاحة:`, productColorsState[product.id]);
+        
+        
         
         const productColorsArr = productColorsState[product.id] || [];
         
@@ -350,22 +350,22 @@ const BulkBarcodePrinter = ({
         if (settings.colorPrintOption === 'all') {
           // طباعة جميع الألوان
           colorsToPrint = productColorsArr;
-          console.log('تم اختيار طباعة جميع الألوان:', colorsToPrint.length);
+          
         } else if (settings.colorPrintOption === 'selected') {
           // طباعة الألوان المحددة فقط
           const selectedColorIds = selectedColorsByProduct[product.id] || [];
-          console.log('معرفات الألوان المختارة:', selectedColorIds);
+          
           colorsToPrint = productColorsArr.filter(color => selectedColorIds.includes(color.id));
-          console.log('الألوان المختارة للطباعة:', colorsToPrint.length);
+          
         } else {
           // طباعة اللون الافتراضي فقط
           colorsToPrint = productColorsArr.filter(color => color.is_default);
-          console.log('الألوان الافتراضية للطباعة:', colorsToPrint.length);
+          
         }
         
         // إذا لم يتم العثور على ألوان، أضف المنتج الأساسي
         if (colorsToPrint.length === 0 && (product.barcode || product.sku)) {
-          console.log('لم يتم العثور على ألوان، إضافة المنتج الأساسي');
+          
           itemsToPrint.push({
             productId: product.id,
             productName: product.name,
@@ -376,12 +376,12 @@ const BulkBarcodePrinter = ({
         
         // معالجة كل لون
         colorsToPrint.forEach(color => {
-          console.log(`معالجة اللون: ${color.name} (${color.id}), has_sizes=${color.has_sizes}`);
+          
           
           // إذا كان المنتج يستخدم المقاسات واللون يدعم المقاسات
           if (product.use_sizes && color.has_sizes) {
             const colorSizes = productSizesState[color.id] || [];
-            console.log(`المقاسات المتاحة للون ${color.name}:`, colorSizes);
+            
             
             // تحديد المقاسات المطلوب طباعتها حسب الإعدادات
             let sizesToPrint: ProductSize[] = [];
@@ -389,22 +389,22 @@ const BulkBarcodePrinter = ({
             if (settings.sizePrintOption === 'all') {
               // طباعة جميع المقاسات
               sizesToPrint = colorSizes;
-              console.log('تم اختيار طباعة جميع المقاسات:', sizesToPrint.length);
+              
             } else if (settings.sizePrintOption === 'selected') {
               // طباعة المقاسات المحددة فقط
               const selectedSizeIds = selectedSizesByColor[color.id] || [];
-              console.log('معرفات المقاسات المختارة:', selectedSizeIds);
+              
               sizesToPrint = colorSizes.filter(size => selectedSizeIds.includes(size.id));
-              console.log('المقاسات المختارة للطباعة:', sizesToPrint.length);
+              
             } else {
               // طباعة المقاس الافتراضي فقط
               sizesToPrint = colorSizes.filter(size => size.is_default);
-              console.log('المقاسات الافتراضية للطباعة:', sizesToPrint.length);
+              
             }
             
             // إذا لم يتم العثور على مقاسات، أضف اللون الأساسي
             if (sizesToPrint.length === 0) {
-              console.log('لم يتم العثور على مقاسات، إضافة اللون الأساسي');
+              
               for (let i = 0; i < settings.copiesPerProduct; i++) {
                 itemsToPrint.push({
                   productId: product.id,
@@ -418,7 +418,7 @@ const BulkBarcodePrinter = ({
             } else {
               // إضافة كل مقاس إلى قائمة الطباعة
               sizesToPrint.forEach(size => {
-                console.log(`إضافة المقاس ${size.size_name} للون ${color.name}`);
+                
                 for (let i = 0; i < settings.copiesPerProduct; i++) {
                   // تحقق من وجود باركود صالح
                   const barcode = size.barcode || color.barcode || product.barcode || product.sku;
@@ -440,7 +440,7 @@ const BulkBarcodePrinter = ({
             }
           } else {
             // إذا كان اللون بدون مقاسات، إضافته مباشرة
-            console.log(`إضافة اللون ${color.name} بدون مقاسات`);
+            
             for (let i = 0; i < settings.copiesPerProduct; i++) {
               // تحقق من وجود باركود صالح
               const barcode = color.barcode || product.barcode || product.sku;
@@ -462,7 +462,7 @@ const BulkBarcodePrinter = ({
       });
       
       // طباعة العناصر النهائية للتصحيح
-      console.log('العناصر النهائية للطباعة:', itemsToPrint);
+      
       
       // التحقق من وجود عناصر للطباعة
       if (itemsToPrint.length === 0) {

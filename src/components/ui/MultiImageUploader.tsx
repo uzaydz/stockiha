@@ -39,7 +39,7 @@ export default function MultiImageUploader({
   useEffect(() => {
     // تجنب طباعة رسائل التصحيح المتكررة في البيئة الإنتاجية
     if (process.env.NODE_ENV !== 'production') {
-      console.log("MultiImageUploader: defaultImages changed", defaultImages);
+      
     }
     
     // التأكد من أن defaultImages مصفوفة
@@ -51,7 +51,7 @@ export default function MultiImageUploader({
   
   const handleImageUploaded = (url: string) => {
     if (process.env.NODE_ENV !== 'production') {
-      console.log("MultiImageUploader: image uploaded", url);
+      
     }
     
     if (url && url.trim() !== "") {
@@ -62,7 +62,7 @@ export default function MultiImageUploader({
         imagesRef.current = newImages;
         
         if (process.env.NODE_ENV !== 'production') {
-          console.log("MultiImageUploader: updating images", newImages);
+          
         }
         
         // تأخير استدعاء onImagesUploaded لضمان اكتمال تحديث الحالة أولاً
@@ -80,7 +80,7 @@ export default function MultiImageUploader({
 
   const handleRemoveImage = (index: number) => {
     if (process.env.NODE_ENV !== 'production') {
-      console.log("MultiImageUploader: removing image at index", index);
+      
     }
     
     setImages(prevImages => {
@@ -90,7 +90,7 @@ export default function MultiImageUploader({
       imagesRef.current = newImages;
       
       if (process.env.NODE_ENV !== 'production') {
-        console.log("MultiImageUploader: removed image URL", removedUrl);
+        
       }
       
       if (!disableAutoCallback) {
@@ -117,7 +117,7 @@ export default function MultiImageUploader({
       imagesRef.current = newImages;
       
       if (process.env.NODE_ENV !== 'production') {
-        console.log("MultiImageUploader: reordered images", newImages);
+        
       }
       
       if (!disableAutoCallback) {
@@ -137,7 +137,7 @@ export default function MultiImageUploader({
       });
       return;
     }
-    console.log("MultiImageUploader: showing add image form");
+    
     setIsAddingImage(true);
   };
 
@@ -151,7 +151,7 @@ export default function MultiImageUploader({
     if (images.length > 0) {
       const filteredImages = images.filter(url => url && url.trim() !== "");
       if (filteredImages.length !== images.length) {
-        console.log("MultiImageUploader: filtering out empty or invalid URLs");
+        
         setImages(filteredImages);
       }
     }

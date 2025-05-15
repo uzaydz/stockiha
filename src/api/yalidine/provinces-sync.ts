@@ -15,7 +15,7 @@ import { getSyncStatus, updateSyncStatus } from './sync-status';
  */
 export async function syncProvinces(organizationId: string, apiClient: AxiosInstance): Promise<boolean> {
   try {
-    console.log(`[SYNC] بدء مزامنة بيانات الولايات للمنظمة: ${organizationId} من البيانات العالمية`);
+    
     
     // تحديث حالة التقدم - تأكيد أننا في وضع المزامنة
     const syncStatus = getSyncStatus();
@@ -65,7 +65,7 @@ export async function syncProvinces(organizationId: string, apiClient: AxiosInst
       globalProvincesData = refreshedProvinces;
     }
     
-    console.log(`[INFO] تم العثور على ${globalProvincesData.length} ولاية في البيانات العالمية`);
+    
     
     // تحديث حالة التقدم
     syncStatus.provinces.total = globalProvincesData.length;
@@ -73,7 +73,7 @@ export async function syncProvinces(organizationId: string, apiClient: AxiosInst
     updateSyncStatus(syncStatus);
     
     // حذف البيانات القديمة
-    console.log('[INFO] حذف بيانات الولايات القديمة للمنظمة');
+    
     try {
       const { error: deleteError } = await supabase
         .from('yalidine_provinces')
@@ -116,7 +116,7 @@ export async function syncProvinces(organizationId: string, apiClient: AxiosInst
         return false;
       }
       
-      console.log(`[SUCCESS] تم نسخ ${dataToInsert.length} ولاية من البيانات العالمية للمنظمة ${organizationId}`);
+      
     } catch (dbError) {
       console.error('[ERROR] خطأ أثناء إدخال بيانات الولايات الجديدة:', dbError);
       syncStatus.provinces.status = 'failed';

@@ -23,20 +23,20 @@ let isClientReady = false;
 
 // عند إنشاء رمز QR
 client.on('qr', (qr) => {
-  console.log('QR CODE GENERATED! Scan with WhatsApp to login:');
+  
   qrcode.generate(qr, { small: true });
 });
 
 // عند الاستعداد
 client.on('ready', () => {
   isClientReady = true;
-  console.log('Client is ready! WhatsApp is connected.');
+  
 });
 
 // عند فقدان الاتصال
 client.on('disconnected', (reason) => {
   isClientReady = false;
-  console.log('Client was disconnected:', reason);
+  
   // إعادة تهيئة العميل عند فقدان الاتصال
   client.initialize();
 });
@@ -93,6 +93,6 @@ app.get('/status', (req, res) => {
 
 // تشغيل الخادم
 app.listen(port, () => {
-  console.log(`WhatsApp server is running on port ${port}`);
-  console.log(`Please wait for QR code to appear in the console...`);
+  
+  
 }); 

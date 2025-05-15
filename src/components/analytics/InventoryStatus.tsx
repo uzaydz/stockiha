@@ -16,12 +16,7 @@ const InventoryStatus: React.FC<InventoryStatusProps> = ({ data }) => {
   const { totalValue, lowStock, outOfStock, totalItems } = data;
   
   useEffect(() => {
-    console.log('InventoryStatus - بيانات المخزون المستلمة:', {
-      totalValue,
-      lowStock,
-      outOfStock,
-      totalItems
-    });
+    
   }, [totalValue, lowStock, outOfStock, totalItems]);
 
   // حساب النسب المئوية

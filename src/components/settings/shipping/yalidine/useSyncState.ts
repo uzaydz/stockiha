@@ -41,7 +41,7 @@ export function useSyncState() {
           const progressLog = `تحديث حالة المزامنة: ${feesStatus.added}/${feesStatus.total} (${Math.round((feesStatus.added / Math.max(feesStatus.total, 1)) * 100)}%)`;
           // تسجيل فقط إذا كان هناك تغيير في حالة التقدم
           if (progressLog !== lastProgressLog) {
-            console.log(progressLog);
+            
             lastProgressLog = progressLog;
           }
         }
@@ -60,7 +60,7 @@ export function useSyncState() {
         // وتجنب تسجيل نفس الرسالة مرارًا وتكرارًا
         const newStatusString = JSON.stringify(status);
         if (hasChange && newStatusString !== lastStatus) {
-          console.log('تغيير في حالة المزامنة، تحديث واجهة المستخدم');
+          
           setSyncProgress(status);
           lastStatus = newStatusString;
         }

@@ -15,7 +15,7 @@ export const ensureEmployeeTables = async (): Promise<void> => {
     await supabase.rpc('create_employee_salaries_if_not_exists');
     // التأكد من وجود جدول employee_activities
     await supabase.rpc('create_employee_activities_if_not_exists');
-    console.log('Employee tables verified');
+    
   } catch (error) {
     console.error('Error ensuring employee tables:', error);
   }
@@ -30,7 +30,7 @@ export const getEmployees = async (): Promise<Employee[]> => {
     // تحديث الموظفين الذين ليس لديهم معرف مؤسسة
     await updateEmployeesWithMissingOrganizationId();
     
-    console.log('Fetching employees...');
+    
     
     // الحصول على بيانات المستخدم الحالي
     const { data: { user } } = await supabase.auth.getUser();
@@ -55,21 +55,21 @@ export const getEmployees = async (): Promise<Employee[]> => {
     
     if (userData && userData.organization_id) {
       organizationId = userData.organization_id;
-      console.log(`Using organization ID from user data: ${organizationId}`);
+      
     } else {
       // محاولة استخدام معرف المؤسسة من التخزين المحلي
       const localOrgId = localStorage.getItem('organizationId');
       if (localOrgId) {
         organizationId = localOrgId;
-        console.log(`Using organization ID from localStorage: ${organizationId}`);
+        
       } else {
         console.error('No organization ID found for user or in localStorage');
         return [];
       }
     }
     
-    console.log(`Fetching employees for organization: ${organizationId}`);
-    console.log(`Current user role: ${userData?.role}, is_org_admin: ${userData?.is_org_admin}`);
+    
+    
     
     // استخدام الاستعلام المباشر
     const { data, error } = await supabase
@@ -84,7 +84,7 @@ export const getEmployees = async (): Promise<Employee[]> => {
       return [];
     }
     
-    console.log(`Found ${data?.length || 0} employees`);
+    
     return data || [];
   } catch (err) {
     console.error('Unexpected error in getEmployees:', err);
@@ -115,7 +115,7 @@ export const createEmployee = async (
   password: string,
   userData: Omit<Employee, 'id' | 'created_at' | 'updated_at'>
 ): Promise<Employee> => { 
-  console.log('Initiating employee creation via Invite Flow');
+  
 
   // 1. Get Admin's Org ID (same logic as before)
   const { data: { user: adminUser } } = await supabase.auth.getUser();
@@ -137,14 +137,14 @@ export const createEmployee = async (
   }
   if (!organizationId) throw new Error('No organization ID found to associate employee with.');
 
-  console.log(`Attempting employee record creation under organization: ${organizationId}`);
+  
 
   let createdUserRecord: Employee | null = null;
   let authUserId: string | null = null;
 
   // 2. Try to create the auth user first
   try {
-    console.log(`Attempting to create auth user for: ${email}`);
+    
     
     // Try direct signup method first
     const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -162,7 +162,7 @@ export const createEmployee = async (
       console.error('Error creating auth user:', authError);
       // We'll continue and try to create just the database record
     } else if (authData?.user) {
-      console.log(`Successfully created auth user: ${authData.user.id}`);
+      
       authUserId = authData.user.id;
       
       // Sign out immediately after creating the user so admin stays logged in
@@ -185,7 +185,7 @@ export const createEmployee = async (
 
   // 3. Create record in public.users via modified RPC (insert only)
   try {
-    console.log(`Calling RPC: create_employee_securely (insert only) for email: ${email}`);
+    
     let { data: rpcResult, error: rpcError } = await supabase.rpc(
       'create_employee_securely',
       {
@@ -204,7 +204,7 @@ export const createEmployee = async (
       
       // Handle 404 errors (function not found) by using direct insert as a fallback
       if (rpcError.code === '42883' || rpcError.code === '404') {
-        console.log('Falling back to direct user creation method');
+        
         
         // Use auth user ID if available, otherwise generate a new one
         const userId = authUserId || crypto.randomUUID();
@@ -257,7 +257,7 @@ export const createEmployee = async (
       throw new Error('لم يتم إرجاع بيانات سجل الموظف بعد الإنشاء.');
     }
     createdUserRecord = rpcResult as Employee; 
-    console.log('Successfully created/updated employee record in users table:', createdUserRecord);
+    
 
   } catch (error) { 
     console.error('Error during employee record creation/update:', error);
@@ -271,7 +271,7 @@ export const createEmployee = async (
   // 4. Try to invite the user if we couldn't create them directly
   if (!authUserId) {
     try {
-      console.log(`Attempting to invite user by email: ${email}`);
+      
       
       try {
         // Try the admin invite method first
@@ -289,7 +289,7 @@ export const createEmployee = async (
           console.warn('Admin invite method failed, will create temporary password:', inviteError);
           // Just log but continue - we'll return the user record anyway
         } else {
-          console.log(`Successfully sent invitation to ${email}`, inviteData);
+          
         }
       } catch (inviteErr) {
         console.warn('Admin invite method not available:', inviteErr);
@@ -309,7 +309,7 @@ export const createEmployee = async (
           if (signupError) {
             console.error('Failed to create auth account via signup:', signupError);
           } else {
-            console.log('Created auth account via signup');
+            
             
             // Sign out immediately after creating the user
             await supabase.auth.signOut();
@@ -529,7 +529,7 @@ export const getEmployeeStats = async (): Promise<{
   inactive: number;
 }> => {
   try {
-    console.log('Fetching employee stats...');
+    
     
     // Obtener información del usuario actual
     const { data: { user } } = await supabase.auth.getUser();
@@ -554,21 +554,21 @@ export const getEmployeeStats = async (): Promise<{
     
     if (userData && userData.organization_id) {
       organizationId = userData.organization_id;
-      console.log(`Using organization ID from user data: ${organizationId}`);
+      
     } else {
       // محاولة استخدام معرف المؤسسة من التخزين المحلي
       const localOrgId = localStorage.getItem('organizationId');
       if (localOrgId) {
         organizationId = localOrgId;
-        console.log(`Using organization ID from localStorage: ${organizationId}`);
+        
       } else {
         console.error('No organization ID found for user or in localStorage');
         return { total: 0, active: 0, inactive: 0 };
       }
     }
     
-    console.log(`Fetching employee stats for organization: ${organizationId}`);
-    console.log(`Current user role: ${userData?.role}, is_org_admin: ${userData?.is_org_admin}`);
+    
+    
     
     // Consulta directa para estadísticas
     // إجمالي عدد الموظفين
@@ -615,7 +615,7 @@ export const getEmployeeStats = async (): Promise<{
       inactive: inactive || 0
     };
     
-    console.log('Employee stats:', stats);
+    
     return stats;
   } catch (error) {
     console.error('Error fetching employee stats:', error);
@@ -696,15 +696,11 @@ export const checkCurrentUserStatus = async (): Promise<any> => {
     }
     
     if (!user) {
-      console.log('No authenticated user found');
+      
       return { status: 'no-user' };
     }
     
-    console.log('Current user:', {
-      id: user.id,
-      email: user.email,
-      metadata: user.user_metadata
-    });
+    
     
     return {
       status: 'authenticated',
@@ -747,13 +743,13 @@ export const updateEmployeesWithMissingOrganizationId = async (): Promise<void> 
     
     if (userData && userData.organization_id) {
       organizationId = userData.organization_id;
-      console.log(`Using organization ID from user data for updating employees: ${organizationId}`);
+      
     } else {
       // محاولة استخدام معرف المؤسسة من التخزين المحلي
       const localOrgId = localStorage.getItem('organizationId');
       if (localOrgId) {
         organizationId = localOrgId;
-        console.log(`Using organization ID from localStorage for updating employees: ${organizationId}`);
+        
       } else {
         console.error('No organization ID found for user or in localStorage');
         return;
@@ -773,15 +769,15 @@ export const updateEmployeesWithMissingOrganizationId = async (): Promise<void> 
     }
     
     if (!employeesWithoutOrg || employeesWithoutOrg.length === 0) {
-      console.log('No employees found without organization ID');
+      
       return;
     }
     
-    console.log(`Found ${employeesWithoutOrg.length} employees without organization ID`);
+    
     
     // تحديث كل موظف ليتبع المؤسسة الحالية
     for (const employee of employeesWithoutOrg) {
-      console.log(`Updating employee ${employee.name} (${employee.id}) with organization ID: ${organizationId}`);
+      
       
       const { error: updateError } = await supabase
         .from('users')
@@ -791,11 +787,11 @@ export const updateEmployeesWithMissingOrganizationId = async (): Promise<void> 
       if (updateError) {
         console.error(`Error updating organization ID for employee ${employee.id}:`, updateError);
       } else {
-        console.log(`Successfully updated organization ID for employee ${employee.name}`);
+        
       }
     }
     
-    console.log('Finished updating employees with missing organization ID');
+    
   } catch (error) {
     console.error('Error in updateEmployeesWithMissingOrganizationId:', error);
   }

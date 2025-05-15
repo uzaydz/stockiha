@@ -11,7 +11,7 @@ export const createOrganizationSafe = async (
   settings: Record<string, any> = {}
 ): Promise<{ success: boolean; error: Error | null; organizationId?: string }> => {
   try {
-    console.log('استخدام الوظيفة المحسنة لإنشاء المنظمة:', { organizationName, subdomain, userId });
+    
     
     // التحقق أولاً من وجود منظمة بنفس النطاق الفرعي
     const { data: existingOrg, error: checkError } = await supabaseAdmin
@@ -21,7 +21,7 @@ export const createOrganizationSafe = async (
       .maybeSingle();
       
     if (!checkError && existingOrg) {
-      console.log(`المنظمة موجودة بالفعل بالنطاق الفرعي "${subdomain}", المعرف: ${existingOrg.id}`);
+      
       
       // تحديث ربط المستخدم بالمنظمة الموجودة
       try {
@@ -64,7 +64,7 @@ export const createOrganizationSafe = async (
           .maybeSingle();
         
         if (!fetchError && existingOrgAgain) {
-          console.log(`Found existing organization after conflict: ${existingOrgAgain.id}`);
+          
           // ربط المستخدم بالمنظمة الموجودة (يفترض أن RPC قد فعل ذلك بالفعل، ولكن كإجراء احترازي)
            try {
              await supabaseAdmin
@@ -98,7 +98,7 @@ export const createOrganizationSafe = async (
       return { success: false, error: new Error('فشل إنشاء المنظمة: استجابة RPC غير متوقعة.') };
     }
 
-    console.log('تم إنشاء المنظمة بنجاح باستخدام الطريقة المحسنة، المعرف:', data);
+    
     return { success: true, error: null, organizationId: data };
   } catch (error) {
     console.error('استثناء في إنشاء المنظمة:', error);

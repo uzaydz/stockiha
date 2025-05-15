@@ -119,12 +119,12 @@ const MOCK_DELIVERY_FEES_CALC: Record<string, DeliveryFee[]> = {
 export async function getProvinces(organizationId?: string): Promise<Province[]> {
   // في وضع التطوير، إرجاع بيانات وهمية
   if (DEV_MODE) {
-    console.log('استخدام بيانات وهمية للولايات في وضع التطوير (getProvinces)');
+    
     return MOCK_PROVINCES;
   }
 
   try {
-    console.log('جاري جلب قائمة الولايات من جدول yalidine_provinces_global');
+    
     const { data, error } = await supabase
       .from('yalidine_provinces_global') // استخدام الجدول العالمي
       .select('id, name, is_deliverable'); // تحديد الحقول المطلوبة، is_deliverable يجب أن يكون boolean في الجدول
@@ -135,7 +135,7 @@ export async function getProvinces(organizationId?: string): Promise<Province[]>
     }
     
     if (data) {
-      console.log(`تم العثور على ${data.length} ولاية من yalidine_provinces_global`);
+      
       // تأكد من أن is_deliverable يتم تحويله بشكل صحيح إذا كان رقمًا في قاعدة البيانات
       return data.map(p => ({ ...p, is_deliverable: Boolean(p.is_deliverable) }));
     }
@@ -158,7 +158,7 @@ export async function getMunicipalities(
 ): Promise<Municipality[]> {
   // في وضع التطوير، إرجاع بيانات وهمية
   if (DEV_MODE) {
-    console.log(`استخدام بيانات وهمية للبلديات للولاية ${provinceId} (getMunicipalities)`);
+    
     // التأكد من أن البيانات الوهمية متوافقة مع النوع Municipality المحدث
     return MOCK_MUNICIPALITIES[provinceId]?.map(m => ({
         ...m,
@@ -167,7 +167,7 @@ export async function getMunicipalities(
   }
 
   try {
-    console.log(`جاري جلب قائمة البلديات للولاية ${provinceId} من yalidine_municipalities_global`);
+    
     const { data, error } = await supabase
       .from('yalidine_municipalities_global') // استخدام الجدول العالمي
       .select('id, name, wilaya_id, is_deliverable, has_stop_desk') // تحديد الحقول المطلوبة
@@ -179,7 +179,7 @@ export async function getMunicipalities(
     }
 
     if (data) {
-      console.log(`تم العثور على ${data.length} بلدية للولاية ${provinceId}`);
+      
       // البيانات يجب أن تكون متوافقة مع النوع Municipality مباشرة
       return data as Municipality[];
     }
@@ -206,7 +206,7 @@ export async function getMunicipalitiesByDeliveryType(
   try {
     // في وضع التطوير، قم بتصفية البيانات الوهمية المحدثة
     if (DEV_MODE) {
-      console.log(`استخدام بيانات وهمية للبلديات للولاية ${provinceId} ونوع التوصيل ${deliveryType} (getMunicipalitiesByDeliveryType)`);
+      
       const mockCommunes = MOCK_MUNICIPALITIES[provinceId] || [];
       return mockCommunes.filter(commune => 
         deliveryType === 'home' ? commune.is_deliverable : commune.has_stop_desk
@@ -227,7 +227,7 @@ export async function getMunicipalitiesByDeliveryType(
       return false; // Should not happen if deliveryType is correctly 'home' or 'desk'
     }).map(municipality => ({ ...municipality, wilaya_name: toWilayaName })); // تمت إضافة toWilayaName
     
-    console.log(`تم تصفية ${filteredMunicipalities.length} بلدية للولاية ${provinceId} ونوع التوصيل ${deliveryType}`);
+    
     return filteredMunicipalities;
   } catch (error) {
     console.error(`فشل جلب البلديات المصفاة للولاية ${provinceId}:`, error);
@@ -248,7 +248,7 @@ export async function getCenters(
   try {
     // استخدام بيانات وهمية مباشرة في وضع التطوير
     if (DEV_MODE) {
-      console.log(`استخدام بيانات وهمية لمراكز الاستلام للولاية ${provinceId} في وضع التطوير`);
+      
       
       // إذا كانت هناك بيانات وهمية متاحة لهذه الولاية، استخدمها
       if (MOCK_CENTERS[provinceId]) {
@@ -289,7 +289,7 @@ export async function getCenters(
     
     // استخدام بيانات وهمية في وضع التطوير
     if (DEV_MODE && isNetworkError(error)) {
-      console.log(`استخدام بيانات وهمية لمراكز الاستلام للولاية ${provinceId} بعد فشل الاتصال`);
+      
       
       // إذا كانت هناك بيانات وهمية متاحة لهذه الولاية، استخدمها
       if (MOCK_CENTERS[provinceId]) {
@@ -345,7 +345,7 @@ export async function getCentersByCommune(
     
     // استخدام بيانات وهمية في وضع التطوير
     if (DEV_MODE && isNetworkError(error)) {
-      console.log(`استخدام بيانات وهمية لمراكز الاستلام للبلدية ${communeId} في وضع التطوير`);
+      
       
       // في وضع التطوير، نقوم بإنشاء مركز وهمي لهذه البلدية
       const provinceId = communeId.slice(0, 2);
@@ -412,19 +412,19 @@ export async function calculateDeliveryPrice(
     
     if (!settingsData || !settingsData.origin_wilaya_id) {
       console.error(`لم يتم العثور على ولاية المصدر في إعدادات المؤسسة ${organizationId}`);
-      console.log('استخدام ولاية المصدر من المعامل:', fromProvinceId);
+      
       originWilayaId = parseInt(fromProvinceId, 10);
     } else {
       originWilayaId = settingsData.origin_wilaya_id;
-      console.log(`تم العثور على ولاية المصدر في الإعدادات: ${originWilayaId}`);
+      
     }
   } catch (error) {
     console.error('فشل في جلب ولاية المصدر من إعدادات المؤسسة:', error);
-    console.log('استخدام ولاية المصدر من المعامل بعد حدوث خطأ:', fromProvinceId);
+    
     originWilayaId = parseInt(fromProvinceId, 10);
   }
   
-  console.log(`حساب سعر التوصيل: من ${originWilayaId} إلى ${toProvinceId} (بلدية ${toCommuneId}), النوع: ${deliveryType}, الوزن: ${weight}kg`);
+  
 
   const toWilayaIdNum = parseInt(toProvinceId, 10);
   const toCommuneIdNum = parseInt(toCommuneId, 10);
@@ -432,18 +432,18 @@ export async function calculateDeliveryPrice(
   let feeData: DeliveryFee | undefined;
 
   if (DEV_MODE) {
-    console.log('استخدام بيانات وهمية لحساب سعر التوصيل (calculateDeliveryPrice)');
+    
     const mockKey = `${originWilayaId}-${toWilayaIdNum}`;
-    console.log(`البحث عن بيانات وهمية للمسار: ${mockKey}`);
+    
     const feesForRoute = MOCK_DELIVERY_FEES_CALC[mockKey];
     if (feesForRoute) {
-      console.log(`تم العثور على ${feesForRoute.length} سجل رسوم للمسار ${mockKey}`);
+      
       feeData = feesForRoute.find(f => f.commune_id === toCommuneIdNum);
       if (feeData) {
-        console.log(`تم العثور على رسوم للبلدية ${toCommuneIdNum}:`, feeData);
+        
       }
     } else {
-      console.log(`لم يتم العثور على بيانات رسوم للمسار ${mockKey}`);
+      
     }
     if (!feeData) {
         console.warn(`لم يتم العثور على بيانات رسوم وهمية لـ from:${originWilayaId}, to:${toWilayaIdNum}, commune:${toCommuneIdNum}`);
@@ -455,7 +455,7 @@ export async function calculateDeliveryPrice(
     }
   } else {
     try {
-      console.log(`جاري الاستعلام عن رسوم الشحن من جدول 'yalidine_fees' للمؤسسة ${organizationId}`);
+      
       const { data, error } = await supabase
         .from('yalidine_fees') // اسم الجدول الذي يحتوي على رسوم الشحن العالمية
         .select('express_home, express_desk, oversize_fee, from_wilaya_id, to_wilaya_id, commune_id') // تم التغيير هنا
@@ -480,7 +480,7 @@ export async function calculateDeliveryPrice(
         return null;
       }
       feeData = data as DeliveryFee;
-      console.log('تم العثور على بيانات الرسوم:', feeData);
+      
 
     } catch (error) {
       console.error('فشل حساب سعر التوصيل:', error);
@@ -523,12 +523,12 @@ export async function calculateDeliveryPrice(
     } else {
         const extraWeight = weight - BASE_WEIGHT_LIMIT_KG;
         oversizeCharge = extraWeight * feeData.oversize_fee;
-        console.log(`تم حساب رسوم وزن زائد: ${oversizeCharge} لوزن إضافي ${extraWeight}kg`);
+        
     }
   }
 
   const totalPrice = basePrice + oversizeCharge;
-  console.log(`السعر الأساسي: ${basePrice}, رسوم الوزن الزائد: ${oversizeCharge}, السعر الإجمالي: ${totalPrice}`);
+  
   return totalPrice;
 }
 
@@ -571,7 +571,7 @@ async function getDeliveryFees(
   }
 
   if (DEV_MODE) {
-    console.log(`استخدام بيانات وهمية لرسوم التوصيل من ${originWilayaId} إلى ${toWilayaId} (getDeliveryFees - DEPRECATED)`);
+    
     const mockFeeKey = `${originWilayaId}-${toWilayaId}`;
     if (MOCK_DELIVERY_FEES_CALC[mockFeeKey] && MOCK_DELIVERY_FEES_CALC[mockFeeKey].length > 0) {
       // نرجع أول رسم مطابق كعينة، مع العلم أن هذه الدالة لم تعد تتطابق مع المنطق الجديد
@@ -607,7 +607,7 @@ export async function getZoneOversizeRate(
 ): Promise<number | null> {
   // افتراض أن DEV_MODE و YalidineApiClient معرفان/مستوردان في هذا الملف
   if (DEV_MODE) {
-    console.log(`[DEV_MODE] getZoneOversizeRate: from ${fromWilayaId} to ${toWilayaId}. Mock rate: 50`);
+    
     return 50; // معدل وهمي بسيط
   }
 

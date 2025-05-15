@@ -61,11 +61,10 @@ const FormComponentEditor: React.FC<FormComponentEditorProps> = ({
 
   // تتبع التغييرات في الإعدادات المتقدمة للتصحيح
   useEffect(() => {
-    console.log('FormComponentEditor - Current Settings:', settings);
-    console.log('FormComponentEditor - Has advancedSettings:', !!settings.advancedSettings);
+    
+    
     if (settings.advancedSettings) {
-      console.log('FormComponentEditor - advancedSettings sample:', 
-        JSON.stringify(settings.advancedSettings).substring(0, 100) + '...');
+      
     }
   }, [settings]);
 
@@ -107,16 +106,16 @@ const FormComponentEditor: React.FC<FormComponentEditorProps> = ({
 
   // معالج تحديث حقول الإعدادات المحلية - معدل للتعامل مع الإعدادات المتقدمة بشكل صحيح
   const handleSettingChange = useCallback((field: string, value: any) => {
-    console.log(`FormComponentEditor - Updating field: ${field}, value:`, value);
+    
     const updatedSettings = { ...localSettings, [field]: value };
-    console.log('FormComponentEditor - New settings:', updatedSettings);
+    
     onUpdate(updatedSettings);
   }, [localSettings, onUpdate]);
 
   // معالج خاص لتحديثات الإعدادات المتقدمة
   const handleAdvancedSettingsChange = useCallback((newSettings: Record<string, any>) => {
-    console.log('FormComponentEditor - Advanced settings update received:', newSettings);
-    console.log('FormComponentEditor - Advanced settings before:', localSettings.advancedSettings);
+    
+    
     
     // عمل نسخة عميقة من الإعدادات المتقدمة لضمان إنشاء كائن جديد
     const updatedSettings = {
@@ -127,7 +126,7 @@ const FormComponentEditor: React.FC<FormComponentEditorProps> = ({
         localSettings.advancedSettings
     };
     
-    console.log('FormComponentEditor - Updated settings (full object):', updatedSettings);
+    
     onUpdate(updatedSettings);
   }, [localSettings, onUpdate]);
   

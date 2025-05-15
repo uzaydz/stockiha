@@ -162,7 +162,7 @@ export async function calculateShippingFee(
   weight: number,
   shippingProviderCloneId?: number
 ): Promise<number> {
-  console.log(`حساب سعر التوصيل مع معرف مزود الشحن: ${shippingProviderCloneId || 'غير محدد'}`);
+  
   return withCache<number>(
     `shipping_fee:${organizationId}:${toWilayaId}:${toMunicipalityId}:${deliveryType}:${weight}:${shippingProviderCloneId || ''}`,
     async () => {
@@ -178,26 +178,26 @@ export async function calculateShippingFee(
 
             // إذا تم العثور على الإعدادات وكان استخدام الأسعار الموحدة مفعلاً
             if (cloneData && !cloneError && cloneData.use_unified_price === true) {
-              console.log("استخدام الأسعار الموحدة من مزود الشحن المستنسخ:", cloneData);
+              
 
               // استخدام سعر موحد حسب نوع التوصيل
               if (deliveryType === 'home' && typeof cloneData.unified_home_price === 'number') {
-                console.log("استخدام السعر الموحد للتوصيل للمنزل:", cloneData.unified_home_price);
+                
                 return cloneData.unified_home_price;
               } else if (deliveryType === 'desk' && typeof cloneData.unified_desk_price === 'number') {
-                console.log("استخدام السعر الموحد للاستلام من المكتب:", cloneData.unified_desk_price);
+                
                 return cloneData.unified_desk_price;
               }
 
               // إذا كان التوصيل للمنزل غير مفعل، استخدم سعر الاستلام من المكتب كاحتياط
               if (deliveryType === 'home' && cloneData.is_home_delivery_enabled === false && typeof cloneData.unified_desk_price === 'number') {
-                console.log("استخدام السعر الموحد للاستلام من المكتب كاحتياط:", cloneData.unified_desk_price);
+                
                 return cloneData.unified_desk_price;
               }
               
               // إذا كان الاستلام من المكتب غير مفعل، استخدم سعر التوصيل للمنزل كاحتياط
               if (deliveryType === 'desk' && cloneData.is_desk_delivery_enabled === false && typeof cloneData.unified_home_price === 'number') {
-                console.log("استخدام السعر الموحد للتوصيل للمنزل كاحتياط:", cloneData.unified_home_price);
+                
                 return cloneData.unified_home_price;
               }
             }

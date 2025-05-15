@@ -90,7 +90,10 @@ export const orderFormSchema = z.object({
   }),
   municipality: z.string().min(2, {
     message: "يرجى إدخال البلدية",
-  }),
+  }).optional(),
+  stopDeskId: z.string({
+    required_error: "يرجى اختيار مكتب الاستلام",
+  }).optional(),
   address: z.string().min(5, {
     message: "العنوان يجب أن يحتوي على 5 أحرف على الأقل",
   }),
@@ -104,6 +107,17 @@ export const orderFormSchema = z.object({
     required_error: "يرجى اختيار طريقة الدفع",
   }),
   notes: z.string().optional(),
+}).refine((data) => {
+  // التحقق من وجود stopDeskId عندما يكون نوع التوصيل هو desk
+  if (data.deliveryOption === 'desk') {
+    // تسهيل هذا التحقق الآن لأننا سنعالجه داخل processFormSubmission
+    // ونضع قيمة افتراضية إذا لزم الأمر عند التعامل مع النموذج المخصص
+    return true;
+  }
+  return true;
+}, {
+  message: "يرجى اختيار مكتب الاستلام",
+  path: ["stopDeskId"],
 });
 
 // تعريف نوع المخصص لحقل نموذج
@@ -141,6 +155,7 @@ export interface OrderFormValues {
   phone?: string;
   province?: string;
   municipality?: string;
+  stopDeskId?: string;
   address?: string;
   deliveryCompany?: string; 
   deliveryOption?: 'home' | 'desk';
@@ -194,6 +209,8 @@ export interface DeliveryInfoFieldsProps {
   isLoadingWilayas?: boolean;
   isLoadingCommunes?: boolean;
   shippingProviderSettings?: ShippingProviderSettings;
+  yalidineCenters?: any[];
+  isLoadingYalidineCenters?: boolean;
 }
 
 export interface CustomFormFieldsProps {

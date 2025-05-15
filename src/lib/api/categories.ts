@@ -66,7 +66,7 @@ export const saveCategoriesToLocalStorage = async (categories: Category[]) => {
       await categoriesStore.setItem(category.id, category);
     }
     
-    console.log('تم حفظ الفئات محليًا:', categories.length);
+    
     return true;
   } catch (error) {
     console.error('خطأ في حفظ الفئات محليًا:', error);
@@ -97,7 +97,7 @@ export const saveSubcategoriesToLocalStorage = async (subcategories: Subcategory
       await subcategoriesStore.setItem(subcategory.id, subcategory);
     }
     
-    console.log('تم حفظ الفئات الفرعية محليًا:', subcategories.length);
+    
     return true;
   } catch (error) {
     console.error('خطأ في حفظ الفئات الفرعية محليًا:', error);
@@ -163,7 +163,7 @@ export const getCategories = async (organizationId?: string): Promise<Category[]
   try {
     // التحقق من حالة الاتصال
     if (!isOnline()) {
-      console.log('جاري استخدام التخزين المحلي للفئات لأن المستخدم غير متصل');
+      
       return await getLocalCategories();
     }
     
@@ -221,7 +221,7 @@ export const getCategories = async (organizationId?: string): Promise<Category[]
     // حساب عدد المنتجات لكل فئة
     if (orgId && categories.length > 0) {
       try {
-        console.log('حساب عدد المنتجات لكل فئة...');
+        
         
         // جلب جميع المنتجات مرة واحدة لتحسين الأداء
         const { data: products, error: productsError } = await supabaseClient
@@ -231,11 +231,11 @@ export const getCategories = async (organizationId?: string): Promise<Category[]
           .eq('is_active', true);
         
         if (!productsError && products && products.length > 0) {
-          console.log(`تم جلب ${products.length} منتج نشط لحساب الفئات`);
+          
           
           // تأكد من أن المنتجات نشطة
           const activeProducts = products.filter(product => product.is_active === true);
-          console.log(`عدد المنتجات النشطة: ${activeProducts.length}`);
+          
           
           // إنشاء Map لتخزين معرفات المنتجات الفريدة لكل فئة
           const categoryProductsMap = new Map<string, Set<string>>();
@@ -274,7 +274,7 @@ export const getCategories = async (organizationId?: string): Promise<Category[]
             const productSet = categoryProductsMap.get(category.id);
             category.product_count = productSet ? productSet.size : 0;
             
-            console.log(`الفئة ${category.name} تحتوي على ${category.product_count} منتج نشط (فريد)`);
+            
           });
         } else {
           console.warn('لم يتم العثور على منتجات أو حدث خطأ أثناء جلب المنتجات', productsError);
@@ -287,7 +287,7 @@ export const getCategories = async (organizationId?: string): Promise<Category[]
     // تخزين البيانات محليًا للاستخدام في وضع عدم الاتصال
     saveCategoriesToLocalStorage(categories);
     
-    console.log(`تم جلب ${categories.length} فئة للمؤسسة: ${orgId}`);
+    
     return categories;
   } catch (error) {
     console.error('حدث خطأ أثناء جلب الفئات:', error);
@@ -330,7 +330,7 @@ export const createCategory = async (categoryData: Partial<Category>): Promise<C
   try {
     // التحقق من حالة الاتصال
     if (!isOnline()) {
-      console.log('إنشاء فئة جديدة في وضع عدم الاتصال');
+      
       
       // إنشاء معرف مؤقت للفئة
       const tempId = `temp_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
@@ -359,7 +359,7 @@ export const createCategory = async (categoryData: Partial<Category>): Promise<C
       // إضافة الفئة إلى قائمة المزامنة للمزامنة لاحقًا
       await addCategoryToSyncQueue(newCategory);
       
-      console.log('تم إنشاء فئة جديدة محليًا:', newCategory);
+      
       return newCategory;
     }
     
@@ -415,7 +415,7 @@ export const addCategoryToSyncQueue = async (category: Category): Promise<void> 
     // حفظ القائمة المحدثة
     await localforage.setItem('unsynced_categories', unsyncedCategories);
     
-    console.log('تمت إضافة الفئة إلى قائمة المزامنة:', category.id);
+    
   } catch (error) {
     console.error('خطأ في إضافة الفئة إلى قائمة المزامنة:', error);
   }
@@ -482,7 +482,7 @@ export const getSubcategories = async (categoryId?: string): Promise<Subcategory
   try {
     // التحقق من حالة الاتصال
     if (!isOnline()) {
-      console.log('جاري استخدام التخزين المحلي للفئات الفرعية لأن المستخدم غير متصل');
+      
       return categoryId 
         ? await getLocalSubcategoriesByCategoryId(categoryId)
         : await getAllLocalSubcategories();
@@ -549,7 +549,7 @@ export const createSubcategory = async (subcategory: { category_id: string; name
   try {
     // التحقق من حالة الاتصال
     if (!isOnline()) {
-      console.log('إنشاء فئة فرعية جديدة في وضع عدم الاتصال');
+      
       
       // إنشاء معرف مؤقت للفئة الفرعية
       const tempId = `temp_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
@@ -585,7 +585,7 @@ export const createSubcategory = async (subcategory: { category_id: string; name
       // إضافة الفئة الفرعية إلى قائمة المزامنة للمزامنة لاحقًا
       await addSubcategoryToSyncQueue(newSubcategory);
       
-      console.log('تم إنشاء فئة فرعية جديدة محليًا:', newSubcategory);
+      
       return newSubcategory;
     }
     
@@ -643,7 +643,7 @@ export const addSubcategoryToSyncQueue = async (subcategory: Subcategory): Promi
     // حفظ القائمة المحدثة
     await localforage.setItem('unsynced_subcategories', unsyncedSubcategories);
     
-    console.log('تمت إضافة الفئة الفرعية إلى قائمة المزامنة:', subcategory.id);
+    
   } catch (error) {
     console.error('خطأ في إضافة الفئة الفرعية إلى قائمة المزامنة:', error);
   }
@@ -725,7 +725,7 @@ export const syncCategoriesDataOnStartup = async (): Promise<boolean> => {
   try {
     // تحقق مما إذا كان المستخدم متصلاً بالإنترنت
     if (!isOnline()) {
-      console.log('المستخدم غير متصل، سيتم استخدام البيانات المحلية فقط');
+      
       return false;
     }
     
@@ -777,7 +777,7 @@ export const syncCategoriesDataOnStartup = async (): Promise<boolean> => {
       await saveSubcategoriesToLocalStorage(subcategoriesByCategory[categoryId], categoryId);
     }
     
-    console.log('تمت مزامنة بيانات الفئات والفئات الفرعية بنجاح');
+    
     return true;
   } catch (error) {
     console.error('خطأ في مزامنة بيانات الفئات والفئات الفرعية:', error);
