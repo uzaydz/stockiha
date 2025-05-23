@@ -342,7 +342,20 @@ class ConversionTracker {
       timezone: timezone
     });
 
-    const response = await fetch('/api/facebook-conversion-api', {
+    // محاولة إرسال إلى Facebook Conversion API مع handling أفضل للأخطاء
+    let apiUrl = '/api/facebook-conversion-api';
+    
+    // إصلاح مؤقت لمشكلة base URL في بعض البيئات
+    if (typeof window !== 'undefined' && window.location.origin) {
+      const origin = window.location.origin;
+      if (!origin.includes('techocenter.com')) {
+        apiUrl = `${origin}/api/facebook-conversion-api`;
+      }
+    }
+
+    console.log('📡 إرسال إلى Facebook Conversion API:', apiUrl);
+
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -356,19 +369,41 @@ class ConversionTracker {
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
+      let errorText;
       let errorData;
+      
       try {
+        errorText = await response.text();
         errorData = JSON.parse(errorText);
-      } catch {
-        errorData = { message: errorText };
+      } catch (parseError) {
+        console.error('❌ فشل في parsing خطأ Facebook API:', parseError);
+        errorData = { message: errorText || 'خطأ غير معروف' };
       }
       
       console.error('❌ فشل Facebook Conversion API:', {
         status: response.status,
         statusText: response.statusText,
-        error: errorData
+        url: apiUrl,
+        error: errorData,
+        request_info: {
+          pixel_id: this.settings?.facebook.pixel_id,
+          test_mode: this.settings?.test_mode,
+          has_access_token: !!this.settings?.facebook.access_token,
+          event_count: payload.data?.length
+        }
       });
+      
+      // في حالة خطأ 400، أظهر تفاصيل أكثر
+      if (response.status === 400) {
+        console.error('🔍 تشخيص خطأ 400 - فحص البيانات المُرسلة:', {
+          payload_sample: {
+            event_name: payload.data?.[0]?.event_name,
+            user_data_keys: Object.keys(payload.data?.[0]?.user_data || {}),
+            custom_data_keys: Object.keys(payload.data?.[0]?.custom_data || {}),
+            has_test_event_code: !!payload.test_event_code
+          }
+        });
+      }
       
       throw new Error(`Facebook Conversion API فشل: ${response.status} - ${errorData.error || errorData.message || 'خطأ غير معروف'}`);
     }
