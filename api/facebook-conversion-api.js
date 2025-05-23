@@ -11,14 +11,54 @@ function hashData(data) {
   return crypto.createHash('sha256').update(data.toLowerCase().trim()).digest('hex');
 }
 
-// دالة للحصول على IP من request
+// دالة للحصول على IP من request مع تحسينات شاملة
 function getClientIpAddress(req) {
-  return req.headers['x-forwarded-for'] ||
-         req.headers['x-real-ip'] ||
-         req.connection?.remoteAddress ||
-         req.socket?.remoteAddress ||
-         req.connection?.socket?.remoteAddress ||
-         '127.0.0.1';
+  // محاولة جلب IP من headers مختلفة (ترتيب حسب الأولوية)
+  const possibleHeaders = [
+    'x-forwarded-for',
+    'x-real-ip', 
+    'x-client-ip',
+    'x-cluster-client-ip',
+    'cf-connecting-ip', // Cloudflare
+    'fastly-client-ip', // Fastly
+    'true-client-ip',
+    'x-azure-clientip' // Azure
+  ];
+  
+  for (const header of possibleHeaders) {
+    const value = req.headers[header];
+    if (value) {
+      // x-forwarded-for قد يحتوي على عدة IPs مفصولة بفواصل
+      const ips = value.split(',').map(ip => ip.trim());
+      const firstValidIp = ips.find(ip => {
+        // تجاهل IPs المحلية والخاصة
+        return ip && 
+               ip !== '127.0.0.1' && 
+               ip !== '::1' && 
+               !ip.startsWith('10.') && 
+               !ip.startsWith('192.168.') && 
+               !(ip.startsWith('172.') && parseInt(ip.split('.')[1]) >= 16 && parseInt(ip.split('.')[1]) <= 31);
+      });
+      
+      if (firstValidIp) {
+        console.log(`🌐 تم جلب IP من ${header}: ${firstValidIp}`);
+        return firstValidIp;
+      }
+    }
+  }
+  
+  // محاولة أخيرة من connection
+  const connectionIp = req.connection?.remoteAddress || 
+                      req.socket?.remoteAddress || 
+                      req.connection?.socket?.remoteAddress;
+                      
+  if (connectionIp && connectionIp !== '127.0.0.1' && connectionIp !== '::1') {
+    console.log(`🌐 تم جلب IP من connection: ${connectionIp}`);
+    return connectionIp;
+  }
+  
+  console.log('⚠️ لم يتم العثور على IP صالح، استخدام fallback');
+  return null; // لا نرسل IP غير صحيح
 }
 
 export default async function handler(req, res) {
@@ -66,9 +106,42 @@ export default async function handler(req, res) {
           improvedUserData.ph = [hashData(event.user_data.ph)];
         }
 
+        // معالجة user_data مع تحسينات شاملة
+        const userData = {
+          // البيانات المُجمعة من العميل (مع hashing في server)
+          em: improvedUserData.em?.[0] ? hashData(improvedUserData.em[0]) : undefined,
+          ph: improvedUserData.ph?.[0] ? hashData(improvedUserData.ph[0]) : undefined,
+          
+          // معرف خارجي - استخدام order_id أو إنشاء معرف فريد
+          external_id: event.custom_data?.order_id || event.custom_data?.customer_id || `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          
+          // معلومات الشبكة والمتصفح (أهم نقطة للتحسين)
+          client_ip_address: getClientIpAddress(req), // IP الحقيقي من server
+          client_user_agent: event.user_data?.client_user_agent,
+          
+          // معرفات Facebook
+          fbc: event.user_data?.fbc, // Facebook Click ID
+          fbp: event.user_data?.fbp, // Facebook Browser ID
+          
+          // معلومات جغرافية ولغوية محسنة
+          country: 'dz', // كود الدولة (الجزائر)
+          language: event.user_data?.language || 'ar',
+          timezone: event.user_data?.timezone || 'Africa/Algiers',
+          
+          // معلومات إضافية للمطابقة المتقدمة
+          currency: event.custom_data?.currency || 'DZD',
+          
+          // معلومات الجهاز (إذا كانت متوفرة)
+          ...(event.user_data?.device_info && {
+            device_id: event.user_data.device_info.device_id,
+            device_model: event.user_data.device_info.model,
+            device_os: event.user_data.device_info.os
+          })
+        };
+
         return {
           ...event,
-          user_data: improvedUserData,
+          user_data: userData,
           // التأكد من وجود action_source
           action_source: event.action_source || 'website',
           // التأكد من وجود event_source_url

@@ -174,12 +174,21 @@ export const submitOrderForm = async (props: OrderFormSubmitterProps): Promise<b
   // بدء عملية التقديم
   onSubmitStart();
   
-  // تتبع بدء عملية الدفع
+  // تتبع بدء عملية الدفع مع بيانات محسنة للـ Event Match Quality
   try {
     if (productId && typeof window !== 'undefined') {
       const totalPrice = (price * quantity) + deliveryFee;
       
-      // إرسال حدث initiate_checkout
+      // جمع بيانات المستخدم المتاحة من النموذج
+      const userData = {
+        phone: values.phone || undefined,
+        external_id: undefined, // سيتم إنشاؤه في ConversionTracker
+        client_user_agent: navigator.userAgent,
+        language: navigator.language || 'ar',
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      };
+      
+      // إرسال حدث initiate_checkout مع بيانات محسنة
       await fetch('/api/conversion-events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -187,6 +196,7 @@ export const submitOrderForm = async (props: OrderFormSubmitterProps): Promise<b
           product_id: productId,
           event_type: 'initiate_checkout',
           platform: 'multiple',
+          user_data: userData,
           custom_data: {
             quantity,
             unit_price: price,
@@ -194,7 +204,12 @@ export const submitOrderForm = async (props: OrderFormSubmitterProps): Promise<b
             total_price: totalPrice,
             currency: 'DZD',
             page_type: 'order_form',
-            checkout_initiated_at: new Date().toISOString()
+            checkout_initiated_at: new Date().toISOString(),
+            // معلومات إضافية من النموذج
+            customer_province: values.province,
+            customer_municipality: values.municipality,
+            delivery_option: values.deliveryOption,
+            payment_method: values.paymentMethod
           }
         })
       });
@@ -206,7 +221,8 @@ export const submitOrderForm = async (props: OrderFormSubmitterProps): Promise<b
           currency: 'DZD',
           content_type: 'product',
           content_ids: [productId],
-          num_items: quantity
+          num_items: quantity,
+          userPhone: values.phone // تمرير رقم الهاتف للتتبع
         });
       }
     }
@@ -282,6 +298,84 @@ export const submitOrderForm = async (props: OrderFormSubmitterProps): Promise<b
       description: `رقم الطلب: ${orderResult.order_number}`,
       variant: "default",
     });
+    
+    // تتبع نجاح الشراء مع بيانات شاملة للـ Event Match Quality
+    if (orderResult.success && orderResult.data?.customer_order_number) {
+      try {
+        const totalPrice = (price * quantity) + deliveryFee;
+        
+        // جمع بيانات المستخدم الشاملة
+        const purchaseUserData = {
+          phone: values.phone || undefined,
+          external_id: orderResult.data.customer_order_number.toString(), // استخدام رقم الطلب كمعرف خارجي
+          client_user_agent: navigator.userAgent,
+          language: navigator.language || 'ar',
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          // معلومات إضافية من العميل
+          customer_name: values.fullName,
+          customer_location: `${values.province}, ${values.municipality}`
+        };
+        
+        // تتبع حدث الشراء الناجح
+        await fetch('/api/conversion-events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            product_id: productId,
+            order_id: orderResult.data.customer_order_number.toString(),
+            event_type: 'purchase',
+            platform: 'multiple',
+            user_data: purchaseUserData,
+            custom_data: {
+              quantity,
+              unit_price: price,
+              delivery_fee: deliveryFee,
+              total_price: totalPrice,
+              currency: 'DZD',
+              page_type: 'order_success',
+              purchase_completed_at: new Date().toISOString(),
+              
+              // معلومات تفصيلية عن الطلب
+              order_number: orderResult.data.customer_order_number,
+              customer_id: orderResult.data.customer_id,
+              customer_province: values.province,
+              customer_municipality: values.municipality,
+              delivery_option: values.deliveryOption,
+              payment_method: values.paymentMethod,
+              
+              // معلومات المنتج
+              product_color_id: props.productColorId,
+              product_size_id: props.productSizeId,
+              size_name: props.sizeName
+            }
+          })
+        });
+
+        // تتبع البكسل أيضاً
+        if ((window as any).trackConversion) {
+          await (window as any).trackConversion('purchase', {
+            value: totalPrice,
+            currency: 'DZD',
+            content_type: 'product',
+            content_ids: [productId],
+            num_items: quantity,
+            order_id: orderResult.data.customer_order_number.toString(),
+            userPhone: values.phone,
+            customerName: values.fullName
+          });
+        }
+
+        console.log('✅ تم تتبع حدث الشراء بنجاح:', {
+          order_number: orderResult.data.customer_order_number,
+          total_price: totalPrice,
+          customer_phone: values.phone ? 'موجود' : 'مفقود'
+        });
+
+      } catch (trackingError) {
+        console.warn('تحذير: فشل في تتبع حدث الشراء:', trackingError);
+        // لا نوقف العملية
+      }
+    }
     
     return true;
   } catch (error) {

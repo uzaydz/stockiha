@@ -236,17 +236,28 @@ class ConversionTracker {
   }
 
   /**
-   * إرسال إلى Facebook Conversion API
+   * إرسال إلى Facebook Conversion API مع تحسينات شاملة للـ Event Match Quality
    */
   private async sendToFacebookConversionAPI(event: ConversionEvent, eventId: string): Promise<void> {
-    // جمع معلومات أفضل للمطابقة المتقدمة
+    // جمع معلومات شاملة للمطابقة المتقدمة
     const userAgent = navigator.userAgent;
     const language = navigator.language || 'ar';
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     
-    // محاولة جلب Facebook Browser ID من الكوكيز
+    // جلب معرفات Facebook المحسنة
     const fbp = this.getFacebookBrowserId();
     const fbc = this.getFacebookClickId();
+    
+    // جمع معلومات إضافية للمطابقة
+    const screenResolution = `${screen.width}x${screen.height}`;
+    const colorDepth = screen.colorDepth;
+    const pixelRatio = window.devicePixelRatio || 1;
+    
+    // معرف خارجي فريد (order_id أو customer_id أو إنشاء واحد)
+    const externalId = event.order_id || 
+                      event.user_data?.external_id || 
+                      event.custom_data?.customer_id ||
+                      `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     const payload = {
       data: [{
@@ -256,16 +267,34 @@ class ConversionTracker {
         action_source: 'website',
         event_source_url: window.location.href,
         user_data: {
-          em: event.user_data?.email || undefined, // سيتم hash في API
-          ph: event.user_data?.phone || undefined, // سيتم hash في API
-          external_id: event.user_data?.external_id,
+          // المعرف الخارجي (أولوية عالية للمطابقة)
+          external_id: externalId,
+          
+          // معلومات الاتصال (إذا كانت متوفرة)
+          ph: event.user_data?.phone || undefined, // سيتم hash في server
+          
+          // معلومات المتصفح والجهاز (بيانات هامة للمطابقة)
           client_user_agent: userAgent,
+          client_ip_address: undefined, // سيتم جلبها من server
+          
+          // معرفات Facebook (أهم البيانات للمطابقة)
           fbc: fbc,
           fbp: fbp,
-          // إضافة معلومات إضافية للمطابقة المتقدمة
+          
+          // معلومات جغرافية ولغوية
           country: 'dz', // الجزائر
           language: language,
-          timezone: timezone
+          timezone: timezone,
+          
+          // معلومات إضافية للمطابقة المتقدمة
+          device_info: {
+            screen_resolution: screenResolution,
+            color_depth: colorDepth,
+            pixel_ratio: pixelRatio,
+            viewport: `${window.innerWidth}x${window.innerHeight}`,
+            platform: navigator.platform,
+            cookie_enabled: navigator.cookieEnabled
+          }
         },
         custom_data: {
           content_ids: [event.product_id],
@@ -273,33 +302,44 @@ class ConversionTracker {
           currency: event.currency || 'DZD',
           value: event.value,
           order_id: event.order_id,
-          // إضافة معلومات إضافية
+          customer_id: event.custom_data?.customer_id,
+          
+          // معلومات إضافية للتتبع
           content_name: `منتج ${event.product_id}`,
           content_category: 'ecommerce',
           num_items: 1,
+          
           // معلومات الصفحة
           page_title: document.title,
-          referrer_url: document.referrer || undefined
+          page_url: window.location.href,
+          referrer_url: document.referrer || undefined,
+          
+          // معلومات السلة/الطلب
+          ...(event.custom_data && event.custom_data)
         },
+        
         // معلومات إضافية للتتبع
         opt_out: false,
         referrer_url: document.referrer || undefined
       }],
-      // استخدام test_event_code من قاعدة البيانات فقط في وضع الاختبار
+      
+      // test_event_code فقط في وضع الاختبار
       test_event_code: this.settings?.test_mode ? this.settings?.facebook?.test_event_code : undefined
     };
 
-    console.log('🔵 إرسال payload محسن إلى Facebook Conversion API:', {
+    console.log('🔵 إرسال payload محسن لـ Event Match Quality:', {
       pixel_id: this.settings?.facebook.pixel_id,
       event_name: payload.data[0].event_name,
       event_id: eventId,
-      has_email: !!event.user_data?.email,
+      external_id: externalId,
       has_phone: !!event.user_data?.phone,
       has_fbp: !!fbp,
       has_fbc: !!fbc,
       test_event_code: payload.test_event_code,
       value: payload.data[0].custom_data.value,
-      currency: payload.data[0].custom_data.currency
+      currency: payload.data[0].custom_data.currency,
+      user_agent_length: userAgent.length,
+      timezone: timezone
     });
 
     const response = await fetch('/api/facebook-conversion-api', {
@@ -343,41 +383,150 @@ class ConversionTracker {
 
     // طباعة تفاصيل إضافية في وضع الاختبار
     if (this.settings?.test_mode) {
-      console.log('🧪 وضع الاختبار - تفاصيل كاملة:', responseData);
+      console.log('🧪 وضع الاختبار - تفاصيل Event Match Quality:', {
+        event_id: eventId,
+        external_id: externalId,
+        fbp_status: fbp ? 'موجود' : 'مفقود',
+        fbc_status: fbc ? 'موجود' : 'مفقود',
+        user_agent_valid: userAgent.length > 10,
+        timezone: timezone,
+        response: responseData
+      });
     }
   }
 
   /**
-   * جلب Facebook Browser ID من الكوكيز
+   * جلب Facebook Browser ID من الكوكيز مع تحسينات شاملة
    */
   private getFacebookBrowserId(): string | undefined {
     try {
       const cookies = document.cookie.split(';');
       for (const cookie of cookies) {
         const [name, value] = cookie.trim().split('=');
-        if (name === '_fbp') {
+        if (name === '_fbp' && value) {
+          console.log('✅ تم جلب Facebook Browser ID من cookie:', value);
           return value;
         }
       }
-      return undefined;
-    } catch {
-      return undefined;
+      
+      // إذا لم يتم العثور على _fbp، قم بإنشاء واحد افتراضي
+      // هذا يحدث عندما لا يكون Facebook Pixel محمل بعد أو لم ينشئ cookie
+      const generatedFbp = `fb.1.${Date.now()}.${Math.random().toString(36).substr(2, 9)}`;
+      
+      try {
+        // محاولة إنشاء cookie _fbp للاستخدام المستقبلي
+        const expirationDate = new Date();
+        expirationDate.setTime(expirationDate.getTime() + (90 * 24 * 60 * 60 * 1000)); // 90 يوم
+        document.cookie = `_fbp=${generatedFbp}; expires=${expirationDate.toUTCString()}; path=/; domain=${window.location.hostname}`;
+        
+        console.log('✅ تم إنشاء Facebook Browser ID جديد:', generatedFbp);
+        return generatedFbp;
+      } catch (cookieError) {
+        console.warn('⚠️ فشل في إنشاء cookie _fbp، استخدام قيمة مؤقتة:', generatedFbp);
+        return generatedFbp;
+      }
+      
+    } catch (error) {
+      console.error('❌ خطأ في جلب Facebook Browser ID:', error);
+      
+      // إنشاء قيمة احتياطية
+      const fallbackFbp = `fb.1.${Date.now()}.fallback`;
+      console.log('🆘 استخدام Facebook Browser ID احتياطي:', fallbackFbp);
+      return fallbackFbp;
     }
   }
 
   /**
-   * جلب Facebook Click ID من URL
+   * جلب Facebook Click ID من URL أو localStorage مع تحسينات شاملة
    */
   private getFacebookClickId(): string | undefined {
     try {
+      // أولاً: محاولة جلب من URL الحالي
       const urlParams = new URLSearchParams(window.location.search);
-      const fbclid = urlParams.get('fbclid');
+      let fbclid = urlParams.get('fbclid');
+      
       if (fbclid) {
-        // تكوين fbc وفقاً لتنسيق Facebook
-        return `fb.1.${Date.now()}.${fbclid}`;
+        // تكوين fbc وفقاً لتنسيق Facebook الصحيح
+        const fbc = `fb.1.${Date.now()}.${fbclid}`;
+        
+        // حفظ في localStorage للاستخدام المستقبلي
+        try {
+          localStorage.setItem('facebook_click_id', fbc);
+          localStorage.setItem('facebook_click_timestamp', Date.now().toString());
+        } catch {
+          // تجاهل أخطاء localStorage
+        }
+        
+        console.log('✅ تم جلب Facebook Click ID من URL:', fbc);
+        return fbc;
       }
+      
+      // ثانياً: محاولة جلب من localStorage (إذا كان محفوظ من زيارة سابقة)
+      try {
+        const storedFbc = localStorage.getItem('facebook_click_id');
+        const storedTimestamp = localStorage.getItem('facebook_click_timestamp');
+        
+        if (storedFbc && storedTimestamp) {
+          const age = Date.now() - parseInt(storedTimestamp);
+          const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 أيام
+          
+          if (age < maxAge) {
+            console.log('✅ تم جلب Facebook Click ID من localStorage:', storedFbc);
+            return storedFbc;
+          } else {
+            // انتهت صلاحية fbc، احذفه
+            localStorage.removeItem('facebook_click_id');
+            localStorage.removeItem('facebook_click_timestamp');
+          }
+        }
+      } catch {
+        // تجاهل أخطاء localStorage
+      }
+      
+      // ثالثاً: محاولة جلب من document.referrer
+      if (document.referrer) {
+        try {
+          const referrerUrl = new URL(document.referrer);
+          const referrerFbclid = referrerUrl.searchParams.get('fbclid');
+          
+          if (referrerFbclid) {
+            const fbc = `fb.1.${Date.now()}.${referrerFbclid}`;
+            console.log('✅ تم جلب Facebook Click ID من referrer:', fbc);
+            
+            // حفظ في localStorage
+            try {
+              localStorage.setItem('facebook_click_id', fbc);
+              localStorage.setItem('facebook_click_timestamp', Date.now().toString());
+            } catch {
+              // تجاهل أخطاء localStorage
+            }
+            
+            return fbc;
+          }
+        } catch {
+          // تجاهل أخطاء parsing URL
+        }
+      }
+      
+      // رابعاً: محاولة جلب من cookie _fbc إذا كان موجود
+      try {
+        const cookies = document.cookie.split(';');
+        for (const cookie of cookies) {
+          const [name, value] = cookie.trim().split('=');
+          if (name === '_fbc' && value) {
+            console.log('✅ تم جلب Facebook Click ID من cookie:', value);
+            return value;
+          }
+        }
+      } catch {
+        // تجاهل أخطاء parsing cookies
+      }
+      
+      console.log('⚠️ لم يتم العثور على Facebook Click ID');
       return undefined;
-    } catch {
+      
+    } catch (error) {
+      console.error('❌ خطأ في جلب Facebook Click ID:', error);
       return undefined;
     }
   }
