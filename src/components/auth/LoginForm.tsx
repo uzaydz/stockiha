@@ -178,14 +178,38 @@ const LoginForm = () => {
                   window.location.replace(`${window.location.protocol}//${orgData.subdomain}.localhost:${window.location.port}/dashboard`);
                 }, 500);
               } else {
-                // للعناوين الأخرى، نوجه المستخدم مباشرة إلى لوحة التحكم في نفس العنوان
+                // للعناوين الأخرى، التحقق من النطاقات المدعومة للنطاقات الفرعية
+                const supportedDomainsForSubdomains = ['ktobi.online', 'stockiha.com', 'bazaar.com', 'bazaar.dev'];
+                let shouldRedirectToSubdomain = false;
+                let baseDomain = '';
                 
+                // تحديد النطاق الأساسي
+                for (const domain of supportedDomainsForSubdomains) {
+                  if (hostname === domain || hostname === `www.${domain}`) {
+                    shouldRedirectToSubdomain = true;
+                    baseDomain = domain;
+                    break;
+                  }
+                }
                 
-                // التوجيه مباشرة إلى لوحة التحكم في نفس العنوان
-                setTimeout(() => {
-                  setIsLoading(false);
-                  navigate('/dashboard');
-                }, 500);
+                if (shouldRedirectToSubdomain && orgData.subdomain && baseDomain) {
+                  
+                  
+                  // التوجيه إلى النطاق الفرعي
+                  setTimeout(() => {
+                    setIsLoading(false);
+                    window.location.replace(`${window.location.protocol}//${orgData.subdomain}.${baseDomain}/dashboard`);
+                  }, 500);
+                } else {
+                  // للعناوين الأخرى، نوجه المستخدم مباشرة إلى لوحة التحكم في نفس العنوان
+                  
+                  
+                  // التوجيه مباشرة إلى لوحة التحكم في نفس العنوان
+                  setTimeout(() => {
+                    setIsLoading(false);
+                    navigate('/dashboard');
+                  }, 500);
+                }
               }
               return;
             }
