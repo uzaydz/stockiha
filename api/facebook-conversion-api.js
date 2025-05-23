@@ -86,69 +86,96 @@ export default async function handler(req, res) {
       });
     }
 
-    // تحسين payload قبل الإرسال
+    // تحسين payload قبل الإرسال مع إصلاح مشاكل البيانات
     const improvedPayload = {
       ...payload,
       data: payload.data.map(event => {
-        // تحسين user_data
-        const improvedUserData = {
-          ...event.user_data,
-          // إضافة client IP و user agent من الطلب
-          client_ip_address: event.user_data?.client_ip_address || getClientIpAddress(req),
-          client_user_agent: event.user_data?.client_user_agent || req.headers['user-agent'],
-        };
-
-        // تطبيق hashing على البيانات الحساسة
-        if (event.user_data?.em) {
-          improvedUserData.em = [hashData(event.user_data.em)];
+        // الحصول على IP الحقيقي
+        const clientIp = getClientIpAddress(req);
+        
+        // معالجة user_data بعناية
+        const cleanUserData = {};
+        
+        // إضافة البيانات الأساسية فقط إذا كانت صحيحة
+        if (event.user_data?.ph && typeof event.user_data.ph === 'string') {
+          cleanUserData.ph = [hashData(event.user_data.ph)];
         }
-        if (event.user_data?.ph) {
-          improvedUserData.ph = [hashData(event.user_data.ph)];
+        
+        if (event.user_data?.em && typeof event.user_data.em === 'string') {
+          cleanUserData.em = [hashData(event.user_data.em)];
         }
-
-        // معالجة user_data مع تحسينات شاملة
-        const userData = {
-          // البيانات المُجمعة من العميل (مع hashing في server)
-          em: improvedUserData.em?.[0] ? hashData(improvedUserData.em[0]) : undefined,
-          ph: improvedUserData.ph?.[0] ? hashData(improvedUserData.ph[0]) : undefined,
-          
-          // معرف خارجي - استخدام order_id أو إنشاء معرف فريد
-          external_id: event.custom_data?.order_id || event.custom_data?.customer_id || `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          
-          // معلومات الشبكة والمتصفح (أهم نقطة للتحسين)
-          client_ip_address: getClientIpAddress(req), // IP الحقيقي من server
-          client_user_agent: event.user_data?.client_user_agent,
-          
-          // معرفات Facebook
-          fbc: event.user_data?.fbc, // Facebook Click ID
-          fbp: event.user_data?.fbp, // Facebook Browser ID
-          
-          // معلومات جغرافية ولغوية محسنة
-          country: 'dz', // كود الدولة (الجزائر)
-          language: event.user_data?.language || 'ar',
-          timezone: event.user_data?.timezone || 'Africa/Algiers',
-          
-          // معلومات إضافية للمطابقة المتقدمة
-          currency: event.custom_data?.currency || 'DZD',
-          
-          // معلومات الجهاز (إذا كانت متوفرة)
-          ...(event.user_data?.device_info && {
-            device_id: event.user_data.device_info.device_id,
-            device_model: event.user_data.device_info.model,
-            device_os: event.user_data.device_info.os
-          })
-        };
-
+        
+        // معرف خارجي
+        if (event.user_data?.external_id) {
+          cleanUserData.external_id = event.user_data.external_id;
+        } else if (event.custom_data?.order_id) {
+          cleanUserData.external_id = event.custom_data.order_id.toString();
+        }
+        
+        // معلومات الشبكة
+        if (clientIp) {
+          cleanUserData.client_ip_address = clientIp;
+        }
+        
+        if (event.user_data?.client_user_agent) {
+          cleanUserData.client_user_agent = event.user_data.client_user_agent;
+        }
+        
+        // معرفات Facebook (إذا كانت متوفرة)
+        if (event.user_data?.fbp) {
+          cleanUserData.fbp = event.user_data.fbp;
+        }
+        
+        if (event.user_data?.fbc) {
+          cleanUserData.fbc = event.user_data.fbc;
+        }
+        
+        // معلومات جغرافية أساسية
+        cleanUserData.country = ['dz'];
+        
+        if (event.user_data?.language) {
+          cleanUserData.language = [event.user_data.language];
+        }
+        
+        // معلومات custom_data نظيفة
+        const cleanCustomData = {};
+        
+        if (event.custom_data?.content_ids && Array.isArray(event.custom_data.content_ids)) {
+          cleanCustomData.content_ids = event.custom_data.content_ids;
+        }
+        
+        if (event.custom_data?.content_type) {
+          cleanCustomData.content_type = event.custom_data.content_type;
+        }
+        
+        if (event.custom_data?.currency) {
+          cleanCustomData.currency = event.custom_data.currency;
+        }
+        
+        if (event.custom_data?.value && typeof event.custom_data.value === 'number') {
+          cleanCustomData.value = event.custom_data.value;
+        }
+        
+        if (event.custom_data?.order_id) {
+          cleanCustomData.order_id = event.custom_data.order_id.toString();
+        }
+        
         return {
-          ...event,
-          user_data: userData,
-          // التأكد من وجود action_source
-          action_source: event.action_source || 'website',
-          // التأكد من وجود event_source_url
-          event_source_url: event.event_source_url || 'https://app.bazaarli.com'
+          event_name: event.event_name,
+          event_time: event.event_time || Math.floor(Date.now() / 1000),
+          event_id: event.event_id,
+          action_source: 'website',
+          event_source_url: event.event_source_url || 'https://app.bazaarli.com',
+          user_data: cleanUserData,
+          custom_data: cleanCustomData
         };
       })
     };
+
+    // إضافة test_event_code فقط إذا كان متوفر
+    if (payload.test_event_code) {
+      improvedPayload.test_event_code = payload.test_event_code;
+    }
 
     console.log('🔵 إرسال حدث محسن إلى Facebook Conversion API:', {
       pixel_id,
@@ -156,8 +183,15 @@ export default async function handler(req, res) {
       event_count: improvedPayload.data?.length || 0,
       test_event_code: improvedPayload.test_event_code,
       has_user_data: !!improvedPayload.data?.[0]?.user_data,
+      user_data_keys: Object.keys(improvedPayload.data?.[0]?.user_data || {}),
+      custom_data_keys: Object.keys(improvedPayload.data?.[0]?.custom_data || {}),
       client_ip: getClientIpAddress(req)
     });
+
+    // طباعة payload للتشخيص (في وضع الاختبار فقط)
+    if (improvedPayload.test_event_code) {
+      console.log('🧪 Payload للتشخيص:', JSON.stringify(improvedPayload, null, 2));
+    }
 
     // إرسال إلى Facebook Conversion API باستخدام v22.0
     const facebookResponse = await fetch(
@@ -191,15 +225,52 @@ export default async function handler(req, res) {
     } else {
       console.error('❌ خطأ من Facebook Conversion API:', {
         status: facebookResponse.status,
+        statusText: facebookResponse.statusText,
+        url: `https://graph.facebook.com/v22.0/${pixel_id}/events`,
         error: facebookData,
-        request_payload: JSON.stringify(improvedPayload, null, 2)
+        request_payload_size: JSON.stringify(improvedPayload).length,
+        has_test_event_code: !!improvedPayload.test_event_code
       });
       
-      return res.status(400).json({
+      // معالجة أنواع الأخطاء المختلفة
+      let errorMessage = 'خطأ غير معروف من Facebook';
+      let errorDetails = '';
+      
+      if (facebookData.error) {
+        errorMessage = facebookData.error.message || 'خطأ من Facebook';
+        errorDetails = facebookData.error.error_user_title || facebookData.error.error_user_msg || '';
+        
+        // أخطاء شائعة
+        if (facebookData.error.code === 100) {
+          errorMessage = 'خطأ في معاملات الطلب - تحقق من صحة البيانات';
+        } else if (facebookData.error.code === 190) {
+          errorMessage = 'خطأ في access token - تحقق من صحة التوكن';
+        } else if (facebookData.error.code === 803) {
+          errorMessage = 'خطأ في بيانات user_data - تحقق من تنسيق البيانات';
+        }
+      }
+      
+      console.error('💡 تفاصيل الخطأ:', {
+        error_code: facebookData.error?.code,
+        error_message: errorMessage,
+        error_details: errorDetails,
+        error_trace: facebookData.error?.fbtrace_id
+      });
+      
+      return res.status(facebookResponse.status).json({
         error: 'فشل في إرسال الحدث إلى Facebook',
-        facebook_error: facebookData,
+        facebook_error: {
+          code: facebookData.error?.code,
+          message: errorMessage,
+          details: errorDetails,
+          fbtrace_id: facebookData.error?.fbtrace_id
+        },
         status: facebookResponse.status,
-        details: facebookData.error || 'خطأ غير معروف'
+        debug_info: {
+          payload_size: JSON.stringify(improvedPayload).length,
+          event_count: improvedPayload.data?.length || 0,
+          has_test_code: !!improvedPayload.test_event_code
+        }
       });
     }
 
