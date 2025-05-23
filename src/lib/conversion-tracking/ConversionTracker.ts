@@ -71,32 +71,38 @@ class ConversionTracker {
         return;
       }
 
-      // محاولة جلب الإعدادات من API route المحلي أولاً
-      let response = await fetch(`/api/conversion-settings/${this.productId}`, {
-        headers: { 'Cache-Control': 'max-age=300' } // 5 دقائق
-      });
+      console.log('🔍 [ConversionTracker] جلب إعدادات التتبع للمنتج:', this.productId);
+
+      // محاولة جلب الإعدادات من Edge Function أولاً (نفس طريقة ProductTrackingWrapper)
+      const SUPABASE_URL = 'https://wrnssatuvmumsczyldth.supabase.co';
+      const CONVERSION_SETTINGS_URL = `${SUPABASE_URL}/functions/v1/conversion-settings`;
       
+      let response = await fetch(`${CONVERSION_SETTINGS_URL}?productId=${this.productId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || ''}`,
+        }
+      });
+
       if (!response.ok) {
-        console.warn('فشل في API route المحلي، محاولة Edge Function...');
-        // fallback إلى Edge Function
-        const edgeFunctionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/conversion-settings`;
-        response = await fetch(`${edgeFunctionUrl}?productId=${this.productId}`, {
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json'
-          }
+        console.warn('فشل في Edge Function، محاولة API route المحلي...');
+        // fallback إلى API route المحلي
+        response = await fetch(`/api/conversion-settings/${this.productId}`, {
+          headers: { 'Cache-Control': 'max-age=300' } // 5 دقائق
         });
       }
       
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ [ConversionTracker] تم جلب إعدادات التحويل:', data);
         this.settings = data.settings;
         this.cacheSettings(data.settings);
       } else {
-        console.error('فشل في جلب إعدادات التتبع من جميع المصادر');
+        console.error('❌ [ConversionTracker] فشل في جلب إعدادات التتبع من جميع المصادر');
       }
     } catch (error) {
-      console.warn('فشل في تحميل إعدادات التتبع:', error);
+      console.warn('❌ [ConversionTracker] فشل في تحميل إعدادات التتبع:', error);
     }
   }
 
