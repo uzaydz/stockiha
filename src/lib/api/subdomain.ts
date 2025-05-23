@@ -1,6 +1,11 @@
 import { supabase } from '@/lib/supabase';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { getSupabaseClient } from '@/lib/supabase';
+import { withCache, DEFAULT_CACHE_TTL } from '@/lib/cache/storeCache';
+
+// Define Organization type here or import it if defined elsewhere
+// For now, let's assume a simple type for the return
+type Organization = any; // Replace with actual Organization type
 
 /**
  * التحقق من توفر النطاق الفرعي
@@ -31,7 +36,7 @@ export const checkSubdomainAvailability = async (subdomain: string): Promise<{
 /**
  * الحصول على معلومات المؤسسة من النطاق الفرعي
  */
-export const getOrganizationBySubdomain = async (subdomain: string) => {
+export const getOrganizationBySubdomain = async (subdomain: string): Promise<Organization | null> => {
   // لا نعتبر www كنطاق فرعي صحيح في معظم تطبيقات متعددة المستأجرين
   if (subdomain === 'www') {
     // التحقق من وجود معرف المؤسسة في التخزين المحلي
@@ -39,194 +44,151 @@ export const getOrganizationBySubdomain = async (subdomain: string) => {
     
     // إذا كان هناك معرف مؤسسة محفوظ محلياً، نستخدمه بدلاً من النطاق الفرعي
     if (orgId) {
-      
+      // Note: getOrganizationById should also be wrapped withCache or use it
       return getOrganizationById(orgId);
     }
-    
-    
     return null;
   }
-  
-  try {
-    
-    const supabaseClient = await getSupabaseClient();
-    
-    // البحث عن المنظمة بواسطة النطاق الفرعي
-    const { data, error } = await supabaseClient
-      .from('organizations')
-      .select('*')
-      .eq('subdomain', subdomain)
-      .single();
-    
-    if (error) {
-      console.error(`خطأ أثناء البحث عن المؤسسة بالنطاق الفرعي ${subdomain}:`, error);
-      return null;
-    }
-    
-    if (!data) {
-      
-      return null;
-    }
-    
-    
-    return data;
-  } catch (error) {
-    console.error(`خطأ أثناء جلب المؤسسة بالنطاق الفرعي ${subdomain}:`, error);
-    return null;
-  }
+
+  const cacheKey = `organization_subdomain:${subdomain}`;
+
+  return withCache<Organization | null>(
+    cacheKey,
+    async () => {
+      try {
+        const supabaseClient = await getSupabaseClient();
+        // البحث عن المنظمة بواسطة النطاق الفرعي
+        const { data, error } = await supabaseClient
+          .from('organizations')
+          .select('*') // Consider selecting specific fields if not all are needed
+          .eq('subdomain', subdomain)
+          .single();
+        
+        if (error) {
+          // Don't log verbose errors for not found, as single() will error
+          if (error.code !== 'PGRST116') { // PGRST116: "The result contains 0 rows"
+             console.error(`خطأ أثناء البحث عن المؤسسة بالنطاق الفرعي ${subdomain}:`, error);
+          }
+          return null;
+        }
+        
+        return data as Organization || null;
+      } catch (error) {
+        console.error(`خطأ أثناء جلب المؤسسة بالنطاق الفرعي ${subdomain} (catch block):`, error);
+        return null;
+      }
+    },
+    DEFAULT_CACHE_TTL, // Use default TTL, can be adjusted
+    true // Use memory cache
+  );
 };
 
 /**
  * الحصول على معلومات المؤسسة من النطاق الرئيسي
  */
-export const getOrganizationByDomain = async (domain: string) => {
+export const getOrganizationByDomain = async (domain: string): Promise<Organization | null> => {
   if (!domain) {
-    
     return null;
   }
-  
-  // تنظيف النطاق من البروتوكول وwww. للتأكد من التطابق الصحيح
+
   let cleanDomain = domain.toLowerCase();
-  
-  // إزالة البروتوكول إذا كان موجوداً
   cleanDomain = cleanDomain.replace(/^https?:\/\//i, '');
-  
-  // إزالة www. إذا كانت موجودة
   if (cleanDomain.startsWith('www.')) {
     cleanDomain = cleanDomain.substring(4);
   }
-  
-  // إزالة المنفذ من النطاق (مثل :3000)
   cleanDomain = cleanDomain.split(':')[0];
-  
-  // إزالة أي مسارات بعد النطاق
   cleanDomain = cleanDomain.split('/')[0];
-  
-  
-  
-  try {
-    
-    const supabaseClient = await getSupabaseClient();
-    
-    // طباعة عدد المؤسسات التي تستخدم نطاقات مخصصة (للتشخيص)
-    const { data: orgWithDomains, error: countError } = await supabaseClient
-      .from('organizations')
-      .select('id, name, domain')
-      .not('domain', 'is', null);
-      
-    if (!countError && orgWithDomains) {
-      
-      
-    }
-    
-    // التحقق أولاً إذا كان النطاق يحتوي على عدة أجزاء (مثل subdomain.domain.com)
-    // ففي هذه الحالة قد يكون نطاقًا فرعيًا وليس نطاقًا رئيسيًا
-    const domainParts = cleanDomain.split('.');
-    if (domainParts.length > 2 && domainParts[0].toLowerCase() !== 'www') {
-      // جرب البحث في subdomain أولاً
-      const possibleSubdomain = domainParts[0];
-      
-      
-      const { data: subdomainData, error: subdomainError } = await supabaseClient
-        .from('organizations')
-        .select('*')
-        .eq('subdomain', possibleSubdomain)
-        .maybeSingle();
+
+  if (!cleanDomain) return null;
+
+  const cacheKey = `organization_domain:${cleanDomain}`;
+
+  return withCache<Organization | null>(
+    cacheKey,
+    async () => {
+      try {
+        const supabaseClient = await getSupabaseClient();
         
-      if (!subdomainError && subdomainData) {
-        
-        return subdomainData;
-      }
-    }
-    
-    // البحث عن المنظمة بواسطة النطاق الرئيسي
-    const { data, error } = await supabaseClient
-      .from('organizations')
-      .select('*')
-      .eq('domain', cleanDomain)
-      .maybeSingle();
-    
-    // طباعة معلومات تشخيصية عن الاستعلام
-    
-    
-    if (error) {
-      console.error(`خطأ أثناء البحث عن المؤسسة بالنطاق الرئيسي ${cleanDomain}:`, error);
-      
-      // التحقق مما إذا كان خطأ 406 (Not Acceptable)
-      if (error.code === '406') {
-        
-        
-        // محاولة البحث عن كل المؤسسات ثم التصفية يدويًا
-        const { data: allOrgs, error: allOrgsError } = await supabaseClient
+        // Attempt 1: Direct match on the cleaned domain
+        const { data: directMatchData, error: directMatchError } = await supabaseClient
           .from('organizations')
-          .select('*');
-          
-        if (!allOrgsError && allOrgs) {
-          // بحث يدوي عن مطابقة النطاق
-          const matchingOrg = allOrgs.find(org => org.domain === cleanDomain);
-          if (matchingOrg) {
-            
-            return matchingOrg;
+          .select('*') // Consider selecting specific fields
+          .eq('domain', cleanDomain)
+          .maybeSingle();
+
+        if (directMatchError && directMatchError.code !== 'PGRST116') {
+          console.error(`خطأ أثناء البحث عن المؤسسة بالنطاق الرئيسي ${cleanDomain} (direct match):`, directMatchError);
+          // Do not return null immediately, try other methods if applicable
+        }
+        if (directMatchData) {
+          return directMatchData as Organization;
+        }
+
+        // Attempt 2: If domain looks like subdomain.another.com, try matching the first part as a subdomain
+        const domainParts = cleanDomain.split('.');
+        if (domainParts.length > 2 && domainParts[0].toLowerCase() !== 'www') {
+          const possibleSubdomain = domainParts[0];
+          // This reuses the getOrganizationBySubdomain which is already cached
+          const subdomainData = await getOrganizationBySubdomain(possibleSubdomain);
+          if (subdomainData) {
+            // Verify if this subdomain's organization also matches the full domain if it has one
+            // This logic might be complex depending on how custom domains and subdomains are linked
+            // For now, if a direct subdomain match is found, we return it.
+            // This assumes an org can be primarily identified by a part of the custom domain that acts as its usual subdomain.
+            return subdomainData;
           }
         }
-      }
-      
-      return null;
-    }
-    
-    if (!data) {
-      
-      
-      // محاولة أخرى بحذف علامات التشكيل للتعامل مع النطاقات العربية
-      const { data: dataAlt, error: errorAlt } = await supabaseClient
-        .from('organizations')
-        .select('*')
-        .like('domain', `%${cleanDomain}%`)
-        .maybeSingle();
         
-      if (!errorAlt && dataAlt) {
-        
-        return dataAlt;
+        // Removed the highly inefficient parts that fetched all organizations.
+        // If specific fallbacks for 406 errors or Arabic character variations are strictly needed,
+        // they should be implemented with more targeted and efficient queries.
+
+        return null; // No organization found after trying primary methods
+
+      } catch (error) {
+        console.error(`خطأ أثناء جلب المؤسسة بالنطاق الرئيسي ${cleanDomain} (catch block):`, error);
+        return null;
       }
-      
-      return null;
-    }
-    
-    
-    return data;
-  } catch (error) {
-    console.error(`خطأ أثناء جلب المؤسسة بالنطاق الرئيسي ${cleanDomain}:`, error);
-    return null;
-  }
+    },
+    DEFAULT_CACHE_TTL, // Use default TTL
+    true // Use memory cache
+  );
 };
 
 /**
  * الحصول على معلومات المؤسسة من معرفها
  */
-export const getOrganizationById = async (organizationId: string) => {
-  try {
-    
-    const supabaseClient = await getSupabaseClient();
-    const { data, error } = await supabaseClient
-      .from('organizations')
-      .select('*')
-      .eq('id', organizationId)
-      .single();
+export const getOrganizationById = async (organizationId: string): Promise<Organization | null> => {
+  if (!organizationId) return null;
 
-    if (error) {
-      console.error('Error fetching organization by ID:', error);
-      return null;
-    }
+  const cacheKey = `organization_id:${organizationId}`;
 
-    if (data) {
-      
-    }
+  return withCache<Organization | null>(
+    cacheKey,
+    async () => {
+      try {
+        const supabaseClient = await getSupabaseClient();
+        const { data, error } = await supabaseClient
+          .from('organizations')
+          .select('*') // Consider selecting specific fields
+          .eq('id', organizationId)
+          .single();
 
-    return data;
-  } catch (error) {
-    console.error('Error fetching organization by ID:', error);
-    return null;
-  }
+        if (error) {
+          if (error.code !== 'PGRST116') { // PGRST116: "The result contains 0 rows"
+            console.error(`Error fetching organization by ID ${organizationId}:`, error);
+          }
+          return null;
+        }
+        return data as Organization || null;
+      } catch (error) {
+        console.error(`Error fetching organization by ID ${organizationId} (catch block):`, error);
+        return null;
+      }
+    },
+    DEFAULT_CACHE_TTL, // Use default TTL
+    true // Use memory cache
+  );
 };
 
 /**
@@ -246,7 +208,18 @@ export const extractSubdomainFromUrl = (url: string) => {
  * استخراج النطاق الفرعي من اسم المضيف
  */
 export const extractSubdomainFromHostname = (hostname: string) => {
-  // تجاهل localhost
+  // التعامل مع localhost بشكل خاص لاستخراج النطاق الفرعي منه في بيئة التطوير
+  if (hostname.endsWith('.localhost')) {
+    const parts = hostname.split('.');
+    // إذا كان lcxvmprtetg.localhost، فإن parts ستكون ['lcxvmprtetg', 'localhost']
+    // نريد 'lcxvmprtetg'
+    if (parts.length > 1 && parts[0] !== 'www' && parts[0] !== '') {
+      return parts[0];
+    }
+    return null; // في حالة localhost فقط أو www.localhost
+  }
+
+  // تجاهل localhost إذا لم يكن بالتنسيق *.localhost
   if (hostname === 'localhost' || hostname.includes('localhost:')) {
     return null;
   }

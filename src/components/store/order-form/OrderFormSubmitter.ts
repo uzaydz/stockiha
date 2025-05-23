@@ -160,6 +160,10 @@ export const submitOrderForm = async (props: OrderFormSubmitterProps): Promise<b
   const {
     values,
     organizationId,
+    productId,
+    quantity,
+    price,
+    deliveryFee,
     onSuccess,
     onError,
     onSubmitStart,
@@ -169,6 +173,47 @@ export const submitOrderForm = async (props: OrderFormSubmitterProps): Promise<b
   
   // بدء عملية التقديم
   onSubmitStart();
+  
+  // تتبع بدء عملية الدفع
+  try {
+    if (productId && typeof window !== 'undefined') {
+      const totalPrice = (price * quantity) + deliveryFee;
+      
+      // إرسال حدث initiate_checkout
+      await fetch('/api/conversion-events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          product_id: productId,
+          event_type: 'initiate_checkout',
+          platform: 'multiple',
+          custom_data: {
+            quantity,
+            unit_price: price,
+            delivery_fee: deliveryFee,
+            total_price: totalPrice,
+            currency: 'DZD',
+            page_type: 'order_form',
+            checkout_initiated_at: new Date().toISOString()
+          }
+        })
+      });
+
+      // تتبع البكسل أيضاً إذا كان متاحاً
+      if ((window as any).trackConversion) {
+        await (window as any).trackConversion('initiate_checkout', {
+          value: totalPrice,
+          currency: 'DZD',
+          content_type: 'product',
+          content_ids: [productId],
+          num_items: quantity
+        });
+      }
+    }
+  } catch (trackingError) {
+    console.warn('تحذير: فشل في تتبع initiate_checkout:', trackingError);
+    // لا نوقف العملية بسبب خطأ في التتبع
+  }
   
   try {
     // التحقق من الاتصال بقاعدة البيانات أولاً

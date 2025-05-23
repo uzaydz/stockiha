@@ -1,6 +1,8 @@
 import { supabase } from '@/lib/supabase-client';
 import { getSupabaseClient } from '@/lib/supabase-client';
-import type { Database } from '@/types/database.types';
+import type { Database, TablesInsert, TablesUpdate } from '@/types/database.types';
+import { toast } from 'react-hot-toast';
+import { ProductFormValues } from '@/types/product';
 
 export interface TimerConfig {
   enabled: boolean;
@@ -9,6 +11,7 @@ export interface TimerConfig {
   textAbove?: string;
   textBelow?: string;
   style?: 'default' | 'minimal' | 'prominent';
+  shipping_clone_id?: number | null;
 }
 
 export interface QuantityOffer {
@@ -92,10 +95,15 @@ export type Product = Database['public']['Tables']['products']['Row'] & {
   delivery_fee?: number;
   short_description?: string;
   shipping_clone_id?: number | null;
+  product_advanced_settings?: Database['public']['Tables']['product_advanced_settings']['Row'] | null;
+  product_marketing_settings?: Database['public']['Tables']['product_marketing_settings']['Row'] | null;
+  reviews?: Review[];
+  form_settings?: any[] | null;
 };
 
 export interface InsertProduct {
   name: string;
+  name_for_shipping?: string | null;
   description: string;
   price: number;
   purchase_price: number;
@@ -125,7 +133,17 @@ export interface InsertProduct {
   organization_id: string;
   slug: string;
   use_sizes?: boolean;
+  unit_type?: string | null;
+  unit_purchase_price?: number | null;
+  unit_sale_price?: number | null;
   category?: string;
+  shipping_clone_id?: number | null;
+  created_by_user_id?: string;
+  updated_by_user_id?: string;
+  form_template_id?: string | null;
+  shipping_provider_id?: number | null;
+  use_shipping_clone?: boolean;
+  advanced_settings?: Record<string, any>;
 }
 
 export type UpdateProduct = Omit<Database['public']['Tables']['products']['Update'], 'category' | 'subcategory'> & {
@@ -150,6 +168,15 @@ export type UpdateProduct = Omit<Database['public']['Tables']['products']['Updat
   money_back_text?: string;
   quality_guarantee_text?: string;
   shipping_clone_id?: number | null;
+  updated_by_user_id?: string;
+  form_template_id?: string | null;
+  shipping_provider_id?: number | null;
+  use_shipping_clone?: boolean;
+  advancedSettings?: Partial<TablesUpdate<'product_advanced_settings'>>;
+  marketingSettings?: Partial<TablesUpdate<'product_marketing_settings'>>;
+  colors?: ProductColor[];
+  additional_images?: string[];
+  wholesale_tiers?: WholesaleTier[];
 };
 
 export interface WholesaleTier {
@@ -216,7 +243,9 @@ export const getProductById = async (id: string): Promise<Product | null> => {
       purchase_page_config,
       category:category_id(id, name, slug),
       subcategory:subcategory_id(id, name, slug),
-      product_images ( product_id, image_url, sort_order )
+      product_images ( product_id, image_url, sort_order ),
+      product_advanced_settings (*),
+      product_marketing_settings (*)
     `)
     .eq('id', id)
     .single();
@@ -226,22 +255,68 @@ export const getProductById = async (id: string): Promise<Product | null> => {
     throw error;
   }
 
-  // معالجة الصور الإضافية
-  if (data && Array.isArray((data as any).product_images)) {
-    (data as any).additional_images = ((data as any).product_images as any[])
+  if (!data) return null;
+
+  // Start with the base data and explicitly type it to avoid 'any' as much as possible
+  const rawData = data as any; // Cast to any initially to access potentially joined array fields
+
+  const processedData: Partial<Product> = { ...rawData };
+
+  // Process product_images to additional_images
+  if (rawData.product_images && Array.isArray(rawData.product_images)) {
+    processedData.additional_images = (rawData.product_images as any[])
       .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
       .map(img => img.image_url);
-    // delete (data as any).product_images; // اختياري: حذف البيانات الأولية للصور المدمجة
-  } else if (data) {
-    (data as any).additional_images = []; // ضمان وجود مصفوفة فارغة إذا لم توجد صور
+  } else {
+    processedData.additional_images = [];
+  }
+  delete (processedData as any).product_images; // Clean up the original joined field
+
+  // Process product_advanced_settings
+  if (rawData.product_advanced_settings && Array.isArray(rawData.product_advanced_settings)) {
+    processedData.product_advanced_settings = rawData.product_advanced_settings.length > 0 ? rawData.product_advanced_settings[0] : null;
+  } else if (rawData.product_advanced_settings) { // It could be a single object already
+    processedData.product_advanced_settings = rawData.product_advanced_settings;
+  } else {
+    processedData.product_advanced_settings = null;
   }
 
-  // إضافة تحذير إذا كان المنتج معطلاً
-  if (data && data.is_active === false) {
+  // Process product_marketing_settings
+  if (rawData.product_marketing_settings && Array.isArray(rawData.product_marketing_settings)) {
+    processedData.product_marketing_settings = rawData.product_marketing_settings.length > 0 ? rawData.product_marketing_settings[0] : null;
+  } else if (rawData.product_marketing_settings) { // It could be a single object already
+    processedData.product_marketing_settings = rawData.product_marketing_settings;
+  } else {
+    processedData.product_marketing_settings = null;
+  }
+
+  // Process purchase_page_config: Supabase returns Json, needs parsing to PurchasePageConfig if it's a string
+  // If it's already an object (from JSONB), ensure its structure matches PurchasePageConfig.
+  // For now, we assume if it's an object, it's correctly structured.
+  // If it's a string: processedData.purchase_page_config = JSON.parse(rawData.purchase_page_config as string);
+  // If Supabase returns it as a structured object from JSONB, this explicit parsing might not be needed,
+  // but the type PurchasePageConfig must match what's in the DB or what Supabase deserializes.
+  if (typeof rawData.purchase_page_config === 'string') {
+    try {
+      (processedData as any).purchase_page_config = JSON.parse(rawData.purchase_page_config);
+    } catch (e) {
+      console.error('Error parsing purchase_page_config:', e);
+      (processedData as any).purchase_page_config = null;
+    }
+  } else if (typeof rawData.purchase_page_config === 'object' && rawData.purchase_page_config !== null) {
+    // Assume it's already a correctly structured object
+    (processedData as any).purchase_page_config = rawData.purchase_page_config;
+  } else {
+    (processedData as any).purchase_page_config = null;
+  }
+
+  
+  if (processedData.is_active === false) {
     console.warn(`تحذير: المنتج ${id} معطل ولن يظهر في نقاط البيع أو واجهة المتجر`);
   }
 
-  return data as any;
+  // The processedData should now more closely match the Product type
+  return processedData as Product;
 };
 
 export const getProductsByCategory = async (categoryId: string, includeInactive: boolean = false): Promise<Product[]> => {
@@ -270,33 +345,162 @@ export const getProductsByCategory = async (categoryId: string, includeInactive:
 };
 
 export const getFeaturedProducts = async (includeInactive: boolean = false, organizationId?: string): Promise<Product[]> => {
-  let query = supabase
-    .from('products')
-    .select(`
-      *,
-      category:category_id(id, name, slug),
-      subcategory:subcategory_id(id, name, slug)
-    `)
-    .eq('is_featured', true);
+  if (!organizationId) {
+    console.warn("لم يتم تمرير معرف المؤسسة إلى وظيفة getFeaturedProducts");
+    return [];
+  }
+  
+  console.log('جلب المنتجات المميزة للمؤسسة:', organizationId);
+  
+  try {
+    let query = supabase
+      .from('products')
+      .select(`
+        *,
+        category:category_id(id, name, slug),
+        subcategory:subcategory_id(id, name, slug)
+      `)
+      .eq('is_featured', true);
     
-  // فلترة حسب المؤسسة إذا تم توفير معرف المؤسسة
-  if (organizationId) {
-    query = query.eq('organization_id', organizationId);
-  }
+    // فلترة حسب المؤسسة إذا تم توفير معرف المؤسسة
+    if (organizationId) {
+      query = query.eq('organization_id', organizationId);
+    }
+      
+    // إذا كان includeInactive = false، أضف شرط is_active = true
+    if (!includeInactive) {
+      query = query.eq('is_active', true);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error fetching featured products:', error);
+      return [];
+    }
     
-  // إذا كان includeInactive = false، أضف شرط is_active = true
-  if (!includeInactive) {
-    query = query.eq('is_active', true);
+    console.log('المنتجات المميزة الخام:', data);
+    
+    // تأكد من رجوع البيانات قبل المتابعة
+    if (!data || data.length === 0) {
+      console.log('لم يتم العثور على منتجات مميزة');
+      return [];
+    }
+
+    // قم بفحص وطباعة قيم thumbnail_image لكل منتج
+    data.forEach(product => {
+      console.log(`المنتج ${product.id} - ${product.name} - الصورة المصغرة:`, product.thumbnail_image);
+      // فحص وجود حقل thumbnail_url
+      if ('thumbnail_url' in product) {
+        console.log(`المنتج ${product.id} - يحتوي على thumbnail_url:`, product.thumbnail_url);
+      }
+    });
+    
+    // تحويل البيانات مع معالجة روابط الصور
+    const processedProducts = data.map(product => {
+      // معالجة رابط الصورة المصغرة
+      let processedThumbnail = '';
+      
+      // تحقق من thumbnail_url أولاً إذا كان موجوداً
+      if ('thumbnail_url' in product && product.thumbnail_url) {
+        processedThumbnail = product.thumbnail_url.trim();
+        console.log(`المنتج ${product.id} - يستخدم thumbnail_url:`, processedThumbnail);
+      }
+      // ثم تحقق من thumbnail_image كخيار ثاني
+      else if (product.thumbnail_image) {
+        processedThumbnail = product.thumbnail_image.trim();
+        console.log(`المنتج ${product.id} - يستخدم thumbnail_image:`, processedThumbnail);
+      }
+      
+      // إضافة بروتوكول إذا كان مفقودًا
+      if (processedThumbnail && !processedThumbnail.startsWith('http://') && !processedThumbnail.startsWith('https://')) {
+        if (processedThumbnail.startsWith('//')) {
+          processedThumbnail = `https:${processedThumbnail}`;
+        } else if (processedThumbnail.startsWith('/')) {
+          // معالجة المسارات النسبية
+          const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+          processedThumbnail = `${baseUrl}${processedThumbnail}`;
+        } else if (processedThumbnail.startsWith('www.')) {
+          processedThumbnail = `https://${processedThumbnail}`;
+        } else if (processedThumbnail) {
+          // روابط أخرى بدون بروتوكول
+          processedThumbnail = `https://${processedThumbnail}`;
+        }
+      }
+      
+      // تنظيف المسافات داخل الرابط
+      if (processedThumbnail) {
+        processedThumbnail = processedThumbnail.replace(/\s+/g, '%20');
+        
+        // التحقق من صحة بنية الرابط
+        try {
+          new URL(processedThumbnail);
+        } catch (e) {
+          console.warn(`رابط صورة غير صالح لـ ${product.id} - ${product.name}:`, processedThumbnail);
+          // استخدام صورة افتراضية في حالة الرابط غير الصالح
+          processedThumbnail = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470';
+        }
+        
+        console.log(`المنتج ${product.id} - رابط الصورة بعد المعالجة:`, processedThumbnail);
+      } else {
+        // استخدام صورة افتراضية في حالة عدم وجود صورة
+        processedThumbnail = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470';
+        console.log(`المنتج ${product.id} - تم تعيين صورة افتراضية`);
+      }
+      
+      // حفظ رابط الصورة الأصلي في سجل التصحيح للمقارنة
+      if (product.thumbnail_image !== processedThumbnail) {
+        console.log(`تم تعديل رابط الصورة للمنتج ${product.id}:`, {
+          قبل: product.thumbnail_image,
+          بعد: processedThumbnail
+        });
+      }
+      
+      // معالجة مصفوفة الصور أيضًا إذا كانت موجودة
+      let processedImages: string[] = [];
+      
+      if (product.images && Array.isArray(product.images)) {
+        processedImages = product.images.map(imgUrl => {
+          if (!imgUrl) return '';
+          
+          let processedUrl = imgUrl.trim();
+          
+          // نفس معالجة البروتوكول
+          if (!processedUrl.startsWith('http://') && !processedUrl.startsWith('https://')) {
+            if (processedUrl.startsWith('//')) {
+              processedUrl = `https:${processedUrl}`;
+            } else if (processedUrl.startsWith('/')) {
+              const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+              processedUrl = `${baseUrl}${processedUrl}`;
+            } else {
+              processedUrl = `https://${processedUrl}`;
+            }
+          }
+          
+          // تنظيف المسافات
+          processedUrl = processedUrl.replace(/\s+/g, '%20');
+          
+          return processedUrl;
+        }).filter(url => url); // إزالة الروابط الفارغة
+      }
+      
+      if (processedImages.length === 0 && processedThumbnail) {
+        // إضافة الصورة المصغرة إلى مصفوفة الصور إذا كانت فارغة
+        processedImages = [processedThumbnail];
+      }
+      
+      return {
+        ...product,
+        thumbnail_image: processedThumbnail,
+        images: processedImages.length > 0 ? processedImages : null
+      };
+    });
+
+    return processedProducts as any;
+  } catch (error) {
+    console.error('خطأ في جلب المنتجات المميزة:', error);
+    return [];
   }
-
-  const { data, error } = await query;
-
-  if (error) {
-    console.error('Error fetching featured products:', error);
-    throw error;
-  }
-
-  return data as any;
 };
 
 export const searchProductsByName = async (
@@ -330,239 +534,380 @@ export const searchProductsByName = async (
   }
 };
 
-export const createProduct = async (productData: InsertProduct) => {
-  
-  
-  try {
-    // Verificar que organization_id sea un UUID válido
-    const isValidUUID = (uuid: string) => {
-      if (!uuid) return false;
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      return uuidRegex.test(uuid);
-    };
+export const createProduct = async (productData: ProductFormValues): Promise<Product> => {
+  const { 
+    colors,
+    additional_images,
+    wholesale_tiers, 
+    advancedSettings, 
+    marketingSettings, // Destructure marketingSettings
+    ...mainProductData 
+  } = productData;
 
-    // Ensure we have a valid organization_id
-    if (!productData.organization_id || !isValidUUID(productData.organization_id)) {
-      console.error('Invalid organization_id:', productData.organization_id);
-      throw new Error('Invalid organization_id. A valid UUID is required.');
-    }
-    
-    // الحصول على نسخة من عميل Supabase مع جلسة المصادقة الحالية
-    const clientSupabase = getSupabaseClient();
-    
-    // التحقق من تفرد رمز المنتج (SKU) قبل محاولة الإنشاء
-    if (productData.sku && navigator.onLine) {
-      try {
-        // تعديل الاستعلام لمنع خطأ 406
-        const { data: existingProducts, error } = await clientSupabase
-          .from('products')
-          .select('id, name')
-          .eq('sku', productData.sku);
-          
-        // التحقق من وجود منتجات بنفس الرمز
-        if (existingProducts && existingProducts.length > 0) {
-          console.error('رمز المنتج (SKU) موجود بالفعل:', productData.sku);
-          throw new Error(`رمز المنتج (SKU) "${productData.sku}" مستخدم بالفعل في منتج آخر. الرجاء استخدام رمز مختلف أو الضغط على زر توليد رمز تلقائي.`);
-        }
-      } catch (error) {
-        // إذا كان الخطأ ليس متعلقًا بعدم وجود نتائج
-        if (error && typeof error === 'object' && !('code' in error && error.code === 'PGRST116')) {
-          console.error('خطأ في التحقق من تفرد رمز المنتج (SKU):', error);
-          // لا تقم بإلقاء الخطأ، فقط استمر في المحاولة
-        }
-      }
-    }
-    
-    // Convertir cadenas vacías en campos UUID a null
-    if (productData.subcategory_id === '') {
-      
-      productData.subcategory_id = null;
-    }
-    
-    if (productData.category_id === '') {
-      console.error('category_id es obligatorio pero está vacío');
-      throw new Error('category_id es obligatorio');
-    }
-    
-    // التأكد من وجود قيم صالحة للصور
-    if (!productData.thumbnail_image) {
-      console.warn('لم يتم تحديد صورة رئيسية للمنتج');
-    }
-    
-    if (!productData.images || productData.images.length === 0) {
-      console.warn('لم يتم توفير مصفوفة الصور للمنتج');
-      // إضافة الصورة الرئيسية إلى المصفوفة إذا كانت موجودة وكانت المصفوفة فارغة
-      if (productData.thumbnail_image) {
-        productData.images = [productData.thumbnail_image];
-      } else {
-        productData.images = [];
-      }
-    }
-    
-    // إضافة حقل "category" المطلوب في قاعدة البيانات
-    // استخدام معرف الفئة كقيمة لحقل category إذا كان موجودًا
-    if (productData.category_id && !productData.category) {
-      productData.category = productData.category_id;
-    }
-    
-    // التأكد من أن حقل category ليس فارغًا
-    if (!productData.category) {
-      console.error('حقل category مطلوب ولكنه غير موجود');
-      throw new Error('حقل category مطلوب في قاعدة البيانات');
-    }
-    
-    
-    
-    // Crear copia del objeto para evitar modificar el original directamente
-    const productToInsert = {
-      ...productData,
-      // Añadir timestamp para updated_at y created_at
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    
-    // Ensure we have the correct auth session 
-    const { data: { session } } = await clientSupabase.auth.getSession();
-    if (!session) {
-      console.error('No active session found. User must be authenticated to create products.');
-      throw new Error('Authentication required. Please sign in again.');
-    }
-    
-    
-    
-    
-    
-    // Para depuración, vamos a imprimir todo el objeto que se enviará
-    
-    
-    // Uso del cliente importado directamente como alternativa
-    const { data, error } = await clientSupabase
-      .from('products')
-      .insert({
-        name: productToInsert.name,
-        description: productToInsert.description,
-        price: productToInsert.price,
-        purchase_price: productToInsert.purchase_price,
-        compare_at_price: productToInsert.compare_at_price,
-        sku: productToInsert.sku,
-        barcode: productToInsert.barcode,
-        category_id: productToInsert.category_id,
-        category: productToInsert.category,
-        subcategory_id: productToInsert.subcategory_id || null, // Garantizar que sea null y no cadena vacía
-        brand: productToInsert.brand,
-        stock_quantity: productToInsert.stock_quantity,
-        thumbnail_image: productToInsert.thumbnail_image,
-        images: productToInsert.images,
-        is_digital: productToInsert.is_digital,
-        is_new: productToInsert.is_new,
-        is_featured: productToInsert.is_featured,
-        has_variants: productToInsert.has_variants,
-        show_price_on_landing: productToInsert.show_price_on_landing,
-        organization_id: productToInsert.organization_id,
-        slug: productToInsert.slug,
-        features: productToInsert.features,
-        specifications: productToInsert.specifications,
-        created_at: productToInsert.created_at,
-        updated_at: productToInsert.updated_at
-      })
-      .select()
-      .single();
-      
-    if (error) {
-      console.error('خطأ في إنشاء المنتج:', error);
-      console.error('Error code:', error.code);
-      console.error('Error details:', error.details);
-      
-      // إذا كان الخطأ بسبب تكرار قيمة رمز المنتج (SKU)
-      if (error.code === '23505' && error.message?.includes('products_sku_key')) {
-        throw new Error(`رمز المنتج (SKU) "${productData.sku}" مستخدم بالفعل في منتج آخر. الرجاء استخدام رمز مختلف أو الضغط على زر توليد رمز تلقائي.`);
-      }
-      
-      // Si el error es de sintaxis UUID inválida, mostrar mensaje específico
-      if (error.code === '22P02' && error.message?.includes('invalid input syntax for type uuid')) {
-        console.error('Error de formato UUID inválido. Verificando campos UUID:');
-        console.error('- organization_id:', productToInsert.organization_id);
-        console.error('- category_id:', productToInsert.category_id);
-        console.error('- subcategory_id:', productToInsert.subcategory_id);
-        
-        // Verificar qué campo tiene el problema
-        if (!isValidUUID(productToInsert.organization_id)) {
-          throw new Error('El campo organization_id no tiene un formato UUID válido');
-        }
-        
-        if (!isValidUUID(productToInsert.category_id)) {
-          throw new Error('El campo category_id no tiene un formato UUID válido');
-        }
-        
-        if (productToInsert.subcategory_id !== null && !isValidUUID(productToInsert.subcategory_id)) {
-          throw new Error('El campo subcategory_id no tiene un formato UUID válido');
-        }
-        
-        throw new Error('Algún campo UUID tiene un formato inválido');
-      }
-      
-      throw error;
-    }
-    
-    if (!data) {
-      throw new Error('لم يتم إرجاع بيانات بعد إنشاء المنتج');
-    }
-    
-    
-    return data as any;
-  } catch (error) {
-    console.error('خطأ في دالة createProduct:', error);
+  console.log('Starting createProduct with data:', productData);
+
+  // Correctly destructure advancedSettings (camelCase) from ProductFormValues
+  // then we will use this `advancedSettingsFromForm` when we refer to the advanced settings data.
+  const { advancedSettings: advancedSettingsFromForm, ...productCoreDataFromForm } = productData;
+
+  // DEBUGGING ADVANCED SETTINGS - Step 1: Log received advanced_settings
+  console.log('[createProduct] Received advancedSettingsFromForm (from productData):', JSON.stringify(advancedSettingsFromForm, null, 2));
+  console.log('[createProduct] Received productCoreDataFromForm:', productCoreDataFromForm);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+    const error = new Error("User not authenticated");
+    console.error('Authentication error:', error);
+    toast.error("يجب تسجيل الدخول لإنشاء منتج.");
     throw error;
   }
+  console.log('User authenticated:', user.id);
+
+  if (!productData.organization_id) {
+    const error = new Error("Organization ID is required");
+    console.error('Validation error:', error);
+    toast.error("معرف المؤسسة مطلوب");
+    throw error;
+  }
+
+  const { 
+    id,
+    organization_id,
+    name,
+    name_for_shipping,
+    description,
+      price,
+      purchase_price,
+      compare_at_price,
+    wholesale_price,
+    partial_wholesale_price,
+    min_wholesale_quantity,
+    min_partial_wholesale_quantity,
+    allow_retail = true,
+    allow_wholesale = false,
+    allow_partial_wholesale = false,
+    sku,
+    barcode,
+    category_id,
+    subcategory_id,
+    brand,
+      stock_quantity,
+    thumbnail_image,
+    has_variants = false,
+    show_price_on_landing = true,
+    is_featured = false,
+    is_new = true,
+    use_sizes = false,
+    is_sold_by_unit = true,
+    unit_type,
+    use_variant_prices = false,
+    unit_purchase_price,
+    unit_sale_price,
+    form_template_id,
+    shipping_provider_id,
+    use_shipping_clone = false,
+    shipping_clone_id,
+    slug,
+    is_digital = false,
+    features,
+    specifications,
+  } = productData;
+  
+  const productCoreDataToInsert: TablesInsert<'products'> = {
+    organization_id,
+    name,
+    name_for_shipping: name_for_shipping || null,
+    description: description || '',
+    price: parseFloat(String(price)),
+    purchase_price: parseFloat(String(purchase_price)),
+    compare_at_price: compare_at_price ? parseFloat(String(compare_at_price)) : null,
+    wholesale_price: wholesale_price ? parseFloat(String(wholesale_price)) : null,
+    partial_wholesale_price: partial_wholesale_price ? parseFloat(String(partial_wholesale_price)) : null,
+    min_wholesale_quantity: min_wholesale_quantity ? parseInt(String(min_wholesale_quantity), 10) : null,
+    min_partial_wholesale_quantity: min_partial_wholesale_quantity ? parseInt(String(min_partial_wholesale_quantity), 10) : null,
+    allow_retail,
+    allow_wholesale,
+    allow_partial_wholesale,
+    sku,
+    barcode: barcode || null,
+    category_id,
+    subcategory_id: subcategory_id || null,
+    brand: brand || null,
+    stock_quantity: parseInt(String(stock_quantity), 10),
+    thumbnail_image,
+    has_variants,
+    show_price_on_landing,
+    is_featured,
+    is_new,
+    use_sizes,
+    is_sold_by_unit,
+    unit_type: unit_type || null,
+    use_variant_prices,
+    unit_purchase_price: unit_purchase_price ? parseFloat(String(unit_purchase_price)) : null,
+    unit_sale_price: unit_sale_price ? parseFloat(String(unit_sale_price)) : null,
+    form_template_id: form_template_id || null,
+    shipping_provider_id: shipping_provider_id || null,
+    use_shipping_clone,
+    shipping_clone_id: shipping_clone_id || null,
+    slug: slug || `${name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`,
+    is_digital,
+    features: features || [],
+    specifications: specifications || {},
+    created_by_user_id: user.id,
+    updated_by_user_id: user.id,
+    is_active: true,
+  };
+
+  console.log('Inserting product with core data:', productCoreDataToInsert);
+  console.log('Value of form_template_id being sent to DB:', productCoreDataToInsert.form_template_id);
+
+  const { data: createdProduct, error: productCreationError } = await supabase
+      .from('products')
+    .insert(productCoreDataToInsert)
+      .select()
+      .single();
+
+  if (productCreationError) {
+    console.error('Error creating product. Data sent:', productCoreDataToInsert);
+    console.error('Supabase error:', productCreationError);
+    toast.error(`فشل إنشاء المنتج: ${productCreationError.message}`);
+    throw productCreationError;
+  }
+
+  if (!createdProduct) {
+    const noProductMsg = "Product creation failed, no data returned.";
+    console.error('Creation error:', noProductMsg);
+    toast.error("فشل إنشاء المنتج، لم يتم إرجاع بيانات المنتج.");
+    throw new Error(noProductMsg);
+  }
+
+  console.log('Product created successfully:', createdProduct);
+
+  // DEBUGGING ADVANCED SETTINGS - Step 2: Log before the condition
+  console.log('[createProduct] Checking condition: newProduct is', createdProduct ? 'defined' : 'undefined');
+  // Use advancedSettingsFromForm (the actual data from the form) for the check and for insertion
+  console.log('[createProduct] Checking condition: advancedSettingsFromForm is', JSON.stringify(advancedSettingsFromForm, null, 2));
+  const conditionMet = createdProduct && advancedSettingsFromForm && Object.keys(advancedSettingsFromForm).length > 0;
+  console.log('[createProduct] Condition (createdProduct && advancedSettingsFromForm && Object.keys(advancedSettingsFromForm).length > 0) is:', conditionMet);
+
+  let createdAdvancedSettings = null;
+  if (conditionMet) { 
+    console.log('[createProduct] Advanced settings condition met. Product ID:', createdProduct.id);
+    const advancedSettingsDataToInsert: TablesInsert<'product_advanced_settings'> = {
+      ...(advancedSettingsFromForm as Partial<TablesInsert<'product_advanced_settings'>>), // Spread the received advanced settings
+      product_id: createdProduct.id,
+    };
+
+    // Remove undefined boolean fields explicitly or ensure schema defaults handle them
+    for (const key in advancedSettingsDataToInsert) {
+      if (typeof advancedSettingsDataToInsert[key as keyof typeof advancedSettingsDataToInsert] === 'boolean' && advancedSettingsDataToInsert[key as keyof typeof advancedSettingsDataToInsert] === undefined) {
+        // Option 1: Set to false (if that's the desired default for undefined booleans)
+        // @ts-ignore
+        // advancedSettingsDataToInsert[key] = false; 
+        // Option 2: Delete the key if DB schema handles default or undefined is not allowed for booleans
+        // delete advancedSettingsDataToInsert[key as keyof typeof advancedSettingsDataToInsert];
+        // For now, we assume the DB or schema handles undefined booleans appropriately or they are set if true.
+        // If Supabase expects explicit false, uncomment the line above.
+      }
+    }
+    
+    // DEBUGGING ADVANCED SETTINGS - Step 3: Log object to be inserted
+    console.log('[createProduct] Final advancedSettingsDataToInsert for DB:', JSON.stringify(advancedSettingsDataToInsert, null, 2));
+
+    const { data: newAdvancedSettings, error: advancedSettingsError } = await supabase
+      .from('product_advanced_settings')
+      .insert(advancedSettingsDataToInsert)
+      .select('*') 
+      .single();
+
+    if (advancedSettingsError) {
+      console.error('Error creating product advanced settings:', advancedSettingsError);
+      toast.error(`تنبيه: تم إنشاء المنتج ولكن فشل حفظ الإعدادات المتقدمة: ${advancedSettingsError.message}`);
+    } else if (newAdvancedSettings) {
+      createdAdvancedSettings = newAdvancedSettings;
+      console.log('Product advanced settings created successfully for product id:', createdProduct.id);
+    }
+  } else {
+    console.log('[createProduct] No advanced settings provided or advanced_settings object is empty. Product ID:', createdProduct?.id, '. Skipping advanced settings creation.');
+    console.log('[createProduct] advancedSettingsFromForm object was:', JSON.stringify(advancedSettingsFromForm, null, 2));
+  }
+
+  let createdMarketingSettings = null;
+  if (marketingSettings && Object.keys(marketingSettings).length > 0) {
+    const { data: mktSettings, error: mktSettingsError } = await supabase
+      .from('product_marketing_settings')
+      .insert({ ...marketingSettings, product_id: createdProduct.id, organization_id: organization_id })
+      .select()
+      .single();
+    if (mktSettingsError) {
+      console.error('Error creating product marketing settings:', mktSettingsError);
+      toast.error(`فشل حفظ إعدادات التسويق: ${mktSettingsError.message}`);
+    }
+    createdMarketingSettings = mktSettings;
+  }
+
+  let createdImagesArray: any[] = [];
+  if (additional_images && additional_images.length > 0) {
+    const imageInserts: TablesInsert<'product_images'>[] = additional_images.map((imageUrl, index) => ({
+      product_id: createdProduct.id,
+      image_url: imageUrl,
+      sort_order: index,
+      organization_id: organization_id,
+    }));
+    const { data: newImagesResult, error: imagesError } = await supabase.from('product_images').insert(imageInserts).select();
+    if (imagesError) {
+      console.error('Error inserting product images:', imagesError);
+      toast.error(`تنبيه: تم إنشاء المنتج ولكن فشل حفظ بعض الصور: ${imagesError.message}`);
+    } else {
+      createdImagesArray = newImagesResult || [];
+    }
+  }
+  
+  toast.success("تم إنشاء المنتج بنجاح!");
+  
+  const finalProductData: Product = {
+    ...(createdProduct as unknown as Product),
+    product_advanced_settings: createdAdvancedSettings, 
+    product_marketing_settings: createdMarketingSettings,
+    additional_images: createdImagesArray.map(img => img.image_url), 
+    purchase_page_config: createdProduct.purchase_page_config ? JSON.parse(JSON.stringify(createdProduct.purchase_page_config)) : null,
+  };
+
+  return finalProductData;
 };
 
 export const updateProduct = async (id: string, updates: UpdateProduct): Promise<Product> => {
-  try {
-    
-    
-    // استخدام وظيفة RPC بسيطة لتحديث المنتج
-    const { data: updateSuccess, error: updateError } = await supabase
-      .rpc('simple_update_product', {
-        p_id: id,
-        p_data: updates
-      });
-    
-    if (updateError) {
-      console.error(`خطأ في تحديث المنتج ${id}:`, updateError);
-      throw updateError;
-    }
-    
-    // إذا تم التحديث بنجاح، قم بجلب المنتج المحدث في استعلام منفصل
-    const { data: updatedProduct, error: fetchError } = await supabase
-      .from('products')
-      .select(`
-        *,
-        category:category_id(id, name, slug),
-        subcategory:subcategory_id(id, name, slug)
-      `)
-      .eq('id', id)
-      .single();
-    
-    if (fetchError) {
-      console.error(`خطأ في جلب المنتج المحدث ${id}:`, fetchError);
-      throw fetchError;
-    }
-    
-    if (!updatedProduct) {
-      throw new Error(`لم يتم العثور على المنتج بعد التحديث: ${id}`);
-    }
-    
-    
-    return updatedProduct as any;
-  } catch (error) {
-    console.error(`خطأ عام في تحديث المنتج ${id}:`, error);
+  const { 
+    colors,
+    additional_images,
+    wholesale_tiers,
+    advancedSettings,
+    marketingSettings, // Destructure marketingSettings
+    ...mainProductUpdates 
+  } = updates;
+
+  console.log(`Updating product ${id} with data:`, updates);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+    const error = new Error("User not authenticated for update");
+    toast.error("يجب تسجيل الدخول لتحديث المنتج.");
     throw error;
+    }
+
+  const { advancedSettings: advancedSettingsFromForm, ...productCoreUpdates } = updates;
+  
+  if (productCoreUpdates.purchase_price !== undefined && productCoreUpdates.purchase_price !== null) {
+    productCoreUpdates.purchase_price = Number(productCoreUpdates.purchase_price);
+    }
+
+  const { data: updatedProductData, error: productUpdateError } = await supabase
+      .from('products')
+    .update({
+      ...productCoreUpdates,
+      updated_by_user_id: user.id, 
+      updated_at: new Date().toISOString(), 
+    } as TablesUpdate<'products'>)
+      .eq('id', id)
+      .select(`
+      *,
+      category:category_id(id, name, slug),
+      subcategory:subcategory_id(id, name, slug),
+      product_images ( product_id, image_url, sort_order )
+      `)
+      .single();
+
+    if (productUpdateError) {
+    console.error(`Error updating product ${id}:`, productUpdateError);
+    toast.error(`فشل تحديث المنتج: ${productUpdateError.message}`);
+      throw productUpdateError;
+    }
+    
+  if (!updatedProductData) {
+    const errorMessage = `Product with ID ${id} not found or update failed to return data.`;
+    console.error(errorMessage);
+    toast.error(errorMessage);
+    throw new Error(errorMessage);
+    }
+
+  console.log('Product core data updated successfully:', updatedProductData);
+
+  let currentAdvancedSettings = null;
+    if (advancedSettings && Object.keys(advancedSettings).length > 0) {
+    const settingsToUpsert: TablesInsert<'product_advanced_settings'> = {
+      product_id: id, 
+      ...advancedSettings, 
+    };
+
+    for (const key in settingsToUpsert) {
+        if (advancedSettings.hasOwnProperty(key) && typeof settingsToUpsert[key as keyof typeof settingsToUpsert] === 'boolean' && settingsToUpsert[key as keyof typeof settingsToUpsert] === undefined) {
+            // @ts-ignore
+            settingsToUpsert[key] = false;
+      }
+    }
+
+    console.log(`Upserting advanced settings for product ${id}:`, settingsToUpsert);
+
+    const { data: upsertedSettings, error: advancedSettingsError } = await supabase
+          .from('product_advanced_settings')
+      .upsert(settingsToUpsert, { onConflict: 'product_id' })
+      .select('*') 
+          .single();
+
+    if (advancedSettingsError) {
+      console.error(`Error upserting advanced settings for product ${id}:`, advancedSettingsError);
+      toast.error(`تنبيه: تم تحديث المنتج، ولكن فشل تحديث الإعدادات المتقدمة: ${advancedSettingsError.message}`);
+      const { data: existingSettingsOnError, error: fetchExistingOnError } = await supabase.from('product_advanced_settings').select('*').eq('product_id', id).single();
+      if (fetchExistingOnError) {
+        console.error(`Error fetching existing advanced settings for product ${id} after upsert failure:`, fetchExistingOnError);
+      }
+      currentAdvancedSettings = existingSettingsOnError || null;
+        } else {
+      currentAdvancedSettings = upsertedSettings;
+      console.log(`Advanced settings for product ${id} upserted successfully.`);
+        }
+      } else {
+    const { data: existingSettings, error: fetchExistingError } = await supabase.from('product_advanced_settings').select('*').eq('product_id', id).single();
+    if (fetchExistingError) {
+        console.error(`Error fetching existing advanced settings for product ${id} when no updates provided:`, fetchExistingError);
+        // في حالة الفشل هنا، currentAdvancedSettings سيبقى null كما تم تهيئته
+        } else {
+        currentAdvancedSettings = existingSettings;
+        }
+      }
+
+  let currentMarketingSettings = null;
+  if (marketingSettings && Object.keys(marketingSettings).length > 0) {
+    const { data: mktSettings, error: mktSettingsError } = await supabase
+      .from('product_marketing_settings')
+      .upsert({ ...marketingSettings, product_id: id, organization_id: updatedProductData.organization_id }, { onConflict: 'product_id' })
+      .select()
+      .single();
+    if (mktSettingsError) {
+      console.error('Error upserting product marketing settings:', mktSettingsError);
+      toast.error(`فشل تحديث إعدادات التسويق: ${mktSettingsError.message}`);
+    }
+    currentMarketingSettings = mktSettings;
+  } else {
+    const { data: existingMkt } = await supabase.from('product_marketing_settings').select('*').eq('product_id', id).single();
+    currentMarketingSettings = existingMkt;
   }
+
+  const resultProduct: Product = {
+    ...(updatedProductData as unknown as Omit<Product, 'product_advanced_settings' | 'product_marketing_settings'>), 
+    product_advanced_settings: currentAdvancedSettings, 
+    product_marketing_settings: currentMarketingSettings,
+    additional_images: updatedProductData.product_images?.map(img => img.image_url) || [],
+    purchase_page_config: updatedProductData.purchase_page_config ? JSON.parse(JSON.stringify(updatedProductData.purchase_page_config)) : null,
+  };
+  
+  console.log(`Product ${id} updated successfully with advanced settings:`, resultProduct);
+  toast.success("تم تحديث المنتج بنجاح!");
+  return resultProduct;
 };
 
 export const deleteProduct = async (id: string, forceDisable: boolean = false): Promise<void> => {
   try {
-    // تحقق من وجود ارتباط مع طلبات
     const { data: orderItems, error: orderItemsError } = await supabase
       .from('order_items')
       .select('id')
@@ -574,14 +919,12 @@ export const deleteProduct = async (id: string, forceDisable: boolean = false): 
       throw orderItemsError;
     }
 
-    // إذا كان المنتج مرتبطًا بطلبات والخيار forceDisable مفعل، قم بتعطيله بدلاً من حذفه
     if ((orderItems && orderItems.length > 0) && forceDisable) {
       
       await disableProduct(id);
       return;
     }
     
-    // إذا كان المنتج مرتبطًا بطلبات ولم يتم طلب التعطيل، أرسل رسالة خطأ مخصصة
     if (orderItems && orderItems.length > 0) {
       const error = {
         code: 'PRODUCT_IN_USE',
@@ -593,7 +936,6 @@ export const deleteProduct = async (id: string, forceDisable: boolean = false): 
       throw error;
     }
 
-    // إذا لم يكن مرتبطًا بطلبات، قم بحذفه
     const { error } = await supabase
       .from('products')
       .delete()
@@ -609,7 +951,6 @@ export const deleteProduct = async (id: string, forceDisable: boolean = false): 
   }
 };
 
-// وظائف جديدة لإدارة الفئات والفئات الفرعية
 export const getCategories = async (): Promise<Category[]> => {
   const { data, error } = await supabase
     .from('product_categories')
@@ -720,9 +1061,6 @@ export const createSubcategory = async (subcategory: { category_id: string; name
   return data;
 };
 
-/**
- * Get wholesale tiers for a product
- */
 export const getWholesaleTiers = async (productId: string) => {
   
   
@@ -751,132 +1089,53 @@ export const getWholesaleTiers = async (productId: string) => {
   }
 };
 
-/**
- * Create a wholesale tier
- */
 export const createWholesaleTier = async (tier: {
   product_id: string;
   min_quantity: number;
-  price: number;
+  price_per_unit: number;
   organization_id: string;
 }) => {
-  
-  
-  // التحقق من وجود البيانات الإلزامية
-  if (!tier.product_id || !tier.organization_id) {
-    console.error('لا يمكن إنشاء مرحلة سعرية: معرف المنتج أو المؤسسة غير متوفر', {
-      product_id: tier.product_id,
-      organization_id: tier.organization_id
-    });
-    throw new Error('معلومات غير كافية لإنشاء مرحلة سعرية للجملة');
-  }
-  
-  try {
-    // إضافة أوقات الإنشاء والتحديث
-    const tierData = {
-      ...tier,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    
-    // استخدام كائن supabase مباشرة بدلاً من fetch الخارجي
-    const { error: insertError } = await supabase
-      .from('wholesale_tiers')
-      .insert(tierData);
-    
-    if (insertError) {
-      console.error('خطأ في إنشاء مرحلة سعرية للجملة:', insertError);
-      throw insertError;
-    }
-    
-    
-    
-    // ثم استرجاع أحدث سجل تم إنشاؤه لهذا المنتج
-    const { data, error: selectError } = await supabase
-      .from('wholesale_tiers')
-      .select('*')
-      .eq('product_id', tier.product_id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-    
-    if (selectError) {
-      console.error('خطأ في استرجاع مرحلة سعرية جديدة:', selectError);
-      throw selectError;
-    }
-    
-    if (!data) {
-      console.error('تم إنشاء مرحلة سعرية ولكن لم يتم إرجاع بيانات');
-      throw new Error('فشل استرجاع مرحلة سعرية للجملة بعد إنشائها');
-    }
+  const { data, error } = await supabase
+    .from('product_wholesale_tiers')
+    .insert([
+      {
+        product_id: tier.product_id,
+        min_quantity: tier.min_quantity,
+        price_per_unit: tier.price_per_unit,
+        organization_id: tier.organization_id,
+      },
+    ])
+    .select()
+    .single();
 
-    
-    return data;
-  } catch (error) {
-    console.error('استثناء عند إنشاء مرحلة سعرية للجملة:', error);
+  if (error) {
+    console.error('Error creating wholesale tier:', error);
     throw error;
   }
+  return data;
 };
 
-/**
- * Update a wholesale tier
- */
 export const updateWholesaleTier = async (
   tierId: string,
   updates: {
     min_quantity?: number;
-    price?: number;
+    price_per_unit?: number;
   }
 ) => {
-  
-  
-  try {
-    // إضافة وقت التحديث
-    const updateData = {
-      ...updates,
-      updated_at: new Date().toISOString()
-    };
-    
-    // استخدام كائن supabase مباشرة بدلاً من fetch الخارجي
-    const { error: updateError } = await supabase
-      .from('wholesale_tiers')
-      .update(updateData)
-      .eq('id', tierId);
-    
-    if (updateError) {
-      console.error(`خطأ في تحديث مرحلة سعرية للجملة ${tierId}:`, updateError);
-      throw updateError;
-    }
-    
-    
-    
-    // استعلام منفصل للحصول على البيانات المحدثة
-    const { data, error: selectError } = await supabase
-      .from('wholesale_tiers')
-      .select()
-      .eq('id', tierId)
-      .single();
+  const { data, error } = await supabase
+    .from('product_wholesale_tiers')
+    .update(updates)
+    .eq('id', tierId)
+    .select()
+    .single();
 
-    if (selectError) {
-      console.error(`خطأ في استرجاع مرحلة سعرية محدثة ${tierId}:`, selectError);
-      throw selectError;
-    }
-    
-    if (!data) {
-      throw new Error(`لم يتم العثور على مرحلة سعرية بعد التحديث: ${tierId}`);
-    }
-
-    
-    return data;
-  } catch (error) {
-    console.error(`خطأ عام في تحديث مرحلة سعرية للجملة ${tierId}:`, error);
+  if (error) {
+    console.error('Error updating wholesale tier:', error);
     throw error;
   }
+  return data;
 };
 
-/**
- * Delete a wholesale tier
- */
 export const deleteWholesaleTier = async (tierId: string) => {
   
   
@@ -904,9 +1163,6 @@ export const deleteWholesaleTier = async (tierId: string) => {
   }
 };
 
-/**
- * Get price for a product based on quantity
- */
 export const getProductPriceForQuantity = async (productId: string, quantity: number) => {
   const { data, error } = await supabase
     .rpc('get_product_price_for_quantity', {
@@ -922,48 +1178,38 @@ export const getProductPriceForQuantity = async (productId: string, quantity: nu
   return data;
 };
 
-// وظيفة لتوليد رمز المنتج (SKU) تلقائياً
 export const generateAutomaticSku = async (
   categoryShortName: string = 'PR',
   brandShortName: string = '',
   organizationId?: string
 ): Promise<string> => {
   try {
-    // تنظيف وتوحيد رمز الفئة
     const cleanCategoryCode = categoryShortName ? categoryShortName.toUpperCase().substring(0, 2) : 'PR';
     
-    // تنظيف وتوحيد رمز الماركة
     let brandCode = '';
     if (brandShortName && brandShortName.trim() !== '') {
       brandCode = '-' + brandShortName.toUpperCase().substring(0, 2);
     }
     
-    // استخدام جزء من السنة الحالية
     const yearCode = new Date().getFullYear().toString().substring(2);
     
-    // إنشاء رقم عشوائي للتأكد من تفرد الرمز
     const randomNum = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
     
-    // تكوين رمز SKU كامل
     const generatedSku = `${cleanCategoryCode}${brandCode}-${yearCode}-${randomNum}`;
     
-    // إذا كان متصلاً بالإنترنت، تحقق من تفرد الرمز في قاعدة البيانات
     if (navigator.onLine && organizationId) {
       try {
-        // التحقق من وجود رمز مماثل - تم تعديل الاستعلام لمنع خطأ 406
         const { data: existingProducts, error } = await supabase
           .from('products')
           .select('id, name')
           .eq('sku', generatedSku);
         
-        // التحقق إذا كان هناك منتجات بنفس الرمز
         if (existingProducts && existingProducts.length > 0) {
           
           return generateAutomaticSku(categoryShortName, brandShortName, organizationId);
         }
       } catch (checkError) {
         console.error('خطأ في التحقق من تفرد رمز SKU:', checkError);
-        // استمر في العملية مع الرمز الحالي حتى في حالة وجود خطأ
       }
     }
     
@@ -971,7 +1217,6 @@ export const generateAutomaticSku = async (
   } catch (error) {
     console.error('خطأ غير متوقع في توليد رمز المنتج (SKU):', error);
     
-    // حل احتياطي في حالة حدوث أي مشكلة
     const prefix = categoryShortName ? categoryShortName.substring(0, 2).toUpperCase() : 'PR';
     const timestamp = Date.now().toString(36).toUpperCase();
     const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
@@ -980,17 +1225,13 @@ export const generateAutomaticSku = async (
   }
 };
 
-// وظيفة لتوليد باركود EAN-13 تلقائياً
 export const generateAutomaticBarcode = async (): Promise<string> => {
   try {
-    // استخدام وظيفة قاعدة البيانات لتوليد الباركود
     const { data, error } = await supabase.rpc('generate_product_barcode');
 
     if (error) {
       console.error('خطأ في توليد الباركود:', error);
       
-      // آلية احتياطية لإنشاء باركود EAN-13 صحيح
-      // تقوم بإنشاء باركود بناء على الوقت الحالي والأرقام العشوائية
       return generateEAN13Fallback();
     }
 
@@ -998,23 +1239,17 @@ export const generateAutomaticBarcode = async (): Promise<string> => {
   } catch (error) {
     console.error('خطأ غير متوقع في توليد الباركود:', error);
     
-    // حل احتياطي في حالة حدوث أي مشكلة
     return generateEAN13Fallback();
   }
 };
 
-// دالة مساعدة لتوليد باركود EAN-13 كحل احتياطي
 const generateEAN13Fallback = (): string => {
-  // بادئة الباركود (يمكن تغييرها)
   const prefix = '200';
   
-  // توليد 9 أرقام عشوائية
   const body = Math.floor(Math.random() * 1000000000).toString().padStart(9, '0');
   
-  // تكوين مصفوفة أرقام من الـ 12 رقم الأولى
   const digits = (prefix + body).split('').map(Number);
   
-  // حساب رقم التحقق باستخدام خوارزمية EAN-13
   let oddSum = 0;
   let evenSum = 0;
   
@@ -1026,20 +1261,16 @@ const generateEAN13Fallback = (): string => {
     }
   }
   
-  // حساب رقم التحقق
   const checkDigit = (10 - ((oddSum + evenSum * 3) % 10)) % 10;
   
-  // إرجاع الباركود كاملاً
   return prefix + body + checkDigit.toString();
 };
 
-// وظيفة لتوليد باركود لمتغير المنتج (لون)
 export const generateVariantBarcode = async (
   productId: string,
   variantId: string
 ): Promise<string> => {
   try {
-    // استخدام وظيفة قاعدة البيانات لتوليد باركود المتغير
     const { data, error } = await supabase.rpc('generate_variant_barcode', {
       product_id: productId,
       variant_id: variantId
@@ -1048,19 +1279,16 @@ export const generateVariantBarcode = async (
     if (error) {
       console.error('خطأ في توليد باركود المتغير:', error);
       
-      // الحصول على باركود المنتج الأساسي
       const { data: product } = await supabase
         .from('products')
         .select('barcode')
         .eq('id', productId)
         .single();
       
-      // إذا كان للمنتج باركود، أضف لاحقة عشوائية
       if (product?.barcode) {
         const suffix = Math.floor(Math.random() * 100).toString().padStart(2, '0');
         return `${product.barcode}-${suffix}`;
       } else {
-        // إذا لم يكن للمنتج باركود، قم بتوليد باركود جديد
         const newBarcode = await generateAutomaticBarcode();
         const suffix = Math.floor(Math.random() * 100).toString().padStart(2, '0');
         return `${newBarcode}-${suffix}`;
@@ -1071,17 +1299,14 @@ export const generateVariantBarcode = async (
   } catch (error) {
     console.error('خطأ غير متوقع في توليد باركود المتغير:', error);
     
-    // حل احتياطي
     const randomSuffix = Math.floor(Math.random() * 100).toString().padStart(2, '0');
     const timestamp = Date.now().toString().substring(8);
     return `${timestamp}-${randomSuffix}`;
   }
 };
 
-// وظيفة للتحقق من صحة الباركود
 export const validateBarcode = async (barcode: string): Promise<boolean> => {
   try {
-    // استخدام وظيفة قاعدة البيانات للتحقق من صحة الباركود
     const { data, error } = await supabase.rpc('validate_barcode', {
       barcode: barcode
     });
@@ -1089,7 +1314,6 @@ export const validateBarcode = async (barcode: string): Promise<boolean> => {
     if (error) {
       console.error('خطأ في التحقق من صحة الباركود:', error);
       
-      // تنفيذ التحقق محلياً إذا فشلت وظيفة قاعدة البيانات
       return validateEAN13Locally(barcode);
     }
 
@@ -1097,25 +1321,19 @@ export const validateBarcode = async (barcode: string): Promise<boolean> => {
   } catch (error) {
     console.error('خطأ غير متوقع في التحقق من صحة الباركود:', error);
     
-    // حل احتياطي
     return validateEAN13Locally(barcode);
   }
 };
 
-// دالة مساعدة للتحقق من صحة EAN-13 محليًا
 const validateEAN13Locally = (barcode: string): boolean => {
-  // التحقق من أن الباركود مكون من 13 رقمًا فقط
   if (!/^\d{13}$/.test(barcode)) {
     return false;
   }
   
-  // تحويل النص إلى مصفوفة أرقام
   const digits = barcode.split('').map(Number);
   
-  // الحصول على رقم التحقق
   const checkDigit = digits.pop();
   
-  // حساب رقم التحقق المتوقع
   let oddSum = 0;
   let evenSum = 0;
   
@@ -1129,19 +1347,13 @@ const validateEAN13Locally = (barcode: string): boolean => {
   
   const calculatedCheckDigit = (10 - ((oddSum + evenSum * 3) % 10)) % 10;
   
-  // التحقق من تطابق رقم التحقق
   return checkDigit === calculatedCheckDigit;
 };
 
-/**
- * تعطيل منتج بدلاً من حذفه
- * يستخدم لإخفاء المنتج من نقاط البيع والواجهة الأمامية مع الحفاظ على العلاقات في قاعدة البيانات
- */
 export const disableProduct = async (id: string): Promise<Product> => {
   
   
   try {
-    // تحديث المنتج ليكون معطلاً
     const { data, error } = await supabase
       .from('products')
       .update({ is_active: false, updated_at: new Date().toISOString() })
@@ -1170,14 +1382,10 @@ export const disableProduct = async (id: string): Promise<Product> => {
   }
 };
 
-/**
- * إعادة تفعيل منتج معطل
- */
 export const enableProduct = async (id: string): Promise<Product> => {
   
   
   try {
-    // تحديث المنتج ليكون مفعلاً
     const { data, error } = await supabase
       .from('products')
       .update({ is_active: true, updated_at: new Date().toISOString() })
@@ -1206,12 +1414,9 @@ export const enableProduct = async (id: string): Promise<Product> => {
   }
 };
 
-/**
- * Updates the purchase page customization config for a specific product.
- */
 export const updateProductPurchaseConfig = async (
   productId: string,
-  config: PurchasePageConfig | null // Allow null to reset/clear config
+  config: PurchasePageConfig | null
 ): Promise<Product | null> => {
   if (!productId) {
     console.error('Product ID is required to update purchase page config.');
@@ -1220,16 +1425,13 @@ export const updateProductPurchaseConfig = async (
 
   try {
     
-    // تحويل الكائن إلى JSON قبل إرساله لقاعدة البيانات
     const jsonConfig = config ? JSON.parse(JSON.stringify(config)) : null;
     
-    // تحديث شامل يتضمن shipping_clone_id مباشرة إلى جانب purchase_page_config
     const updateData: any = { 
       purchase_page_config: jsonConfig,
       updated_at: new Date().toISOString()
     };
     
-    // إضافة shipping_clone_id إلى التحديث إذا كان موجوداً في التكوين
     if (config && 'shipping_clone_id' in config) {
       updateData.shipping_clone_id = config.shipping_clone_id;
       
@@ -1264,10 +1466,6 @@ export const updateProductPurchaseConfig = async (
   }
 };
 
-/**
- * Fetches a lightweight list of active products (id and name) for an organization.
- * Useful for populating dropdowns or selection lists.
- */
 export const getProductListForOrganization = async (
   organizationId: string
 ): Promise<{ id: string; name: string }[]> => {
@@ -1279,10 +1477,10 @@ export const getProductListForOrganization = async (
   try {
     const { data, error } = await supabase
       .from('products')
-      .select('id, name') // Only select id and name
+      .select('id, name')
       .eq('organization_id', organizationId)
-      .eq('is_active', true) // Only active products
-      .order('name', { ascending: true }); // Order alphabetically
+      .eq('is_active', true)
+      .order('name', { ascending: true });
 
     if (error) {
       console.error('Error fetching product list for organization:', error);
@@ -1292,6 +1490,33 @@ export const getProductListForOrganization = async (
     return data || [];
   } catch (error) {
     console.error('Unexpected error fetching product list:', error);
-    return []; // Return empty array on error
+    return [];
   }
+};
+
+export interface Review {
+  id: string;
+  product_id: string;
+  user_id?: string | null;
+  user_name?: string | null;
+  rating: number;
+  comment?: string | null;
+  is_approved: boolean;
+  is_verified_purchase?: boolean;
+  created_at: string;
+}
+
+export const getProductReviews = async (productId: string): Promise<Review[]> => {
+  const { data, error } = await supabase
+    .from('product_reviews')
+    .select('*')
+    .eq('product_id', productId)
+    .eq('is_approved', true)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching product reviews:', error);
+    return [];
+  }
+  return data as Review[];
 }; 

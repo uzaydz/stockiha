@@ -44,6 +44,7 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
+import { withCache, LONG_CACHE_TTL } from '@/lib/cache/storeCache';
 
 // نوع بيانات المؤسسة
 interface Organization {
@@ -99,64 +100,72 @@ export default function SuperAdminOrganizations() {
   useEffect(() => {
     const fetchOrganizations = async () => {
       setIsLoading(true);
+      setError(null);
+
+      const cacheKey = 'super_admin_organizations_list';
+
       try {
-        // استعلام يجلب المؤسسات
-        const { data: orgsData, error: orgsError } = await supabase
-          .from('organizations')
-          .select(`
-            id, 
-            name,
-            domain,
-            subdomain,
-            subscription_tier,
-            subscription_status,
-            created_at
-          `);
+        const cachedOrganizations = await withCache<Organization[]>(
+          cacheKey,
+          async () => {
+            // استعلام يجلب المؤسسات
+            const { data: orgsData, error: orgsError } = await supabase
+              .from('organizations')
+              .select(`
+                id, 
+                name,
+                domain,
+                subdomain,
+                subscription_tier,
+                subscription_status,
+                created_at
+              `);
 
-        if (orgsError) {
-          throw orgsError;
-        }
+            if (orgsError) {
+              throw orgsError;
+            }
 
-        // عمل استعلام منفصل للحصول على عدد المستخدمين في كل مؤسسة
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('id, organization_id');
+            // عمل استعلام منفصل للحصول على عدد المستخدمين في كل مؤسسة
+            // ملاحظة: هذا الجزء سيظل ينفذ في كل مرة إذا لم يتم تخزينه مؤقتًا بشكل منفصل
+            // أو إذا لم يتم دمجه في استعلام واحد أكثر تعقيدًا إذا أمكن
+            const { data: userData, error: userError } = await supabase
+              .from('users')
+              .select('id, organization_id');
 
-        if (userError) {
-          throw userError;
-        }
+            if (userError) {
+              throw userError;
+            }
 
-        // تجميع عدد المستخدمين لكل مؤسسة
-        const userCounts = userData.reduce((counts: Record<string, number>, user) => {
-          if (user.organization_id) {
-            counts[user.organization_id] = (counts[user.organization_id] || 0) + 1;
-          }
-          return counts;
-        }, {});
+            // تجميع عدد المستخدمين لكل مؤسسة
+            const userCounts = userData.reduce((counts: Record<string, number>, user) => {
+              if (user.organization_id) {
+                counts[user.organization_id] = (counts[user.organization_id] || 0) + 1;
+              }
+              return counts;
+            }, {});
 
-        // تنسيق البيانات
-        const formattedData = orgsData.map(org => ({
-          id: org.id,
-          name: org.name,
-          domain: org.domain,
-          subdomain: org.subdomain,
-          subscription_tier: org.subscription_tier || 'free',
-          subscription_status: org.subscription_status || 'inactive',
-          created_at: org.created_at,
-          users_count: userCounts[org.id] || 0
-        }));
+            // دمج عدد المستخدمين مع بيانات المؤسسات
+            return orgsData.map(org => ({
+              ...org,
+              users_count: userCounts[org.id] || 0,
+            }));
+          },
+          LONG_CACHE_TTL // استخدام TTL طويل الأمد (24 ساعة)
+        );
+        
+        setOrganizations(cachedOrganizations || []);
 
-        setOrganizations(formattedData);
       } catch (err: any) {
-        console.error('Error fetching organizations:', err);
-        setError(err.message);
+        console.error("Error fetching organizations:", err);
+        setError(err.message || 'فشل في جلب بيانات المؤسسات');
+        setOrganizations([]); // تعيين قائمة فارغة في حالة الخطأ
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchOrganizations();
-  }, []);
+  }, []); // الاعتماديات فارغة لجلب البيانات مرة واحدة عند تحميل المكون
   
   // Filter organizations based on search query and filters
   const filteredOrganizations = organizations.filter((org) => {

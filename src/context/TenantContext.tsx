@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext';
 import { withCache, LONG_CACHE_TTL } from '@/lib/cache/storeCache';
 import { getOrganizationBySubdomain, getOrganizationByDomain } from '@/lib/api/subdomain';
 import { getOrganizationById } from '@/lib/api/organization';
+import { API_TIMEOUTS, RETRY_CONFIG, withTimeout, withRetry } from '@/config/api-timeouts';
 
 export type Organization = {
   id: string;
@@ -166,6 +167,58 @@ export const getOrganizationFromCustomDomain = async (hostname: string): Promise
   return null;
 };
 
+// إضافة كومبوننت بسيط لعرض حالة التحميل
+const LoadingIndicator = ({ isLoading, error, retryCount }: { 
+  isLoading: boolean; 
+  error: Error | null; 
+  retryCount: number; 
+}) => {
+  if (!isLoading && !error) return null;
+  
+  return (
+    <div style={{
+      position: 'fixed',
+      top: '20px',
+      right: '20px',
+      padding: '10px 15px',
+      borderRadius: '8px',
+      backgroundColor: error ? '#f8d7da' : '#d1ecf1',
+      border: error ? '1px solid #f5c6cb' : '1px solid #bee5eb',
+      color: error ? '#721c24' : '#0c5460',
+      fontSize: '14px',
+      zIndex: 9999,
+      maxWidth: '300px'
+    }}>
+      {isLoading && (
+        <div>
+          🔄 جارٍ تحميل بيانات المؤسسة...
+          {retryCount > 0 && ` (المحاولة ${retryCount})`}
+        </div>
+      )}
+      {error && (
+        <div>
+          ⚠️ {error.message}
+          <button 
+            onClick={() => window.location.reload()} 
+            style={{
+              marginLeft: '10px',
+              padding: '5px 10px',
+              border: 'none',
+              borderRadius: '4px',
+              backgroundColor: '#dc3545',
+              color: 'white',
+              cursor: 'pointer',
+              fontSize: '12px'
+            }}
+          >
+            إعادة تحميل
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading: authLoading, currentSubdomain, organization: authOrganization } = useAuth();
   const [organization, setOrganization] = useState<Organization | null>(null);
@@ -176,6 +229,9 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Track initialization and prevent duplicate loads
   const initialized = useRef(false);
   const loadingOrganization = useRef(false);
+  const loadingTimeout = useRef<NodeJS.Timeout | null>(null);
+  const retryCount = useRef(0);
+  const maxRetries = RETRY_CONFIG.MAX_RETRIES;
 
   // التحقق من النطاق المخصص عند بدء التشغيل
   useEffect(() => {
@@ -205,6 +261,14 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
     
     checkCustomDomain();
+    
+    // تنظيف عند إلغاء تركيب المكون
+    return () => {
+      if (loadingTimeout.current) {
+        clearTimeout(loadingTimeout.current);
+        loadingTimeout.current = null;
+      }
+    };
   }, []);
 
   // مزامنة بيانات المؤسسة من AuthContext إلى TenantContext - محسنة
@@ -249,14 +313,47 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // تحميل بيانات المؤسسة عند تغيير النطاق الفرعي 
   useEffect(() => {
     // تجنب تحميل البيانات مرات متعددة
-    if (authLoading || loadingOrganization.current || 
-       (initialized.current && organization)) {
+    if (authLoading || loadingOrganization.current) {
+      return;
+    }
+
+    // إذا كان المكون قد تم تهيئته وهناك منظمة، لا نحتاج لإعادة التحميل
+    if (initialized.current && organization) {
+      setIsLoading(false);
       return;
     }
     
     const loadTenantData = async () => {
+      if (loadingOrganization.current || initialized.current) {
+        return; // تجنب التحميل المتزامن أو إعادة التحميل غير الضرورية
+      }
+      
       setIsLoading(true);
+      setError(null); // إعادة تعيين الخطأ
       loadingOrganization.current = true;
+      
+      // إعداد timeout للتحميل لتجنب التحميل المستمر
+      if (loadingTimeout.current) {
+        clearTimeout(loadingTimeout.current);
+      }
+      
+      loadingTimeout.current = setTimeout(() => {
+        console.warn('انتهت مهلة تحميل بيانات المؤسسة - إيقاف التحميل');
+        loadingOrganization.current = false;
+        setIsLoading(false);
+        
+        // إعادة المحاولة إذا لم نصل للحد الأقصى
+        if (retryCount.current < maxRetries) {
+          retryCount.current += 1;
+          console.warn(`إعادة محاولة تحميل بيانات المؤسسة (المحاولة ${retryCount.current}/${maxRetries})`);
+                     setTimeout(() => {
+             initialized.current = false;
+             loadTenantData();
+           }, API_TIMEOUTS.RETRY_DELAY);
+        } else {
+          setError(new Error('فشل في تحميل بيانات المؤسسة بعد عدة محاولات. يرجى إعادة تحميل الصفحة.'));
+        }
+      }, API_TIMEOUTS.ORGANIZATION_LOAD);
       
       try {
         // استخدام النطاق الفرعي الحالي أو استخراجه من اسم المضيف
@@ -271,7 +368,12 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         localStorage.removeItem(`tenant:domain:${currentHostname}`);
         
         // محاولة البحث عن المؤسسة بواسطة النطاق الرئيسي
-        const orgByDomain = await getOrganizationByDomain(currentHostname);
+        const orgByDomain = await Promise.race([
+          getOrganizationByDomain(currentHostname),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Domain lookup timeout')), 15000)
+          )
+        ]) as any;
         
         if (orgByDomain) {
           
@@ -285,7 +387,12 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
         // محاولة البحث عن المؤسسة بواسطة النطاق الفرعي
         else if (subdomain) {
-          const orgBySubdomain = await getOrganizationBySubdomain(subdomain);
+          const orgBySubdomain = await Promise.race([
+            getOrganizationBySubdomain(subdomain),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Subdomain lookup timeout')), 15000)
+            )
+          ]) as any;
           
           if (orgBySubdomain) {
             
@@ -302,21 +409,42 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             
             
             // محاولة استخدام المعرف المخزن محلياً كاحتياطي
-            tryLoadFromLocalStorage();
+            await tryLoadFromLocalStorage();
           }
         } else {
           // محاولة استخدام المعرف المخزن محلياً
-          tryLoadFromLocalStorage();
+          await tryLoadFromLocalStorage();
         }
         
         initialized.current = true;
+        retryCount.current = 0; // إعادة تعيين عداد المحاولات عند النجاح
+        
+        // إلغاء timeout عند نجاح التحميل
+        if (loadingTimeout.current) {
+          clearTimeout(loadingTimeout.current);
+          loadingTimeout.current = null;
+        }
+        
       } catch (error) {
         console.error('خطأ في تحميل بيانات المؤسسة:', error);
-        setOrganization(null);
-        setError(error as Error);
+        
+        // في حالة timeout، لا نعتبرها خطأ نهائي
+        if (error instanceof Error && error.message.includes('timeout')) {
+          console.warn('تايم أوت في تحميل البيانات، سيتم إعادة المحاولة...');
+          // لا نقوم بتعيين error state في هذه الحالة
+        } else {
+          setOrganization(null);
+          setError(error as Error);
+        }
       } finally {
         loadingOrganization.current = false;
         setIsLoading(false);
+        
+        // إلغاء timeout في حالة الانتهاء من المحاولة
+        if (loadingTimeout.current) {
+          clearTimeout(loadingTimeout.current);
+          loadingTimeout.current = null;
+        }
       }
     };
     
@@ -345,8 +473,22 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     };
     
-    loadTenantData();
-  }, [currentSubdomain, authLoading, user, organization, getOrganizationById, getOrganizationByDomain, getOrganizationBySubdomain]);
+    // تشغيل loadTenantData فقط عند الحاجة الحقيقية
+    if (!authLoading && !initialized.current) {
+      loadTenantData();
+    }
+  }, [currentSubdomain, authLoading, user]);
+
+  // دالة مساعدة لجلب المؤسسة بواسطة النطاق الفرعي
+  const fetchOrgBySubdomain = useCallback(async (subdomain: string | null) => {
+    if (!subdomain) return null;
+    try {
+      return await getOrganizationBySubdomain(subdomain);
+    } catch (error) {
+      console.error('خطأ في جلب المؤسسة بواسطة النطاق الفرعي:', error);
+      return null;
+    }
+  }, [getOrganizationBySubdomain]);
 
   // إنشاء مؤسسة جديدة - محسنة مع useCallback
   const createOrganization = useCallback(async (
@@ -424,13 +566,21 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // تحديث بيانات المؤسسة - محسنة مع useCallback
   const refreshOrganizationData = useCallback(async () => {
-    if (authLoading) {
+    if (authLoading || loadingOrganization.current) {
       return;
     }
 
     setIsLoading(true);
     setError(null);
     loadingOrganization.current = true;
+    
+    // إعداد timeout للحماية من التعليق
+    const refreshTimeout = setTimeout(() => {
+      console.warn('انتهت مهلة تحديث بيانات المؤسسة');
+      loadingOrganization.current = false;
+      setIsLoading(false);
+      setError(new Error('انتهت مهلة تحديث بيانات المؤسسة'));
+    }, 20000);
 
     try {
       
@@ -495,7 +645,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // حذف التخزين المؤقت لضمان الحصول على أحدث البيانات
       localStorage.removeItem(`tenant:subdomain:${subdomain}`);
       
-      const org = await fetchOrganizationBySubdomain(subdomain);
+      const org = await getOrganizationBySubdomain(subdomain);
       
       if (org) {
         setOrganization(updateOrganizationFromData(org));
@@ -507,10 +657,11 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       console.error('خطأ في تحديث بيانات المؤسسة:', error);
       setError(error as Error);
     } finally {
+      clearTimeout(refreshTimeout);
       loadingOrganization.current = false;
       setIsLoading(false);
     }
-  }, [currentSubdomain, authLoading, user, fetchOrganizationBySubdomain, getSupabaseClient]);
+  }, [currentSubdomain, authLoading, user, getOrganizationBySubdomain, getSupabaseClient]);
 
   // استخدام useMemo لتجنب إعادة الإنشاء
   const value = useMemo(() => ({
@@ -534,7 +685,10 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     refreshOrganizationData
   ]);
 
-  return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>;
+  return <TenantContext.Provider value={value}>
+    {children}
+    <LoadingIndicator isLoading={isLoading} error={error} retryCount={retryCount.current} />
+  </TenantContext.Provider>;
 };
 
 // Hook لاستخدام سياق المستأجر

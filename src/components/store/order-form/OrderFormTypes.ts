@@ -33,7 +33,8 @@ export const PAYMENT_METHODS = [
 // Shipping provider integration interface
 export interface ShippingIntegration {
   enabled: boolean;
-  provider_id: string | null;
+  provider_id: number;
+  provider_code?: string;
   origin_wilaya_id?: string | null;
 }
 
@@ -167,9 +168,39 @@ export interface OrderFormValues {
   [key: string]: any; // للحقول المخصصة الديناميكية
 }
 
-// Define the structure for an active offer (matching what's passed from ProductPurchase)
-// Using 'any' for now for simplicity, refine later if needed based on exact structure
-export type ActiveOfferData = any | null; 
+// Define the structure for an active offer
+export interface ActiveOfferData {
+  id?: string | number;
+  type: string; // e.g., 'discount_percentage', 'discount_fixed', 'free_shipping'
+  discountValue?: number;
+  freeShipping?: boolean;
+  minQuantity?: number;
+  // Add any other relevant fields from your actual offer structure
+}
+
+// Interface for Abandoned Cart Payload
+export interface AbandonedCartPayload {
+  organization_id: string;
+  product_id?: string | null;
+  product_color_id?: string | null;
+  product_size_id?: string | null;
+  quantity?: number;
+  customer_name?: string;
+  customer_phone: string;
+  customer_email?: string;
+  province?: string;
+  municipality?: string;
+  address?: string;
+  delivery_option?: string;
+  payment_method?: string;
+  notes?: string;
+  custom_fields_data?: Record<string, any>;
+  calculated_delivery_fee?: number | null;
+  subtotal?: number | null;
+  discount_amount?: number | null;
+  total_amount?: number | null;
+  // status is handled by the backend or specific flows
+}
 
 // Interface for props passed to the OrderForm component
 export interface OrderFormProps {
@@ -211,6 +242,7 @@ export interface DeliveryInfoFieldsProps {
   shippingProviderSettings?: ShippingProviderSettings;
   yalidineCenters?: any[];
   isLoadingYalidineCenters?: boolean;
+  onDeliveryPriceCalculated?: (price: number) => void;
 }
 
 export interface CustomFormFieldsProps {

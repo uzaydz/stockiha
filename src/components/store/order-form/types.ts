@@ -1,3 +1,5 @@
+import { UseFormSetValue } from 'react-hook-form';
+
 // تعريف واجهة الحقل المخصص
 export interface CustomFormField {
   id: string;
@@ -40,6 +42,8 @@ export interface ShippingProviderSettings {
   unified_desk_price?: number;
   is_free_delivery_home: boolean;
   is_free_delivery_desk: boolean;
+  provider_code?: string;
+  original_provider_id?: number;
 }
 
 // تعريف واجهة الحقل الممتد مع البيانات الخارجية
@@ -69,11 +73,15 @@ export interface DeliveryTypeFieldProps {
   field: ExtendedFormField;
   extendedFields: ExtendedFormField[];
   setExtendedFields: React.Dispatch<React.SetStateAction<ExtendedFormField[]>>;
-  setValue: any;
-  recalculateAndSetDeliveryPrice: (currentDeliveryType?: string, currentProvinceId?: string, currentMunicipalityId?: string) => void;
+  setValue: UseFormSetValue<any>;
+  recalculateAndSetDeliveryPrice: (
+    deliveryType?: string,
+    provinceId?: string,
+    municipalityId?: string
+  ) => void;
   handleProvinceChange: (provinceId: string, municipalityFieldId: string | null, deliveryTypeOverride?: string) => Promise<void>;
-  updateValue?: (name: string, value: string) => void;
-  shippingProviderSettings?: ShippingProviderSettings;
+  updateValue?: (name: string, value: any) => void;
+  shippingProviderSettings?: any;
 }
 
 // واجهة خصائص النجاح في إرسال الطلب

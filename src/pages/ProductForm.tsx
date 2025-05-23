@@ -1,261 +1,38 @@
-import React, { lazy, Suspense, useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm, FormProvider } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
-import { Package, Eye, Loader2, ArrowLeft, Save } from 'lucide-react';
+import { Loader2, Save } from 'lucide-react';
+import { Helmet } from 'react-helmet';
+import { Package } from 'lucide-react';
 
-// Custom hooks
+// Custom Hooks
 import { useTenant } from '@/context/TenantContext';
-import { useAuth } from '@/context/AuthContext';
+import { useProductFormInitialization } from '@/hooks/useProductFormInitialization';
+import { useCategoryData } from '@/hooks/useCategoryData';
+import { useProductPermissions } from '@/hooks/useProductPermissions';
 
 // UI Components
+import Layout from '@/components/Layout';
+import ProductFormHeader from '@/components/product/form/ProductFormHeader';
+import ProductQuickInfoPanel from '@/components/product/form/ProductQuickInfoPanel';
+import ProductFormTabs from '@/components/product/form/ProductFormTabs';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
-import { ImageUploaderRef } from '@/components/ui/ImageUploader';
 
-// Types
-import { productSchema, ProductFormValues, ProductColor, WholesaleTier } from '@/types/product';
+// Types & API
+import { productSchema, ProductFormValues, ProductColor, WholesaleTier, productAdvancedSettingsSchema } from '@/types/product';
+import { createProduct, updateProduct, InsertProduct, UpdateProduct } from '@/lib/api/products';
 import { Category, Subcategory } from '@/lib/api/categories';
 
-// API
-import { 
-  getProductById, 
-  createProduct, 
-  updateProduct,
-  getWholesaleTiers,
-  InsertProduct
-} from '@/lib/api/products';
-import { 
-  getCategories, 
-  getSubcategories 
-} from '@/lib/api/categories';
-import { 
-  getProductColors,
-  getProductImages
-} from '@/lib/api/productVariants';
-import { checkUserPermissions, refreshUserData } from '@/lib/api/permissions';
-
-// Layout
-import Layout from '@/components/Layout';
-
-// Lazy-loaded components
-const BasicProductInfo = lazy(() => import('@/components/product/BasicProductInfo'));
-const ProductCategories = lazy(() => import('@/components/product/ProductCategories'));
-const ProductPricing = lazy(() => import('@/components/product/ProductPricing'));
-const ProductInventory = lazy(() => import('@/components/product/ProductInventory'));
-const ProductSKUBarcode = lazy(() => import('@/components/product/ProductSKUBarcode'));
-const ProductSellingType = lazy(() => import('@/components/product/ProductSellingType'));
-const ProductImagesManager = lazy(() => import('@/components/product/ProductImagesManager'));
-const ProductColorManager = lazy(() => import('@/components/product/ProductColorManager'));
-const WholesaleTierManager = lazy(() => import('@/components/product/WholesaleTierManager'));
-
-// Helper component for Suspense fallback
-const SectionLoader = () => (
-  <div className="flex items-center justify-center p-8">
-    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-  </div>
-);
-
-// Form sections with memo for performance
-interface BasicInfoSectionProps {
-  form: any;
-}
-
-const BasicInfoSection = React.memo(({ form }: BasicInfoSectionProps) => (
-  <Suspense fallback={<SectionLoader />}>
-    <div className="space-y-6">
-      <BasicProductInfo form={form} />
-    </div>
-  </Suspense>
-));
-
-interface CategoriesSectionProps {
-  form: any;
-  categories: Category[];
-  subcategories: Subcategory[];
-  onCategoryCreated: (category: Category) => void;
-  onSubcategoryCreated: (subcategory: Subcategory) => void;
-}
-
-const CategoriesSection = React.memo(({ form, categories, subcategories, onCategoryCreated, onSubcategoryCreated }: CategoriesSectionProps) => (
-  <Suspense fallback={<SectionLoader />}>
-    <div className="space-y-6">
-      <ProductCategories 
-        form={form} 
-        categories={categories} 
-        subcategories={subcategories}
-        onCategoryCreated={onCategoryCreated}
-        onSubcategoryCreated={onSubcategoryCreated}
-      />
-    </div>
-  </Suspense>
-));
-
-interface PricingSectionProps {
-  form: any;
-}
-
-const PricingSection = React.memo(({ form }: PricingSectionProps) => (
-  <Suspense fallback={<SectionLoader />}>
-    <div className="space-y-6">
-      <ProductPricing form={form} />
-    </div>
-  </Suspense>
-));
-
-interface InventorySectionProps {
-  form: any;
-  organizationId: string;
-  hasVariants: boolean;
-}
-
-const InventorySection = React.memo(({ form, organizationId, hasVariants }: InventorySectionProps) => (
-  <Suspense fallback={<SectionLoader />}>
-    <div className="space-y-6">
-      <ProductSKUBarcode 
-        form={form} 
-        productId="" 
-        organizationId={organizationId}
-      />
-      <ProductInventory 
-        form={form} 
-        organizationId={organizationId}
-        hasVariants={hasVariants}
-      />
-    </div>
-  </Suspense>
-));
-
-interface ImagesSectionProps {
-  mainImage: string;
-  additionalImages: string[];
-  onMainImageChange: (url: string) => void;
-  onAdditionalImagesChange: (urls: string[]) => void;
-  thumbnailImageRef: React.RefObject<ImageUploaderRef>;
-}
-
-const ImagesSection = React.memo(({ mainImage, additionalImages, onMainImageChange, onAdditionalImagesChange, thumbnailImageRef }: ImagesSectionProps) => (
-  <Suspense fallback={<SectionLoader />}>
-    <div className="space-y-6">
-      <ProductImagesManager
-        mainImage={mainImage}
-        additionalImages={additionalImages}
-        onMainImageChange={onMainImageChange}
-        onAdditionalImagesChange={onAdditionalImagesChange}
-        thumbnailImageRef={thumbnailImageRef}
-      />
-    </div>
-  </Suspense>
-));
-
-interface SellingTypeSectionProps {
-  form: any;
-  onHasVariantsChange: (hasVariants: boolean) => void;
-}
-
-const SellingTypeSection = React.memo(({ form, onHasVariantsChange }: SellingTypeSectionProps) => (
-  <Suspense fallback={<SectionLoader />}>
-    <div className="space-y-6">
-      <ProductSellingType 
-        form={form} 
-        onHasVariantsChange={onHasVariantsChange}
-      />
-    </div>
-  </Suspense>
-));
-
-interface VariantsSectionProps {
-  productColors: ProductColor[];
-  onChange: (colors: ProductColor[]) => void;
-  basePrice: number;
-  basePurchasePrice: number;
-  useVariantPrices: boolean;
-  onUseVariantPricesChange: (useVariantPrices: boolean) => void;
-  useSizes: boolean;
-  onUseSizesChange: (useSizes: boolean) => void;
-  productId: string;
-}
-
-const VariantsSection = React.memo(({ 
-  productColors, 
-  onChange, 
-  basePrice, 
-  basePurchasePrice, 
-  useVariantPrices, 
-  onUseVariantPricesChange, 
-  useSizes, 
-  onUseSizesChange, 
-  productId 
-}: VariantsSectionProps) => (
-  <Suspense fallback={<SectionLoader />}>
-    <div className="space-y-6">
-      <ProductColorManager 
-        colors={productColors}
-        onChange={onChange}
-        basePrice={basePrice}
-        basePurchasePrice={basePurchasePrice}
-        useVariantPrices={useVariantPrices}
-        onUseVariantPricesChange={onUseVariantPricesChange}
-        useSizes={useSizes}
-        onUseSizesChange={onUseSizesChange}
-        productId={productId}
-      />
-    </div>
-  </Suspense>
-));
-
-interface WholesaleSectionProps {
-  wholesaleTiers: WholesaleTier[];
-  onChange: (tiers: WholesaleTier[]) => void;
-  productId: string;
-  organizationId: string;
-}
-
-const WholesaleSection = React.memo(({ wholesaleTiers, onChange, productId, organizationId }: WholesaleSectionProps) => (
-  <Suspense fallback={<SectionLoader />}>
-    <div className="space-y-6">
-      <WholesaleTierManager
-        productId={productId}
-        organizationId={organizationId || ""}
-        onChange={onChange}
-      />
-    </div>
-  </Suspense>
-));
-
 export default function ProductForm() {
-  const { id } = useParams<{ id: string }>();
+  const { id: productId } = useParams<{ id: string }>();
+  console.log('ProductForm - productId:', productId, 'isEditMode should be:', !!productId);
   const navigate = useNavigate();
   const { currentOrganization } = useTenant();
-  const { user } = useAuth();
-  const isEditMode = !!id;
-  
-  // State for product data
-  const [product, setProduct] = useState(null);
-  const [isLoading, setIsLoading] = useState(isEditMode);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
-  const [additionalImages, setAdditionalImages] = useState<string[]>([]);
-  const [productColors, setProductColors] = useState<ProductColor[]>([]);
-  const [useVariantPrices, setUseVariantPrices] = useState(false);
-  const [wholesaleTiers, setWholesaleTiers] = useState<WholesaleTier[]>([]);
-  const [useSizes, setUseSizes] = useState(false);
-  const [hasPermission, setHasPermission] = useState(true);
-  
-  // Refs
-  const thumbnailImageRef = useRef<ImageUploaderRef>(null);
-  
-  // Get organization ID
-  const organizationId = useMemo(() => {
-    return currentOrganization?.id || '';
-  }, [currentOrganization]);
-  
-  // Initialize form with react-hook-form and zod validation
+  const organizationIdFromTenant = currentOrganization?.id;
+  console.log('[ProductForm] Initial organizationIdFromTenant from useTenant:', organizationIdFromTenant);
+
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
     defaultValues: {
@@ -263,626 +40,466 @@ export default function ProductForm() {
       description: '',
       price: 0,
       purchase_price: 0,
+      allow_retail: true,
+      sku: '',
+      category_id: '',
+      stock_quantity: 0,
+      thumbnail_image: '',
+      organization_id: undefined, // Will be set by useProductFormInitialization
+      has_variants: false,
+      show_price_on_landing: true,
+      is_featured: false,
+      is_new: true,
+      advancedSettings: productAdvancedSettingsSchema.parse({}), // Initialize with default advanced settings
+      additional_images: [],
+      colors: [],
+      wholesale_tiers: [],
+      use_sizes: false,
+      is_sold_by_unit: true,
+      unit_type: '',
+      use_variant_prices: false,
+      unit_purchase_price: undefined,
+      unit_sale_price: undefined,
+      form_template_id: null,
+      shipping_provider_id: null,
+      use_shipping_clone: false,
+      shipping_clone_id: null,
+      created_by_user_id: undefined,
+      updated_by_user_id: undefined,
+      slug: '',
+      is_digital: false,
+      features: [],
+      specifications: {},
       compare_at_price: undefined,
+      brand: '',
+      barcode: '',
+      name_for_shipping: '',
+      allow_wholesale: false,
+      allow_partial_wholesale: false,
       wholesale_price: undefined,
       partial_wholesale_price: undefined,
       min_wholesale_quantity: undefined,
       min_partial_wholesale_quantity: undefined,
-      allow_retail: true,
-      allow_wholesale: false,
-      allow_partial_wholesale: false,
-      sku: '',
-      barcode: '',
-      category_id: '',
-      subcategory_id: '',
-      brand: '',
-      stock_quantity: 0,
-      thumbnail_image: '',
-      has_variants: false,
-      use_sizes: false,
-      show_price_on_landing: true,
-      is_featured: false,
-      is_new: true,
-      is_sold_by_unit: true,
-      unit_type: 'kg',
-      use_variant_prices: false,
-      unit_purchase_price: 0,
-      unit_sale_price: 0,
-      colors: [],
-      additional_images: [],
+      subcategory_id: undefined,
     },
   });
-  
-  // Watch form values
+
+  // The useEffect that was setting organization_id directly in ProductForm has been REMOVED.
+  // Its logic is now handled within useProductFormInitialization.
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [additionalImages, setAdditionalImages] = useState<string[]>([]);
+  const [productColors, setProductColors] = useState<ProductColor[]>([]);
+  const [wholesaleTiers, setWholesaleTiers] = useState<WholesaleTier[]>([]);
+  const [useVariantPrices, setUseVariantPrices] = useState(false);
+  const [useSizes, setUseSizes] = useState(false);
+  const [hasVariantsState, setHasVariantsState] = useState(false);
+
+  const { isLoading: isLoadingProduct, productNameForTitle, isEditMode, initialDataSet } = useProductFormInitialization({
+    id: productId,
+    form,
+    organizationId: organizationIdFromTenant, // Pass organizationId here
+    setAdditionalImages,
+    setProductColors,
+    setWholesaleTiers,
+    setUseVariantPrices,
+    setUseSizes,
+    setHasVariantsState,
+  });
+
+  const { hasPermission, isCheckingPermission } = useProductPermissions({ isEditMode });
+
   const watchCategoryId = form.watch('category_id');
-  const watchHasVariants = form.watch('has_variants');
+  const { categories, subcategories, handleCategoryCreated, handleSubcategoryCreated } = useCategoryData({
+    organizationId: organizationIdFromTenant,
+    watchCategoryId,
+  });
+
+  const watchHasVariants = form.watch('has_variants', hasVariantsState);
   const watchPrice = form.watch('price');
   const watchPurchasePrice = form.watch('purchase_price');
   const watchThumbnailImage = form.watch('thumbnail_image');
-  
-  // Load product data if in edit mode
-  useEffect(() => {
-    if (isEditMode && id) {
-      const loadProduct = async () => {
-        try {
-          setIsLoading(true);
-          const productData = await getProductById(id);
-          
-          if (productData) {
-            setProduct(productData);
-            
-            // Load form values
-            form.reset({
-              name: productData.name || '',
-              description: productData.description || '',
-              price: productData.price || 0,
-              purchase_price: productData.purchase_price || 0,
-              compare_at_price: productData.compare_at_price || undefined,
-              wholesale_price: productData.wholesale_price || undefined,
-              partial_wholesale_price: productData.partial_wholesale_price || undefined,
-              min_wholesale_quantity: productData.min_wholesale_quantity || undefined,
-              min_partial_wholesale_quantity: productData.min_partial_wholesale_quantity || undefined,
-              allow_retail: productData.allow_retail !== false,
-              allow_wholesale: productData.allow_wholesale || false,
-              allow_partial_wholesale: productData.allow_partial_wholesale || false,
-              sku: productData.sku || '',
-              barcode: productData.barcode || '',
-              category_id: productData.category_id || '',
-              subcategory_id: productData.subcategory_id || '',
-              brand: productData.brand || '',
-              stock_quantity: productData.stock_quantity || 0,
-              thumbnail_image: productData.thumbnail_image || '',
-              has_variants: Boolean(productData.has_variants),
-              show_price_on_landing: productData.show_price_on_landing !== false,
-              is_featured: Boolean(productData.is_featured),
-              is_new: Boolean(productData.is_new),
-              use_sizes: Boolean(productData.use_sizes),
-              is_sold_by_unit: productData.is_sold_by_unit !== false,
-              unit_type: productData.unit_type || 'kg',
-              use_variant_prices: Boolean(productData.use_variant_prices),
-              unit_purchase_price: productData.unit_purchase_price || 0,
-              unit_sale_price: productData.unit_sale_price || 0,
-              colors: [],
-              additional_images: [],
-            });
-            
-            // Load variants and images
-            const colors = await getProductColors(id);
-            setProductColors(colors);
-            setUseVariantPrices(Boolean(productData.use_variant_prices));
-            setUseSizes(Boolean(productData.use_sizes));
-            
-            // Load wholesale tiers
-            const tiers = await getWholesaleTiers(id);
-            setWholesaleTiers(tiers);
-            
-            // Load additional images
-            if (Array.isArray(productData.images)) {
-              setAdditionalImages(productData.images.filter(img => img !== productData.thumbnail_image));
-            }
-          } else {
-            toast.error('لم يتم العثور على المنتج');
-            navigate('/products');
-          }
-        } catch (error) {
-          console.error('Error loading product:', error);
-          toast.error('حدث خطأ أثناء تحميل بيانات المنتج');
-          navigate('/products');
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      
-      loadProduct();
-    }
-  }, [id, isEditMode, navigate, form]);
-  
-  // Load categories
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const categoriesData = await getCategories(organizationId);
-        // تصفية الفئات لإظهار فئات المنتجات فقط
-        const productCategories = categoriesData.filter(cat => cat.type === 'product');
-        setCategories(productCategories);
-      } catch (error) {
-        console.error('Error fetching categories:', error);
-        toast.error('حدث خطأ أثناء تحميل الفئات');
-      }
-    };
-    
-    fetchCategories();
-  }, [organizationId]);
-  
-  // Load subcategories when category changes
-  useEffect(() => {
-    if (watchCategoryId) {
-      const fetchSubcategories = async () => {
-        try {
-          const subcategoriesData = await getSubcategories(watchCategoryId);
-          setSubcategories(subcategoriesData);
-        } catch (error) {
-          console.error('Error fetching subcategories:', error);
-          toast.error('حدث خطأ أثناء تحميل الفئات الفرعية');
-        }
-      };
-      
-      fetchSubcategories();
-    } else {
-      setSubcategories([]);
-    }
-  }, [watchCategoryId]);
-  
-  // Check user permissions
-  useEffect(() => {
-    if (!user) return;
-    
-    const checkPermission = async () => {
-      try {
-        // تحديث بيانات المستخدم من قاعدة البيانات
-        const userData = await refreshUserData(user.id);
-        
-        // دمج البيانات المحدثة مع بيانات المستخدم
-        const mergedUserData = {
-          ...user,
-          permissions: userData?.permissions || user.user_metadata?.permissions,
-          is_org_admin: userData?.is_org_admin || user.user_metadata?.is_org_admin,
-          is_super_admin: userData?.is_super_admin || user.user_metadata?.is_super_admin,
-          role: userData?.role || user.user_metadata?.role,
-        };
-        
-        // التحقق من صلاحية إضافة/تعديل المنتجات
-        const permission = isEditMode ? 'editProducts' : 'addProducts';
-        const hasRequiredPermission = await checkUserPermissions(mergedUserData, permission);
-        
-        setHasPermission(hasRequiredPermission);
-        
-        if (!hasRequiredPermission) {
-          toast.error(`ليس لديك صلاحية ${isEditMode ? 'تعديل' : 'إضافة'} المنتجات`);
-          navigate('/products');
-        }
-      } catch (error) {
-        console.error('Error checking permissions:', error);
-        
-        // Fallback permission check
-        const permissions = user.user_metadata?.permissions || {};
-        const isAdmin = 
-          user.user_metadata?.role === 'admin' || 
-          user.user_metadata?.role === 'owner' || 
-          user.user_metadata?.is_org_admin === true ||
-          user.user_metadata?.is_super_admin === true;
-        
-        const requiredPermission = isEditMode ? 'editProducts' : 'addProducts';
-        const hasExplicitPermission = Boolean(permissions[requiredPermission]);
-        
-        const fallbackPermission = isAdmin || hasExplicitPermission;
-        setHasPermission(fallbackPermission);
-        
-        if (!fallbackPermission) {
-          toast.error(`ليس لديك صلاحية ${isEditMode ? 'تعديل' : 'إضافة'} المنتجات`);
-          navigate('/products');
-        }
-      }
-    };
-    
-    checkPermission();
-  }, [user, isEditMode, navigate]);
-  
-  // Handle form submission
-  const onSubmit = useCallback(async (values: ProductFormValues) => {
-    if (!organizationId) {
-      toast.error('معرف المؤسسة غير متوفر');
+
+  const onSubmit = async (data: ProductFormValues) => {
+    console.log('[ProductForm onSubmit] Original form data:', data);
+    setIsSubmitting(true);
+
+    if (!organizationIdFromTenant && !data.organization_id) {
+      console.error("[ProductForm onSubmit] Organization ID is missing from both tenant and form data.");
+      toast.error("خطأ حرج: معرّف المؤسسة مفقود. لا يمكن إنشاء/تحديد المنتج.");
+      setIsSubmitting(false);
       return;
     }
-    
+
+    const currentOrganizationId = data.organization_id || organizationIdFromTenant;
+    if (!currentOrganizationId) { // Double check, should be caught by above
+        console.error("[ProductForm onSubmit] Critical: Organization ID resolved to undefined.");
+        toast.error("خطأ: لم يتم تحديد معرّف المؤسسة.");
+        setIsSubmitting(false);
+        return;
+    }
+
     try {
-      setIsSubmitting(true);
+      const imagesToSubmit = additionalImages.filter(url => typeof url === 'string' && url.length > 0);
+      const colorsToSubmit = productColors.map(color => ({
+        ...color,
+        // Ensure numeric fields are numbers, not strings from input
+        quantity: Number(color.quantity),
+        price: color.price !== undefined ? Number(color.price) : undefined,
+        purchase_price: color.purchase_price !== undefined ? Number(color.purchase_price) : undefined,
+      }));
+      const wholesaleTiersToSubmit = wholesaleTiers.map(tier => ({
+        ...tier,
+        min_quantity: Number(tier.min_quantity),
+        price_per_unit: Number(tier.price_per_unit),
+      })); 
+
+      // Ensure organization_id is correctly populated in the data to be submitted
+      const submissionDataPrep = {
+        ...data,
+        organization_id: currentOrganizationId, 
+        images: imagesToSubmit, 
+        colors: colorsToSubmit, 
+        wholesale_tiers: wholesaleTiersToSubmit, 
+        price: Number(data.price),
+        purchase_price: Number(data.purchase_price),
+        stock_quantity: Number(data.stock_quantity),
+        is_digital: data.is_digital || false,
+        is_featured: data.is_featured || false,
+        is_new: data.is_new === undefined ? true : data.is_new,
+        has_variants: data.has_variants || false,
+        show_price_on_landing: data.show_price_on_landing === undefined ? true : data.show_price_on_landing,
+        allow_retail: data.allow_retail === undefined ? true : data.allow_retail,
+        allow_wholesale: data.allow_wholesale || false,
+        allow_partial_wholesale: data.allow_partial_wholesale || false,
+        use_sizes: data.use_sizes || false,
+        use_shipping_clone: data.use_shipping_clone || false,
+        compare_at_price: data.compare_at_price ? Number(data.compare_at_price) : null,
+        wholesale_price: data.wholesale_price ? Number(data.wholesale_price) : null,
+        partial_wholesale_price: data.partial_wholesale_price ? Number(data.partial_wholesale_price) : null,
+        min_wholesale_quantity: data.min_wholesale_quantity ? Number(data.min_wholesale_quantity) : null,
+        min_partial_wholesale_quantity: data.min_partial_wholesale_quantity ? Number(data.min_partial_wholesale_quantity) : null,
+        subcategory_id: data.subcategory_id || null,
+        brand: data.brand || null,
+        barcode: data.barcode || null,
+        name_for_shipping: data.name_for_shipping || null,
+        unit_type: data.unit_type || null,
+        unit_purchase_price: data.unit_purchase_price ? Number(data.unit_purchase_price) : null,
+        unit_sale_price: data.unit_sale_price ? Number(data.unit_sale_price) : null,
+        form_template_id: data.form_template_id || null,
+        shipping_provider_id: data.shipping_provider_id || null,
+        shipping_clone_id: data.shipping_clone_id || null,
+        features: data.features || [],
+        specifications: data.specifications || {},
+        slug: data.slug || `${data.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`,
+      };
       
-      // جمع كل الصور (الرئيسية والإضافية)
-      const allImages = [values.thumbnail_image];
-      if (additionalImages && additionalImages.length > 0) {
-        allImages.push(...additionalImages.filter(img => img && img !== values.thumbnail_image));
+      let finalSubmissionData: any;
+
+      // Pass advancedSettings and marketingSettings as camelCase for both create and update
+      finalSubmissionData = {
+        ...submissionDataPrep,
+        advancedSettings: data.advancedSettings || undefined,
+        marketingSettings: data.marketingSettings || undefined,
+      };
+
+      if (!(isEditMode && productId)) {
+        delete finalSubmissionData.id; // Ensure no ID is sent for insert
       }
       
-      if (isEditMode && id) {
-        // تحديث منتج موجود
-        const updateData = {
-          name: values.name,
-          description: values.description,
-          price: values.price,
-          purchase_price: values.purchase_price,
-          compare_at_price: values.compare_at_price || null,
-          wholesale_price: values.wholesale_price || null,
-          partial_wholesale_price: values.partial_wholesale_price || null,
-          min_wholesale_quantity: values.min_wholesale_quantity || null,
-          min_partial_wholesale_quantity: values.min_partial_wholesale_quantity || null,
-          allow_retail: values.allow_retail,
-          allow_wholesale: values.allow_wholesale,
-          allow_partial_wholesale: values.allow_partial_wholesale,
-          sku: values.sku,
-          barcode: values.barcode || null,
-          category_id: values.category_id,
-          subcategory_id: values.subcategory_id || null,
-          brand: values.brand || null,
-          stock_quantity: values.stock_quantity,
-          thumbnail_image: values.thumbnail_image,
-          images: allImages,
-          is_featured: values.is_featured,
-          is_new: values.is_new,
-          has_variants: values.has_variants,
-          show_price_on_landing: values.show_price_on_landing,
-          use_sizes: values.use_sizes,
-          is_sold_by_unit: values.is_sold_by_unit,
-          unit_type: values.unit_type,
-          use_variant_prices: values.use_variant_prices,
-          unit_purchase_price: values.unit_purchase_price,
-          unit_sale_price: values.unit_sale_price,
-          updated_at: new Date().toISOString(),
-        };
-        
-        await updateProduct(id, updateData);
-        toast.success('تم تحديث المنتج بنجاح');
-      } else {
-        // إنشاء منتج جديد
-        const productData: InsertProduct = {
-          name: values.name,
-          description: values.description || '',
-          price: Number(values.price),
-          purchase_price: Number(values.purchase_price),
-          compare_at_price: values.compare_at_price ? Number(values.compare_at_price) : undefined,
-          wholesale_price: values.allow_wholesale && values.wholesale_price ? Number(values.wholesale_price) : null,
-          partial_wholesale_price: values.allow_partial_wholesale && values.partial_wholesale_price ? Number(values.partial_wholesale_price) : null,
-          min_wholesale_quantity: values.allow_wholesale && values.min_wholesale_quantity ? Number(values.min_wholesale_quantity) : null,
-          min_partial_wholesale_quantity: values.allow_partial_wholesale && values.min_partial_wholesale_quantity ? Number(values.min_partial_wholesale_quantity) : null,
-          allow_retail: values.allow_retail,
-          allow_wholesale: values.allow_wholesale,
-          allow_partial_wholesale: values.allow_partial_wholesale,
-          sku: values.sku,
-          barcode: values.barcode || undefined,
-          category_id: values.category_id,
-          subcategory_id: values.subcategory_id || undefined,
-          brand: values.brand || undefined,
-          stock_quantity: values.stock_quantity,
-          thumbnail_image: values.thumbnail_image,
-          images: allImages,
-          is_digital: false,
-          is_new: values.is_new,
-          is_featured: values.is_featured,
-          has_variants: values.has_variants,
-          show_price_on_landing: values.show_price_on_landing,
-          features: [],
-          specifications: {},
-          organization_id: organizationId,
-          slug: `${values.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`
-        };
-        
-        const newProduct = await createProduct(productData);
-        
-        if (newProduct) {
-          toast.success('تم إنشاء المنتج بنجاح');
-          navigate('/products');
+      // Clean up fields not part of InsertProduct or UpdateProduct (fields used for form state but not direct DB columns for product table)
+      delete finalSubmissionData.additional_images; // `images` is the correct field for submissionDataPrep
+      delete finalSubmissionData.is_sold_by_unit; 
+      delete finalSubmissionData.use_variant_prices;
+      // No longer need to delete advancedSettings based on mode as it's always passed as camelCase
+
+      // DEBUGGING ADVANCED SETTINGS & MARKETING SETTINGS
+      console.log('[ProductForm onSubmit] data.advancedSettings from form values:', JSON.stringify(data.advancedSettings, null, 2));
+      console.log('[ProductForm onSubmit] data.marketingSettings from form values:', JSON.stringify(data.marketingSettings, null, 2));
+      console.log('[ProductForm onSubmit] finalSubmissionData.advancedSettings (to be sent to API):', JSON.stringify(finalSubmissionData.advancedSettings, null, 2));
+      console.log('[ProductForm onSubmit] finalSubmissionData.marketingSettings (to be sent to API):', JSON.stringify(finalSubmissionData.marketingSettings, null, 2));
+      // END DEBUGGING
+
+      let result;
+      try {
+        if (isEditMode && productId) {
+          console.log('[ProductForm onSubmit] Updating product logic reached. ID:', productId, 'Data:', finalSubmissionData);
+          result = await updateProduct(productId, finalSubmissionData as UpdateProduct);
         } else {
-          toast.error('حدث خطأ أثناء إنشاء المنتج');
+          console.log('[ProductForm onSubmit] Creating new product logic reached. Data:', finalSubmissionData);
+          result = await createProduct(finalSubmissionData as InsertProduct);
         }
+        console.log('[ProductForm onSubmit] API call result:', result);
+      } catch (apiError: any) {
+        console.error('[ProductForm onSubmit] API call error inside try-catch:', apiError.message, apiError.details, apiError.hint, apiError);
+        const message = apiError.message || 'فشل الاتصال بالخادم.';
+        toast.error(`فشل ${isEditMode ? 'تحديث' : 'إنشاء'} المنتج: ${message}`);
+        throw apiError; 
       }
-    } catch (error) {
-      console.error('Error saving product:', error);
-      toast.error('حدث خطأ أثناء حفظ المنتج');
+
+      if (result) {
+        toast.success(isEditMode ? 'تم تحديث المنتج بنجاح' : 'تم إنشاء المنتج بنجاح');
+        if (!isEditMode && result.id) {
+          navigate('/products'); // Navigate to products list or to the new product's page
+        } else if (isEditMode) {
+          // Optionally, re-fetch data or handle UI update
+        }
+      } else {
+        // This case might be rare if API call throws error on failure
+        toast.error(isEditMode ? 'فشل تحديث المنتج (لم يتم إرجاع نتيجة)' : 'فشل إنشاء المنتج (لم يتم إرجاع نتيجة)');
+      }
+    } catch (error: any) {
+      // Catch errors from API call or other logic
+      console.error('[ProductForm onSubmit] Error saving product in outer catch block:', error);
     } finally {
       setIsSubmitting(false);
+      console.log('[ProductForm onSubmit] isSubmitting set to false in finally block');
     }
-  }, [isEditMode, id, organizationId, additionalImages, navigate]);
-  
-  // Callback handlers
+  };
+
+  const onInvalid = (errors: any) => {
+    console.error('[ProductForm onInvalid] Form validation errors:', errors);
+    // Log organization_id specific error if present
+    if (errors.organization_id) {
+        console.error('[ProductForm onInvalid] Validation error for organization_id:', errors.organization_id);
+    }
+    toast.error('يرجى التحقق من الحقول المطلوبة أو إصلاح الأخطاء في النموذج.');
+  };
+
   const handleMainImageChange = useCallback((url: string) => {
-    form.setValue('thumbnail_image', url);
+    form.setValue('thumbnail_image', url, { shouldValidate: true, shouldDirty: true });
   }, [form]);
-  
+
   const handleAdditionalImagesChange = useCallback((urls: string[]) => {
     setAdditionalImages(urls);
-  }, []);
-  
+    // form.setValue('additional_images', urls, { shouldValidate: true, shouldDirty: true }); // This form field is not directly part of productSchema for submission
+  }, []); // Removed form from deps as additional_images is not a direct form field in productSchema
+
   const handleProductColorsChange = useCallback((colors: ProductColor[]) => {
     setProductColors(colors);
-  }, []);
-  
-  const handleHasVariantsChange = useCallback((hasVariants: boolean) => {
-    form.setValue('has_variants', hasVariants);
-    if (!hasVariants) {
-      // إذا تم إلغاء المتغيرات، قم بإعادة تعيين الألوان
-      setProductColors([]);
-      form.setValue('use_variant_prices', false);
-      setUseVariantPrices(false);
-    }
-  }, [form]);
-  
-  const handleUseVariantPricesChange = useCallback((useVariantPrices: boolean) => {
-    form.setValue('use_variant_prices', useVariantPrices);
-    setUseVariantPrices(useVariantPrices);
-  }, [form]);
-  
-  const handleUseSizesChange = useCallback((useSizes: boolean) => {
-    form.setValue('use_sizes', useSizes);
-    setUseSizes(useSizes);
-  }, [form]);
-  
+    // form.setValue('colors', colors, { shouldValidate: true, shouldDirty: true }); // This form field is not directly part of productSchema for submission
+  }, []); // Removed form from deps
+
   const handleWholesaleTiersChange = useCallback((tiers: WholesaleTier[]) => {
     setWholesaleTiers(tiers);
-  }, []);
-  
-  const handleCategoryCreated = useCallback((category: Category) => {
-    setCategories(prev => [...prev, category]);
-  }, []);
-  
-  const handleSubcategoryCreated = useCallback((subcategory: Subcategory) => {
-    setSubcategories(prev => [...prev, subcategory]);
-  }, []);
-  
-  // If loading, show spinner
-  if (isLoading) {
+    // form.setValue('wholesale_tiers', tiers, { shouldValidate: true, shouldDirty: true });// This form field is not directly part of productSchema for submission
+  }, []); // Removed form from deps
+
+  const handleHasVariantsChange = useCallback((hasVariantsValue: boolean) => {
+    form.setValue('has_variants', hasVariantsValue, { shouldValidate: true, shouldDirty: true });
+    setHasVariantsState(hasVariantsValue);
+    if (!hasVariantsValue) {
+      setProductColors([]);
+      // form.setValue('colors', [], { shouldValidate: true, shouldDirty: true });
+      setUseVariantPrices(false);
+      // form.setValue('use_variant_prices', false, { shouldValidate: true, shouldDirty: true });
+    }
+  }, [form]);
+
+  const handleUseVariantPricesChange = useCallback((use: boolean) => {
+    setUseVariantPrices(use);
+    // form.setValue('use_variant_prices', use, { shouldValidate: true, shouldDirty: true });
+  }, []); // Removed form from deps
+
+  const handleUseSizesChange = useCallback((use: boolean) => {
+    setUseSizes(use);
+    form.setValue('use_sizes', use, { shouldValidate: true, shouldDirty: true });
+  }, [form]);
+
+  // Enhanced Loading State Logic
+  if (isCheckingPermission) {
+    return (
+      <Layout><div className="flex items-center justify-center h-[80vh]"><Loader2 className="h-12 w-12 animate-spin text-primary" /><p className="ml-4 text-lg">جاري التحقق من الصلاحيات...</p></div></Layout>
+    );
+  }
+  if (!isEditMode && isLoadingProduct && !initialDataSet) { // For new product, initial data might not be "loading" but form hook is initializing
+     return (
+      <Layout><div className="flex items-center justify-center h-[80vh]"><Loader2 className="h-12 w-12 animate-spin text-primary" /><p className="ml-4 text-lg">جاري تهيئة النموذج...</p></div></Layout>
+    );
+  }
+  if (isEditMode && isLoadingProduct) { // For edit mode, explicitly loading product data
+     return (
+      <Layout><div className="flex items-center justify-center h-[80vh]"><Loader2 className="h-12 w-12 animate-spin text-primary" /><p className="ml-4 text-lg">جاري تحميل بيانات المنتج...</p></div></Layout>
+    );
+  }
+
+
+  if (!hasPermission && !isCheckingPermission) {
     return (
       <Layout>
-        <div className="flex items-center justify-center h-[80vh]">
-          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <div className="flex flex-col items-center justify-center h-[80vh]">
+          <p className="text-xl text-red-600">ليس لديك الصلاحية لعرض هذه الصفحة.</p>
+          <Button onClick={() => navigate('/products')} className="mt-4">العودة إلى المنتجات</Button>
         </div>
       </Layout>
     );
   }
-  
+
   return (
     <Layout>
-      <div className="container mx-auto py-6 space-y-8">
-        {/* Breadcrumb and page header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <Breadcrumb>
-              <BreadcrumbList>
-                <BreadcrumbItem>
-                  <BreadcrumbLink href="/dashboard">الرئيسية</BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbLink href="/products">المنتجات</BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbLink>
-                    {isEditMode ? 'تعديل منتج' : 'إضافة منتج جديد'}
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
-            <h1 className="text-3xl font-bold mt-2">
-              {isEditMode ? `تعديل: ${product?.name}` : 'إضافة منتج جديد'}
-            </h1>
-          </div>
+      <Helmet>
+        <title>{isEditMode ? `تعديل: ${productNameForTitle || form.watch('name') || 'منتج'}` : 'إنشاء منتج جديد'} - سوق</title>
+      </Helmet>
+      
+      {/* Background Effect */}
+      <div className="fixed inset-0 -z-10">
+        <div className="absolute inset-0 bg-gradient-to-br from-background via-background/95 to-background/90" />
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl opacity-60" />
+        <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-secondary/5 rounded-full blur-3xl opacity-40" />
+      </div>
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          console.log('[ProductForm native form onSubmit] Triggered.');
+          const currentOrgIdInFormState = form.getValues('organization_id');
+          console.log('[ProductForm native form onSubmit] organization_id in form state AT SUBMIT CLICK:', currentOrgIdInFormState);
           
-          <div className="flex gap-3">
-            <Button
-              variant="outline"
-              onClick={() => navigate('/products')}
-            >
-              <ArrowLeft className="ml-2 h-4 w-4" />
-              العودة
-            </Button>
-            
-            <Button
-              type="button"
-              variant="default"
-              disabled={isSubmitting}
-              onClick={form.handleSubmit(onSubmit)}
-            >
-              {isSubmitting ? (
-                <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Save className="ml-2 h-4 w-4" />
-              )}
-              {isEditMode ? 'حفظ التغييرات' : 'إنشاء المنتج'}
-            </Button>
+          // If organization_id is somehow not set in form state by this point,
+          // but we have it from tenant, try to set it one last time.
+          // This is a fallback, ideally it should be set by useProductFormInitialization.
+          if (!currentOrgIdInFormState && organizationIdFromTenant) {
+              console.warn('[ProductForm native form onSubmit] organization_id was undefined in form state, but available from tenant. Attempting to set it now before handleSubmit.');
+              form.setValue('organization_id', organizationIdFromTenant, { shouldValidate: false, shouldDirty: false });
+          }
+          form.handleSubmit(onSubmit, onInvalid)(e);
+        }}
+        className="relative z-10"
+      >
+        {/* Modern Header Section */}
+        <div className="border-b border-border/20 bg-gradient-to-r from-background/95 via-background to-background/95 backdrop-blur-xl sticky top-0 z-30">
+          <div className="container mx-auto px-6 py-6">
+            <ProductFormHeader
+              title={isEditMode ? `تعديل: ${productNameForTitle || form.watch('name') || 'منتج'}` : 'إضافة منتج جديد'}
+              onBack={() => navigate('/products')}
+              isEditMode={isEditMode}
+              isSubmitting={isSubmitting}
+            />
           </div>
         </div>
-        
-        {/* Main content */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-          {/* Left sidebar - Quick info panel */}
-          <div className="md:col-span-3 space-y-6">
-            <Card className="p-4">
-              <h2 className="text-lg font-medium mb-3">معلومات سريعة</h2>
-              <dl className="space-y-2">
-                <div>
-                  <dt className="text-sm text-muted-foreground">اسم المنتج</dt>
-                  <dd className="font-medium">{form.watch('name') || 'غير محدد'}</dd>
+
+        {/* Main Content */}
+        <div className="container mx-auto px-6 py-8">
+          <div className="max-w-7xl mx-auto space-y-8">
+            {/* Welcome Card - Only for new products */}
+            {!isEditMode && (
+              <div className="rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-8 border border-primary/20 shadow-xl backdrop-blur-sm">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg">
+                    <Package className="w-8 h-8 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+                      إنشاء منتج جديد
+                    </h2>
+                    <p className="text-muted-foreground text-lg">
+                      قم بإضافة منتج جديد إلى متجرك الإلكتروني
+                    </p>
+                  </div>
                 </div>
-                <Separator className="my-2" />
-                <div>
-                  <dt className="text-sm text-muted-foreground">السعر</dt>
-                  <dd className="font-medium">{form.watch('price') || 0} دج</dd>
+                <div className="bg-background/50 rounded-xl p-4 border border-border/50">
+                  <p className="text-sm text-muted-foreground">
+                    💡 <strong>نصيحة:</strong> تأكد من إدخال جميع التفاصيل المطلوبة لتحسين ظهور منتجك في نتائج البحث
+                  </p>
                 </div>
-                <Separator className="my-2" />
-                <div>
-                  <dt className="text-sm text-muted-foreground">الكمية المتوفرة</dt>
-                  <dd className="font-medium">{form.watch('stock_quantity') || 0} وحدة</dd>
-                </div>
-                <Separator className="my-2" />
-                <div>
-                  <dt className="text-sm text-muted-foreground">رمز المنتج (SKU)</dt>
-                  <dd className="font-medium">{form.watch('sku') || 'غير محدد'}</dd>
-                </div>
-              </dl>
-            </Card>
-            
-            {watchThumbnailImage && (
-              <Card className="p-4">
-                <h2 className="text-lg font-medium mb-3">معاينة المنتج</h2>
-                <div className="aspect-square relative rounded-md overflow-hidden bg-gray-100">
-                  <img 
-                    src={watchThumbnailImage} 
-                    alt="معاينة المنتج" 
-                    className="object-cover w-full h-full"
+              </div>
+            )}
+
+            {/* Main Form Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              {/* Quick Info Sidebar */}
+              <div className="lg:col-span-4 xl:col-span-3">
+                <div className="sticky top-28 space-y-6">
+                  <ProductQuickInfoPanel
+                    form={form}
+                    isEditMode={isEditMode}
+                    productId={productId}
+                    thumbnailImage={watchThumbnailImage}
                   />
                 </div>
-              </Card>
-            )}
-            
-            {isEditMode && (
-              <Card className="p-4">
-                <h2 className="text-lg font-medium mb-3">خيارات أخرى</h2>
-                <div className="space-y-2">
-                  <Button 
-                    variant="outline" 
-                    className="w-full"
-                    onClick={() => window.open(`/product/${id}`, '_blank')}
-                  >
-                    <Eye className="mr-2 h-4 w-4" />
-                    عرض المنتج في المتجر
-                  </Button>
+              </div>
+
+              {/* Main Form Content */}
+              <div className="lg:col-span-8 xl:col-span-9">
+                <div className="rounded-3xl bg-gradient-to-br from-card/95 to-card/80 backdrop-blur-xl border border-border/20 shadow-2xl overflow-hidden">
+                  <ProductFormTabs
+                    form={form}
+                    organizationId={organizationIdFromTenant}
+                    productId={productId}
+                    additionalImages={additionalImages}
+                    productColors={productColors}
+                    wholesaleTiers={wholesaleTiers}
+                    categories={categories}
+                    subcategories={subcategories}
+                    useVariantPrices={useVariantPrices}
+                    useSizes={useSizes}
+                    watchHasVariants={watchHasVariants}
+                    watchPrice={watchPrice}
+                    watchPurchasePrice={watchPurchasePrice}
+                    watchThumbnailImage={watchThumbnailImage}
+                    onMainImageChange={handleMainImageChange}
+                    onAdditionalImagesChange={handleAdditionalImagesChange}
+                    onProductColorsChange={handleProductColorsChange}
+                    onWholesaleTiersChange={handleWholesaleTiersChange}
+                    onCategoryCreated={handleCategoryCreated}
+                    onSubcategoryCreated={handleSubcategoryCreated}
+                    onHasVariantsChange={handleHasVariantsChange}
+                    onUseVariantPricesChange={handleUseVariantPricesChange}
+                    onUseSizesChange={handleUseSizesChange}
+                  />
                 </div>
-              </Card>
-            )}
-          </div>
-          
-          {/* Main form area */}
-          <div className="md:col-span-9">
-            <Card className="p-6 border-2 shadow-sm hover:shadow-md transition-shadow">
-              <FormProvider {...form}>
-                <form>
-                  <Tabs defaultValue="basic" className="w-full">
-                    <TabsList className="mb-6 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 bg-muted/50 p-1 rounded-lg">
-                      <TabsTrigger value="basic" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                        <Package className="h-4 w-4 ml-2" />
-                        أساسي
-                      </TabsTrigger>
-                      <TabsTrigger value="images" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 ml-2"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
-                        الصور
-                      </TabsTrigger>
-                      <TabsTrigger value="pricing" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 ml-2"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>
-                        التسعير
-                      </TabsTrigger>
-                      <TabsTrigger value="inventory" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 ml-2"><path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 21v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/></svg>
-                        المخزون
-                      </TabsTrigger>
-                      <TabsTrigger value="categories" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 ml-2"><path d="M3 6h18"/><path d="M7 12h10"/><path d="M11 18h6"/></svg>
-                        الفئات
-                      </TabsTrigger>
-                      <TabsTrigger value="selling" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 ml-2"><path d="M21 5H3v14h18V5Z"/><path d="M3 9h18"/><path d="M3 5v4"/><path d="M21 5v4"/><path d="M3 14h4"/><path d="M3 19v-5"/><path d="M7 19v-5"/></svg>
-                        طريقة البيع
-                      </TabsTrigger>
-                      <TabsTrigger value="variants" disabled={!watchHasVariants} className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 ml-2"><rect width="6" height="14" x="4" y="5" rx="2"/><rect width="6" height="10" x="14" y="7" rx="2"/><path d="M17 22v-5"/><path d="M17 7V2"/><path d="M7 22v-3"/><path d="M7 5V2"/></svg>
-                        المتغيرات
-                      </TabsTrigger>
-                      <TabsTrigger value="wholesale" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 ml-2"><rect width="16" height="16" x="4" y="4" rx="2"/><path d="M9 9h6"/><path d="M9 12h6"/><path d="M9 15h6"/></svg>
-                        الجملة
-                      </TabsTrigger>
-                    </TabsList>
-                    
-                    <div className="p-4 bg-background border rounded-lg">
-                      <TabsContent value="basic" className="space-y-4 focus:outline-none mt-4">
-                        <BasicInfoSection form={form} />
-                      </TabsContent>
-                      
-                      <TabsContent value="images" className="space-y-4 focus:outline-none mt-4">
-                        <ImagesSection 
-                          mainImage={watchThumbnailImage}
-                          additionalImages={additionalImages}
-                          onMainImageChange={handleMainImageChange}
-                          onAdditionalImagesChange={handleAdditionalImagesChange}
-                          thumbnailImageRef={thumbnailImageRef}
-                        />
-                      </TabsContent>
-                      
-                      <TabsContent value="pricing" className="space-y-4 focus:outline-none mt-4">
-                        <PricingSection form={form} />
-                      </TabsContent>
-                      
-                      <TabsContent value="inventory" className="space-y-4 focus:outline-none mt-4">
-                        <InventorySection 
-                          form={form} 
-                          organizationId={organizationId}
-                          hasVariants={watchHasVariants}
-                        />
-                      </TabsContent>
-                      
-                      <TabsContent value="categories" className="space-y-4 focus:outline-none mt-4">
-                        <CategoriesSection 
-                          form={form} 
-                          categories={categories}
-                          subcategories={subcategories}
-                          onCategoryCreated={handleCategoryCreated}
-                          onSubcategoryCreated={handleSubcategoryCreated}
-                        />
-                      </TabsContent>
-                      
-                      <TabsContent value="selling" className="space-y-4 focus:outline-none mt-4">
-                        <SellingTypeSection 
-                          form={form}
-                          onHasVariantsChange={handleHasVariantsChange}
-                        />
-                      </TabsContent>
-                      
-                      <TabsContent value="variants" className="space-y-4 focus:outline-none mt-4">
-                        <VariantsSection 
-                          productColors={productColors}
-                          onChange={handleProductColorsChange}
-                          basePrice={watchPrice}
-                          basePurchasePrice={watchPurchasePrice}
-                          useVariantPrices={useVariantPrices}
-                          onUseVariantPricesChange={handleUseVariantPricesChange}
-                          useSizes={useSizes}
-                          onUseSizesChange={handleUseSizesChange}
-                          productId={id || ''}
-                        />
-                      </TabsContent>
-                      
-                      <TabsContent value="wholesale" className="space-y-4 focus:outline-none mt-4">
-                        <WholesaleSection 
-                          wholesaleTiers={wholesaleTiers}
-                          onChange={handleWholesaleTiersChange}
-                          productId={id || ''}
-                          organizationId={organizationId}
-                        />
-                      </TabsContent>
-                    </div>
-                  </Tabs>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="sticky bottom-6 z-20">
+              <div className="rounded-2xl bg-gradient-to-r from-background/95 via-background to-background/95 backdrop-blur-xl border border-border/20 shadow-2xl p-6">
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                  <div className="text-center sm:text-right">
+                    <p className="text-sm text-muted-foreground">
+                      {isEditMode ? 'تعديل المنتج' : 'إنشاء منتج جديد'}
+                    </p>
+                    <p className="text-xs text-muted-foreground/80">
+                      تأكد من مراجعة جميع البيانات قبل الحفظ
+                    </p>
+                  </div>
                   
-                  <div className="mt-6 flex justify-end">
+                  <div className="flex gap-3">
                     <Button
                       type="button"
                       variant="outline"
+                      size="lg"
                       onClick={() => navigate('/products')}
-                      className="ml-3"
+                      disabled={isSubmitting}
+                      className="px-8 h-12 border-2 hover:bg-muted/50 transition-all duration-300"
                     >
-                      <ArrowLeft className="ml-2 h-4 w-4" />
                       إلغاء
                     </Button>
-                    
                     <Button
-                      type="button"
-                      variant="default"
-                      disabled={isSubmitting}
-                      onClick={form.handleSubmit(onSubmit)}
-                      className="bg-primary hover:bg-primary/90"
+                      type="submit"
+                      size="lg"
+                      disabled={isSubmitting || !hasPermission || (!form.getValues('organization_id') && !organizationIdFromTenant)}
+                      className="px-8 h-12 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-lg hover:shadow-xl transition-all duration-300 border-0"
                     >
                       {isSubmitting ? (
-                        <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                        <>
+                          <Loader2 className="ml-2 h-5 w-5 animate-spin" />
+                          جاري المعالجة...
+                        </>
                       ) : (
-                        <Save className="ml-2 h-4 w-4" />
+                        <>
+                          <Save className="ml-2 h-5 w-5" />
+                          {isEditMode ? 'حفظ التغييرات' : 'إنشاء المنتج'}
+                        </>
                       )}
-                      {isEditMode ? 'حفظ التغييرات' : 'إنشاء المنتج'}
                     </Button>
                   </div>
-                </form>
-              </FormProvider>
-            </Card>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      </form>
     </Layout>
   );
-} 
+}

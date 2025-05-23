@@ -1,5 +1,5 @@
 // أنواع المكونات المتاحة
-export type ComponentType = 'Hero' | 'CategorySection' | 'ProductCategories' | 'FeaturedProducts' | 'CustomerTestimonials' | 'About' | 'countdownoffers';
+export type ComponentType = 'hero' | 'category_section' | 'product_categories' | 'featured_products' | 'testimonials' | 'about' | 'countdownoffers' | 'services' | 'contact';
 
 // واجهة مكون المتجر
 export interface StoreComponent {
@@ -12,7 +12,7 @@ export interface StoreComponent {
 
 // نماذج الإعدادات الافتراضية لكل مكون
 export const defaultComponentSettings = {
-  Hero: {
+  hero: {
     title: 'أحدث المنتجات',
     description: 'تسوق أحدث منتجاتنا المختارة بعناية بأفضل الأسعار التنافسية.',
     primaryButton: {
@@ -44,7 +44,7 @@ export const defaultComponentSettings = {
       }
     ]
   },
-  CategorySection: {
+  category_section: {
     title: "تصفح فئات منتجاتنا",
     description: "أفضل الفئات المختارة لتلبية احتياجاتك",
     selectionMethod: "random",
@@ -56,13 +56,13 @@ export const defaultComponentSettings = {
     enableViewAll: true,
     backgroundStyle: "light"
   },
-  ProductCategories: {
+  product_categories: {
     title: 'تصفح فئات منتجاتنا',
     description: 'أفضل الفئات المختارة لتلبية احتياجاتك',
     displayCount: 6,
     displayType: 'grid'
   },
-  FeaturedProducts: {
+  featured_products: {
     title: 'منتجاتنا المميزة',
     description: 'اكتشف أفضل منتجاتنا المختارة بعناية لتناسب احتياجاتك',
     displayCount: 4,
@@ -71,12 +71,12 @@ export const defaultComponentSettings = {
     selectionCriteria: 'featured', // featured, best_selling, newest, discounted
     selectedProducts: [] // قائمة معرفات المنتجات المحددة يدويًا
   },
-  CustomerTestimonials: {
+  testimonials: {
     title: 'آراء عملائنا',
     description: 'استمع إلى تجارب عملائنا الحقيقية مع منتجاتنا وخدماتنا',
     displayCount: 3
   },
-  About: {
+  about: {
     title: 'عن متجرنا',
     subtitle: 'متجر إلكترونيات وتقنية متميز',
     description: 'تأسس متجرنا منذ أكثر من عشر سنوات بهدف تقديم أحدث منتجات التكنولوجيا بأسعار منافسة وجودة عالية.',

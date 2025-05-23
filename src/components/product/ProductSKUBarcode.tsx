@@ -80,6 +80,7 @@ const ProductSKUBarcode: React.FC<ProductSKUBarcodeProps> = ({
                     placeholder="رمز المنتج" 
                     className="pt-6 pl-10 bg-background border-2 h-16 focus:border-primary transition-colors"
                     {...field} 
+                    defaultValue={field.value || ""}
                   />
                 </FormControl>
               </div>
@@ -124,6 +125,7 @@ const ProductSKUBarcode: React.FC<ProductSKUBarcodeProps> = ({
                     placeholder="الرمز الشريطي" 
                     className="pt-6 pl-10 bg-background border-2 h-16 focus:border-primary transition-colors"
                     {...field} 
+                    defaultValue={field.value || ""}
                   />
                 </FormControl>
               </div>

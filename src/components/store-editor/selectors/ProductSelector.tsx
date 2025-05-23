@@ -133,6 +133,19 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
                     src={product.thumbnail_image} 
                     alt={product.name} 
                     className="h-full w-full object-cover"
+                    onError={(e) => {
+                      console.log(`خطأ في تحميل صورة المنتج: ${product.id}`);
+                      // استبدال العنصر بخلفية
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      target.parentElement?.classList.add('bg-primary/10');
+                      
+                      // إضافة نص بديل عند فشل تحميل الصورة
+                      const textDiv = document.createElement('div');
+                      textDiv.className = 'h-full w-full flex items-center justify-center text-primary text-xs';
+                      textDiv.textContent = 'صورة';
+                      target.parentElement?.appendChild(textDiv);
+                    }}
                   />
                 ) : (
                   <div className="h-full w-full flex items-center justify-center bg-primary/10 text-primary text-xs">

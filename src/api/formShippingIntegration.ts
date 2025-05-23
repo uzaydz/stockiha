@@ -7,7 +7,6 @@
 import { supabase } from '@/lib/supabase-client';
 import { ShippingProvider } from './shippingService';
 import { 
-  validateYalidineCredentials,
   getProvinces as fetchProvinces,
   getMunicipalitiesByDeliveryType,
   getCenters as fetchCenters,
@@ -17,7 +16,8 @@ import {
   Municipality,
   Center,
   DeliveryType
-} from './yalidine';
+} from './yalidine/service';
+import { validateYalidineCredentials } from './yalidine';
 
 // تصدير الأنواع ليتم استخدامها في الواجهة
 export type { Province, Municipality, Center, DeliveryType };
@@ -136,7 +136,8 @@ export async function getMunicipalities(
     const municipalities = await getMunicipalitiesByDeliveryType(
       organizationId,
       provinceId,
-      deliveryType
+      deliveryType,
+      '' // إضافة وسيط toWilayaName فارغ هنا
     );
     
     // ترتيب البلديات أبجديًا بالعربية

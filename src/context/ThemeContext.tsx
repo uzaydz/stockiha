@@ -224,14 +224,25 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
         
         if (orgSettings.theme_primary_color) {
           primaryHSL = hexToHSL(orgSettings.theme_primary_color);
-          document.documentElement.style.setProperty('--primary', primaryHSL);
+          
+          // تطبيق اللون الرئيسي مع !important لضمان عدم الكتابة عليه
+          document.documentElement.style.setProperty('--primary', primaryHSL, 'important');
           
           // إضافة متغيرات إضافية مشتقة من اللون الرئيسي
           const [h, s, l] = primaryHSL.split(' ');
+          const hue = h.replace('deg', '').trim();
+          const saturation = s.replace('%', '').trim();
+          const lightness = parseInt(l.replace('%', '').trim());
+          
           // قيم أفتح وأغمق للون الرئيسي
-          document.documentElement.style.setProperty('--primary-foreground', '0 0% 100%');
-          document.documentElement.style.setProperty('--primary-lighter', `${h} ${s} 85%`);
-          document.documentElement.style.setProperty('--primary-darker', `${h} ${s} 25%`);
+          document.documentElement.style.setProperty('--primary-foreground', '0 0% 100%', 'important');
+          document.documentElement.style.setProperty('--primary-lighter', `${hue} ${saturation}% ${Math.min(lightness + 20, 85)}%`, 'important');
+          document.documentElement.style.setProperty('--primary-darker', `${hue} ${saturation}% ${Math.max(lightness - 20, 25)}%`, 'important');
+          
+          // تطبيق اللون الرئيسي على متغيرات أخرى ذات صلة
+          document.documentElement.style.setProperty('--ring', primaryHSL, 'important');
+          document.documentElement.style.setProperty('--sidebar-primary', primaryHSL, 'important');
+          document.documentElement.style.setProperty('--sidebar-ring', primaryHSL, 'important');
           
           // حفظ اللون الرئيسي في localStorage للتحميل السريع في المرات القادمة
           try {
@@ -244,8 +255,8 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
         // اللون الثانوي
         if (orgSettings.theme_secondary_color) {
           secondaryHSL = hexToHSL(orgSettings.theme_secondary_color);
-          document.documentElement.style.setProperty('--secondary', secondaryHSL);
-          document.documentElement.style.setProperty('--secondary-foreground', '0 0% 100%');
+          document.documentElement.style.setProperty('--secondary', secondaryHSL, 'important');
+          document.documentElement.style.setProperty('--secondary-foreground', '0 0% 100%', 'important');
           
           // حفظ اللون الثانوي في localStorage للتحميل السريع في المرات القادمة
           try {
@@ -254,6 +265,22 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
             console.error('خطأ في تخزين اللون الثانوي:', error);
           }
         }
+        
+        // إضافة تطبيق فوري للألوان بعد تحديد المتغيرات
+        // هذا يضمن أن المتصفح يطبق التغييرات فوراً
+        document.documentElement.style.cssText += `
+          --primary: ${primaryHSL} !important;
+          --ring: ${primaryHSL} !important;
+          --sidebar-primary: ${primaryHSL} !important;
+          --sidebar-ring: ${primaryHSL} !important;
+        `;
+        
+        // فرض إعادة تصيير العناصر عبر تحديث class مؤقت
+        const tempClass = 'theme-update-' + Date.now();
+        document.documentElement.classList.add(tempClass);
+        setTimeout(() => {
+          document.documentElement.classList.remove(tempClass);
+        }, 50);
         
         // تخزين الألوان في localStorage للتحميل السريع في المرات القادمة
         try {
@@ -299,12 +326,12 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
         document.documentElement.style.setProperty('--dark-accent', '240 3.7% 15.9%');
         
         // Aplicar CSS personalizado si existe
-        if (orgSettings.custom_css) {
+        if (orgSettings && 'custom_css' in orgSettings && orgSettings.custom_css) {
           applyCustomCSS(orgSettings.custom_css);
         }
         
         // استعادة وقراءة إعدادات التتبع من custom_js (الذي هو JSON)
-        if (orgSettings.custom_js) {
+        if (orgSettings && 'custom_js' in orgSettings && orgSettings.custom_js) {
           try {
             const trackingSettings = JSON.parse(orgSettings.custom_js);
             
@@ -333,17 +360,17 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
 
           } catch (parseError) {
             console.error("*** فشل في تحليل custom_js كـ JSON: ***", parseError);
-            console.warn("--> تأكد من أن قيمة custom_js هي JSON صالح. القيمة المستلمة:", orgSettings.custom_js);
+            console.warn("--> تأكد من أن قيمة custom_js هي JSON صالح. القيمة المستلمة:", 'custom_js' in orgSettings ? orgSettings.custom_js : 'غير متوفر');
           }
         }
         
         // Aplicar HTML personalizado en el header si existe
-        if (orgSettings.custom_header) {
+        if (orgSettings && 'custom_header' in orgSettings && orgSettings.custom_header) {
           applyCustomHeader(orgSettings.custom_header);
         }
         
         // Aplicar HTML personalizado en el footer si existe
-        if (orgSettings.custom_footer) {
+        if (orgSettings && 'custom_footer' in orgSettings && orgSettings.custom_footer) {
           applyCustomFooter(orgSettings.custom_footer);
         }
         

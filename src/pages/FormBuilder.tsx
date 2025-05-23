@@ -11,6 +11,8 @@ import { ShippingIntegrationFields } from '@/components/form-builder/ShippingInt
 import { FormField as IFormField, getFormSettingsById, upsertFormSettings, getProducts } from '@/api/form-settings';
 import { v4 as uuidv4 } from 'uuid';
 import Layout from '@/components/Layout';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { InfoIcon } from 'lucide-react';
 
 // نموذج منتج مبسط
 interface ProductItem {
@@ -78,6 +80,8 @@ export default function FormBuilder() {
         } else {
           // إعداد نموذج جديد فارغ
           setFormName('نموذج جديد');
+          setIsDefault(false); // تعطيل تعيين النموذج كافتراضي للنماذج الجديدة
+          setIsActive(true); // تفعيل النموذج
           // إضافة حقول افتراضية
           setFields([
             {
@@ -110,12 +114,27 @@ export default function FormBuilder() {
             },
             {
               id: uuidv4(),
+              name: 'deliveryType',
+              label: 'نوع التوصيل الثابت',
+              type: 'select',
+              required: true,
+              placeholder: 'اختر نوع التوصيل',
+              order: 2,
+              isVisible: true,
+              options: [
+                { label: 'توصيل للمنزل', value: 'home' },
+                { label: 'استلام من مكتب البريد', value: 'post_office' },
+                { label: 'استلام من مكتب شركة التوصيل', value: 'delivery_office' }
+              ]
+            },
+            {
+              id: uuidv4(),
               name: 'province',
               label: 'الولاية',
               type: 'province',
               required: true,
               placeholder: 'اختر الولاية',
-              order: 2,
+              order: 3,
               isVisible: true,
               linkedFields: {
                 municipalityField: 'auto',
@@ -128,7 +147,7 @@ export default function FormBuilder() {
               type: 'municipality',
               required: true,
               placeholder: 'اختر البلدية',
-              order: 3,
+              order: 4,
               isVisible: true,
               linkedFields: {
                 provinceField: null,
@@ -137,49 +156,6 @@ export default function FormBuilder() {
                 fieldId: '', // سيتم تحديثه بعد إنشاء الحقول
                 value: '*'
               }
-            },
-            {
-              id: uuidv4(),
-              name: 'address',
-              label: 'العنوان بالكامل',
-              type: 'text',
-              required: true,
-              placeholder: 'أدخل العنوان بالكامل',
-              order: 4,
-              isVisible: true,
-              validation: {
-                minLength: 5,
-                message: 'يرجى إدخال العنوان بشكل صحيح',
-              },
-            },
-            {
-              id: uuidv4(),
-              name: 'deliveryCompany',
-              label: 'شركة التوصيل',
-              type: 'select',
-              required: true,
-              placeholder: 'اختر شركة التوصيل',
-              order: 5,
-              isVisible: true,
-              options: [
-                { label: 'ياليدين', value: 'yalidine' },
-                { label: 'ZR إكسبرس', value: 'zr_express' },
-                { label: 'كويك لاين', value: 'quick_line' }
-              ]
-            },
-            {
-              id: uuidv4(),
-              name: 'deliveryOption',
-              label: 'نوع التوصيل',
-              type: 'radio',
-              required: true,
-              placeholder: 'اختر نوع التوصيل',
-              order: 6,
-              isVisible: true,
-              options: [
-                { label: 'توصيل للمنزل', value: 'home' },
-                { label: 'استلام من مكتب شركة التوصيل', value: 'office' }
-              ]
             },
           ]);
         }
@@ -331,8 +307,7 @@ export default function FormBuilder() {
           { label: 'توصيل للمنزل', value: 'home' },
           { label: 'استلام من مكتب شركة التوصيل', value: 'desk' }
         ],
-        defaultValue: 'home', // القيمة الافتراضية هي التوصيل للمنزل
-        description: 'حقل نوع التوصيل الثابت مع شركة التوصيل، سيظهر في النموذج ولا يمكن للمستخدم تغييره'
+        defaultValue: 'home' // القيمة الافتراضية هي التوصيل للمنزل
       };
     }
 
@@ -470,8 +445,8 @@ export default function FormBuilder() {
         id: isNewForm ? undefined : formId,
         name: formName,
         fields: sortedFields,
-        product_ids: selectedProducts,
-        is_default: isDefault,
+        product_ids: isDefault ? [] : selectedProducts,
+        is_default: isNewForm ? false : isDefault,
         is_active: isActive,
         shipping_integration: shippingIntegration
       };
@@ -531,12 +506,27 @@ export default function FormBuilder() {
       },
       {
         id: uuidv4(),
+        name: 'deliveryType',
+        label: 'نوع التوصيل الثابت',
+        type: 'select',
+        required: true,
+        placeholder: 'اختر نوع التوصيل',
+        order: fields.length + 2,
+        isVisible: true,
+        options: [
+          { label: 'توصيل للمنزل', value: 'home' },
+          { label: 'استلام من مكتب البريد', value: 'post_office' },
+          { label: 'استلام من مكتب شركة التوصيل', value: 'delivery_office' }
+        ]
+      },
+      {
+        id: uuidv4(),
         name: 'province',
         label: 'الولاية',
         type: 'province',
         required: true,
         placeholder: 'اختر الولاية',
-        order: fields.length + 2,
+        order: fields.length + 3,
         isVisible: true,
         linkedFields: {
           municipalityField: 'auto',
@@ -549,7 +539,7 @@ export default function FormBuilder() {
         type: 'municipality',
         required: true,
         placeholder: 'اختر البلدية',
-        order: fields.length + 3,
+        order: fields.length + 4,
         isVisible: true,
         linkedFields: {
           provinceField: null,
@@ -558,50 +548,6 @@ export default function FormBuilder() {
           fieldId: '', // سيتم تحديثه بعد إضافة الحقول
           value: '*'
         }
-      },
-      {
-        id: uuidv4(),
-        name: 'address',
-        label: 'العنوان بالكامل',
-        type: 'text',
-        required: true,
-        placeholder: 'أدخل العنوان بالكامل',
-        order: fields.length + 4,
-        isVisible: true,
-        validation: {
-          minLength: 5,
-          message: 'يرجى إدخال العنوان بشكل صحيح',
-        },
-      },
-      {
-        id: uuidv4(),
-        name: 'deliveryCompany',
-        label: 'شركة التوصيل',
-        type: 'select',
-        required: true,
-        placeholder: 'اختر شركة التوصيل',
-        order: fields.length + 5,
-        isVisible: true,
-        options: [
-          { label: 'ياليدين', value: 'yalidine' },
-          { label: 'ZR إكسبرس', value: 'zr_express' },
-          { label: 'كويك لاين', value: 'quick_line' }
-        ]
-      },
-      {
-        id: uuidv4(),
-        name: 'fixedDeliveryType',
-        label: 'نوع التوصيل',
-        type: 'radio',
-        required: true,
-        order: fields.length + 6,
-        isVisible: true,
-        options: [
-          { label: 'توصيل للمنزل', value: 'home' },
-          { label: 'استلام من مكتب شركة التوصيل', value: 'desk' }
-        ],
-        defaultValue: 'home',
-        description: 'حقل نوع التوصيل، قم بتعديله إلى نوع التوصيل الثابت عند استخدام التكامل مع شركة التوصيل'
       },
     ];
 
@@ -640,7 +586,7 @@ export default function FormBuilder() {
             <TabsList className="mb-4">
               <TabsTrigger value="fields">الحقول</TabsTrigger>
               <TabsTrigger value="settings">الإعدادات</TabsTrigger>
-              <TabsTrigger value="products">المنتجات</TabsTrigger>
+              {!isDefault && <TabsTrigger value="products">المنتجات</TabsTrigger>}
             </TabsList>
             <TabsContent value="fields">
               <FormFieldsPanel
@@ -668,16 +614,28 @@ export default function FormBuilder() {
                   <ShippingIntegrationFields shippingIntegration={shippingIntegration} />
                 )}
               </div>
+              
+              {isDefault && (
+                <Alert className="mt-4 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300">
+                  <InfoIcon className="h-4 w-4" />
+                  <AlertTitle className="text-sm font-semibold">معلومات حول النموذج الافتراضي:</AlertTitle>
+                  <AlertDescription className="text-sm">
+                    هذا النموذج الافتراضي سيطبق تلقائياً على جميع المنتجات التي ليس لديها نماذج مخصصة. لا حاجة لتحديد منتجات معينة.
+                  </AlertDescription>
+                </Alert>
+              )}
             </TabsContent>
-            <TabsContent value="products" className="mt-4">
-              <ProductsPanel
-                availableProducts={availableProducts}
-                selectedProducts={selectedProducts}
-                onToggleProduct={toggleProduct}
-                onSelectAll={selectAllProducts}
-                onUnselectAll={unselectAllProducts}
-              />
-            </TabsContent>
+            {!isDefault && (
+              <TabsContent value="products" className="mt-4">
+                <ProductsPanel
+                  availableProducts={availableProducts}
+                  selectedProducts={selectedProducts}
+                  onToggleProduct={toggleProduct}
+                  onSelectAll={selectAllProducts}
+                  onUnselectAll={unselectAllProducts}
+                />
+              </TabsContent>
+            )}
           </Tabs>
         </>
       )}

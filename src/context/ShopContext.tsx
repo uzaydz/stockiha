@@ -162,7 +162,7 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           
           
           // تحويل البيانات - معالجة الوعود بشكل صحيح
-          const orderPromises = ordersData.map(order => mapSupabaseOrderToOrder(order));
+          const orderPromises = ordersData.map(order => mapSupabaseOrderToOrder(order, false));
           return Promise.all(orderPromises);
         },
         SHORT_CACHE_TTL, // تخزين مؤقت لمدة 5 دقائق

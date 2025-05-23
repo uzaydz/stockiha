@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { persistQueryClient } from '@tanstack/react-query-persist-client';
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
 import { Routes, Route, useLocation } from "react-router-dom";
+import { useEffect } from 'react';
+import { syncCategoriesDataOnStartup } from '@/lib/api/categories';
 import { ShopProvider } from "./context/ShopContext";
 import { HelmetProvider } from "react-helmet-async";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
@@ -261,339 +263,411 @@ const TabFocusHandler = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <TabFocusHandler>
-        <SupabaseProvider>
-          <ShopProvider>
-            <HelmetProvider>
-              <Toaster />
-              <Sonner />
-              <Routes>
-                <Route path="/" element={<StoreRouter />} />
-                <Route path="/features" element={<Features />} />
-                <Route path="/offline-features" element={<OfflineFeatures />} />
-                <Route path="/features/pos" element={<POSFeaturesPage />} />
-                <Route path="/features/online-store" element={<OnlineStorePage />} />
-                <Route path="/features/advanced-analytics" element={<AdvancedAnalyticsFeaturesPage />} />
-                <Route path="/pricing" element={<PricingPage />} />
-                <Route path="/contact" element={<ContactPage />} />
-                <Route path="/login" element={<LoginForm />} />
-                <Route path="/super-admin/login" element={<SuperAdminLogin />} />
-                <Route path="/signup" element={<NotFound />} />
-                <Route path="/admin/signup" element={<AdminSignup />} />
-                <Route path="/tenant/signup" element={<TenantSignup />} />
-                
-                {/* Super Admin Routes - Protected with SuperAdminRoute */}
-                <Route element={<SuperAdminRoute />}>
-                  <Route path="/super-admin" element={<SuperAdminDashboard />} />
-                  <Route path="/super-admin/organizations" element={<SuperAdminOrganizations />} />
-                  <Route path="/super-admin/organizations/requests" element={<SuperAdminOrganizations />} />
-                  <Route path="/super-admin/subscriptions" element={<SuperAdminSubscriptions />} />
-                  <Route path="/super-admin/payment-methods" element={<SuperAdminPaymentMethods />} />
-                  <Route path="/super-admin/activation-codes" element={<ActivationCodesPage />} />
-                  <Route path="/super-admin/yalidine-sync" element={<YalidineSyncPage />} /> {/* Add new route here */}
-                  <Route path="/super-admin/users" element={<SuperAdminDashboard />} />
-                  <Route path="/super-admin/admins" element={<SuperAdminDashboard />} />
-                  <Route path="/super-admin/settings" element={<SuperAdminDashboard />} />
-                  <Route path="/super-admin/analytics" element={<SuperAdminDashboard />} />
-                  <Route path="/super-admin/payments" element={<SuperAdminDashboard />} />
-                  <Route path="/super-admin/logs" element={<SuperAdminDashboard />} />
-                  <Route path="/super-admin/permissions" element={<SuperAdminDashboard />} />
-                </Route>
-                
-                {/* صفحات عامة للزوار بدون تسجيل دخول */}
-                {/* صفحة جميع المنتجات */}
-                <Route path="/products" element={<StoreProducts />} />
-                
-                {/* صفحة تفاصيل المنتج */}
-                <Route path="/products/details/:productId" element={<ProductDetails />} />
-                
-                {/* صفحة شراء المنتج */}
-                <Route path="/products/:slug" element={<ProductPurchase />} />
-                
-                {/* صفحة الشكر بعد إتمام الشراء */}
-                <Route path="/thank-you" element={<ThankYouPage />} />
-                
-                {/* صفحة متابعة الخدمات العامة للعملاء */}
-                <Route path="/service-tracking/:trackingId" element={<PublicServiceTrackingPage />} />
-                <Route path="/service-tracking-public" element={<PublicServiceTrackingPage />} />
-                
-                {/* صفحة خدمات الإصلاح العامة */}
-                <Route path="/services" element={<PublicServiceTrackingPage />} />
+const App = () => {
+  useEffect(() => {
+    syncCategoriesDataOnStartup();
+  }, []);
 
-                {/* صفحات التوثيق */}
-                <Route path="/docs/custom-domains" element={<CustomDomainsDocPage />} />
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <TabFocusHandler>
+          <SupabaseProvider>
+            <ShopProvider>
+              <HelmetProvider>
+                <Toaster />
+                <Sonner />
+                <Routes>
+                  <Route path="/" element={<StoreRouter />} />
+                  <Route path="/features" element={<Features />} />
+                  <Route path="/offline-features" element={<OfflineFeatures />} />
+                  <Route path="/features/pos" element={<POSFeaturesPage />} />
+                  <Route path="/features/online-store" element={<OnlineStorePage />} />
+                  <Route path="/features/advanced-analytics" element={<AdvancedAnalyticsFeaturesPage />} />
+                  <Route path="/pricing" element={<PricingPage />} />
+                  <Route path="/contact" element={<ContactPage />} />
+                  <Route path="/login" element={<LoginForm />} />
+                  <Route path="/super-admin/login" element={<SuperAdminLogin />} />
+                  <Route path="/signup" element={<NotFound />} />
+                  <Route path="/admin/signup" element={<AdminSignup />} />
+                  <Route path="/tenant/signup" element={<TenantSignup />} />
+                  
+                  {/* Super Admin Routes - Protected with SuperAdminRoute */}
+                  <Route element={<SuperAdminRoute />}>
+                    <Route path="/super-admin" element={<SuperAdminDashboard />} />
+                    <Route path="/super-admin/organizations" element={<SuperAdminOrganizations />} />
+                    <Route path="/super-admin/organizations/requests" element={<SuperAdminOrganizations />} />
+                    <Route path="/super-admin/subscriptions" element={<SuperAdminSubscriptions />} />
+                    <Route path="/super-admin/payment-methods" element={<SuperAdminPaymentMethods />} />
+                    <Route path="/super-admin/activation-codes" element={<ActivationCodesPage />} />
+                    <Route path="/super-admin/yalidine-sync" element={<YalidineSyncPage />} /> {/* Add new route here */}
+                    <Route path="/super-admin/users" element={<SuperAdminDashboard />} />
+                    <Route path="/super-admin/admins" element={<SuperAdminDashboard />} />
+                    <Route path="/super-admin/settings" element={<SuperAdminDashboard />} />
+                    <Route path="/super-admin/analytics" element={<SuperAdminDashboard />} />
+                    <Route path="/super-admin/payments" element={<SuperAdminDashboard />} />
+                    <Route path="/super-admin/logs" element={<SuperAdminDashboard />} />
+                    <Route path="/super-admin/permissions" element={<SuperAdminDashboard />} />
+                  </Route>
+                  
+                  {/* صفحات عامة للزوار بدون تسجيل دخول */}
+                  {/* صفحة جميع المنتجات */}
+                  <Route path="/products" element={<StoreProducts />} />
+                  
+                  {/* صفحة تفاصيل المنتج */}
+                  <Route path="/products/details/:productId" element={<ProductDetails />} />
+                  
+                  {/* صفحة شراء المنتج */}
+                  <Route path="/products/:slug" element={<ProductPurchase />} />
+                  
+                  {/* صفحة الشكر بعد إتمام الشراء */}
+                  <Route path="/thank-you" element={<ThankYouPage />} />
+                  
+                  {/* صفحة متابعة الخدمات العامة للعملاء */}
+                  <Route path="/service-tracking/:trackingId" element={<PublicServiceTrackingPage />} />
+                  <Route path="/service-tracking-public" element={<PublicServiceTrackingPage />} />
+                  
+                  {/* صفحة خدمات الإصلاح العامة */}
+                  <Route path="/services" element={<PublicServiceTrackingPage />} />
 
-                {/* الصفحة الرئيسية للمتجر - يتم توجيه النطاقات المخصصة إليها */}
-                {/* تم تغييره من LandingPage إلى StoreRouter للتوجيه المباشر إلى المتجر عند استخدام دومين مخصص */}
-                <Route index element={<StoreRouter />} />
+                  {/* صفحات التوثيق */}
+                  <Route path="/docs/custom-domains" element={<CustomDomainsDocPage />} />
 
-                {/* صفحات الهبوط المخصصة - يجب أن تكون في النهاية لتجنب توجيه النطاقات المخصصة إليها */}
-                <Route path="/:slug" element={<LandingPageView />} />
+                  {/* الصفحة الرئيسية للمتجر - يتم توجيه النطاقات المخصصة إليها */}
+                  {/* تم تغييره من LandingPage إلى StoreRouter للتوجيه المباشر إلى المتجر عند استخدام دومين مخصص */}
+                  <Route index element={<StoreRouter />} />
 
-                {/* صفحات إعداد المؤسسة */}
-                <Route
-                  path="/organization/setup"
-                  element={
-                    <ProtectedRoute>
-                      <OrganizationSetup />
-                    </ProtectedRoute>
-                  }
-                />
+                  {/* صفحات الهبوط المخصصة - يجب أن تكون في النهاية لتجنب توجيه النطاقات المخصصة إليها */}
+                  <Route path="/:slug" element={<LandingPageView />} />
 
-                <Route element={<ProtectedRoute />}>
-                  {/* صفحات لوحة التحكم التي تتطلب تسجيل الدخول والمؤسسة */}
-                  <Route element={<RequireTenant />}>
-                    <Route path="/dashboard" element={
+                  {/* صفحات إعداد المؤسسة */}
+                  <Route
+                    path="/organization/setup"
+                    element={
+                      <ProtectedRoute>
+                        <OrganizationSetup />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  <Route element={<ProtectedRoute />}>
+                    {/* صفحات لوحة التحكم التي تتطلب تسجيل الدخول والمؤسسة */}
+                    <Route element={<RequireTenant />}>
+                      <Route path="/dashboard" element={
+                        <SubscriptionCheck>
+                          <Dashboard />
+                        </SubscriptionCheck>
+                      } />
+                      
+                      {/* صفحة إدارة الاشتراك */}
+                      <Route path="/dashboard/subscription" element={<SubscriptionPage />} />
+                      
+                      <Route path="/dashboard/categories" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['manageProductCategories']}>
+                            <Categories />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/services" element={
+                        <SubscriptionCheck>
+                          <Services />
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/sales" element={
+                        <SubscriptionCheck>
+                          <Sales />
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/orders" element={
+                        <SubscriptionCheck>
+                          <Orders />
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/abandoned-orders" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['viewOrders']}>
+                            <AbandonedOrders />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/expenses" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['viewFinancialReports']}>
+                            <Expenses />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/analytics" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['viewSalesReports']}>
+                            <Analytics />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/customers" element={
+                        <SubscriptionCheck>
+                          <Customers />
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/customer-debts" element={
+                        <SubscriptionCheck>
+                          <CustomerDebts />
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/customer-debt-details/:customerId" element={
+                        <PermissionGuard requiredPermissions={['viewDebts']}>
+                          <CustomerDebtDetails />
+                        </PermissionGuard>
+                      } />
+                      <Route path="/dashboard/payment-history" element={
+                        <PermissionGuard requiredPermissions={['viewFinancialReports']}>
+                          <PaymentHistory />
+                        </PermissionGuard>
+                      } />
+                      <Route path="/dashboard/employees" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['viewEmployees']}>
+                            <Employees />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/organization" element={
+                        <SubscriptionCheck>
+                          <OrganizationSettings />
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/custom-domains" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+                            <DomainSettings />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/invoices" element={
+                        <SubscriptionCheck>
+                          <Invoices />
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/reports" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['viewFinancialReports']}>
+                            <FinancialReports />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+                      {/* مسارات صفحات الفليكسي والعملات الرقمية */}
+                      <Route path="/dashboard/flexi-management" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['manageFlexiAndDigitalCurrency']}>
+                            <FlexiManagement />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/flexi-sales" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['sellFlexiAndDigitalCurrency']}>
+                            <FlexiSales />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/flexi-analytics" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['viewFlexiAndDigitalCurrencySales']}>
+                            <FlexiAnalytics />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+
+                      {/* مسارات إدارة الموردين */}
+                      <Route path="/dashboard/suppliers" element={
+                        <SubscriptionCheck>
+                          <SuppliersManagement />
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/suppliers/purchases" element={
+                        <SubscriptionCheck>
+                          <SupplierPurchases />
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/suppliers/purchases/new" element={
+                        <SubscriptionCheck>
+                          <SupplierPurchases />
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/suppliers/purchases/:purchaseId" element={
+                        <SubscriptionCheck>
+                          <SupplierPurchases />
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/suppliers/purchases/:purchaseId/edit" element={
+                        <SubscriptionCheck>
+                          <SupplierPurchases />
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/suppliers/payments" element={
+                        <SubscriptionCheck>
+                          <SupplierPayments />
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/suppliers/payments/new" element={
+                        <SubscriptionCheck>
+                          <SupplierPayments />
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/suppliers/payments/:paymentId" element={
+                        <SubscriptionCheck>
+                          <SupplierPayments />
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/suppliers/reports" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['viewReports']}>
+                            <SupplierReports />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+
+                      {/* صفحات إعدادات نموذج الطلب */}
+                      <Route path="/dashboard/form-settings" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+                            <FormSettings />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/form-builder/:formId" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+                            <FormBuilder />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+
+                      {/* صفحة إعدادات صفحة الشكر */}
+                      <Route path="/dashboard/thank-you-editor" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+                            <ThankYouPageEditor />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+
+                      {/* صفحات إدارة صفحات الهبوط */}
+                      <Route path="/dashboard/landing-pages" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+                            <LandingPagesManager />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/landing-page-builder/:id" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+                            <LandingPageBuilder />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+
+                      {/* صفحة معاينة صفحات الهبوط */}
+                      <Route path="/:slug" element={<LandingPageView />} />
+
+                      {/* صفحة تخصيص المتجر */}
+                      <Route path="/dashboard/store-editor" element={
+                        <SubscriptionCheck>
+                          <StoreEditor />
+                        </SubscriptionCheck>
+                      } />
+
+                      {/* صفحة إدارة المنتجات */}
+                      <Route path="/dashboard/products" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['viewProducts']}>
+                            <Products />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/product/new" element={
+                        <PermissionGuard requiredPermissions={['addProducts']}>
+                          <ProductForm />
+                        </PermissionGuard>
+                      } />
+                      <Route path="/dashboard/product/:id" element={
+                        <PermissionGuard requiredPermissions={['editProducts']}>
+                          <ProductForm />
+                        </PermissionGuard>
+                      } />
+                      <Route path="/dashboard/products/:productId/customize-purchase-page" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['editProducts']}>
+                            <CustomizeProductPurchasePage />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/inventory" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['viewInventory']}>
+                            <Inventory />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+
+                      {/* صفحة نقطة البيع */}
+                      <Route path="/dashboard/pos" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['accessPOS']}>
+                            <POS />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+
+                      {/* صفحة متابعة الخدمات */}
+                      <Route path="/dashboard/service-tracking" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['trackServices']}>
+                            <ServiceTrackingPage />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+                      
+                      {/* صفحة طلبات الخدمات */}
+                      <Route path="/dashboard/service-requests" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['trackServices']}>
+                            <ServiceRequestsPage />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+                      
+                      <Route path="*" element={<NotFound />} />
+                    </Route>
+                    
+                    {/* صفحات الإعدادات */}
+                    <Route path="/dashboard/settings" element={
                       <SubscriptionCheck>
-                        <Dashboard />
+                        <SettingsPage />
+                      </SubscriptionCheck>
+                    } />
+                    <Route path="/dashboard/settings/:section" element={
+                      <SubscriptionCheck>
+                        <SettingsPage />
                       </SubscriptionCheck>
                     } />
                     
-                    {/* صفحة إدارة الاشتراك */}
-                    <Route path="/dashboard/subscription" element={<SubscriptionPage />} />
-                    
-                    <Route path="/dashboard/categories" element={
-                      <SubscriptionCheck>
-                        <PermissionGuard requiredPermissions={['manageProductCategories']}>
-                          <Categories />
-                        </PermissionGuard>
-                      </SubscriptionCheck>
-                    } />
-                    <Route path="/dashboard/services" element={
-                      <SubscriptionCheck>
-                        <Services />
-                      </SubscriptionCheck>
-                    } />
-                    <Route path="/dashboard/sales" element={
-                      <SubscriptionCheck>
-                        <Sales />
-                      </SubscriptionCheck>
-                    } />
-                    <Route path="/dashboard/orders" element={
-                      <SubscriptionCheck>
-                        <Orders />
-                      </SubscriptionCheck>
-                    } />
-                    <Route path="/dashboard/abandoned-orders" element={
-                      <SubscriptionCheck>
-                        <PermissionGuard requiredPermissions={['viewOrders']}>
-                          <AbandonedOrders />
-                        </PermissionGuard>
-                      </SubscriptionCheck>
-                    } />
-                    <Route path="/dashboard/expenses" element={
-                      <SubscriptionCheck>
-                        <PermissionGuard requiredPermissions={['viewFinancialReports']}>
-                          <Expenses />
-                        </PermissionGuard>
-                      </SubscriptionCheck>
-                    } />
-                    <Route path="/dashboard/analytics" element={
-                      <SubscriptionCheck>
-                        <PermissionGuard requiredPermissions={['viewSalesReports']}>
-                          <Analytics />
-                        </PermissionGuard>
-                      </SubscriptionCheck>
-                    } />
-                    <Route path="/dashboard/customers" element={
-                      <SubscriptionCheck>
-                        <Customers />
-                      </SubscriptionCheck>
-                    } />
-                    <Route path="/dashboard/customer-debts" element={
-                      <SubscriptionCheck>
-                        <CustomerDebts />
-                      </SubscriptionCheck>
-                    } />
-                    <Route path="/dashboard/customer-debt-details/:customerId" element={
-                      <PermissionGuard requiredPermissions={['viewDebts']}>
-                        <CustomerDebtDetails />
-                      </PermissionGuard>
-                    } />
-                    <Route path="/dashboard/payment-history" element={
-                      <PermissionGuard requiredPermissions={['viewFinancialReports']}>
-                        <PaymentHistory />
-                      </PermissionGuard>
-                    } />
-                    <Route path="/dashboard/employees" element={
-                      <SubscriptionCheck>
-                        <PermissionGuard requiredPermissions={['viewEmployees']}>
-                          <Employees />
-                        </PermissionGuard>
-                      </SubscriptionCheck>
-                    } />
-                    <Route path="/dashboard/organization" element={
-                      <SubscriptionCheck>
-                        <OrganizationSettings />
-                      </SubscriptionCheck>
-                    } />
-                    <Route path="/dashboard/custom-domains" element={
+                    {/* صفحة إعدادات الشحن والتوصيل */}
+                    <Route path="/dashboard/shipping-settings" element={
                       <SubscriptionCheck>
                         <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
-                          <DomainSettings />
-                        </PermissionGuard>
-                      </SubscriptionCheck>
-                    } />
-                    <Route path="/dashboard/invoices" element={
-                      <SubscriptionCheck>
-                        <Invoices />
-                      </SubscriptionCheck>
-                    } />
-                    <Route path="/dashboard/reports" element={
-                      <SubscriptionCheck>
-                        <PermissionGuard requiredPermissions={['viewFinancialReports']}>
-                          <FinancialReports />
-                        </PermissionGuard>
-                      </SubscriptionCheck>
-                    } />
-                    {/* مسارات صفحات الفليكسي والعملات الرقمية */}
-                    <Route path="/dashboard/flexi-management" element={
-                      <SubscriptionCheck>
-                        <PermissionGuard requiredPermissions={['manageFlexiAndDigitalCurrency']}>
-                          <FlexiManagement />
-                        </PermissionGuard>
-                      </SubscriptionCheck>
-                    } />
-                    <Route path="/dashboard/flexi-sales" element={
-                      <SubscriptionCheck>
-                        <PermissionGuard requiredPermissions={['sellFlexiAndDigitalCurrency']}>
-                          <FlexiSales />
-                        </PermissionGuard>
-                      </SubscriptionCheck>
-                    } />
-                    <Route path="/dashboard/flexi-analytics" element={
-                      <SubscriptionCheck>
-                        <PermissionGuard requiredPermissions={['viewFlexiAndDigitalCurrencySales']}>
-                          <FlexiAnalytics />
+                          <ShippingSettingsPage />
                         </PermissionGuard>
                       </SubscriptionCheck>
                     } />
 
-                    {/* مسارات إدارة الموردين */}
-                    <Route path="/dashboard/suppliers" element={
-                      <SubscriptionCheck>
-                        <SuppliersManagement />
-                      </SubscriptionCheck>
-                    } />
-                    <Route path="/dashboard/suppliers/purchases" element={
-                      <SubscriptionCheck>
-                        <SupplierPurchases />
-                      </SubscriptionCheck>
-                    } />
-                    <Route path="/dashboard/suppliers/purchases/new" element={
-                      <SubscriptionCheck>
-                        <SupplierPurchases />
-                      </SubscriptionCheck>
-                    } />
-                    <Route path="/dashboard/suppliers/purchases/:purchaseId" element={
-                      <SubscriptionCheck>
-                        <SupplierPurchases />
-                      </SubscriptionCheck>
-                    } />
-                    <Route path="/dashboard/suppliers/purchases/:purchaseId/edit" element={
-                      <SubscriptionCheck>
-                        <SupplierPurchases />
-                      </SubscriptionCheck>
-                    } />
-                    <Route path="/dashboard/suppliers/payments" element={
-                      <SubscriptionCheck>
-                        <SupplierPayments />
-                      </SubscriptionCheck>
-                    } />
-                    <Route path="/dashboard/suppliers/payments/new" element={
-                      <SubscriptionCheck>
-                        <SupplierPayments />
-                      </SubscriptionCheck>
-                    } />
-                    <Route path="/dashboard/suppliers/payments/:paymentId" element={
-                      <SubscriptionCheck>
-                        <SupplierPayments />
-                      </SubscriptionCheck>
-                    } />
-                    <Route path="/dashboard/suppliers/reports" element={
-                      <SubscriptionCheck>
-                        <PermissionGuard requiredPermissions={['viewReports']}>
-                          <SupplierReports />
-                        </PermissionGuard>
-                      </SubscriptionCheck>
-                    } />
-
-                    {/* صفحات إعدادات نموذج الطلب */}
-                    <Route path="/dashboard/form-settings" element={
-                      <SubscriptionCheck>
-                        <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
-                          <FormSettings />
-                        </PermissionGuard>
-                      </SubscriptionCheck>
-                    } />
-                    <Route path="/form-builder/:formId" element={
-                      <SubscriptionCheck>
-                        <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
-                          <FormBuilder />
-                        </PermissionGuard>
-                      </SubscriptionCheck>
-                    } />
-
-                    {/* صفحة إعدادات صفحة الشكر */}
-                    <Route path="/dashboard/thank-you-editor" element={
-                      <SubscriptionCheck>
-                        <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
-                          <ThankYouPageEditor />
-                        </PermissionGuard>
-                      </SubscriptionCheck>
-                    } />
-
-                    {/* صفحات إدارة صفحات الهبوط */}
-                    <Route path="/dashboard/landing-pages" element={
-                      <SubscriptionCheck>
-                        <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
-                          <LandingPagesManager />
-                        </PermissionGuard>
-                      </SubscriptionCheck>
-                    } />
-                    <Route path="/landing-page-builder/:id" element={
-                      <SubscriptionCheck>
-                        <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
-                          <LandingPageBuilder />
-                        </PermissionGuard>
-                      </SubscriptionCheck>
-                    } />
-
-                    {/* صفحة معاينة صفحات الهبوط */}
-                    <Route path="/:slug" element={<LandingPageView />} />
-
-                    {/* صفحة تخصيص المتجر */}
-                    <Route path="/dashboard/store-editor" element={
-                      <SubscriptionCheck>
-                        <StoreEditor />
-                      </SubscriptionCheck>
-                    } />
-
-                    {/* صفحة إدارة المنتجات */}
+                    {/* إضافة صفحة جديدة في المستقبل */}
                     <Route path="/dashboard/products" element={
                       <SubscriptionCheck>
                         <PermissionGuard requiredPermissions={['viewProducts']}>
                           <Products />
-                        </PermissionGuard>
-                      </SubscriptionCheck>
-                    } />
-                    <Route path="/dashboard/product/new" element={
-                      <PermissionGuard requiredPermissions={['addProducts']}>
-                        <ProductForm />
-                      </PermissionGuard>
-                    } />
-                    <Route path="/dashboard/product/:id" element={
-                      <PermissionGuard requiredPermissions={['editProducts']}>
-                        <ProductForm />
-                      </PermissionGuard>
-                    } />
-                    <Route path="/dashboard/products/:productId/customize-purchase-page" element={
-                      <SubscriptionCheck>
-                        <PermissionGuard requiredPermissions={['editProducts']}>
-                          <CustomizeProductPurchasePage />
                         </PermissionGuard>
                       </SubscriptionCheck>
                     } />
@@ -635,84 +709,16 @@ const App = () => (
                     <Route path="*" element={<NotFound />} />
                   </Route>
                   
-                  {/* صفحات الإعدادات */}
-                  <Route path="/dashboard/settings" element={
-                    <SubscriptionCheck>
-                      <SettingsPage />
-                    </SubscriptionCheck>
-                  } />
-                  <Route path="/dashboard/settings/:section" element={
-                    <SubscriptionCheck>
-                      <SettingsPage />
-                    </SubscriptionCheck>
-                  } />
-                  
-                  {/* صفحة إعدادات الشحن والتوصيل */}
-                  <Route path="/dashboard/shipping-settings" element={
-                    <SubscriptionCheck>
-                      <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
-                        <ShippingSettingsPage />
-                      </PermissionGuard>
-                    </SubscriptionCheck>
-                  } />
-
-                  {/* إضافة صفحة جديدة في المستقبل */}
-                  <Route path="/dashboard/products" element={
-                    <SubscriptionCheck>
-                      <PermissionGuard requiredPermissions={['viewProducts']}>
-                        <Products />
-                      </PermissionGuard>
-                    </SubscriptionCheck>
-                  } />
-                  <Route path="/dashboard/inventory" element={
-                    <SubscriptionCheck>
-                      <PermissionGuard requiredPermissions={['viewInventory']}>
-                        <Inventory />
-                      </PermissionGuard>
-                    </SubscriptionCheck>
-                  } />
-
-                  {/* صفحة نقطة البيع */}
-                  <Route path="/dashboard/pos" element={
-                    <SubscriptionCheck>
-                      <PermissionGuard requiredPermissions={['accessPOS']}>
-                        <POS />
-                      </PermissionGuard>
-                    </SubscriptionCheck>
-                  } />
-
-                  {/* صفحة متابعة الخدمات */}
-                  <Route path="/dashboard/service-tracking" element={
-                    <SubscriptionCheck>
-                      <PermissionGuard requiredPermissions={['trackServices']}>
-                        <ServiceTrackingPage />
-                      </PermissionGuard>
-                    </SubscriptionCheck>
-                  } />
-                  
-                  {/* صفحة طلبات الخدمات */}
-                  <Route path="/dashboard/service-requests" element={
-                    <SubscriptionCheck>
-                      <PermissionGuard requiredPermissions={['trackServices']}>
-                        <ServiceRequestsPage />
-                      </PermissionGuard>
-                    </SubscriptionCheck>
-                  } />
-                  
                   <Route path="*" element={<NotFound />} />
-                </Route>
-                
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-              
-              {/* استخدام المكون الجديد بدلاً من SyncManager مباشرة */}
-              <SyncManagerWrapper />
-            </HelmetProvider>
-          </ShopProvider>
-        </SupabaseProvider>
-      </TabFocusHandler>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+                </Routes>
+                <SyncManagerWrapper />
+              </HelmetProvider>
+            </ShopProvider>
+          </SupabaseProvider>
+        </TabFocusHandler>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;

@@ -34,7 +34,7 @@ interface ComponentTypeOption {
 // خيارات المكونات مقسمة حسب الفئات
 const componentOptions: ComponentTypeOption[] = [
   {
-    type: 'Hero',
+    type: 'hero',
     label: 'قسم الهيرو',
     icon: <Layout className="h-4 w-4" />,
     description: 'صورة مع نص ترويجي وأزرار دعوة للعمل',
@@ -42,14 +42,14 @@ const componentOptions: ComponentTypeOption[] = [
     popular: true
   },
   {
-    type: 'CategorySection',
+    type: 'category_section',
     label: 'فئات المنتجات',
     icon: <Layers className="h-4 w-4" />,
     description: 'عرض فئات المنتجات للتصفح',
     category: 'commerce'
   },
   {
-    type: 'FeaturedProducts',
+    type: 'featured_products',
     label: 'المنتجات المميزة',
     icon: <ShoppingBag className="h-4 w-4" />,
     description: 'عرض المنتجات المميزة أو الأكثر مبيعاً',
@@ -65,18 +65,39 @@ const componentOptions: ComponentTypeOption[] = [
     popular: true
   },
   {
-    type: 'CustomerTestimonials',
+    type: 'testimonials',
     label: 'آراء العملاء',
     icon: <MessageSquare className="h-4 w-4" />,
     description: 'عرض تقييمات وآراء العملاء',
     category: 'marketing'
   },
   {
-    type: 'About',
+    type: 'about',
     label: 'عن المتجر',
     icon: <Info className="h-4 w-4" />,
     description: 'معلومات عن المتجر وميزاته',
     category: 'content'
+  },
+  {
+    type: 'services',
+    label: 'الخدمات',
+    icon: <Star className="h-4 w-4" />,
+    description: 'عرض الخدمات التي يقدمها المتجر',
+    category: 'content'
+  },
+  {
+    type: 'contact',
+    label: 'اتصل بنا',
+    icon: <MessageSquare className="h-4 w-4" />,
+    description: 'نموذج اتصال ومعلومات التواصل',
+    category: 'basic'
+  },
+  {
+    type: 'product_categories',
+    label: 'تصنيفات المنتجات',
+    icon: <Layers className="h-4 w-4" />,
+    description: 'عرض تصنيفات المنتجات بطريقة مختلفة',
+    category: 'commerce'
   }
 ];
 

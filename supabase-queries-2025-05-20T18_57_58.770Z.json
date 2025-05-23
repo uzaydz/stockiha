@@ -1,0 +1,983 @@
+{
+  "exportDate": "2025-05-20T18:57:58.769Z",
+  "exportOptions": {
+    "includeRawQueries": true,
+    "includeQueryDetails": true,
+    "includeResponses": true,
+    "includeStackTraces": true,
+    "includeSimilarGroups": true,
+    "includePerformanceInfo": true,
+    "queryLimit": 100,
+    "onlySlowQueries": false,
+    "onlyCacheableCandidates": false
+  },
+  "summary": {
+    "totalQueries": 17,
+    "slowQueries": 5,
+    "averageQueryTime": 483.1764705882353
+  },
+  "queries": [
+    {
+      "id": "umxaspc",
+      "timestamp": "2025-05-20T18:57:29.853Z",
+      "method": "GET",
+      "url": "/rest/v1/shipping_providers",
+      "table": "shipping_providers",
+      "body": null,
+      "duration": 733,
+      "componentName": "ShippingProviders",
+      "fileLocation": "lib/supabase.ts?t=1747766614614",
+      "lineNumber": 164,
+      "stackTrace": "Error\n    at extractComponentInfo (http://ktobioussktobi.localhost:8080/src/components/debug/queryAnalytics.ts:125:21)\n    at recordSupabaseQuery (http://ktobioussktobi.localhost:8080/src/components/debug/queryRecorder.ts:9:27)\n    at Proxy.functionsObj (http://ktobioussktobi.localhost:8080/src/lib/supabase.ts?t=1747766614614:164:33)\n    at ShippingSettingsService.initShippingTables (http://ktobioussktobi.localhost:8080/src/api/shippingSettingsService.ts?t=1747766614614:28:75)\n    at new ShippingSettingsService (http://ktobioussktobi.localhost:8080/src/api/shippingSettingsService.ts?t=1747766614614:276:14)\n    at http://ktobioussktobi.localhost:8080/src/api/shippingSettingsService.ts?t=1747766614614:279:40",
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "shipping_providers",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "response": {
+        "error": null,
+        "data": [],
+        "count": null,
+        "status": 200,
+        "statusText": ""
+      }
+    },
+    {
+      "id": "gfvv9tj",
+      "timestamp": "2025-05-20T18:57:30.207Z",
+      "method": "POST",
+      "url": "/functions/v1/get-product-page-data",
+      "table": "function:get-product-page-data",
+      "body": {
+        "slug": "قنطري-1747738983518",
+        "organization_id": "fed872f9-1ade-4351-b020-5598fda976fe"
+      },
+      "duration": 0,
+      "componentName": "Function:get-product-page-data",
+      "fileLocation": "lib/supabase.ts?t=1747766614614",
+      "lineNumber": 236,
+      "stackTrace": "Error\n    at extractComponentInfo (http://ktobioussktobi.localhost:8080/src/components/debug/queryAnalytics.ts:125:21)\n    at recordSupabaseQuery (http://ktobioussktobi.localhost:8080/src/components/debug/queryRecorder.ts:9:27)\n    at Proxy.<anonymous> (http://ktobioussktobi.localhost:8080/src/lib/supabase.ts?t=1747766614614:236:45)\n    at getProductPageData (http://ktobioussktobi.localhost:8080/src/api/product-page.ts?t=1747766614614:14:73)\n    at loadProduct (http://ktobioussktobi.localhost:8080/src/components/store/product-purchase/ProductDataLoader.tsx?t=1747766614614:46:36)\n    at http://ktobioussktobi.localhost:8080/src/components/store/product-purchase/ProductDataLoader.tsx?t=1747766614614:99:9\n    at commitHookEffectListMount (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:23841:34)\n    at commitPassiveMountOnFiber (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25084:19)\n    at commitPassiveMountEffects_complete (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25057:17)\n    at commitPassiveMountEffects_begin (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25047:15)\n    at commitPassiveMountEffects (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25037:11)\n    at flushPassiveEffectsImpl (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:26421:11)\n    at flushPassiveEffects (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:26378:22)\n    at http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:26259:17\n    at workLoop (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:462:42)\n    at flushWork (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:441:22)\n    at MessagePort.performWorkUntilDeadline (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:649:29)",
+      "queryType": "function",
+      "tables": [
+        {
+          "name": "function:get-product-page-data",
+          "operation": "function",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple"
+    },
+    {
+      "id": "2s5k57x",
+      "timestamp": "2025-05-20T18:57:30.208Z",
+      "method": "GET",
+      "url": "/rest/v1/organizations",
+      "table": "organizations",
+      "body": null,
+      "duration": 393,
+      "componentName": "Organizations",
+      "fileLocation": "lib/supabase.ts?t=1747766614614",
+      "lineNumber": 164,
+      "stackTrace": "Error\n    at extractComponentInfo (http://ktobioussktobi.localhost:8080/src/components/debug/queryAnalytics.ts:125:21)\n    at recordSupabaseQuery (http://ktobioussktobi.localhost:8080/src/components/debug/queryRecorder.ts:9:27)\n    at Proxy.functionsObj (http://ktobioussktobi.localhost:8080/src/lib/supabase.ts?t=1747766614614:164:33)\n    at getOrganizationId (http://ktobioussktobi.localhost:8080/src/context/shop/utils.ts?t=1747766614614:34:73)\n    at http://ktobioussktobi.localhost:8080/src/context/ShopContext.tsx?t=1747766614614:123:42\n    at http://ktobioussktobi.localhost:8080/src/context/ShopContext.tsx?t=1747766614614:200:13\n    at commitHookEffectListMount (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:23841:34)\n    at commitPassiveMountOnFiber (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25084:19)\n    at commitPassiveMountEffects_complete (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25057:17)\n    at commitPassiveMountEffects_begin (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25047:15)\n    at commitPassiveMountEffects (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25037:11)\n    at flushPassiveEffectsImpl (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:26421:11)\n    at flushPassiveEffects (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:26378:22)\n    at http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:26259:17\n    at workLoop (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:462:42)\n    at flushWork (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:441:22)\n    at MessagePort.performWorkUntilDeadline (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:649:29)",
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "organizations",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "response": {
+        "error": null,
+        "data": {
+          "id": "fed872f9-1ade-4351-b020-5598fda976fe"
+        },
+        "count": null,
+        "status": 200,
+        "statusText": ""
+      },
+      "similarQueryGroupId": "group-1747767452014-uvy8vwl",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 2 استعلامات مماثلة، مما يوفر 1 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "medium"
+    },
+    {
+      "id": "xykgkw4",
+      "timestamp": "2025-05-20T18:57:30.601Z",
+      "method": "GET",
+      "url": "/rest/v1/customers",
+      "table": "customers",
+      "body": null,
+      "duration": 292,
+      "componentName": "Customers",
+      "fileLocation": "lib/supabase.ts?t=1747766614614",
+      "lineNumber": 164,
+      "stackTrace": "Error\n    at extractComponentInfo (http://ktobioussktobi.localhost:8080/src/components/debug/queryAnalytics.ts:125:21)\n    at recordSupabaseQuery (http://ktobioussktobi.localhost:8080/src/components/debug/queryRecorder.ts:9:27)\n    at Proxy.functionsObj (http://ktobioussktobi.localhost:8080/src/lib/supabase.ts?t=1747766614614:164:33)\n    at ensureGuestCustomer (http://ktobioussktobi.localhost:8080/src/context/shop/utils.ts?t=1747766614614:67:75)\n    at http://ktobioussktobi.localhost:8080/src/context/ShopContext.tsx?t=1747766614614:132:19",
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "customers",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "response": {
+        "error": null,
+        "data": {
+          "id": "00000000-0000-0000-0000-000000000000",
+          "name": "زائر",
+          "email": "guest@example.com",
+          "phone": null,
+          "created_at": "2025-03-30T04:23:15.571+00:00",
+          "updated_at": "2025-03-30T04:23:15.571+00:00",
+          "organization_id": "9aaa20b6-70c8-4cd7-9652-c6e6a1e53b79"
+        },
+        "count": null,
+        "status": 200,
+        "statusText": ""
+      }
+    },
+    {
+      "id": "yaqth3z",
+      "timestamp": "2025-05-20T18:57:30.617Z",
+      "method": "GET",
+      "url": "/rest/v1/users",
+      "table": "users",
+      "body": null,
+      "duration": 514,
+      "componentName": "Users",
+      "fileLocation": "lib/supabase.ts?t=1747766614614",
+      "lineNumber": 164,
+      "stackTrace": "Error\n    at extractComponentInfo (http://ktobioussktobi.localhost:8080/src/components/debug/queryAnalytics.ts:125:21)\n    at recordSupabaseQuery (http://ktobioussktobi.localhost:8080/src/components/debug/queryRecorder.ts:9:27)\n    at Proxy.functionsObj (http://ktobioussktobi.localhost:8080/src/lib/supabase.ts?t=1747766614614:164:33)\n    at getUserById (http://ktobioussktobi.localhost:8080/src/lib/api/users.ts?t=1747766614614:17:44)\n    at getCurrentUserProfile (http://ktobioussktobi.localhost:8080/src/lib/api/users.ts?t=1747766614614:67:33)\n    at async http://ktobioussktobi.localhost:8080/src/context/AuthContext.tsx?t=1747766614614:91:48\n    at async withCache (http://ktobioussktobi.localhost:8080/src/lib/cache/storeCache.ts?t=1747766614614:151:25)\n    at async loadUserProfile (http://ktobioussktobi.localhost:8080/src/context/AuthContext.tsx?t=1747766614614:90:37)",
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "users",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "response": {
+        "error": null,
+        "data": {
+          "id": "213f3a14-c076-4cdf-945b-a7e877eab5c9",
+          "email": "uzaydz33030@gmail.com",
+          "name": "oussama guentri",
+          "phone": null,
+          "role": "admin",
+          "permissions": {
+            "accessPOS": true,
+            "manageUsers": true,
+            "viewReports": true,
+            "editProducts": true,
+            "manageOrders": true,
+            "viewInventory": true,
+            "deleteProducts": true,
+            "manageProducts": true,
+            "manageServices": true,
+            "manageEmployees": true,
+            "processPayments": true
+          },
+          "is_active": true,
+          "created_at": "2025-04-16T12:48:20.105517+00:00",
+          "updated_at": "2025-04-16T12:48:20.105517+00:00",
+          "organization_id": "fed872f9-1ade-4351-b020-5598fda976fe",
+          "is_org_admin": true,
+          "whatsapp_phone": null,
+          "whatsapp_connected": false,
+          "whatsapp_enabled": false,
+          "auth_user_id": null,
+          "is_super_admin": false
+        },
+        "count": null,
+        "status": 200,
+        "statusText": ""
+      },
+      "similarQueryGroupId": "group-1747767452014-o7vajad",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 60,
+      "cacheRecommendation": "هذا الاستعلام ليس مرشحًا جيدًا للتخزين المؤقت بسبب طبيعته أو معدل تغيير البيانات.",
+      "isSlowQuery": true,
+      "performanceImpact": "medium"
+    },
+    {
+      "id": "luq2wbj",
+      "timestamp": "2025-05-20T18:57:30.893Z",
+      "method": "GET",
+      "url": "/rest/v1/organizations",
+      "table": "organizations",
+      "body": null,
+      "duration": 1039,
+      "componentName": "Organizations",
+      "fileLocation": "lib/supabase.ts?t=1747766614614",
+      "lineNumber": 164,
+      "stackTrace": "Error\n    at extractComponentInfo (http://ktobioussktobi.localhost:8080/src/components/debug/queryAnalytics.ts:125:21)\n    at recordSupabaseQuery (http://ktobioussktobi.localhost:8080/src/components/debug/queryRecorder.ts:9:27)\n    at Proxy.functionsObj (http://ktobioussktobi.localhost:8080/src/lib/supabase.ts?t=1747766614614:164:33)\n    at getOrganizationId (http://ktobioussktobi.localhost:8080/src/context/shop/utils.ts?t=1747766614614:34:73)\n    at ensureGuestCustomer (http://ktobioussktobi.localhost:8080/src/context/shop/utils.ts?t=1747766614614:71:38)\n    at async http://ktobioussktobi.localhost:8080/src/context/ShopContext.tsx?t=1747766614614:132:13",
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "organizations",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1747767452014-uvy8vwl",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 2 استعلامات مماثلة، مما يوفر 2 ثانية من وقت الاستجابة.",
+      "isSlowQuery": true,
+      "performanceImpact": "high",
+      "response": {
+        "error": null,
+        "data": {
+          "id": "fed872f9-1ade-4351-b020-5598fda976fe"
+        },
+        "count": null,
+        "status": 200,
+        "statusText": ""
+      }
+    },
+    {
+      "id": "1xkkrux",
+      "timestamp": "2025-05-20T18:57:31.217Z",
+      "method": "GET",
+      "url": "/rest/v1/products",
+      "table": "products",
+      "body": null,
+      "duration": 421,
+      "componentName": "Products",
+      "fileLocation": "lib/supabase.ts?t=1747766614614",
+      "lineNumber": 164,
+      "stackTrace": "Error\n    at extractComponentInfo (http://ktobioussktobi.localhost:8080/src/components/debug/queryAnalytics.ts:125:21)\n    at recordSupabaseQuery (http://ktobioussktobi.localhost:8080/src/components/debug/queryRecorder.ts:9:27)\n    at Proxy.functionsObj (http://ktobioussktobi.localhost:8080/src/lib/supabase.ts?t=1747766614614:164:33)\n    at getShippingCloneId (http://ktobioussktobi.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1747766614614:283:64)\n    at http://ktobioussktobi.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1747766614614:352:9\n    at commitHookEffectListMount (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:23841:34)\n    at commitPassiveMountOnFiber (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25084:19)\n    at commitPassiveMountEffects_complete (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25057:17)\n    at commitPassiveMountEffects_begin (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25047:15)\n    at commitPassiveMountEffects (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25037:11)\n    at flushPassiveEffectsImpl (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:26421:11)\n    at flushPassiveEffects (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:26378:22)\n    at performSyncWorkOnRoot (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25799:11)\n    at flushSyncCallbacks (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:16044:30)\n    at commitRootImpl (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:26363:11)\n    at commitRoot (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:26208:13)\n    at finishConcurrentRender (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25736:15)\n    at performConcurrentWorkOnRoot (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25646:15)\n    at workLoop (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:462:42)\n    at flushWork (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:441:22)\n    at MessagePort.performWorkUntilDeadline (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:649:29)",
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "products",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1747767452014-sk3kjrl",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 3600,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 2 استعلامات مماثلة، مما يوفر 1 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "medium",
+      "response": {
+        "error": null,
+        "data": {
+          "shipping_clone_id": null,
+          "purchase_page_config": null
+        },
+        "count": null,
+        "status": 200,
+        "statusText": ""
+      }
+    },
+    {
+      "id": "06okvxa",
+      "timestamp": "2025-05-20T18:57:31.217Z",
+      "method": "GET",
+      "url": "/rest/v1/yalidine_provinces_global",
+      "table": "yalidine_provinces_global",
+      "body": null,
+      "duration": 433,
+      "componentName": "YalidineProvincesGlobal",
+      "fileLocation": "lib/supabase.ts?t=1747766614614",
+      "lineNumber": 164,
+      "stackTrace": "Error\n    at extractComponentInfo (http://ktobioussktobi.localhost:8080/src/components/debug/queryAnalytics.ts:125:21)\n    at recordSupabaseQuery (http://ktobioussktobi.localhost:8080/src/components/debug/queryRecorder.ts:9:27)\n    at Proxy.functionsObj (http://ktobioussktobi.localhost:8080/src/lib/supabase.ts?t=1747766614614:164:33)\n    at getProvinces (http://ktobioussktobi.localhost:8080/src/api/yalidine/service.ts?t=1747766614614:211:48)\n    at loadProvinces (http://ktobioussktobi.localhost:8080/src/components/store/order-form/custom-form-fields/FormInitialization.tsx?t=1747766614614:67:41)\n    at http://ktobioussktobi.localhost:8080/src/components/store/order-form/custom-form-fields/FormInitialization.tsx?t=1747766614614:100:17\n    at commitHookEffectListMount (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:23841:34)\n    at commitPassiveMountOnFiber (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25084:19)\n    at commitPassiveMountEffects_complete (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25057:17)\n    at commitPassiveMountEffects_begin (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25047:15)\n    at commitPassiveMountEffects (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25037:11)\n    at flushPassiveEffectsImpl (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:26421:11)\n    at flushPassiveEffects (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:26378:22)\n    at performSyncWorkOnRoot (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25799:11)\n    at flushSyncCallbacks (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:16044:30)\n    at commitRootImpl (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:26363:11)\n    at commitRoot (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:26208:13)\n    at finishConcurrentRender (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25736:15)\n    at performConcurrentWorkOnRoot (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25646:15)\n    at workLoop (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:462:42)\n    at flushWork (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:441:22)\n    at MessagePort.performWorkUntilDeadline (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:649:29)",
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "yalidine_provinces_global",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1747767452014-cnx3of0",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 2 استعلامات مماثلة، مما يوفر 1 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "medium",
+      "response": {
+        "error": null,
+        "data": [],
+        "count": null,
+        "status": 200,
+        "statusText": ""
+      }
+    },
+    {
+      "id": "fgp9tmm",
+      "timestamp": "2025-05-20T18:57:31.218Z",
+      "method": "GET",
+      "url": "/rest/v1/products",
+      "table": "products",
+      "body": null,
+      "duration": 783,
+      "componentName": "Products",
+      "fileLocation": "lib/supabase.ts?t=1747766614614",
+      "lineNumber": 164,
+      "stackTrace": "Error\n    at extractComponentInfo (http://ktobioussktobi.localhost:8080/src/components/debug/queryAnalytics.ts:125:21)\n    at recordSupabaseQuery (http://ktobioussktobi.localhost:8080/src/components/debug/queryRecorder.ts:9:27)\n    at Proxy.functionsObj (http://ktobioussktobi.localhost:8080/src/lib/supabase.ts?t=1747766614614:164:33)\n    at getShippingCloneId (http://ktobioussktobi.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1747766614614:283:64)\n    at http://ktobioussktobi.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1747766614614:352:9\n    at commitHookEffectListMount (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:23841:34)\n    at invokePassiveEffectMountInDEV (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25252:19)\n    at invokeEffectsInDev (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:26632:19)\n    at commitDoubleInvokeEffectsInDEV (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:26617:15)\n    at flushPassiveEffectsImpl (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:26434:13)\n    at flushPassiveEffects (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:26378:22)\n    at performSyncWorkOnRoot (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25799:11)\n    at flushSyncCallbacks (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:16044:30)\n    at commitRootImpl (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:26363:11)\n    at commitRoot (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:26208:13)\n    at finishConcurrentRender (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25736:15)\n    at performConcurrentWorkOnRoot (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25646:15)\n    at workLoop (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:462:42)\n    at flushWork (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:441:22)\n    at MessagePort.performWorkUntilDeadline (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:649:29)",
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "products",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1747767452014-sk3kjrl",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 3600,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 2 استعلامات مماثلة، مما يوفر 2 ثانية من وقت الاستجابة.",
+      "isSlowQuery": true,
+      "performanceImpact": "medium",
+      "response": {
+        "error": null,
+        "data": {
+          "shipping_clone_id": null,
+          "purchase_page_config": null
+        },
+        "count": null,
+        "status": 200,
+        "statusText": ""
+      }
+    },
+    {
+      "id": "e78ghr5",
+      "timestamp": "2025-05-20T18:57:31.218Z",
+      "method": "GET",
+      "url": "/rest/v1/yalidine_provinces_global",
+      "table": "yalidine_provinces_global",
+      "body": null,
+      "duration": 1231,
+      "componentName": "YalidineProvincesGlobal",
+      "fileLocation": "lib/supabase.ts?t=1747766614614",
+      "lineNumber": 164,
+      "stackTrace": "Error\n    at extractComponentInfo (http://ktobioussktobi.localhost:8080/src/components/debug/queryAnalytics.ts:125:21)\n    at recordSupabaseQuery (http://ktobioussktobi.localhost:8080/src/components/debug/queryRecorder.ts:9:27)\n    at Proxy.functionsObj (http://ktobioussktobi.localhost:8080/src/lib/supabase.ts?t=1747766614614:164:33)\n    at getProvinces (http://ktobioussktobi.localhost:8080/src/api/yalidine/service.ts?t=1747766614614:211:48)\n    at loadProvinces (http://ktobioussktobi.localhost:8080/src/components/store/order-form/custom-form-fields/FormInitialization.tsx?t=1747766614614:67:41)\n    at http://ktobioussktobi.localhost:8080/src/components/store/order-form/custom-form-fields/FormInitialization.tsx?t=1747766614614:100:17\n    at commitHookEffectListMount (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:23841:34)\n    at invokePassiveEffectMountInDEV (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25252:19)\n    at invokeEffectsInDev (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:26632:19)\n    at commitDoubleInvokeEffectsInDEV (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:26617:15)\n    at flushPassiveEffectsImpl (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:26434:13)\n    at flushPassiveEffects (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:26378:22)\n    at performSyncWorkOnRoot (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25799:11)\n    at flushSyncCallbacks (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:16044:30)\n    at commitRootImpl (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:26363:11)\n    at commitRoot (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:26208:13)\n    at finishConcurrentRender (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25736:15)\n    at performConcurrentWorkOnRoot (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25646:15)\n    at workLoop (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:462:42)\n    at flushWork (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:441:22)\n    at MessagePort.performWorkUntilDeadline (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:649:29)",
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "yalidine_provinces_global",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1747767452014-cnx3of0",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 2 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low",
+      "response": {
+        "error": null,
+        "data": [],
+        "count": null,
+        "status": 200,
+        "statusText": ""
+      }
+    },
+    {
+      "id": "znuhn33",
+      "timestamp": "2025-05-20T18:57:31.231Z",
+      "method": "GET",
+      "url": "/rest/v1/shipping_provider_clones",
+      "table": "shipping_provider_clones",
+      "body": null,
+      "duration": 441,
+      "componentName": "ShippingProviderClones",
+      "fileLocation": "lib/supabase.ts?t=1747766614614",
+      "lineNumber": 164,
+      "stackTrace": "Error\n    at extractComponentInfo (http://ktobioussktobi.localhost:8080/src/components/debug/queryAnalytics.ts:125:21)\n    at recordSupabaseQuery (http://ktobioussktobi.localhost:8080/src/components/debug/queryRecorder.ts:9:27)\n    at Proxy.functionsObj (http://ktobioussktobi.localhost:8080/src/lib/supabase.ts?t=1747766614614:164:33)\n    at getShippingProviderClone (http://ktobioussktobi.localhost:8080/src/components/store/order-form/OrderFormUtils.ts?t=1747766614614:215:48)\n    at fetchSettings (http://ktobioussktobi.localhost:8080/src/components/store/order-form/order-form-logic/useShippingLogic.ts?t=1747766614614:199:41)\n    at http://ktobioussktobi.localhost:8080/src/components/store/order-form/order-form-logic/useShippingLogic.ts?t=1747766614614:223:9\n    at commitHookEffectListMount (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:23841:34)\n    at commitPassiveMountOnFiber (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25084:19)\n    at commitPassiveMountEffects_complete (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25057:17)\n    at commitPassiveMountEffects_begin (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25047:15)\n    at commitPassiveMountEffects (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:25037:11)\n    at flushPassiveEffectsImpl (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:26421:11)\n    at flushPassiveEffects (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:26378:22)\n    at http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:26259:17\n    at workLoop (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:462:42)\n    at flushWork (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:441:22)\n    at MessagePort.performWorkUntilDeadline (http://ktobioussktobi.localhost:8080/node_modules/.vite/deps/chunk-R3KAX6OZ.js?v=04a2096f:649:29)",
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "shipping_provider_clones",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "response": {
+        "error": {
+          "code": "22P02",
+          "details": null,
+          "hint": null,
+          "message": "invalid input syntax for type integer: \"NaN\""
+        },
+        "data": null,
+        "count": null,
+        "status": 400,
+        "statusText": ""
+      },
+      "similarQueryGroupId": "group-1747767452014-jelis2i",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "هذا الاستعلام ليس مرشحًا جيدًا للتخزين المؤقت بسبب طبيعته أو معدل تغيير البيانات.",
+      "isSlowQuery": false,
+      "performanceImpact": "medium"
+    },
+    {
+      "id": "r8d3wns",
+      "timestamp": "2025-05-20T18:57:31.638Z",
+      "method": "GET",
+      "url": "/rest/v1/shipping_provider_clones",
+      "table": "shipping_provider_clones",
+      "body": null,
+      "duration": 375,
+      "componentName": "ShippingProviderClones",
+      "fileLocation": "lib/supabase.ts?t=1747766614614",
+      "lineNumber": 164,
+      "stackTrace": "Error\n    at extractComponentInfo (http://ktobioussktobi.localhost:8080/src/components/debug/queryAnalytics.ts:125:21)\n    at recordSupabaseQuery (http://ktobioussktobi.localhost:8080/src/components/debug/queryRecorder.ts:9:27)\n    at Proxy.functionsObj (http://ktobioussktobi.localhost:8080/src/lib/supabase.ts?t=1747766614614:164:33)\n    at findClonedShippingProviderId (http://ktobioussktobi.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1747766614614:52:48)\n    at getShippingCloneId (http://ktobioussktobi.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1747766614614:332:39)",
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "shipping_provider_clones",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "response": {
+        "error": null,
+        "data": [],
+        "count": null,
+        "status": 200,
+        "statusText": ""
+      },
+      "similarQueryGroupId": "group-1747767452014-jelis2i",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "هذا الاستعلام ليس مرشحًا جيدًا للتخزين المؤقت بسبب طبيعته أو معدل تغيير البيانات.",
+      "isSlowQuery": false,
+      "performanceImpact": "medium"
+    },
+    {
+      "id": "l330wnx",
+      "timestamp": "2025-05-20T18:57:31.937Z",
+      "method": "GET",
+      "url": "/rest/v1/users",
+      "table": "users",
+      "body": null,
+      "duration": 268,
+      "componentName": "Users",
+      "fileLocation": "lib/supabase.ts?t=1747766614614",
+      "lineNumber": 164,
+      "stackTrace": "Error\n    at extractComponentInfo (http://ktobioussktobi.localhost:8080/src/components/debug/queryAnalytics.ts:125:21)\n    at recordSupabaseQuery (http://ktobioussktobi.localhost:8080/src/components/debug/queryRecorder.ts:9:27)\n    at Proxy.functionsObj (http://ktobioussktobi.localhost:8080/src/lib/supabase.ts?t=1747766614614:164:33)\n    at http://ktobioussktobi.localhost:8080/src/context/ShopContext.tsx?t=1747766614614:157:79",
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "users",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1747767452014-o7vajad",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 60,
+      "cacheRecommendation": "هذا الاستعلام ليس مرشحًا جيدًا للتخزين المؤقت بسبب طبيعته أو معدل تغيير البيانات.",
+      "isSlowQuery": false,
+      "performanceImpact": "low",
+      "response": {
+        "error": null,
+        "data": [
+          {
+            "id": "213f3a14-c076-4cdf-945b-a7e877eab5c9",
+            "email": "uzaydz33030@gmail.com",
+            "name": "oussama guentri",
+            "phone": null,
+            "role": "admin",
+            "permissions": {
+              "accessPOS": true,
+              "manageUsers": true,
+              "viewReports": true,
+              "editProducts": true,
+              "manageOrders": true,
+              "viewInventory": true,
+              "deleteProducts": true,
+              "manageProducts": true,
+              "manageServices": true,
+              "manageEmployees": true,
+              "processPayments": true
+            },
+            "is_active": true,
+            "created_at": "2025-04-16T12:48:20.105517+00:00",
+            "updated_at": "2025-04-16T12:48:20.105517+00:00",
+            "organization_id": "fed872f9-1ade-4351-b020-5598fda976fe",
+            "is_org_admin": true,
+            "whatsapp_phone": null,
+            "whatsapp_connected": false,
+            "whatsapp_enabled": false,
+            "auth_user_id": null,
+            "is_super_admin": false
+          },
+          {
+            "id": "ea6a7edc-79f7-4ef6-ba6b-bb7c178f1477",
+            "email": "uzaydzx0x@gmail.com",
+            "name": "uzaydzx0x",
+            "phone": null,
+            "role": "employee",
+            "permissions": {
+              "accessPOS": true,
+              "viewDebts": true,
+              "viewOrders": true,
+              "addProducts": false,
+              "addServices": true,
+              "manageFlexi": true,
+              "manageUsers": false,
+              "viewReports": false,
+              "cancelOrders": true,
+              "editProducts": false,
+              "editServices": true,
+              "manageOrders": true,
+              "viewProducts": true,
+              "viewServices": true,
+              "viewSettings": true,
+              "trackServices": true,
+              "viewCustomers": true,
+              "viewEmployees": false,
+              "viewInventory": true,
+              "viewSuppliers": false,
+              "deleteProducts": false,
+              "deleteServices": true,
+              "manageProducts": false,
+              "manageServices": true,
+              "manageCustomers": false,
+              "manageEmployees": false,
+              "manageInventory": false,
+              "managePurchases": false,
+              "manageSuppliers": false,
+              "processPayments": true,
+              "viewSalesReports": false,
+              "updateOrderStatus": true,
+              "manageIntegrations": false,
+              "recordDebtPayments": true,
+              "viewFinancialReports": false,
+              "viewInventoryReports": false,
+              "manageBillingSettings": false,
+              "manageProfileSettings": false,
+              "manageAdvancedSettings": false,
+              "manageSecuritySettings": false,
+              "manageProductCategories": true,
+              "viewCustomerDebtHistory": true,
+              "manageAppearanceSettings": false,
+              "manageNotificationSettings": false,
+              "manageOrganizationSettings": false,
+              "sellFlexiAndDigitalCurrency": true,
+              "manageFlexiAndDigitalCurrency": false,
+              "viewFlexiAndDigitalCurrencySales": true
+            },
+            "is_active": true,
+            "created_at": "2025-04-21T10:04:44.975329+00:00",
+            "updated_at": "2025-04-30T11:55:49.762+00:00",
+            "organization_id": "fed872f9-1ade-4351-b020-5598fda976fe",
+            "is_org_admin": false,
+            "whatsapp_phone": null,
+            "whatsapp_connected": false,
+            "whatsapp_enabled": false,
+            "auth_user_id": null,
+            "is_super_admin": false
+          },
+          {
+            "id": "b0318307-ae8a-4f85-9091-1f028ad5c1a9",
+            "email": "uzaydz330030@gmail.com",
+            "name": "uzaydz330030",
+            "phone": null,
+            "role": "employee",
+            "permissions": null,
+            "is_active": true,
+            "created_at": "2025-04-28T16:18:48.572138+00:00",
+            "updated_at": "2025-04-28T16:18:48.572138+00:00",
+            "organization_id": "fed872f9-1ade-4351-b020-5598fda976fe",
+            "is_org_admin": false,
+            "whatsapp_phone": null,
+            "whatsapp_connected": false,
+            "whatsapp_enabled": false,
+            "auth_user_id": null,
+            "is_super_admin": false
+          }
+        ],
+        "count": null,
+        "status": 200,
+        "statusText": ""
+      }
+    },
+    {
+      "id": "91dyuej",
+      "timestamp": "2025-05-20T18:57:32.001Z",
+      "method": "GET",
+      "url": "/rest/v1/shipping_provider_clones",
+      "table": "shipping_provider_clones",
+      "body": null,
+      "duration": 380,
+      "componentName": "ShippingProviderClones",
+      "fileLocation": "lib/supabase.ts?t=1747766614614",
+      "lineNumber": 164,
+      "stackTrace": "Error\n    at extractComponentInfo (http://ktobioussktobi.localhost:8080/src/components/debug/queryAnalytics.ts:125:21)\n    at recordSupabaseQuery (http://ktobioussktobi.localhost:8080/src/components/debug/queryRecorder.ts:9:27)\n    at Proxy.functionsObj (http://ktobioussktobi.localhost:8080/src/lib/supabase.ts?t=1747766614614:164:33)\n    at findClonedShippingProviderId (http://ktobioussktobi.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1747766614614:52:48)\n    at getShippingCloneId (http://ktobioussktobi.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1747766614614:332:39)",
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "shipping_provider_clones",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1747767452014-jelis2i",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "هذا الاستعلام ليس مرشحًا جيدًا للتخزين المؤقت بسبب طبيعته أو معدل تغيير البيانات.",
+      "isSlowQuery": false,
+      "performanceImpact": "low",
+      "response": {
+        "error": null,
+        "data": [],
+        "count": null,
+        "status": 200,
+        "statusText": ""
+      }
+    },
+    {
+      "id": "15hn0q4",
+      "timestamp": "2025-05-20T18:57:32.014Z",
+      "method": "GET",
+      "url": "/rest/v1/shipping_provider_settings",
+      "table": "shipping_provider_settings",
+      "body": null,
+      "duration": 398,
+      "componentName": "ShippingProviderSettings",
+      "fileLocation": "lib/supabase.ts?t=1747766614614",
+      "lineNumber": 164,
+      "stackTrace": "Error\n    at extractComponentInfo (http://ktobioussktobi.localhost:8080/src/components/debug/queryAnalytics.ts:125:21)\n    at recordSupabaseQuery (http://ktobioussktobi.localhost:8080/src/components/debug/queryRecorder.ts:9:27)\n    at Proxy.functionsObj (http://ktobioussktobi.localhost:8080/src/lib/supabase.ts?t=1747766614614:164:33)\n    at fetchDefaultSettings (http://ktobioussktobi.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1747766614614:101:89)\n    at getDefaultShippingProviderSettings (http://ktobioussktobi.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1747766614614:143:29)\n    at getShippingCloneId (http://ktobioussktobi.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1747766614614:340:45)",
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "shipping_provider_settings",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "response": {
+        "error": null,
+        "data": [],
+        "count": null,
+        "status": 200,
+        "statusText": ""
+      }
+    },
+    {
+      "id": "uz8h6m0",
+      "timestamp": "2025-05-20T18:57:32.381Z",
+      "method": "GET",
+      "url": "/rest/v1/shipping_provider_settings",
+      "table": "shipping_provider_settings",
+      "body": null,
+      "duration": 342,
+      "componentName": "ShippingProviderSettings",
+      "fileLocation": "lib/supabase.ts?t=1747766614614",
+      "lineNumber": 164,
+      "stackTrace": "Error\n    at extractComponentInfo (http://ktobioussktobi.localhost:8080/src/components/debug/queryAnalytics.ts:125:21)\n    at recordSupabaseQuery (http://ktobioussktobi.localhost:8080/src/components/debug/queryRecorder.ts:9:27)\n    at Proxy.functionsObj (http://ktobioussktobi.localhost:8080/src/lib/supabase.ts?t=1747766614614:164:33)\n    at fetchDefaultSettings (http://ktobioussktobi.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1747766614614:101:89)\n    at getDefaultShippingProviderSettings (http://ktobioussktobi.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1747766614614:143:29)\n    at getShippingCloneId (http://ktobioussktobi.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1747766614614:340:45)",
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "shipping_provider_settings",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "response": {
+        "error": null,
+        "data": [],
+        "count": null,
+        "status": 200,
+        "statusText": ""
+      }
+    },
+    {
+      "id": "o0jr4ux",
+      "timestamp": "2025-05-20T18:57:44.941Z",
+      "method": "GET",
+      "url": "/rest/v1/products",
+      "table": "products",
+      "body": null,
+      "duration": 171,
+      "componentName": "Products",
+      "fileLocation": "lib/supabase.ts?t=1747766614614",
+      "lineNumber": 164,
+      "stackTrace": "Error\n    at extractComponentInfo (http://ktobioussktobi.localhost:8080/src/components/debug/queryAnalytics.ts:125:21)\n    at recordSupabaseQuery (http://ktobioussktobi.localhost:8080/src/components/debug/queryRecorder.ts:9:27)\n    at Proxy.functionsObj (http://ktobioussktobi.localhost:8080/src/lib/supabase.ts?t=1747766614614:164:33)\n    at checkServerConnection (http://ktobioussktobi.localhost:8080/src/lib/api/inventory.ts?t=1747766614614:352:46)\n    at async checkConnectionStatus (http://ktobioussktobi.localhost:8080/src/lib/api/inventory.ts?t=1747766614614:852:37)",
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "products",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "response": {
+        "error": null,
+        "data": null,
+        "count": 82,
+        "status": 206,
+        "statusText": ""
+      }
+    }
+  ],
+  "similarGroups": [
+    {
+      "id": "group-1747767452014-jelis2i",
+      "pattern": "GET /rest/v1/shipping_provider_clones TABLE:shipping_provider_clones TYPE:select",
+      "queryIds": [
+        "znuhn33",
+        "r8d3wns",
+        "91dyuej"
+      ],
+      "count": 3,
+      "components": [
+        "ShippingProviderClones"
+      ],
+      "avgDuration": 272,
+      "queryType": "select",
+      "tableName": "shipping_provider_clones",
+      "complexity": "simple",
+      "cacheability": 8,
+      "cacheReason": "هذا الاستعلام ليس مرشحًا جيدًا للتخزين المؤقت بسبب طبيعته أو معدل تغيير البيانات.",
+      "suggestedTTL": 120
+    },
+    {
+      "id": "group-1747767452014-uvy8vwl",
+      "pattern": "GET /rest/v1/organizations TABLE:organizations TYPE:select",
+      "queryIds": [
+        "2s5k57x",
+        "luq2wbj"
+      ],
+      "count": 2,
+      "components": [
+        "Organizations"
+      ],
+      "avgDuration": 716,
+      "queryType": "select",
+      "tableName": "organizations",
+      "complexity": "simple",
+      "cacheability": 8,
+      "cacheReason": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 2 استعلامات مماثلة، مما يوفر 1 ثانية من وقت الاستجابة.",
+      "suggestedTTL": 120
+    },
+    {
+      "id": "group-1747767452014-o7vajad",
+      "pattern": "GET /rest/v1/users TABLE:users TYPE:select",
+      "queryIds": [
+        "yaqth3z",
+        "l330wnx"
+      ],
+      "count": 2,
+      "components": [
+        "Users"
+      ],
+      "avgDuration": 257,
+      "queryType": "select",
+      "tableName": "users",
+      "complexity": "simple",
+      "cacheability": 8,
+      "cacheReason": "هذا الاستعلام ليس مرشحًا جيدًا للتخزين المؤقت بسبب طبيعته أو معدل تغيير البيانات.",
+      "suggestedTTL": 60
+    },
+    {
+      "id": "group-1747767452014-sk3kjrl",
+      "pattern": "GET /rest/v1/products TABLE:products TYPE:select",
+      "queryIds": [
+        "1xkkrux",
+        "fgp9tmm"
+      ],
+      "count": 2,
+      "components": [
+        "Products"
+      ],
+      "avgDuration": 602,
+      "queryType": "select",
+      "tableName": "products",
+      "complexity": "simple",
+      "cacheability": 8,
+      "cacheReason": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 2 استعلامات مماثلة، مما يوفر 1 ثانية من وقت الاستجابة.",
+      "suggestedTTL": 3600
+    },
+    {
+      "id": "group-1747767452014-cnx3of0",
+      "pattern": "GET /rest/v1/yalidine_provinces_global TABLE:yalidine_provinces_global TYPE:select",
+      "queryIds": [
+        "06okvxa",
+        "e78ghr5"
+      ],
+      "count": 2,
+      "components": [
+        "YalidineProvincesGlobal"
+      ],
+      "avgDuration": 216.5,
+      "queryType": "select",
+      "tableName": "yalidine_provinces_global",
+      "complexity": "simple",
+      "cacheability": 8,
+      "cacheReason": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 2 استعلامات مماثلة، مما يوفر 1 ثانية من وقت الاستجابة.",
+      "suggestedTTL": 120
+    }
+  ],
+  "performanceInfo": {
+    "totalQueries": 15,
+    "slowQueries": 4,
+    "totalQueryTime": 5424,
+    "avgQueryTime": 361.6,
+    "similarGroups": [
+      {
+        "id": "group-1747767452014-jelis2i",
+        "pattern": "GET /rest/v1/shipping_provider_clones TABLE:shipping_provider_clones TYPE:select",
+        "queryIds": [
+          "znuhn33",
+          "r8d3wns",
+          "91dyuej"
+        ],
+        "count": 3,
+        "components": [
+          "ShippingProviderClones"
+        ],
+        "avgDuration": 272,
+        "queryType": "select",
+        "tableName": "shipping_provider_clones",
+        "complexity": "simple",
+        "cacheability": 8,
+        "cacheReason": "هذا الاستعلام ليس مرشحًا جيدًا للتخزين المؤقت بسبب طبيعته أو معدل تغيير البيانات.",
+        "suggestedTTL": 120
+      },
+      {
+        "id": "group-1747767452014-uvy8vwl",
+        "pattern": "GET /rest/v1/organizations TABLE:organizations TYPE:select",
+        "queryIds": [
+          "2s5k57x",
+          "luq2wbj"
+        ],
+        "count": 2,
+        "components": [
+          "Organizations"
+        ],
+        "avgDuration": 716,
+        "queryType": "select",
+        "tableName": "organizations",
+        "complexity": "simple",
+        "cacheability": 8,
+        "cacheReason": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 2 استعلامات مماثلة، مما يوفر 1 ثانية من وقت الاستجابة.",
+        "suggestedTTL": 120
+      },
+      {
+        "id": "group-1747767452014-o7vajad",
+        "pattern": "GET /rest/v1/users TABLE:users TYPE:select",
+        "queryIds": [
+          "yaqth3z",
+          "l330wnx"
+        ],
+        "count": 2,
+        "components": [
+          "Users"
+        ],
+        "avgDuration": 257,
+        "queryType": "select",
+        "tableName": "users",
+        "complexity": "simple",
+        "cacheability": 8,
+        "cacheReason": "هذا الاستعلام ليس مرشحًا جيدًا للتخزين المؤقت بسبب طبيعته أو معدل تغيير البيانات.",
+        "suggestedTTL": 60
+      },
+      {
+        "id": "group-1747767452014-sk3kjrl",
+        "pattern": "GET /rest/v1/products TABLE:products TYPE:select",
+        "queryIds": [
+          "1xkkrux",
+          "fgp9tmm"
+        ],
+        "count": 2,
+        "components": [
+          "Products"
+        ],
+        "avgDuration": 602,
+        "queryType": "select",
+        "tableName": "products",
+        "complexity": "simple",
+        "cacheability": 8,
+        "cacheReason": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 2 استعلامات مماثلة، مما يوفر 1 ثانية من وقت الاستجابة.",
+        "suggestedTTL": 3600
+      },
+      {
+        "id": "group-1747767452014-cnx3of0",
+        "pattern": "GET /rest/v1/yalidine_provinces_global TABLE:yalidine_provinces_global TYPE:select",
+        "queryIds": [
+          "06okvxa",
+          "e78ghr5"
+        ],
+        "count": 2,
+        "components": [
+          "YalidineProvincesGlobal"
+        ],
+        "avgDuration": 216.5,
+        "queryType": "select",
+        "tableName": "yalidine_provinces_global",
+        "complexity": "simple",
+        "cacheability": 8,
+        "cacheReason": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 2 استعلامات مماثلة، مما يوفر 1 ثانية من وقت الاستجابة.",
+        "suggestedTTL": 120
+      }
+    ],
+    "cacheableCandidates": 11,
+    "potentialTimeSaved": 2335.5,
+    "recommendations": [
+      {
+        "type": "cache",
+        "description": "يمكن تحسين الأداء بشكل كبير من خلال تخزين النتائج مؤقتًا لـ 3 من أنماط الاستعلامات المتكررة، مما يوفر حوالي 2 ثانية.",
+        "impact": "low",
+        "relatedQueries": [
+          "2s5k57x",
+          "luq2wbj",
+          "1xkkrux",
+          "fgp9tmm",
+          "znuhn33",
+          "r8d3wns",
+          "91dyuej"
+        ]
+      },
+      {
+        "type": "optimize",
+        "description": "تم العثور على 1 استعلامات بطيئة (أكثر من 800 مللي ثانية) قد تستفيد من التحسين.",
+        "impact": "medium",
+        "relatedQueries": [
+          "luq2wbj"
+        ]
+      }
+    ]
+  }
+}

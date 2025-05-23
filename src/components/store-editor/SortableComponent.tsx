@@ -11,12 +11,15 @@ import { Switch } from '@/components/ui/switch';
 
 // أيقونات للأنواع المختلفة من المكونات
 const componentIcons: Record<string, JSX.Element> = {
-  Hero: <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">الهيرو</Badge>,
-  CategorySection: <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">قسم الفئات</Badge>,
-  ProductCategories: <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">الفئات</Badge>,
-  FeaturedProducts: <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">المنتجات المميزة</Badge>,
-  CustomerTestimonials: <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">آراء العملاء</Badge>,
-  About: <Badge variant="outline" className="bg-cyan-50 text-cyan-700 border-cyan-200">عن المتجر</Badge>,
+  hero: <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">الهيرو</Badge>,
+  category_section: <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">قسم الفئات</Badge>,
+  product_categories: <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">الفئات</Badge>,
+  featured_products: <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">المنتجات المميزة</Badge>,
+  testimonials: <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">آراء العملاء</Badge>,
+  about: <Badge variant="outline" className="bg-cyan-50 text-cyan-700 border-cyan-200">عن المتجر</Badge>,
+  countdownoffers: <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">عروض محدودة</Badge>,
+  services: <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">الخدمات</Badge>,
+  contact: <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">اتصل بنا</Badge>
 };
 
 interface SortableComponentProps {
@@ -54,13 +57,16 @@ const SortableComponent: React.FC<SortableComponentProps> = ({
 
   // وظيفة لاستخراج عنوان المكون بناءً على نوعه
   const getComponentTitle = (component: StoreComponent) => {
-    const titles: Record<ComponentType, string> = {
-      Hero: "قسم الهيرو",
-      CategorySection: "قسم الفئات",
-      ProductCategories: "فئات المنتجات",
-      FeaturedProducts: "المنتجات المميزة",
-      CustomerTestimonials: "آراء العملاء",
-      About: "عن المتجر",
+    const titles: Record<string, string> = {
+      hero: "قسم الهيرو",
+      category_section: "قسم الفئات",
+      product_categories: "فئات المنتجات",
+      featured_products: "المنتجات المميزة",
+      testimonials: "آراء العملاء",
+      about: "عن المتجر",
+      countdownoffers: "عروض محدودة",
+      services: "الخدمات",
+      contact: "اتصل بنا"
     };
 
     return titles[component.type] || `مكون ${component.type}`;
@@ -73,17 +79,23 @@ const SortableComponent: React.FC<SortableComponentProps> = ({
     }
     
     switch (component.type) {
-      case 'Hero':
+      case 'hero':
         return component.settings.title || 'بدون عنوان';
-      case 'CategorySection':
-      case 'ProductCategories':
+      case 'category_section':
+      case 'product_categories':
         return `${component.settings.title || 'فئات المنتجات'} (${component.settings.displayCount || component.settings.maxCategories || 0} فئة)`;
-      case 'FeaturedProducts':
+      case 'featured_products':
         return `${component.settings.title || 'المنتجات المميزة'} (${component.settings.displayCount || 0} منتج)`;
-      case 'CustomerTestimonials':
+      case 'testimonials':
         return `${component.settings.title || 'آراء العملاء'} (${component.settings.displayCount || 0} رأي)`;
-      case 'About':
+      case 'about':
         return component.settings.title || 'عن المتجر';
+      case 'countdownoffers':
+        return component.settings.title || 'عروض محدودة';
+      case 'services':
+        return component.settings.title || 'الخدمات';
+      case 'contact':
+        return component.settings.title || 'اتصل بنا';
       default:
         return 'معلومات غير متوفرة';
     }

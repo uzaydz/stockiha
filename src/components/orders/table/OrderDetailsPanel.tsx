@@ -27,31 +27,80 @@ const OrderDetailsPanel = ({ order }: OrderDetailsPanelProps) => {
   // دالة للبحث عن معلومات مكتب الاستلام والبلدية
   useEffect(() => {
     const fetchStopDeskDetails = async () => {
-      // البحث فقط إذا كان نوع التوصيل للمكتب ولدينا معرف المكتب
+      // البحث فقط إذا كان نوع التوصيل للمكتب ولدينا معرف المكتب أو البلدية
       if (
-        (order.shipping_option === 'desk' || order.form_data?.deliveryOption === 'desk') &&
-        (order.stop_desk_id || order.form_data?.stopDeskId)
+        (order.shipping_option === 'desk' || order.form_data?.deliveryOption === 'desk')
       ) {
-        try {
-          console.log("[OrderDetailsPanel] جاري البحث عن معرف المكتب:", order.stop_desk_id || order.form_data?.stopDeskId);
-          const stopDeskId = order.stop_desk_id || order.form_data?.stopDeskId;
-          const { data, error } = await supabase
-            .from('yalidine_centers_global')
-            .select('center_id, name, commune_id, wilaya_id, commune_name')
-            .eq('center_id', stopDeskId)
-            .single();
-
-          if (!error && data) {
-            console.log("[OrderDetailsPanel] تم العثور على بيانات المكتب:", data);
+        // تحقق أولاً من وجود معلومات الشحن في metadata
+        if (order.metadata && typeof order.metadata === 'object' && 'shipping_details' in order.metadata) {
+          const shippingDetails = (order.metadata as any).shipping_details;
+          
+          // إذا كان لدينا معلومات البلدية، استخدمها مباشرة
+          if (shippingDetails && shippingDetails.municipality_name) {
+            console.log("[OrderDetailsPanel] استخدام معلومات البلدية من metadata:", shippingDetails.municipality_name);
             setStopDeskDetails({
-              name: data.name,
-              commune_name: data.commune_name
+              name: `مكتب في ${shippingDetails.municipality_name}`,
+              commune_name: shippingDetails.municipality_name
             });
-          } else {
-            console.error("[OrderDetailsPanel] لم يتم العثور على بيانات المكتب:", error);
+            return;
           }
-        } catch (error) {
-          console.error("[OrderDetailsPanel] خطأ في البحث عن معلومات المكتب:", error);
+        }
+        
+        // البلدية قد تكون موجودة في form_data أو في municipality_id
+        const municipalityId = order.form_data?.municipality || order.municipality_id;
+        
+        if (municipalityId) {
+          try {
+            console.log("[OrderDetailsPanel] جاري البحث عن البلدية:", municipalityId);
+            
+            // البحث عن معلومات البلدية
+            const { data, error } = await supabase
+              .from('municipalities')
+              .select('id, name, wilaya_id')
+              .eq('id', municipalityId)
+              .single();
+              
+            if (!error && data) {
+              console.log("[OrderDetailsPanel] تم العثور على بيانات البلدية:", data);
+              setStopDeskDetails({
+                name: `مكتب في ${data.name}`,
+                commune_name: data.name
+              });
+              return;
+            } else {
+              console.log("[OrderDetailsPanel] لم يتم العثور على بيانات البلدية:", error);
+            }
+          } catch (error) {
+            console.error("[OrderDetailsPanel] خطأ في البحث عن معلومات البلدية:", error);
+          }
+        }
+        
+        // إذا وصلنا إلى هنا، فإما لدينا stop_desk_id أو لم نتمكن من العثور على معلومات البلدية
+        // نجرب البحث في جدول yalidine_centers_global
+        const stopDeskId = order.stop_desk_id || order.form_data?.stopDeskId;
+        
+        if (stopDeskId) {
+          try {
+            console.log("[OrderDetailsPanel] جاري البحث عن معرف المكتب:", stopDeskId);
+            
+            const { data, error } = await supabase
+              .from('yalidine_centers_global')
+              .select('center_id, name, commune_id, wilaya_id, commune_name')
+              .eq('center_id', stopDeskId)
+              .single();
+
+            if (!error && data) {
+              console.log("[OrderDetailsPanel] تم العثور على بيانات المكتب:", data);
+              setStopDeskDetails({
+                name: data.name,
+                commune_name: data.commune_name
+              });
+            } else {
+              console.error("[OrderDetailsPanel] لم يتم العثور على بيانات المكتب:", error);
+            }
+          } catch (error) {
+            console.error("[OrderDetailsPanel] خطأ في البحث عن معلومات المكتب:", error);
+          }
         }
       }
     };

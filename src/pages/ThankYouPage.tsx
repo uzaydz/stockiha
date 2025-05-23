@@ -13,6 +13,9 @@ import TemplateLoader from "@/components/thank-you/TemplateLoader";
 import ThankYouContent from "@/components/thank-you/ThankYouContent";
 import { Loader2 } from "lucide-react";
 
+// مكونات تتبع التحويلات
+import OrderSuccessTracking from "@/components/tracking/OrderSuccessTracking";
+
 // *** تحديث الاستيراد والنوع ***
 import { getOrderByOrderNumber, FullOrderInfo, DisplayOrderInfo } from "@/api/orders";
 import { Database } from "@/lib/supabase-types";
@@ -220,6 +223,9 @@ export default function ThankYouPage() {
           )}
         </motion.div>
       </div>
+
+      {/* تتبع الطلب المكتمل - أحداث التحويل */}
+      <OrderSuccessTracking />
     </>
   );
 } 

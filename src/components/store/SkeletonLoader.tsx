@@ -1,6 +1,6 @@
 import { Skeleton } from '@/components/ui/skeleton';
 
-interface SkeletonLoaderProps {
+export interface SkeletonLoaderProps {
   type: 'banner' | 'products' | 'categories' | 'about' | 'testimonials';
 }
 

@@ -107,9 +107,9 @@ const ComponentEditor: React.FC<ComponentEditorProps> = ({ component, onUpdate }
     } 
     
     // التعامل مع مكونات الفئات
-    if (typeKey === 'categorysection' || typeKey === 'productcategories' || typeKey === 'categories') {
+    if (typeKey === 'category_section' || typeKey === 'product_categories') {
       // تحديد النوع المناسب للمحرر
-      const editorType = typeKey === 'categorysection' || typeKey === 'categories' 
+      const editorType = typeKey === 'category_section'
         ? 'CategorySection' as const
         : 'ProductCategories' as const;
       
@@ -117,12 +117,12 @@ const ComponentEditor: React.FC<ComponentEditorProps> = ({ component, onUpdate }
     }
     
     // التعامل مع المنتجات المميزة
-    if (typeKey === 'featuredproducts' || typeKey === 'featured_products') {
+    if (typeKey === 'featured_products') {
       return <FeaturedProductsEditor {...editorProps} />;
     }
     
     // التعامل مع آراء العملاء
-    if (typeKey === 'customertestimonials' || typeKey === 'testimonials') {
+    if (typeKey === 'testimonials') {
       return <TestimonialsEditor {...editorProps} />;
     }
     
@@ -132,7 +132,7 @@ const ComponentEditor: React.FC<ComponentEditorProps> = ({ component, onUpdate }
     }
     
     // التعامل مع العروض المحدودة
-    if (typeKey === 'countdownoffers' || typeKey === 'countdown_offers') {
+    if (typeKey === 'countdownoffers') {
       return <CountdownOffersEditor {...editorProps} />;
     }
     

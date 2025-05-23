@@ -98,11 +98,15 @@ export function FormSettingsPanel({
             <p className="text-muted-foreground text-sm mt-1">
               استخدم هذا النموذج للمنتجات التي ليس لديها نماذج مخصصة
             </p>
+            <p className="text-muted-foreground text-xs mt-1 text-red-500">
+              ملاحظة: تم تعطيل هذا الخيار، يتم استخدام النموذج الافتراضي الرئيسي فقط
+            </p>
           </div>
           <Switch
             id="is-default"
             checked={isDefault}
             onCheckedChange={setIsDefault}
+            disabled={true}
           />
         </div>
         

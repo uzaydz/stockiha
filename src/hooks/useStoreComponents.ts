@@ -14,6 +14,7 @@ interface UseStoreComponentsReturn {
   activeComponent: StoreComponent | null;
   isLoading: boolean;
   isSaving: boolean;
+  hasUnsavedChanges: boolean;
   setActiveComponent: (component: StoreComponent | null) => void;
   addComponent: (type: ComponentType) => Promise<void>;
   removeComponent: (id: string) => Promise<void>;
@@ -25,9 +26,11 @@ interface UseStoreComponentsReturn {
 
 export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps): UseStoreComponentsReturn => {
   const [components, setComponents] = useState<StoreComponent[]>([]);
+  const [originalComponents, setOriginalComponents] = useState<StoreComponent[]>([]);
   const [activeComponent, setActiveComponent] = useState<StoreComponent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // تعيين المكون النشط بشكل صحيح
   const selectActiveComponent = (component: StoreComponent | null) => {
@@ -93,16 +96,19 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
       if (data && data.length > 0) {
         // تحويل البيانات المستلمة إلى الصيغة المطلوبة واستبعاد مكون seo_settings
         const mappedComponents: StoreComponent[] = data
-          .filter(item => item.component_type !== 'seo_settings') // استبعاد مكون seo_settings
+          .filter(item => item.component_type.toLowerCase() !== 'seo_settings') // استبعاد مكون seo_settings وتحويل إلى أحرف صغيرة
           .map(item => ({
             id: item.id,
-            type: item.component_type as ComponentType,
+            type: item.component_type.toLowerCase() as ComponentType, // تحويل نوع المكون إلى أحرف صغيرة
             settings: item.settings,
             isActive: item.is_active,
             orderIndex: item.order_index
           }));
 
         setComponents(mappedComponents);
+        // حفظ نسخة أصلية للمقارنة وتحديد وجود تغييرات غير محفوظة
+        setOriginalComponents(JSON.parse(JSON.stringify(mappedComponents)));
+        setHasUnsavedChanges(false);
         
         // تعيين المكون النشط الأول إذا لم يكن هناك مكون نشط
         if (!activeComponent && mappedComponents.length > 0) {
@@ -167,16 +173,20 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
 
       if (storeData && storeData.length > 0) {
         const mappedComponents: StoreComponent[] = storeData
-          .filter(item => item.component_type !== 'seo_settings') // استبعاد مكون seo_settings
+          .filter(item => item.component_type.toLowerCase() !== 'seo_settings') // استبعاد مكون seo_settings وتحويل إلى أحرف صغيرة
           .map(item => ({
             id: item.id,
-            type: item.component_type as ComponentType,
+            type: item.component_type.toLowerCase() as ComponentType, // تحويل نوع المكون إلى أحرف صغيرة
             settings: item.settings,
             isActive: item.is_active,
             orderIndex: item.order_index
           }));
 
         setComponents(mappedComponents);
+        // حفظ نسخة أصلية للمقارنة
+        setOriginalComponents(JSON.parse(JSON.stringify(mappedComponents)));
+        setHasUnsavedChanges(false);
+        
         if (mappedComponents.length > 0) {
           setActiveComponent(mappedComponents[0]);
         }
@@ -184,7 +194,7 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
     } catch (error: any) {
       console.error('Error initializing store components:', error);
       // إضافة مكون هيرو افتراضي محلياً إذا فشلت التهيئة
-      addComponent('Hero');
+      addComponent('hero');
     }
   };
 
@@ -204,25 +214,16 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
       : 1;
 
     try {
-      // استخدام وظيفة upsert_store_component مع ترتيب المعلمات الصحيح
-      const { data, error } = await supabase
-        .rpc('upsert_store_component', {
-          p_component_id: null, // مكون جديد
-          p_component_type: type,
-          p_is_active: true,
-          p_order_index: newOrderIndex,
-          p_organization_id: organizationId,
-          p_settings: defaultComponentSettings[type]
-        });
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      // إضافة المكون محلياً بعد الحفظ الناجح
+      // تحويل النوع إلى أحرف صغيرة
+      const typeLowerCase = type.toLowerCase();
+      
+      // إنشاء معرف مؤقت محلي 
+      const tempId = `temp_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+      
+      // إضافة المكون محلياً فقط
       const newComponent: StoreComponent = {
-        id: data, // معرف من قاعدة البيانات
-        type,
+        id: tempId, // معرف مؤقت - سيتم تعديله بعد الحفظ الفعلي
+        type: typeLowerCase as ComponentType,
         settings: defaultComponentSettings[type],
         isActive: true,
         orderIndex: newOrderIndex
@@ -230,19 +231,17 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
 
       setComponents(prev => [...prev, newComponent]);
       setActiveComponent(newComponent);
-
-      // مسح التخزين المؤقت للمتجر بعد إضافة مكون جديد
-      await clearStoreCache(organizationId);
+      setHasUnsavedChanges(true);
 
       toast({
-        title: 'تمت الإضافة',
-        description: `تم إضافة مكون ${type} بنجاح`,
+        title: 'تمت الإضافة محلياً',
+        description: `تم إضافة مكون ${type} محلياً. اضغط على "حفظ التغييرات" للحفظ النهائي.`,
       });
     } catch (error: any) {
-      console.error('Error adding component:', error);
+      console.error('Error adding component locally:', error);
       toast({
         title: 'خطأ في إضافة المكون',
-        description: error.message || 'حدث خطأ أثناء إضافة المكون',
+        description: error.message || 'حدث خطأ أثناء إضافة المكون محلياً',
         variant: 'destructive'
       });
     }
@@ -253,18 +252,7 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
     if (!organizationId) return;
 
     try {
-      // استخدام وظيفة delete_store_component 
-      const { data, error } = await supabase
-        .rpc('delete_store_component', {
-          p_organization_id: organizationId,
-          p_component_id: id
-        });
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      // تحديث المكونات محلياً
+      // تحديث المكونات محلياً فقط
       const updatedComponents = components.filter(component => component.id !== id);
       setComponents(updatedComponents);
       
@@ -272,18 +260,17 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
         setActiveComponent(updatedComponents.length > 0 ? updatedComponents[0] : null);
       }
 
-      // مسح التخزين المؤقت للمتجر بعد حذف مكون
-      await clearStoreCache(organizationId);
+      setHasUnsavedChanges(true);
 
       toast({
-        title: 'تم الحذف',
-        description: 'تم حذف المكون بنجاح'
+        title: 'تم الحذف محلياً',
+        description: 'تم حذف المكون محلياً. اضغط على "حفظ التغييرات" للحفظ النهائي.'
       });
     } catch (error: any) {
-      console.error('Error removing component:', error);
+      console.error('Error removing component locally:', error);
       toast({
         title: 'خطأ في حذف المكون',
-        description: error.message || 'حدث خطأ أثناء حذف المكون',
+        description: error.message || 'حدث خطأ أثناء حذف المكون محلياً',
         variant: 'destructive'
       });
     }
@@ -294,7 +281,7 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
     if (!organizationId) return;
 
     try {
-      // تحديث الإعدادات محلياً أولاً للاستجابة السريعة
+      // تحديث الإعدادات محلياً فقط
       setComponents(prev => 
         prev.map(comp => 
           comp.id === id 
@@ -308,41 +295,12 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
         setActiveComponent({ ...activeComponent, settings: { ...newSettings } });
       }
 
-      // ثم تحديث في قاعدة البيانات
-      const { error } = await supabase
-        .rpc('upsert_store_component', {
-          p_component_id: id,
-          p_component_type: components.find(c => c.id === id)?.type || '',
-          p_is_active: components.find(c => c.id === id)?.isActive || true,
-          p_order_index: components.find(c => c.id === id)?.orderIndex || 0,
-          p_organization_id: organizationId,
-          p_settings: newSettings
-        });
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      // مسح البيانات المخزنة مؤقتًا للمتجر لتحديث العرض في صفحة المتجر
-      await clearStoreCache(organizationId);
-      
-      // عرض تأكيد النجاح
-      toast({
-        title: 'تم التحديث',
-        description: 'تم تحديث إعدادات المكون بنجاح',
-      });
-
-      // تأكيد التحديث بنجاح
-      
+      setHasUnsavedChanges(true);
     } catch (error: any) {
-      console.error('Error updating component settings:', error);
-      
-      // استعادة الحالة السابقة في حالة الفشل
-      fetchStoreComponents();
-      
+      console.error('Error updating component settings locally:', error);
       toast({
         title: 'خطأ في تحديث الإعدادات',
-        description: error.message || 'حدث خطأ أثناء تحديث إعدادات المكون',
+        description: error.message || 'حدث خطأ أثناء تحديث إعدادات المكون محلياً',
         variant: 'destructive'
       });
     }
@@ -356,7 +314,7 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
     const componentToUpdate = components.find(comp => comp.id === id);
     if (!componentToUpdate) return;
 
-    // تحديث محلي فوري
+    // تحديث محلي فقط
     const updatedComponents = components.map(component => {
       if (component.id === id) {
         return { ...component, isActive: !component.isActive };
@@ -370,41 +328,7 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
       setActiveComponent({ ...activeComponent, isActive: !activeComponent.isActive });
     }
 
-    try {
-      // استخدام وظيفة upsert_store_component للتحديث مع ترتيب المعلمات الصحيح
-      const { error } = await supabase
-        .rpc('upsert_store_component', {
-          p_component_id: id,
-          p_component_type: componentToUpdate.type,
-          p_is_active: !componentToUpdate.isActive,
-          p_order_index: componentToUpdate.orderIndex,
-          p_organization_id: organizationId,
-          p_settings: componentToUpdate.settings
-        });
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      // مسح التخزين المؤقت للمتجر بعد تغيير حالة نشاط المكون
-      await clearStoreCache(organizationId);
-      
-      // عرض تأكيد النجاح
-      toast({
-        title: 'تم التحديث',
-        description: 'تم تحديث حالة المكون بنجاح'
-      });
-    } catch (error: any) {
-      console.error('Error toggling component activity:', error);
-      toast({
-        title: 'خطأ في تحديث حالة المكون',
-        description: error.message || 'حدث خطأ أثناء تحديث حالة نشاط المكون',
-        variant: 'destructive'
-      });
-      
-      // استعادة الحالة السابقة في حالة الفشل
-      fetchStoreComponents();
-    }
+    setHasUnsavedChanges(true);
   };
 
   // تعامل مع نهاية السحب والإفلات لترتيب المكونات
@@ -421,7 +345,7 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
         return;
       }
 
-      // تحديث الترتيب محلياً أولاً للاستجابة الفورية
+      // تحديث الترتيب محلياً فقط
       const orderedComponents = arrayMove(components, activeIndex, overIndex);
       
       // إعادة ترقيم فهارس الترتيب
@@ -440,48 +364,14 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
         }
       }
 
-      // جمع البيانات المطلوبة للحفظ على شكل مصفوفة
-      const updates = reindexedComponents.map(component => ({
-        id: component.id,
-        orderIndex: component.orderIndex
-      }));
-
-      // تجهيز مصفوفة معرفات المكونات فقط
-      const componentIds = reindexedComponents.map(component => component.id);
-      
-      // تحديث قاعدة البيانات باستخدام وظيفة مخصصة
-      // إرسال المصفوفة كـ JSON متوافق مع البنية المتوقعة
-      const { error } = await supabase
-        .rpc('update_store_components_order', {
-          p_organization_id: organizationId,
-          // إرسال النص JSON مباشرة بدون تحويل إضافي
-          p_components_order: `[${componentIds.map(id => `"${id}"`).join(",")}]`
-        });
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      // مسح التخزين المؤقت للمتجر بعد تغيير ترتيب المكونات
-      await clearStoreCache(organizationId);
-      
-      // عرض تأكيد النجاح
-      toast({
-        title: 'تم التحديث',
-        description: 'تم تحديث ترتيب المكونات بنجاح'
-      });
-
-      
+      setHasUnsavedChanges(true);
     } catch (error: any) {
-      console.error('Error updating components order:', error);
+      console.error('Error updating components order locally:', error);
       toast({
         title: 'خطأ في تحديث الترتيب',
-        description: error.message || 'حدث خطأ أثناء تحديث ترتيب المكونات',
+        description: error.message || 'حدث خطأ أثناء تحديث ترتيب المكونات محلياً',
         variant: 'destructive'
       });
-      
-      // استعادة الحالة السابقة في حالة الفشل
-      fetchStoreComponents();
     }
   };
 
@@ -492,18 +382,123 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
     setIsSaving(true);
     
     try {
-      // يمكن هنا إضافة أي منطق إضافي للحفظ إذا لزم الأمر
-      // على سبيل المثال، تحديث جميع المكونات مرة واحدة
+      // حفظ جميع التغييرات للمكونات إلى قاعدة البيانات
+      
+      // 1. تحديد المكونات التي تم تغييرها أو إضافتها
+      const componentsToSave = components.filter(comp => {
+        // تحقق مما إذا كان المكون جديدًا (يبدأ بـ temp_)
+        if (comp.id.toString().startsWith('temp_')) return true;
+        
+        // البحث عن المكون في النسخة الأصلية
+        const originalComp = originalComponents.find(o => o.id === comp.id);
+        if (!originalComp) return true; // مكون جديد
+        
+        // التحقق من وجود تغييرات
+        return (
+          originalComp.isActive !== comp.isActive ||
+          originalComp.orderIndex !== comp.orderIndex ||
+          JSON.stringify(originalComp.settings) !== JSON.stringify(comp.settings) ||
+          originalComp.type !== comp.type
+        );
+      });
+      
+      // 2. تحديد المكونات التي تم حذفها
+      const componentsToDelete = originalComponents
+        .filter(origComp => !components.some(comp => comp.id === origComp.id))
+        .map(comp => comp.id);
+      
+      // 3. معالجة المكونات المحذوفة
+      for (const idToDelete of componentsToDelete) {
+        // تخطي المكونات المؤقتة التي لم يتم حفظها بعد
+        if (idToDelete.toString().startsWith('temp_')) continue;
+        
+        await supabase
+          .from('store_settings')
+          .delete()
+          .eq('id', idToDelete)
+          .eq('organization_id', organizationId);
+      }
+      
+      // 4. حفظ المكونات الجديدة أو المحدثة
+      for (const comp of componentsToSave) {
+        const isNewComponent = comp.id.toString().startsWith('temp_');
+        
+        if (isNewComponent) {
+          // إضافة مكون جديد
+          const { data, error } = await supabase
+            .from('store_settings')
+            .insert({
+              organization_id: organizationId,
+              component_type: comp.type.toLowerCase(),
+              settings: comp.settings,
+              is_active: comp.isActive,
+              order_index: comp.orderIndex,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .select('id')
+            .single();
+            
+          if (error) throw new Error(error.message);
+          
+          // تحديث المعرف المؤقت بالمعرف الفعلي من قاعدة البيانات
+          setComponents(prev => 
+            prev.map(c => c.id === comp.id ? { ...c, id: data.id } : c)
+          );
+          
+          if (activeComponent && activeComponent.id === comp.id) {
+            setActiveComponent({ ...activeComponent, id: data.id });
+          }
+        } else {
+          // تحديث مكون موجود
+          const { error } = await supabase
+            .from('store_settings')
+            .update({
+              component_type: comp.type.toLowerCase(),
+              settings: comp.settings,
+              is_active: comp.isActive,
+              order_index: comp.orderIndex,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', comp.id)
+            .eq('organization_id', organizationId);
+            
+          if (error) throw new Error(error.message);
+        }
+      }
+      
+      // إضافة تأخير صغير لضمان اكتمال عمليات الحفظ في قاعدة البيانات
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // 5. مسح التخزين المؤقت للمتجر بشكل كامل
+      await clearStoreCache(organizationId);
+      
+      // 6. إنتظار لحظة لضمان مسح التخزين المؤقت
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // 7. إعادة تحميل المكونات لتحديث الحالة بشكل كامل 
+      await fetchStoreComponents();
+      
+      // 8. الحصول على النطاق الفرعي للمؤسسة لمسح التخزين المؤقت بشكل كامل
+      const subdomain = await getOrganizationSubdomain(organizationId);
+      if (subdomain) {
+        // 9. مسح التخزين المؤقت للمتجر باستخدام النطاق الفرعي (لضمان تحديث واجهة المتجر)
+        await clearCacheItem(`store_init_data:${subdomain}`);
+        // 10. في حالة استخدام التخزين القديم
+        await clearCacheItem(`store_data:${subdomain}`);
+      }
+      
+      setHasUnsavedChanges(false);
       
       toast({
         title: 'تم الحفظ',
-        description: 'تم حفظ التغييرات بنجاح',
+        description: 'تم حفظ التغييرات بنجاح في قاعدة البيانات',
       });
     } catch (error: any) {
-      console.error('Error saving changes:', error);
+      console.error('Error saving changes to database:', error);
       toast({
         title: 'خطأ في حفظ التغييرات',
-        description: error.message || 'حدث خطأ أثناء حفظ التغييرات',
+        description: error.message || 'حدث خطأ أثناء حفظ التغييرات في قاعدة البيانات',
         variant: 'destructive'
       });
     } finally {
@@ -548,6 +543,7 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
     activeComponent,
     isLoading,
     isSaving,
+    hasUnsavedChanges,
     setActiveComponent: selectActiveComponent,
     addComponent,
     removeComponent,
@@ -556,4 +552,4 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
     handleDragEnd,
     saveChanges
   };
-}; 
+};

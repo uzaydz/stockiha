@@ -1,7 +1,7 @@
 export { default as OrderSuccess } from './OrderSuccess';
 export { default as PersonalInfoFields } from './PersonalInfoFields';
 export { default as DeliveryInfoFields } from './DeliveryInfoFields';
-export { CustomFormFields } from './CustomFormFields';
+export { CustomFormFields } from './custom-form-fields';
 export { default as OrderSummary } from './OrderSummary';
 export * from './OrderFormTypes';
 

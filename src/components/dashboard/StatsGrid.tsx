@@ -2,7 +2,7 @@ import {
   BarChart, 
   DollarSign, 
   TrendingUp, 
-  ShoppingBag 
+  ShoppingBag
 } from 'lucide-react';
 import { SalesSummary } from '@/types';
 import StatCard from './StatCard';
@@ -77,11 +77,11 @@ const StatsGrid = ({ sales, revenue, profits, orders, timeframe }: StatsGridProp
   };
   
   return (
-    <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+    <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
       <StatCard
         title="المبيعات"
         value={formatCurrency(getSaleValue())}
-        icon={<DollarSign className="h-5 w-5" />}
+        icon={<DollarSign className="h-6 w-6" />}
         trend={getSaleValue() > 0 ? "up" : "neutral"}
         trendValue={getSaleValue() > 0 ? `+5% من ${getTimeframeText()} الماضي` : "لا توجد بيانات كافية"}
         numberLabel="1"
@@ -89,7 +89,7 @@ const StatsGrid = ({ sales, revenue, profits, orders, timeframe }: StatsGridProp
       <StatCard
         title="الإيرادات"
         value={formatCurrency(getRevenueValue())}
-        icon={<BarChart className="h-5 w-5" />}
+        icon={<BarChart className="h-6 w-6" />}
         trend={getRevenueValue() > 0 ? "up" : "neutral"}
         trendValue={getRevenueValue() > 0 ? `+3% من ${getTimeframeText()} الماضي` : "لا توجد بيانات كافية"}
         numberLabel="2"
@@ -97,7 +97,7 @@ const StatsGrid = ({ sales, revenue, profits, orders, timeframe }: StatsGridProp
       <StatCard
         title="الأرباح"
         value={formatCurrency(getProfitValue())}
-        icon={<TrendingUp className="h-5 w-5" />}
+        icon={<TrendingUp className="h-6 w-6" />}
         trend={getProfitValue() > 0 ? "up" : "neutral"}
         trendValue={getProfitValue() > 0 ? `+2% من ${getTimeframeText()} الماضي` : "لا توجد بيانات كافية"}
         numberLabel="3"
@@ -105,27 +105,11 @@ const StatsGrid = ({ sales, revenue, profits, orders, timeframe }: StatsGridProp
       <StatCard
         title="الطلبات"
         value={displayOrders.total}
-        icon={<ShoppingBag className="h-5 w-5" />}
+        icon={<ShoppingBag className="h-6 w-6" />}
         description={displayOrders.total > 0 ? 
           `${displayOrders.pending} قيد الانتظار، ${displayOrders.processing} قيد المعالجة، ${displayOrders.completed} مكتمل` : 
           "لا توجد طلبات"}
         numberLabel="4"
-      />
-      <StatCard
-        title="معدل التحويل"
-        value={`${(Math.random() * 15 + 5).toFixed(2)}%`}
-        icon={<TrendingUp className="h-5 w-5" />}
-        trend={"up"}
-        trendValue={`+1.5% من ${getTimeframeText()} الماضي`}
-        numberLabel="5"
-      />
-      <StatCard
-        title="العملاء الجدد"
-        value={Math.floor(Math.random() * 50 + 20)}
-        icon={<TrendingUp className="h-5 w-5" />}
-        trend={"up"}
-        trendValue={`+7% من ${getTimeframeText()} الماضي`}
-        numberLabel="6"
       />
     </div>
   );

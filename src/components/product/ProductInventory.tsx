@@ -1,142 +1,116 @@
-import { useState } from 'react';
 import { FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Loader2, Package, LayoutGrid, Info } from 'lucide-react';
-import { toast } from 'sonner';
+import { Package, AlertCircle, Hash, Barcode } from 'lucide-react';
 import { UseFormReturn } from "react-hook-form";
 import { ProductFormValues } from "@/types/product";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { 
-  generateAutomaticSku, 
-  generateAutomaticBarcode 
-} from '@/lib/api/products';
-import { 
-  generateLocalSku, 
-  generateLocalEAN13 
-} from '@/lib/api/indexedDBProducts';
+import ProductSKUBarcode from './ProductSKUBarcode';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface ProductInventoryProps {
   form: UseFormReturn<ProductFormValues>;
   organizationId?: string;
   hasVariants?: boolean;
+  productId?: string;
 }
 
-export default function ProductInventory({ form, organizationId = '', hasVariants = false }: ProductInventoryProps) {
-  const [generatingSku, setGeneratingSku] = useState(false);
-  const [generatingBarcode, setGeneratingBarcode] = useState(false);
-
-  const handleGenerateSku = async () => {
-    setGeneratingSku(true);
-    try {
-      let sku = '';
-      
-      // محاولة توليد SKU من الخادم أولاً
-      if (navigator.onLine) {
-        try {
-          sku = await generateAutomaticSku(organizationId);
-        } catch (error) {
-          // عند فشل الطلب من الخادم، نجرب الطريقة المحلية
-          sku = await generateLocalSku();
-        }
-      } else {
-        // إذا كان المستخدم غير متصل بالإنترنت، نستخدم التوليد المحلي مباشرة
-        sku = await generateLocalSku();
-      }
-      
-      if (sku) {
-        form.setValue('sku', sku);
-        toast.success('تم توليد رمز SKU بنجاح');
-      } else {
-        toast.error('فشل في توليد رمز SKU');
-      }
-    } catch (error) {
-      toast.error('حدث خطأ أثناء توليد رمز SKU');
-    } finally {
-      setGeneratingSku(false);
-    }
-  };
-  
-  const handleGenerateBarcode = async () => {
-    setGeneratingBarcode(true);
-    try {
-      let barcode = '';
-      
-      // محاولة توليد باركود من الخادم أولاً
-      if (navigator.onLine) {
-        try {
-          barcode = await generateAutomaticBarcode();
-        } catch (error) {
-          // عند فشل الطلب من الخادم، نجرب الطريقة المحلية
-          barcode = generateLocalEAN13();
-        }
-      } else {
-        // إذا كان المستخدم غير متصل بالإنترنت، نستخدم التوليد المحلي مباشرة
-        barcode = generateLocalEAN13();
-      }
-      
-      if (barcode) {
-        form.setValue('barcode', barcode);
-        toast.success('تم توليد الباركود بنجاح');
-      } else {
-        toast.error('فشل في توليد الباركود');
-      }
-    } catch (error) {
-      toast.error('حدث خطأ أثناء توليد الباركود');
-    } finally {
-      setGeneratingBarcode(false);
-    }
-  };
-
+export default function ProductInventory({ 
+  form, 
+  organizationId = '', 
+  hasVariants = false, 
+  productId = '' 
+}: ProductInventoryProps) {
   return (
     <div className="space-y-6">
-      <Card className="overflow-hidden border-2 shadow-sm hover:shadow-md transition-shadow">
-        <div className="bg-muted/30 p-3 border-b flex items-center gap-2">
-          <LayoutGrid className="h-5 w-5 text-primary" />
-          <h3 className="text-lg font-medium">إدارة المخزون</h3>
-        </div>
-        <CardContent className="p-5">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <FormField
-              control={form.control}
-              name="stock_quantity"
-              render={({ field }) => (
-                <FormItem>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                      <Package size={18} />
+      {/* SKU and Barcode Section */}
+      <Card>
+        <CardHeader className="pb-4">
+          <CardTitle className="text-lg font-semibold flex items-center gap-2">
+            <div className="bg-primary/10 p-2 rounded-full">
+              <Hash className="h-4 w-4 text-primary" />
+            </div>
+            الرموز والمعرفات
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ProductSKUBarcode 
+            form={form} 
+            organizationId={organizationId} 
+            productId={productId}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Stock Quantity Section */}
+      <Card>
+        <CardHeader className="pb-4">
+          <CardTitle className="text-lg font-semibold flex items-center gap-2">
+            <div className="bg-blue-100 p-2 rounded-full">
+              <Package className="h-4 w-4 text-blue-600" />
+            </div>
+            إدارة المخزون
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {hasVariants && form.watch('has_variants') ? (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  <div className="flex items-center gap-2">
+                    <div className="bg-amber-100 p-1.5 rounded-full">
+                      <Package className="w-3.5 h-3.5 text-amber-600" />
+                    </div>
+                    <span className="font-medium">
+                      كمية المخزون تُدار عبر المتغيرات (الألوان والمقاسات)
                     </span>
-                    <span className="absolute right-3 top-[13px] text-xs text-muted-foreground">
-                      الكمية في المخزون*
-                    </span>
-                    <FormControl>
-                      <Input 
-                        type="number" 
-                        min="0" 
-                        step="1" 
-                        placeholder="0"
-                        className="pt-6 pl-10 bg-background border-2 h-16 focus:border-primary transition-colors"
-                        {...field}
-                        onChange={(e) => {
-                          field.onChange(parseInt(e.target.value));
-                        }}
-                      />
-                    </FormControl>
                   </div>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            {hasVariants ? (
-              <div className="flex items-center justify-center h-16 bg-muted/20 rounded-md">
-                <Badge variant="outline" className="flex items-center gap-1">
-                  <Info className="h-3 w-3" />
-                  <span>يتم إدارة المخزون بناءً على المتغيرات</span>
-                </Badge>
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="stock_quantity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <div className="relative">
+                          <Package className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Input 
+                            type="number" 
+                            min="0" 
+                            step="1" 
+                            placeholder="كمية المخزون *"
+                            className="pl-10 h-11 bg-background border-border"
+                            {...field}
+                            defaultValue={field.value === undefined || field.value === null ? 0 : field.value}
+                            disabled={hasVariants && form.watch('has_variants')}
+                            onChange={(e) => {
+                              const value = parseInt(e.target.value, 10);
+                              field.onChange(isNaN(value) ? 0 : value);
+                            }}
+                          />
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <div className="flex items-center justify-center p-4 bg-muted/50 rounded-lg border border-border">
+                  <div className="text-center">
+                    <div className="bg-green-100 p-3 rounded-full w-fit mx-auto mb-2">
+                      <Package className="w-5 h-5 text-green-600" />
+                    </div>
+                    <div className="text-sm font-medium">إدارة مبسطة</div>
+                    <div className="text-xs text-muted-foreground">
+                      كمية موحدة للمنتج
+                    </div>
+                  </div>
+                </div>
               </div>
-            ) : null}
+            )}
           </div>
         </CardContent>
       </Card>

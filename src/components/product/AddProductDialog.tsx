@@ -56,6 +56,7 @@ import {
   AlertDialogTitle,
   AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
+import { Card, CardContent } from '@/components/ui/card';
 
 import ProductImagesManager from './ProductImagesManager';
 import ProductColorManager from './ProductColorManager';
@@ -66,6 +67,8 @@ import ProductImages from './ProductImages';
 import ProductPricing from './ProductPricing';
 import BasicProductInfo from './BasicProductInfo';
 import ProductSellingType from './ProductSellingType';
+import ProductShippingAndTemplates from './ProductShippingAndTemplates';
+import MarketingAndEngagementTabs from './form/MarketingAndEngagementTabs';
 import { ProductFormValues, productSchema, ProductColor, InsertProductColor, InsertProductSize } from '@/types/product';
 import { createProductColor, createProductImage } from '@/lib/api/productVariants';
 import { ImageUploaderRef } from '@/components/ui/ImageUploader';
@@ -79,6 +82,7 @@ import { EmployeePermissions } from '@/types/employee';
 import { checkUserPermissions, refreshUserData } from '@/lib/api/permissions';
 import { syncProductImages } from '@/lib/api/productHelpers';
 import { createProductSize } from '@/lib/api/productVariants';
+import { Package, DollarSign, ShoppingCart, Palette, Camera, FolderTree, Truck, Megaphone } from 'lucide-react';
 
 interface AddProductDialogProps {
   open: boolean;
@@ -96,7 +100,6 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
   const [useVariantPrices, setUseVariantPrices] = useState(false);
   const [organizationId, setOrganizationId] = useState<string>('');
   const [sessionChecked, setSessionChecked] = useState(false);
-  const [wholesaleTiers, setWholesaleTiers] = useState<WholesaleTier[]>([]);
   const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [isCreatingCategory, setIsCreatingCategory] = useState(false);
@@ -427,6 +430,7 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
     resolver: zodResolver(productSchema),
     defaultValues: {
       name: '',
+      name_for_shipping: '',
       description: '',
       price: 0,
       purchase_price: 0,
@@ -441,22 +445,23 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
       sku: '',
       barcode: '',
       category_id: '',
-      subcategory_id: '',
+      subcategory_id: undefined,
       brand: '',
       stock_quantity: 0,
       thumbnail_image: '',
       has_variants: false,
-      use_sizes: false,
       show_price_on_landing: true,
       is_featured: false,
       is_new: true,
       is_sold_by_unit: true,
-      unit_type: 'kg',
+      unit_type: 'unit',
       use_variant_prices: false,
-      unit_purchase_price: 0,
-      unit_sale_price: 0,
+      unit_purchase_price: undefined,
+      unit_sale_price: undefined,
       colors: [],
       additional_images: [],
+      wholesale_tiers: [],
+      use_sizes: false,
     },
   });
   
@@ -626,6 +631,7 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
       // تحضير بيانات الإدخال
       const productData: InsertProduct = {
         name: values.name,
+        name_for_shipping: values.name_for_shipping || undefined,
         description: values.description || '',
         price: Number(values.price),
         purchase_price: Number(values.purchase_price),
@@ -747,28 +753,29 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
         }
             
         // إضافة مراحل أسعار الجملة
-        if (wholesaleTiers.length > 0) {
-          
-            
-          for (const tier of wholesaleTiers) {
-            if (!tier.min_quantity || tier.min_quantity <= 0 || !tier.price || tier.price < 0) {
-              console.warn('تخطي مرحلة غير صالحة:', tier);
-              continue;
+        if (values.wholesale_tiers && values.wholesale_tiers.length > 0) { 
+          if (currentOrganization && currentOrganization.id) {
+            for (const tier of values.wholesale_tiers) {
+              if (tier.min_quantity && tier.min_quantity > 0 && tier.price_per_unit !== undefined && tier.price_per_unit !== null && tier.price_per_unit >= 0) {
+                try {
+                  const tierData = {
+                    product_id: product.id,
+                    min_quantity: tier.min_quantity,
+                    price_per_unit: tier.price_per_unit,
+                    organization_id: currentOrganization.id,
+                  };
+                  await createWholesaleTier(tierData);
+                } catch (tierError) {
+                  console.error('خطأ في إضافة مرحلة سعرية:', tierError);
+                  toast.error(`خطأ عند إضافة خطة لكمية ${tier.min_quantity}`);
+                }
+              } else {
+                console.warn('تخطي خطة أسعار جملة غير صالحة أو غير مكتملة:', tier);
+              }
             }
-              
-            try {
-              const tierData = {
-                product_id: product.id,
-                min_quantity: tier.min_quantity,
-                price: tier.price,
-                organization_id: organizationId
-              };
-                
-              
-              await createWholesaleTier(tierData);
-            } catch (tierError) {
-              console.error('خطأ في إضافة مرحلة سعرية:', tierError);
-            }
+          } else {
+            console.warn("Organization ID is missing from context, cannot create wholesale tiers.");
+            toast.warning("معرف المؤسسة (من السياق) مفقود، لا يمكن إنشاء خطط أسعار الجملة.");
           }
         }
             
@@ -790,7 +797,6 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
     setAdditionalImages([]);
     setProductColors([]);
     setUseVariantPrices(false);
-    setWholesaleTiers([]);
   };
 
   // Check for active session
@@ -830,7 +836,7 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
       const newCategory = await createCategory({
         name: newCategoryName,
         type: 'product'
-      });
+      }, organizationId);
       
       // تحديث قائمة الفئات
       setCategories(prev => [...prev, newCategory]);
@@ -1088,67 +1094,203 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 <Tabs defaultValue="basic" className="w-full">
-                  <TabsList className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 mb-4">
-                    <TabsTrigger value="basic">معلومات أساسية</TabsTrigger>
-                    <TabsTrigger value="pricing">الأسعار</TabsTrigger>
-                    <TabsTrigger value="selling_type">طريقة البيع</TabsTrigger>
-                    <TabsTrigger value="inventory">المخزون</TabsTrigger>
-                    <TabsTrigger value="variants">المتغيرات</TabsTrigger>
-                    <TabsTrigger value="images">الصور</TabsTrigger>
-                    <TabsTrigger value="categories">التصنيفات</TabsTrigger>
-                  </TabsList>
+                  {/* Modern Tab Design matching site theme */}
+                  <div className="mb-6">
+                    <TabsList className="w-full bg-muted/50 p-2 rounded-xl grid grid-cols-2 md:grid-cols-3 lg:grid-cols-9 h-auto gap-1">
+                      <TabsTrigger 
+                        value="basic" 
+                        className="flex flex-col md:flex-row items-center gap-1 md:gap-2 px-2 md:px-3 py-2 md:py-2.5 text-xs md:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm hover:bg-muted/80 transition-all"
+                      >
+                        <div className="bg-current/20 p-1 md:p-1.5 rounded-full">
+                          <Package className="w-3 md:w-3.5 h-3 md:h-3.5" />
+                        </div>
+                        <span className="text-center leading-tight">المعلومات الأساسية</span>
+                      </TabsTrigger>
 
-                  <TabsContent value="basic" className="space-y-4">
-                    <BasicProductInfo form={form} />
+                      <TabsTrigger 
+                        value="pricing" 
+                        className="flex flex-col md:flex-row items-center gap-1 md:gap-2 px-2 md:px-3 py-2 md:py-2.5 text-xs md:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm hover:bg-muted/80 transition-all"
+                      >
+                        <div className="bg-current/20 p-1 md:p-1.5 rounded-full">
+                          <DollarSign className="w-3 md:w-3.5 h-3 md:h-3.5" />
+                        </div>
+                        <span className="text-center leading-tight">التسعير</span>
+                      </TabsTrigger>
+
+                      <TabsTrigger 
+                        value="selling_type" 
+                        className="flex flex-col md:flex-row items-center gap-1 md:gap-2 px-2 md:px-3 py-2 md:py-2.5 text-xs md:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm hover:bg-muted/80 transition-all"
+                      >
+                        <div className="bg-current/20 p-1 md:p-1.5 rounded-full">
+                          <ShoppingCart className="w-3 md:w-3.5 h-3 md:h-3.5" />
+                        </div>
+                        <span className="text-center leading-tight">طريقة البيع</span>
+                      </TabsTrigger>
+
+                      <TabsTrigger 
+                        value="inventory" 
+                        className="flex flex-col md:flex-row items-center gap-1 md:gap-2 px-2 md:px-3 py-2 md:py-2.5 text-xs md:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm hover:bg-muted/80 transition-all"
+                      >
+                        <div className="bg-current/20 p-1 md:p-1.5 rounded-full">
+                          <Package className="w-3 md:w-3.5 h-3 md:h-3.5" />
+                        </div>
+                        <span className="text-center leading-tight">المخزون</span>
+                      </TabsTrigger>
+
+                      <TabsTrigger 
+                        value="variants" 
+                        className="flex flex-col md:flex-row items-center gap-1 md:gap-2 px-2 md:px-3 py-2 md:py-2.5 text-xs md:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm hover:bg-muted/80 transition-all"
+                      >
+                        <div className="bg-current/20 p-1 md:p-1.5 rounded-full">
+                          <Palette className="w-3 md:w-3.5 h-3 md:h-3.5" />
+                        </div>
+                        <span className="text-center leading-tight">المتغيرات</span>
+                      </TabsTrigger>
+
+                      <TabsTrigger 
+                        value="images" 
+                        className="flex flex-col md:flex-row items-center gap-1 md:gap-2 px-2 md:px-3 py-2 md:py-2.5 text-xs md:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm hover:bg-muted/80 transition-all"
+                      >
+                        <div className="bg-current/20 p-1 md:p-1.5 rounded-full">
+                          <Camera className="w-3 md:w-3.5 h-3 md:h-3.5" />
+                        </div>
+                        <span className="text-center leading-tight">الصور</span>
+                      </TabsTrigger>
+
+                      <TabsTrigger 
+                        value="categories" 
+                        className="flex flex-col md:flex-row items-center gap-1 md:gap-2 px-2 md:px-3 py-2 md:py-2.5 text-xs md:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm hover:bg-muted/80 transition-all"
+                      >
+                        <div className="bg-current/20 p-1 md:p-1.5 rounded-full">
+                          <FolderTree className="w-3 md:w-3.5 h-3 md:h-3.5" />
+                        </div>
+                        <span className="text-center leading-tight">التصنيف</span>
+                      </TabsTrigger>
+
+                      <TabsTrigger 
+                        value="shipping_templates" 
+                        className="flex flex-col md:flex-row items-center gap-1 md:gap-2 px-2 md:px-3 py-2 md:py-2.5 text-xs md:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm hover:bg-muted/80 transition-all"
+                      >
+                        <div className="bg-current/20 p-1 md:p-1.5 rounded-full">
+                          <Truck className="w-3 md:w-3.5 h-3 md:h-3.5" />
+                        </div>
+                        <span className="text-center leading-tight">التوصيل والنماذج</span>
+                      </TabsTrigger>
+
+                      <TabsTrigger 
+                        value="marketing_engagement" 
+                        className="flex flex-col md:flex-row items-center gap-1 md:gap-2 px-2 md:px-3 py-2 md:py-2.5 text-xs md:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm hover:bg-muted/80 transition-all"
+                      >
+                        <div className="bg-current/20 p-1 md:p-1.5 rounded-full">
+                          <Megaphone className="w-3 md:w-3.5 h-3 md:h-3.5" />
+                        </div>
+                        <span className="text-center leading-tight">التسويق والمشاركة</span>
+                      </TabsTrigger>
+                    </TabsList>
+                  </div>
+
+                  <TabsContent value="basic" className="mt-6">
+                    <Card className="border-0 shadow-none">
+                      <CardContent className="p-0">
+                        <BasicProductInfo form={form} />
+                      </CardContent>
+                    </Card>
                   </TabsContent>
 
-                  <TabsContent value="pricing" className="space-y-4">
-                    <ProductPricing form={form} />
+                  <TabsContent value="pricing" className="mt-6">
+                    <Card className="border-0 shadow-none">
+                      <CardContent className="p-0">
+                        <ProductPricing form={form} />
+                      </CardContent>
+                    </Card>
                   </TabsContent>
 
-                  <TabsContent value="selling_type" className="space-y-4">
-                    <ProductSellingType form={form} />
+                  <TabsContent value="selling_type" className="mt-6">
+                    <Card className="border-0 shadow-none">
+                      <CardContent className="p-0">
+                        <ProductSellingType form={form} />
+                      </CardContent>
+                    </Card>
                   </TabsContent>
 
-                  <TabsContent value="inventory" className="space-y-4">
-                    <ProductInventory 
-                      form={form}
-                      organizationId={currentOrganization.id}
-                    />
+                  <TabsContent value="inventory" className="mt-6">
+                    <Card className="border-0 shadow-none">
+                      <CardContent className="p-0">
+                        <ProductInventory 
+                          form={form}
+                          organizationId={currentOrganization.id}
+                        />
+                      </CardContent>
+                    </Card>
                   </TabsContent>
 
-                  <TabsContent value="variants" className="space-y-4">
-                    <ProductVariants 
-                      form={form}
-                      productColors={productColors}
-                      onProductColorsChange={handleProductColorsChange}
-                      mainImageUrl={form.watch('thumbnail_image')}
-                    />
+                  <TabsContent value="variants" className="mt-6">
+                    <Card className="border-0 shadow-none">
+                      <CardContent className="p-0">
+                        <ProductVariants 
+                          form={form}
+                          productColors={productColors}
+                          onProductColorsChange={handleProductColorsChange}
+                          mainImageUrl={form.watch('thumbnail_image')}
+                        />
+                      </CardContent>
+                    </Card>
                   </TabsContent>
 
-                  <TabsContent value="images" className="space-y-4">
-                    <ProductImages
-                      form={form}
-                      mainImage={form.watch('thumbnail_image')}
-                      additionalImages={additionalImages}
-                      onMainImageChange={handleMainImageChange}
-                      onAdditionalImagesChange={handleAdditionalImagesChange}
-                      thumbnailImageRef={thumbnailImageRef}
-                    />
+                  <TabsContent value="images" className="mt-6">
+                    <Card className="border-0 shadow-none">
+                      <CardContent className="p-0">
+                        <ProductImages
+                          form={form}
+                          mainImage={form.watch('thumbnail_image')}
+                          additionalImages={additionalImages}
+                          onMainImageChange={handleMainImageChange}
+                          onAdditionalImagesChange={handleAdditionalImagesChange}
+                          thumbnailImageRef={thumbnailImageRef}
+                        />
+                      </CardContent>
+                    </Card>
                   </TabsContent>
 
-                  <TabsContent value="categories" className="space-y-4">
-                    <ProductCategories
-                      form={form}
-                      categories={categories}
-                      subcategories={subcategories}
-                      onCategoryCreated={(category) => {
-                        setCategories([...categories, category]);
-                      }}
-                      onSubcategoryCreated={(subcategory) => {
-                        setSubcategories([...subcategories, subcategory]);
-                      }}
-                    />
+                  <TabsContent value="categories" className="mt-6">
+                    <Card className="border-0 shadow-none">
+                      <CardContent className="p-0">
+                        <ProductCategories
+                          form={form}
+                          categories={categories}
+                          subcategories={subcategories}
+                          organizationId={organizationId}
+                          onCategoryCreated={(category) => {
+                            setCategories([...categories, category]);
+                          }}
+                          onSubcategoryCreated={(subcategory) => {
+                            setSubcategories([...subcategories, subcategory]);
+                          }}
+                        />
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  <TabsContent value="shipping_templates" className="mt-6">
+                    <Card className="border-0 shadow-none">
+                      <CardContent className="p-0">
+                        <ProductShippingAndTemplates 
+                          form={form}
+                          organizationId={organizationId}
+                        />
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  <TabsContent value="marketing_engagement" className="mt-6">
+                    <Card className="border-0 shadow-none">
+                      <CardContent className="p-0">
+                        <MarketingAndEngagementTabs 
+                          form={form}
+                          organizationId={organizationId}
+                        />
+                      </CardContent>
+                    </Card>
                   </TabsContent>
                 </Tabs>
 

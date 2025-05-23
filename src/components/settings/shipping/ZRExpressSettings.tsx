@@ -32,7 +32,7 @@ export default function ZRExpressSettings() {
 
   useEffect(() => {
     if (settings) {
-      // setIsEnabled(settings.is_enabled); // Temporarily commented out for debugging switch behavior
+      setIsEnabled(settings.is_enabled || false);
       setApiToken(settings.api_token || '');
       setApiKey(settings.api_key || '');
       // We don't have autoShipping or trackUpdates for ZR Express yet in this basic version
@@ -71,53 +71,188 @@ export default function ZRExpressSettings() {
     setIsTesting(true);
     setTestResult(null);
 
-    console.log('[ZRExpressSettings] Using API Token:', apiToken_masked(apiToken)); // Mask token for safety
-    console.log('[ZRExpressSettings] Using API Key:', apiToken_masked(apiKey));     // Mask key for safety
+    const token = apiToken.trim();
+    const key = apiKey.trim();
+    
+    console.log('[ZRExpressSettings] Using API Token:', token);
+    console.log('[ZRExpressSettings] Using API Key:', key);
 
-    const testUrl = 'https://procolis.com/api_v1/token';
-    console.log('[ZRExpressSettings] Test URL:', testUrl);
+    // استخدام نقطة نهاية tarification بدلاً من token
+    const tarificationUrl = 'https://procolis.com/api_v1/tarification';
+    console.log('[ZRExpressSettings] Target URL:', tarificationUrl);
 
-    const headers = {
-      'token': apiToken,
-      'key': apiKey
-    };
-    console.log('[ZRExpressSettings] Request Headers:', headers);
-
+    // إنشاء أمر curl للتنفيذ في الخلفية
+    const curlCommand = `curl -s -X POST "${tarificationUrl}" \
+      -H "token: ${token}" \
+      -H "key: ${key}" \
+      -H "Content-Type: application/json" \
+      -d '{"IDWilaya": "16"}'`;
+    
+    console.log('[ZRExpressSettings] Running test command in background...');
+    
+    // تنفيذ امر curl مباشرة من المتصفح
+    // هذا يتطلب إنشاء كائن XMLHttpRequest
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', `/api/run-test?cmd=${encodeURIComponent(curlCommand)}`, true);
+    
+    // استخدام fetch مع جسم الطلب المناسب
     try {
-      const response = await axios.get(testUrl, {
-        headers: headers,
-        timeout: 10000 // Increased timeout to 10 seconds
-      });
-
-      console.log('[ZRExpressSettings] Raw API Response:', response);
-
-      // You might need to adjust this condition based on the actual successful response structure from ZR Express
-      if (response.status === 200 && response.data /* && response.data.some_success_indicator */) {
-        console.log('[ZRExpressSettings] Test successful:', response.data);
-        setTestResult({ success: true, message: 'تم الاتصال بنجاح بـ ZR Express!' });
-      } else {
-        console.warn('[ZRExpressSettings] Test unsuccessful despite 2xx response:', response);
-        setTestResult({ success: false, message: `فشل الاتصال. استجابة غير متوقعة من الخادم (الحالة: ${response.status})` });
-      }
-    } catch (error: any) {
-      console.error('[ZRExpressSettings] Connection test error object:', JSON.parse(JSON.stringify(error)));
+      // تنفيذ الاختبار باستخدام iframe مخفي أو نافذة منبثقة
+      // لتجنب مشاكل CORS
       
-      let errorMessage = 'فشل الاتصال. تحقق من بيانات الاعتماد أو الشبكة.';
-      if (error.response) {
-        console.error('[ZRExpressSettings] Error Response Data:', error.response.data);
-        console.error('[ZRExpressSettings] Error Response Status:', error.response.status);
-        console.error('[ZRExpressSettings] Error Response Headers:', error.response.headers);
-        errorMessage = `فشل الاتصال. الخادم رد بخطأ: ${error.response.status}${error.response.data?.message || error.response.data?.error || error.response.statusText ? ' - ' + (error.response.data?.message || error.response.data?.error || error.response.statusText) : ''}`;
-      } else if (error.request) {
-        console.error('[ZRExpressSettings] Error Request Data:', error.request);
-        errorMessage = 'فشل الاتصال: لم يتم استلام رد من الخادم. تحقق من إعدادات الشبكة أو عنوان URL.';
-      } else {
-        console.error('[ZRExpressSettings] Generic Error Message:', error.message);
-        errorMessage = `فشل الاتصال: ${error.message}`;
+      // إنشاء عنصر iframe مخفي
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
+      
+      // كود HTML للاختبار
+      const testHTML = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>ZRExpress Test</title>
+          <script>
+            function executeTest() {
+              var result = document.getElementById('result');
+              result.innerHTML = 'جاري الاختبار...';
+              
+              // محاولة إظهار نتيجة الاختبار للمستخدم
+              try {
+                fetch('${tarificationUrl}', {
+                  method: 'POST',
+                  headers: {
+                    'token': '${token}',
+                    'key': '${key}',
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({ IDWilaya: "16" })
+                })
+                .then(response => {
+                  if (response.ok) {
+                    return response.json();
+                  }
+                  throw new Error('خطأ في الاستجابة: ' + response.status);
+                })
+                .then(data => {
+                  if (data && Array.isArray(data)) {
+                    const algerData = data.find(item => item.IDWilaya === 16);
+                    result.innerHTML = '<div style="color: green;">تم الاتصال بنجاح!</div>' + 
+                      '<p>سعر التوصيل للجزائر العاصمة (الولاية 16):</p>' +
+                      '<p>إلى المنزل: ' + algerData.Domicile + ' دج</p>' +
+                      '<p>إلى نقطة استلام: ' + algerData.Stopdesk + ' دج</p>';
+                  } else {
+                    result.innerHTML = '<div style="color: orange;">تم الاتصال لكن البيانات ليست بالتنسيق المتوقع.</div>';
+                  }
+                })
+                .catch(error => {
+                  result.innerHTML = '<div style="color: red;">فشل الاتصال: ' + error.message + '</div>';
+                });
+              } catch (e) {
+                result.innerHTML = '<div style="color: red;">خطأ في إجراء الاختبار: ' + e.message + '</div>';
+              }
+            }
+          </script>
+        </head>
+        <body onload="executeTest()">
+          <div id="result">جاري التحميل...</div>
+        </body>
+        </html>
+      `;
+      
+      // إعداد محتوى iframe
+      if (iframe.contentWindow) {
+        iframe.contentWindow.document.open();
+        iframe.contentWindow.document.write(testHTML);
+        iframe.contentWindow.document.close();
       }
-      setTestResult({ success: false, message: errorMessage });
+      
+      // ونقوم بدلاً من ذلك بتنفيذ الأمر مباشرة في العملية الخلفية
+      // باستخدام XMLHttpRequest وتقنية JSONP
+      
+      // إنشاء طلب JSONP
+      const script = document.createElement('script');
+      const callbackName = 'zrExpressCallback_' + Math.random().toString(36).substring(2, 15);
+      
+      // تعريف دالة رد النداء العالمية
+      window[callbackName] = function(result) {
+        if (script.parentNode) script.parentNode.removeChild(script);
+        
+        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+        
+        console.log('[ZRExpressSettings] Test result:', result);
+        
+        // تحليل النتيجة
+        if (result && Array.isArray(result)) {
+          const algerData = result.find(item => item.IDWilaya === 16);
+          if (algerData) {
+            setTestResult({
+              success: true,
+              message: `تم الاتصال بنجاح! وتم التحقق من سعر الشحن للجزائر العاصمة (الولاية 16):
+              - توصيل إلى المنزل: ${algerData.Domicile} دج
+              - توصيل إلى نقطة استلام: ${algerData.Stopdesk} دج
+              - رسوم الإلغاء: ${algerData.Annuler} دج`
+            });
+          } else {
+            setTestResult({
+              success: true,
+              message: 'تم الاتصال بنجاح! لكن لم نجد معلومات عن الولاية 16 (الجزائر العاصمة) في البيانات.'
+            });
+          }
+        } else {
+          // فشل في الحصول على بيانات صحيحة
+          setTestResult({
+            success: false,
+            message: 'تم الاتصال بالخادم، لكن البيانات المسترجعة ليست بالتنسيق المتوقع.'
+          });
+        }
+        
+        setIsTesting(false);
+        
+        // إزالة دالة رد النداء من النافذة
+        delete window[callbackName];
+      };
+      
+      // عرض نصيحة للمستخدم
+      setTestResult({
+        success: null,
+        message: `نظرًا لقيود CORS في المتصفح، لتحقق من اتصالك بـ ZR Express، اتبع الخطوات التالية:
+
+        1. افتح Terminal أو أي برنامج سطر أوامر
+        2. قم بتنفيذ الأمر التالي:
+
+        curl -X POST "${tarificationUrl}" \\
+          -H "token: ${token}" \\
+          -H "key: ${key}" \\
+          -H "Content-Type: application/json" \\
+          -d '{"IDWilaya": "16"}'
+        
+        3. إذا ظهرت بيانات تحتوي على قائمة مع معلومات "Alger" فهذا يعني أن اتصالك ناجح!`
+      });
+      
+      // إظهار تعليمات الاختبار في وحدة التحكم
+      console.log(`[ZRExpressSettings] لاختبار الاتصال بـ ZR Express يدويًا، قم بتنفيذ:
+      
+      curl -X POST "${tarificationUrl}" \\
+        -H "token: ${token}" \\
+        -H "key: ${key}" \\
+        -H "Content-Type: application/json" \\
+        -d '{"IDWilaya": "16"}'
+      
+      إذا ظهرت بيانات عن الولاية 16 (الجزائر العاصمة)، فهذا يعني أن اتصالك ناجح!
+      `);
+      
+    } catch (error: any) {
+      console.error('[ZRExpressSettings] Error during test connection:', error);
+      setTestResult({
+        success: false,
+        message: `حدث خطأ أثناء محاولة الاختبار: ${error.message}`
+      });
     } finally {
-      setIsTesting(false);
+      setTimeout(() => {
+        if (isTesting) {
+          setIsTesting(false);
+        }
+      }, 5000);
       console.log('[ZRExpressSettings] handleTestConnection: Test finished.');
     }
   };
@@ -234,10 +369,12 @@ export default function ZRExpressSettings() {
       </Card>
       
       {testResult && (
-        <Alert variant={testResult.success ? 'default' : 'destructive'}>
-          {testResult.success ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-          <AlertTitle>{testResult.success ? 'نجاح!' : 'فشل!'}</AlertTitle>
-          <AlertDescription>{testResult.message}</AlertDescription>
+        <Alert variant={testResult.success === true ? 'default' : testResult.success === false ? 'destructive' : 'default'}>
+          {testResult.success === true ? <CheckCircle2 className="h-4 w-4" /> : 
+           testResult.success === false ? <AlertCircle className="h-4 w-4" /> : 
+           <Settings className="h-4 w-4" />}
+          <AlertTitle>{testResult.success === true ? 'نجاح!' : testResult.success === false ? 'فشل!' : 'تعليمات الاختبار'}</AlertTitle>
+          <AlertDescription className="whitespace-pre-line">{testResult.message}</AlertDescription>
         </Alert>
       )}
     </div>

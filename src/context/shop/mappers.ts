@@ -38,7 +38,7 @@ export const mapSupabaseProductToProduct = (product: SupabaseProduct): Product =
     // إضافة خصائص المتغيرات للمنتج
     has_variants: product.has_variants || false,
     use_sizes: product.use_sizes || false,
-    colors: product.colors || []
+    colors: [] // تعيين قيمة افتراضية لتجنب الخطأ، سيتم التعامل معها لاحقًا إذا لزم الأمر
   };
 };
 
@@ -73,31 +73,27 @@ export const mapSupabaseUserToUser = (user: SupabaseUser): User => {
   };
 };
 
-export const mapSupabaseOrderToOrder = async (order: SupabaseOrder): Promise<Order> => {
-  // جلب عناصر الطلب
-  const { data: orderItems, error: itemsError } = await supabase
-    .from('order_items')
-    .select('*')
-    .eq('order_id', order.id);
-    
-  if (itemsError) {
-    console.error('Error fetching order items:', itemsError);
-  }
-  
-  // جلب خدمات الطلب
-  const { data: serviceBookings, error: servicesError } = await supabase
-    .from('service_bookings')
-    .select('*')
-    .eq('order_id', order.id);
-    
-  if (servicesError) {
-    console.error('Error fetching service bookings:', servicesError);
+export const mapSupabaseOrderToOrder = async (
+  order: SupabaseOrder & { order_items?: any[] },
+  includeServices: boolean = false
+): Promise<Order> => {
+  let serviceBookingsData: any[] | undefined = undefined;
+  if (includeServices) {
+    const { data: serviceBookings, error: servicesError } = await supabase
+      .from('service_bookings')
+      .select('*')
+      .eq('order_id', order.id);
+      
+    if (servicesError) {
+      console.error('Error fetching service bookings:', servicesError);
+    }
+    serviceBookingsData = serviceBookings;
   }
   
   return {
     id: order.id,
     customerId: order.customer_id,
-    items: (orderItems || []).map(item => ({
+    items: (order.order_items || []).map(item => ({
       id: item.id,
       productId: item.product_id,
       productName: item.product_name,
@@ -108,7 +104,7 @@ export const mapSupabaseOrderToOrder = async (order: SupabaseOrder): Promise<Ord
       slug: item.slug || `item-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       name: item.name || item.product_name
     })),
-    services: (serviceBookings || []).map(booking => ({
+    services: (serviceBookingsData || []).map(booking => ({
       id: booking.id,
       serviceId: booking.service_id,
       serviceName: booking.service_name,
@@ -128,13 +124,12 @@ export const mapSupabaseOrderToOrder = async (order: SupabaseOrder): Promise<Ord
     status: order.status as any,
     paymentMethod: order.payment_method,
     paymentStatus: order.payment_status as 'paid' | 'pending' | 'failed',
-    shippingAddress: undefined, // سيتم تعبئتها لاحقًا إذا لزم الأمر
+    shippingAddress: undefined,
     shippingMethod: order.shipping_method,
     shippingCost: order.shipping_cost,
     notes: order.notes,
     isOnline: order.is_online,
     employeeId: order.employee_id,
-    // إضافة بيانات المدفوعات الجزئية
     partialPayment: (order.payment_status === 'pending' && order.amount_paid && order.remaining_amount) ? {
       amountPaid: order.amount_paid,
       remainingAmount: order.remaining_amount

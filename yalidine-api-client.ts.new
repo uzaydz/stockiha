@@ -1,1156 +1,289 @@
-بدء تحميل بيانات المنتج للمنظمة: fed872f9-1ade-4351-b020-5598fda976fe والرابط: كتاب-الداء-و-الدواء-1746734018940
-ShopContext.tsx:189 بدء تحميل بيانات المتجر
-utils.ts:52 استخدام معرف المؤسسة من التخزين المحلي: fed872f9-1ade-4351-b020-5598fda976fe
-ProductPurchase.tsx:411 تكوين المؤقت الحالي: undefined
-ProductPurchase.tsx:411 تكوين المؤقت الحالي: undefined
-supabase.ts:154 User signed in to Supabase
-AuthContext.tsx:339 تغيير حالة المصادقة - نوع الحدث: SIGNED_IN
-AuthContext.tsx:138 استخدام بيانات المؤسسة من التخزين المؤقت
-%D9%83%D8%AA%D8%A7%D8%A8-%D8%A7%D9%84%D8%AF%D8%A7%D8%A1-%D9%88-%D8%A7%D9%84%D8%AF%D9%88%D8%A7%D8%A1-1746734018940:1 Error while trying to use the following icon from the Manifest: http://ktobioussktobi.localhost:8080/icons/icon-192x192.png (Download error or resource isn't a valid image)Understand this error
-ProductPurchase.tsx:261 تم تحميل بيانات المنتج بنجاح: كتاب الداء و الدواء
-ProductPurchase.tsx:262 تفاصيل تكوين صفحة الشراء: {timer: {…}, upsells: Array(0), downsells: Array(1), quantityOffers: Array(1), shipping_clone_id: 1}
-ProductPurchase.tsx:272 تم العثور على تكوين المؤقت: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-ProductPurchase.tsx:276 المؤقت مفعل ويجب أن يظهر في الصفحة
-ProductPurchase.tsx:411 تكوين المؤقت الحالي: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-ProductPurchase.tsx:411 تكوين المؤقت الحالي: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-ProductPurchase.tsx:59 تفاصيل المؤقت: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-ProductPurchase.tsx:83 معلومات المؤقت النهائية: {enabled: true, endDate: '2025-07-25T18:20:00.000Z', textAbove: 'العرض ينتهي خلال', textBelow: 'لا فتوت التخفيضات'}
-ProductPurchase.tsx:59 تفاصيل المؤقت: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-ProductPurchase.tsx:83 معلومات المؤقت النهائية: {enabled: true, endDate: '2025-07-25T18:20:00.000Z', textAbove: 'العرض ينتهي خلال', textBelow: 'لا فتوت التخفيضات'}
-PurchaseTimer.tsx:88 لا يمكن عرض المؤقت: إما ليس على العميل أو تاريخ غير صالح
-PurchaseTimer.tsx:88 لا يمكن عرض المؤقت: إما ليس على العميل أو تاريخ غير صالح
-ProductPurchase.tsx:411 تكوين المؤقت الحالي: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-ProductPurchase.tsx:411 تكوين المؤقت الحالي: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-ProductPurchase.tsx:59 تفاصيل المؤقت: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-ProductPurchase.tsx:83 معلومات المؤقت النهائية: {enabled: true, endDate: '2025-07-25T18:20:00.000Z', textAbove: 'العرض ينتهي خلال', textBelow: 'لا فتوت التخفيضات'}
-ProductPurchase.tsx:59 تفاصيل المؤقت: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-ProductPurchase.tsx:83 معلومات المؤقت النهائية: {enabled: true, endDate: '2025-07-25T18:20:00.000Z', textAbove: 'العرض ينتهي خلال', textBelow: 'لا فتوت التخفيضات'}
-AuthContext.tsx:339 تغيير حالة المصادقة - نوع الحدث: INITIAL_SESSION
-AuthContext.tsx:276 نتيجة الجلسة: موجودة
-AuthContext.tsx:276 نتيجة الجلسة: موجودة
-CustomFormFields.tsx:55 تغيير حالة المصادقة - بيانات المستخدم: {id: '213f3a14-c076-4cdf-945b-a7e877eab5c9', aud: 'authenticated', role: 'authenticated', email: 'uzaydz33030@gmail.com', email_confirmed_at: '2025-04-16T12:48:19.403868Z', …}
-CustomFormFields.tsx:55 تغيير حالة المصادقة - هل المستخدم مسؤول متعدد النطاقات؟ true
-CustomFormFields.tsx:55 جاري جلب بيانات المؤسسة...
-CustomFormFields.tsx:55 تكوين المؤقت الحالي: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-CustomFormFields.tsx:55 تكوين المؤقت الحالي: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-CustomFormFields.tsx:55 تفاصيل المؤقت: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-CustomFormFields.tsx:55 معلومات المؤقت النهائية: {enabled: true, endDate: '2025-07-25T18:20:00.000Z', textAbove: 'العرض ينتهي خلال', textBelow: 'لا فتوت التخفيضات'}
-CustomFormFields.tsx:55 تفاصيل المؤقت: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-CustomFormFields.tsx:55 معلومات المؤقت النهائية: {enabled: true, endDate: '2025-07-25T18:20:00.000Z', textAbove: 'العرض ينتهي خلال', textBelow: 'لا فتوت التخفيضات'}
-CustomFormFields.tsx:55 >> البحث عن shipping_clone_id للمنتج: 3459311f-de31-46b7-bd84-28664d3b71dc
-CustomFormFields.tsx:55 جاري جلب قائمة الولايات من جدول yalidine_provinces_global
-CustomFormFields.tsx:55 تم تهيئة النموذج بالقيم الافتراضية {fullName: '', phone: '', province: '', municipality: '', address: '', …}
-CustomFormFields.tsx:55 حالة النموذج بعد التهيئة: {isValid: false, isDirty: false, errors: {…}}
-CustomFormFields.tsx:55 لا توجد إعدادات مزود شحن - تهيئة كلا الخيارين
-CustomFormFields.tsx:55 تعيين نوع التوصيل الافتراضي إلى: home
-CustomFormFields.tsx:55 >> بدء استخراج معرف مزود الشحن المستنسخ من إعدادات النموذج
-CustomFormFields.tsx:55 >> إعدادات النموذج المتاحة: {id: '03004181-292c-4a99-97af-7c4de72146d2', name: 'new form test', is_default: false, is_active: true, version: 378, …}
-CustomFormFields.tsx:55 >> تم العثور على shipping_clone_id مباشرة في إعدادات النموذج: 1
-CustomFormFields.tsx:55 >> بداية تنفيذ fetchShippingProviderSettings
-CustomFormFields.tsx:55 >> معرف مزود الشحن المستنسخ: null
-CustomFormFields.tsx:55 >> هل تم توفير معرف مزود الشحن؟ false
-CustomFormFields.tsx:55 >> لم يتم توفير معرف مزود الشحن المستنسخ
-CustomFormFields.tsx:55 تعيين قيمة حقل deliveryOption في النموذج: home
-CustomFormFields.tsx:55 >> البحث عن shipping_clone_id للمنتج: 3459311f-de31-46b7-bd84-28664d3b71dc
-CustomFormFields.tsx:55 جاري جلب قائمة الولايات من جدول yalidine_provinces_global
-CustomFormFields.tsx:55 تم تهيئة النموذج بالقيم الافتراضية {fullName: '', phone: '', province: '', municipality: '', address: '', …}
-CustomFormFields.tsx:55 حالة النموذج بعد التهيئة: {isValid: false, isDirty: false, errors: {…}}
-CustomFormFields.tsx:55 لا توجد إعدادات مزود شحن - تهيئة كلا الخيارين
-CustomFormFields.tsx:55 تعيين نوع التوصيل الافتراضي إلى: home
-CustomFormFields.tsx:55 >> بدء استخراج معرف مزود الشحن المستنسخ من إعدادات النموذج
-CustomFormFields.tsx:55 >> إعدادات النموذج المتاحة: {id: '03004181-292c-4a99-97af-7c4de72146d2', name: 'new form test', is_default: false, is_active: true, version: 378, …}
-CustomFormFields.tsx:55 >> تم العثور على shipping_clone_id مباشرة في إعدادات النموذج: 1
-CustomFormFields.tsx:55 >> بداية تنفيذ fetchShippingProviderSettings
-CustomFormFields.tsx:55 >> معرف مزود الشحن المستنسخ: null
-CustomFormFields.tsx:55 >> هل تم توفير معرف مزود الشحن؟ false
-CustomFormFields.tsx:55 >> لم يتم توفير معرف مزود الشحن المستنسخ
-CustomFormFields.tsx:55 تعيين قيمة حقل deliveryOption في النموذج: home
-CustomFormFields.tsx:55 >> معرف مزود الشحن المستنسخ النهائي: 1
-CustomFormFields.tsx:55 >> معرف مزود الشحن المستنسخ النهائي: 1
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> بداية تنفيذ fetchShippingProviderSettings
-CustomFormFields.tsx:55 >> معرف مزود الشحن المستنسخ: 1
-CustomFormFields.tsx:55 >> هل تم توفير معرف مزود الشحن؟ true
-CustomFormFields.tsx:55 >> جاري جلب إعدادات مزود الشحن المستنسخ...
-CustomFormFields.tsx:55 >> محاولة جلب مزود الشحن المستنسخ بالمعرف: 1
-CustomFormFields.tsx:55 >> محاولة جلب مزود الشحن المستنسخ بالمعرف: 1
-CustomFormFields.tsx:55 تم العثور على المؤسسة بنجاح بالنطاق الفرعي: ktobioussktobi oussktobiouss
-CustomFormFields.tsx:55 نتيجة البحث عن المؤسسة: {id: 'fed872f9-1ade-4351-b020-5598fda976fe', name: 'oussktobiouss', description: null, logo_url: null, domain: 'techocenter.com', …}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 معرف المنظمة: fed872f9-1ade-4351-b020-5598fda976fe
-CustomFormFields.tsx:55 استخدام بيانات المؤسسة من التخزين المؤقت
-CustomFormFields.tsx:55 تغيير حالة المصادقة - تحديث حالة التحميل إلى: false
-CustomFormFields.tsx:55 تكوين المؤقت الحالي: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-CustomFormFields.tsx:55 تكوين المؤقت الحالي: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-CustomFormFields.tsx:55 تفاصيل المؤقت: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-CustomFormFields.tsx:55 معلومات المؤقت النهائية: {enabled: true, endDate: '2025-07-25T18:20:00.000Z', textAbove: 'العرض ينتهي خلال', textBelow: 'لا فتوت التخفيضات'}
-CustomFormFields.tsx:55 تفاصيل المؤقت: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-CustomFormFields.tsx:55 معلومات المؤقت النهائية: {enabled: true, endDate: '2025-07-25T18:20:00.000Z', textAbove: 'العرض ينتهي خلال', textBelow: 'لا فتوت التخفيضات'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 تغيير حالة المصادقة - بيانات المستخدم: {id: '213f3a14-c076-4cdf-945b-a7e877eab5c9', aud: 'authenticated', role: 'authenticated', email: 'uzaydz33030@gmail.com', email_confirmed_at: '2025-04-16T12:48:19.403868Z', …}
-CustomFormFields.tsx:55 تغيير حالة المصادقة - هل المستخدم مسؤول متعدد النطاقات؟ true
-CustomFormFields.tsx:55 جاري جلب بيانات المؤسسة...
-CustomFormFields.tsx:55 بيانات المستخدم: {id: '213f3a14-c076-4cdf-945b-a7e877eab5c9', aud: 'authenticated', role: 'authenticated', email: 'uzaydz33030@gmail.com', email_confirmed_at: '2025-04-16T12:48:19.403868Z', …}
-CustomFormFields.tsx:55 البيانات الوصفية للمستخدم: {email: 'uzaydz33030@gmail.com', email_verified: true, isTenant: true, name: 'oussama guentri', phone_verified: false, …}
-CustomFormFields.tsx:55 هل المستخدم مسؤول متعدد النطاقات؟ true
-CustomFormFields.tsx:55 جاري جلب بيانات المؤسسة...
-CustomFormFields.tsx:55 تكوين المؤقت الحالي: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-CustomFormFields.tsx:55 تكوين المؤقت الحالي: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-CustomFormFields.tsx:55 تفاصيل المؤقت: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-CustomFormFields.tsx:55 معلومات المؤقت النهائية: {enabled: true, endDate: '2025-07-25T18:20:00.000Z', textAbove: 'العرض ينتهي خلال', textBelow: 'لا فتوت التخفيضات'}
-CustomFormFields.tsx:55 تفاصيل المؤقت: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-CustomFormFields.tsx:55 معلومات المؤقت النهائية: {enabled: true, endDate: '2025-07-25T18:20:00.000Z', textAbove: 'العرض ينتهي خلال', textBelow: 'لا فتوت التخفيضات'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 تم العثور على المؤسسة بنجاح بالنطاق الفرعي: ktobioussktobi oussktobiouss
-CustomFormFields.tsx:55 نتيجة البحث عن المؤسسة: {id: 'fed872f9-1ade-4351-b020-5598fda976fe', name: 'oussktobiouss', description: null, logo_url: null, domain: 'techocenter.com', …}
-CustomFormFields.tsx:55 استخدام بيانات المؤسسة من التخزين المؤقت
-CustomFormFields.tsx:55 تغيير حالة المصادقة - تحديث حالة التحميل إلى: false
-CustomFormFields.tsx:55 استخدام بيانات المؤسسة من التخزين المؤقت
-CustomFormFields.tsx:55 استخدام معرف المؤسسة من التخزين المحلي: fed872f9-1ade-4351-b020-5598fda976fe
-CustomFormFields.tsx:55 >> بيانات المنتج المسترجعة: {shipping_clone_id: 1, purchase_page_config: {…}}
-CustomFormFields.tsx:55 >> تم العثور على shipping_clone_id مباشرة في المنتج: 1
-CustomFormFields.tsx:55 >> بداية تنفيذ fetchShippingProviderSettings
-CustomFormFields.tsx:55 >> معرف مزود الشحن المستنسخ: 1
-CustomFormFields.tsx:55 >> هل تم توفير معرف مزود الشحن؟ true
-CustomFormFields.tsx:55 >> جاري جلب إعدادات مزود الشحن المستنسخ...
-CustomFormFields.tsx:55 >> محاولة جلب مزود الشحن المستنسخ بالمعرف: 1
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 تم العثور على 58 ولاية من yalidine_provinces_global
-CustomFormFields.tsx:55 بدء جلب المنتجات للمؤسسة: fed872f9-1ade-4351-b020-5598fda976fe
-CustomFormFields.tsx:55 بدء جلب الطلبات للمؤسسة: fed872f9-1ade-4351-b020-5598fda976fe
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 تم تحميل 38 منتج بنجاح
-CustomFormFields.tsx:55 تم تحميل 94 طلب بنجاح
-CustomFormFields.tsx:55 جلب بيانات المستخدمين
-CustomFormFields.tsx:55 >> تم جلب بيانات مزود الشحن المستنسخ بنجاح: {id: 1, organization_id: 'fed872f9-1ade-4351-b020-5598fda976fe', original_provider_id: 1, name: 'ياليدين 13‏/5‏/2025', is_active: true, …}
-CustomFormFields.tsx:55 >> حالة التوصيل للمنزل: false
-CustomFormFields.tsx:55 >> حالة التوصيل للمكتب: true
-CustomFormFields.tsx:55 >> تم جلب إعدادات مزود الشحن المستنسخ بنجاح: {id: 1, organization_id: 'fed872f9-1ade-4351-b020-5598fda976fe', original_provider_id: 1, name: 'ياليدين 13‏/5‏/2025', is_active: true, …}
-CustomFormFields.tsx:55 >> حالة التوصيل للمنزل: false
-CustomFormFields.tsx:55 >> حالة التوصيل للمكتب: true
-CustomFormFields.tsx:55 >> تعيين نوع التوصيل الافتراضي إلى: desk (المكتب فقط)
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 تم تحديد إعدادات مزود الشحن - تكوين الخيارات المتاحة
-CustomFormFields.tsx:55 تعيين نوع التوصيل الافتراضي إلى: desk (فقط الاستلام من المكتب متاح)
-CustomFormFields.tsx:55 التحقق من إعدادات التوصيل: {is_home_delivery_enabled: false, is_desk_delivery_enabled: true, currentDeliveryType: 'desk'}
-CustomFormFields.tsx:55 تعيين قيمة حقل deliveryOption في النموذج: desk
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> بيانات المنتج المسترجعة: {shipping_clone_id: 1, purchase_page_config: {…}}
-CustomFormFields.tsx:55 >> تم العثور على shipping_clone_id مباشرة في المنتج: 1
-CustomFormFields.tsx:55 >> بداية تنفيذ fetchShippingProviderSettings
-CustomFormFields.tsx:55 >> معرف مزود الشحن المستنسخ: 1
-CustomFormFields.tsx:55 >> هل تم توفير معرف مزود الشحن؟ true
-CustomFormFields.tsx:55 >> جاري جلب إعدادات مزود الشحن المستنسخ...
-CustomFormFields.tsx:55 >> محاولة جلب مزود الشحن المستنسخ بالمعرف: 1
-CustomFormFields.tsx:55 تم العثور على 58 ولاية من yalidine_provinces_global
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: لا توجد إعدادات
-CustomFormFields.tsx:55 اكتمل تحميل بيانات المتجر بنجاح
-CustomFormFields.tsx:55 >> تم جلب بيانات مزود الشحن المستنسخ بنجاح: {id: 1, organization_id: 'fed872f9-1ade-4351-b020-5598fda976fe', original_provider_id: 1, name: 'ياليدين 13‏/5‏/2025', is_active: true, …}
-CustomFormFields.tsx:55 >> حالة التوصيل للمنزل: false
-CustomFormFields.tsx:55 >> حالة التوصيل للمكتب: true
-CustomFormFields.tsx:55 >> تم تحديث إعدادات مزود الشحن: {is_home_delivery_enabled: false, is_desk_delivery_enabled: true}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> تم تحديد إعدادات مزود الشحن - تكوين الخيارات المتاحة {is_home_delivery_enabled: false, is_desk_delivery_enabled: true}
-CustomFormFields.tsx:55 >> تعيين نوع التوصيل الافتراضي إلى: desk (فقط الاستلام من المكتب متاح)
-CustomFormFields.tsx:55 >> تعيين قيمة حقل deliveryOption في النموذج: desk
-CustomFormFields.tsx:55 >> تحديث قيمة حقل التوصيل في الحقول الممتدة: {fieldName: 'fixedDeliveryType', oldValue: 'home', newValue: 'desk'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> تم جلب بيانات مزود الشحن المستنسخ بنجاح: {id: 1, organization_id: 'fed872f9-1ade-4351-b020-5598fda976fe', original_provider_id: 1, name: 'ياليدين 13‏/5‏/2025', is_active: true, …}
-CustomFormFields.tsx:55 >> حالة التوصيل للمنزل: false
-CustomFormFields.tsx:55 >> حالة التوصيل للمكتب: true
-CustomFormFields.tsx:55 >> تم تحديث إعدادات مزود الشحن: {is_home_delivery_enabled: false, is_desk_delivery_enabled: true}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> تم تحديد إعدادات مزود الشحن - تكوين الخيارات المتاحة {is_home_delivery_enabled: false, is_desk_delivery_enabled: true}
-CustomFormFields.tsx:55 >> تعيين نوع التوصيل الافتراضي إلى: desk (فقط الاستلام من المكتب متاح)
-CustomFormFields.tsx:55 >> تعيين قيمة حقل deliveryOption في النموذج: desk
-CustomFormFields.tsx:55 >> تحديث قيمة حقل التوصيل في الحقول الممتدة: {fieldName: 'fixedDeliveryType', oldValue: 'home', newValue: 'desk'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 تم حفظ الفئات محليًا: 20
-CustomFormFields.tsx:55 تم حفظ الفئات الفرعية محليًا: 4
-CustomFormFields.tsx:55 تم حفظ الفئات الفرعية محليًا: 1
-CustomFormFields.tsx:55 تم حفظ الفئات الفرعية محليًا: 1
-CustomFormFields.tsx:55 تم حفظ الفئات الفرعية محليًا: 1
-CustomFormFields.tsx:55 تم حفظ الفئات الفرعية محليًا: 1
-CustomFormFields.tsx:55 تمت مزامنة بيانات الفئات والفئات الفرعية بنجاح
-CustomFormFields.tsx:55 تكوين المؤقت الحالي: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-CustomFormFields.tsx:55 تكوين المؤقت الحالي: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-CustomFormFields.tsx:55 تفاصيل المؤقت: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-CustomFormFields.tsx:55 معلومات المؤقت النهائية: {enabled: true, endDate: '2025-07-25T18:20:00.000Z', textAbove: 'العرض ينتهي خلال', textBelow: 'لا فتوت التخفيضات'}
-CustomFormFields.tsx:55 تفاصيل المؤقت: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-CustomFormFields.tsx:55 معلومات المؤقت النهائية: {enabled: true, endDate: '2025-07-25T18:20:00.000Z', textAbove: 'العرض ينتهي خلال', textBelow: 'لا فتوت التخفيضات'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 تكوين المؤقت الحالي: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-CustomFormFields.tsx:55 تكوين المؤقت الحالي: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-CustomFormFields.tsx:55 تكوين المؤقت الحالي: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-CustomFormFields.tsx:55 تكوين المؤقت الحالي: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-CustomFormFields.tsx:55 تفاصيل المؤقت: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-CustomFormFields.tsx:55 معلومات المؤقت النهائية: {enabled: true, endDate: '2025-07-25T18:20:00.000Z', textAbove: 'العرض ينتهي خلال', textBelow: 'لا فتوت التخفيضات'}
-CustomFormFields.tsx:55 تفاصيل المؤقت: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-CustomFormFields.tsx:55 معلومات المؤقت النهائية: {enabled: true, endDate: '2025-07-25T18:20:00.000Z', textAbove: 'العرض ينتهي خلال', textBelow: 'لا فتوت التخفيضات'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 تكوين المؤقت الحالي: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-CustomFormFields.tsx:55 تكوين المؤقت الحالي: {style: 'minimal', enabled: true, endDate: '2025-07-25T18:20:00.000Z', message: '', textAbove: 'العرض ينتهي خلال', …}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 تحديث حقل fullName في النموذج الرئيسي بقيمة: أسامة قنطري
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 تحديث حقل phone في النموذج الرئيسي بقيمة: 0655880236
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 Form values changed significantly, saving abandoned cart.
-CustomFormFields.tsx:55 جاري جلب قائمة البلديات للولاية 12 من yalidine_municipalities_global
-CustomFormFields.tsx:55 تحديث حقل province في النموذج الرئيسي بقيمة: 12
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 تم العثور على 28 بلدية للولاية 12
-CustomFormFields.tsx:55 تم العثور على 28 بلدية للولاية 12
-CustomFormFields.tsx:55 البلديات المتاحة: (28) [{…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}]
-CustomFormFields.tsx:55 تعيين القيمة الافتراضية للبلدية: 1201 (Tébessa)
-CustomFormFields.tsx:55 تحديث حقل municipality في النموذج الرئيسي بقيمة: 1201
-CustomFormFields.tsx:55 تم تعيين حقل البلدية في النموذج الرئيسي بالقيمة: 1201
-CustomFormFields.tsx:55 تم تعيين قيمة البلدية في النموذج عند التحميل: 1201
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> تم اختيار نوع التوصيل 'desk' لأنه الخيار الوحيد المتاح
-CustomFormFields.tsx:55 >> تحديث نوع التوصيل من home إلى desk بناءً على الخيارات المتاحة
-CustomFormFields.tsx:55 >> استخدام إعدادات مزود التوصيل المحملة: 1
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 Attempting to save abandoned cart: {organization_id: 'fed872f9-1ade-4351-b020-5598fda976fe', customer_phone: '0655880236', customer_name: 'أسامة قنطري', delivery_option: 'desk', payment_method: 'cash_on_delivery', …}
-CustomFormFields.tsx:55 Body as JSON string before sending: {"organization_id":"fed872f9-1ade-4351-b020-5598fda976fe","customer_phone":"0655880236","customer_name":"أسامة قنطري","delivery_option":"desk","payment_method":"cash_on_delivery","quantity":1,"product_id":"3459311f-de31-46b7-bd84-28664d3b71dc","product_color_id":null,"product_size_id":null,"calculated_delivery_fee":0,"subtotal":2900,"discount_amount":0,"total_amount":2900}
-CustomFormFields.tsx:55 Abandoned cart saved/updated successfully via fetch: {id: '0b85a2ac-ba5a-49ac-b8ee-c37bdacb74ca', organization_id: 'fed872f9-1ade-4351-b020-5598fda976fe', product_id: '3459311f-de31-46b7-bd84-28664d3b71dc', product_color_id: null, product_size_id: null, …}
-CustomFormFields.tsx:55 تحديث حقل municipality في النموذج الرئيسي بقيمة: 1206
-CustomFormFields.tsx:55 تم تعيين حقل البلدية في النموذج الرئيسي بالقيمة: 1206
-CustomFormFields.tsx:55 تم تحديث قيمة البلدية (municipality) إلى: 1206
-CustomFormFields.tsx:55 >> تم اختيار نوع التوصيل 'desk' لأنه الخيار الوحيد المتاح
-CustomFormFields.tsx:55 >> تحديث نوع التوصيل من home إلى desk بناءً على الخيارات المتاحة
-CustomFormFields.tsx:55 >> استخدام إعدادات مزود التوصيل المحملة: 1
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 تم التحقق من الاتصال بـ Supabase بنجاح
-CustomFormFields.tsx:55 جاري جلب قائمة البلديات للولاية 17 من yalidine_municipalities_global
-CustomFormFields.tsx:55 تحديث حقل province في النموذج الرئيسي بقيمة: 17
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 تم العثور على 36 بلدية للولاية 17
-CustomFormFields.tsx:55 تم العثور على 36 بلدية للولاية 17
-CustomFormFields.tsx:55 البلديات المتاحة: (2) [{…}, {…}]
-CustomFormFields.tsx:55 تعيين القيمة الافتراضية للبلدية: 1705 (Aïn Oussara (مكتب توصيل متاح))
-CustomFormFields.tsx:55 تحديث حقل municipality في النموذج الرئيسي بقيمة: 1705
-CustomFormFields.tsx:55 تم تعيين حقل البلدية في النموذج الرئيسي بالقيمة: 1705
-CustomFormFields.tsx:55 تم تعيين قيمة البلدية في النموذج عند التحميل: 1705
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> تم اختيار نوع التوصيل 'desk' لأنه الخيار الوحيد المتاح
-CustomFormFields.tsx:55 >> استخدام إعدادات مزود التوصيل المحملة: 1
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 تحديث حقل municipality في النموذج الرئيسي بقيمة: 1714
-CustomFormFields.tsx:55 تم تعيين حقل البلدية في النموذج الرئيسي بالقيمة: 1714
-CustomFormFields.tsx:55 تم تحديث قيمة البلدية (municipality) إلى: 1714
-CustomFormFields.tsx:55 >> تم اختيار نوع التوصيل 'desk' لأنه الخيار الوحيد المتاح
-CustomFormFields.tsx:55 >> تحديث نوع التوصيل من home إلى desk بناءً على الخيارات المتاحة
-CustomFormFields.tsx:55 >> استخدام إعدادات مزود التوصيل المحملة: 1
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 تحديث حقل address في النموذج الرئيسي بقيمة: كتوبي بيبيبيبيبيبب
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fullName'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'phone'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'fixedDeliveryType'}
-CustomFormFields.tsx:55 >> معالجة حقل نوع التوصيل الثابت مع توفر الإعدادات: {isHomeEnabled: false, isDeskEnabled: true}
-CustomFormFields.tsx:55 >> عرض خيار التوصيل للمكتب فقط
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'province'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'municipality'}
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
-CustomFormFields.tsx:55 >> خيارات التوصيل المتاحة: {isHomeEnabled: false, isDeskEnabled: true, isHomeOnlyDelivery: false, isDeskOnlyDelivery: true, fieldName: 'address'}
-CustomFormFields.tsx:55 Form values changed significantly, saving abandoned cart.
-CustomFormFields.tsx:55 قيم النموذج الكاملة قبل التحقق: {fullName: 'أسامة قنطري', phone: '0655880236', province: '17', municipality: '1714', address: 'كتوبي بيبيبيبيبيبب', …}
-CustomFormFields.tsx:55 [OrderForm] Double checking before validation: deliveryOption is 'desk'.
-CustomFormFields.tsx:55 [OrderForm] Municipality is '1714', clearing it for 'desk' delivery.
-CustomFormFields.tsx:55 [OrderForm] Municipality has been cleared. New formValues.municipality: 
-OrderForm.tsx:516 حقول مفقودة: ['stopDeskId']
-processFormSubmission @ OrderForm.tsx:516
-onClick @ OrderForm.tsx:1306
-callCallback2 @ chunk-R3KAX6OZ.js?v=169e9bd4:10558
-invokeGuardedCallbackDev @ chunk-R3KAX6OZ.js?v=169e9bd4:10583
-invokeGuardedCallback @ chunk-R3KAX6OZ.js?v=169e9bd4:10617
-invokeGuardedCallbackAndCatchFirstError @ chunk-R3KAX6OZ.js?v=169e9bd4:10620
-executeDispatch @ chunk-R3KAX6OZ.js?v=169e9bd4:13924
-processDispatchQueueItemsInOrder @ chunk-R3KAX6OZ.js?v=169e9bd4:13944
-processDispatchQueue @ chunk-R3KAX6OZ.js?v=169e9bd4:13953
-dispatchEventsForPlugins @ chunk-R3KAX6OZ.js?v=169e9bd4:13961
-(anonymous) @ chunk-R3KAX6OZ.js?v=169e9bd4:14084
-batchedUpdates$1 @ chunk-R3KAX6OZ.js?v=169e9bd4:25844
-batchedUpdates @ chunk-R3KAX6OZ.js?v=169e9bd4:10463
-dispatchEventForPluginEventSystem @ chunk-R3KAX6OZ.js?v=169e9bd4:14083
-dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-R3KAX6OZ.js?v=169e9bd4:12362
-dispatchEvent @ chunk-R3KAX6OZ.js?v=169e9bd4:12356
-dispatchDiscreteEvent @ chunk-R3KAX6OZ.js?v=169e9bd4:12333Understand this error
-CustomFormFields.tsx:55 >> إعدادات مزود الشحن المستخدمة في renderField: الإعدادات الفعلية (1) - المنزل: false, المكتب: true
+Introduction
+yalidine provides a Webhook service to notify your application (website) when events occur. These notifications are almost realtime and provides an alternative to polling the REST API. The purpose is to be able to trigger event-based behavior as soon as an event occurs (like when a parcel’s delivery status has changed, a parcel has been created, edited, deleted, etc). This way you will be able to build gamification mechanism, live dashboard, synchronizing contents, etc.
+
+Using the webhooks prevents you from sending repetitive query to the API and helps you preserve your quotas. Webhooks will notify you as soon as something happen in your account.
+
+Why Use Webhooks
+Let's say you've registered to receive the parcel_status_updated event. When the yalidine delivery agent takes your parcel to delivery, a webhook from yalidine will tell your app that a specific parcel (tracking) has got a new status Sorti en livraison. After your webhook endpoint receives the parcel_status_updated event, your app can then run a specific action (Ex. sending a message to your parcel recipient to tell him that his parcel will be delivered today).
+
+Steps to receive webhooks
+to receiving event notifications in your app, you can follow these guidelines :
+
+Create a webhook endpoint as an HTTPS endpoint (url) on your server.
+Your endpoint must returns a 200 response status and a valid crc_token.
+Create a webhook in your yalidine Webhooks Dashboard.
+Develop and then test that your webhook endpoint is working properly with the webhooks test page.
+When your webhook is ready, change its status to 'active'
+Then, You will receive the notification event as soon as it happens
+
+Best Practices
+To ensure that your webhooks remains secure and functions seamlessly, we strongly recommend implementing these best practices.
+
+crc_token Validation
+Make sure that your endpoint always contains the crc_token validation code. Yalidine will try to validate your webhook from time to time. If your endpoint does not return a valid crc_token your webhook will be disabled. Read more on Validate A Webhook section.
+
+Event Delivery
+Yalidine deliver the event notification request reasonably fast.
+Each webhook delivery contains one or many event of the same event type (We group the events of the same type and send them in the same notification).
+Read more on Events Format section.
+
+Event Fields
+Expect new fields to appear without notice in event structure, and make sure that this can be handled by your code. We will preserve existing field though for backward compatibility as long as we can.
+
+Response
+Your endpoint must return a 200 response code in less than 10 seconds. When you receive a payload we strongly recommend the following :
+
+Do not run a long time-consuming script.
+Store the payload in a queue for background processing
+Return the response code immediately.
+Handle the received events later with another script.
+Otherwise, Your webhooks can be disabled. Read more on The Retry Policy section.
+
+Retry Logic
+Be aware of the retry logic on The Retry Policy section.
+
+Disable Webhook Logic
+Yalidine will attempt to notify you via email if an endpoint has not responded with a 200 HTTP status code for multiple days in a row. The email also states when the endpoint will be automatically disabled
+
+Duplicate Events
+Your webhook endpoints might receive the same event more than once. Each event has a unique event_id so you can prevent processing the duplicate events by logging the events you’ve processed, and then not processing already-logged events.
+
+Order of events
+Yalidine does not guarantee delivery of events in the order in which they are generated.
+However, We provide in every event the exact point in time the event was occurred_at.
+
+Security
+To keep your endpoint secure, You will receive a signature in every webhook delivery to verify events are coming from Yalidine. Read more on Secure Your Webhook section.
+
+Secret Key
+The webhook delivery's signature is generated using the payload and your Secret Key.
+
+Events Format
+The payload is always sent to your endpoint in JSON format with POST request.
+
+We also send a signature in the header, this will help you secure your webhooks. Read more on Secure Your Webhook
+
+Every payload consist of two top-levels elements:
+
+type: One of the type you subscribed to. You can build your endpoint logic depending on the value if this element
+For example, if the value of type is parcel_created then do this. if the valus is [another event type you subscribed to], do this.
+Please note we always send one type per request.
+events: This is An array of generated events.
+Each element of this array is an event and always contains three mid-levels elements:
+event_id: A unique identifier of the event. You can use it to prevent deduplication.
+occurred_at: The point of time when the event was generated. You can use it to preserve the order of the events you received.
+data: The resource that contains the concerned object and if applicable any new value of a specified parameter
+Please not that the content of this element changes depending on the type of the event. please see the example belows for each event type.
+Events
+Those are the event you can subscribe to:
+Event type
+parcel_created
+parcel_edited
+parcel_deleted
+parcel_status_updated
+parcel_payment_updated
+Payload example
+parcel_created JSON
+{
+    "type": "parcel_created",
+    "events": [
+        {
+            "event_id": "roZhsMz3ADWHViETJXyYK8C41vl6FBGe",
+            "occurred_at": "2022-04-28 00:01:26",
+            "data": {
+                "order_id": "myfirstorder",
+                "tracking": "yal-111AAA",
+                "label": "https:\/\/yalidine.app\/app\/bordereau.php?tracking=yal-111AAA&token=TEptSkZ2dXc4clhhQ3A1ODNXQ3VqQT09",
+                "import_id": 654
+            }
+        },
+        {
+            "event_id": "mlOfXQAwr5EUbxzWyGn2sdeIajTkt1NB",
+            "occurred_at": "2022-04-28 00:01:26",
+            "data": {
+                "order_id": "mysecondorder",
+                "tracking": "yal-222BBB",
+                "label": "https:\/\/yalidine.app\/app\/bordereau.php?tracking=yal-222BBB&token=TEptSkZ2dXc4clhhQ3A1ODNXQ3VqQT09",
+                "import_id": 964
+            }
+        }
+    ]
+}
+parcel_edited JSON
+{
+    "type": "parcel_edited",
+    "events": [
+        {
+            "event_id": "4yGstCauFHj5mZWS0Bz7vIKPLrkYpJ2T",
+            "occurred_at": "2022-04-28 00:01:26",
+            "data": {
+                "tracking": "yal-111AAA",
+                "label": "https:\/\/yalidine.app\/app\/bordereau.php?tracking=yal-111AAA&token=TEptSkZ2dXc4clhhQ3A1ODNXQ3VqQT09"
+            }
+        },
+        {
+            "event_id": "SNKTeIa9WGAsYXHfMrl0ZwJj1htR2537",
+            "occurred_at": "2022-04-28 00:01:26",
+            "data": {
+                "tracking": "yal-222BBB",
+                "label": "https:\/\/yalidine.app\/app\/bordereau.php?tracking=yal-222BBB&token=TEptSkZ2dXc4clhhQ3A1ODNXQ3VqQT09"
+            }
+        }
+    ]
+}
+parcel_deleted JSON
+{
+    "type": "parcel_deleted",
+    "events": [
+        {
+            "event_id": "EcXj4YVI8WRLKk5NgAdpbGoQHDnulFSP",
+            "occurred_at": "2022-04-28 00:01:26",
+            "data": {
+                "tracking": "yal-111AAA"
+            }
+        },
+        {
+            "event_id": "ajOyh3tkqgfdn2QMxJVNHipsWXLTBz8U",
+            "occurred_at": "2022-04-28 00:01:26",
+            "data": {
+                "tracking": "yal-222BBB"
+            }
+        }
+    ]
+}
+parcel_status_updated JSON
+{
+    "type": "parcel_status_updated",
+    "events": [
+        {
+            "event_id": "VOz71b8RfruhZToKNQi6JBXy9lnHtcM5",
+            "occurred_at": "2022-04-28 00:01:26",
+            "data": {
+                "tracking": "yal-111AAA",
+                "status": "Sorti en livraison",
+                "reason": null
+            }
+        },
+        {
+            "event_id": "9027HzauZDlyCQJNki3PMYK4BSWRdcwG",
+            "occurred_at": "2022-04-28 12:01:26",
+            "data": {
+                "tracking": "yal-222BBB",
+                "status": "Tentative \u00e9chou\u00e9e",
+                "reason": "Client ne r\u00e9pond pas"
+            }
+        }
+    ]
+}
+parcel_payment_updated JSON
+{
+    "type": "parcel_payment_updated",
+    "events": [
+        {
+            "event_id": "Thb0oqwZMIrWc5KYaxEj7XCfeiGLAsSn",
+            "occurred_at": "2022-04-28 00:01:26",
+            "data": {
+                "tracking": "yal-111AAA",
+                "status": "ready",
+                "payment_id": null
+            }
+        },
+        {
+            "event_id": "zyONu1AvfVixslR0bChTe9dFw2jK7PYJ",
+            "occurred_at": "2022-04-28 12:01:26",
+            "data": {
+                "tracking": "yal-222BBB",
+                "status": "receivable",
+                "payment_id": "pmt-123456"
+            }
+        }
+    ]
+}
+
+Retry Policy
+When we send a webhook-delivery to your endpoint, you must respond in less than 10 seconds with a 200 http code.
+Otherwise, this retry policy will apply
+
+The retry policy consist of doing a total of 7 tentative with an exponential time interval
+
+You will receive an email after each failed retry
+
+After the last tentative, your webhook is automatically disabled.
+
+Retry policy table
+Tentative #	proceed After	Hour example
+1	Immediatly	2025-05-15 20:16:08
+2	5 minute(s) after the previous tentative	2025-05-15 20:21:08
+3	15 minute(s) after the previous tentative	2025-05-15 20:36:08
+4	1 hour(s) after the previous tentative	2025-05-15 21:36:08
+5	3 hour(s) after the previous tentative	2025-05-16 00:36:08
+6	12 hour(s) after the previous tentative	2025-05-16 12:36:08
+7	1 day(s) after the previous tentative	2025-05-17 12:36:08
+Please note: The interval in the previous table are count from the date of the previous tentative, and not the date the event occurred at.
+
+Create A Webhook
+Before creating the webhook subscription, your need to create a file (endpoint) in your server first.
+This endpoint must return a valid crc_token.
+Read more on Validate A Webhook section.
+
+When your endpoint is ready for validation, you will be able to create a webhook successfully.
+
+So, to create w webhook:
+
+Go to Webhooks Dashboard.
+Click on the add button.
+Fill the form with corresponding values
+Webhook Name: A name that let you recognize it afterwards.
+URL of reception: An HTTPS url of your endpoint (This endpoint must return a valid crc_token)
+Email: An email address to receive alert notifications if something goes wrong with the delivery of your events
+Event types: The event you would like to subscribe to. You can choose one or many from the list :
+parcel_created, parcel_edited, parcel_deleted, parcel_status_updated, parcel_payment_updated,
+Click on the Proceed button
+Important: When you click the proceed button, to be sur that you own the chosen url, we will try to validate your endpoint url. Read more on Validate A Webhook section.
+Your webhook will only be created if it passes this validation.
+When your webhook is created, it is automatically disabled. You can then :
+
+
+Validate A Webhook
+To ensure that you own the url of your webhook endpoint, we do a Challenge-Response Check (CRC)
+
+This validation occurs in the following situations:
+
+The creation of a webhook
+The edition of a webhook
+From time to time to validated already created webhooks
+This is how we validate the endpoint:
+
+We will send a GET request to your endpoint URL containing two parameters: subscribe and crc_token
+Your endpoint must always check if the subscribe GET parameter is set (see example below)
+When it is set, you have to echo the crc_token value we sent
+Your endpoint will be validated only when :
+You respond with a 200 code status in less than 10 seconds
+You echo correct value of crc_token
+Example
+
+Endpoint Validation PHP
+‹?php
+    // validation start.
+
+    // This code must always be present to prevent your webhook from being disabled.
+    if(isset($_GET["subscribe"], $_GET["crc_token"])) {
+        echo $_GET["crc_token"];
+        exit();
+    }
+    // validation end.
+
+    /* rest of the code
+        ...
+    */
+
+
+Edit A Webhook
+To edit a webhook:
+
+Go to Webhooks Dashboard
+Click on the edit button in the webhook card you wish to edit
+Make the changes you want
+Click on Proceed
+When you edit a webhook, yalidine will validate the url again.
+

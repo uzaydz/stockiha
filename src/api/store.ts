@@ -156,27 +156,21 @@ export async function getStoreInfoBySubdomain(subdomain: string): Promise<Organi
 // جلب المنتجات المميزة
 export async function getFeaturedProducts(organizationId: string): Promise<Product[]> {
   try {
-    
-     // سجل عنوان Supabase
-    
     if (!organizationId) {
       console.error('معرف المؤسسة فارغ أو غير محدد في getFeaturedProducts!');
       return [];
     }
     
-    
+    console.log('جلب المنتجات المميزة للمؤسسة:', organizationId);
     
     // استعلام بسيط جداً للتأكد من عمله - إضافة شرط is_active = true
     const supabaseClient = await getSupabaseClient();
     const { data: productsRaw, error } = await supabaseClient
       .from('products')
-      .select('id, name, description, price, compare_at_price, thumbnail_image, stock_quantity')
+      .select('id, name, description, price, compare_at_price, thumbnail_image, thumbnail_url, images, stock_quantity, created_at, is_featured, is_active, slug, is_new')
       .eq('organization_id', organizationId)
       .eq('is_active', true) // إضافة شرط للتأكد من أن المنتج مفعل
-      .limit(10);
-    
-    
-    
+      .limit(20);
     
     if (error) {
       console.error('Error in getFeaturedProducts simple query:', error);
@@ -185,19 +179,16 @@ export async function getFeaturedProducts(organizationId: string): Promise<Produ
     }
     
     if (!productsRaw || productsRaw.length === 0) {
-      
+      console.log('لا توجد منتجات مميزة للمؤسسة', organizationId);
       
       // لأغراض التصحيح - محاولة استعلام مباشر دون تحديد معرف المؤسسة
       const { data: allProducts, error: allError } = await supabaseClient
         .from('products')
-        .select('id, organization_id, is_active')
+        .select('id, organization_id, is_active, thumbnail_image, thumbnail_url')
         .limit(5);
       
-      
       if (allProducts && allProducts.length > 0) {
-        
-        
-        
+        console.log('نماذج المنتجات المتاحة:', allProducts);
       }
       
       if (allError) {
@@ -207,24 +198,115 @@ export async function getFeaturedProducts(organizationId: string): Promise<Produ
       return [];
     }
     
-    // تحويل البيانات الأولية إلى منتجات
-    const products = productsRaw.map(product => ({
-      id: product.id,
-      name: product.name,
-      description: product.description || '',
-      price: parseFloat(product.price?.toString() || '0'), // Convert to string before parseFloat
-      discount_price: product.compare_at_price ? parseFloat(product.compare_at_price.toString()) : undefined, // Convert to string
-      imageUrl: product.thumbnail_image || '',
-      category: 'عام', // قيمة افتراضية
-      is_new: false,
-      is_featured: false,
-      stock_quantity: product.stock_quantity || 0,
-      slug: product.id,
-      rating: 4.5, // قيمة افتراضية للتقييم
-      colors: [],
-      additional_images: []
-    }));
+    console.log('تم العثور على', productsRaw.length, 'منتج مميز');
+    console.log('نماذج البيانات الخام:', productsRaw.slice(0, 2)); // عرض أول عنصرين فقط
     
+    // تحويل البيانات الأولية إلى منتجات
+    const products = productsRaw.map(product => {
+      // معالجة روابط الصور المصغرة للتأكد من صحتها
+      let thumbnailImage = '';
+      
+      // استخدم thumbnail_url أولاً إذا كان متاحاً، ثم انتقل إلى thumbnail_image
+      if (product.thumbnail_url) {
+        thumbnailImage = product.thumbnail_url.trim();
+        console.log(`المنتج ${product.id} - يستخدم thumbnail_url:`, thumbnailImage);
+      } else if (product.thumbnail_image) {
+        thumbnailImage = product.thumbnail_image.trim();
+        console.log(`المنتج ${product.id} - يستخدم thumbnail_image:`, thumbnailImage);
+      }
+      
+      // إضافة بروتوكول إذا كان مفقودًا
+      if (thumbnailImage && !thumbnailImage.startsWith('http://') && !thumbnailImage.startsWith('https://')) {
+        if (thumbnailImage.startsWith('//')) {
+          thumbnailImage = `https:${thumbnailImage}`;
+        } else if (thumbnailImage.startsWith('/')) {
+          // روابط نسبية للخادم
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+          if (supabaseUrl) {
+            thumbnailImage = `${supabaseUrl}${thumbnailImage}`;
+          }
+        } else if (thumbnailImage.startsWith('www.')) {
+          thumbnailImage = `https://${thumbnailImage}`;
+        } else if (thumbnailImage) {
+          // روابط أخرى بدون بروتوكول
+          thumbnailImage = `https://${thumbnailImage}`;
+        }
+      }
+      
+      // تنظيف المسافات داخل الرابط
+      if (thumbnailImage) {
+        thumbnailImage = thumbnailImage.replace(/\s+/g, '%20');
+        
+        // التحقق من صحة بنية الرابط
+        try {
+          new URL(thumbnailImage);
+        } catch (e) {
+          console.warn(`رابط صورة غير صالح في المنتج ${product.id}:`, thumbnailImage);
+          // استخدام صورة افتراضية في حالة الرابط غير الصالح
+          thumbnailImage = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470';
+        }
+        
+        console.log(`المنتج ${product.id} - رابط الصورة المصغرة بعد المعالجة:`, thumbnailImage);
+      } else {
+        // استخدام صورة افتراضية في حالة عدم وجود صورة مصغرة
+        thumbnailImage = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470';
+        console.log(`المنتج ${product.id} - ليس له صورة مصغرة، تم تعيين صورة افتراضية`);
+      }
+      
+      // معالجة مصفوفة الصور الإضافية
+      let additionalImages: string[] = [];
+      
+      if (product.images && Array.isArray(product.images)) {
+        additionalImages = product.images
+          .filter(imgUrl => imgUrl && typeof imgUrl === 'string')
+          .map(imgUrl => {
+            let processedUrl = imgUrl.trim();
+            
+            // نفس معالجة البروتوكول
+            if (!processedUrl.startsWith('http://') && !processedUrl.startsWith('https://')) {
+              if (processedUrl.startsWith('//')) {
+                processedUrl = `https:${processedUrl}`;
+              } else if (processedUrl.startsWith('/')) {
+                const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+                if (supabaseUrl) {
+                  processedUrl = `${supabaseUrl}${processedUrl}`;
+                }
+              } else {
+                processedUrl = `https://${processedUrl}`;
+              }
+            }
+            
+            // تنظيف المسافات
+            processedUrl = processedUrl.replace(/\s+/g, '%20');
+            
+            return processedUrl;
+          });
+      }
+      
+      // إذا لم تكن هناك صور إضافية، أضف الصورة المصغرة كصورة إضافية
+      if (additionalImages.length === 0 && thumbnailImage) {
+        additionalImages = [thumbnailImage];
+      }
+      
+      return {
+        id: product.id,
+        name: product.name,
+        description: product.description || '',
+        price: parseFloat(product.price?.toString() || '0'), // Convert to string before parseFloat
+        discount_price: product.compare_at_price ? parseFloat(product.compare_at_price.toString()) : undefined, // Convert to string
+        imageUrl: thumbnailImage,
+        category: 'عام', // قيمة افتراضية
+        is_new: !!product.is_new,
+        is_featured: !!product.is_featured,
+        stock_quantity: product.stock_quantity || 0,
+        slug: product.slug || product.id,
+        rating: 4.5, // قيمة افتراضية للتقييم
+        colors: [],
+        additional_images: additionalImages
+      };
+    });
+    
+    console.log('المنتجات بعد التحويل:', products.slice(0, 2)); // عرض أول عنصرين فقط
     
     return products;
   } catch (error) {

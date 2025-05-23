@@ -15,6 +15,10 @@ import { Loader2, ShieldAlert } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { checkUserPermissions } from "@/lib/api/permissions";
 
+// استيراد مكونات وأدوات لتتبع استعلامات Supabase
+import { interceptSupabaseQueries } from "@/lib/supabase-interceptor";
+import QueryVisualizer from "@/components/debug/QueryVisualizer";
+
 // استيراد المكونات الجديدة
 import OrdersTable, { type Order } from "@/components/orders/OrdersTable";
 import OrdersDashboard from "@/components/orders/OrdersDashboard";
@@ -84,6 +88,12 @@ const Orders = () => {
   // بيانات حالات تأكيد الإتصال
   const [callConfirmationStatuses, setCallConfirmationStatuses] = useState<any[]>([]);
   const [callConfirmationLoading, setCallConfirmationLoading] = useState(false);
+
+  // تفعيل معترض Supabase لتتبع الاستعلامات
+  useEffect(() => {
+    // تهيئة معترض استعلامات Supabase
+    interceptSupabaseQueries(supabase);
+  }, []);
 
   // التحقق من صلاحيات المستخدم
   useEffect(() => {
@@ -869,6 +879,9 @@ const Orders = () => {
                   </button>
                 </div>
               )}
+              
+              {/* إضافة مكون عارض استعلامات Supabase */}
+              <QueryVisualizer />
             </TabsContent>
           </Tabs>
         )}

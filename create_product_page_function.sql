@@ -6,123 +6,205 @@ LANGUAGE sql
 STABLE
 AS $$
   SELECT jsonb_build_object(
-    'product', product,
-    'colors', colors,
-    'sizes', sizes,
-    'form_settings', form_settings
+    'product', product_details.product_data,
+    'colors', product_details.colors_data,
+    'sizes', product_details.sizes_data,
+    'form_settings', product_details.form_settings_data,
+    'marketing_settings', product_details.marketing_settings_data,
+    'reviews', product_details.reviews_data
   )
   FROM (
-    -- المنتج الأساسي مع كافة البيانات المطلوبة
-    SELECT jsonb_build_object(
-      'id', p.id,
-      'name', p.name,
-      'price', p.price,
-      'discount_price', p.compare_at_price,
-      'stock_quantity', p.stock_quantity,
-      'description', p.description,
-      'short_description', SUBSTRING(p.description, 1, 150),
-      'thumbnail_image', p.thumbnail_image,
-      'has_fast_shipping', p.has_fast_shipping,
-      'has_money_back', p.has_money_back,
-      'has_quality_guarantee', p.has_quality_guarantee,
-      'fast_shipping_text', p.fast_shipping_text,
-      'money_back_text', p.money_back_text,
-      'quality_guarantee_text', p.quality_guarantee_text,
-      'purchase_page_config', p.purchase_page_config,
-      'is_new', p.is_new,
-      'is_featured', p.is_featured,
-      'delivery_fee', 0, -- قيمة افتراضية لرسوم التوصيل
-      'use_sizes', p.use_sizes,
-      'additional_images', (
-        SELECT jsonb_agg(pi.image_url ORDER BY pi.sort_order) 
-        FROM product_images pi 
-        WHERE pi.product_id = p.id
-      ),
-      'category', (
+    SELECT
+      p.id as product_id,
+      p.form_template_id,
+      p.organization_id as org_id_for_forms,
+      jsonb_build_object(
+        'id', p.id,
+        'name', p.name,
+        'slug', p.slug,
+        'price', p.price,
+        'compare_at_price', p.compare_at_price,
+        'stock_quantity', p.stock_quantity,
+        'description', p.description,
+        'short_description', SUBSTRING(p.description, 1, 150),
+        'thumbnail_image', p.thumbnail_image,
+        'has_fast_shipping', p.has_fast_shipping,
+        'has_money_back', p.has_money_back,
+        'has_quality_guarantee', p.has_quality_guarantee,
+        'fast_shipping_text', p.fast_shipping_text,
+        'money_back_text', p.money_back_text,
+        'quality_guarantee_text', p.quality_guarantee_text,
+        'purchase_page_config', p.purchase_page_config,
+        'is_new', p.is_new,
+        'is_featured', p.is_featured,
+        'delivery_fee', 0,
+        'use_sizes', p.use_sizes,
+        'has_variants', p.has_variants,
+        'form_template_id', p.form_template_id,
+        'organization_id', p.organization_id,
+        'additional_images', (
+          SELECT COALESCE(jsonb_agg(pi.image_url ORDER BY pi.sort_order), '[]'::jsonb)
+          FROM product_images pi
+          WHERE pi.product_id = p.id
+        ),
+        'category', (
+          SELECT jsonb_build_object(
+            'id', c.id,
+            'name', c.name,
+            'slug', c.slug
+          )
+          FROM product_categories c
+          WHERE c.id = p.category_id
+        ),
+        'subcategory', (
+          SELECT jsonb_build_object(
+            'id', sc.id,
+            'name', sc.name,
+            'slug', sc.slug
+          )
+          FROM product_subcategories sc
+          WHERE sc.id = p.subcategory_id
+        )
+      ) AS product_data,
+      (
+        SELECT COALESCE(jsonb_agg(
+          jsonb_build_object(
+            'id', pc.id,
+            'name', pc.name,
+            'color_code', pc.color_code,
+            'image_url', pc.image_url,
+            'quantity', pc.quantity,
+            'price', pc.price,
+            'is_default', pc.is_default,
+            'barcode', pc.barcode,
+            'has_sizes', pc.has_sizes,
+            'product_id', pc.product_id
+          )
+          ORDER BY pc.is_default DESC, pc.id
+        ), '[]'::jsonb)
+        FROM product_colors pc
+        WHERE pc.product_id = p.id
+      ) AS colors_data,
+      (
+        SELECT COALESCE(jsonb_agg(
+          jsonb_build_object(
+            'id', ps.id,
+            'product_id', ps.product_id,
+            'color_id', ps.color_id,
+            'size_name', ps.size_name,
+            'quantity', ps.quantity,
+            'price', ps.price,
+            'barcode', ps.barcode,
+            'is_default', ps.is_default
+          )
+          ORDER BY ps.color_id, ps.is_default DESC, ps.id
+        ), '[]'::jsonb)
+        FROM product_sizes ps
+        WHERE ps.product_id = p.id
+      ) AS sizes_data,
+      (
         SELECT jsonb_build_object(
-          'id', c.id,
-          'name', c.name,
-          'slug', c.slug
+            'id', pms.id,
+            'product_id', pms.product_id,
+            'organization_id', pms.organization_id,
+
+            'offer_timer_enabled', pms.offer_timer_enabled,
+            'offer_timer_title', pms.offer_timer_title,
+            'offer_timer_type', pms.offer_timer_type,
+            'offer_timer_duration_minutes', pms.offer_timer_duration_minutes,
+            'offer_timer_end_date', pms.offer_timer_end_date,
+            'offer_timer_text_above', pms.offer_timer_text_above,
+            'offer_timer_text_below', pms.offer_timer_text_below,
+            'offer_timer_display_style', pms.offer_timer_display_style,
+            'offer_timer_end_action', pms.offer_timer_end_action,
+            'offer_timer_end_action_url', pms.offer_timer_end_action_url,
+            'offer_timer_end_action_message', pms.offer_timer_end_action_message,
+            'offer_timer_restart_for_new_session', pms.offer_timer_restart_for_new_session,
+            'offer_timer_cookie_duration_days', pms.offer_timer_cookie_duration_days,
+            'offer_timer_show_on_specific_pages_only', pms.offer_timer_show_on_specific_pages_only,
+            'offer_timer_specific_page_urls', pms.offer_timer_specific_page_urls,
+
+            'enable_reviews', pms.enable_reviews,
+            'reviews_verify_purchase', pms.reviews_verify_purchase,
+            'reviews_auto_approve', pms.reviews_auto_approve,
+            'allow_images_in_reviews', pms.allow_images_in_reviews,
+            'enable_review_replies', pms.enable_review_replies,
+            'review_display_style', pms.review_display_style,
+            'enable_fake_star_ratings', pms.enable_fake_star_ratings,
+            'fake_star_rating_value', pms.fake_star_rating_value,
+            'fake_star_rating_count', pms.fake_star_rating_count,
+            'enable_fake_purchase_counter', pms.enable_fake_purchase_counter,
+            'fake_purchase_count', pms.fake_purchase_count,
+
+            'enable_facebook_pixel', pms.enable_facebook_pixel,
+            'facebook_pixel_id', pms.facebook_pixel_id,
+            'enable_tiktok_pixel', pms.enable_tiktok_pixel,
+            'tiktok_pixel_id', pms.tiktok_pixel_id,
+            'enable_snapchat_pixel', pms.enable_snapchat_pixel,
+            'snapchat_pixel_id', pms.snapchat_pixel_id,
+            'enable_google_ads_tracking', pms.enable_google_ads_tracking,
+            'google_ads_conversion_id', pms.google_ads_conversion_id,
+
+            'created_at', pms.created_at,
+            'updated_at', pms.updated_at
         )
-        FROM product_categories c 
-        WHERE c.id = p.category_id
-      )
-    ) AS product,
-    p.id as product_id
+        FROM product_marketing_settings pms
+        WHERE pms.product_id = p.id AND pms.organization_id = p_org_id
+        LIMIT 1
+      ) AS marketing_settings_data,
+      (
+        SELECT COALESCE(jsonb_agg(
+          jsonb_build_object(
+            'id', pr.id,
+            'product_id', pr.product_id,
+            'user_id', pr.user_id,
+            'rating', pr.rating,
+            'comment', pr.comment,
+            'images', pr.images,
+            'is_verified_purchase', pr.is_verified_purchase,
+            'is_approved', pr.is_approved,
+            'admin_reply_text', pr.admin_reply_text,
+            'created_at', pr.created_at
+          )
+          ORDER BY pr.created_at DESC
+        ), '[]'::jsonb)
+        FROM product_reviews pr
+        WHERE pr.product_id = p.id AND pr.is_approved = true
+      ) AS reviews_data,
+      (
+        SELECT fs_data.form_object
+        FROM (
+            SELECT
+                jsonb_build_object(
+                    'id', fs.id,
+                    'name', fs.name,
+                    'is_default', fs.is_default,
+                    'is_active', fs.is_active,
+                    'version', fs.version,
+                    'fields', fs.fields,
+                    'settings', fs.settings,
+                    'organization_id', fs.organization_id
+                ) as form_object,
+                CASE
+                    WHEN fs.id = p.form_template_id THEN 0
+                    WHEN fs.is_default = true THEN 1
+                    ELSE 2
+                END as priority_order
+            FROM form_settings fs
+            WHERE fs.organization_id = p.organization_id
+              AND fs.is_active = true
+              AND fs.deleted_at IS NULL
+              AND (fs.id = p.form_template_id OR fs.is_default = true)
+            ORDER BY priority_order ASC, fs.updated_at DESC
+            LIMIT 1
+        ) fs_data
+      ) AS form_settings_data
     FROM products p
-    WHERE p.slug = p_slug 
-      AND p.organization_id = p_org_id 
+    WHERE p.slug = p_slug
+      AND p.organization_id = p_org_id
       AND p.is_active = true
-  ) products,
-  LATERAL (
-    -- الألوان
-    SELECT COALESCE(jsonb_agg(
-      jsonb_build_object(
-        'id', c.id,
-        'name', c.name, 
-        'color_code', c.color_code,
-        'image_url', c.image_url,
-        'quantity', c.quantity,
-        'price', c.price,
-        'is_default', c.is_default,
-        'barcode', c.barcode,
-        'has_sizes', c.has_sizes,
-        'product_id', c.product_id
-      )
-      ORDER BY c.is_default DESC, c.id
-    ), '[]'::jsonb) as colors
-    FROM product_colors c
-    WHERE c.product_id = products.product_id
-  ) colors,
-  LATERAL (
-    -- المقاسات لجميع الألوان
-    SELECT COALESCE(jsonb_agg(
-      jsonb_build_object(
-        'id', s.id,
-        'product_id', s.product_id,
-        'color_id', s.color_id,
-        'size_name', s.size_name,
-        'quantity', s.quantity,
-        'price', s.price,
-        'barcode', s.barcode,
-        'is_default', s.is_default
-      )
-      ORDER BY s.color_id, s.is_default DESC, s.id
-    ), '[]'::jsonb) as sizes
-    FROM product_sizes s
-    WHERE s.product_id = products.product_id
-  ) sizes,
-  LATERAL (
-    -- إعدادات النموذج للمنتج - استخدام طريقة مختلفة للترتيب
-    SELECT COALESCE(jsonb_agg(form_data), '[]'::jsonb) as form_settings
-    FROM (
-      SELECT
-        jsonb_build_object(
-          'id', fs.id,
-          'name', fs.name,
-          'is_default', fs.is_default,
-          'is_active', fs.is_active,
-          'version', fs.version,
-          'fields', fs.fields,
-          'settings', fs.settings
-        ) as form_data,
-        -- استخدام هذا الترتيب داخل الاستعلام الفرعي
-        CASE 
-          WHEN fs.product_ids @> jsonb_build_array(products.product_id::text) THEN 0 
-          ELSE 1 
-        END as priority_order
-      FROM form_settings fs
-      WHERE fs.organization_id = p_org_id
-        AND fs.is_active = true
-        AND (
-          (fs.product_ids IS NULL) OR
-          (fs.product_ids @> jsonb_build_array(products.product_id::text)) OR
-          (fs.is_default = true)
-        )
-      ORDER BY priority_order, fs.is_default DESC
-      LIMIT 1
-    ) subquery
-  ) form_settings;
+    LIMIT 1
+  ) product_details;
 $$;
 
 -- وظيفة لجلب بيانات الولايات الخاصة بشركة التوصيل ياليدين
@@ -138,7 +220,6 @@ AS $$
       'is_deliverable', yp.is_deliverable,
       'zone', yp.zone,
       'desk_fee', COALESCE((
-        -- نحاول الحصول على رسوم المكتب من جدول yalidine_fees إذا كانت متوفرة
         SELECT MIN(stop_desk_fee)
         FROM yalidine_fees yf
         WHERE yf.organization_id = p_org_id
@@ -190,14 +271,12 @@ DECLARE
   v_fee NUMERIC;
   v_from_wilaya_id INT;
 BEGIN
-  -- جلب ولاية المصدر من إعدادات المؤسسة
   SELECT COALESCE(origin_wilaya_id, 40)
   INTO v_from_wilaya_id
   FROM yalidine_settings_with_origin y
   WHERE y.organization_id = p_org_id;
   
   IF p_delivery_type = 'desk' THEN
-    -- للتوصيل للمكتب، نستخدم رسوم المكتب من جدول yalidine_fees
     SELECT COALESCE(stop_desk_fee, 0) INTO v_fee
     FROM yalidine_fees yf
     WHERE yf.organization_id = p_org_id
@@ -205,7 +284,6 @@ BEGIN
       AND yf.to_wilaya_id = p_to_wilaya_id
       AND yf.commune_id = p_to_municipality_id;
   ELSE
-    -- للتوصيل للمنزل، نستخدم رسوم المنزل
     SELECT COALESCE(home_fee, 0) INTO v_fee
     FROM yalidine_fees yf
     WHERE yf.organization_id = p_org_id
@@ -213,7 +291,6 @@ BEGIN
       AND yf.to_wilaya_id = p_to_wilaya_id
       AND yf.commune_id = p_to_municipality_id;
       
-    -- زيادة الرسوم حسب الوزن (كل وحدة = 1 كجم)
     IF p_weight > 1 THEN
       v_fee := v_fee + ((p_weight - 1) * 100);
     END IF;
@@ -228,4 +305,6 @@ CREATE INDEX IF NOT EXISTS products_slug_organization_id_idx ON products(slug, o
 CREATE INDEX IF NOT EXISTS product_colors_product_id_idx ON product_colors(product_id);
 CREATE INDEX IF NOT EXISTS product_sizes_product_id_idx ON product_sizes(product_id);
 CREATE INDEX IF NOT EXISTS product_sizes_color_id_idx ON product_sizes(color_id);
-CREATE INDEX IF NOT EXISTS product_images_product_id_idx ON product_images(product_id); 
+CREATE INDEX IF NOT EXISTS product_images_product_id_idx ON product_images(product_id);
+CREATE INDEX IF NOT EXISTS product_marketing_settings_product_id_idx ON product_marketing_settings(product_id);
+CREATE INDEX IF NOT EXISTS product_reviews_product_id_is_approved_idx ON product_reviews(product_id, is_approved); 

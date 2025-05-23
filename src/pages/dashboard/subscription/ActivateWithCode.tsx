@@ -18,7 +18,11 @@ interface ActivationCodeResponse {
   subscription_id?: string;
 }
 
-const ActivateWithCode = () => {
+interface ActivateWithCodeProps {
+  onActivated: () => void;
+}
+
+const ActivateWithCode: React.FC<ActivateWithCodeProps> = ({ onActivated }) => {
   const { organization, user, refreshOrganizationData } = useAuth();
   const [activationCode, setActivationCode] = useState('');
   const [loading, setLoading] = useState(false);

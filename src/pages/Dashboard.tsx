@@ -31,17 +31,20 @@ import {
   FileBarChart,
   Receipt,
   Phone,
-  Wallet
+  Wallet,
+  MapPin,
+  AlertTriangle
 } from 'lucide-react';
 
 // Lazy load dashboard components to improve initial load time
 const DashboardHeader = lazy(() => import('@/components/dashboard/DashboardHeader'));
 const StatsGrid = lazy(() => import('@/components/dashboard/StatsGrid'));
-const RevenueChart = lazy(() => import('@/components/dashboard/RevenueChart'));
-const OrderStatusCard = lazy(() => import('@/components/dashboard/OrderStatusCard'));
+// تم حذف مكونات RevenueChart و OrderStatusCard
 const RecentOrdersCard = lazy(() => import('@/components/dashboard/RecentOrdersCard'));
 const LowStockCard = lazy(() => import('@/components/dashboard/LowStockCard'));
 const TrialNotification = lazy(() => import('@/components/subscription/TrialNotification'));
+const ProvinceOrdersCard = lazy(() => import('@/components/dashboard/ProvinceOrdersCard'));
+const OrderHeatmapCard = lazy(() => import('@/components/dashboard/OrderHeatmapCard'));
 
 // Fallback loading component
 const ComponentLoader = () => (
@@ -781,21 +784,7 @@ const Dashboard = () => {
   // Recent orders - محاولة تحسين الأداء
   const recentOrders = orders?.slice(0, 5) || [];
   
-  // Revenue data
-  const revenueData = [
-    { month: 'يناير', revenue: 25000 },
-    { month: 'فبراير', revenue: 30000 },
-    { month: 'مارس', revenue: 35000 },
-    { month: 'أبريل', revenue: 40000 },
-    { month: 'مايو', revenue: 45000 },
-    { month: 'يونيو', revenue: 42000 },
-    { month: 'يوليو', revenue: 48000 },
-    { month: 'أغسطس', revenue: 52000 },
-    { month: 'سبتمبر', revenue: 55000 },
-    { month: 'أكتوبر', revenue: 58000 },
-    { month: 'نوفمبر', revenue: 62000 },
-    { month: 'ديسمبر', revenue: 68000 }
-  ];
+  // تم حذف بيانات revenueData لأنها لم تعد مطلوبة
   
   // قائمة الروابط السريعة للصفحات المهمة
   const quickAccessPages = [
@@ -956,94 +945,138 @@ const Dashboard = () => {
             <p className="mt-4 text-muted-foreground">جاري تحميل بيانات لوحة التحكم...</p>
           </div>
         ) : statsError ? (
-          <div className="flex flex-col items-center justify-center min-h-[400px] bg-card p-6 rounded-lg shadow-sm border">
-            <p className="text-red-500 font-medium text-lg">حدث خطأ أثناء تحميل البيانات</p>
-            <button
-              onClick={refreshDashboard}
-              className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-            >
-              إعادة المحاولة
-            </button>
+          <div className="flex flex-col items-center justify-center min-h-[400px] rounded-lg bg-card text-card-foreground relative overflow-hidden transition-all duration-300 bg-gradient-to-br from-background/95 to-background/90 backdrop-blur-md border border-border/20 shadow-lg hover:shadow-xl before:absolute before:inset-0 before:bg-gradient-to-br before:from-primary/5 before:to-transparent before:pointer-events-none p-6">
+            <div className="relative z-10 text-center">
+              <div className="p-3 rounded-xl bg-gradient-to-br from-red-500/20 to-red-400/10 border border-red-500/20 inline-block mb-4">
+                <AlertTriangle className="h-8 w-8 text-red-600 dark:text-red-400" />
+              </div>
+              <p className="text-red-600 dark:text-red-400 font-bold text-lg mb-4">حدث خطأ أثناء تحميل البيانات</p>
+              <button
+                onClick={refreshDashboard}
+                className="px-6 py-3 bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 text-primary font-semibold rounded-xl hover:bg-gradient-to-br hover:from-primary/20 hover:to-primary/10 hover:border-primary/30 transition-all duration-300"
+              >
+                إعادة المحاولة
+              </button>
+            </div>
           </div>
         ) : (
           stats ? (
             <div className="space-y-8">
               <Suspense fallback={<ComponentLoader />}>
                 {/* عرض الإحصائيات الرئيسية */}
-                <div className="bg-card p-6 rounded-lg shadow-sm border">
-                  <StatsGrid 
-                    sales={stats.sales}
-                    revenue={stats.revenue}
-                    profits={stats.profits}
-                    orders={stats.orders}
-                    timeframe={timeframe}
-                  />
+                <div className="rounded-lg bg-card text-card-foreground relative overflow-hidden transition-all duration-300 bg-gradient-to-br from-background/95 to-background/90 backdrop-blur-md border border-border/20 shadow-lg hover:shadow-xl before:absolute before:inset-0 before:bg-gradient-to-br before:from-primary/5 before:to-transparent before:pointer-events-none p-6">
+                  <div className="relative z-10">
+                    <StatsGrid 
+                      sales={stats.sales}
+                      revenue={stats.revenue}
+                      profits={stats.profits}
+                      orders={stats.orders}
+                      timeframe={timeframe}
+                    />
+                  </div>
                 </div>
               </Suspense>
 
-              {/* قسم الوصول السريع للصفحات المهمة */}
-              <div className="bg-card p-6 rounded-lg shadow-sm border space-y-5">
-                <div className="flex justify-between items-center pb-3 border-b">
-                  <h2 className="text-xl font-bold">الصفحات الرئيسية</h2>
-                  <p className="text-sm text-muted-foreground">الوصول السريع لإدارة متجرك</p>
+              {/* قسم الوصول السريع للصفحات المهمة - مُحسّن */}
+              <div className="rounded-lg bg-card text-card-foreground relative overflow-hidden transition-all duration-300 bg-gradient-to-br from-background/95 to-background/90 backdrop-blur-md border border-border/20 shadow-lg hover:shadow-xl before:absolute before:inset-0 before:bg-gradient-to-br before:from-primary/5 before:to-transparent before:pointer-events-none p-4 space-y-3">
+                <div className="flex justify-between items-center pb-2 border-b border-border/20 relative z-10">
+                  <h2 className="text-lg font-bold bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">الصفحات الرئيسية</h2>
+                  <p className="text-xs text-muted-foreground font-medium">وصول سريع</p>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 relative z-10">
                   {quickAccessPages
                     .filter(page => !page.requiredPermission || checkUserPermissions(user, page.requiredPermission as any))
+                    .slice(0, 12) // عرض 12 صفحة فقط للحفاظ على التخطيط المرتب
                     .map((page, index) => (
                     <Link 
                       key={index} 
                       to={page.href}
-                      className="group flex flex-col h-full p-5 rounded-lg border border-border hover:border-primary/50 bg-background hover:shadow-md transition-all duration-200"
+                      className="group flex flex-col items-center p-3 rounded-lg bg-gradient-to-br from-background/60 to-background/40 backdrop-blur-sm border border-border/30 hover:border-primary/50 hover:shadow-md transition-all duration-300 hover:scale-[1.02] text-center"
                     >
-                      <div className="flex items-center gap-4 mb-3">
-                        <div className={`w-12 h-12 rounded-lg ${page.color} text-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-200`}>
-                          <page.icon className="h-6 w-6" />
-                        </div>
-                        <h3 className="font-semibold text-lg group-hover:text-primary transition-colors duration-200">{page.title}</h3>
+                      <div className={`w-10 h-10 rounded-lg ${page.color} text-white flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300 border border-white/20 mb-2`}>
+                        <page.icon className="h-5 w-5" />
                       </div>
-                      <p className="text-sm text-muted-foreground mt-auto">{page.description}</p>
+                      <h3 className="font-semibold text-sm group-hover:text-primary transition-colors duration-300 bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent leading-tight">{page.title}</h3>
                     </Link>
                   ))}
                 </div>
+                
+                {/* عرض الباقي كأزرار صغيرة إضافية */}
+                {quickAccessPages.filter(page => !page.requiredPermission || checkUserPermissions(user, page.requiredPermission as any)).length > 12 && (
+                  <div className="pt-2 border-t border-border/20 relative z-10">
+                    <div className="flex flex-wrap gap-2">
+                      {quickAccessPages
+                        .filter(page => !page.requiredPermission || checkUserPermissions(user, page.requiredPermission as any))
+                        .slice(12) // الصفحات الإضافية
+                        .map((page, index) => (
+                        <Link 
+                          key={index + 12} 
+                          to={page.href}
+                          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-gradient-to-br from-background/60 to-background/40 backdrop-blur-sm border border-border/30 hover:border-primary/50 text-xs font-medium transition-all duration-300 hover:scale-105"
+                        >
+                          <div className={`w-4 h-4 rounded ${page.color} text-white flex items-center justify-center`}>
+                            <page.icon className="h-2.5 w-2.5" />
+                          </div>
+                          <span>{page.title}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               
-              {/* عرض الرسم البياني للإيرادات والأقسام الإضافية */}
+              {/* تم حذف مكونات تحليل المبيعات وحالة الطلبات */}
+              
+              {/* عرض المنتجات منخفضة المخزون والطلبات الأخيرة */}
               <Suspense fallback={<ComponentLoader />}>
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  <div className="lg:col-span-2 bg-card p-6 rounded-lg shadow-sm border">
-                    <h3 className="text-lg font-medium mb-4">تحليل المبيعات</h3>
-                    <RevenueChart data={revenueData} />
-                  </div>
-                  <div className="bg-card p-6 rounded-lg shadow-sm border">
-                    <h3 className="text-lg font-medium mb-4">حالة الطلبات</h3>
-                    <OrderStatusCard stats={stats.orders} />
-                  </div>
-                </div>
-                
-                {/* عرض المنتجات منخفضة المخزون والطلبات الأخيرة */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-                  <div className="bg-card p-6 rounded-lg shadow-sm border">
-                    <h3 className="text-lg font-medium mb-4">المنتجات منخفضة المخزون</h3>
-                    <LowStockCard products={lowStockProducts} />
+                  <div className="rounded-lg bg-card text-card-foreground relative overflow-hidden transition-all duration-300 bg-gradient-to-br from-background/95 to-background/90 backdrop-blur-md border border-border/20 shadow-lg hover:shadow-xl before:absolute before:inset-0 before:bg-gradient-to-br before:from-primary/5 before:to-transparent before:pointer-events-none p-6">
+                    <div className="relative z-10">
+                      <h3 className="text-lg font-bold mb-4 bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">المنتجات منخفضة المخزون</h3>
+                      <LowStockCard products={lowStockProducts} />
+                    </div>
                   </div>
-                  <div className="bg-card p-6 rounded-lg shadow-sm border">
-                    <h3 className="text-lg font-medium mb-4">آخر الطلبات</h3>
-                    <RecentOrdersCard orders={recentOrders} />
+                  <div className="rounded-lg bg-card text-card-foreground relative overflow-hidden transition-all duration-300 bg-gradient-to-br from-background/95 to-background/90 backdrop-blur-md border border-border/20 shadow-lg hover:shadow-xl before:absolute before:inset-0 before:bg-gradient-to-br before:from-primary/5 before:to-transparent before:pointer-events-none p-6">
+                    <div className="relative z-10">
+                      <h3 className="text-lg font-bold mb-4 bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">آخر الطلبات</h3>
+                      <RecentOrdersCard orders={recentOrders} />
+                    </div>
                   </div>
                 </div>
               </Suspense>
+
+              {/* مكونات تحليلات إضافية */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* إضافة مكون أفضل الولايات */}
+                <div>
+                  <Suspense fallback={<ComponentLoader />}>
+                    <ProvinceOrdersCard organizationId={currentOrganization?.id || ''} />
+                  </Suspense>
+                </div>
+                
+                {/* إضافة مكون خريطة الطلبات حسب الوقت */}
+                <div>
+                  <Suspense fallback={<ComponentLoader />}>
+                    <OrderHeatmapCard organizationId={currentOrganization?.id || ''} />
+                  </Suspense>
+                </div>
+              </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center min-h-[400px] bg-card p-6 rounded-lg shadow-sm border">
-              <p className="text-muted-foreground text-lg">لا توجد بيانات متاحة للوحة التحكم.</p>
-              <button
-                onClick={refreshDashboard}
-                className="mt-5 px-6 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-              >
-                تحديث البيانات
-              </button>
+            <div className="flex flex-col items-center justify-center min-h-[400px] rounded-lg bg-card text-card-foreground relative overflow-hidden transition-all duration-300 bg-gradient-to-br from-background/95 to-background/90 backdrop-blur-md border border-border/20 shadow-lg hover:shadow-xl before:absolute before:inset-0 before:bg-gradient-to-br before:from-primary/5 before:to-transparent before:pointer-events-none p-6">
+              <div className="relative z-10 text-center">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 border border-primary/20 inline-block mb-4">
+                  <LayoutDashboard className="h-8 w-8 text-primary" />
+                </div>
+                <p className="text-muted-foreground font-bold text-lg mb-4">لا توجد بيانات متاحة للوحة التحكم.</p>
+                <button
+                  onClick={refreshDashboard}
+                  className="px-6 py-3 bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 text-primary font-semibold rounded-xl hover:bg-gradient-to-br hover:from-primary/20 hover:to-primary/10 hover:border-primary/30 transition-all duration-300"
+                >
+                  تحديث البيانات
+                </button>
+              </div>
             </div>
           )
         )}

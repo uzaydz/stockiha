@@ -1,15 +1,24 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase-client';
 import { useTenant } from '@/context/TenantContext';
+import { withCache, LONG_CACHE_TTL } from '@/lib/cache/storeCache';
 
 export interface ShippingProvider {
-  id: string;
+  id: number;
   code: string;
   name: string;
-  is_active: boolean;
-  has_credentials: boolean;
+  is_active: boolean | null;
+  has_credentials?: boolean;
   logo_url?: string;
-  base_url?: string;
+  base_url?: string | null;
+}
+
+interface RawShippingProvider {
+  id: number;
+  code: string;
+  name: string;
+  is_active: boolean | null;
+  base_url: string | null;
 }
 
 export function useShippingProviders() {
@@ -27,25 +36,27 @@ export function useShippingProviders() {
     async function fetchProviders() {
       try {
         setIsLoading(true);
+        setError(null);
         
-        // First get all available providers
-        const { data: allProviders, error: providerError } = await supabase
-          .from('shipping_providers')
-          .select('id, code, name, is_active, base_url')
-          .order('name', { ascending: true });
+        const allProvidersRaw = await withCache<RawShippingProvider[]>(
+          'all_shipping_providers',
+          async () => {
+            const { data, error: providerError } = await supabase
+              .from('shipping_providers')
+              .select('id, code, name, is_active, base_url')
+              .order('name', { ascending: true });
+            if (providerError) throw providerError;
+            return data || [];
+          },
+          LONG_CACHE_TTL
+        );
           
-        if (providerError) throw providerError;
-        
-        if (!allProviders || allProviders.length === 0) {
-          
+        if (!allProvidersRaw || allProvidersRaw.length === 0) {
           setProviders([]);
           setIsLoading(false);
           return;
         }
-
         
-        
-        // Then get the organization's shipping provider settings
         const { data: orgSettings, error: settingsError } = await supabase
           .from('shipping_provider_settings')
           .select('provider_id, is_enabled, api_token, api_key')
@@ -53,27 +64,23 @@ export function useShippingProviders() {
           
         if (settingsError) throw settingsError;
         
-        // Merge the data to get active status for the organization
-        const mergedProviders = allProviders.map(provider => {
+        const mergedProviders = allProvidersRaw.map(provider => {
           const settings = orgSettings?.find(s => s.provider_id === provider.id);
           return {
             ...provider,
-            // Convert provider ID to string for consistency
-            id: provider.id.toString(),
-            // If settings exist, use its is_enabled value, otherwise default to provider's is_active
+            id: provider.id,
             is_active: settings ? settings.is_enabled : provider.is_active,
-            // Check if valid credentials exist
             has_credentials: settings ? 
               Boolean(settings.api_token && settings.api_key) : 
               false
           };
         });
-        
-        
-        setProviders(mergedProviders);
-      } catch (err) {
-        console.error('Error fetching shipping providers:', err);
-        setError(err as Error);
+
+        setProviders(mergedProviders as ShippingProvider[]);
+      } catch (err: any) {
+        console.error('Error in useShippingProviders:', err);
+        setError(err);
+        setProviders([]);
       } finally {
         setIsLoading(false);
       }

@@ -2,10 +2,12 @@ import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { SubscriptionService } from '@/lib/subscription-service';
+import { supabase } from '@/lib/supabase';
 import { 
   cacheSubscriptionStatus,
   getCachedSubscriptionStatus,
-  refreshCache
+  refreshCache,
+  clearPermissionsCache
 } from '@/lib/PermissionsCache';
 
 interface SubscriptionCheckProps {
@@ -28,8 +30,16 @@ interface OrganizationWithSettings {
   };
 }
 
+interface SubscriptionInfo {
+  isActive: boolean;
+  status: string;
+  message: string;
+  endDate?: string;
+  daysLeft?: number;
+}
+
 const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
-  const { organization } = useAuth();
+  const { organization, refreshOrganizationData } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -42,97 +52,225 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
     const checkSubscription = async () => {
       if (!organization) return;
 
-      // أولاً، تحقق من التخزين المؤقت
-      const cachedSubscription = getCachedSubscriptionStatus();
-      if (cachedSubscription) {
+      try {
+        console.log('[SubscriptionCheck] بدء فحص الاشتراك للمؤسسة:', organization.id);
+
+        // التعامل مع كائن المؤسسة باستخدام الواجهة المحسنة
+        const org = organization as unknown as OrganizationWithSettings;
         
+        // تحديد ما إذا كان يجب التحقق من cache أم لا
+        const skipCache = true; // تجاهل cache مؤقتاً لضمان الحصول على أحدث البيانات
         
-        // إذا كان الاشتراك نشطًا أو الفترة التجريبية سارية
-        if (cachedSubscription.isActive) {
-          
-          // تحديث وقت انتهاء الصلاحية
-          refreshCache();
-          return;
-        } else {
-          
-          navigate('/dashboard/subscription');
-          return;
+        // أولاً، تحقق من التخزين المؤقت (إلا إذا تم تجاهله)
+        if (!skipCache) {
+          const cachedSubscription = getCachedSubscriptionStatus();
+          if (cachedSubscription) {
+            console.log('[SubscriptionCheck] تم العثور على بيانات مخزنة مؤقتاً:', cachedSubscription);
+            
+            // التحقق من صحة البيانات المخزنة مؤقتاً
+            if (cachedSubscription.isActive && cachedSubscription.endDate) {
+              const endDate = new Date(cachedSubscription.endDate);
+              const now = new Date();
+              
+              if (endDate > now) {
+                console.log('[SubscriptionCheck] الاشتراك المخزن مؤقتاً لا يزال صالحاً');
+                refreshCache();
+                return;
+              } else {
+                console.log('[SubscriptionCheck] انتهت صلاحية الاشتراك المخزن مؤقتاً');
+                clearPermissionsCache();
+              }
+            } else if (cachedSubscription.isActive && !cachedSubscription.endDate) {
+              console.log('[SubscriptionCheck] بيانات مخزنة مؤقتاً نشطة بدون تاريخ انتهاء');
+              refreshCache();
+              return;
+            } else {
+              console.log('[SubscriptionCheck] الاشتراك المخزن مؤقتاً غير نشط');
+              navigate('/dashboard/subscription');
+              return;
+            }
+          }
         }
-      }
 
-      // التعامل مع كائن المؤسسة باستخدام الواجهة المحسنة
-      const org = organization as unknown as OrganizationWithSettings;
-      let isSubscriptionActive = false;
-      let subscriptionInfo = { isActive: false, status: '', message: '' };
-
-      // التحقق من وجود اشتراك نشط
-      if (org.subscription_status === 'active' && org.subscription_id) {
-        
-        isSubscriptionActive = true;
-        subscriptionInfo = {
-          isActive: true,
-          status: 'active',
-          message: 'اشتراك نشط'
+        let subscriptionInfo: SubscriptionInfo = {
+          isActive: false,
+          status: 'inactive',
+          message: 'لا يوجد اشتراك نشط'
         };
-      }
-      // التحقق من الفترة التجريبية
-      else if (org.subscription_status === 'trial') {
-        let isTrialActive = false;
-        let logMessage = '';
+
+        // البحث عن اشتراك نشط للمؤسسة
+        console.log('[SubscriptionCheck] البحث عن اشتراكات نشطة للمؤسسة');
         
-        // التحقق من تاريخ انتهاء الفترة التجريبية المخزن في settings، إذا كان موجودًا
-        if (org.settings?.trial_end_date) {
-          const trialEndDate = new Date(org.settings.trial_end_date);
+        const { data: activeSubscriptions, error: subsError } = await supabase
+          .from('organization_subscriptions')
+          .select(`
+            *,
+            plan:plan_id (id, name, code)
+          `)
+          .eq('organization_id', org.id)
+          .eq('status', 'active')
+          .gt('end_date', new Date().toISOString())
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (subsError) {
+          console.error('[SubscriptionCheck] خطأ في جلب الاشتراكات:', subsError);
+        }
+
+        let hasValidSubscription = false;
+        
+        // إذا وُجد اشتراك نشط صالح
+        if (activeSubscriptions && activeSubscriptions.length > 0) {
+          const subscription = activeSubscriptions[0];
+          const endDate = new Date(subscription.end_date);
           const now = new Date();
           
-          // إضافة مقارنة بالتاريخ الحقيقي (وليس بالوقت أيضًا)
-          const trialEndDateOnly = new Date(trialEndDate.setHours(23, 59, 59));
-          const nowDateOnly = new Date(now.setHours(0, 0, 0));
-          
-          isTrialActive = trialEndDateOnly >= nowDateOnly;
-          logMessage = `[SubscriptionCheck] الفترة التجريبية ${isTrialActive ? 'نشطة' : 'منتهية'} حسب trial_end_date: ${org.settings.trial_end_date}`;
-          
-          
-          if (isTrialActive) {
-            isSubscriptionActive = true;
+          if (endDate > now) {
+            hasValidSubscription = true;
+            const daysLeft = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+            
             subscriptionInfo = {
               isActive: true,
-              status: 'trial',
-              message: 'الفترة التجريبية سارية'
+              status: 'active',
+              message: `اشتراك نشط في الخطة ${subscription.plan?.name}`,
+              endDate: subscription.end_date,
+              daysLeft
             };
-          }
-        } else {
-          // استخدام الطريقة القديمة كاحتياط (5 أيام من تاريخ الإنشاء)
-          const { isTrialActive: trialActive, daysLeft } = SubscriptionService.checkTrialStatus(org.created_at);
-          isTrialActive = trialActive;
-          
-          logMessage = `[SubscriptionCheck] الفترة التجريبية ${isTrialActive ? 'نشطة' : 'منتهية'} حسب تاريخ الإنشاء. الأيام المتبقية: ${daysLeft}`;
-          
-          
-          if (isTrialActive) {
-            isSubscriptionActive = true;
-            subscriptionInfo = {
-              isActive: true,
-              status: 'trial',
-              message: `الفترة التجريبية سارية (${daysLeft} يوم متبقية)`
-            };
+            
+            console.log('[SubscriptionCheck] تم العثور على اشتراك نشط وصالح حتى:', subscription.end_date);
+            
+            // تحديث بيانات المؤسسة إذا كانت غير متطابقة
+            if (org.subscription_id !== subscription.id || org.subscription_status !== 'active') {
+              console.log('[SubscriptionCheck] تحديث بيانات المؤسسة لتطابق الاشتراك النشط');
+              try {
+                await supabase
+                  .from('organizations')
+                  .update({
+                    subscription_id: subscription.id,
+                    subscription_status: 'active',
+                    subscription_tier: subscription.plan?.code || 'premium'
+                  })
+                  .eq('id', org.id);
+                
+                // تحديث البيانات المحلية
+                refreshOrganizationData();
+              } catch (updateError) {
+                console.error('[SubscriptionCheck] خطأ في تحديث بيانات المؤسسة:', updateError);
+              }
+            }
           }
         }
-      }
 
-      // تخزين نتيجة التحقق في التخزين المؤقت
-      
-      cacheSubscriptionStatus(subscriptionInfo);
+        // إذا لم يتم العثور على اشتراك صالح، تحقق من الفترة التجريبية
+        if (!hasValidSubscription) {
+          console.log('[SubscriptionCheck] لا يوجد اشتراك نشط، فحص الفترة التجريبية');
+          
+          let isTrialActive = false;
+          let daysLeft = 0;
+          
+          // التحقق من تاريخ انتهاء الفترة التجريبية المخزن في settings، إذا كان موجودًا
+          if (org.settings?.trial_end_date) {
+            const trialEndDate = new Date(org.settings.trial_end_date);
+            const now = new Date();
+            
+            // إضافة مقارنة بالتاريخ الحقيقي (وليس بالوقت أيضًا)
+            const trialEndDateOnly = new Date(trialEndDate.setHours(23, 59, 59));
+            const nowDateOnly = new Date(now.setHours(0, 0, 0));
+            
+            isTrialActive = trialEndDateOnly >= nowDateOnly;
+            daysLeft = Math.ceil((trialEndDateOnly.getTime() - nowDateOnly.getTime()) / (1000 * 60 * 60 * 24));
+            
+            console.log(`[SubscriptionCheck] الفترة التجريبية ${isTrialActive ? 'نشطة' : 'منتهية'} حسب trial_end_date:`, org.settings.trial_end_date);
+          } else {
+            // استخدام الطريقة القديمة كاحتياط (5 أيام من تاريخ الإنشاء)
+            const trialResult = SubscriptionService.checkTrialStatus(org.created_at);
+            isTrialActive = trialResult.isTrialActive;
+            daysLeft = trialResult.daysLeft;
+            
+            console.log(`[SubscriptionCheck] الفترة التجريبية ${isTrialActive ? 'نشطة' : 'منتهية'} حسب تاريخ الإنشاء. الأيام المتبقية:`, daysLeft);
+          }
+          
+          if (isTrialActive) {
+            subscriptionInfo = {
+              isActive: true,
+              status: 'trial',
+              message: `الفترة التجريبية سارية (${daysLeft} يوم متبقية)`,
+              daysLeft
+            };
+            
+            // تحديث حالة المؤسسة إذا لم تكن trial
+            if (org.subscription_status !== 'trial') {
+              console.log('[SubscriptionCheck] تحديث حالة المؤسسة إلى trial');
+              try {
+                await supabase
+                  .from('organizations')
+                  .update({
+                    subscription_status: 'trial',
+                    subscription_tier: 'trial',
+                    subscription_id: null
+                  })
+                  .eq('id', org.id);
+                
+                refreshOrganizationData();
+              } catch (updateError) {
+                console.error('[SubscriptionCheck] خطأ في تحديث حالة trial:', updateError);
+              }
+            }
+          } else {
+            subscriptionInfo = {
+              isActive: false,
+              status: 'trial_expired',
+              message: 'انتهت الفترة التجريبية'
+            };
+            
+            // تحديث حالة المؤسسة إلى inactive
+            if (org.subscription_status === 'active' || org.subscription_status === 'trial') {
+              console.log('[SubscriptionCheck] تحديث حالة المؤسسة إلى inactive');
+              try {
+                await supabase
+                  .from('organizations')
+                  .update({
+                    subscription_status: 'inactive',
+                    subscription_tier: 'free',
+                    subscription_id: null
+                  })
+                  .eq('id', org.id);
+                
+                refreshOrganizationData();
+              } catch (updateError) {
+                console.error('[SubscriptionCheck] خطأ في تحديث حالة inactive:', updateError);
+              }
+            }
+          }
+        }
 
-      // إذا كان الاشتراك غير نشط، إعادة التوجيه إلى صفحة الاشتراك
-      if (!isSubscriptionActive) {
+        // تخزين نتيجة التحقق في التخزين المؤقت
+        console.log('[SubscriptionCheck] نتيجة فحص الاشتراك:', subscriptionInfo);
+        cacheSubscriptionStatus(subscriptionInfo);
+
+        // إذا كان الاشتراك غير نشط، إعادة التوجيه إلى صفحة الاشتراك
+        if (!subscriptionInfo.isActive) {
+          console.log('[SubscriptionCheck] إعادة توجيه إلى صفحة الاشتراك');
+          navigate('/dashboard/subscription');
+        } else {
+          console.log('[SubscriptionCheck] الاشتراك نشط، السماح بالوصول');
+        }
+
+      } catch (error) {
+        console.error('[SubscriptionCheck] خطأ أثناء فحص الاشتراك:', error);
         
-        navigate('/dashboard/subscription');
+        // في حالة الخطأ، اسمح بالوصول ولكن سجل الخطأ
+        const errorInfo: SubscriptionInfo = {
+          isActive: true,
+          status: 'error',
+          message: 'خطأ في فحص الاشتراك - تم السماح بالوصول مؤقتاً'
+        };
+        cacheSubscriptionStatus(errorInfo);
       }
     };
 
     checkSubscription();
-  }, [organization, navigate]);
+  }, [organization, navigate, refreshOrganizationData]);
 
   return <>{children}</>;
 };

@@ -69,21 +69,47 @@ export default function ProductShippingSelector({
   };
   
   // معالجة تغيير مزود التوصيل
-  const handleCloneChange = async (value: string) => {
-    const cloneId = value === '' ? null : parseInt(value);
-    setSelectedCloneId(cloneId);
+  const handleChange = async (value: string) => {
+    if (!productId || !onChange) return;
     
-    // حفظ التغييرات في قاعدة البيانات
+    // تعامل خاص مع قيمة default
+    if (value === 'default' || value === 'default_provider' || value === '1' || value === '0') {
+      console.log("تم اختيار القيمة 'default' وتحويلها إلى null");
+      // تعيين null عوضًا عن default
+      setSelectedCloneId(null);
+      if (onChange) onChange(null);
+      return;
+    }
+    
     try {
-      await linkProductToShippingClone(productId, cloneId);
-      
-      // استدعاء callback إذا كان موجوداً
-      if (onChange) {
-        onChange(cloneId);
+      // للقيم الأخرى، حاول التحويل إلى رقم
+      const numericValue = parseInt(value);
+      if (!isNaN(numericValue)) {
+        setSelectedCloneId(numericValue);
+        if (onChange) onChange(numericValue);
+      } else {
+        // إذا فشل التحويل، ارسل null
+        setSelectedCloneId(null);
+        if (onChange) onChange(null);
       }
-    } catch (err) {
-      console.error('خطأ في ربط المنتج بمزود التوصيل:', err);
-      setError('حدث خطأ أثناء حفظ التغييرات');
+    } catch (error) {
+      console.error('خطأ في معالجة قيمة مزود الشحن:', error);
+      setSelectedCloneId(null);
+      if (onChange) onChange(null);
+    }
+    
+    // حفظ التغييرات في قاعدة البيانات إذا كان المنتج موجوداً
+    if (productId) {
+      try {
+        const finalValue = value === 'default' || value === 'default_provider' || value === '1' || value === '0' 
+          ? null 
+          : parseInt(value);
+          
+        await linkProductToShippingClone(productId, finalValue || null);
+      } catch (err) {
+        console.error('خطأ في ربط المنتج بمزود التوصيل:', err);
+        setError('حدث خطأ أثناء حفظ التغييرات');
+      }
     }
   };
   
@@ -118,7 +144,7 @@ export default function ProductShippingSelector({
                 </Label>
                 <Select
                   value={selectedCloneId?.toString() || ''}
-                  onValueChange={handleCloneChange}
+                  onValueChange={handleChange}
                 >
                   <SelectTrigger id="shipping-provider" className="col-span-3">
                     <SelectValue placeholder="اختر مزود التوصيل" />

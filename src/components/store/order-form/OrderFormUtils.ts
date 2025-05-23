@@ -1,5 +1,5 @@
 import { UseFormReturn } from "react-hook-form";
-import { CustomFormField, OrderFormValues, FormSettings } from "./OrderFormTypes";
+import { CustomFormField, OrderFormValues, FormSettings, ShippingIntegration } from "./OrderFormTypes";
 import { supabase } from '@/lib/supabase-client';
 
 /**
@@ -167,7 +167,7 @@ export async function calculateShippingFee(
         .single();
       
       if (cloneError || !cloneData) {
-        
+        console.warn('لم يتم العثور على مزود الشحن المستنسخ، استخدام الأسعار الافتراضية');
         return deliveryOption === 'home' ? 400 : 350;
       }
       
@@ -196,7 +196,7 @@ export async function calculateShippingFee(
           .single();
         
         if (priceError || !priceData) {
-          
+          console.warn('لم يتم العثور على أسعار مخصصة للولاية، استخدام الأسعار الموحدة');
           if (deliveryOption === 'home') {
             // التحقق من التوصيل المجاني للمنزل
             if (cloneData.is_free_delivery_home) {
@@ -242,31 +242,64 @@ export async function calculateShippingFee(
   }
   
   const providerId = formSettings.settings.shipping_integration.provider_id;
+  const providerCode = formSettings.settings.shipping_integration.provider_code || 'yalidine';
   
   try {
-    // البحث عن رسوم التوصيل في قاعدة البيانات
-    const { data, error } = await supabase
-      .from('shipping_rates')
-      .select('home_price, desk_price')
-      .eq('provider_id', providerId)
-      .eq('to_region', wilayaId.toString())
+    // البحث عن بيانات مزود الشحن لمعرفة نوعه
+    const { data: providerData, error: providerError } = await supabase
+      .from('shipping_providers')
+      .select('code')
+      .eq('id', providerId)
       .single();
-    
-    if (error || !data) {
       
-      return deliveryOption === 'home' ? 400 : 350;
-    }
+    const isZRExpress = providerData?.code === 'zrexpress' || providerCode === 'zrexpress';
     
-    // استخدام الرسوم المناسبة حسب نوع التوصيل
-    if (deliveryOption === 'home') {
-      return data.home_price || 400;
+    if (isZRExpress) {
+      // استخدام استعلام مخصص للحصول على أسعار ZR Express
+      const { data: zrData, error: zrError } = await supabase
+        .from('zr_express_tarification')
+        .select('domicile, stopdesk')
+        .eq('id_wilaya', wilayaId.toString())
+        .single();
+        
+      if (!zrError && zrData) {
+        if (deliveryOption === 'home') {
+          return zrData.domicile || 400;
+        } else {
+          return zrData.stopdesk || 350;
+        }
+      }
+      
+      // إذا لم نجد أسعار ZR Express، نحاول استخدام الأسعار العامة
+      const { data: generalRates, error: generalError } = await supabase
+        .from('shipping_rates')
+        .select('home_price, desk_price')
+        .eq('provider_id', providerId)
+        .eq('to_region', wilayaId.toString())
+        .single();
+        
+      if (!generalError && generalRates) {
+        return deliveryOption === 'home' ? generalRates.home_price : generalRates.desk_price;
+      }
     } else {
-      return data.desk_price || 350;
+      // البحث عن رسوم التوصيل في قاعدة البيانات لمزودي الشحن الآخرين
+      const { data, error } = await supabase
+        .from('shipping_rates')
+        .select('home_price, desk_price')
+        .eq('provider_id', providerId)
+        .eq('to_region', wilayaId.toString())
+        .single();
+      
+      if (!error && data) {
+        return deliveryOption === 'home' ? data.home_price : data.desk_price;
+      }
     }
   } catch (error) {
     console.error('خطأ في حساب رسوم التوصيل:', error);
-    return deliveryOption === 'home' ? 400 : 350;
   }
+  
+  // إرجاع الرسوم الافتراضية في حالة الفشل
+  return deliveryOption === 'home' ? 400 : 350;
 }
 
 /**

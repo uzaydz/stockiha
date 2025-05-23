@@ -230,10 +230,6 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
           </div>
           
           <input type="hidden" name={field.name} value="home" />
-          
-          {field.description && (
-            <p className="mt-2 text-xs text-muted-foreground">{field.description}</p>
-          )}
         </div>
       );
     }
@@ -262,10 +258,6 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
           </div>
           
           <input type="hidden" name={field.name} value="desk" />
-          
-          {field.description && (
-            <p className="mt-2 text-xs text-muted-foreground">{field.description}</p>
-          )}
         </div>
       );
     }
@@ -355,10 +347,6 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
         
         <input type="hidden" name={field.name} value={selectedDeliveryType} />
       </div>
-      
-      {field.description && (
-        <p className="mt-2 text-xs text-muted-foreground">{field.description}</p>
-      )}
     </div>
   );
 }; 

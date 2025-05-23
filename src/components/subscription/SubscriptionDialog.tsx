@@ -62,8 +62,9 @@ interface SubscriptionDialogProps {
   onOpenChange: (open: boolean) => void;
   plan: SubscriptionPlan;
   billingCycle: 'monthly' | 'yearly';
-  isRenewal: boolean;
-  onSuccess: () => void;
+  organizationId: string;
+  isRenewal?: boolean;
+  onSubscriptionComplete: () => void;
 }
 
 const SubscriptionDialog: React.FC<SubscriptionDialogProps> = ({
@@ -71,10 +72,11 @@ const SubscriptionDialog: React.FC<SubscriptionDialogProps> = ({
   onOpenChange,
   plan,
   billingCycle,
-  isRenewal,
-  onSuccess,
+  organizationId,
+  isRenewal = false,
+  onSubscriptionComplete,
 }) => {
-  const { user, organization } = useAuth();
+  const { user } = useAuth();
   const [step, setStep] = useState<'plan' | 'payment' | 'complete'>('plan');
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod | null>(null);
@@ -158,7 +160,7 @@ const SubscriptionDialog: React.FC<SubscriptionDialogProps> = ({
 
   // معالجة عملية الاشتراك
   const handleSubscribe = async () => {
-    if (!organization?.id) {
+    if (!organizationId) {
       toast.error('لم يتم العثور على معلومات المؤسسة');
       return;
     }
@@ -181,18 +183,18 @@ const SubscriptionDialog: React.FC<SubscriptionDialogProps> = ({
         .from('organization_subscriptions')
         .insert([
           {
-            organization_id: organization.id,
+            organization_id: organizationId,
             plan_id: plan.id,
             billing_cycle: billingCycle,
             status: 'pending',
             start_date: startDate,
             end_date: endDate,
-            payment_method_id: selectedPaymentMethod.id,
+            payment_method: selectedPaymentMethod.id,
             payment_details: {
               ...formFields,
               ...(uploadUrl && { payment_proof_url: uploadUrl })
             },
-            amount: price
+            amount_paid: price
           }
         ])
         .select('id')
@@ -208,7 +210,7 @@ const SubscriptionDialog: React.FC<SubscriptionDialogProps> = ({
           subscription_tier: plan.code,
           subscription_status: 'pending'
         })
-        .eq('id', organization.id);
+        .eq('id', organizationId);
 
       if (orgError) throw orgError;
 
@@ -217,16 +219,17 @@ const SubscriptionDialog: React.FC<SubscriptionDialogProps> = ({
         .from('subscription_history')
         .insert([
           {
-            organization_id: organization.id,
-            subscription_id: subscription.id,
-            action: isRenewal ? 'renewal' : 'subscribe',
-            details: {
+            organization_id: organizationId,
+            plan_id: plan.id,
+            action: isRenewal ? 'renewed' : 'created',
+            to_status: 'pending',
+            amount: price,
+            notes: JSON.stringify({
               plan_name: plan.name,
               plan_code: plan.code,
               billing_cycle: billingCycle,
-              payment_method: selectedPaymentMethod.name,
-              amount: price
-            }
+              payment_method: selectedPaymentMethod.name
+            })
           }
         ]);
 
@@ -247,7 +250,7 @@ const SubscriptionDialog: React.FC<SubscriptionDialogProps> = ({
     try {
       const fileExt = file.name.split('.').pop();
       const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
-      const filePath = `payment_proofs/${organization?.id}/${fileName}`;
+      const filePath = `payment_proofs/${organizationId}/${fileName}`;
       
       const { error: uploadError } = await supabase.storage
         .from('subscriptions')
@@ -523,7 +526,7 @@ const SubscriptionDialog: React.FC<SubscriptionDialogProps> = ({
                 className="w-full sm:w-auto"
                 onClick={() => {
                   onOpenChange(false);
-                  onSuccess();
+                  onSubscriptionComplete();
                 }}
               >
                 إغلاق

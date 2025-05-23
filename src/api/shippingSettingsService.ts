@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { ShippingProvider } from './shippingService';
+import { withCache, LONG_CACHE_TTL } from '@/lib/cache/storeCache';
 
 export interface ShippingProviderSettings {
   id?: number;
@@ -17,8 +18,8 @@ export interface ShippingProviderInfo {
   id: number;
   code: string;
   name: string;
-  is_active: boolean;
-  base_url?: string;
+  is_active: boolean | null;
+  base_url?: string | null;
 }
 
 /**
@@ -40,9 +41,10 @@ export class ShippingSettingsService {
 
     try {
       // Check if shipping_providers table exists
-      const { error: checkError } = await supabase
+      const { data: checkData, error: checkError } = await supabase
         .from('shipping_providers')
-        .select('count', { count: 'exact', head: true });
+        .select('id')
+        .limit(1);
 
       // If table doesn't exist, create tables and insert default providers
       if (checkError && checkError.code === '42P01') { // 42P01 is PostgreSQL's error code for "table does not exist"
@@ -71,29 +73,34 @@ export class ShippingSettingsService {
    */
   async getProviders(): Promise<ShippingProviderInfo[]> {
     try {
-      await this.initShippingTables();
+      // لا يزال من المهم التأكد من تهيئة الجداول، لكن جلب البيانات سيتم عبر ذاكرة التخزين المؤقت
+      await this.initShippingTables(); 
 
-      const { data, error } = await supabase
-        .from('shipping_providers')
-        .select('*')
-        .order('id');
+      // استخدام withCache لجلب وتخزين قائمة مزودي الشحن
+      const providers = await withCache<ShippingProviderInfo[]>(
+        'all_shipping_providers_info', // مفتاح فريد لذاكرة التخزين المؤقت لهذه الدالة
+        async () => {
+          const { data, error } = await supabase
+            .from('shipping_providers')
+            .select('id, code, name, is_active, base_url') // تحديد الأعمدة المطلوبة فقط
+            .order('id');
+          
+          if (error) {
+            console.error('Error fetching shipping providers (inside cache function):', error);
+            // لا تقم بإعادة المحاولة هنا بشكل مباشر إذا كان initShippingTables قد فشل
+            // يجب أن يتعامل initShippingTables مع فشله الخاص أو يُلقي خطأً يتم التقاطه بالخارج
+            throw error; // إعادة إلقاء الخطأ ليتم التعامل معه بواسطة withCache أو المستدعي
+          }
+          return (data || []) as ShippingProviderInfo[];
+        },
+        LONG_CACHE_TTL // استخدام TTL طويل لهذه البيانات
+      );
       
-      if (error) {
-        console.error('Error fetching shipping providers:', error);
-        
-        // Handle table not found error
-        if (error.code === '42P01') { // Table doesn't exist
-          await this.initShippingTables();
-          return this.getProviders(); // Retry after initialization
-        }
-        
-        throw error;
-      }
-      
-      return data || [];
+      return providers;
     } catch (error) {
-      console.error('Failed to get shipping providers:', error);
-      return []; // Return empty array instead of throwing
+      // معالجة الأخطاء التي قد تحدث من initShippingTables أو إذا فشل withCache بشكل غير متوقع
+      console.error('Failed to get shipping providers (outer catch):', error);
+      return []; 
     }
   }
 
@@ -162,7 +169,17 @@ export class ShippingSettingsService {
         throw error;
       }
       
-      return data;
+      // Ensure settings is an object
+      if (data && typeof data.settings === 'string') {
+        try {
+          data.settings = JSON.parse(data.settings);
+        } catch (e) {
+          console.error('Error parsing settings JSON:', e);
+          // Handle malformed JSON, perhaps by returning default or null
+          data.settings = {}; // Default to empty object on parse error
+        }
+      }
+      return data as ShippingProviderSettings;
     } catch (error) {
       console.error('Failed to get shipping provider settings:', error);
       // Return default settings instead of throwing
@@ -292,7 +309,7 @@ export class ShippingSettingsService {
             auto_shipping: settings.auto_shipping !== undefined ? settings.auto_shipping : existingSettings.auto_shipping,
             track_updates: settings.track_updates !== undefined ? settings.track_updates : existingSettings.track_updates,
             settings: settings.settings || existingSettings.settings,
-            updated_at: new Date()
+            updated_at: new Date().toISOString() // Convert Date to ISO string
           })
           .eq('id', existingSettings.id)
           .select()

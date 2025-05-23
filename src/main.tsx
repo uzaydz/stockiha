@@ -1,6 +1,9 @@
 // استيراد ملف polyfill لـ module قبل أي استيراد آخر
 import './lib/module-polyfill';
 
+// تهيئة Sentry
+import './sentry';
+
 // إصلاح createContext وأخرى: تأكد من تحميل React APIs قبل أي شيء آخر
 // (window as any).React = (window as any).React || {}; // إزالة أو تعليق هذا
 
@@ -56,6 +59,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { registerGlobalErrorHandler } from './lib/electron-errors';
 import type { ElectronAPI } from './types/electron';
 import { initializeReact } from './lib/react-init';
+import { SentryErrorBoundary } from './components/ErrorBoundary';
 
 // إضافة التعريفات اللازمة للمتغيرات العالمية
 declare global {
@@ -201,11 +205,13 @@ if (typeof window !== 'undefined') {
 
 const TenantWithTheme = ({ children }: { children: React.ReactNode }) => {
   return (
-    <TenantProvider>
-      <TenantThemeConnector>
-        {children}
-      </TenantThemeConnector>
-    </TenantProvider>
+    <AuthProvider>
+      <TenantProvider>
+        <TenantThemeConnector>
+          {children}
+        </TenantThemeConnector>
+      </TenantProvider>
+    </AuthProvider>
   );
 };
 
@@ -233,16 +239,27 @@ const browserRouterOptions = {
 // تهيئة React قبل أي شيء آخر
 initializeReact();
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <BrowserRouter>
-      <ThemeProvider>
+// مكون لتنظيم المزودين
+const AppProviders = ({ children }: { children: React.ReactNode }) => {
+  return (
+    <SentryErrorBoundary>
+      <BrowserRouter>
         <AuthProvider>
           <TenantProvider>
-            <App />
+            <ThemeProvider>
+              {children}
+            </ThemeProvider>
           </TenantProvider>
         </AuthProvider>
-      </ThemeProvider>
-    </BrowserRouter>
+      </BrowserRouter>
+    </SentryErrorBoundary>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <AppProviders>
+      <App />
+    </AppProviders>
   </React.StrictMode>
 );

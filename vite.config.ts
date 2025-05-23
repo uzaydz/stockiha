@@ -5,6 +5,7 @@ import { componentTagger } from "lovable-tagger";
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
 import type { Connect, ViteDevServer } from 'vite';
 import { ServerResponse, IncomingMessage } from 'http';
+import type { ModuleFormat, OutputOptions } from 'rollup';
 
 // تكوين استيراد ملفات Markdown كنصوص
 function rawContentPlugin(): Plugin {
@@ -111,18 +112,41 @@ export default defineConfig(({ mode }: { mode: string }) => {
           changeOrigin: true,
           rewrite: (path: string) => path.replace(/^\/api/, ''),
         },
+        // إضافة وسيط لخدمة Procolis لحل مشكلة CORS
+        '/api/proxy/procolis': {
+          target: 'https://procolis.com',
+          changeOrigin: true,
+          secure: true,
+          rewrite: (path: string) => path.replace(/^\/api\/proxy\/procolis/, '/api_v1'),
+          onProxyReq: (proxyReq: any, req: any) => {
+            // نقل رؤوس الطلب الأصلي إلى طلب الوسيط
+            if (req.headers['token']) {
+              proxyReq.setHeader('token', req.headers['token'] as string);
+            }
+            if (req.headers['key']) {
+              proxyReq.setHeader('key', req.headers['key'] as string);
+            }
+            // إزالة رأس Origin لتجنب مشاكل CORS
+            proxyReq.removeHeader('origin');
+          },
+          configure: (proxy: any, _options: any) => {
+            proxy.on('error', (err: any, _req: any, _res: any) => {
+              console.error('Procolis proxy error:', err);
+            });
+            proxy.on('proxyRes', (proxyRes: any, _req: any, _res: any) => {
+              // إضافة رؤوس CORS للاستجابة
+              proxyRes.headers['Access-Control-Allow-Origin'] = '*';
+              proxyRes.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, PATCH, OPTIONS';
+              proxyRes.headers['Access-Control-Allow-Headers'] = 'token, key, Content-Type, Accept';
+            });
+          }
+        },
       }
     },
     plugins: [
-      react({
-        jsxRuntime: 'automatic',
-        // تحسين تحميل React
-        fastRefresh: true,
-      }),
+      react(),
       nodePolyfills({
-        // Whether to polyfill `node:` protocol imports.
         protocolImports: true,
-        // مكتبات مطلوبة للعمل في المتصفح
         include: [
           'path',
           'util', 
@@ -140,23 +164,19 @@ export default defineConfig(({ mode }: { mode: string }) => {
           'crypto',
           'fs'
         ],
-        // ضبط المكتبات لتعمل في المتصفح
         globals: {
           Buffer: true,
           process: true,
-          global: true,
-          module: true
+          global: true
         },
       }),
-      mode === 'development' &&
-      componentTagger(),
-      contentTypePlugin(), // Add our custom content type plugin
-      rawContentPlugin(), // إضافة إضافة استيراد ملفات Markdown
+      mode === 'development' && componentTagger(),
+      contentTypePlugin(),
+      rawContentPlugin(),
     ].filter(Boolean),
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
-        // الـ Polyfills للتوافق مع المتصفح
         stream: 'stream-browserify',
         path: 'path-browserify',
         util: 'util',
@@ -208,22 +228,12 @@ export default defineConfig(({ mode }: { mode: string }) => {
           main: path.resolve(__dirname, 'index.html'),
         },
         output: {
+          format: 'esm' as ModuleFormat,
           manualChunks: {
             'react-vendor': ['react', 'react-dom'],
-          },
-          format: 'es',
-          entryFileNames: 'assets/js/[name]-[hash].js',
-          chunkFileNames: 'assets/js/[name]-[hash].js',
-          assetFileNames: 'assets/[ext]/[name]-[hash].[ext]',
-          // إضافة نوع وحدة صريح لجميع ملفات JavaScript
-          hoistTransitiveImports: false,
-          minifyInternalExports: true,
-          generatedCode: {
-            preset: 'es2015',
-            constBindings: true
           }
-        },
-        external: ['electron'],
+        } as OutputOptions,
+        external: ['perf_hooks'],
       },
       // تحسين ضغط الصور
       assetsInlineLimit: 4096, // 4KB
@@ -236,8 +246,7 @@ export default defineConfig(({ mode }: { mode: string }) => {
     },
     // تشغيل الشفرة في محتوى واحد في Electron
     optimizeDeps: {
-      include: ['react', 'react-dom'],
-      exclude: ['path-browserify']
+      exclude: ['path-browserify', 'perf_hooks']
     },
     preview: {
       port: 3000,

@@ -524,7 +524,7 @@ const SubscriptionPage = () => {
         )}
 
         {/* عرض خطط الاشتراك */}
-        {(showPlans || (!currentSubscription && organization?.subscription_status !== 'trial')) && (
+        {(showPlans || ((!currentSubscription || currentSubscription.status !== 'active') && organization?.subscription_status !== 'active' && organization?.subscription_status !== 'trial')) && (
           <div className="space-y-6">
             <div>
               <h2 className="text-xl font-semibold">خطط الاشتراك</h2>

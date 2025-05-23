@@ -181,7 +181,7 @@ const ProductCategories = ({
 
       fetchCategoriesData();
     }
-  }, [useRealCategories, currentOrganization]);
+  }, [useRealCategories, currentOrganization?.id]);
 
   // استخدام الفئات الحقيقية
   const displayCategories = useRealCategories ? realCategories : [];

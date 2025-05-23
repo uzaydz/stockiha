@@ -3,14 +3,16 @@ import { Product } from '../../types';
 import { mapSupabaseProductToProduct } from './mappers';
 
 // وظيفة لإضافة منتج جديد
-export const addProduct = async (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => {
+export const addProduct = async (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt'> & { organizationId: string, isDigital?: boolean }) => {
   try {
     const { data, error } = await supabase
       .from('products')
       .insert({
         ...product,
-        created_at: new Date(),
-        updated_at: new Date()
+        is_digital: product.isDigital || false,
+        organization_id: product.organizationId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       })
       .select()
       .single();
@@ -34,7 +36,7 @@ export const updateProduct = async (product: Product) => {
     const dbProduct = {
       ...product,
       stock_quantity: product.stockQuantity || product.stock_quantity,
-      updated_at: new Date()
+      updated_at: new Date().toISOString()
     };
 
     // تحديث المنتج في قاعدة البيانات
@@ -53,7 +55,7 @@ export const updateProduct = async (product: Product) => {
       ...product, 
       stock_quantity: product.stockQuantity || product.stock_quantity,
       stockQuantity: product.stockQuantity || product.stock_quantity,
-      updatedAt: new Date()
+      updatedAt: new Date().toISOString()
     };
     
     return updatedProduct;
@@ -103,9 +105,9 @@ export const updateProductsInventory = async (orderItems: any[], currentOrganiza
     
     try {
       // الحصول على معلومات المخزون الحالية
-      const { data: product, error: productError } = await supabase
+      const { data: productData, error: productError } = await supabase
         .from('products')
-        .select('id, name, stock, last_updated')
+        .select('id, name, stock_quantity, last_updated')
         .eq('id', productId)
         .single();
         
@@ -114,7 +116,7 @@ export const updateProductsInventory = async (orderItems: any[], currentOrganiza
         continue;
       }
       
-      if (!product) {
+      if (!productData) {
         console.error(`Product not found: ${productName} (${productId})`);
         continue;
       }
@@ -122,19 +124,19 @@ export const updateProductsInventory = async (orderItems: any[], currentOrganiza
       
       
       // حساب المخزون الجديد
-      const newStock = (product.stock || 0) - quantity;
+      const newStock = ((productData as any).stock_quantity || 0) - quantity;
       
       
       try {
         // إضافة سجل في جدول inventory_log
         const inventoryLogEntry = {
           product_id: productId,
-          previous_stock: product.stock || 0,
+          previous_stock: ((productData as any).stock_quantity || 0),
           new_stock: newStock,
-          change_amount: -quantity,
-          change_type: 'sale',
+          quantity: -quantity,
+          type: 'sale',
           notes: `Order item sale`,
-          slug: `inv-log-${Date.now()}-${Math.floor(Math.random() * 10000)}`
+          organization_id: currentOrganizationId,
         };
         
         const { error: logError } = await supabase
@@ -149,7 +151,7 @@ export const updateProductsInventory = async (orderItems: any[], currentOrganiza
         const { error: updateError } = await supabase
           .from('products')
           .update({
-            stock: newStock,
+            stock_quantity: newStock,
             last_updated: new Date().toISOString()
           })
           .eq('id', productId)

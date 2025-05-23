@@ -21,6 +21,7 @@ import { Home, Building, Truck, AlertCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ShippingProviderSettings } from "./types";
+import React, { useEffect } from "react";
 
 export function DeliveryInfoFields({ 
   form, 
@@ -37,6 +38,23 @@ export function DeliveryInfoFields({
 }: DeliveryInfoFieldsProps) {
   // +++ Log Entry Point +++
   
+  // إضافة مراقبة للتغييرات في إعدادات مزود الشحن
+  useEffect(() => {
+    if (shippingProviderSettings?.provider_code === 'zrexpress') {
+      console.log('تم اكتشاف ZRExpress في DeliveryInfoFields:', shippingProviderSettings);
+      
+      // تحديث البيانات إذا كان على وضع الاستلام من المكتب
+      const currentDeliveryOption = form.getValues('deliveryOption');
+      const currentProvinceValue = form.getValues('province');
+      
+      if (currentDeliveryOption === 'desk' && currentProvinceValue && onWilayaChange) {
+        console.log('إعادة تحميل البلديات بعد اكتشاف ZRExpress');
+        setTimeout(() => {
+          onWilayaChange(currentProvinceValue);
+        }, 100);
+      }
+    }
+  }, [shippingProviderSettings?.provider_code, form, onWilayaChange]);
 
   const isHomeDeliveryEnabled = !shippingProviderSettings || shippingProviderSettings.is_home_delivery_enabled;
   const isDeskDeliveryEnabled = !shippingProviderSettings || shippingProviderSettings.is_desk_delivery_enabled;
@@ -87,15 +105,26 @@ export function DeliveryInfoFields({
                     field.onChange(value);
                     const currentDeliveryOption = value as 'home' | 'desk';
                     const currentProvinceValue = form.watch('province');
-                    // +++ Log in deliveryOption onValueChange +++
-                    
+                    console.log('تغيير خيار التوصيل:', {
+                      value: currentDeliveryOption,
+                      province: currentProvinceValue,
+                      isZRExpress: shippingProviderSettings?.provider_code === 'zrexpress'
+                    });
 
-                    if (currentDeliveryOption === 'desk') {
-                      form.setValue('municipality', '', { shouldValidate: false }); 
-                      
-                    } else if (currentDeliveryOption === 'home') {
+                    // إذا كان العنصر الحالي هو ZRExpress ويحاول المستخدم التغيير إلى "desk"،
+                    // تأكد من تجهيز القائمة المناسبة (البلديات)
+                    if (currentDeliveryOption === 'desk' && 
+                        shippingProviderSettings?.provider_code === 'zrexpress' && 
+                        currentProvinceValue) {
+                      console.log('يجب عرض البلديات لـ ZRExpress مع اختيار الاستلام من المكتب');
+                      // إعادة تعيين حقل stopDeskId حيث لا يتم استخدامه مع ZRExpress
                       form.setValue('stopDeskId', '', { shouldValidate: false }); 
-                      
+                    } else if (currentDeliveryOption === 'desk' && 
+                               shippingProviderSettings?.provider_code !== 'zrexpress' && 
+                               currentProvinceValue) {
+                      console.log('يجب عرض مكاتب ياليدين للشركات الأخرى مع اختيار الاستلام من المكتب');
+                      // إعادة تعيين حقل municipality حيث يتم استخدام stopDeskId بدلاً منه
+                      form.setValue('municipality', '', { shouldValidate: false }); 
                     }
 
                     // إذا كانت الولاية محددة، قم بإعادة تشغيل منطق تحميل القائمة
@@ -283,79 +312,78 @@ export function DeliveryInfoFields({
       {(() => {
         const currentDeliveryOption = form.watch('deliveryOption');
         
-        if (currentDeliveryOption === 'desk' && hasShippingIntegration) {
-          
+        console.log('DeliveryInfoFields - حالة الشاشة:', { 
+          currentDeliveryOption, 
+          hasShippingIntegration, 
+          provider_code: shippingProviderSettings?.provider_code,
+          municipalities: municipalities?.length || 0
+        });
+        
+        // دائمًا عرض حقل البلدية في حالة الاستلام من المكتب بغض النظر عن شركة التوصيل
+        if (currentDeliveryOption === 'desk') {
+          console.log('عرض البلديات للاستلام منها - لجميع شركات الشحن');
           return (
             <FormField
               control={form.control}
-              name="stopDeskId"
-              render={({ field }) => {
-                // +++ Log in stopDeskId render +++
-                
-                return (
-                  <FormItem className="space-y-2">
-                    <FormLabel>مكتب الاستلام *</FormLabel>
-                    {form.watch('province') ? (
-                      <Select
-                        onValueChange={(selectedValue) => {
-                          // +++ Log in stopDeskId onValueChange +++
-                          
-                          field.onChange(selectedValue);
-                          
-                          form.trigger('stopDeskId');
-                        }}
-                        value={field.value || ""}
-                        disabled={isLoadingYalidineCenters || !form.watch('province') || yalidineCenters.length === 0}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder={
-                              isLoadingYalidineCenters
-                                ? "جاري تحميل مكاتب الاستلام..."
-                                : (yalidineCenters && yalidineCenters.length > 0
-                                  ? "اختر مكتب الاستلام"
-                                  : "لا توجد مكاتب استلام لهذه الولاية")
-                            } />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {isLoadingYalidineCenters ? (
-                            <div className="p-2">
-                              <Skeleton className="h-8 w-full mb-2 dark:bg-muted" />
-                              <Skeleton className="h-8 w-full mb-2 dark:bg-muted" />
-                              <Skeleton className="h-8 w-full dark:bg-muted" />
-                            </div>
-                          ) : yalidineCenters && yalidineCenters.length > 0 ? (
-                            yalidineCenters.map((center) => (
-                              <SelectItem key={center.center_id} value={center.center_id.toString()}>
-                                {center.name} ({center.commune_name})
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <SelectItem disabled value="no_centers_available">
-                             لا توجد مكاتب استلام متاحة
+              name="municipality"
+              render={({ field }) => (
+                <FormItem className="space-y-2">
+                  <FormLabel>البلدية للاستلام منها *</FormLabel>
+                  {form.watch('province') ? (
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value || ""}
+                      disabled={isLoadingCommunes || !form.watch('province') || !municipalities || municipalities.length === 0}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder={
+                            isLoadingCommunes
+                              ? "جاري تحميل البلديات..."
+                              : (municipalities && municipalities.length > 0
+                                ? "اختر البلدية للاستلام منها"
+                                : "لا توجد بلديات متاحة لهذه الولاية")
+                          } />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {isLoadingCommunes ? (
+                          <div className="p-2">
+                            <Skeleton className="h-8 w-full mb-2 dark:bg-muted" />
+                            <Skeleton className="h-8 w-full mb-2 dark:bg-muted" />
+                            <Skeleton className="h-8 w-full dark:bg-muted" />
+                          </div>
+                        ) : municipalities && municipalities.length > 0 ? (
+                          municipalities.map((municipality) => (
+                            <SelectItem key={municipality.id} value={municipality.id.toString()}>
+                              {municipality.name}
                             </SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        الرجاء اختيار الولاية أولاً لعرض مكاتب الاستلام.
-                      </p>
-                    )}
-                    <FormMessage>
-                      {!field.value && form.formState.isSubmitted && "يرجى اختيار مكتب الاستلام"}
-                    </FormMessage>
-                    <p className="text-xs text-muted-foreground">
-                      <AlertCircle className="inline-block w-3 h-3 ml-1" />
-                      مهم: تأكد من اختيار مكتب الاستلام للتوصيل السريع للطلبية
+                          ))
+                        ) : (
+                          <SelectItem disabled value="no_municipalities_available">
+                            لا توجد بلديات متاحة
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      الرجاء اختيار الولاية أولاً لعرض البلديات.
                     </p>
-                  </FormItem>
-                );
-              }}
+                  )}
+                  <FormMessage>
+                    {!field.value && form.formState.isSubmitted && "يرجى اختيار البلدية"}
+                  </FormMessage>
+                  <p className="text-xs text-muted-foreground">
+                    <AlertCircle className="inline-block w-3 h-3 ml-1" />
+                    مهم: اختر البلدية المناسبة للاستلام منها
+                  </p>
+                </FormItem>
+              )}
             />
           );
         }
+        
         return null; // Return null if conditions are not met for this block
       })()}
 
@@ -390,6 +418,8 @@ export function DeliveryInfoFields({
             <Select
               onValueChange={(value) => {
                 field.onChange(value);
+                // اضافة سجل للتأكد أن تغيير شركة التوصيل يعمل
+                console.log('تم تغيير شركة التوصيل إلى:', value);
                 // استدعاء دالة تغيير شركة التوصيل إذا كانت متوفرة
                 if (onDeliveryCompanyChange) {
                   onDeliveryCompanyChange(value);

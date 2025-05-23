@@ -122,9 +122,9 @@ const DashboardHeader = ({ toggleSidebar, onTimeframeChange, onCustomDateChange 
   };
 
   return (
-    <header className="w-full bg-card rounded-lg shadow-sm mb-6 border">
-      {/* شريط أدوات لوحة التحكم */}
-      <div className="flex flex-col gap-5 p-6">
+    <header className="w-full rounded-lg bg-card text-card-foreground relative overflow-hidden transition-all duration-300 bg-gradient-to-br from-background/95 to-background/90 backdrop-blur-md border border-border/20 shadow-lg hover:shadow-xl before:absolute before:inset-0 before:bg-gradient-to-br before:from-primary/5 before:to-transparent before:pointer-events-none mb-6">
+              {/* شريط أدوات لوحة التحكم */}
+        <div className="flex flex-col gap-5 p-6 relative z-10">
         {/* رأس الصفحة مع الأزرار */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-5">
           <div className="flex items-center">
@@ -138,13 +138,13 @@ const DashboardHeader = ({ toggleSidebar, onTimeframeChange, onCustomDateChange 
             </Button>
             
             <div>
-              <h1 className="text-2xl font-bold tracking-tight mb-1">لوحة التحكم</h1>
-              <p className="text-muted-foreground text-sm mb-3">
+              <h1 className="text-2xl font-bold tracking-tight mb-1 bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">لوحة التحكم</h1>
+              <p className="text-muted-foreground text-sm mb-3 font-medium">
                 {currentOrganization?.name ? `${currentOrganization.name} - ` : ''}
                 نظرة عامة على متجرك ومبيعاتك
               </p>
               {/* عرض عنوان الفترة الزمنية */}
-              <div className="inline-flex items-center gap-2 bg-muted py-1.5 px-4 rounded-full text-sm text-muted-foreground border">
+              <div className="inline-flex items-center gap-2 bg-gradient-to-br from-primary/10 to-primary/5 py-1.5 px-4 rounded-full text-sm text-primary border border-primary/20 font-medium">
                 <CalendarIcon className="h-4 w-4" />
                 <span>{getTimeframeTitle()}</span>
               </div>

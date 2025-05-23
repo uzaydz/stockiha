@@ -338,6 +338,202 @@ export class YalidineShippingService extends BaseShippingService {
   }
 }
 
+/**
+ * ZRExpressShippingService implementation
+ */
+export class ZRExpressShippingService extends BaseShippingService {
+  private apiClient;
+  
+  constructor(credentials: ProviderCredentials) {
+    super(
+      ShippingProvider.ZREXPRESS,
+      'https://procolis.com/api_v1/',
+      credentials
+    );
+    
+    this.apiClient = axios.create({
+      baseURL: this.baseUrl,
+      headers: {
+        'token': credentials.token || '',     // token في ZR Express
+        'key': credentials.key || '',         // key في ZR Express
+        'Content-Type': 'application/json'
+      },
+      timeout: 8000 // زيادة مهلة الانتظار إلى 8 ثواني
+    });
+  }
+  
+  /**
+   * Test if the API credentials are valid by fetching tarification data
+   */
+  async testCredentials(): Promise<TestCredentialsResult> {
+    try {
+      const response = await this.apiClient.get('tarification');
+      
+      // تحقق من نجاح الاتصال بناءً على بنية البيانات الصحيحة من ZR Express
+      if (response.status === 200 && Array.isArray(response.data)) {
+        return {
+          success: true,
+          message: 'تم الاتصال بنجاح بخدمة ZR Express'
+        };
+      }
+      
+      return {
+        success: false,
+        message: 'الاتصال غير ناجح، تحقق من بيانات الاعتماد'
+      };
+    } catch (error: any) {
+      console.error('ZR Express API connection error:', error);
+      
+      // معلومات تفصيلية عن الخطأ
+      if (error.response) {
+        console.error('ZR Express API error response:', {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          data: error.response.data,
+          headers: error.response.headers
+        });
+        
+        return {
+          success: false,
+          message: `خطأ ${error.response.status}: ${error.response.data?.message || error.response.statusText}`
+        };
+      } else if (error.request) {
+        console.error('ZR Express API no response error:', error.request);
+        return {
+          success: false,
+          message: 'لا توجد استجابة من خدمة ZR Express، تحقق من اتصال الإنترنت'
+        };
+      } else {
+        console.error('ZR Express API request setup error:', error.message);
+        return {
+          success: false,
+          message: `فشل إعداد الطلب: ${error.message}`
+        };
+      }
+    }
+  }
+  
+  /**
+   * Create a shipping order with ZR Express
+   */
+  async createShippingOrder(params: CreateOrderParams): Promise<any> {
+    try {
+      // تحويل الطلب إلى الصيغة المطلوبة لـ ZR Express
+      const requestBody = {
+        Colis: [{
+          Tracking: params.Tracking,
+          TypeLivraison: params.TypeLivraison.toString(), // تحويل للنص كما هو مطلوب
+          TypeColis: params.TypeColis.toString(),
+          Confrimee: params.Confrimee.toString(),
+          Client: params.Client,
+          MobileA: params.MobileA,
+          MobileB: params.MobileB || "",
+          Adresse: params.Adresse,
+          IDWilaya: params.IDWilaya,
+          Commune: params.Commune,
+          Total: params.Total,
+          Note: params.Note || "",
+          TProduit: params.TProd || "",
+          id_Externe: params.Tracking, // استخدام Tracking كمعرف خارجي
+          Source: ""
+        }]
+      };
+      
+      const response = await this.apiClient.post('', requestBody);
+      return response.data;
+    } catch (error) {
+      console.error('Error creating ZR Express shipping order:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Get tracking information for a parcel
+   */
+  async getTrackingInfo(trackingNumber: string): Promise<any> {
+    try {
+      const requestBody = {
+        Colis: [{ Tracking: trackingNumber }]
+      };
+      
+      const response = await this.apiClient.post('tracking', requestBody);
+      return response.data;
+    } catch (error) {
+      console.error('Error getting ZR Express tracking info:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Get all wilayas (provinces) from ZR Express
+   */
+  async getWilayas(): Promise<any[]> {
+    try {
+      const response = await this.apiClient.get('tarification');
+      
+      // تحويل البيانات إلى تنسيق موحد
+      return response.data.map((item: any) => ({
+        id: item.IDWilaya.toString(),
+        wilaya_name: item.wilaya || `ولاية ${item.IDWilaya}`,
+        target_tarif: item.Domicile.toString(),
+        stop_desk: item.Stopdesk ? "Y" : "N",
+        desk_fee: item.Stopdesk.toString()
+      }));
+    } catch (error) {
+      console.error('Error getting ZR Express wilayas:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Get communes (municipalities) for a wilaya
+   */
+  async getCommunes(wilayaId: string): Promise<any[]> {
+    try {
+      // ملاحظة: ZR Express قد لا يوفر واجهة لاسترجاع البلديات
+      // في هذه الحالة، نرجع قائمة فارغة
+      return [];
+    } catch (error) {
+      console.error('Error getting ZR Express communes:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Calculate shipping cost
+   */
+  async calculateShippingCost(fromWilaya: string, toWilaya: string, amount: number): Promise<number> {
+    try {
+      const wilayas = await this.getWilayas();
+      const targetWilaya = wilayas.find(w => w.id === toWilaya);
+      
+      if (!targetWilaya) {
+        throw new Error('Wilaya not found');
+      }
+      
+      // استخدام سعر التوصيل إلى المنزل كسعر افتراضي
+      return parseFloat(targetWilaya.target_tarif);
+    } catch (error) {
+      console.error('Error calculating ZR Express shipping cost:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Generate a shipping label
+   */
+  async generateShippingLabel(trackingNumber: string): Promise<string> {
+    try {
+      // ملاحظة: ZR Express قد لا يوفر واجهة برمجية لتوليد الملصقات
+      // إرجاع خطأ أو استخدام المنصة مباشرة
+      throw new Error('ZR Express API does not support label generation directly');
+    } catch (error) {
+      console.error('Error generating ZR Express shipping label:', error);
+      throw error;
+    }
+  }
+}
+
 // Factory function to create an appropriate shipping service
 export function createShippingService(
   provider: ShippingProvider, 
@@ -345,7 +541,11 @@ export function createShippingService(
 ): IShippingService {
   switch (provider) {
     case ShippingProvider.YALIDINE:
+      console.log('Creating Yalidine shipping service');
       return new YalidineShippingService(credentials);
+    case ShippingProvider.ZREXPRESS:
+      console.log('Creating ZR Express shipping service');
+      return new ZRExpressShippingService(credentials);
     // Add other providers as they are implemented
     default:
       throw new Error(`Shipping provider ${provider} is not supported`);

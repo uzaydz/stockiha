@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, ShoppingCart, Eye, ChevronRight, Star, ArrowRight, GripHorizontal, Layers, TrendingUp, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,9 @@ import {
 } from '@/components/ui/tooltip';
 import { useTenant } from '@/context/TenantContext';
 
+// مرجع ثابت لمصفوفة فارغة لتجنب إعادة الإنشاء غير الضروري
+const STABLE_EMPTY_ARRAY = Object.freeze([]);
+
 // تعريف النوع لبيانات المنتج من قاعدة البيانات
 interface DBProduct {
   id: string;
@@ -23,7 +26,8 @@ interface DBProduct {
   description: string;
   price: string | number;
   compare_at_price?: string | number | null;
-  thumbnail_image: string;
+  thumbnail_image?: string;
+  thumbnail_url?: string;
   stock_quantity: number;
   is_new?: boolean;
   is_featured?: boolean;
@@ -99,6 +103,11 @@ const defaultProducts: Product[] = [
 
 // وظيفة لتحويل منتج من قاعدة البيانات إلى منتج للواجهة
 const convertDatabaseProductToStoreProduct = (dbProduct: DBProduct): Product => {
+  // إضافة سجلات للتصحيح
+  console.log('تحويل بيانات المنتج من قاعدة البيانات:', dbProduct);
+  console.log('صورة المنتج (thumbnail_image):', dbProduct.thumbnail_image);
+  console.log('صورة المنتج (thumbnail_url):', dbProduct.thumbnail_url);
+  
   let categoryName = '';
   // تحقق من أن category موجود وله نوع
   if (dbProduct.category) {
@@ -107,21 +116,73 @@ const convertDatabaseProductToStoreProduct = (dbProduct: DBProduct): Product => 
     } else if (typeof dbProduct.category === 'string') {
       categoryName = dbProduct.category;
     }
+  } else if (dbProduct.category_name) {
+    // استخدام category_name إذا كان موجودًا (من API الجديد)
+    categoryName = dbProduct.category_name;
+  }
+  
+  // معالجة روابط الصور وتصحيحها
+  let imageUrl = '';
+  
+  // تحقق من وجود thumbnail_url أولاً (يأتي من API الجديد)
+  if (dbProduct.thumbnail_url) {
+    imageUrl = dbProduct.thumbnail_url.trim();
+    console.log('استخدام thumbnail_url:', imageUrl);
+  } 
+  // ثم تحقق من thumbnail_image كخيار ثاني (للتوافق مع البيانات القديمة)
+  else if (dbProduct.thumbnail_image) {
+    imageUrl = dbProduct.thumbnail_image.trim();
+    console.log('استخدام thumbnail_image:', imageUrl);
+  }
+  
+  // التحقق من صحة هيكل الرابط وإصلاحه إذا لزم الأمر
+  if (imageUrl) {
+    // إزالة الاقتباسات إذا كانت موجودة (في حالة تخزين الرابط كسلسلة نصية JSON)
+    if (imageUrl.startsWith('"') && imageUrl.endsWith('"')) {
+      imageUrl = imageUrl.substring(1, imageUrl.length - 1);
+    }
+    
+    // تصحيح الرابط إذا لم يحتوي على بروتوكول
+    if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
+      if (imageUrl.startsWith('//')) {
+        imageUrl = `https:${imageUrl}`;
+      } else if (imageUrl.startsWith('/')) {
+        // إضافة بروتوكول وموقع الخادم للمسارات النسبية
+        const baseUrl = window.location.origin;
+        imageUrl = `${baseUrl}${imageUrl}`;
+      } else {
+        // إضافة بروتوكول HTTPS للروابط الأخرى
+        imageUrl = `https://${imageUrl}`;
+      }
+    }
+    
+    // تأكد من أن الرابط لا يحتوي على مسافات داخلية
+    imageUrl = imageUrl.replace(/\s+/g, '%20');
+    console.log('رابط الصورة بعد المعالجة:', imageUrl);
+  } else {
+    console.log('لا توجد صورة مصغرة للمنتج، سيتم استخدام صورة افتراضية');
+    // استخدم صورة افتراضية إذا لم تكن هناك صورة مصغرة
+    imageUrl = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470';
   }
 
-  return {
+  const product = {
     id: dbProduct.id,
     name: dbProduct.name,
     description: dbProduct.description || '',
     price: Number(dbProduct.price || 0),
     discount_price: dbProduct.compare_at_price ? Number(dbProduct.compare_at_price) : undefined,
-    imageUrl: dbProduct.thumbnail_image || '',
+    imageUrl: imageUrl,
     category: categoryName,
     is_new: !!dbProduct.is_new,
     stock_quantity: Number(dbProduct.stock_quantity || 0),
     slug: typeof dbProduct.slug === 'string' ? dbProduct.slug : dbProduct.id,
     rating: 4.5 // قيمة افتراضية
   };
+  
+  // إضافة سجلات للتصحيح
+  console.log('المنتج بعد التحويل:', product);
+  
+  return product;
 };
 
 const FeaturedProducts = ({
@@ -140,104 +201,266 @@ const FeaturedProducts = ({
   const [favorites, setFavorites] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   
-  // استخدام سياق المؤسسة للحصول على معرف المؤسسة إذا لم يتم تمريره
   const { currentOrganization, isLoading: isTenantLoading } = useTenant();
   
-  // قراءة معرف المؤسسة من localStorage لضمان الحصول على القيمة المحدثة
   const storedOrgId = typeof window !== 'undefined' ? localStorage.getItem('bazaar_organization_id') : null;
   
-  // استخدام المعرف المخزن محليًا إذا كان موجودًا، وإلا استخدام المعرف الممرر، وإلا استخدام معرف المؤسسة الحالية
   const effectiveOrgId = storedOrgId || organizationId || currentOrganization?.id;
-  
-  // جلب المنتجات من قاعدة البيانات عند الحاجة
-  useEffect(() => {
-    // إذا كان سياق المؤسسة لا يزال يتم تحميله، انتظر
-    if (isTenantLoading) {
+
+  // دالة مساعدة لاختبار صحة روابط الصور
+  const validateImageUrl = useCallback((url: string): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (!url || url.trim() === '') {
+        console.log('رابط الصورة فارغ');
+        resolve(false);
+        return;
+      }
       
-      return;
-    }
-    
-    // إذا تم تمرير المنتجات مباشرة، استخدمها
-    if (initialProducts && initialProducts.length > 0) {
-      setProducts(initialProducts);
-      return;
-    }
-    
-    // التحقق من وجود معرف المؤسسة
-    if (!effectiveOrgId) {
-      console.warn('لم يتم تمرير معرف المؤسسة إلى مكون المنتجات المميزة. سيتم استخدام المنتجات الافتراضية.');
-      setProducts(defaultProducts.slice(0, displayCount));
-      return;
-    }
-    
-    // تحديد معرف المؤسسة للتأكيد
-    
-    
-    // جلب المنتجات حسب الطريقة المحددة
-    const fetchProductData = async () => {
-      setLoading(true);
-      try {
-        if (selectionMethod === 'manual' && selectedProducts.length > 0) {
-          // جلب المنتجات المحددة يدويًا
-          const allProducts = await getProducts(effectiveOrgId);
-          // تصفية المنتجات حسب المعرفات المحددة
-          const selectedFilteredProducts = allProducts.filter(p => selectedProducts.includes(p.id));
-          // تحويل البيانات إلى تنسيق المتجر
-          const formattedProducts = selectedFilteredProducts.map(p => convertDatabaseProductToStoreProduct(p as unknown as DBProduct));
-          setProducts(formattedProducts.slice(0, displayCount));
+      // تجنب اختبار الصور المؤقتة مثل blob أو data URLs
+      if (url.startsWith('blob:') || url.startsWith('data:')) {
+        resolve(true);
+        return;
+      }
+      
+      // تصحيح الرابط إذا لم يكن يحتوي على بروتوكول
+      let testUrl = url;
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        if (url.startsWith('//')) {
+          testUrl = `https:${url}`;
+        } else if (!url.startsWith('/')) {
+          testUrl = `https://${url}`;
         } else {
-          // جلب المنتجات حسب المعيار
-          let productData: Product[] = [];
+          // المسارات النسبية تحتاج إلى أصل (origin)
+          testUrl = `${window.location.origin}${url}`;
+        }
+      }
+      
+      // استبدال المسافات بـ %20
+      testUrl = testUrl.replace(/\s+/g, '%20');
+      
+      console.log('جاري اختبار صحة الصورة:', testUrl);
+      
+      // فحص الصورة بطريقة أبسط باستخدام طلب HEAD لتجنب مشاكل CORS
+      fetch(testUrl, { method: 'HEAD', mode: 'no-cors' })
+        .then(() => {
+          console.log(`صورة صالحة: ${testUrl}`);
+          resolve(true);
+        })
+        .catch(() => {
+          console.warn(`صورة غير صالحة: ${testUrl}`);
+          resolve(false);
+        });
+      
+      // تعيين مهلة للرد في حال لم يستجب الخادم
+      setTimeout(() => {
+        resolve(false);
+      }, 3000);
+    });
+  }, []);
+
+  // إنشاء اعتماديات مستقرة للمصفوفات
+  const initialProductsDep = useMemo(() => JSON.stringify(initialProducts || STABLE_EMPTY_ARRAY), [initialProducts]);
+  const selectedProductsDep = useMemo(() => JSON.stringify(selectedProducts || STABLE_EMPTY_ARRAY), [selectedProducts]);
+
+  const fetchProductData = useCallback(async () => {
+    if ((!effectiveOrgId && selectionMethod === 'automatic') || isTenantLoading || (initialProducts && initialProducts.length > 0)) {
+      if (initialProducts && initialProducts.length > 0) {
+        setProducts(initialProducts.slice(0, displayCount));
+      } else if (!effectiveOrgId && selectionMethod === 'automatic') {
+        console.warn('لم يتم تمرير معرف المؤسسة إلى مكون المنتجات المميزة (في fetchProductData). سيتم استخدام المنتجات الافتراضية.');
+        setProducts(defaultProducts.slice(0, displayCount));
+      }
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      let productDataResult: Product[] = [];
+      console.log('جلب المنتجات للمؤسسة:', effectiveOrgId);
+      console.log('طريقة الاختيار:', selectionMethod, 'معيار الاختيار:', selectionCriteria);
+      
+      if (selectionMethod === 'manual' && selectedProducts && selectedProducts.length > 0) {
+        console.log('جلب المنتجات المحددة يدويًا:', selectedProducts);
+        const allProductsData = await getProducts(effectiveOrgId);
+        console.log('المنتجات المجلوبة من API:', allProductsData);
+        
+        if (!allProductsData || allProductsData.length === 0) {
+          console.warn('لم يتم العثور على منتجات من API');
+          setProducts(defaultProducts.slice(0, displayCount));
+          setLoading(false);
+          return;
+        }
+        
+        const selectedFilteredProducts = allProductsData.filter(p => selectedProducts.includes(p.id));
+        console.log('المنتجات المختارة بعد التصفية:', selectedFilteredProducts);
+        
+        // تحويل البيانات مع التحقق من صحة روابط الصور
+        productDataResult = selectedFilteredProducts.map(p => convertDatabaseProductToStoreProduct(p as unknown as DBProduct));
+      } else if (selectionMethod === 'automatic') {
+        console.log('جلب المنتجات تلقائيًا باستخدام معيار:', selectionCriteria);
+        
+        if (selectionCriteria === 'featured') {
+          console.log('جلب المنتجات المميزة للمؤسسة:', effectiveOrgId);
+          const featuredDbProducts = await libGetFeaturedProducts(false, effectiveOrgId);
+          console.log('المنتجات المميزة المجلوبة من API:', featuredDbProducts);
           
-          if (selectionCriteria === 'featured') {
-            // استخدام الوظيفة التي تم إعادة تسميتها
-            const featuredProducts = await libGetFeaturedProducts(false, effectiveOrgId);
-            // تحويل البيانات إلى تنسيق المتجر
-            productData = featuredProducts.map(p => convertDatabaseProductToStoreProduct(p as unknown as DBProduct));
-          } else if (selectionCriteria === 'newest') {
-            // يمكن تنفيذ طلب خاص للمنتجات الجديدة
-            const allProducts = await getProducts(effectiveOrgId);
-            // ترتيب المنتجات حسب تاريخ الإنشاء (الأحدث أولاً)
-            const sortedProducts = [...allProducts].sort((a, b) => {
-              // افتراض أن created_at موجود كخاصية في البيانات
-              const dateA = a.created_at ? new Date(a.created_at) : new Date(0);
-              const dateB = b.created_at ? new Date(b.created_at) : new Date(0);
-              return dateB.getTime() - dateA.getTime();
-            });
-            productData = sortedProducts.map(p => convertDatabaseProductToStoreProduct(p as unknown as DBProduct));
-          } else if (selectionCriteria === 'discounted') {
-            // يمكن تنفيذ طلب خاص للمنتجات ذات الخصومات
-            const allProducts = await getProducts(effectiveOrgId);
-            // تصفية المنتجات التي لها خصم
-            const discountedProducts = allProducts.filter(p => 
-              p.compare_at_price && Number(p.compare_at_price) > Number(p.price)
-            );
-            productData = discountedProducts.map(p => convertDatabaseProductToStoreProduct(p as unknown as DBProduct));
-          } else if (selectionCriteria === 'best_selling') {
-            // هذا يتطلب بيانات المبيعات ولا يمكن تنفيذه هنا بدون طلب مخصص
-            // استخدام البيانات الافتراضية كمثال
-            const allProducts = await getProducts(effectiveOrgId);
-            productData = allProducts.map(p => convertDatabaseProductToStoreProduct(p as unknown as DBProduct));
-          } else {
-            // في حالة عدم وجود منتجات حقيقية، استخدم البيانات الافتراضية
-            productData = defaultProducts;
+          if (!featuredDbProducts || featuredDbProducts.length === 0) {
+            console.warn('لم يتم العثور على منتجات مميزة');
+            setProducts(defaultProducts.slice(0, displayCount));
+            setLoading(false);
+            return;
           }
           
-          setProducts(productData.slice(0, displayCount));
+          // تحويل البيانات
+          productDataResult = featuredDbProducts.map(p => {
+            console.log(`معالجة المنتج المميز: ID=${p.id}, Name=${p.name}`);
+            console.log(`روابط الصور: thumbnail_image=${(p as any).thumbnail_image}, thumbnail_url=${(p as any).thumbnail_url}`);
+            return convertDatabaseProductToStoreProduct(p as unknown as DBProduct);
+          });
+          
+          console.log('المنتجات المميزة بعد التنسيق:', productDataResult);
+        } else if (selectionCriteria === 'newest') {
+          const newestDbProducts = await getProducts(effectiveOrgId);
+          const sortedProducts = [...newestDbProducts].sort((a, b) => {
+            const dateA = a.created_at ? new Date(a.created_at) : new Date(0);
+            const dateB = b.created_at ? new Date(b.created_at) : new Date(0);
+            return dateB.getTime() - dateA.getTime();
+          });
+          productDataResult = sortedProducts.map(p => convertDatabaseProductToStoreProduct(p as unknown as DBProduct));
+        } else if (selectionCriteria === 'discounted') {
+          const productsForDiscountDb = await getProducts(effectiveOrgId);
+          const discountedProductsData = productsForDiscountDb.filter(p => 
+            p.compare_at_price && Number(p.compare_at_price) > Number(p.price)
+          );
+          productDataResult = discountedProductsData.map(p => convertDatabaseProductToStoreProduct(p as unknown as DBProduct));
+        } else if (selectionCriteria === 'best_selling') {
+          const bestSellingDbProducts = await getProducts(effectiveOrgId);
+          productDataResult = bestSellingDbProducts.map(p => convertDatabaseProductToStoreProduct(p as unknown as DBProduct));
+        } else {
+          productDataResult = defaultProducts;
         }
-      } catch (error) {
-        console.error('خطأ في جلب المنتجات المميزة:', error);
-        // في حالة الخطأ، استخدم البيانات الافتراضية
+      } else {
         setProducts(defaultProducts.slice(0, displayCount));
-      } finally {
         setLoading(false);
+        return;
+      }
+      
+      // التحقق النهائي من البيانات قبل التعيين
+      if (!productDataResult || productDataResult.length === 0) {
+        console.warn('لم يتم العثور على منتجات من API، سيتم استخدام المنتجات الافتراضية');
+        setProducts(defaultProducts.slice(0, displayCount));
+      } else {
+        console.log(`تعيين ${productDataResult.length} منتج في المكون`);
+        setProducts(productDataResult.slice(0, displayCount));
+      }
+    } catch (error) {
+      console.error('خطأ في جلب المنتجات المميزة:', error);
+      setProducts(defaultProducts.slice(0, displayCount));
+    } finally {
+      setLoading(false);
+    }
+  }, [
+    effectiveOrgId, 
+    selectionMethod, 
+    selectionCriteria, 
+    displayCount, 
+    isTenantLoading,
+    libGetFeaturedProducts,
+    getProducts,
+    initialProductsDep,
+    selectedProductsDep,
+    validateImageUrl
+  ]);
+  
+  useEffect(() => {
+    if (isTenantLoading) {
+      setLoading(true);
+      return;
+    }
+
+    if (initialProducts && initialProducts.length > 0) {
+      setProducts(initialProducts.slice(0, displayCount));
+      setLoading(false);
+      return;
+    }
+    
+    if (!effectiveOrgId && selectionMethod === 'automatic') {
+      console.warn('useEffect: لم يتم تمرير معرف المؤسسة. سيتم استخدام المنتجات الافتراضية.');
+      setProducts(defaultProducts.slice(0, displayCount));
+      setLoading(false);
+      return;
+    }
+
+    fetchProductData();
+    
+    // إضافة معالجة للصور غير القابلة للتحميل
+    const handleBrokenImages = () => {
+      // تسجيل معلومات تصحيح الأخطاء
+      console.log('جاري فحص الصور المعطوبة...');
+      
+      try {
+        // البحث عن جميع صور المنتجات في الصفحة
+        const productImages = document.querySelectorAll('.product-image');
+        console.log(`تم العثور على ${productImages.length} صورة منتج`);
+        
+        productImages.forEach((img, index) => {
+          const imgElement = img as HTMLImageElement;
+          
+          // تسجيل معلومات كل صورة للتصحيح
+          console.log(`صورة #${index + 1}:`, imgElement.src, 'مكتملة:', imgElement.complete, 'العرض الطبيعي:', imgElement.naturalWidth);
+          
+          // التحقق من أن الصورة لم تحمل بعد أو فشل تحميلها
+          if (imgElement.complete && imgElement.naturalWidth === 0) {
+            console.warn(`تم اكتشاف صورة معطوبة (رقم ${index + 1}):`, imgElement.src);
+            imgElement.src = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470';
+            // تأكد من أن الصورة فوق الخلفية
+            imgElement.style.zIndex = '25';
+            imgElement.style.opacity = '1';
+          }
+          
+          // إضافة معالج أخطاء لكل صورة
+          imgElement.addEventListener('error', function(e) {
+            console.warn(`خطأ في تحميل الصورة (رقم ${index + 1}):`, imgElement.src);
+            // استبدل المصدر بصورة افتراضية
+            imgElement.src = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470';
+            // تأكد من أن الصورة فوق الخلفية
+            imgElement.style.zIndex = '25';
+            imgElement.style.opacity = '1';
+          });
+          
+          // إضافة معالج لنجاح تحميل الصورة
+          imgElement.addEventListener('load', function() {
+            console.log(`تم تحميل الصورة (رقم ${index + 1}) بنجاح:`, imgElement.src);
+            // تأكد من أن الصورة فوق الخلفية عند تحميلها بنجاح
+            imgElement.style.zIndex = '25';
+            imgElement.style.opacity = '1';
+          });
+        });
+      } catch (error) {
+        console.error('خطأ أثناء معالجة الصور المعطوبة:', error);
       }
     };
     
-    fetchProductData();
-  }, [initialProducts, selectionMethod, selectionCriteria, selectedProducts, displayCount, effectiveOrgId, isTenantLoading]);
+    // تنفيذ معالجة الصور المعطوبة بعد التحميل
+    const timer = setTimeout(handleBrokenImages, 500);
+    
+    // ننفذ فحصًا إضافيًا بعد فترة أطول للتأكد من تحميل جميع الصور
+    const secondTimer = setTimeout(handleBrokenImages, 2000);
+    
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(secondTimer);
+    };
+  }, [
+    fetchProductData, 
+    initialProducts?.length,
+    displayCount, 
+    isTenantLoading, 
+    effectiveOrgId, 
+    selectionMethod
+  ]);
   
-  // تحديث نوع العرض عندما تتغير الإعدادات
   useEffect(() => {
     setViewType(displayType);
   }, [displayType]);
@@ -358,29 +581,68 @@ const FeaturedProducts = ({
               <motion.div key={product.id} variants={itemVariants}>
                 {viewType === 'grid' ? (
                   <Card className="group h-full overflow-hidden border border-border/50 hover:border-primary/50 bg-background/80 backdrop-blur-sm shadow-sm hover:shadow-xl transition-all duration-500 rounded-2xl">
-                    <div className="relative overflow-hidden aspect-square">
-                      <Link to={`/products/${product.slug}`}>
-                        <img 
-                          src={product.imageUrl}
-                          alt={product.name}
-                          className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
-                        />
+                    <div className="relative overflow-hidden aspect-square bg-gray-100 border border-gray-200">
+                      <Link to={`/products/${product.slug}`} className="block w-full h-full">
+                        {product.imageUrl ? (
+                          <>
+                            {/* الصورة الرئيسية */}
+                            <img 
+                              key={`product-image-${product.id}`}
+                              src={product.imageUrl}
+                              alt={product.name}
+                              className="product-image w-full h-full object-contain absolute inset-0 z-20 transition-opacity duration-300"
+                              onLoad={(e) => {
+                                // عند تحميل الصورة بنجاح، تأكد من أنها فوق الخلفية
+                                e.currentTarget.style.zIndex = '25';
+                                console.log('تم تحميل الصورة بنجاح:', product.name, product.imageUrl);
+                              }}
+                              onError={(e) => {
+                                console.error('خطأ في تحميل صورة المنتج:', product.id, product.name, 'الرابط:', product.imageUrl);
+                                // استبدل المصدر بصورة افتراضية
+                                e.currentTarget.src = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470';
+                                e.currentTarget.style.zIndex = '25';
+                              }}
+                              loading="lazy"
+                            />
+                            
+                            {/* أيقونة احتياطية في الخلفية */}
+                            <div className="absolute inset-0 flex items-center justify-center bg-gray-50 z-10">
+                              <div className="text-gray-400 flex flex-col items-center justify-center p-4">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                <span className="text-xs text-center">{product.name}</span>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          // عرض أيقونة للمنتجات التي ليس لها صورة
+                          <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
+                            <div className="text-gray-400 flex flex-col items-center justify-center p-4">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                              <span className="text-xs text-center">{product.name}</span>
+                            </div>
+                          </div>
+                        )}
                       </Link>
                       
                       {/* العلامات */}
-                      <div className="absolute top-3 right-3 flex flex-col gap-2 z-10">
-                        {product.is_new && (
-                          <Badge className="bg-blue-500/90 hover:bg-blue-600 backdrop-blur-sm rounded-lg text-[10px] px-3 py-1 font-semibold shadow-md">جديد</Badge>
-                        )}
+                      <div className="absolute top-2 left-2 z-20 flex flex-col gap-1">
                         {product.discount_price && (
-                          <Badge className="bg-red-500/90 hover:bg-red-600 backdrop-blur-sm rounded-lg text-[10px] px-3 py-1 font-semibold shadow-md">
-                            {calculateDiscount(product.price, product.discount_price)}
+                          <Badge variant="secondary" className="bg-red-100 text-red-800 hover:bg-red-200 font-medium">
+                            {calculateDiscount(Number(product.price), Number(product.discount_price))}
+                          </Badge>
+                        )}
+                        {product.is_new && (
+                          <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-200 font-medium">
+                            جديد
                           </Badge>
                         )}
                       </div>
                       
-                      {/* أزرار الإجراءات */}
-                      <div className="absolute bottom-0 inset-x-0 p-3 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                      <div className="absolute bottom-0 left-0 right-0 p-3 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-t from-black/50 to-transparent">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <Button variant="secondary" size="icon" className="h-9 w-9 rounded-full bg-white/90 hover:bg-white">
@@ -460,22 +722,62 @@ const FeaturedProducts = ({
                 ) : (
                   <div className="relative flex flex-col sm:flex-row items-stretch border border-border/50 hover:border-primary/50 rounded-xl overflow-hidden bg-background/80 hover:shadow-md transition-all duration-300">
                     <div className="relative w-full sm:w-40 aspect-square">
-                      <Link to={`/products/${product.slug}`}>
-                        <img 
-                          src={product.imageUrl}
-                          alt={product.name}
-                          className="w-full h-full object-cover"
-                        />
+                      <Link to={`/products/${product.slug}`} className="block w-full h-full">
+                        {product.imageUrl ? (
+                          <>
+                            {/* الصورة الرئيسية */}
+                            <img 
+                              key={`product-image-${product.id}`}
+                              src={product.imageUrl}
+                              alt={product.name}
+                              className="product-image w-full h-full object-contain absolute inset-0 z-20 transition-opacity duration-300"
+                              onLoad={(e) => {
+                                // عند تحميل الصورة بنجاح، تأكد من أنها فوق الخلفية
+                                e.currentTarget.style.zIndex = '25';
+                                console.log('تم تحميل الصورة بنجاح:', product.name, product.imageUrl);
+                              }}
+                              onError={(e) => {
+                                console.error('خطأ في تحميل صورة المنتج:', product.id, product.name, 'الرابط:', product.imageUrl);
+                                // استبدل المصدر بصورة افتراضية
+                                e.currentTarget.src = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470';
+                                e.currentTarget.style.zIndex = '25';
+                              }}
+                              loading="lazy"
+                            />
+                            
+                            {/* أيقونة احتياطية في الخلفية */}
+                            <div className="absolute inset-0 flex items-center justify-center bg-gray-50 z-10">
+                              <div className="text-gray-400 flex flex-col items-center justify-center p-4">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                <span className="text-xs text-center">{product.name}</span>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          // عرض أيقونة للمنتجات التي ليس لها صورة
+                          <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
+                            <div className="text-gray-400 flex flex-col items-center justify-center p-4">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                              <span className="text-xs text-center">{product.name}</span>
+                            </div>
+                          </div>
+                        )}
                       </Link>
                       
                       {/* العلامات */}
-                      <div className="absolute top-3 right-3 flex flex-col gap-2 z-10">
-                        {product.is_new && (
-                          <Badge className="bg-blue-500/90 hover:bg-blue-600 backdrop-blur-sm rounded-lg text-[10px] px-3 py-1 font-semibold shadow-md">جديد</Badge>
-                        )}
+                      <div className="absolute top-2 left-2 z-20 flex flex-col gap-1">
                         {product.discount_price && (
-                          <Badge className="bg-red-500/90 hover:bg-red-600 backdrop-blur-sm rounded-lg text-[10px] px-3 py-1 font-semibold shadow-md">
-                            {calculateDiscount(product.price, product.discount_price)}
+                          <Badge variant="secondary" className="bg-red-100 text-red-800 hover:bg-red-200 font-medium">
+                            {calculateDiscount(Number(product.price), Number(product.discount_price))}
+                          </Badge>
+                        )}
+                        {product.is_new && (
+                          <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-200 font-medium">
+                            جديد
                           </Badge>
                         )}
                       </div>

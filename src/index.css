@@ -58,10 +58,7 @@
     --popover: 0 0% 100%;
     --popover-foreground: 260 10% 10%;
 
-    --primary: 270 70% 60%;
     --primary-foreground: 0 0% 100%;
-    --primary-lighter: 270 70% 85%;
-    --primary-darker: 270 70% 45%;
 
     --secondary: 270 30% 85%;
     --secondary-foreground: 270 70% 40%;
@@ -77,48 +74,48 @@
 
     --border: 270 20% 90%;
     --input: 270 20% 90%;
-    --ring: 270 70% 60%;
 
     --sidebar-background: 260 15% 95%;
     --sidebar-foreground: 260 10% 10%;
-    --sidebar-primary: 270 70% 60%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 270 30% 90%;
     --sidebar-accent-foreground: 270 70% 40%;
     --sidebar-border: 270 20% 90%;
-    --sidebar-ring: 270 70% 60%;
   }
 
   .dark {
-    --background: 260 15% 5%;
-    --foreground: 270 10% 95%;
+    --background: 0 0% 4%;
+    --foreground: 0 0% 98%;
 
-    --card: 260 10% 10%;
-    --card-foreground: 270 10% 95%;
+    --card: 0 0% 11%;
+    --card-foreground: 0 0% 98%;
 
-    --popover: 260 10% 10%;
-    --popover-foreground: 270 10% 95%;
+    --popover: 0 0% 11%;
+    --popover-foreground: 0 0% 98%;
 
-    --primary: 270 70% 60%;
-    --primary-foreground: 270 10% 95%;
-    --primary-lighter: 270 70% 80%;
-    --primary-darker: 270 70% 40%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 270 50% 30%;
-    --secondary-foreground: 270 10% 95%;
+    --secondary: 0 0% 15%;
+    --secondary-foreground: 0 0% 98%;
 
-    --muted: 260 10% 20%;
-    --muted-foreground: 270 10% 75%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 70%;
 
-    --accent: 270 50% 25%;
-    --accent-foreground: 270 10% 95%;
+    --accent: 0 0% 15%;
+    --accent-foreground: 0 0% 98%;
 
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 270 10% 95%;
+    --destructive-foreground: 0 0% 98%;
 
-    --border: 260 10% 20%;
-    --input: 260 10% 20%;
-    --ring: 270 70% 60%;
+    --border: 0 0% 15%;
+    --input: 0 0% 15%;
+
+    --sidebar-background: 0 0% 11%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 15%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 0 0% 15%;
   }
 }
 
@@ -157,25 +154,38 @@
 
 /* Add custom scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-muted;
+  @apply bg-muted/30;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-primary rounded-full;
+  @apply bg-primary/40 hover:bg-primary/60 rounded-full transition-colors duration-300;
+}
+
+/* خاص بالقائمة الجانبية */
+.sidebar-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-track {
+  @apply bg-sidebar-accent/20;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-sidebar-primary/30 hover:bg-sidebar-primary/50 rounded-full transition-colors duration-300;
 }
 
 /* Custom animation for gaming feel */
 @keyframes pulse-glow {
   0%, 100% {
-    box-shadow: 0 0 10px 0 rgba(155, 135, 245, 0.4);
+    box-shadow: 0 0 10px 0 rgba(252, 90, 62, 0.4);
   }
   50% {
-    box-shadow: 0 0 20px 5px rgba(155, 135, 245, 0.7);
+    box-shadow: 0 0 20px 5px rgba(252, 90, 62, 0.7);
   }
 }
 

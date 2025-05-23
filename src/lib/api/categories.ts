@@ -16,6 +16,7 @@ export interface Category {
   image_url: string | null;
   is_active: boolean;
   type: 'product' | 'service'; // نوع الفئة: منتج أو خدمة
+  organization_id: string;
   created_at: string;
   updated_at: string;
   product_count?: number; // عدد المنتجات في هذه الفئة
@@ -216,7 +217,17 @@ export const getCategories = async (organizationId?: string): Promise<Category[]
       return await getLocalCategories();
     }
 
-    const categories = data as Category[];
+    const categories = data.map(item => ({
+      ...item,
+      id: item.id!, // Supabase types might allow null for id if not primary key
+      name: item.name!,
+      slug: item.slug!,
+      type: item.type === 'service' ? 'service' : 'product', // Ensure type safety
+      organization_id: item.organization_id!, // Ensure organization_id is present
+      is_active: item.is_active === null ? true : item.is_active, // Default is_active to true if null
+      created_at: item.created_at!,
+      updated_at: item.updated_at!
+    })) as Category[];
     
     // حساب عدد المنتجات لكل فئة
     if (orgId && categories.length > 0) {
@@ -319,14 +330,26 @@ export const getCategoryById = async (id: string, organizationId?: string): Prom
       return getLocalCategoryById(id);
     }
     
-    return data;
+    if (!data) return null;
+
+    return {
+      ...data,
+      id: data.id!,
+      name: data.name!,
+      slug: data.slug!,
+      type: data.type === 'service' ? 'service' : 'product',
+      organization_id: data.organization_id!,
+      is_active: data.is_active === null ? true : data.is_active,
+      created_at: data.created_at!,
+      updated_at: data.updated_at!
+    } as Category;
   } catch (error) {
     console.error(`Error in getCategoryById (${id}):`, error);
     return getLocalCategoryById(id);
   }
 };
 
-export const createCategory = async (categoryData: Partial<Category>): Promise<Category> => {
+export const createCategory = async (categoryData: Partial<Category>, organizationId: string): Promise<Category> => {
   try {
     // التحقق من حالة الاتصال
     if (!isOnline()) {
@@ -344,7 +367,8 @@ export const createCategory = async (categoryData: Partial<Category>): Promise<C
         icon: categoryData.icon || null,
         image_url: categoryData.image_url || null,
         is_active: categoryData.is_active !== undefined ? categoryData.is_active : true,
-        type: categoryData.type || 'product',
+        type: categoryData.type === 'service' ? 'service' : 'product',
+        organization_id: organizationId,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
@@ -373,13 +397,14 @@ export const createCategory = async (categoryData: Partial<Category>): Promise<C
     const { data, error } = await supabaseClient
       .from('product_categories')
       .insert({
-        name: categoryData.name,
+        name: categoryData.name!,
         description: categoryData.description,
         slug: uniqueSlug,
         icon: categoryData.icon,
         image_url: categoryData.image_url,
         is_active: categoryData.is_active !== undefined ? categoryData.is_active : true,
-        type: categoryData.type || 'product'
+        type: categoryData.type === 'service' ? 'service' : 'product',
+        organization_id: organizationId
       })
       .select()
       .single();
@@ -389,14 +414,23 @@ export const createCategory = async (categoryData: Partial<Category>): Promise<C
       throw error;
     }
 
-    // تخزين الفئة الجديدة محليًا
-    await categoriesStore.setItem(data.id, data);
-    
-    // تحديث قائمة الفئات في التخزين المحلي
-    const categories = await getLocalCategories();
-    await saveCategoriesToLocalStorage([...categories, data]);
+    const resultCategory = {
+      ...data,
+      id: data.id!,
+      name: data.name!,
+      slug: data.slug!,
+      type: data.type === 'service' ? 'service' : 'product',
+      organization_id: data.organization_id!,
+      is_active: data.is_active === null ? true : data.is_active,
+      created_at: data.created_at!,
+      updated_at: data.updated_at!
+    } as Category;
 
-    return data;
+    await categoriesStore.setItem(resultCategory.id, resultCategory);
+    const categories = await getLocalCategories();
+    await saveCategoriesToLocalStorage([...categories, resultCategory]);
+
+    return resultCategory;
   } catch (error) {
     console.error('حدث خطأ أثناء إنشاء فئة جديدة:', error);
     throw error;
@@ -421,12 +455,23 @@ export const addCategoryToSyncQueue = async (category: Category): Promise<void> 
   }
 };
 
-export const updateCategory = async (id: string, categoryData: UpdateCategoryData): Promise<Category> => {
+export const updateCategory = async (id: string, categoryData: UpdateCategoryData, organizationId?: string): Promise<Category> => {
   try {
     const supabaseClient = await getSupabaseClient();
+    
+    // Prepare the update object, ensuring type safety for 'type'
+    const updatePayload: any = { ...categoryData };
+    if (categoryData.type) {
+      updatePayload.type = categoryData.type === 'service' ? 'service' : 'product';
+    }
+    if (organizationId) { // Include organization_id if provided, e.g. for RLS or specific checks
+        updatePayload.organization_id = organizationId;
+    }
+
+
     const { data, error } = await supabaseClient
       .from('product_categories')
-      .update(categoryData)
+      .update(updatePayload)
       .eq('id', id)
       .select()
       .single();
@@ -436,15 +481,27 @@ export const updateCategory = async (id: string, categoryData: UpdateCategoryDat
       throw error;
     }
 
+    const resultCategory = {
+      ...data,
+      id: data.id!,
+      name: data.name!,
+      slug: data.slug!,
+      type: data.type === 'service' ? 'service' : 'product',
+      organization_id: data.organization_id!,
+      is_active: data.is_active === null ? true : data.is_active,
+      created_at: data.created_at!,
+      updated_at: data.updated_at!
+    } as Category;
+    
     // تحديث بيانات الفئة محليًا
-    await categoriesStore.setItem(id, data);
+    await categoriesStore.setItem(id, resultCategory);
     
     // تحديث قائمة الفئات المحلية
     const categories = await getLocalCategories();
-    const updatedCategories = categories.map(cat => cat.id === id ? data : cat);
+    const updatedCategories = categories.map(cat => cat.id === id ? resultCategory : cat);
     await saveCategoriesToLocalStorage(updatedCategories);
 
-    return data;
+    return resultCategory;
   } catch (error) {
     console.error('حدث خطأ أثناء تحديث الفئة:', error);
     throw error;
@@ -787,4 +844,4 @@ export const syncCategoriesDataOnStartup = async (): Promise<boolean> => {
 
 // استدعاء المزامنة عند استيراد الملف (لملء التخزين المحلي عند بدء التطبيق)
 // تأخير المزامنة لمدة ثانيتين للتأكد من أن التطبيق قد تم تحميله بالكامل
-setTimeout(syncCategoriesDataOnStartup, 2000); 
+// setTimeout(syncCategoriesDataOnStartup, 2000); 
