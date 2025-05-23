@@ -20,6 +20,7 @@ interface PixelSettings {
   facebook: {
     enabled: boolean;
     pixel_id?: string;
+    test_event_code?: string;
   };
   google: {
     enabled: boolean;
@@ -28,9 +29,14 @@ interface PixelSettings {
   tiktok: {
     enabled: boolean;
     pixel_id?: string;
+    test_event_code?: string;
   };
   test_mode: boolean;
 }
+
+// Supabase Edge Function URL
+const SUPABASE_URL = 'https://wrnssatuvmumsczyldth.supabase.co';
+const CONVERSION_SETTINGS_URL = `${SUPABASE_URL}/functions/v1/conversion-settings`;
 
 /**
  * مكون شامل لتتبع التحويلات والبكسلات
@@ -60,19 +66,31 @@ export default function ProductTrackingWrapper({
           const settings = JSON.parse(cachedSettings);
           setPixelSettings(settings);
           setIsLoading(false);
+          console.log('📦 تم جلب إعدادات البكسل من التخزين المؤقت');
           return;
         }
 
-        // جلب من الخادم
-        const response = await fetch(`/api/conversion-settings/${productId}`);
+        console.log('🔍 جلب إعدادات البكسل من Edge Function للمنتج:', productId);
+
+        // جلب من Edge Function
+        const response = await fetch(`${CONVERSION_SETTINGS_URL}?productId=${productId}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || ''}`,
+          }
+        });
+
         if (response.ok) {
           const data = await response.json();
+          console.log('✅ تم جلب إعدادات التحويل من Edge Function:', data);
           
           // تحويل البيانات إلى التنسيق المطلوب
           const settings: PixelSettings = {
             facebook: {
               enabled: data.settings?.facebook?.enabled || false,
-              pixel_id: data.settings?.facebook?.pixel_id
+              pixel_id: data.settings?.facebook?.pixel_id,
+              test_event_code: data.settings?.facebook?.test_event_code
             },
             google: {
               enabled: data.settings?.google?.enabled || false,
@@ -80,18 +98,59 @@ export default function ProductTrackingWrapper({
             },
             tiktok: {
               enabled: data.settings?.tiktok?.enabled || false,
-              pixel_id: data.settings?.tiktok?.pixel_id
+              pixel_id: data.settings?.tiktok?.pixel_id,
+              test_event_code: data.settings?.tiktok?.test_event_code
             },
             test_mode: data.settings?.test_mode || false
           };
 
+          console.log('🎯 إعدادات البكسل المُعالجة:', settings);
           setPixelSettings(settings);
           
           // حفظ في التخزين المؤقت
           sessionStorage.setItem(`pixel_settings_${productId}`, JSON.stringify(settings));
+        } else {
+          console.error('❌ خطأ في response من Edge Function:', response.status, response.statusText);
+          
+          // محاولة fallback إلى API route المحلي
+          console.log('🔄 محاولة fallback إلى API route المحلي...');
+          const fallbackResponse = await fetch(`/api/conversion-settings/${productId}`);
+          if (fallbackResponse.ok) {
+            const fallbackData = await fallbackResponse.json();
+            console.log('✅ تم جلب إعدادات التحويل من API المحلي:', fallbackData);
+            
+            const settings: PixelSettings = {
+              facebook: {
+                enabled: fallbackData.settings?.facebook?.enabled || false,
+                pixel_id: fallbackData.settings?.facebook?.pixel_id,
+                test_event_code: fallbackData.settings?.facebook?.test_event_code
+              },
+              google: {
+                enabled: fallbackData.settings?.google?.enabled || false,
+                gtag_id: fallbackData.settings?.google?.gtag_id
+              },
+              tiktok: {
+                enabled: fallbackData.settings?.tiktok?.enabled || false,
+                pixel_id: fallbackData.settings?.tiktok?.pixel_id,
+                test_event_code: fallbackData.settings?.tiktok?.test_event_code
+              },
+              test_mode: fallbackData.settings?.test_mode || false
+            };
+            
+            setPixelSettings(settings);
+            sessionStorage.setItem(`pixel_settings_${productId}`, JSON.stringify(settings));
+          }
         }
       } catch (error) {
-        console.error('خطأ في تحميل إعدادات البكسل:', error);
+        console.error('❌ خطأ في تحميل إعدادات البكسل:', error);
+        
+        // محاولة أخيرة: جلب مباشر من قاعدة البيانات
+        try {
+          console.log('🔄 محاولة أخيرة: جلب مباشر من قاعدة البيانات...');
+          // هذا fallback إضافي يمكن إضافته لاحقاً
+        } catch (fallbackError) {
+          console.error('❌ فشل في جميع محاولات جلب إعدادات البكسل:', fallbackError);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -116,7 +175,7 @@ export default function ProductTrackingWrapper({
         <PixelLoader 
           settings={pixelSettings}
           onLoad={() => {
-            console.log('✅ تم تحميل جميع البكسلات بنجاح');
+            console.log('✅ تم تحميل جميع البكسلات بنجاح:', pixelSettings);
           }}
         />
       )}
@@ -148,10 +207,25 @@ export function useProductTracking(productId: string) {
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const response = await fetch(`/api/conversion-settings/${productId}`);
+        // محاولة Edge Function أولاً
+        const response = await fetch(`${CONVERSION_SETTINGS_URL}?productId=${productId}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || ''}`,
+          }
+        });
+        
         if (response.ok) {
           const data = await response.json();
           setSettings(data.settings);
+        } else {
+          // Fallback إلى API المحلي
+          const fallbackResponse = await fetch(`/api/conversion-settings/${productId}`);
+          if (fallbackResponse.ok) {
+            const fallbackData = await fallbackResponse.json();
+            setSettings(fallbackData.settings);
+          }
         }
       } catch (error) {
         console.error('خطأ في تحميل إعدادات التتبع:', error);

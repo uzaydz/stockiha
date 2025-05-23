@@ -6,6 +6,7 @@ interface PixelSettings {
   facebook: {
     enabled: boolean;
     pixel_id?: string;
+    test_event_code?: string;
   };
   google: {
     enabled: boolean;
@@ -14,6 +15,7 @@ interface PixelSettings {
   tiktok: {
     enabled: boolean;
     pixel_id?: string;
+    test_event_code?: string;
   };
   test_mode: boolean;
 }
@@ -35,9 +37,17 @@ export default function PixelLoader({ settings, onLoad }: PixelLoaderProps) {
   }, [settings, onLoad]);
 
   useEffect(() => {
+    console.log('🚀 بدء تحميل البكسلات:', settings);
+    
     // تحميل Facebook Pixel
     if (settings.facebook.enabled && settings.facebook.pixel_id) {
-      loadFacebookPixel(settings.facebook.pixel_id, settings.test_mode);
+      loadFacebookPixel(
+        settings.facebook.pixel_id, 
+        settings.test_mode, 
+        settings.facebook.test_event_code
+      );
+    } else {
+      console.log('❌ Facebook Pixel غير مفعل أو معرف البكسل مفقود');
     }
 
     // تحميل Google Analytics/Ads
@@ -47,7 +57,11 @@ export default function PixelLoader({ settings, onLoad }: PixelLoaderProps) {
 
     // تحميل TikTok Pixel
     if (settings.tiktok.enabled && settings.tiktok.pixel_id) {
-      loadTikTokPixel(settings.tiktok.pixel_id, settings.test_mode);
+      loadTikTokPixel(
+        settings.tiktok.pixel_id, 
+        settings.test_mode, 
+        settings.tiktok.test_event_code
+      );
     }
   }, [settings]);
 
@@ -55,14 +69,16 @@ export default function PixelLoader({ settings, onLoad }: PixelLoaderProps) {
 }
 
 // دالة تحميل Facebook Pixel
-function loadFacebookPixel(pixelId: string, testMode: boolean) {
+function loadFacebookPixel(pixelId: string, testMode: boolean, testEventCode?: string) {
   if (typeof window === 'undefined') return;
 
   // تجنب التحميل المتكرر
   if ((window as any).fbq) {
-    console.log('Facebook Pixel محمل مسبقاً');
+    console.log('📱 Facebook Pixel محمل مسبقاً');
     return;
   }
+
+  console.log(`🔵 تحميل Facebook Pixel: ${pixelId}${testMode ? ` (وضع الاختبار: ${testEventCode || 'TEST12345'})` : ''}`);
 
   const script = document.createElement('script');
   script.innerHTML = `
@@ -76,7 +92,10 @@ function loadFacebookPixel(pixelId: string, testMode: boolean) {
     'https://connect.facebook.net/en_US/fbevents.js');
     
     fbq('init', '${pixelId}');
-    ${testMode ? "fbq('track', 'PageView', {}, {testEventCode: 'TEST12345'});" : "fbq('track', 'PageView');"}
+    ${testMode && testEventCode ? 
+      `fbq('track', 'PageView', {}, {testEventCode: '${testEventCode}'});` : 
+      "fbq('track', 'PageView');"
+    }
   `;
   
   document.head.appendChild(script);
@@ -86,7 +105,7 @@ function loadFacebookPixel(pixelId: string, testMode: boolean) {
   noscript.innerHTML = `<img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=${pixelId}&ev=PageView&noscript=1"/>`;
   document.body.appendChild(noscript);
 
-  console.log(`✅ Facebook Pixel محمل: ${pixelId}${testMode ? ' (وضع الاختبار)' : ''}`);
+  console.log(`✅ Facebook Pixel محمل بنجاح: ${pixelId}${testMode ? ` (${testEventCode || 'TEST12345'})` : ''}`);
 }
 
 // دالة تحميل Google Analytics
@@ -95,9 +114,11 @@ function loadGoogleAnalytics(gtagId: string, testMode: boolean) {
 
   // تجنب التحميل المتكرر
   if ((window as any).gtag) {
-    console.log('Google Analytics محمل مسبقاً');
+    console.log('📊 Google Analytics محمل مسبقاً');
     return;
   }
+
+  console.log(`🔴 تحميل Google Analytics: ${gtagId}${testMode ? ' (وضع الاختبار)' : ''}`);
 
   // تحميل gtag script
   const script = document.createElement('script');
@@ -115,18 +136,20 @@ function loadGoogleAnalytics(gtagId: string, testMode: boolean) {
   `;
   document.head.appendChild(configScript);
 
-  console.log(`✅ Google Analytics محمل: ${gtagId}${testMode ? ' (وضع الاختبار)' : ''}`);
+  console.log(`✅ Google Analytics محمل بنجاح: ${gtagId}${testMode ? ' (وضع الاختبار)' : ''}`);
 }
 
 // دالة تحميل TikTok Pixel
-function loadTikTokPixel(pixelId: string, testMode: boolean) {
+function loadTikTokPixel(pixelId: string, testMode: boolean, testEventCode?: string) {
   if (typeof window === 'undefined') return;
 
   // تجنب التحميل المتكرر
   if ((window as any).ttq) {
-    console.log('TikTok Pixel محمل مسبقاً');
+    console.log('🎵 TikTok Pixel محمل مسبقاً');
     return;
   }
+
+  console.log(`⚫ تحميل TikTok Pixel: ${pixelId}${testMode ? ` (وضع الاختبار: ${testEventCode || 'TEST'})` : ''}`);
 
   const script = document.createElement('script');
   script.innerHTML = `
@@ -135,11 +158,11 @@ function loadTikTokPixel(pixelId: string, testMode: boolean) {
       ttq.load('${pixelId}');
       ttq.page();
     }(window, document, 'ttq');
-    ${testMode ? "console.log('TikTok Pixel في وضع الاختبار');" : ""}
+    ${testMode ? `console.log('TikTok Pixel في وضع الاختبار: ${testEventCode || 'TEST'}');` : ""}
   `;
   document.head.appendChild(script);
 
-  console.log(`✅ TikTok Pixel محمل: ${pixelId}${testMode ? ' (وضع الاختبار)' : ''}`);
+  console.log(`✅ TikTok Pixel محمل بنجاح: ${pixelId}${testMode ? ` (${testEventCode || 'TEST'})` : ''}`);
 }
 
 // مكون للتحميل الشرطي للبكسلات حسب الصفحة
