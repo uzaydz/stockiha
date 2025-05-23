@@ -16,6 +16,7 @@ interface ConversionSettings {
     conversion_api_enabled: boolean;
     access_token?: string;
     dataset_id?: string;
+    test_event_code?: string;
   };
   google: {
     enabled: boolean;
@@ -170,9 +171,14 @@ class ConversionTracker {
     // تنفيذ جميع الإرسالات بشكل متوازي
     await Promise.allSettled(promises);
     
-    // تسجيل الحدث في قاعدة البيانات (معطل مؤقتاً)
-    // TODO: إعادة تفعيل بعد إصلاح API routes
-    // this.logEventToDatabase(event).catch(console.error);
+    // تسجيل الحدث في قاعدة البيانات (بشكل غير متزامن)
+    try {
+      await this.logEventToDatabase(event);
+      console.log('✅ تم تسجيل الحدث في قاعدة البيانات بنجاح');
+    } catch (dbError) {
+      console.error('❌ فشل في تسجيل الحدث في قاعدة البيانات:', dbError);
+      // لا نوقف العملية، tracking الأساسي يكفي
+    }
     
     console.log('✅ تم إرسال الحدث بنجاح إلى جميع المنصات المفعلة');
   }
@@ -197,10 +203,16 @@ class ConversionTracker {
         console.log('✅ تم إرسال الحدث إلى Facebook Pixel (Client-side):', eventData);
       }
 
-      // Facebook Conversion API (Server-side) - معطل مؤقتاً
-      // TODO: إعادة تفعيل بعد إصلاح مشكلة الإرسال
-      if (false && this.settings?.facebook.conversion_api_enabled && this.settings.facebook.access_token) {
-        await this.sendToFacebookConversionAPI(event);
+      // Facebook Conversion API (Server-side)
+      if (this.settings?.facebook.conversion_api_enabled && this.settings.facebook.access_token) {
+        console.log('🔄 محاولة إرسال إلى Facebook Conversion API...');
+        try {
+          await this.sendToFacebookConversionAPI(event);
+          console.log('✅ تم إرسال الحدث إلى Facebook Conversion API بنجاح');
+        } catch (conversionApiError) {
+          console.error('❌ فشل في إرسال إلى Facebook Conversion API:', conversionApiError);
+          // لا نوقف العملية، Client-side pixel يكفي
+        }
       }
     } catch (error) {
       console.error('خطأ في إرسال إلى Facebook:', error);
@@ -235,10 +247,17 @@ class ConversionTracker {
         },
         event_id: this.generateEventId(event) // لمنع التكرار
       }],
-      test_event_code: this.settings?.test_mode ? 'TEST12345' : undefined
+      // استخدام test_event_code الصحيح من قاعدة البيانات
+      test_event_code: this.settings?.test_mode ? (this.settings?.facebook?.test_event_code || 'TEST35620') : undefined
     };
 
-    await fetch('/api/facebook-conversion-api', {
+    console.log('🔵 إرسال payload إلى Facebook Conversion API:', {
+      pixel_id: this.settings?.facebook.pixel_id,
+      event_count: payload.data.length,
+      test_event_code: payload.test_event_code
+    });
+
+    const response = await fetch('/api/facebook-conversion-api', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -247,6 +266,14 @@ class ConversionTracker {
         payload
       })
     });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(`Facebook Conversion API فشل: ${response.status} - ${errorData}`);
+    }
+
+    const responseData = await response.json();
+    console.log('✅ استجابة Facebook Conversion API:', responseData);
   }
 
   /**
@@ -296,23 +323,35 @@ class ConversionTracker {
    * تسجيل الحدث في قاعدة البيانات
    */
   private async logEventToDatabase(event: ConversionEvent): Promise<void> {
-    try {
-      await fetch('/api/conversion-events', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          product_id: event.product_id,
-          order_id: event.order_id,
-          event_type: event.event_type,
-          platform: 'multiple',
-          user_data: event.user_data,
-          custom_data: event.custom_data,
-          event_id: this.generateEventId(event)
-        })
-      });
-    } catch (error) {
-      console.error('خطأ في تسجيل الحدث:', error);
+    const eventData = {
+      product_id: event.product_id,
+      order_id: event.order_id,
+      event_type: event.event_type,
+      platform: 'multiple',
+      user_data: event.user_data,
+      custom_data: event.custom_data,
+      event_id: this.generateEventId(event)
+    };
+
+    console.log('📊 تسجيل حدث في قاعدة البيانات:', {
+      product_id: event.product_id,
+      event_type: event.event_type,
+      event_id: eventData.event_id
+    });
+
+    const response = await fetch('/api/conversion-events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(eventData)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(`تسجيل الحدث فشل: ${response.status} - ${errorData}`);
     }
+
+    const responseData = await response.json();
+    console.log('✅ تم تسجيل الحدث في قاعدة البيانات:', responseData);
   }
 
   // Helper Methods
