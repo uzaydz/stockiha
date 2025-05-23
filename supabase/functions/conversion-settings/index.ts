@@ -1,35 +1,25 @@
-import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// إعداد Supabase client
-const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+};
 
-serve(async (req: Request) => {
-  // CORS headers
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  };
-
+Deno.serve(async (req: Request) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  // Only allow GET method
-  if (req.method !== 'GET') {
-    return new Response(
-      JSON.stringify({ error: 'Method not allowed' }),
-      { 
-        status: 405, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
-  }
-
   try {
+    // إعداد Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+
+    // استخراج productId من URL parameters
     const url = new URL(req.url);
     const productId = url.searchParams.get('productId');
 
@@ -37,28 +27,25 @@ serve(async (req: Request) => {
       return new Response(
         JSON.stringify({ 
           error: 'معرف المنتج مطلوب',
-          message: 'productId query parameter is required'
+          message: 'Product ID is required' 
         }),
         { 
           status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
     }
 
-    console.log('🔍 جلب إعدادات التحويل للمنتج:', productId);
+    console.log('🔍 [Edge Function] جلب إعدادات التحويل للمنتج:', productId);
 
-    // إنشاء Supabase client
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-
-    // استخدام الدالة المحسنة مع التخزين المؤقت
+    // استخدام الدالة الجديدة المحسنة
     const { data, error } = await supabase
-      .rpc('get_conversion_settings_cached', { 
+      .rpc('get_simple_conversion_settings', { 
         p_product_id: productId 
       });
 
     if (error) {
-      console.error('❌ خطأ في جلب إعدادات التحويل:', error);
+      console.error('❌ [Edge Function] خطأ في جلب إعدادات التحويل:', error);
       return new Response(
         JSON.stringify({
           error: 'فشل في جلب الإعدادات',
@@ -66,36 +53,32 @@ serve(async (req: Request) => {
         }),
         { 
           status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
     }
 
-    console.log('✅ تم جلب إعدادات التحويل:', data);
-
-    // إعداد response مع cache headers
-    const responseHeaders = {
-      ...corsHeaders,
-      'Content-Type': 'application/json',
-      'Cache-Control': 'public, max-age=300', // 5 دقائق
-      'ETag': `"${Date.now()}"`,
-      'Last-Modified': new Date().toUTCString()
-    };
+    console.log('✅ [Edge Function] تم جلب إعدادات التحويل:', data);
 
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         settings: data || {},
         cached_at: new Date().toISOString(),
-        success: true
+        success: true,
+        source: 'edge-function'
       }),
-      { 
-        status: 200, 
-        headers: responseHeaders
+      {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+          'Cache-Control': 'public, max-age=300', // 5 دقائق
+        },
       }
     );
 
   } catch (error) {
-    console.error('❌ خطأ في Edge Function:', error);
+    console.error('❌ [Edge Function] خطأ في معالجة الطلب:', error);
     return new Response(
       JSON.stringify({
         error: 'خطأ داخلي في الخادم',
@@ -103,7 +86,7 @@ serve(async (req: Request) => {
       }),
       { 
         status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       }
     );
   }

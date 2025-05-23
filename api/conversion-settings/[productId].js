@@ -36,9 +36,9 @@ export default async function handler(req, res) {
 
     console.log('🔍 جلب إعدادات التحويل للمنتج:', productId);
 
-    // استخدام الدالة المحسنة مع التخزين المؤقت
+    // استخدام الدالة الجديدة المحسنة
     const { data, error } = await supabase
-      .rpc('get_conversion_settings_cached', { 
+      .rpc('get_simple_conversion_settings', { 
         p_product_id: productId 
       });
 

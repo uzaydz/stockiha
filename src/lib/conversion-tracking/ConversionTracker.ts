@@ -71,15 +71,29 @@ class ConversionTracker {
         return;
       }
 
-      // جلب الإعدادات من الخادم
-      const response = await fetch(`/api/conversion-settings/${this.productId}`, {
+      // محاولة جلب الإعدادات من API route المحلي أولاً
+      let response = await fetch(`/api/conversion-settings/${this.productId}`, {
         headers: { 'Cache-Control': 'max-age=300' } // 5 دقائق
       });
+      
+      if (!response.ok) {
+        console.warn('فشل في API route المحلي، محاولة Edge Function...');
+        // fallback إلى Edge Function
+        const edgeFunctionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/conversion-settings`;
+        response = await fetch(`${edgeFunctionUrl}?productId=${this.productId}`, {
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        });
+      }
       
       if (response.ok) {
         const data = await response.json();
         this.settings = data.settings;
         this.cacheSettings(data.settings);
+      } else {
+        console.error('فشل في جلب إعدادات التتبع من جميع المصادر');
       }
     } catch (error) {
       console.warn('فشل في تحميل إعدادات التتبع:', error);
