@@ -225,12 +225,16 @@ export const extractSubdomainFromHostname = (hostname: string) => {
   }
   
   // التحقق أولاً إذا كان يستخدم النطاق الرئيسي الذي نمتلكه
-  const baseDomains = ['.bazaar.com', '.bazaar.dev', '.vercel.app'];
+  const baseDomains = ['.bazaar.com', '.bazaar.dev', '.vercel.app', '.ktobi.online', '.stockiha.com'];
   
   for (const baseDomain of baseDomains) {
     if (hostname.endsWith(baseDomain)) {
       const parts = hostname.replace(baseDomain, '').split('.');
-      return parts[parts.length - 1];
+      const subdomain = parts[parts.length - 1];
+      // التأكد من أن النطاق الفرعي ليس فارغاً وليس www
+      if (subdomain && subdomain !== 'www') {
+        return subdomain;
+      }
     }
   }
   
