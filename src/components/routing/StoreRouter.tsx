@@ -8,6 +8,14 @@ import LandingPage from '@/pages/landing/LandingPage';
 // import { getFullStoreData } from '@/api/store'; 
 import { getStoreDataFast, StoreInitializationData } from '@/api/storeDataService';
 
+// قائمة النطاقات العامة التي تعرض صفحة الهبوط وليس متجر
+const PUBLIC_DOMAINS = [
+  'ktobi.online',
+  'www.ktobi.online',
+  'stockiha.com',
+  'www.stockiha.com'
+];
+
 /**
  * مكون للتوجيه المباشر إلى صفحة المتجر عند استخدام سابدومين أو دومين مخصص
  */
@@ -25,8 +33,17 @@ const StoreRouter = () => {
       const hostname = window.location.hostname;
       console.log("[StoreRouter] Checking hostname:", hostname);
 
+      // التحقق من النطاقات المحلية
       if (hostname === 'localhost' || hostname === '127.0.0.1') {
         console.log("[StoreRouter] Hostname is localhost, setting isStore to false.");
+        setIsStore(false);
+        setIsLoading(false);
+        return;
+      }
+
+      // التحقق من النطاقات العامة
+      if (PUBLIC_DOMAINS.includes(hostname)) {
+        console.log("[StoreRouter] Hostname is a public domain, showing landing page.");
         setIsStore(false);
         setIsLoading(false);
         return;
