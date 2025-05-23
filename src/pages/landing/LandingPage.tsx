@@ -22,6 +22,14 @@ import FAQSection from '@/components/landing/FAQSection';
 import CTASection from '@/components/landing/CTASection';
 import Navbar from '@/components/landing/Navbar';
 
+// قائمة النطاقات العامة التي لا تحتاج لفحص في قاعدة البيانات
+const PUBLIC_DOMAINS = [
+  'ktobi.online',
+  'www.ktobi.online',
+  'stockiha.com',
+  'www.stockiha.com'
+];
+
 const LandingPage = () => {
   const { currentSubdomain } = useAuth();
   const { currentOrganization } = useTenant();
@@ -40,6 +48,13 @@ const LandingPage = () => {
   useEffect(() => {
     if (showStore === null) {
       const hostname = window.location.hostname;
+      
+      // فحص النطاقات العامة أولاً
+      if (PUBLIC_DOMAINS.includes(hostname)) {
+        console.log("[LandingPage] Hostname is a public domain, skipping organization lookup.");
+        setShowStore(false);
+        return;
+      }
       
       // التحقق من النطاق المخصص
       const checkCustomDomain = async () => {
