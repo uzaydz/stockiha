@@ -1,7 +1,7 @@
 // إضافة تعريفات للنوافذ العامة
 declare global {
   interface Window {
-    fbq?: (action: string, event: string, data?: any) => void;
+    fbq?: (action: string, event: string, data?: any, options?: any) => void;
     gtag?: (action: string, event: string, data?: any) => void;
     ttq?: {
       track: (event: string, data?: any) => void;
@@ -188,6 +188,9 @@ class ConversionTracker {
    */
   private async sendToFacebook(event: ConversionEvent): Promise<void> {
     try {
+      // إنشاء event_id فريد مرة واحدة للاستخدام في كلاهما
+      const eventId = this.generateEventId(event);
+      
       // Facebook Pixel (Client-side) - يعمل بنجاح
       if (typeof window !== 'undefined' && window.fbq) {
         const eventData: any = {
@@ -199,15 +202,28 @@ class ConversionTracker {
         if (event.value) eventData.value = event.value;
         if (event.order_id) eventData.order_id = event.order_id;
 
-        window.fbq('track', this.mapEventType(event.event_type), eventData);
-        console.log('✅ تم إرسال الحدث إلى Facebook Pixel (Client-side):', eventData);
+        // إضافة event_id للتكرار مع Server-side
+        const fbqOptions: any = { eventID: eventId };
+        
+        // إضافة test_event_code في وضع الاختبار
+        if (this.settings?.test_mode && this.settings?.facebook?.test_event_code) {
+          fbqOptions.testEventCode = this.settings.facebook.test_event_code;
+        }
+
+        window.fbq('track', this.mapEventType(event.event_type), eventData, fbqOptions);
+        console.log('✅ تم إرسال الحدث إلى Facebook Pixel (Client-side):', {
+          event_type: this.mapEventType(event.event_type),
+          event_id: eventId,
+          data: eventData,
+          options: fbqOptions
+        });
       }
 
       // Facebook Conversion API (Server-side)
       if (this.settings?.facebook.conversion_api_enabled && this.settings.facebook.access_token) {
         console.log('🔄 محاولة إرسال إلى Facebook Conversion API...');
         try {
-          await this.sendToFacebookConversionAPI(event);
+          await this.sendToFacebookConversionAPI(event, eventId);
           console.log('✅ تم إرسال الحدث إلى Facebook Conversion API بنجاح');
         } catch (conversionApiError) {
           console.error('❌ فشل في إرسال إلى Facebook Conversion API:', conversionApiError);
@@ -222,44 +238,76 @@ class ConversionTracker {
   /**
    * إرسال إلى Facebook Conversion API
    */
-  private async sendToFacebookConversionAPI(event: ConversionEvent): Promise<void> {
+  private async sendToFacebookConversionAPI(event: ConversionEvent, eventId: string): Promise<void> {
+    // جمع معلومات أفضل للمطابقة المتقدمة
+    const userAgent = navigator.userAgent;
+    const language = navigator.language || 'ar';
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    
+    // محاولة جلب Facebook Browser ID من الكوكيز
+    const fbp = this.getFacebookBrowserId();
+    const fbc = this.getFacebookClickId();
+    
     const payload = {
       data: [{
         event_name: this.mapEventType(event.event_type),
         event_time: Math.floor(Date.now() / 1000),
+        event_id: eventId,
         action_source: 'website',
         event_source_url: window.location.href,
         user_data: {
-          em: event.user_data?.email ? this.hashData(event.user_data.email) : undefined,
-          ph: event.user_data?.phone ? this.hashData(event.user_data.phone) : undefined,
+          em: event.user_data?.email || undefined, // سيتم hash في API
+          ph: event.user_data?.phone || undefined, // سيتم hash في API
           external_id: event.user_data?.external_id,
-          client_ip_address: event.user_data?.client_ip_address,
-          client_user_agent: event.user_data?.client_user_agent,
-          fbc: event.user_data?.fbc,
-          fbp: event.user_data?.fbp
+          client_user_agent: userAgent,
+          fbc: fbc,
+          fbp: fbp,
+          // إضافة معلومات إضافية للمطابقة المتقدمة
+          country: 'dz', // الجزائر
+          language: language,
+          timezone: timezone
         },
         custom_data: {
           content_ids: [event.product_id],
           content_type: 'product',
           currency: event.currency || 'DZD',
           value: event.value,
-          order_id: event.order_id
+          order_id: event.order_id,
+          // إضافة معلومات إضافية
+          content_name: `منتج ${event.product_id}`,
+          content_category: 'ecommerce',
+          num_items: 1,
+          // معلومات الصفحة
+          page_title: document.title,
+          referrer_url: document.referrer || undefined
         },
-        event_id: this.generateEventId(event) // لمنع التكرار
+        // معلومات إضافية للتتبع
+        opt_out: false,
+        referrer_url: document.referrer || undefined
       }],
-      // استخدام test_event_code الصحيح من قاعدة البيانات
-      test_event_code: this.settings?.test_mode ? (this.settings?.facebook?.test_event_code || 'TEST35620') : undefined
+      // استخدام test_event_code من قاعدة البيانات فقط في وضع الاختبار
+      test_event_code: this.settings?.test_mode ? this.settings?.facebook?.test_event_code : undefined
     };
 
-    console.log('🔵 إرسال payload إلى Facebook Conversion API:', {
+    console.log('🔵 إرسال payload محسن إلى Facebook Conversion API:', {
       pixel_id: this.settings?.facebook.pixel_id,
-      event_count: payload.data.length,
-      test_event_code: payload.test_event_code
+      event_name: payload.data[0].event_name,
+      event_id: eventId,
+      has_email: !!event.user_data?.email,
+      has_phone: !!event.user_data?.phone,
+      has_fbp: !!fbp,
+      has_fbc: !!fbc,
+      test_event_code: payload.test_event_code,
+      value: payload.data[0].custom_data.value,
+      currency: payload.data[0].custom_data.currency
     });
 
     const response = await fetch('/api/facebook-conversion-api', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
       body: JSON.stringify({
         pixel_id: this.settings?.facebook.pixel_id,
         access_token: this.settings?.facebook.access_token,
@@ -268,12 +316,70 @@ class ConversionTracker {
     });
 
     if (!response.ok) {
-      const errorData = await response.text();
-      throw new Error(`Facebook Conversion API فشل: ${response.status} - ${errorData}`);
+      const errorText = await response.text();
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        errorData = { message: errorText };
+      }
+      
+      console.error('❌ فشل Facebook Conversion API:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorData
+      });
+      
+      throw new Error(`Facebook Conversion API فشل: ${response.status} - ${errorData.error || errorData.message || 'خطأ غير معروف'}`);
     }
 
     const responseData = await response.json();
-    console.log('✅ استجابة Facebook Conversion API:', responseData);
+    console.log('✅ استجابة Facebook Conversion API:', {
+      success: responseData.success,
+      events_received: responseData.events_received,
+      fbtrace_id: responseData.fbtrace_id,
+      messages: responseData.messages
+    });
+
+    // طباعة تفاصيل إضافية في وضع الاختبار
+    if (this.settings?.test_mode) {
+      console.log('🧪 وضع الاختبار - تفاصيل كاملة:', responseData);
+    }
+  }
+
+  /**
+   * جلب Facebook Browser ID من الكوكيز
+   */
+  private getFacebookBrowserId(): string | undefined {
+    try {
+      const cookies = document.cookie.split(';');
+      for (const cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === '_fbp') {
+          return value;
+        }
+      }
+      return undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * جلب Facebook Click ID من URL
+   */
+  private getFacebookClickId(): string | undefined {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const fbclid = urlParams.get('fbclid');
+      if (fbclid) {
+        // تكوين fbc وفقاً لتنسيق Facebook
+        return `fb.1.${Date.now()}.${fbclid}`;
+      }
+      return undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   /**
@@ -375,8 +481,27 @@ class ConversionTracker {
     return mapping[eventType] || eventType;
   }
 
+  /**
+   * إنشاء معرف فريد للحدث لمنع التكرار
+   */
   private generateEventId(event: ConversionEvent): string {
-    return `${event.product_id}_${event.event_type}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // إنشاء ID فريد يجمع بين معلومات الحدث والوقت
+    const timestamp = Date.now();
+    const eventInfo = `${event.event_type}_${event.product_id}_${event.order_id || 'no_order'}_${timestamp}`;
+    
+    // إنشاء hash قصير من المعلومات
+    let hash = 0;
+    for (let i = 0; i < eventInfo.length; i++) {
+      const char = eventInfo.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // تحويل إلى 32-bit integer
+    }
+    
+    // تحويل إلى string موجب وإضافة timestamp مختصر
+    const uniqueId = `${Math.abs(hash).toString(36)}_${timestamp.toString(36)}`;
+    console.log(`🔑 تم إنشاء Event ID فريد: ${uniqueId}`);
+    
+    return uniqueId;
   }
 
   private hashData(data: string): string {

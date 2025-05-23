@@ -78,7 +78,7 @@ function loadFacebookPixel(pixelId: string, testMode: boolean, testEventCode?: s
     return;
   }
 
-  console.log(`🔵 تحميل Facebook Pixel: ${pixelId}${testMode ? ` (وضع الاختبار: ${testEventCode || 'TEST12345'})` : ''}`);
+  console.log(`🔵 تحميل Facebook Pixel: ${pixelId}${testMode ? ` (وضع الاختبار: ${testEventCode || 'TEST35620'})` : ''}`);
 
   const script = document.createElement('script');
   script.innerHTML = `
@@ -93,7 +93,8 @@ function loadFacebookPixel(pixelId: string, testMode: boolean, testEventCode?: s
     
     fbq('init', '${pixelId}');
     ${testMode && testEventCode ? 
-      `fbq('track', 'PageView', {}, {testEventCode: '${testEventCode}'});` : 
+      `fbq('track', 'PageView', {}, {testEventCode: '${testEventCode}'});
+       console.log('🧪 Facebook Pixel في وضع الاختبار مع Test Event Code: ${testEventCode}');` : 
       "fbq('track', 'PageView');"
     }
   `;
@@ -102,10 +103,10 @@ function loadFacebookPixel(pixelId: string, testMode: boolean, testEventCode?: s
   
   // إضافة noscript fallback
   const noscript = document.createElement('noscript');
-  noscript.innerHTML = `<img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=${pixelId}&ev=PageView&noscript=1"/>`;
+  noscript.innerHTML = `<img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=${pixelId}&ev=PageView&noscript=1${testMode && testEventCode ? `&test_event_code=${testEventCode}` : ''}"/>`;
   document.body.appendChild(noscript);
 
-  console.log(`✅ Facebook Pixel محمل بنجاح: ${pixelId}${testMode ? ` (${testEventCode || 'TEST12345'})` : ''}`);
+  console.log(`✅ Facebook Pixel محمل بنجاح: ${pixelId}${testMode ? ` (${testEventCode || 'TEST35620'})` : ''}`);
 }
 
 // دالة تحميل Google Analytics
