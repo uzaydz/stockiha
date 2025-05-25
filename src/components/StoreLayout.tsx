@@ -69,20 +69,20 @@ const StoreLayout: React.FC<StoreLayoutProps> = ({ children }) => {
   const defaultFooterSettings = {
     storeName: currentOrganization?.name || 'متجر stockiha',
     logoUrl: currentOrganization?.logo_url,
-    description: currentOrganization?.description || 'متجر إلكتروني متكامل لبيع المنتجات والخدمات',
+    description: currentOrganization?.description || 'مع سطوكيها... كلشي فبلاصتو!',
     showSocialLinks: true,
     showContactInfo: true,
     showFeatures: true,
     showNewsletter: true,
     showPaymentMethods: true,
     socialLinks: [
-      { platform: 'facebook' as const, url: 'https://facebook.com' },
-      { platform: 'instagram' as const, url: 'https://instagram.com' }
+      { platform: 'facebook' as const, url: 'https://facebook.com/stockiha' },
+      { platform: 'instagram' as const, url: 'https://instagram.com/stockiha' }
     ],
     contactInfo: {
-      phone: '+213 123 456 789',
-      email: 'info@store.com',
-      address: '123 شارع المتجر، الجزائر العاصمة، الجزائر'
+      phone: '0540240886',
+      email: 'info@stockiha.com',
+      address: 'خنشلة حي النصر، الجزائر'
     },
     footerSections: [
       {

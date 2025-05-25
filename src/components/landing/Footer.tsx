@@ -49,21 +49,21 @@ const Footer = () => {
                 <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                   <Mail className="h-4 w-4 text-primary" />
                 </div>
-                <span>support@bazaar.dz</span>
+                <span>info@stockiha.com</span>
               </div>
               
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                   <PhoneCall className="h-4 w-4 text-primary" />
                 </div>
-                <span>+213 5XX XXX XXX</span>
+                <span>0540240886</span>
               </div>
               
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                   <MapPin className="h-4 w-4 text-primary" />
                 </div>
-                <span>الجزائر العاصمة، الجزائر</span>
+                <span>خنشلة حي النصر، الجزائر</span>
               </div>
             </div>
             

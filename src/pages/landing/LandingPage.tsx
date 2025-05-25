@@ -36,13 +36,13 @@ const LandingPage = () => {
 
   // ضبط عنوان الصفحة عند التحميل
   useEffect(() => {
-    document.title = 'بازار | منصة واحدة ذكية لإدارة وتنمية تجارتك';
+    document.title = 'stockiha | مع سطوكيها... كلشي فبلاصتو!';
   }, []);
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <Helmet>
-        <title>بازار | منصة واحدة ذكية لإدارة وتنمية تجارتك</title>
+        <title>stockiha | مع سطوكيها... كلشي فبلاصتو!</title>
         <meta name="description" content="منصة واحدة ذكية تمكن التاجر من إدارة محله بالكامل، تقديم الخدمات باحترافية، متجر إلكتروني تلقائي، سوق إلكتروني عام، ونظام يعمل حتى بدون إنترنت." />
         <meta name="keywords" content="إدارة متجر، بازار، متجر إلكتروني، سوق إلكتروني، تاجر، نقطة بيع، POS، إدارة مخزون، إدارة خدمات، متاجر" />
       </Helmet>

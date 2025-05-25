@@ -16,7 +16,7 @@ const Features = () => {
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <Helmet>
-        <title>مميزات منصة بازار | الحل المتكامل للتجار</title>
+        <title>مميزات stockiha | مع سطوكيها... كلشي فبلاصتو!</title>
         <meta name="description" content="اكتشف المميزات الفريدة التي تجعل منصة بازار الخيار الأمثل لإدارة متجرك وتنمية تجارتك، من إدارة المخزون إلى متجرك الإلكتروني والعمل دون اتصال." />
       </Helmet>
 

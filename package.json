@@ -1,5 +1,5 @@
 {
-  "name": "bazaar-console-desktop",
+  "name": "stockiha-console-desktop",
   "private": true,
   "version": "1.0.0",
   "main": "electron.cjs",
@@ -23,8 +23,8 @@
     "dev:with-api": "concurrently -k \"npm run dev\" \"npm run api\""
   },
   "build": {
-    "appId": "com.bazaar.console",
-    "productName": "Bazaar Console",
+    "appId": "com.stockiha.console",
+    "productName": "Stockiha Console",
     "files": [
       "dist/**/*",
       "electron.cjs",
@@ -59,7 +59,7 @@
     },
     "dmg": {
       "icon": "public/favicon.ico",
-      "artifactName": "BazaarConsole-${version}.${ext}",
+      "artifactName": "StockihaConsole-${version}.${ext}",
       "contents": [
         {
           "x": 130,

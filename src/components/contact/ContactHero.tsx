@@ -41,7 +41,7 @@ const ContactHero = () => {
             </div>
             <h3 className="text-xl font-semibold mb-2">الدعم الفني</h3>
             <p className="text-muted-foreground mb-3 text-sm">نحن هنا لمساعدتك في أي مشاكل تقنية قد تواجهها</p>
-            <p className="font-medium text-primary">support@bazaar.com</p>
+            <p className="font-medium text-primary">support@stockiha.com</p>
           </div>
           
           <div className="bg-card border border-border rounded-lg p-6 hover:shadow-md transition-all hover:border-primary/20">
@@ -50,7 +50,7 @@ const ContactHero = () => {
             </div>
             <h3 className="text-xl font-semibold mb-2">استفسارات عامة</h3>
             <p className="text-muted-foreground mb-3 text-sm">لأي استفسارات عامة حول خدماتنا ومنتجاتنا</p>
-            <p className="font-medium text-primary">info@bazaar.com</p>
+            <p className="font-medium text-primary">info@stockiha.com</p>
           </div>
           
           <div className="bg-card border border-border rounded-lg p-6 hover:shadow-md transition-all hover:border-primary/20">

@@ -139,15 +139,15 @@ const StoreFooter = ({
             <div className="space-y-3">
               <div className="flex items-start gap-3 text-muted-foreground">
                 <MapPin className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                <span>123 شارع الجزائر، الجزائر العاصمة، الجزائر</span>
+                <span>خنشلة حي النصر، الجزائر</span>
               </div>
               <div className="flex items-center gap-3 text-muted-foreground">
                 <Phone className="h-5 w-5 text-primary shrink-0" />
-                <span dir="ltr">+213 (0) 123 456 789</span>
+                <span dir="ltr">0540240886</span>
               </div>
               <div className="flex items-center gap-3 text-muted-foreground">
                 <Mail className="h-5 w-5 text-primary shrink-0" />
-                <span>info@{storeName.toLowerCase().replace(' ', '')}.dz</span>
+                <span>info@{storeName.toLowerCase().replace(' ', '')}.com</span>
               </div>
             </div>
                 </div>

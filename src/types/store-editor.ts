@@ -157,8 +157,8 @@ export const defaultComponentSettings = {
     offers: []
   },
   footer: {
-    storeName: 'متجرنا',
-    description: 'متجر إلكتروني متخصص في بيع أحدث المنتجات التقنية والإلكترونية بأفضل الأسعار وجودة عالية.',
+    storeName: 'stockiha',
+    description: 'مع سطوكيها... كلشي فبلاصتو!',
     logoUrl: '',
     copyrightText: '',
     showSocialLinks: true,
@@ -169,17 +169,17 @@ export const defaultComponentSettings = {
     socialLinks: [
       {
         platform: 'facebook',
-        url: 'https://facebook.com'
+        url: 'https://facebook.com/stockiha'
       },
       {
         platform: 'instagram',
-        url: 'https://instagram.com'
+        url: 'https://instagram.com/stockiha'
       }
     ],
     contactInfo: {
-      phone: '+213 123 456 789',
-      email: 'info@store.com',
-      address: '123 شارع المتجر، الجزائر العاصمة، الجزائر'
+      phone: '0540240886',
+      email: 'info@stockiha.com',
+      address: 'خنشلة حي النصر، الجزائر'
     },
     footerSections: [
       {

@@ -6,7 +6,7 @@ export function useTitle(title: string) {
     const originalTitle = document.title;
     
     // تعيين العنوان الجديد
-    document.title = `${title} | نظام بازار`;
+    document.title = `${title} | stockiha`;
     
     // إعادة العنوان الأصلي عند إزالة المكون
     return () => {

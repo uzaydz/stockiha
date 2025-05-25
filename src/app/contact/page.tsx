@@ -1,4 +1,4 @@
-import { Metadata } from "next/types";
+import { Metadata } from "next";
 import ContactForm from '@/components/contact/ContactForm';
 import ContactInfo from '@/components/contact/ContactInfo';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -7,8 +7,8 @@ import { PhoneCall, Mail, HelpCircle } from 'lucide-react';
 import FAQSection from '@/components/contact/FAQSection';
 
 export const metadata: Metadata = {
-  title: 'تواصل معنا | بازار كونكت',
-  description: 'تواصل مع فريق بازار كونكت للاستفسارات والدعم',
+  title: 'تواصل معنا | stockiha',
+  description: 'تواصل مع فريق stockiha للحصول على المساعدة والدعم الفني أو استفسارات المبيعات. فريقنا جاهز لمساعدتك في أي وقت.',
 };
 
 export default function ContactPage() {
@@ -28,7 +28,7 @@ export default function ContactPage() {
           </div>
           <h3 className="font-semibold text-xl mb-2">اتصل بنا</h3>
           <p className="text-muted-foreground mb-4">تحدث مباشرة مع فريق خدمة العملاء</p>
-          <Button variant="outline">+966 12 345 6789</Button>
+          <Button variant="outline">0540240886</Button>
         </div>
         
         <div className="flex flex-col items-center text-center p-6 bg-muted rounded-lg">
@@ -37,7 +37,7 @@ export default function ContactPage() {
           </div>
           <h3 className="font-semibold text-xl mb-2">البريد الإلكتروني</h3>
           <p className="text-muted-foreground mb-4">أرسل لنا رسالة وسنرد عليك قريبًا</p>
-          <Button variant="outline">info@bazaar-connect.com</Button>
+          <Button variant="outline">info@stockiha.com</Button>
         </div>
         
         <div className="flex flex-col items-center text-center p-6 bg-muted rounded-lg">

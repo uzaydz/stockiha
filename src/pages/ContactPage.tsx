@@ -13,8 +13,8 @@ const ContactPage = () => {
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <Helmet>
-        <title>تواصل معنا | منصة بازار</title>
-        <meta name="description" content="تواصل مع فريق منصة بازار للحصول على المساعدة والدعم الفني أو استفسارات المبيعات. فريقنا جاهز لمساعدتك في أي وقت." />
+        <title>تواصل معنا | stockiha</title>
+        <meta name="description" content="تواصل مع فريق stockiha للحصول على المساعدة والدعم الفني أو استفسارات المبيعات. فريقنا جاهز لمساعدتك في أي وقت." />
       </Helmet>
 
       <Navbar />

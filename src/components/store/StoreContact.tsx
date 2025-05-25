@@ -22,9 +22,9 @@ interface StoreContactProps {
 }
 
 const defaultContactInfo: ContactInfo = {
-  email: "info@store.com",
-  phone: "+966 123 456 789",
-  address: "شارع الملك فهد، الرياض، المملكة العربية السعودية",
+  email: "info@stockiha.com",
+  phone: "0540240886",
+  address: "خنشلة حي النصر، الجزائر",
   hours: "يومياً من 9 صباحاً حتى 10 مساءً"
 };
 

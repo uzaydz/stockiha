@@ -262,21 +262,21 @@ export default function PublicLayout({ children }: PublicLayoutProps) {
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li className="flex items-center">
                   <span className="ml-2 font-medium">العنوان:</span>
-                  <span>الجزائر العاصمة، الجزائر</span>
+                  <span>خنشلة حي النصر، الجزائر</span>
                 </li>
                 <li className="flex items-center">
                   <span className="ml-2 font-medium">الهاتف:</span>
-                  <span dir="ltr">+213 123 456 789</span>
+                  <span dir="ltr">0540240886</span>
                 </li>
                 <li className="flex items-center">
                   <span className="ml-2 font-medium">البريد الإلكتروني:</span>
-                  <span>info@bazaarconsole.com</span>
+                  <span>info@stockiha.com</span>
                 </li>
               </ul>
             </div>
           </div>
           <div className="mt-8 pt-4 border-t text-center text-sm text-muted-foreground">
-            <p>© {new Date().getFullYear()} بازار كونسول. جميع الحقوق محفوظة.</p>
+            <p>© {new Date().getFullYear()} سطوكيها. جميع الحقوق محفوظة. مع سطوكيها... كلشي فبلاصتو!</p>
           </div>
         </div>
       </footer>

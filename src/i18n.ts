@@ -6,7 +6,7 @@ const resources = {
   ar: {
     translation: {
       // قسم الواجهة العامة
-      'app.title': 'بازار كونسول',
+      'app.title': 'stockiha',
       'app.loading': 'جاري التحميل...',
       'app.error': 'حدث خطأ',
       'app.success': 'تمت العملية بنجاح',

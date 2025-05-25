@@ -49,7 +49,7 @@ const PricingPage = () => {
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <Helmet>
-        <title>الأسعار وخطط الاشتراك | منصة بازار</title>
+        <title>الأسعار وخطط الاشتراك | stockiha</title>
         <meta name="description" content="اكتشف خطط أسعار منصة بازار المرنة للأعمال من مختلف الأحجام. خطط اشتراك شفافة بميزات متكاملة تناسب احتياجات عملك." />
       </Helmet>
 

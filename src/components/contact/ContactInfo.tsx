@@ -8,16 +8,16 @@ export default function ContactInfo() {
       icon: <Phone className="h-5 w-5 text-primary" />,
       title: "اتصل بنا",
       details: [
-        { label: "الهاتف الرئيسي", value: "+966 12 345 6789" },
-        { label: "خدمة العملاء", value: "+966 12 345 6780" },
+        { label: "الهاتف الرئيسي", value: "0540240886" },
+        { label: "خدمة العملاء", value: "0540240886" },
       ],
     },
     {
       icon: <Mail className="h-5 w-5 text-primary" />,
       title: "البريد الإلكتروني",
       details: [
-        { label: "الاستفسارات العامة", value: "info@bazaar-connect.com" },
-        { label: "الدعم الفني", value: "support@bazaar-connect.com" },
+        { label: "الاستفسارات العامة", value: "info@stockiha.com" },
+        { label: "الدعم الفني", value: "support@stockiha.com" },
       ],
     },
     {
@@ -26,7 +26,7 @@ export default function ContactInfo() {
       details: [
         { 
           label: "المقر الرئيسي", 
-          value: "برج المملكة، طريق الملك فهد، الرياض، المملكة العربية السعودية" 
+          value: "خنشلة حي النصر، الجزائر" 
         },
       ],
     },
@@ -51,9 +51,9 @@ export default function ContactInfo() {
           <div className="space-y-1">
             <h3 className="font-semibold">العنوان</h3>
             <p className="text-sm text-muted-foreground">
-              حي الملك فهد، الرياض 12343
+              خنشلة حي النصر
               <br />
-              المملكة العربية السعودية
+              الجزائر
             </p>
           </div>
         </div>
@@ -62,7 +62,7 @@ export default function ContactInfo() {
           <Phone className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
           <div className="space-y-1">
             <h3 className="font-semibold">رقم الهاتف</h3>
-            <p className="text-sm text-muted-foreground">+966 11 2345678</p>
+            <p className="text-sm text-muted-foreground">0540240886</p>
           </div>
         </div>
 
@@ -70,7 +70,7 @@ export default function ContactInfo() {
           <Mail className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
           <div className="space-y-1">
             <h3 className="font-semibold">البريد الإلكتروني</h3>
-            <p className="text-sm text-muted-foreground">info@example.com</p>
+            <p className="text-sm text-muted-foreground">info@stockiha.com</p>
           </div>
         </div>
 
@@ -90,7 +90,7 @@ export default function ContactInfo() {
           <h3 className="text-lg font-medium mb-2">تابعنا على</h3>
           <div className="flex items-center gap-4">
             <a 
-              href="https://twitter.com/bazaarconnect" 
+              href="https://twitter.com/stockiha" 
               className="text-gray-600 hover:text-primary transition-colors"
               target="_blank"
               rel="noopener noreferrer"
@@ -101,7 +101,7 @@ export default function ContactInfo() {
               <span className="sr-only">تويتر</span>
             </a>
             <a
-              href="https://facebook.com/bazaarconnect" 
+              href="https://facebook.com/stockiha" 
               className="text-gray-600 hover:text-primary transition-colors"
               target="_blank"
               rel="noopener noreferrer"
@@ -112,7 +112,7 @@ export default function ContactInfo() {
               <span className="sr-only">فيسبوك</span>
             </a>
             <a 
-              href="https://instagram.com/bazaarconnect" 
+              href="https://instagram.com/stockiha" 
               className="text-gray-600 hover:text-primary transition-colors"
               target="_blank"
               rel="noopener noreferrer"
@@ -123,7 +123,7 @@ export default function ContactInfo() {
               <span className="sr-only">إنستاجرام</span>
             </a>
             <a 
-              href="https://linkedin.com/company/bazaarconnect" 
+              href="https://linkedin.com/company/stockiha" 
               className="text-gray-600 hover:text-primary transition-colors"
               target="_blank"
               rel="noopener noreferrer"
