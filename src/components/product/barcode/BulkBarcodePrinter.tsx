@@ -30,6 +30,7 @@ import BarcodePrintPreview from './BarcodePrintPreview';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { FormDescription } from '@/components/ui/form';
+import { createCleanPrintWindow, printSeparateBarcodes } from '@/utils/printUtils';
 
 // إضافة خيارات الطباعة للألوان والمقاسات
 export type ColorPrintOption = 'default' | 'selected' | 'all';
@@ -53,7 +54,7 @@ export const DEFAULT_EXTENDED_BARCODE_SETTINGS: ExtendedBarcodeSettings = {
 };
 
 // إصلاح أخطاء اللينتر بتعديل واجهة المنتج
-interface ExtendedProduct extends Product {
+interface ExtendedProduct extends Omit<Product, 'has_variants' | 'use_sizes'> {
   has_variants?: boolean;
   use_sizes?: boolean;
 }
@@ -297,11 +298,31 @@ const BulkBarcodePrinter = ({
   // تعديل وظيفة الطباعة للتعامل مع الألوان والمقاسات
   const handlePrint = () => {
     try {
+      // طباعة إعدادات التناسق للتشخيص
+      console.log('🖨️ إعدادات الطباعة الحالية:', {
+        columns: settings.columns,
+        spacingX: settings.spacingX,
+        spacingY: settings.spacingY,
+        marginTop: settings.marginTop,
+        marginRight: settings.marginRight,
+        marginBottom: settings.marginBottom,
+        marginLeft: settings.marginLeft,
+        alignment: settings.alignment,
+        fontSize: settings.fontSize,
+        fontFamily: settings.fontFamily,
+        paperSize: settings.paperSize,
+        orientation: settings.orientation,
+        labelTextAlign: settings.labelTextAlign,
+        showBorder: settings.showBorder,
+        copiesPerProduct: settings.copiesPerProduct,
+        separatePages: settings.separatePages
+      });
+      
       // تجميع المنتجات المختارة مع إضافة الألوان والمقاسات المطلوبة
       const selectedProductsIds = selectedProducts;
       const selectedProductsData = products.filter(p => selectedProductsIds.includes(p.id));
       
-      // إضافة طباعة تصحيحية لتتبع المنتجات المختارة
+      console.log('📦 المنتجات المختارة للطباعة:', selectedProductsData.length);
       
       
       // إعداد مصفوفة لجميع العناصر التي سيتم طباعتها
@@ -470,15 +491,65 @@ const BulkBarcodePrinter = ({
         return;
       }
       
-      // فتح نافذة طباعة جديدة
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) {
-        toast.error("تم منع فتح نافذة الطباعة من قبل المتصفح");
+      // إذا كان خيار "كل ملصق منفصل" مُفعل، استخدم دالة الطباعة المنفصلة
+      if (settings.separatePages) {
+        console.log('🏷️ تم تفعيل الطباعة المنفصلة - كل ملصق في صفحة منفصلة');
+        
+        // تحضير البيانات للطباعة المنفصلة
+        const separateItems = itemsToPrint.map(item => {
+          const barcodeValue = sanitizeBarcodeValue(item.barcode);
+          const formattedBarcodeValue = settings.barcodeType === 'ean13' 
+            ? generateBarcodeValue(barcodeValue, 'ean13')
+            : settings.barcodeType === 'code39'
+            ? generateBarcodeValue(barcodeValue, 'code39')
+            : generateBarcodeValue(barcodeValue, 'code128');
+          
+          const barcodeScale = settings.barcodeSize === 'small' ? 1 : 
+                              settings.barcodeSize === 'large' ? 2 : 
+                              settings.barcodeSize === 'custom' ? settings.scaleValue : 1.5;
+                              
+          const barcodeHeight = settings.barcodeSize === 'small' ? 40 : 
+                               settings.barcodeSize === 'large' ? 80 : 
+                               settings.barcodeSize === 'custom' ? settings.heightValue : 60;
+          
+          const barcodeImageUrl = getBarcodeImageUrl(
+            formattedBarcodeValue, 
+            settings.barcodeType, 
+            barcodeScale, 
+            barcodeHeight, 
+            settings.includeText,
+            settings.textSize
+          );
+          
+          return {
+            barcodeImageUrl,
+            value: item.barcode,
+            productName: item.productName,
+            price: item.price,
+            colorName: item.colorName,
+            sizeName: item.sizeName
+          };
+        });
+        
+        // استخدام دالة الطباعة المنفصلة
+        printSeparateBarcodes(separateItems, {
+          paperSize: settings.paperSize,
+          customWidth: settings.customWidth,
+          customHeight: settings.customHeight,
+          includeName: settings.includeName,
+          includePrice: settings.includePrice,
+          showSku: settings.showSku,
+          fontSize: settings.fontSize,
+          fontFamily: settings.fontFamily,
+          orientation: settings.orientation,
+          colorScheme: settings.colorScheme,
+          fontColor: settings.fontColor,
+          backgroundColor: settings.backgroundColor
+        });
+        
+        toast.success(`تم إنشاء ${itemsToPrint.length} ملصق منفصل للطباعة`);
         return;
       }
-      
-      // إعداد محتوى HTML للطباعة
-      let barcodeItems = '';
       
       // القيم المحسوبة بناءً على إعدادات الباركود
       const barcodeScale = settings.barcodeSize === 'small' ? 1 : 
@@ -495,6 +566,8 @@ const BulkBarcodePrinter = ({
       let successfulBarcodes = 0;
       
       // إنشاء عناصر الباركود لكل عنصر
+      let barcodeItems = '';
+      
       itemsToPrint.forEach(item => {
         const barcodeValue = sanitizeBarcodeValue(item.barcode);
         
@@ -562,187 +635,167 @@ const BulkBarcodePrinter = ({
       // التحقق من وجود باركودات ناجحة
       if (successfulBarcodes === 0) {
         toast.error("لم يتم إنشاء أي باركود صالح للطباعة. تأكد من توفر قيم باركود صالحة للمنتجات المختارة.");
-        printWindow.close();
         return;
       }
       
-      // HTML محتوى الصفحة
-      const cssStyles = `
-        @page {
-          size: ${settings.paperSize === 'A4' ? 'A4' : 
-                 settings.paperSize === 'A5' ? 'A5' : 
-                 settings.paperSize === 'label50x90' ? '90mm 50mm' : 
-                 `${settings.customWidth}mm ${settings.customHeight}mm`};
-          margin: ${settings.marginTop}mm ${settings.marginRight}mm ${settings.marginBottom}mm ${settings.marginLeft}mm;
-          ${settings.orientation === 'landscape' ? 'orientation: landscape;' : ''}
-        }
-        
-        body {
-          margin: 0;
-          padding: 0;
-          font-family: ${settings.fontFamily}, sans-serif;
-          color: ${settings.colorScheme === 'dark' ? '#ffffff' : 
-                 settings.colorScheme === 'custom' ? settings.fontColor : '#000000'};
-          background-color: ${settings.colorScheme === 'dark' ? '#1a1a1a' : 
-                            settings.colorScheme === 'custom' ? settings.backgroundColor : '#ffffff'};
-        }
-        
-        .print-container {
+      // تحضير محتوى HTML للطباعة النظيفة
+      const pageSize = settings.paperSize === 'A4' ? 'A4' : 
+                       settings.paperSize === 'A5' ? 'A5' : 
+                       settings.paperSize === 'label50x90' ? '90mm 50mm' : 
+                       `${settings.customWidth}mm ${settings.customHeight}mm`;
+      
+      console.log('📄 حجم الصفحة المطبق:', pageSize);
+      console.log('🎛️ إعدادات الصفحة:', settings.paperSize);
+      
+      const printContent = `
+        <div class="print-container" style="
           display: grid;
           grid-template-columns: repeat(${settings.columns}, 1fr);
           gap: ${settings.spacingY}mm ${settings.spacingX}mm;
           page-break-inside: avoid;
-        }
-        
-        .barcode-item {
-          padding: 5mm;
-          text-align: ${settings.labelTextAlign};
-          display: flex;
-          flex-direction: column;
-          align-items: ${settings.alignment === 'center' ? 'center' : settings.alignment === 'start' ? 'flex-start' : 'flex-end'};
-          ${settings.showBorder ? `border: 1px solid ${settings.colorScheme === 'dark' ? '#444444' : 
-                   settings.colorScheme === 'custom' ? settings.borderColor : '#eeeeee'};` : ''}
-          background-color: ${settings.colorScheme === 'dark' ? '#1a1a1a' : 
-                   settings.colorScheme === 'custom' ? settings.backgroundColor : '#ffffff'};
-          color: ${settings.colorScheme === 'dark' ? '#ffffff' : 
-                 settings.colorScheme === 'custom' ? settings.fontColor : '#000000'};
-          page-break-inside: avoid;
-        }
-        
-        .barcode-image-container {
-          display: flex;
-          justify-content: center;
           width: 100%;
-          margin: 3px 0;
-          min-height: 20mm;
-        }
+          padding: ${settings.marginTop}mm ${settings.marginRight}mm ${settings.marginBottom}mm ${settings.marginLeft}mm;
+        ">
+          ${barcodeItems}
+        </div>
         
-        .barcode-image {
-          max-width: 100%;
-          height: auto;
-          object-fit: contain;
-          width: auto !important;
-          display: inline-block !important;
-        }
-        
-        .product-name {
-          font-size: ${settings.fontSize}px;
-          margin-bottom: 4px;
-          font-weight: bold;
-        }
-        
-        .barcode-value {
-          font-family: monospace;
-          font-size: ${Math.max(settings.fontSize - 2, 8)}px;
-          margin-top: 2px;
-        }
-        
-        .price {
-          font-size: ${Math.max(settings.fontSize + 2, 14)}px;
-          font-weight: bold;
-          margin-top: 4px;
-        }
-        
-        .sku {
-          font-family: monospace;
-          font-size: ${Math.max(settings.fontSize - 2, 8)}px;
-          margin-top: 2px;
-        }
-        
-        img {
-          max-width: 100%;
-          height: auto;
-        }
-        
-        .print-buttons {
-          display: flex;
-          justify-content: center;
-          gap: 16px;
-          margin: 20px 0;
-        }
-        
-        .print-button {
-          padding: 8px 16px;
-          background: #0066cc;
-          color: white;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 14px;
-        }
-        
-        .close-button {
-          padding: 8px 16px;
-          background: #f44336;
-          color: white;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 14px;
-        }
-        
-        @media print {
-          .print-buttons {
-            display: none !important;
+        <style>
+          @media print {
+            @page {
+              size: ${pageSize};
+              margin: 0 !important;
+              ${settings.orientation === 'landscape' ? 'orientation: landscape;' : ''}
+            }
+            
+            html, body {
+              margin: 0 !important;
+              padding: 0 !important;
+              font-family: ${settings.fontFamily}, sans-serif !important;
+              color: ${settings.colorScheme === 'dark' ? '#ffffff' : 
+                     settings.colorScheme === 'custom' ? settings.fontColor : '#000000'} !important;
+              background-color: ${settings.colorScheme === 'dark' ? '#1a1a1a' : 
+                                settings.colorScheme === 'custom' ? settings.backgroundColor : '#ffffff'} !important;
+              -webkit-print-color-adjust: exact !important;
+              color-adjust: exact !important;
+              width: 100% !important;
+              height: 100% !important;
+            }
           }
-        }
+          
+          @media screen {
+            .print-container {
+              max-width: 210mm;
+              margin: 0 auto;
+              padding: 10mm;
+              border: 1px solid #ddd;
+              background: ${settings.colorScheme === 'dark' ? '#1a1a1a' : 
+                         settings.colorScheme === 'custom' ? settings.backgroundColor : '#ffffff'};
+            }
+          }
+          
+          .print-container {
+            display: grid !important;
+            grid-template-columns: repeat(${settings.columns}, 1fr) !important;
+            gap: ${settings.spacingY}mm ${settings.spacingX}mm !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+          }
+          
+          .barcode-item {
+            padding: 2mm !important;
+            text-align: ${settings.labelTextAlign} !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: ${settings.alignment === 'center' ? 'center' : settings.alignment === 'start' ? 'flex-start' : 'flex-end'} !important;
+            justify-content: center !important;
+            ${settings.showBorder ? `border: 1px solid ${settings.colorScheme === 'dark' ? '#444444' : 
+                     settings.colorScheme === 'custom' ? settings.borderColor : '#eeeeee'} !important;` : 'border: none !important;'}
+            background-color: ${settings.colorScheme === 'dark' ? '#1a1a1a' : 
+                     settings.colorScheme === 'custom' ? settings.backgroundColor : '#ffffff'} !important;
+            color: ${settings.colorScheme === 'dark' ? '#ffffff' : 
+                   settings.colorScheme === 'custom' ? settings.fontColor : '#000000'} !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            min-height: 30mm !important;
+            box-sizing: border-box !important;
+          }
+          
+          .barcode-image-container {
+            display: flex !important;
+            justify-content: center !important;
+            align-items: center !important;
+            width: 100% !important;
+            margin: 2mm 0 !important;
+            min-height: 15mm !important;
+            flex-grow: 1 !important;
+          }
+          
+          .barcode-image {
+            max-width: 100% !important;
+            height: auto !important;
+            object-fit: contain !important;
+            width: auto !important;
+            display: inline-block !important;
+            max-height: ${barcodeHeight}px !important;
+          }
+          
+          .product-name {
+            font-size: ${settings.fontSize}px !important;
+            margin-bottom: 2mm !important;
+            font-weight: bold !important;
+            font-family: ${settings.fontFamily}, sans-serif !important;
+            text-align: ${settings.labelTextAlign} !important;
+            line-height: 1.2 !important;
+            word-wrap: break-word !important;
+            overflow-wrap: break-word !important;
+          }
+          
+          .price {
+            font-size: ${Math.max(settings.fontSize + 2, 14)}px !important;
+            font-weight: bold !important;
+            margin-top: 2mm !important;
+            font-family: ${settings.fontFamily}, sans-serif !important;
+            text-align: ${settings.labelTextAlign} !important;
+            color: inherit !important;
+          }
+          
+          .sku {
+            font-family: monospace !important;
+            font-size: ${Math.max(settings.fontSize - 2, 8)}px !important;
+            margin-top: 2mm !important;
+            text-align: ${settings.labelTextAlign} !important;
+            opacity: 0.8 !important;
+          }
+          
+          /* تحسينات إضافية للطباعة */
+          @media print {
+            .print-container {
+              page-break-inside: avoid !important;
+              break-inside: avoid !important;
+            }
+            
+            .barcode-item:last-child {
+              page-break-after: avoid !important;
+            }
+            
+            /* تأكد من أن الشبكة تعمل بشكل صحيح في الطباعة */
+            .print-container {
+              display: grid !important;
+              grid-template-columns: repeat(${settings.columns}, 1fr) !important;
+              grid-gap: ${settings.spacingY}mm ${settings.spacingX}mm !important;
+              gap: ${settings.spacingY}mm ${settings.spacingX}mm !important;
+            }
+          }
+        </style>
       `;
       
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>طباعة الباركود</title>
-            <meta charset="UTF-8">
-            <style>${cssStyles}</style>
-          </head>
-          <body>
-            <div class="print-buttons">
-              <button class="print-button" onclick="window.print()">طباعة</button>
-              <button class="close-button" onclick="window.close()">إغلاق</button>
-            </div>
-            
-            <div class="print-container">
-              ${barcodeItems}
-            </div>
-            
-            <script>
-              // التأكد من تحميل جميع الصور قبل الطباعة
-              window.onload = function() {
-                const images = document.querySelectorAll('img');
-                let loadedCount = 0;
-                const totalImages = images.length;
-                
-                if (totalImages === 0) {
-                  // إذا لم يكن هناك صور، اعرض رسالة خطأ وأغلق النافذة
-                  alert('لم يتم إنشاء باركودات صالحة للطباعة');
-                  return;
-                }
-                
-                function checkAllImagesLoaded() {
-                  loadedCount++;
-                  if (loadedCount === totalImages) {
-                    // انتظر قليلاً للتأكد من رسم الصور بشكل كامل
-                    setTimeout(function() {
-                      window.print();
-                    }, 1000);
-                  }
-                }
-                
-                images.forEach(function(img) {
-                  if (img.complete) {
-                    checkAllImagesLoaded();
-                  } else {
-                    img.onload = checkAllImagesLoaded;
-                    img.onerror = checkAllImagesLoaded;
-                  }
-                });
-              };
-            </script>
-          </body>
-        </html>
-      `);
+      // استخدام الطباعة المحسّنة من printUtils
+      const printWindow = createCleanPrintWindow(printContent, 'طباعة الباركود للمنتجات');
       
-      printWindow.document.close();
+      if (!printWindow) {
+        toast.error("تم منع فتح نافذة الطباعة من قبل المتصفح");
+        return;
+      }
       
       // عرض رسالة نجاح
       toast.success(`تم إنشاء ${selectedProducts.length * settings.copiesPerProduct} باركود جاهز للطباعة`);
@@ -1102,7 +1155,7 @@ const BulkBarcodePrinter = ({
                       </TableCell>
                       <TableCell>{product.name}</TableCell>
                       <TableCell>{product.barcode || product.sku || 'غير محدد'}</TableCell>
-                      <TableCell className="text-left">{product.price.toLocaleString()} ر.س</TableCell>
+                      <TableCell className="text-left">{product.price.toLocaleString()} دج</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

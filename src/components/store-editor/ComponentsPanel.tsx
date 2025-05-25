@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import SortableComponent from './SortableComponent';
 import ComponentSelector from './ComponentSelector';
-import ComponentEditor from './ComponentEditor';
+import ComponentEditorModal from './ComponentEditorModal';
 import { StoreComponent, ComponentType } from '@/types/store-editor';
 
 interface ComponentsPanelProps {
@@ -28,6 +28,9 @@ const ComponentsPanel: React.FC<ComponentsPanelProps> = ({
   onUpdateSettings,
   onDragEnd
 }) => {
+  const [editorModalOpen, setEditorModalOpen] = useState(false);
+  const [selectedComponent, setSelectedComponent] = useState<StoreComponent | null>(null);
+
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -35,73 +38,84 @@ const ComponentsPanel: React.FC<ComponentsPanelProps> = ({
     })
   );
 
+  const handleComponentClick = (component: StoreComponent) => {
+    setSelectedComponent(component);
+    setEditorModalOpen(true);
+    onActivateComponent(component);
+  };
+
+  const handleModalClose = () => {
+    setEditorModalOpen(false);
+    setSelectedComponent(null);
+  };
+
+  const handleUpdateSettings = (settings: any) => {
+    if (selectedComponent) {
+      onUpdateSettings(selectedComponent.id, settings);
+      // تحديث المكون المحدد مع الإعدادات الجديدة
+      setSelectedComponent({
+        ...selectedComponent,
+        settings
+      });
+    }
+  };
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      <div className="lg:col-span-2">
-        <Card>
-          <CardContent className="pt-6">
-            <h2 className="text-xl font-bold mb-4">مكونات المتجر</h2>
-            <p className="text-muted-foreground mb-6">
-              اسحب العناصر لإعادة ترتيبها. انقر على عنصر لتعديل خصائصه.
-            </p>
+    <div className="max-w-4xl mx-auto">
+      <Card>
+        <CardContent className="pt-6">
+          <h2 className="text-xl font-bold mb-4">مكونات المتجر</h2>
+          <p className="text-muted-foreground mb-6">
+            اسحب العناصر لإعادة ترتيبها. انقر على عنصر لتعديل خصائصه في نافذة منبثقة.
+          </p>
 
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={onDragEnd}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={onDragEnd}
+          >
+            <SortableContext
+              items={components.map(c => c.id)}
+              strategy={verticalListSortingStrategy}
             >
-              <SortableContext
-                items={components.map(c => c.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                <div className="space-y-4">
-                  {components.length === 0 ? (
-                    <div className="text-center p-8 border border-dashed rounded-lg">
-                      <p>لا توجد مكونات. أضف مكوناً باستخدام القائمة.</p>
-                    </div>
-                  ) : (
-                    components.map((component) => (
-                      <SortableComponent
-                        key={component.id}
-                        component={component}
-                        isActive={activeComponent?.id === component.id}
-                        onActivate={() => onActivateComponent(component)}
-                        onToggleActive={() => onToggleComponentActive(component.id)}
-                        onRemove={() => onRemoveComponent(component.id)}
-                      />
-                    ))
-                  )}
-                </div>
-              </SortableContext>
-            </DndContext>
-
-            <div className="mt-6">
-              <ComponentSelector onAddComponent={onAddComponent} />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="lg:col-span-1">
-        <Card>
-          <CardContent className="pt-6">
-            <h2 className="text-xl font-bold mb-4">محرر المكون</h2>
-            {activeComponent ? (
-              <ComponentEditor
-                component={activeComponent}
-                onUpdate={(settings) => {
-                  
-                  onUpdateSettings(activeComponent.id, settings);
-                }}
-              />
-            ) : (
-              <div className="text-center p-8 border border-dashed rounded-lg">
-                <p>اختر مكوناً من القائمة على اليمين لتعديله</p>
+              <div className="space-y-4">
+                {components.length === 0 ? (
+                  <div className="text-center p-8 border border-dashed rounded-lg">
+                    <p>لا توجد مكونات. أضف مكوناً باستخدام القائمة أدناه.</p>
+                  </div>
+                ) : (
+                  components.map((component) => (
+                    <SortableComponent
+                      key={component.id}
+                      component={component}
+                      isActive={activeComponent?.id === component.id}
+                      onActivate={() => handleComponentClick(component)}
+                      onToggleActive={() => onToggleComponentActive(component.id)}
+                      onRemove={() => onRemoveComponent(component.id)}
+                    />
+                  ))
+                )}
               </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            </SortableContext>
+          </DndContext>
+
+          <div className="mt-6">
+            <ComponentSelector onAddComponent={onAddComponent} />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Modal للمحرر */}
+      {selectedComponent && (
+        <ComponentEditorModal
+          component={selectedComponent}
+          isOpen={editorModalOpen}
+          onClose={handleModalClose}
+          onUpdate={handleUpdateSettings}
+          onToggleActive={onToggleComponentActive}
+          onDelete={onRemoveComponent}
+        />
+      )}
     </div>
   );
 };

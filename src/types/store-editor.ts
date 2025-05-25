@@ -1,5 +1,19 @@
 // أنواع المكونات المتاحة
-export type ComponentType = 'hero' | 'category_section' | 'product_categories' | 'featured_products' | 'testimonials' | 'about' | 'countdownoffers' | 'services' | 'contact';
+export type ComponentType = 
+  | 'hero' 
+  | 'category_section' 
+  | 'categorysection'  // إضافة للتوافق
+  | 'categories'       // إضافة للتوافق مع قاعدة البيانات
+  | 'product_categories' 
+  | 'featured_products' 
+  | 'featuredproducts'  // إضافة للتوافق
+  | 'testimonials' 
+  | 'customertestimonials'  // إضافة للتوافق
+  | 'about' 
+  | 'countdownoffers' 
+  | 'services' 
+  | 'contact'
+  | 'footer';
 
 // واجهة مكون المتجر
 export interface StoreComponent {
@@ -56,6 +70,26 @@ export const defaultComponentSettings = {
     enableViewAll: true,
     backgroundStyle: "light"
   },
+  // إضافة للتوافق
+  categorysection: {
+    title: "تصفح فئات منتجاتنا",
+    description: "أفضل الفئات المختارة لتلبية احتياجاتك",
+    selectionMethod: "random",
+    maxCategories: 6,
+    showProductCount: true,
+    showDescription: true,
+    selectedCategories: [],
+    displayStyle: "cards",
+    enableViewAll: true,
+    backgroundStyle: "light"
+  },
+  // إضافة للتوافق مع قاعدة البيانات
+  categories: {
+    title: 'تصفح فئات منتجاتنا',
+    description: 'أفضل الفئات المختارة لتلبية احتياجاتك',
+    displayCount: 6,
+    displayType: 'grid'
+  },
   product_categories: {
     title: 'تصفح فئات منتجاتنا',
     description: 'أفضل الفئات المختارة لتلبية احتياجاتك',
@@ -71,7 +105,23 @@ export const defaultComponentSettings = {
     selectionCriteria: 'featured', // featured, best_selling, newest, discounted
     selectedProducts: [] // قائمة معرفات المنتجات المحددة يدويًا
   },
+  // إضافة للتوافق
+  featuredproducts: {
+    title: 'منتجاتنا المميزة',
+    description: 'اكتشف أفضل منتجاتنا المختارة بعناية لتناسب احتياجاتك',
+    displayCount: 4,
+    displayType: 'grid',
+    selectionMethod: 'automatic',
+    selectionCriteria: 'featured',
+    selectedProducts: []
+  },
   testimonials: {
+    title: 'آراء عملائنا',
+    description: 'استمع إلى تجارب عملائنا الحقيقية مع منتجاتنا وخدماتنا',
+    displayCount: 3
+  },
+  // إضافة للتوافق
+  customertestimonials: {
     title: 'آراء عملائنا',
     description: 'استمع إلى تجارب عملائنا الحقيقية مع منتجاتنا وخدماتنا',
     displayCount: 3
@@ -105,5 +155,92 @@ export const defaultComponentSettings = {
     showViewAll: false,
     viewAllUrl: '/offers',
     offers: []
+  },
+  footer: {
+    storeName: 'متجرنا',
+    description: 'متجر إلكتروني متخصص في بيع أحدث المنتجات التقنية والإلكترونية بأفضل الأسعار وجودة عالية.',
+    logoUrl: '',
+    copyrightText: '',
+    showSocialLinks: true,
+    showContactInfo: true,
+    showFeatures: true,
+    showNewsletter: true,
+    showPaymentMethods: true,
+    socialLinks: [
+      {
+        platform: 'facebook',
+        url: 'https://facebook.com'
+      },
+      {
+        platform: 'instagram',
+        url: 'https://instagram.com'
+      }
+    ],
+    contactInfo: {
+      phone: '+213 123 456 789',
+      email: 'info@store.com',
+      address: '123 شارع المتجر، الجزائر العاصمة، الجزائر'
+    },
+    footerSections: [
+      {
+        id: '1',
+        title: 'روابط سريعة',
+        links: [
+          { id: '1-1', text: 'الصفحة الرئيسية', url: '/', isExternal: false },
+          { id: '1-2', text: 'المنتجات', url: '/products', isExternal: false },
+          { id: '1-3', text: 'العروض', url: '/offers', isExternal: false },
+          { id: '1-4', text: 'اتصل بنا', url: '/contact', isExternal: false }
+        ]
+      },
+      {
+        id: '2',
+        title: 'خدمة العملاء',
+        links: [
+          { id: '2-1', text: 'مركز المساعدة', url: '/help', isExternal: false },
+          { id: '2-2', text: 'سياسة الشحن', url: '/shipping-policy', isExternal: false },
+          { id: '2-3', text: 'سياسة الإرجاع', url: '/return-policy', isExternal: false },
+          { id: '2-4', text: 'الأسئلة الشائعة', url: '/faq', isExternal: false }
+        ]
+      }
+    ],
+    features: [
+      {
+        id: '1',
+        icon: 'Truck',
+        title: 'شحن سريع',
+        description: 'توصيل مجاني للطلبات +5000 د.ج'
+      },
+      {
+        id: '2',
+        icon: 'CreditCard',
+        title: 'دفع آمن',
+        description: 'طرق دفع متعددة 100% آمنة'
+      },
+      {
+        id: '3',
+        icon: 'Heart',
+        title: 'ضمان الجودة',
+        description: 'منتجات عالية الجودة معتمدة'
+      },
+      {
+        id: '4',
+        icon: 'ShieldCheck',
+        title: 'دعم 24/7',
+        description: 'مساعدة متوفرة طول اليوم'
+      }
+    ],
+    newsletterSettings: {
+      enabled: true,
+      title: 'النشرة البريدية',
+      description: 'اشترك في نشرتنا البريدية للحصول على آخر العروض والتحديثات.',
+      placeholder: 'البريد الإلكتروني',
+      buttonText: 'اشتراك'
+    },
+    paymentMethods: ['visa', 'mastercard', 'paypal'],
+    legalLinks: [
+      { id: 'legal-1', text: 'شروط الاستخدام', url: '/terms', isExternal: false },
+      { id: 'legal-2', text: 'سياسة الخصوصية', url: '/privacy', isExternal: false },
+      { id: 'legal-3', text: 'خريطة الموقع', url: '/sitemap', isExternal: false }
+    ]
   }
 }; 

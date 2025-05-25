@@ -7,6 +7,7 @@ import { useOrganization } from '@/hooks/useOrganization';
 import ShippingCloneManager from '@/components/settings/ShippingCloneManager';
 import { Helmet } from 'react-helmet-async';
 import ShippingSettings from '@/components/settings/ShippingSettings';
+import Layout from '@/components/Layout';
 
 export default function ShippingSettingsPage() {
   const { organization } = useOrganization();
@@ -18,7 +19,7 @@ export default function ShippingSettingsPage() {
   }, []);
 
   return (
-    <>
+    <Layout>
       <Helmet>
         <title>إعدادات خدمات التوصيل | بازار</title>
       </Helmet>
@@ -59,6 +60,6 @@ export default function ShippingSettingsPage() {
           </TabsContent>
         </Tabs>
       </div>
-    </>
+    </Layout>
   );
 } 

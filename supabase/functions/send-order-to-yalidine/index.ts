@@ -326,7 +326,7 @@ serve(async (req: Request) => {
       price: orderData.total || 0,
       do_insurance: true,
       declared_value: orderData.metadata?.declared_value || orderData.total || 0,
-      freeshipping: orderData.shipping_cost === 0, 
+      freeshipping: true,
       is_stopdesk: !!orderData.stop_desk_id, 
       stopdesk_id: orderData.stop_desk_id || undefined, 
       length: parseInt(orderData.metadata?.length) || 10, 

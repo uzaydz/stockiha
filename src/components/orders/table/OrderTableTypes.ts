@@ -51,6 +51,10 @@ export type Order = {
   call_confirmation_updated_at?: string | null;
   call_confirmation_updated_by?: string | null;
   call_confirmation_status?: CallConfirmationStatus | null;
+  // حقول تتبع الشحن
+  yalidine_tracking_id?: string | null;
+  yalidine_label_url?: string | null;
+  zrexpress_tracking_id?: string | null;
   order_items?: OrderItem[];
   customer?: {
     id: string;

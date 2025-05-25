@@ -226,8 +226,15 @@ class ConversionTracker {
           await this.sendToFacebookConversionAPI(event, eventId);
           console.log('✅ تم إرسال الحدث إلى Facebook Conversion API بنجاح');
         } catch (conversionApiError) {
-          console.error('❌ فشل في إرسال إلى Facebook Conversion API:', conversionApiError);
+          console.warn('⚠️ فشل في إرسال إلى Facebook Conversion API:', conversionApiError);
           // لا نوقف العملية، Client-side pixel يكفي
+          // فقط نسجل تحذير بدلاً من خطأ
+        }
+      } else {
+        if (!this.settings?.facebook.access_token) {
+          console.log('🔕 Facebook Conversion API معطل - access token مفقود');
+        } else {
+          console.log('🔕 Facebook Conversion API معطل في الإعدادات');
         }
       }
     } catch (error) {
@@ -613,35 +620,65 @@ class ConversionTracker {
    * تسجيل الحدث في قاعدة البيانات
    */
   private async logEventToDatabase(event: ConversionEvent): Promise<void> {
-    const eventData = {
-      product_id: event.product_id,
-      order_id: event.order_id,
-      event_type: event.event_type,
-      platform: 'multiple',
-      user_data: event.user_data,
-      custom_data: event.custom_data,
-      event_id: this.generateEventId(event)
-    };
+    try {
+      const eventData = {
+        product_id: event.product_id,
+        order_id: event.order_id,
+        event_type: event.event_type,
+        platform: 'multiple',
+        user_data: event.user_data,
+        custom_data: event.custom_data,
+        event_id: this.generateEventId(event)
+      };
 
-    console.log('📊 تسجيل حدث في قاعدة البيانات:', {
-      product_id: event.product_id,
-      event_type: event.event_type,
-      event_id: eventData.event_id
-    });
+      console.log('📊 تسجيل حدث في قاعدة البيانات:', {
+        product_id: event.product_id,
+        event_type: event.event_type,
+        event_id: eventData.event_id
+      });
 
-    const response = await fetch('/api/conversion-events', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(eventData)
-    });
+      // إضافة timeout للطلب
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 seconds timeout
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      throw new Error(`تسجيل الحدث فشل: ${response.status} - ${errorData}`);
+      try {
+        const response = await fetch('/api/conversion-events', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify(eventData),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorData = await response.text();
+          console.warn(`⚠️ فشل تسجيل الحدث في قاعدة البيانات (${response.status}): ${errorData}`);
+          // لا نرمي خطأ، فقط نسجل التحذير
+          return;
+        }
+
+        const responseData = await response.json();
+        console.log('✅ تم تسجيل الحدث في قاعدة البيانات:', responseData);
+        
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        
+        if (fetchError.name === 'AbortError') {
+          console.warn('⚠️ انتهت مهلة تسجيل الحدث في قاعدة البيانات (timeout)');
+        } else {
+          console.warn('⚠️ خطأ في الشبكة أثناء تسجيل الحدث:', fetchError.message);
+        }
+        // لا نرمي خطأ، فقط نسجل التحذير
+      }
+      
+    } catch (error) {
+      console.warn('⚠️ خطأ عام في تسجيل الحدث في قاعدة البيانات:', error);
+      // لا نرمي خطأ، فقط نسجل التحذير - نريد أن يستمر tracking الأساسي
     }
-
-    const responseData = await response.json();
-    console.log('✅ تم تسجيل الحدث في قاعدة البيانات:', responseData);
   }
 
   // Helper Methods

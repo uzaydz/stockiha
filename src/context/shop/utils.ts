@@ -1,9 +1,45 @@
 import { supabase } from '@/lib/supabase-client';
 import { getSupabaseClient } from '@/lib/supabase-client';
 
+// دالة للحصول على منظمة تحتوي على خدمات كاحتياطي
+export const getOrganizationWithServices = async (): Promise<string | null> => {
+  try {
+    console.log('🔍 البحث عن منظمة تحتوي على خدمات...');
+    
+    const { data: orgsWithServices, error } = await supabase
+      .from('organizations')
+      .select(`
+        id, 
+        name, 
+        subdomain,
+        services!inner (id)
+      `)
+      .limit(1);
+      
+    if (error) {
+      console.error("❌ خطأ في البحث عن منظمة بخدمات:", error);
+      return null;
+    }
+    
+    if (orgsWithServices && orgsWithServices.length > 0) {
+      const org = orgsWithServices[0];
+      console.log('✅ تم العثور على منظمة تحتوي على خدمات:', org.name, '(', org.id, ')');
+      return org.id;
+    }
+    
+    console.warn('⚠️ لم يتم العثور على أي منظمة تحتوي على خدمات');
+    return null;
+  } catch (error) {
+    console.error("❌ خطأ في دالة getOrganizationWithServices:", error);
+    return null;
+  }
+};
+
 // دالة للحصول على معرف المؤسسة
 export const getOrganizationId = async (currentUser: any = null): Promise<string | null> => {
   try {
+    console.log('🔍 بدء البحث عن معرف المنظمة...');
+    
     // 0. محاولة الحصول على المعرف من النطاق المخصص إذا كان موجودًا
     const hostname = window.location.hostname;
     if (!hostname.includes('localhost')) {
@@ -16,6 +52,7 @@ export const getOrganizationId = async (currentUser: any = null): Promise<string
           .single();
           
         if (orgData) {
+          console.log('✅ تم العثور على المنظمة من النطاق المخصص:', orgData.subdomain);
           
           // تحديث التخزين المحلي بالمعرف الصحيح
           localStorage.setItem('bazaar_organization_id', orgData.id);
@@ -24,7 +61,7 @@ export const getOrganizationId = async (currentUser: any = null): Promise<string
           return orgData.id;
         }
       } catch (customDomainError) {
-        console.error("خطأ في التحقق من النطاق المخصص:", customDomainError);
+        console.error("❌ خطأ في التحقق من النطاق المخصص:", customDomainError);
       }
     }
 
@@ -37,7 +74,7 @@ export const getOrganizationId = async (currentUser: any = null): Promise<string
         .single();
         
       if (!userError && userData?.organization_id) {
-        
+        console.log('✅ تم العثور على المنظمة من بيانات المستخدم الحالي');
         
         // تحديث التخزين المحلي بالمعرف الصحيح
         localStorage.setItem('bazaar_organization_id', userData.organization_id);
@@ -49,7 +86,7 @@ export const getOrganizationId = async (currentUser: any = null): Promise<string
     // 2. محاولة الحصول من التخزين المحلي
     const storedOrgId = localStorage.getItem('bazaar_organization_id');
     if (storedOrgId) {
-      
+      console.log('🗄️ تم العثور على معرف منظمة في التخزين المحلي:', storedOrgId);
       
       // التحقق من صحة المعرف المخزن
       const { data: orgExists, error: orgError } = await supabase
@@ -59,10 +96,11 @@ export const getOrganizationId = async (currentUser: any = null): Promise<string
         .single();
         
       if (orgError) {
-        console.error("المعرف المخزن محليًا غير صالح:", orgError);
+        console.error("❌ المعرف المخزن محليًا غير صالح:", orgError);
         // حذف المعرف غير الصالح
         localStorage.removeItem('bazaar_organization_id');
       } else {
+        console.log('✅ المعرف المخزن محليًا صالح');
         // المعرف صالح
         return storedOrgId;
       }
@@ -73,12 +111,22 @@ export const getOrganizationId = async (currentUser: any = null): Promise<string
     const userInfo = sessionData?.session?.user?.user_metadata;
     
     if (userInfo && userInfo.organization_id) {
-      
+      console.log('✅ تم العثور على المنظمة من session metadata');
       localStorage.setItem('bazaar_organization_id', userInfo.organization_id);
       return userInfo.organization_id;
     }
     
-    // 4. محاولة الحصول من قاعدة البيانات
+    // 4. محاولة الحصول على منظمة تحتوي على خدمات كاحتياطي
+    console.log('🔄 محاولة العثور على منظمة تحتوي على خدمات...');
+    const orgWithServices = await getOrganizationWithServices();
+    if (orgWithServices) {
+      console.log('✅ تم العثور على منظمة تحتوي على خدمات كاحتياطي');
+      localStorage.setItem('bazaar_organization_id', orgWithServices);
+      return orgWithServices;
+    }
+    
+    // 5. الاحتياطي الأخير: أول منظمة في قاعدة البيانات
+    console.log('🔄 محاولة الحصول على أول منظمة في قاعدة البيانات...');
     const { data: orgs, error } = await supabase
       .from('organizations')
       .select('id')
@@ -86,21 +134,21 @@ export const getOrganizationId = async (currentUser: any = null): Promise<string
       .single();
       
     if (error) {
-      console.error("خطأ في جلب معرف المؤسسة من قاعدة البيانات:", error);
+      console.error("❌ خطأ في جلب معرف المؤسسة من قاعدة البيانات:", error);
       return null;
     }
     
     if (orgs?.id) {
-      
+      console.log('⚠️ تم استخدام أول منظمة كاحتياطي:', orgs.id);
       // حفظ المعرف في التخزين المحلي للاستخدام اللاحق
       localStorage.setItem('bazaar_organization_id', orgs.id);
       return orgs.id;
     }
     
-    console.error("لم يتم العثور على معرف المؤسسة");
+    console.error("❌ لم يتم العثور على معرف المؤسسة");
     return null;
   } catch (error) {
-    console.error("خطأ أثناء جلب معرف المؤسسة:", error);
+    console.error("❌ خطأ أثناء جلب معرف المؤسسة:", error);
     return null;
   }
 };

@@ -3,9 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Save, Package } from 'lucide-react';
 import { Helmet } from 'react-helmet';
-import { Package } from 'lucide-react';
 
 // Custom Hooks
 import { useTenant } from '@/context/TenantContext';
@@ -15,7 +14,6 @@ import { useProductPermissions } from '@/hooks/useProductPermissions';
 
 // UI Components
 import Layout from '@/components/Layout';
-import ProductFormHeader from '@/components/product/form/ProductFormHeader';
 import ProductQuickInfoPanel from '@/components/product/form/ProductQuickInfoPanel';
 import ProductFormTabs from '@/components/product/form/ProductFormTabs';
 import { Button } from '@/components/ui/button';
@@ -341,13 +339,6 @@ export default function ProductForm() {
         <title>{isEditMode ? `تعديل: ${productNameForTitle || form.watch('name') || 'منتج'}` : 'إنشاء منتج جديد'} - سوق</title>
       </Helmet>
       
-      {/* Background Effect */}
-      <div className="fixed inset-0 -z-10">
-        <div className="absolute inset-0 bg-gradient-to-br from-background via-background/95 to-background/90" />
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl opacity-60" />
-        <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-secondary/5 rounded-full blur-3xl opacity-40" />
-      </div>
-
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -364,139 +355,121 @@ export default function ProductForm() {
           }
           form.handleSubmit(onSubmit, onInvalid)(e);
         }}
-        className="relative z-10"
+        className="container mx-auto px-6 py-6 max-w-7xl"
       >
-        {/* Modern Header Section */}
-        <div className="border-b border-border/20 bg-gradient-to-r from-background/95 via-background to-background/95 backdrop-blur-xl sticky top-0 z-30">
-          <div className="container mx-auto px-6 py-6">
-            <ProductFormHeader
-              title={isEditMode ? `تعديل: ${productNameForTitle || form.watch('name') || 'منتج'}` : 'إضافة منتج جديد'}
-              onBack={() => navigate('/products')}
-              isEditMode={isEditMode}
-              isSubmitting={isSubmitting}
+        {/* Simplified Header */}
+        <div className="flex items-center justify-between mb-6 p-4 bg-card rounded-xl border">
+          <div>
+            <h1 className="text-2xl font-bold">
+              {isEditMode ? `تعديل: ${productNameForTitle || form.watch('name') || 'منتج'}` : 'إضافة منتج جديد'}
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              {isEditMode ? 'قم بتعديل تفاصيل المنتج' : 'أضف منتج جديد إلى متجرك'}
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => navigate('/products')}
+            disabled={isSubmitting}
+          >
+            العودة
+          </Button>
+        </div>
+
+        {/* Welcome Message for New Products */}
+        {!isEditMode && (
+          <div className="mb-6 p-4 bg-primary/5 border border-primary/20 rounded-xl">
+            <div className="flex items-center gap-3">
+              <Package className="w-6 h-6 text-primary" />
+              <div>
+                <h2 className="font-semibold text-lg">إنشاء منتج جديد</h2>
+                <p className="text-muted-foreground text-sm">
+                  املأ جميع المعلومات المطلوبة لإنشاء منتج احترافي
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Quick Info Sidebar */}
+          <div className="lg:col-span-1">
+            <div className="sticky top-6">
+              <ProductQuickInfoPanel
+                form={form}
+                isEditMode={isEditMode}
+                productId={productId}
+                thumbnailImage={watchThumbnailImage}
+              />
+            </div>
+          </div>
+
+          {/* Main Form Content */}
+          <div className="lg:col-span-3">
+            <ProductFormTabs
+              form={form}
+              organizationId={organizationIdFromTenant}
+              productId={productId}
+              additionalImages={additionalImages}
+              productColors={productColors}
+              wholesaleTiers={wholesaleTiers}
+              categories={categories}
+              subcategories={subcategories}
+              useVariantPrices={useVariantPrices}
+              useSizes={useSizes}
+              watchHasVariants={watchHasVariants}
+              watchPrice={watchPrice}
+              watchPurchasePrice={watchPurchasePrice}
+              watchThumbnailImage={watchThumbnailImage}
+              onMainImageChange={handleMainImageChange}
+              onAdditionalImagesChange={handleAdditionalImagesChange}
+              onProductColorsChange={handleProductColorsChange}
+              onWholesaleTiersChange={handleWholesaleTiersChange}
+              onCategoryCreated={handleCategoryCreated}
+              onSubcategoryCreated={handleSubcategoryCreated}
+              onHasVariantsChange={handleHasVariantsChange}
+              onUseVariantPricesChange={handleUseVariantPricesChange}
+              onUseSizesChange={handleUseSizesChange}
             />
           </div>
         </div>
 
-        {/* Main Content */}
-        <div className="container mx-auto px-6 py-8">
-          <div className="max-w-7xl mx-auto space-y-8">
-            {/* Welcome Card - Only for new products */}
-            {!isEditMode && (
-              <div className="rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-8 border border-primary/20 shadow-xl backdrop-blur-sm">
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg">
-                    <Package className="w-8 h-8 text-white" />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
-                      إنشاء منتج جديد
-                    </h2>
-                    <p className="text-muted-foreground text-lg">
-                      قم بإضافة منتج جديد إلى متجرك الإلكتروني
-                    </p>
-                  </div>
-                </div>
-                <div className="bg-background/50 rounded-xl p-4 border border-border/50">
-                  <p className="text-sm text-muted-foreground">
-                    💡 <strong>نصيحة:</strong> تأكد من إدخال جميع التفاصيل المطلوبة لتحسين ظهور منتجك في نتائج البحث
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Main Form Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-              {/* Quick Info Sidebar */}
-              <div className="lg:col-span-4 xl:col-span-3">
-                <div className="sticky top-28 space-y-6">
-                  <ProductQuickInfoPanel
-                    form={form}
-                    isEditMode={isEditMode}
-                    productId={productId}
-                    thumbnailImage={watchThumbnailImage}
-                  />
-                </div>
-              </div>
-
-              {/* Main Form Content */}
-              <div className="lg:col-span-8 xl:col-span-9">
-                <div className="rounded-3xl bg-gradient-to-br from-card/95 to-card/80 backdrop-blur-xl border border-border/20 shadow-2xl overflow-hidden">
-                  <ProductFormTabs
-                    form={form}
-                    organizationId={organizationIdFromTenant}
-                    productId={productId}
-                    additionalImages={additionalImages}
-                    productColors={productColors}
-                    wholesaleTiers={wholesaleTiers}
-                    categories={categories}
-                    subcategories={subcategories}
-                    useVariantPrices={useVariantPrices}
-                    useSizes={useSizes}
-                    watchHasVariants={watchHasVariants}
-                    watchPrice={watchPrice}
-                    watchPurchasePrice={watchPurchasePrice}
-                    watchThumbnailImage={watchThumbnailImage}
-                    onMainImageChange={handleMainImageChange}
-                    onAdditionalImagesChange={handleAdditionalImagesChange}
-                    onProductColorsChange={handleProductColorsChange}
-                    onWholesaleTiersChange={handleWholesaleTiersChange}
-                    onCategoryCreated={handleCategoryCreated}
-                    onSubcategoryCreated={handleSubcategoryCreated}
-                    onHasVariantsChange={handleHasVariantsChange}
-                    onUseVariantPricesChange={handleUseVariantPricesChange}
-                    onUseSizesChange={handleUseSizesChange}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="sticky bottom-6 z-20">
-              <div className="rounded-2xl bg-gradient-to-r from-background/95 via-background to-background/95 backdrop-blur-xl border border-border/20 shadow-2xl p-6">
-                <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                  <div className="text-center sm:text-right">
-                    <p className="text-sm text-muted-foreground">
-                      {isEditMode ? 'تعديل المنتج' : 'إنشاء منتج جديد'}
-                    </p>
-                    <p className="text-xs text-muted-foreground/80">
-                      تأكد من مراجعة جميع البيانات قبل الحفظ
-                    </p>
-                  </div>
-                  
-                  <div className="flex gap-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="lg"
-                      onClick={() => navigate('/products')}
-                      disabled={isSubmitting}
-                      className="px-8 h-12 border-2 hover:bg-muted/50 transition-all duration-300"
-                    >
-                      إلغاء
-                    </Button>
-                    <Button
-                      type="submit"
-                      size="lg"
-                      disabled={isSubmitting || !hasPermission || (!form.getValues('organization_id') && !organizationIdFromTenant)}
-                      className="px-8 h-12 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-lg hover:shadow-xl transition-all duration-300 border-0"
-                    >
-                      {isSubmitting ? (
-                        <>
-                          <Loader2 className="ml-2 h-5 w-5 animate-spin" />
-                          جاري المعالجة...
-                        </>
-                      ) : (
-                        <>
-                          <Save className="ml-2 h-5 w-5" />
-                          {isEditMode ? 'حفظ التغييرات' : 'إنشاء المنتج'}
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
+        {/* Action Buttons */}
+        <div className="mt-6 flex flex-col sm:flex-row justify-between items-center gap-4 p-4 bg-card rounded-xl border">
+          <div className="text-center sm:text-right">
+            <p className="text-sm text-muted-foreground">
+              {isEditMode ? 'تعديل المنتج' : 'إنشاء منتج جديد'}
+            </p>
+          </div>
+          
+          <div className="flex gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate('/products')}
+              disabled={isSubmitting}
+            >
+              إلغاء
+            </Button>
+            <Button
+              type="submit"
+              disabled={isSubmitting || !hasPermission || (!form.getValues('organization_id') && !organizationIdFromTenant)}
+              className="bg-primary hover:bg-primary/90"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                  جاري المعالجة...
+                </>
+              ) : (
+                <>
+                  <Save className="ml-2 h-4 w-4" />
+                  {isEditMode ? 'حفظ التغييرات' : 'إنشاء المنتج'}
+                </>
+              )}
+            </Button>
           </div>
         </div>
       </form>

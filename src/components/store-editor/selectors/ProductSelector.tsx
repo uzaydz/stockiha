@@ -156,7 +156,7 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
               <div className="flex-1 min-w-0">
                 <div className="flex flex-col">
                   <span className="text-sm font-medium truncate">{product.name}</span>
-                  <span className="text-xs text-muted-foreground">{product.price.toLocaleString()} ر.س</span>
+                                          <span className="text-xs text-muted-foreground">{product.price.toLocaleString()} دج</span>
                 </div>
               </div>
               <div className="flex items-center justify-center h-5 w-5 flex-shrink-0">

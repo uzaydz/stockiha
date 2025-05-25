@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Layout from '@/components/Layout';
 import { toast } from 'sonner';
-import { getProducts } from '@/lib/api/products'; // Direct import from products API
+import { getProducts, getProductsPaginated } from '@/lib/api/products'; // Direct import from products API
 import ProductsHeader from '@/components/product/ProductsHeader';
 import ProductsList from '@/components/product/ProductsList';
 import ProductsFilter from '@/components/product/ProductsFilter';
 import AddProductDialog from '@/components/product/AddProductDialog';
+import { CustomPagination as Pagination } from '@/components/ui/pagination';
 import type { Product } from '@/lib/api/products';
 import { useTenant } from '@/context/TenantContext';
 import SyncProducts from '@/components/product/SyncProducts';
@@ -18,7 +19,6 @@ const Products = () => {
   
   const { currentOrganization } = useTenant();
   const [products, setProducts] = useState<Product[]>([]);
-  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -28,195 +28,94 @@ const Products = () => {
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [unsyncedCount, setUnsyncedCount] = useState(0);
+  
+  // حالة الـ pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [hasPreviousPage, setHasPreviousPage] = useState(false);
 
   // Debug organization info
   useEffect(() => {
     
   }, [currentOrganization]);
 
-  // Fetch products data - simplified version with direct DB query
-  useEffect(() => {
-    let isMounted = true;
-    let timeoutId: number;
-    
-    const fetchProducts = async () => {
-      if (!currentOrganization?.id) {
-        
-        if (isMounted) {
-          setProducts([]);
-          setFilteredProducts([]);
-          setIsLoading(false);
-        }
-        return;
-      }
-
-      setIsLoading(true);
-      setLoadError(null);
-      
-      // Set timeout for loading - shorter timeout
-      timeoutId = setTimeout(() => {
-        if (isMounted) {
-          console.error("انتهت مهلة جلب المنتجات");
-          setLoadError("انتهت مهلة الاتصال. الرجاء المحاولة مرة أخرى.");
-          setIsLoading(false);
-        }
-      }, 15000) as unknown as number;
-      
-      try {
-        
-        
-        // Create a new direct Supabase client to bypass potential issues
-        const { createClient } = await import('@supabase/supabase-js');
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://wrnssatuvmumsczyldth.supabase.co';
-        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndybnNzYXR1dm11bXNjenlsZHRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMyNTgxMTYsImV4cCI6MjA1ODgzNDExNn0.zBT3h3lXQgcFqzdpXARVfU9kwRLvNiQrSdAJwMdojYY';
-        
-        
-        const directClient = createClient(supabaseUrl, supabaseAnonKey);
-        
-        // Implement direct query with a Promise.race to handle timeouts
-        const directQueryPromise = directClient
-          .from('products')
-          .select('*')
-          .eq('organization_id', currentOrganization.id)
-          .eq('is_active', true);
-        
-        // Create a timeout promise
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Database query timeout')), 5000);
-        });
-        
-        
-        const { data, error } = await Promise.race([
-          directQueryPromise,
-          timeoutPromise
-        ]) as any;
-        
-        if (error) {
-          console.error("Direct query error:", error);
-          throw error;
-        }
-        
-        
-        
-        if (!isMounted) {
-          
-          return;
-        }
-        
-        
-        setProducts(data);
-        setFilteredProducts(data);
-      } catch (error) {
-        console.error('Error fetching products:', error);
-        if (isMounted) {
-          setLoadError('حدث خطأ أثناء تحميل المنتجات');
-          toast.error('حدث خطأ أثناء تحميل المنتجات');
-        }
-      } finally {
-        clearTimeout(timeoutId);
-        if (isMounted) {
-          
-          setIsLoading(false);
-        }
-      }
-    };
-
-    fetchProducts();
-    
-    return () => {
-      isMounted = false;
-      clearTimeout(timeoutId);
-    };
-  }, [currentOrganization]);
-
-  // Apply filters and search
-  useEffect(() => {
-    if (products.length === 0) {
-      setFilteredProducts([]);
+  // جلب المنتجات مع الـ pagination
+  const fetchProductsPaginated = async (page: number = currentPage) => {
+    if (!currentOrganization?.id) {
+      setProducts([]);
+      setIsLoading(false);
       return;
     }
-    
-    let result = [...products];
 
-    // Apply search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(
-        product => 
-          product.name.toLowerCase().includes(query) || 
-          (product.description && product.description.toLowerCase().includes(query)) ||
-          (product.sku && product.sku.toLowerCase().includes(query)) ||
-          (product.barcode && product.barcode.toLowerCase().includes(query))
-      );
-    }
+    setIsLoading(true);
+    setLoadError(null);
 
-    // Apply category filter
-    if (categoryFilter) {
-      result = result.filter(product => {
-        if (!product.category) return false;
-        
-        if (typeof product.category === 'object' && product.category) {
-          return (product.category as CategoryObject).id === categoryFilter;
-        } else if (typeof product.category === 'string') {
-          return product.category === categoryFilter;
+    try {
+      const result = await getProductsPaginated(
+        currentOrganization.id,
+        page,
+        pageSize,
+        {
+          includeInactive: false,
+          searchQuery: searchQuery.trim(),
+          categoryFilter: categoryFilter || '',
+          stockFilter,
+          sortOption,
         }
-        return false;
-      });
-    }
+      );
 
-    // Apply stock filter
-    if (stockFilter !== 'all') {
-      if (stockFilter === 'in-stock') {
-        result = result.filter(product => product.stock_quantity > 0);
-      } else if (stockFilter === 'out-of-stock') {
-        result = result.filter(product => product.stock_quantity === 0);
-      } else if (stockFilter === 'low-stock') {
-        result = result.filter(product => product.stock_quantity > 0 && product.stock_quantity <= 5);
-      }
+      setProducts(result.products);
+      setTotalCount(result.totalCount);
+      setTotalPages(result.totalPages);
+      setCurrentPage(result.currentPage);
+      setHasNextPage(result.hasNextPage);
+      setHasPreviousPage(result.hasPreviousPage);
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      setLoadError('حدث خطأ أثناء تحميل المنتجات');
+      toast.error('حدث خطأ أثناء تحميل المنتجات');
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-    // Apply sorting
-    if (sortOption === 'newest') {
-      result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    } else if (sortOption === 'oldest') {
-      result.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-    } else if (sortOption === 'price-high') {
-      result.sort((a, b) => b.price - a.price);
-    } else if (sortOption === 'price-low') {
-      result.sort((a, b) => a.price - b.price);
-    } else if (sortOption === 'name-asc') {
-      result.sort((a, b) => a.name.localeCompare(b.name));
-    } else if (sortOption === 'name-desc') {
-      result.sort((a, b) => b.name.localeCompare(a.name));
-    }
+  // تأثير لتحميل المنتجات عند تغيير الفلاتر أو الصفحة
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setCurrentPage(1); // إعادة تعيين الصفحة إلى الأولى عند تغيير الفلاتر
+      fetchProductsPaginated(1);
+    }, 300); // debounce لتحسين الأداء
 
-    setFilteredProducts(result);
-  }, [products, searchQuery, categoryFilter, sortOption, stockFilter]);
+    return () => clearTimeout(timeoutId);
+  }, [currentOrganization?.id, searchQuery, categoryFilter, sortOption, stockFilter, pageSize]);
+
+  // تأثير منفصل لتغيير الصفحة
+  useEffect(() => {
+    fetchProductsPaginated(currentPage);
+  }, [currentPage]);
+
+  // معالجة تغيير الصفحة
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  // معالجة تغيير حجم الصفحة
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size);
+    setCurrentPage(1);
+  };
 
   // Product refresh after operations
   const refreshProducts = async () => {
     if (!currentOrganization?.id) {
-      
       return;
     }
     
-    setIsLoading(true);
-    setLoadError(null);
-    
-    try {
-      
-      const productsData = await getProducts(currentOrganization.id);
-      
-      
-      setProducts(productsData);
-      toast.success('تم تحديث قائمة المنتجات بنجاح');
-    } catch (error) {
-      console.error('Error refreshing products:', error);
-      toast.error('حدث خطأ أثناء تحديث المنتجات');
-      setLoadError('حدث خطأ أثناء تحديث المنتجات');
-    } finally {
-      setIsLoading(false);
-    }
+    await fetchProductsPaginated(currentPage);
+    toast.success('تم تحديث قائمة المنتجات بنجاح');
   };
 
   // Handler for dummy sync - returns a promise to match expected type
@@ -230,25 +129,44 @@ const Products = () => {
     setIsAddProductOpen(true);
   };
 
-  // Categories list - معالجة الحالتين عندما تكون الفئة كائنًا أو نصًا
-  const categories = [...new Set(
-    products
-      .map(product => {
-        if (!product.category) return '';
-        
-        if (typeof product.category === 'object' && product.category !== null) {
-          return (product.category as CategoryObject).name || '';
-        }
-        
-        return String(product.category);
-      })
-      .filter(Boolean) // إزالة القيم الفارغة
-  )];
+  // Categories list - نحتاج لجلب جميع المنتجات للحصول على الفئات (مؤقتاً)
+  const [allProductsForCategories, setAllProductsForCategories] = useState<Product[]>([]);
+  
+  useEffect(() => {
+    // جلب جميع المنتجات للحصول على قائمة الفئات
+    const fetchCategoriesData = async () => {
+      if (!currentOrganization?.id) return;
+      try {
+        const allProducts = await getProducts(currentOrganization.id);
+        setAllProductsForCategories(allProducts);
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+      }
+    };
+    
+    fetchCategoriesData();
+  }, [currentOrganization?.id]);
+
+  const categories = useMemo(() => {
+    return [...new Set(
+      allProductsForCategories
+        .map(product => {
+          if (!product.category) return '';
+          
+          if (typeof product.category === 'object' && product.category !== null) {
+            return (product.category as CategoryObject).name || '';
+          }
+          
+          return String(product.category);
+        })
+        .filter(Boolean) // إزالة القيم الفارغة
+    )];
+  }, [allProductsForCategories]);
 
   // إعادة تحميل المنتجات يدويًا
   const handleRetry = () => {
     setLoadError(null);
-    refreshProducts();
+    fetchProductsPaginated(1);
   };
 
   // عرض حالة الخطأ
@@ -292,14 +210,14 @@ const Products = () => {
   return (
     <Layout>
       <SyncProducts
-        isLoading={isLoading}
-        onSyncComplete={refreshProducts}
-        onUnsyncedCountChange={setUnsyncedCount}
+        count={unsyncedCount}
+        onSync={handleDummySync}
+        isSyncing={isSyncing}
       />
       
       <div className="container mx-auto py-6">
         <ProductsHeader
-          productCount={products.length}
+          productCount={totalCount}
           onAddProduct={() => setIsAddProductOpen(true)}
           products={products}
           onAddProductClick={() => setIsAddProductOpen(true)}
@@ -307,7 +225,7 @@ const Products = () => {
           onSearchChange={setSearchQuery}
           sortOption={sortOption}
           onSortChange={setSortOption}
-          totalProducts={products.length}
+          totalProducts={totalCount}
           onShowFilter={() => {}} // أضف وظيفة إظهار الفلتر هنا
           isSyncing={isSyncing}
           unsyncedCount={unsyncedCount}
@@ -329,12 +247,30 @@ const Products = () => {
           <div className="flex justify-center items-center mt-10">
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
           </div>
-        ) : filteredProducts.length === 0 ? (
+        ) : products.length === 0 ? (
           renderEmptyState()
         ) : (
-          <div className="mt-6">
-            <ProductsList products={filteredProducts} onProductsChanged={refreshProducts} />
-          </div>
+          <>
+            <div className="mt-6">
+              <ProductsList products={products} onRefreshProducts={refreshProducts} />
+            </div>
+            
+            {/* مكون الـ Pagination */}
+            {totalPages > 1 && (
+              <div className="mt-8">
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={handlePageChange}
+                  showSizeChanger={true}
+                  pageSize={pageSize}
+                  onPageSizeChange={handlePageSizeChange}
+                  totalItems={totalCount}
+                  loading={isLoading}
+                />
+              </div>
+            )}
+          </>
         )}
         
         <AddProductDialog

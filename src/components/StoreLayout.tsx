@@ -1,10 +1,9 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import Navbar from '@/components/Navbar';
-import StoreFooter from '@/components/store/StoreFooter';
+import CustomizableStoreFooter from '@/components/store/CustomizableStoreFooter';
 import { useTenant } from '@/context/TenantContext';
-import { getProductCategories } from '@/api/store';
-import { useState } from 'react';
-import { Category } from '@/api/store';
+import { useAuth } from '@/context/AuthContext';
+import { getSupabaseClient } from '@/lib/supabase';
 import performanceTracking from '@/lib/performance-tracking';
 import { useLocation } from 'react-router-dom';
 
@@ -12,28 +11,141 @@ interface StoreLayoutProps {
   children: React.ReactNode;
 }
 
-const StoreLayout = ({ children }: StoreLayoutProps) => {
+const StoreLayout: React.FC<StoreLayoutProps> = ({ children }) => {
   const { currentOrganization } = useTenant();
-  const [categories, setCategories] = useState<Category[]>([]);
+  const { currentSubdomain } = useAuth();
+  const [categories, setCategories] = useState<any[]>([]);
+  const [footerSettings, setFooterSettings] = useState<any>(null);
   const location = useLocation();
   
   // جلب فئات المنتجات من قاعدة البيانات
   useEffect(() => {
     const fetchCategories = async () => {
       if (!currentOrganization?.id) return;
-
+      
       try {
-        const categoriesData = await getProductCategories(currentOrganization.id);
-        if (categoriesData && categoriesData.length > 0) {
+        const supabase = getSupabaseClient();
+        const { data: categoriesData, error } = await supabase
+          .from('product_categories')
+          .select('*')
+          .eq('organization_id', currentOrganization.id)
+          .eq('is_active', true)
+          .order('name', { ascending: true });
+
+        if (!error && categoriesData) {
           setCategories(categoriesData);
         }
-      } catch (err) {
-        console.error('Error fetching product categories:', err);
+      } catch (error) {
+        console.error('خطأ في جلب الفئات:', error);
+      }
+    };
+
+    const fetchFooterSettings = async () => {
+      if (!currentOrganization?.id) return;
+      
+      try {
+        const supabase = getSupabaseClient();
+        const { data: storeSettings, error } = await supabase
+          .from('store_settings')
+          .select('settings')
+          .eq('organization_id', currentOrganization.id)
+          .eq('component_type', 'footer')
+          .eq('is_active', true)
+          .maybeSingle();
+
+        if (!error && storeSettings?.settings) {
+          setFooterSettings(storeSettings.settings);
+        }
+      } catch (error) {
+        console.error('خطأ في جلب إعدادات الفوتر:', error);
       }
     };
 
     fetchCategories();
+    fetchFooterSettings();
   }, [currentOrganization?.id]);
+
+  // إعدادات افتراضية للفوتر
+  const defaultFooterSettings = {
+    storeName: currentOrganization?.name || 'متجر stockiha',
+    logoUrl: currentOrganization?.logo_url,
+    description: currentOrganization?.description || 'متجر إلكتروني متكامل لبيع المنتجات والخدمات',
+    showSocialLinks: true,
+    showContactInfo: true,
+    showFeatures: true,
+    showNewsletter: true,
+    showPaymentMethods: true,
+    socialLinks: [
+      { platform: 'facebook' as const, url: 'https://facebook.com' },
+      { platform: 'instagram' as const, url: 'https://instagram.com' }
+    ],
+    contactInfo: {
+      phone: '+213 123 456 789',
+      email: 'info@store.com',
+      address: '123 شارع المتجر، الجزائر العاصمة، الجزائر'
+    },
+    footerSections: [
+      {
+        id: '1',
+        title: 'روابط سريعة',
+        links: [
+          { id: '1-1', text: 'الصفحة الرئيسية', url: '/', isExternal: false },
+          { id: '1-2', text: 'المنتجات', url: '/products', isExternal: false },
+          { id: '1-3', text: 'اتصل بنا', url: '/contact', isExternal: false }
+        ]
+      },
+      {
+        id: '2',
+        title: 'خدمة العملاء',
+        links: [
+          { id: '2-1', text: 'مركز المساعدة', url: '/help', isExternal: false },
+          { id: '2-2', text: 'سياسة الشحن', url: '/shipping-policy', isExternal: false },
+          { id: '2-3', text: 'الأسئلة الشائعة', url: '/faq', isExternal: false }
+        ]
+      }
+    ],
+    features: [
+      {
+        id: '1',
+        icon: 'Truck',
+        title: 'شحن سريع',
+        description: 'توصيل مجاني للطلبات +5000 د.ج'
+      },
+      {
+        id: '2',
+        icon: 'CreditCard',
+        title: 'دفع آمن',
+        description: 'طرق دفع متعددة 100% آمنة'
+      },
+      {
+        id: '3',
+        icon: 'Heart',
+        title: 'ضمان الجودة',
+        description: 'منتجات عالية الجودة معتمدة'
+      },
+      {
+        id: '4',
+        icon: 'ShieldCheck',
+        title: 'دعم 24/7',
+        description: 'مساعدة متوفرة طول اليوم'
+      }
+    ],
+    newsletterSettings: {
+      enabled: true,
+      title: 'النشرة البريدية',
+      description: 'اشترك في نشرتنا البريدية للحصول على آخر العروض والتحديثات.',
+      placeholder: 'البريد الإلكتروني',
+      buttonText: 'اشتراك'
+    },
+    paymentMethods: ['visa', 'mastercard', 'paypal'],
+    legalLinks: [
+      { id: 'legal-1', text: 'شروط الاستخدام', url: '/terms', isExternal: false },
+      { id: 'legal-2', text: 'سياسة الخصوصية', url: '/privacy', isExternal: false }
+    ]
+  };
+
+  // دمج الإعدادات المخصصة مع الافتراضية
+  const finalFooterSettings = footerSettings ? { ...defaultFooterSettings, ...footerSettings } : defaultFooterSettings;
 
   // تتبع أداء الصفحة
   useEffect(() => {
@@ -64,16 +176,14 @@ const StoreLayout = ({ children }: StoreLayoutProps) => {
       {/* استخدام مكون Navbar المستخدم في باقي صفحات المتجر */}
       <Navbar categories={categories} />
       
-      {/* محتوى الصفحة */}
-      <main className="flex-1">
+      {/* محتوى الصفحة مع إضافة المساحة المناسبة للنافبار الثابت */}
+      <main className="flex-1 pt-16">
         {children}
       </main>
       
-      {/* تذييل الصفحة */}
-      <StoreFooter 
-        storeName={currentOrganization?.name || 'متجر stockiha'} 
-        logoUrl={currentOrganization?.logo_url} 
-        description={currentOrganization?.description || 'متجر إلكتروني متكامل لبيع المنتجات والخدمات'}
+      {/* تذييل الصفحة الجديد */}
+      <CustomizableStoreFooter 
+        {...finalFooterSettings}
       />
     </div>
   );

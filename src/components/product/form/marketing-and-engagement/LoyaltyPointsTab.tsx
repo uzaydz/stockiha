@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from "@/components/ui/form";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
-import { Award, DollarSign, Settings, CalendarClock, HelpCircle } from 'lucide-react';
+import { Award, DollarSign, Settings, CalendarClock, HelpCircle, Clock, Sparkles } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
@@ -37,225 +37,54 @@ const LoyaltyPointsTab: React.FC<LoyaltyPointsTabProps> = ({ form, organizationI
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-8">
-        <FormField
-          control={control}
-          name="marketingSettings.loyalty_points_enabled"
-          render={({ field }) => (
-            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm">
-              <div className="space-y-0.5">
-                <FormLabel className="text-base font-semibold">تفعيل نظام نقاط الولاء</FormLabel>
-                <FormDescription>
-                  قم بتشغيل أو إيقاف برنامج نقاط الولاء لهذا المنتج.
-                </FormDescription>
+        <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
+          <div className="relative mb-6">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-orange-100 to-orange-50 dark:from-orange-900/30 dark:to-orange-800/20 flex items-center justify-center mb-4 mx-auto border-2 border-orange-200 dark:border-orange-700">
+              <div className="relative">
+                <Clock className="w-8 h-8 text-orange-600 dark:text-orange-400" />
+                <div className="absolute -top-1 -right-1">
+                  <Sparkles className="w-4 h-4 text-orange-500 animate-pulse" />
+                </div>
               </div>
-              <FormControl>
-                <Switch
-                  checked={field.value || false}
-                  onCheckedChange={field.onChange}
-                />
-              </FormControl>
-            </FormItem>
-          )}
-        />
-
-        {loyaltyPointsEnabled && (
-          <div className="space-y-6 pt-6 border-t">
-            {/* Section for Naming Loyalty Points */}
-            <Card className="bg-muted/30">
-              <CardHeader>
-                <CardTitle className="text-md flex items-center">
-                  <Settings className="w-5 h-5 mr-2" />
-                  تسمية نقاط الولاء
-                </CardTitle>
-                <CardDescription>اختر أسماء معبرة لعملة الولاء الخاصة بك.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <FormField
-                  control={control}
-                  name="marketingSettings.loyalty_points_name_singular"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>اسم النقطة (مفرد)</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="مثال: نقطة، نجمة، جوهرة" value={field.value || ''} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={control}
-                  name="marketingSettings.loyalty_points_name_plural"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>اسم النقاط (جمع)</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="مثال: نقاط، نجوم، جواهر" value={field.value || ''} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </CardContent>
-            </Card>
-
-            {/* Section for Earning Rules */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-md flex items-center">
-                  <DollarSign className="w-5 h-5 mr-2" />
-                  قواعد كسب النقاط
-                </CardTitle>
-                <CardDescription>حدد كيف يمكن للعملاء كسب نقاط الولاء.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <FormField
-                  control={control}
-                  name="marketingSettings.points_per_currency_unit"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>النقاط المكتسبة لكل وحدة عملة منفقة</FormLabel>
-                      <FormControl>
-                        <Input type="number" {...field} placeholder="مثال: 1 (نقطة لكل دينار)" value={field.value || ''} onChange={e => field.onChange(parseFloat(e.target.value) || null)} />
-                      </FormControl>
-                      <FormDescription>كم نقطة يكتسب العميل مقابل كل وحدة من عملة المتجر (مثلاً: دينار، دولار).</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={control}
-                  name="marketingSettings.min_purchase_to_earn_points"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>الحد الأدنى لمبلغ الشراء لكسب النقاط (اختياري)</FormLabel>
-                      <FormControl>
-                        <Input type="number" {...field} placeholder="مثال: 5000 (دينار)" value={field.value || ''} onChange={e => field.onChange(parseFloat(e.target.value) || null)} />
-                      </FormControl>
-                      <FormDescription>إذا تم تحديده، يجب أن يتجاوز العميل هذا المبلغ لكسب النقاط.</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={control}
-                  name="marketingSettings.max_points_per_order"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>الحد الأقصى للنقاط التي يمكن كسبها في طلب واحد (اختياري)</FormLabel>
-                      <FormControl>
-                        <Input type="number" {...field} placeholder="مثال: 1000 (نقطة)" value={field.value || ''} onChange={e => field.onChange(parseInt(e.target.value, 10) || null)} />
-                      </FormControl>
-                      <FormDescription>لتحديد سقف أعلى للنقاط المكتسبة في كل عملية شراء.</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </CardContent>
-            </Card>
-
-            {/* Section for Redeeming Rules */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-md flex items-center">
-                  <DollarSign className="w-5 h-5 mr-2 transform -scale-x-100" /> {/* Flipped icon for redeem */}
-                  قواعد استبدال النقاط
-                </CardTitle>
-                <CardDescription>حدد كيف يمكن للعملاء استبدال نقاطهم.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <FormField
-                  control={control}
-                  name="marketingSettings.redeem_points_for_discount"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                      <div className="space-y-0.5">
-                        <FormLabel className="text-sm font-medium">السماح باستبدال النقاط بخصم ثابت</FormLabel>
-                      </div>
-                      <FormControl>
-                        <Switch
-                          checked={field.value || false}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-                {redeemPointsEnabled && (
-                  <div className="pl-4 ml-4 border-l space-y-4 mt-2">
-                    <FormField
-                      control={control}
-                      name="marketingSettings.points_needed_for_fixed_discount"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>النقاط المطلوبة للحصول على الخصم</FormLabel>
-                          <FormControl>
-                            <Input type="number" {...field} placeholder="مثال: 500 (نقطة)" value={field.value || ''} onChange={e => field.onChange(parseInt(e.target.value, 10) || null)} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={control}
-                      name="marketingSettings.fixed_discount_value_for_points"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>قيمة الخصم الثابت (بعملة المتجر)</FormLabel>
-                          <FormControl>
-                            <Input type="number" {...field} placeholder="مثال: 250 (دينار)" value={field.value || ''} onChange={e => field.onChange(parseFloat(e.target.value) || null)} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Section for Points Expiration */}
-            <Card className="bg-muted/30">
-              <CardHeader>
-                <CardTitle className="text-md flex items-center">
-                   <CalendarClock className="w-5 h-5 mr-2" />
-                  صلاحية النقاط
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <FormField
-                  control={control}
-                  name="marketingSettings.points_expiration_months"
-                  render={({ field }) => (
-                    <FormItem>
-                      <div className="flex items-center justify-between">
-                        <FormLabel>مدة صلاحية النقاط (بالأشهر)</FormLabel>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger type="button"> {/* Important for accessibility */}
-                              <HelpCircle className="w-4 h-4 text-muted-foreground cursor-help" />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>أدخل 0 إذا كنت لا تريد أن تنتهي صلاحية النقاط.</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-                      <FormControl>
-                        <Input type="number" {...field} placeholder="مثال: 12 (شهرًا)" value={field.value ?? ''} onChange={e => field.onChange(parseInt(e.target.value, 10) ?? 0)} />
-                      </FormControl>
-                      <FormDescription>
-                        كم شهرًا تبقى النقاط صالحة قبل أن تنتهي صلاحيتها (0 يعني لا تنتهي أبدًا).
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </CardContent>
-            </Card>
-
+            </div>
+            <div className="absolute inset-0 bg-orange-300/20 rounded-full animate-ping opacity-75" />
           </div>
-        )}
+          
+          <h3 className="text-2xl font-bold text-foreground mb-3">
+            قريباً سيتم إطلاق هذه الخاصية
+          </h3>
+          
+          <p className="text-muted-foreground max-w-md leading-relaxed mb-6">
+            نحن نعمل على تطوير نظام نقاط الولاء المتكامل ليوفر لك ولعملائك تجربة مميزة ومكافآت رائعة.
+          </p>
+          
+          <div className="bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 rounded-xl p-6 border border-orange-200 dark:border-orange-700/50 max-w-lg">
+            <h4 className="font-semibold text-orange-800 dark:text-orange-200 mb-3 flex items-center gap-2">
+              <Award className="w-5 h-5" />
+              ما يمكنك توقعه:
+            </h4>
+            <ul className="text-sm text-orange-700 dark:text-orange-300 space-y-2 text-right">
+              <li className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-orange-500 flex-shrink-0" />
+                برنامج نقاط ولاء شامل ومتكامل
+              </li>
+              <li className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-orange-500 flex-shrink-0" />
+                مكافآت وعروض مخصصة للعملاء المميزين
+              </li>
+              <li className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-orange-500 flex-shrink-0" />
+                تقارير تفصيلية لمتابعة أداء البرنامج
+              </li>
+              <li className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-orange-500 flex-shrink-0" />
+                إعدادات مرنة للنقاط والمكافآت
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        {/* تم حذف المحتوى الأصلي المخفي */}
       </CardContent>
     </Card>
   );

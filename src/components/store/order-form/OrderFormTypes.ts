@@ -97,7 +97,7 @@ export const orderFormSchema = z.object({
   }).optional(),
   address: z.string().min(5, {
     message: "العنوان يجب أن يحتوي على 5 أحرف على الأقل",
-  }),
+  }).optional(),
   deliveryCompany: z.string({
     required_error: "يرجى اختيار شركة التوصيل",
   }),
@@ -108,6 +108,17 @@ export const orderFormSchema = z.object({
     required_error: "يرجى اختيار طريقة الدفع",
   }),
   notes: z.string().optional(),
+}).refine((data) => {
+  // التحقق من وجود العنوان عندما يكون نوع التوصيل للمنزل
+  if (data.deliveryOption === 'home') {
+    if (!data.address || data.address.trim().length < 5) {
+      return false;
+    }
+  }
+  return true;
+}, {
+  message: "العنوان مطلوب ومفصل للتوصيل المنزلي ويجب أن يحتوي على 5 أحرف على الأقل",
+  path: ["address"],
 }).refine((data) => {
   // التحقق من وجود stopDeskId عندما يكون نوع التوصيل هو desk
   if (data.deliveryOption === 'desk') {

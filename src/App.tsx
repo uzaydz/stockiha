@@ -73,9 +73,11 @@ import LandingPagesManager from '@/pages/LandingPagesManager';
 import LandingPageView from '@/pages/LandingPageView';
 import CustomizeProductPurchasePage from '@/pages/dashboard/CustomizeProductPurchasePage';
 import CustomDomainsDocPage from './pages/docs/CustomDomainsDocPage';
-import DomainSettings from '@/components/settings/DomainSettings';
+import DomainSettings from '@/pages/dashboard/DomainSettings';
 import StoreRouter from '@/components/routing/StoreRouter';
 import ProductForm from "./pages/ProductForm";
+import CustomPageView from "./pages/CustomPageView";
+import CustomPagesManager from "./pages/dashboard/CustomPagesManager";
 
 // Super Admin Pages
 import SuperAdminDashboard from '@/pages/super-admin/SuperAdminDashboard';
@@ -333,6 +335,9 @@ const App = () => {
                   {/* صفحات التوثيق */}
                   <Route path="/docs/custom-domains" element={<CustomDomainsDocPage />} />
 
+                  {/* الصفحات المخصصة التي يتم إنشاؤها في محرر الفوتر */}
+                  <Route path="/page/:slug" element={<CustomPageView />} />
+
                   {/* الصفحة الرئيسية للمتجر - يتم توجيه النطاقات المخصصة إليها */}
                   {/* تم تغييره من LandingPage إلى StoreRouter للتوجيه المباشر إلى المتجر عند استخدام دومين مخصص */}
                   <Route index element={<StoreRouter />} />
@@ -553,6 +558,15 @@ const App = () => {
                         </SubscriptionCheck>
                       } />
 
+                      {/* صفحة إعدادات الشحن والتوصيل */}
+                      <Route path="/dashboard/shipping-settings" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+                            <ShippingSettingsPage />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+
                       {/* صفحات إدارة صفحات الهبوط */}
                       <Route path="/dashboard/landing-pages" element={
                         <SubscriptionCheck>
@@ -565,6 +579,15 @@ const App = () => {
                         <SubscriptionCheck>
                           <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
                             <LandingPageBuilder />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+
+                      {/* صفحة إدارة الصفحات المخصصة */}
+                      <Route path="/dashboard/custom-pages" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+                            <CustomPagesManager />
                           </PermissionGuard>
                         </SubscriptionCheck>
                       } />
@@ -651,58 +674,6 @@ const App = () => {
                     <Route path="/dashboard/settings/:section" element={
                       <SubscriptionCheck>
                         <SettingsPage />
-                      </SubscriptionCheck>
-                    } />
-                    
-                    {/* صفحة إعدادات الشحن والتوصيل */}
-                    <Route path="/dashboard/shipping-settings" element={
-                      <SubscriptionCheck>
-                        <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
-                          <ShippingSettingsPage />
-                        </PermissionGuard>
-                      </SubscriptionCheck>
-                    } />
-
-                    {/* إضافة صفحة جديدة في المستقبل */}
-                    <Route path="/dashboard/products" element={
-                      <SubscriptionCheck>
-                        <PermissionGuard requiredPermissions={['viewProducts']}>
-                          <Products />
-                        </PermissionGuard>
-                      </SubscriptionCheck>
-                    } />
-                    <Route path="/dashboard/inventory" element={
-                      <SubscriptionCheck>
-                        <PermissionGuard requiredPermissions={['viewInventory']}>
-                          <Inventory />
-                        </PermissionGuard>
-                      </SubscriptionCheck>
-                    } />
-
-                    {/* صفحة نقطة البيع */}
-                    <Route path="/dashboard/pos" element={
-                      <SubscriptionCheck>
-                        <PermissionGuard requiredPermissions={['accessPOS']}>
-                          <POS />
-                        </PermissionGuard>
-                      </SubscriptionCheck>
-                    } />
-
-                    {/* صفحة متابعة الخدمات */}
-                    <Route path="/dashboard/service-tracking" element={
-                      <SubscriptionCheck>
-                        <PermissionGuard requiredPermissions={['trackServices']}>
-                          <ServiceTrackingPage />
-                        </PermissionGuard>
-                      </SubscriptionCheck>
-                    } />
-                    
-                    {/* صفحة طلبات الخدمات */}
-                    <Route path="/dashboard/service-requests" element={
-                      <SubscriptionCheck>
-                        <PermissionGuard requiredPermissions={['trackServices']}>
-                          <ServiceRequestsPage />
-                        </PermissionGuard>
                       </SubscriptionCheck>
                     } />
                     

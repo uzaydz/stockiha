@@ -186,7 +186,7 @@ export const generateBarcodeValue = (value: string, type: string): string => {
   } else if (type === 'code39') {
     // تنظيف للحصول على أحرف وأرقام فقط مسموح بها في Code 39
     return sanitized.replace(/[^A-Z0-9\-\.\ \$\/\+\%]/g, '').toUpperCase();
-  } else if (type === 'code128') {
+  } else if (type === 'code128' || type === 'compact128') {
     // للأرقام الطويلة مثل 2007208157077، يمكن تقسيمها إلى أجزاء أصغر
     // إذا كان الطول أكبر من 12 رقمًا وكان مكونًا من أرقام فقط
     if (sanitized.length > 12 && /^\d+$/.test(sanitized)) {
@@ -244,15 +244,19 @@ export const getBarcodeImageUrl = (
   const barcodeValue = generateBarcodeValue(value, type);
   
   // تحسين نسب الباركود للطباعة
-  // زيادة قيمة scale لجعل الباركود أعرض وخفض height لمنع الاستطالة
   let adjustedScale = scale;
   let adjustedHeight = height;
+  let barcodeType = type;
   
-  // ضبط القيم حسب نوع الباركود - تقليل الارتفاع بشكل كبير
+  // ضبط القيم حسب نوع الباركود
   if (type === 'code128') {
-    // تعديل المقاييس لجعل الباركود أكثر قابلية للقراءة - جعله أقصر وأعرض
-    adjustedScale = Math.max(3, scale);  // زيادة العرض
-    adjustedHeight = 20;  // تخفيض الارتفاع بشكل كبير
+    adjustedScale = Math.max(3, scale);
+    adjustedHeight = 20;
+  } else if (type === 'compact128') {
+    // نوع جديد: باركود قصير وطويل لتوفير مساحة أكبر
+    barcodeType = 'code128'; // نستخدم code128 كأساس
+    adjustedScale = Math.max(4, scale); // عرض أكبر
+    adjustedHeight = 15; // ارتفاع أقل جداً
   } else if (type === 'code39') {
     adjustedScale = Math.max(3, scale);
     adjustedHeight = 20;
@@ -264,11 +268,11 @@ export const getBarcodeImageUrl = (
   // تحقق نهائي من وجود قيمة صالحة للباركود
   if (!barcodeValue || barcodeValue.length === 0) {
     console.warn('تم محاولة إنشاء باركود بقيمة فارغة:', value);
-    return ''; // إرجاع قيمة فارغة لتجنب طلبات API غير صالحة
+    return '';
   }
 
   // استخدام معاملات أساسية فقط لتجنب أخطاء في واجهة API
-  return `https://bwipjs-api.metafloor.com/?bcid=${type}&text=${encodeURIComponent(barcodeValue)}&scale=${adjustedScale}&height=${adjustedHeight}&includetext=${includeText ? 'true' : 'false'}&textsize=${textSize}`;
+  return `https://bwipjs-api.metafloor.com/?bcid=${barcodeType}&text=${encodeURIComponent(barcodeValue)}&scale=${adjustedScale}&height=${adjustedHeight}&includetext=${includeText ? 'true' : 'false'}&textsize=${textSize}`;
 };
 
 /**

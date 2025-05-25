@@ -31,6 +31,7 @@ import {
 } from '@/api/storeDataService';
 import { Helmet } from 'react-helmet-async';
 import { StoreComponent, ComponentType } from '@/types/store-editor';
+import React from 'react';
 
 interface StorePageProps {
   storeData?: Partial<StoreInitializationData>;
@@ -43,6 +44,7 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
   const [dataLoading, setDataLoading] = useState(true);
   const [storeData, setStoreData] = useState<Partial<StoreInitializationData> | null>(initialStoreData && Object.keys(initialStoreData).length > 0 ? initialStoreData : null);
   const [dataError, setDataError] = useState<string | null>(null);
+  const [footerSettings, setFooterSettings] = useState<any>(null);
   const dataFetchAttempted = useRef(false);
   const forceTimerRef = useRef<NodeJS.Timeout | null>(null);
   
@@ -53,6 +55,11 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
   const [customComponents, setCustomComponents] = useState<StoreComponent[]>(
     initialStoreData?.store_layout_components || []
   );
+
+  useEffect(() => {
+    console.log('[StorePage] customComponents updated:', customComponents);
+    console.log('[StorePage] customComponents count:', customComponents.length);
+  }, [customComponents]);
 
   useEffect(() => {
     if (dataLoading) {
@@ -212,6 +219,7 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
     if (subdomainToReload) {
       setDataLoading(true);
       setDataError(null);
+      setFooterSettings(null);
       dataFetchAttempted.current = false;
       try {
         const result = await forceReloadStoreData(subdomainToReload);
@@ -289,9 +297,62 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
     { id: 'contact-default', type: 'contact', settings: { email: storeData?.organization_details?.contact_email }, isActive: true, orderIndex: 6 },
   ];
 
-  const componentsToRender = hasCustomComponents ? customComponents : defaultStoreComponents;
+  const filteredCustomComponents = customComponents
+    .filter(component => {
+      const normalizedType = component.type.toLowerCase();
+      return normalizedType !== 'seo_settings' && component.isActive;
+    })
+    .map(component => {
+      let normalizedType = component.type.toLowerCase();
+      
+      if (normalizedType === 'categories') {
+        normalizedType = 'product_categories';
+      }
+      
+      return {
+        ...component,
+        type: normalizedType as ComponentType
+      };
+    })
+    .sort((a, b) => a.orderIndex - b.orderIndex);
+
+  console.log('[StorePage] Custom components after filtering:', filteredCustomComponents);
+  console.log('[StorePage] Has custom components:', filteredCustomComponents.length > 0);
+
+  const componentsToRender = filteredCustomComponents.length > 0 ? filteredCustomComponents : defaultStoreComponents;
+  
+  console.log('[StorePage] Components to render:', componentsToRender.length > 0 ? 'custom' : 'default');
+  console.log('[StorePage] Number of components to render:', componentsToRender.length);
+
   const navBarProps: NavbarProps = {
   };
+
+  // تحميل إعدادات الفوتر من قاعدة البيانات
+  useEffect(() => {
+    const fetchFooterSettings = async () => {
+      if (!storeData?.organization_details?.id) return;
+      
+      try {
+        const supabase = getSupabaseClient();
+        const { data: footerData, error } = await supabase
+          .from('store_settings')
+          .select('settings')
+          .eq('organization_id', storeData.organization_details.id)
+          .eq('component_type', 'footer')
+          .eq('is_active', true)
+          .maybeSingle();
+
+        if (!error && footerData?.settings) {
+          console.log('[StorePage] Footer settings loaded:', footerData.settings);
+          setFooterSettings(footerData.settings);
+        }
+      } catch (error) {
+        console.error('[StorePage] خطأ في جلب إعدادات الفوتر:', error);
+      }
+    };
+
+    fetchFooterSettings();
+  }, [storeData?.organization_details?.id]);
 
   return (
     <>
@@ -306,6 +367,12 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
         <style dangerouslySetInnerHTML={{ __html: storeSettings.custom_css }} />
       )}
       <div className="flex flex-col min-h-screen bg-background relative">
+        {/* النافبار الثابت للمتجر */}
+        <Navbar categories={storeData?.categories?.map(cat => ({
+          ...cat,
+          product_count: cat.product_count || 0
+        }))} />
+        
         <Button 
           variant="outline" 
           size="sm" 
@@ -316,11 +383,8 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
           إعادة تحميل
         </Button>
         
-        <header className="bg-background/80 backdrop-blur-sm border-b sticky top-0 z-50 print:hidden">
-          <Navbar {...navBarProps} />
-        </header>
-        
-        <main className="flex-1">
+        {/* إضافة المساحة المناسبة للنافبار الثابت */}
+        <main className="flex-1 pt-16">
           {dataLoading && (!storeData || Object.keys(storeData).length === 0) && <SkeletonLoader type="banner" />}
           {!dataLoading && dataError && !storeData?.organization_details?.id && (
              <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] p-4 text-center">
@@ -359,24 +423,30 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
                       console.log(`[StorePage] All categories (passed to allCategories prop):`, JSON.parse(JSON.stringify(storeData?.categories)));
                     }
 
+                    console.log(`[StorePage] Rendering component ${index + 1}/${componentsToRender.length}: ${component.type} (ID: ${component.id})`);
+
                     return (
                       <LazyLoad key={component.id || `component-${index}`}>
                         {(component.type === 'hero') && (
                           <LazyStoreBanner heroData={component.settings as any} />
                         )}
-                        {(component.type === 'product_categories') && storeData.categories && (
+                        {(component.type === 'product_categories') && (
                           <LazyProductCategories 
                             {...(component.settings as any)} 
                             categories={categoriesForProps}
-                            allCategories={storeData.categories} 
+                            allCategories={storeData?.categories || []} 
                           />
                         )}
-                        {(component.type === 'featured_products') && storeData.featured_products && (
-                          <LazyFeaturedProducts 
-                            {...(component.settings as any)} 
-                            products={storeData.featured_products as StoreProduct[]} 
-                            organizationId={storeData.organization_details?.id} 
-                          />
+                        {(component.type === 'featured_products' || component.type === 'featuredproducts') && (
+                          (() => {
+                            console.log(`[StorePage] Rendering featured_products component. Organization ID: ${storeData.organization_details?.id}`);
+                            return (
+                              <LazyFeaturedProducts 
+                                {...(component.settings as any)} 
+                                organizationId={storeData.organization_details?.id} 
+                              />
+                            );
+                          })()
                         )}
                         {(component.type === 'testimonials') && (
                           <LazyCustomerTestimonials {...(component.settings as any)} organizationId={storeData?.organization_details?.id}/>
@@ -387,11 +457,11 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
                         {(component.type === 'contact') && (
                           <LazyStoreContact {...(component.settings as any)} email={storeData.organization_details?.contact_email} />
                         )}
-                         {(component.type === 'services') && (
+                        {(component.type === 'services') && (
                           <StoreServices {...(component.settings as any)} />
                         )}
                         {(component.type === 'countdownoffers') && (
-                           <LazyComponentPreview component={{ ...component, type: component.type as ComponentType }} />
+                          <LazyComponentPreview component={{ ...component, type: component.type as ComponentType }} />
                         )}
                       </LazyLoad>
                     );
@@ -401,7 +471,97 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
             </>
           )}
         </main>
-        <LazyStoreFooter storeName={storeName} />
+        
+        {/* الفوتر مع إعدادات ديناميكية من قاعدة البيانات */}
+        {React.useMemo(() => {
+          // إعدادات افتراضية للفوتر
+          const defaultFooterSettings = {
+            storeName: storeName,
+            logoUrl: storeData?.organization_details?.logo_url,
+            description: storeData?.organization_details?.description,
+            showSocialLinks: true,
+            showContactInfo: true,
+            showFeatures: true,
+            showNewsletter: true,
+            showPaymentMethods: true,
+            socialLinks: [
+              { platform: 'facebook', url: 'https://facebook.com' },
+              { platform: 'instagram', url: 'https://instagram.com' }
+            ],
+            contactInfo: {
+              phone: '+213 123 456 789',
+              email: storeData?.organization_details?.contact_email || 'info@store.com',
+              address: '123 شارع المتجر، الجزائر العاصمة، الجزائر'
+            },
+            footerSections: [
+              {
+                id: '1',
+                title: 'روابط سريعة',
+                links: [
+                  { id: '1-1', text: 'الصفحة الرئيسية', url: '/', isExternal: false },
+                  { id: '1-2', text: 'المنتجات', url: '/products', isExternal: false },
+                  { id: '1-3', text: 'اتصل بنا', url: '/contact', isExternal: false }
+                ]
+              },
+              {
+                id: '2',
+                title: 'خدمة العملاء',
+                links: [
+                  { id: '2-1', text: 'مركز المساعدة', url: '/help', isExternal: false },
+                  { id: '2-2', text: 'سياسة الشحن', url: '/shipping-policy', isExternal: false },
+                  { id: '2-3', text: 'الأسئلة الشائعة', url: '/faq', isExternal: false }
+                ]
+              }
+            ],
+            features: [
+              {
+                id: '1',
+                icon: 'Truck',
+                title: 'شحن سريع',
+                description: 'توصيل مجاني للطلبات +5000 د.ج'
+              },
+              {
+                id: '2',
+                icon: 'CreditCard',
+                title: 'دفع آمن',
+                description: 'طرق دفع متعددة 100% آمنة'
+              },
+              {
+                id: '3',
+                icon: 'Heart',
+                title: 'ضمان الجودة',
+                description: 'منتجات عالية الجودة معتمدة'
+              },
+              {
+                id: '4',
+                icon: 'ShieldCheck',
+                title: 'دعم 24/7',
+                description: 'مساعدة متوفرة طول اليوم'
+              }
+            ],
+            newsletterSettings: {
+              enabled: true,
+              title: 'النشرة البريدية',
+              description: 'اشترك في نشرتنا البريدية للحصول على آخر العروض والتحديثات.',
+              placeholder: 'البريد الإلكتروني',
+              buttonText: 'اشتراك'
+            },
+            paymentMethods: ['visa', 'mastercard', 'paypal'],
+            legalLinks: [
+              { id: 'legal-1', text: 'شروط الاستخدام', url: '/terms', isExternal: false },
+              { id: 'legal-2', text: 'سياسة الخصوصية', url: '/privacy', isExternal: false }
+            ]
+          };
+
+          // دمج الإعدادات المخصصة مع الافتراضية
+          const finalFooterSettings = footerSettings 
+            ? { ...defaultFooterSettings, ...footerSettings } 
+            : defaultFooterSettings;
+
+          return (
+            <LazyStoreFooter {...finalFooterSettings} />
+          );
+        }, [footerSettings, storeName, storeData?.organization_details])}
       </div>
       {storeSettings?.custom_js_footer && (
         <script dangerouslySetInnerHTML={{ __html: storeSettings.custom_js_footer }} />
@@ -410,4 +570,4 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
   );
 };
 
-export default StorePage; 
+export default StorePage;

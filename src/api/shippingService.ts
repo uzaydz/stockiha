@@ -439,7 +439,7 @@ export class ZRExpressShippingService extends BaseShippingService {
         }]
       };
       
-      const response = await this.apiClient.post('', requestBody);
+      const response = await this.apiClient.post('add_colis', requestBody);
       return response.data;
     } catch (error) {
       console.error('Error creating ZR Express shipping order:', error);
@@ -456,7 +456,7 @@ export class ZRExpressShippingService extends BaseShippingService {
         Colis: [{ Tracking: trackingNumber }]
       };
       
-      const response = await this.apiClient.post('tracking', requestBody);
+      const response = await this.apiClient.post('lire', requestBody);
       return response.data;
     } catch (error) {
       console.error('Error getting ZR Express tracking info:', error);

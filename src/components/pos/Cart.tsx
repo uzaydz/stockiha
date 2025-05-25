@@ -87,6 +87,8 @@ export default function Cart({
   const [completedSubtotal, setCompletedSubtotal] = useState<number>(0);
   const [completedDiscount, setCompletedDiscount] = useState<number>(0);
   const [completedCustomerName, setCompletedCustomerName] = useState<string | undefined>();
+  const [completedPaidAmount, setCompletedPaidAmount] = useState<number>(0);
+  const [completedRemainingAmount, setCompletedRemainingAmount] = useState<number>(0);
   
   // ميزات جديدة
   const [searchQuery, setSearchQuery] = useState('');
@@ -354,6 +356,8 @@ export default function Cart({
       setCompletedCustomerName(selectedCustomer?.name);
       setCompletedOrderNumber(tempOrderId);
       setCompletedOrderDate(new Date());
+      setCompletedPaidAmount(numAmountPaid);
+      setCompletedRemainingAmount(remainingAmount);
       
       // فتح نافذة الطباعة
       setIsPaymentDialogOpen(false);
@@ -377,6 +381,11 @@ export default function Cart({
     setNotes('');
     setAmountPaid('');
     setIsPartialPayment(false);
+    setRemainingAmount(0);
+    
+    // إعادة تعيين بيانات الطلب المكتمل
+    setCompletedPaidAmount(0);
+    setCompletedRemainingAmount(0);
     
     // عرض رسالة نجاح
     toast.success("تم إنشاء الطلب بنجاح");
@@ -580,6 +589,8 @@ export default function Cart({
         completedSubtotal={completedSubtotal}
         completedDiscount={completedDiscount}
         completedCustomerName={completedCustomerName}
+        completedPaidAmount={completedPaidAmount}
+        completedRemainingAmount={completedRemainingAmount}
         onPrintCompleted={handlePrintCompleted}
       />
     </div>

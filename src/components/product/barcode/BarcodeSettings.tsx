@@ -9,9 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Info } from 'lucide-react';
 
 export interface BarcodeSettings {
-  barcodeType: 'code128' | 'code39' | 'ean13' | 'qrcode';
+  barcodeType: 'code128' | 'code39' | 'ean13' | 'qrcode' | 'compact128';
   printFormat: 'labels' | 'sheet' | 'custom';
-  paperSize: 'A4' | 'A5' | 'label50x90' | 'custom';
+  paperSize: 'A4' | 'A5' | 'label50x90' | 'thermal58' | 'thermal80' | 'custom';
   barcodeSize: 'small' | 'medium' | 'large' | 'custom';
   copiesPerProduct: number;
   scaleValue: number;
@@ -41,12 +41,13 @@ export interface BarcodeSettings {
   fontColor: string;
   backgroundColor: string;
   borderColor: string;
+  separatePages: boolean; // كل ملصق في صفحة منفصلة
 }
 
 export const DEFAULT_BARCODE_SETTINGS: BarcodeSettings = {
   barcodeType: 'code128',
-  printFormat: 'sheet',
-  paperSize: 'A4',
+  printFormat: 'labels',
+  paperSize: 'thermal58',
   barcodeSize: 'medium',
   copiesPerProduct: 1,
   scaleValue: 3,
@@ -63,7 +64,7 @@ export const DEFAULT_BARCODE_SETTINGS: BarcodeSettings = {
   marginBottom: 10,
   spacingX: 5,
   spacingY: 5,
-  orientation: 'portrait',
+  orientation: 'landscape',
   showBorder: true,
   alignment: 'center',
   customWidth: 0,
@@ -72,10 +73,11 @@ export const DEFAULT_BARCODE_SETTINGS: BarcodeSettings = {
   fontSize: 10,
   labelTextAlign: 'center',
   colorScheme: 'default',
-  fontFamily: 'Arial',
+  fontFamily: 'Helvetica',
   fontColor: '#000000',
   backgroundColor: '#ffffff',
-  borderColor: '#eeeeee'
+  borderColor: '#eeeeee',
+  separatePages: true
 };
 
 type BarcodeSettingsProps = {
@@ -92,7 +94,15 @@ const BarcodeSettings = ({ settings, onChange }: BarcodeSettingsProps) => {
     key: K, 
     value: BarcodeSettings[K]
   ) => {
-    onChange({ [key]: value } as Pick<BarcodeSettings, K>);
+    // إذا تم تغيير تنسيق الطباعة إلى "ملصقات منفصلة"، فعّل الطباعة المنفصلة تلقائياً
+    if (key === 'printFormat' && value === 'labels') {
+      onChange({ 
+        [key]: value,
+        separatePages: true // تفعيل الطباعة المنفصلة تلقائياً
+      } as Pick<BarcodeSettings, K | 'separatePages'>);
+    } else {
+      onChange({ [key]: value } as Pick<BarcodeSettings, K>);
+    }
   };
 
   const getSizePreview = () => {
@@ -102,6 +112,10 @@ const BarcodeSettings = ({ settings, onChange }: BarcodeSettingsProps) => {
       return 'A5 (148mm × 210mm)';
     } else if (settings.paperSize === 'label50x90') {
       return 'ملصق صغير (50mm × 90mm)';
+    } else if (settings.paperSize === 'thermal58') {
+      return 'ورق حراري 58مم (XPrinter 58mm)';
+    } else if (settings.paperSize === 'thermal80') {
+      return 'ورق حراري 80مم (XPrinter 80mm)';
     } else {
       return `مخصص (${settings.customWidth}mm × ${settings.customHeight}mm)`;
     }
@@ -131,6 +145,7 @@ const BarcodeSettings = ({ settings, onChange }: BarcodeSettingsProps) => {
                 <SelectItem value="code39">Code 39 (نص ورقم فقط)</SelectItem>
                 <SelectItem value="ean13">EAN-13 (13 رقم فقط)</SelectItem>
                 <SelectItem value="qrcode">QR Code (رمز الاستجابة السريعة)</SelectItem>
+                <SelectItem value="compact128">Compact Code 128 (قصير وطويل - مساحة أكبر للنصوص)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -162,9 +177,11 @@ const BarcodeSettings = ({ settings, onChange }: BarcodeSettingsProps) => {
                 <SelectValue placeholder="اختر حجم الورق" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="thermal58">ورق حراري 58مم (XPrinter 58mm)</SelectItem>
+                <SelectItem value="thermal80">ورق حراري 80مم (XPrinter 80mm)</SelectItem>
+                <SelectItem value="label50x90">ملصق (50mm × 90mm)</SelectItem>
                 <SelectItem value="A4">A4 (210mm × 297mm)</SelectItem>
                 <SelectItem value="A5">A5 (148mm × 210mm)</SelectItem>
-                <SelectItem value="label50x90">ملصق (50mm × 90mm)</SelectItem>
                 <SelectItem value="custom">حجم مخصص</SelectItem>
               </SelectContent>
             </Select>
@@ -207,8 +224,8 @@ const BarcodeSettings = ({ settings, onChange }: BarcodeSettingsProps) => {
                 <SelectValue placeholder="اختر اتجاه الطباعة" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="portrait">عمودي (Portrait)</SelectItem>
                 <SelectItem value="landscape">أفقي (Landscape)</SelectItem>
+                <SelectItem value="portrait">عمودي (Portrait)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -273,6 +290,38 @@ const BarcodeSettings = ({ settings, onChange }: BarcodeSettingsProps) => {
       </TabsContent>
       
       <TabsContent value="layout" className="space-y-4">
+        {/* خيار كل ملصق في صفحة منفصلة */}
+        <Card className="p-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="separatePages">كل ملصق في صفحة منفصلة</Label>
+              <p className="text-sm text-muted-foreground">
+                كل باركود سيطبع في صفحة منفصلة بالحجم المثالي للملصق المختار
+              </p>
+            </div>
+            <Toggle 
+              pressed={settings.separatePages} 
+              onPressedChange={(pressed) => handleSettingChange('separatePages', pressed)}
+              variant="outline"
+            >
+              {settings.separatePages ? 'مُفعل' : 'مُعطل'}
+            </Toggle>
+          </div>
+          {settings.separatePages && (
+            <div className="mt-3 p-3 bg-blue-50 rounded-md">
+              <div className="flex items-center gap-2">
+                <Info className="w-4 h-4 text-blue-600" />
+                <span className="text-sm font-medium text-blue-900">
+                  تم تفعيل الطباعة المنفصلة
+                </span>
+              </div>
+              <p className="text-sm text-blue-700 mt-1">
+                سيتم تجاهل إعدادات التخطيط والتباعد وسيطبع كل ملصق بحجم مثالي منفصل
+              </p>
+            </div>
+          )}
+        </Card>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="barcodeSize">حجم الباركود</Label>
@@ -331,8 +380,8 @@ const BarcodeSettings = ({ settings, onChange }: BarcodeSettingsProps) => {
             <div className="flex items-center gap-4">
               <span className="text-sm w-12 text-center">{settings.fontSize}</span>
               <Slider 
-                min={8}
-                max={24}
+                min={4}
+                max={32}
                 step={1}
                 value={[settings.fontSize]} 
                 onValueChange={(value) => handleSettingChange('fontSize', value[0])} 
@@ -359,7 +408,8 @@ const BarcodeSettings = ({ settings, onChange }: BarcodeSettingsProps) => {
           </div>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* إعدادات التخطيط - معطلة إذا كان خيار الصفحات المنفصلة مفعل */}
+        <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 ${settings.separatePages ? 'opacity-50 pointer-events-none' : ''}`}>
           <div>
             <Label htmlFor="columns">عدد الأعمدة</Label>
             <div className="flex items-center gap-4">
@@ -371,13 +421,14 @@ const BarcodeSettings = ({ settings, onChange }: BarcodeSettingsProps) => {
                 className="w-20" 
                 value={settings.columns} 
                 onChange={(e) => handleSettingChange('columns', parseInt(e.target.value) || 1)} 
+                disabled={settings.separatePages}
               />
               <Slider 
                 min={1}
                 max={6}
                 step={1}
                 value={[settings.columns]} 
-                onValueChange={(value) => handleSettingChange('columns', value[0])} 
+                onValueChange={(value) => !settings.separatePages && handleSettingChange('columns', value[0])} 
                 className="flex-1"
               />
             </div>
@@ -394,13 +445,14 @@ const BarcodeSettings = ({ settings, onChange }: BarcodeSettingsProps) => {
                 className="w-20" 
                 value={settings.rows} 
                 onChange={(e) => handleSettingChange('rows', parseInt(e.target.value) || 1)} 
+                disabled={settings.separatePages}
               />
               <Slider 
                 min={1}
                 max={12}
                 step={1}
                 value={[settings.rows]} 
-                onValueChange={(value) => handleSettingChange('rows', value[0])} 
+                onValueChange={(value) => !settings.separatePages && handleSettingChange('rows', value[0])} 
                 className="flex-1"
               />
             </div>
@@ -454,7 +506,7 @@ const BarcodeSettings = ({ settings, onChange }: BarcodeSettingsProps) => {
           </div>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 ${settings.separatePages ? 'opacity-50 pointer-events-none' : ''}`}>
           <div>
             <Label htmlFor="spacingX">المسافة بين الأعمدة (mm)</Label>
             <Input 
@@ -464,6 +516,7 @@ const BarcodeSettings = ({ settings, onChange }: BarcodeSettingsProps) => {
               max={50}
               value={settings.spacingX} 
               onChange={(e) => handleSettingChange('spacingX', parseInt(e.target.value) || 0)} 
+              disabled={settings.separatePages}
             />
           </div>
           <div>
@@ -475,6 +528,7 @@ const BarcodeSettings = ({ settings, onChange }: BarcodeSettingsProps) => {
               max={50}
               value={settings.spacingY} 
               onChange={(e) => handleSettingChange('spacingY', parseInt(e.target.value) || 0)} 
+              disabled={settings.separatePages}
             />
           </div>
         </div>
@@ -582,12 +636,14 @@ const BarcodeSettings = ({ settings, onChange }: BarcodeSettingsProps) => {
                 <SelectValue placeholder="اختر نوع الخط" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Arial">Arial</SelectItem>
-                <SelectItem value="Helvetica">Helvetica</SelectItem>
-                <SelectItem value="Verdana">Verdana</SelectItem>
-                <SelectItem value="Tahoma">Tahoma</SelectItem>
-                <SelectItem value="Times New Roman">Times New Roman</SelectItem>
-                <SelectItem value="Courier New">Courier New</SelectItem>
+                <SelectItem value="Helvetica">Helvetica (الأفضل للطباعة)</SelectItem>
+                <SelectItem value="Helvetica Neue">Helvetica Neue (حديث ومطور)</SelectItem>
+                <SelectItem value="Segoe UI">Segoe UI (نظام ويندوز)</SelectItem>
+                <SelectItem value="Arial">Arial (كلاسيكي)</SelectItem>
+                <SelectItem value="Verdana">Verdana (وضوح عالي)</SelectItem>
+                <SelectItem value="Tahoma">Tahoma (مضغوط)</SelectItem>
+                <SelectItem value="Times New Roman">Times New Roman (رسمي)</SelectItem>
+                <SelectItem value="Courier New">Courier New (أحرف ثابتة)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -604,6 +660,9 @@ const BarcodeSettings = ({ settings, onChange }: BarcodeSettingsProps) => {
                   <li>استخدم QR Code للمعلومات الأكثر تعقيدًا أو الروابط</li>
                   <li>مقاس A4 هو الأنسب للطباعة العادية</li>
                   <li>تنسيق الملصقات مناسب لطابعات الباركود المتخصصة</li>
+                  <li><strong>للطابعات الحرارية XPrinter:</strong> استخدم 58مم أو 80مم حسب عرض الورق</li>
+                  <li><strong>نوع Compact Code 128:</strong> مثالي للطابعات الحرارية - يوفر مساحة أكبر للنص</li>
+                  <li><strong>الطباعة الحرارية:</strong> تأكد من جودة الورق للحصول على وضوح أفضل</li>
                   <li>يمكنك حفظ هذه الإعدادات تلقائيًا للاستخدامات المستقبلية</li>
                 </ul>
               </div>

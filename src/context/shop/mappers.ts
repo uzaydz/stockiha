@@ -22,6 +22,7 @@ export const mapSupabaseProductToProduct = (product: SupabaseProduct): Product =
     sku: product.sku,
     barcode: product.barcode || undefined,
     category: (product.category as unknown as { name: string })?.name as any || 'accessories',
+    category_id: (product as any).category_id || undefined,
     subcategory: (product.subcategory as unknown as { name: string })?.name || undefined,
     brand: product.brand || undefined,
     images: product.images || [],

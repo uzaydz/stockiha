@@ -11,6 +11,7 @@ import QuickActions from '@/components/pos/QuickActions';
 import ServiceManager from '@/components/pos/ServiceManager';
 import PrintReceipt from '@/components/pos/PrintReceipt';
 import ProductVariantSelector from '@/components/pos/ProductVariantSelector';
+import POSSettings from '@/components/pos/settings/POSSettings';
 import {
   Dialog,
   DialogContent,
@@ -21,7 +22,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { ShoppingCart, Wrench } from 'lucide-react';
+import { ShoppingCart, Wrench, Settings2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getProductPriceForQuantity } from '@/api/productService';
 import { Button } from '@/components/ui/button';
@@ -62,6 +63,139 @@ const POS = () => {
   
   // إضافة حالة لطي/توسيع الإجراءات السريعة
   const [isQuickActionsExpanded, setIsQuickActionsExpanded] = useState(false);
+
+  // إضافة حالة لنافذة إعدادات نقطة البيع
+  const [isPOSSettingsOpen, setIsPOSSettingsOpen] = useState(false);
+
+  // حالة جديدة للتعامل مع قارئ الباركود العالمي
+  const [barcodeBuffer, setBarcodeBuffer] = useState('');
+  const [lastKeyTime, setLastKeyTime] = useState(0);
+
+  // استماع عالمي لأحداث قارئ الباركود
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      const currentTime = Date.now();
+      const timeDiff = currentTime - lastKeyTime;
+      
+      // إذا مرت أكثر من 200ms منذ آخر مفتاح، ابدأ باركود جديد
+      if (timeDiff > 200) {
+        setBarcodeBuffer('');
+      }
+      
+      // تجاهل المفاتيح الخاصة والتركيز على الحقول
+      if (event.ctrlKey || event.altKey || event.metaKey) {
+        return;
+      }
+      
+      // تجاهل إذا كان المستخدم يكتب في حقل إدخال
+      const target = event.target as HTMLElement;
+      if (target && (
+        target.tagName === 'INPUT' || 
+        target.tagName === 'TEXTAREA' || 
+        target.contentEditable === 'true' ||
+        target.closest('[contenteditable="true"]') ||
+        target.closest('input') ||
+        target.closest('textarea')
+      )) {
+        return;
+      }
+      
+      setLastKeyTime(currentTime);
+      
+      // إذا كان Enter، قم بمعالجة الباركود المتراكم
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        if (barcodeBuffer.length > 0) {
+          console.log('قارئ الباركود: تم قراءة الباركود مباشرة -', barcodeBuffer);
+          // استدعاء مباشر لتجنب مشكلة التبعية
+                     const barcode = barcodeBuffer.replace(/[^\w\d-]/g, '').trim();
+           if (barcode) {
+             const product = shopProducts.find(p => p.barcode === barcode || p.sku === barcode);
+             if (product) {
+               console.log('تم العثور على المنتج الأساسي:', product.name);
+               
+               // التحقق من المخزون والإضافة للسلة
+               if (product.stock_quantity <= 0) {
+                 toast.error(`المنتج "${product.name}" غير متوفر في المخزون`);
+               } else {
+                 // استخدام setCartItems مباشرة
+                 setCartItems(prevCart => {
+                   const existingItem = prevCart.find(item => item.product.id === product.id);
+                   if (existingItem) {
+                     if (existingItem.quantity >= product.stock_quantity) {
+                       toast.error(`لا يمكن إضافة المزيد من "${product.name}". الكمية المتاحة: ${product.stock_quantity}`);
+                       return prevCart;
+                     }
+                     toast.success(`تمت إضافة "${product.name}" إلى السلة`);
+                     return prevCart.map(item =>
+                       item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+                     );
+                   } else {
+                     toast.success(`تمت إضافة "${product.name}" إلى السلة`);
+                     // صوت النجاح (اختياري)
+                     try {
+                       const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DvNBkAl9fy' );
+                       audio.volume = 0.3;
+                       audio.play().catch(() => {}); // تجاهل أخطاء الصوت
+                     } catch (e) {}
+                     return [...prevCart, { product, quantity: 1 }];
+                   }
+                 });
+               }
+             } else {
+               // البحث في متغيرات المنتجات
+               let foundVariant = false;
+               for (const prod of shopProducts) {
+                 if (prod.colors && prod.colors.length > 0) {
+                   const color = prod.colors.find(c => c.barcode === barcode);
+                   if (color) {
+                     console.log('تم العثور على اللون:', color.name, 'للمنتج:', prod.name);
+                     // إضافة المتغير للسلة
+                     setCartItems(prevCart => [...prevCart, {
+                       product: prod,
+                       quantity: 1,
+                       colorId: color.id,
+                       colorName: color.name,
+                       colorCode: color.color_code,
+                       variantPrice: color.price,
+                       variantImage: color.image_url
+                     }]);
+                     toast.success(`تمت إضافة "${color.name} - ${prod.name}" إلى السلة`);
+                     foundVariant = true;
+                     break;
+                   }
+                 }
+               }
+               
+               if (!foundVariant) {
+                 toast.error(`لم يتم العثور على منتج بالباركود: ${barcode}`);
+               }
+             }
+           }
+          setBarcodeBuffer('');
+        }
+        return;
+      }
+      
+      // إضافة الحرف إلى buffer إذا كان صالحاً
+      if (event.key.length === 1) {
+        setBarcodeBuffer(prev => prev + event.key);
+      }
+    };
+
+    // إضافة مستمع الأحداث
+    document.addEventListener('keypress', handleKeyPress);
+    
+    // تنظيف buffer بعد فترة من عدم النشاط
+    const clearBufferTimeout = setTimeout(() => {
+      setBarcodeBuffer('');
+    }, 500);
+
+    return () => {
+      document.removeEventListener('keypress', handleKeyPress);
+      clearTimeout(clearBufferTimeout);
+    };
+  }, [barcodeBuffer, lastKeyTime]);
 
   // تعديل: مباشرة تعيين المنتجات من متجر التطبيق
   useEffect(() => {
@@ -237,62 +371,98 @@ const POS = () => {
     toast.success(`تمت إضافة "${variantName || product.name}" إلى السلة`);
   };
 
-  // Buscar producto por código de barras
-  const handleBarcodeScanned = (barcode: string) => {
-    const product = products.find(p => p.barcode === barcode);
+  // تنظيف البيانات الواردة من قارئ الباركود
+  const cleanBarcodeInput = (input: string): string => {
+    console.log('النص الأصلي من قارئ الباركود:', input);
+    
+    // إزالة الأحرف العربية والرموز الخاصة، والاحتفاظ بالأرقام والحروف الانجليزية فقط
+    let cleaned = input.replace(/[^\w\d-]/g, '');
+    
+    // إذا كان النص فارغ بعد التنظيف، جرب إزالة كل شيء عدا الأرقام
+    if (!cleaned || cleaned.length === 0) {
+      cleaned = input.replace(/[^\d]/g, '');
+    }
+    
+    // إزالة المسافات الإضافية
+    cleaned = cleaned.trim();
+    
+    console.log('النص بعد التنظيف:', cleaned);
+    return cleaned;
+  };
+
+  // البحث عن منتج بواسطة الباركود أو SKU
+  const handleBarcodeScanned = (rawBarcode: string) => {
+    // تنظيف البيانات الواردة من قارئ الباركود
+    const barcode = cleanBarcodeInput(rawBarcode);
+    
+    // التحقق من أن الباركود ليس فارغ بعد التنظيف
+    if (!barcode || barcode.length === 0) {
+      toast.error('الباركود المُدخل غير صالح. تأكد من إعدادات قارئ الباركود.');
+      return;
+    }
+    console.log('البحث عن الباركود:', barcode);
+    
+    // البحث في المنتجات الأساسية (barcode أو sku)
+    const product = products.find(p => p.barcode === barcode || p.sku === barcode);
     if (product) {
+      console.log('تم العثور على المنتج الأساسي:', product.name);
       addItemToCart(product);
-    } else {
-      // البحث عن لون بواسطة الباركود
-      let foundColorProduct = false;
-      
-      for (const product of products) {
-        if (product.colors && product.colors.length > 0) {
-          const color = product.colors.find(c => c.barcode === barcode);
-          if (color) {
-            addVariantToCart(
-              product,
-              color.id,
-              undefined,
-              color.price,
-              color.name,
-              color.color_code,
-              undefined,
-              color.image_url
-            );
-            foundColorProduct = true;
-            break;
-          }
-          
-          // البحث عن مقاس بواسطة الباركود
-          if (product.use_sizes) {
-            for (const color of product.colors) {
-              if (color.sizes && color.sizes.length > 0) {
-                const size = color.sizes.find(s => s.barcode === barcode);
-                if (size) {
-                  addVariantToCart(
+      return;
+    }
+    
+    // البحث في متغيرات المنتجات (ألوان ومقاسات)
+    let foundVariant = false;
+    
+    for (const product of products) {
+      // البحث في الألوان
+      if (product.colors && product.colors.length > 0) {
+        const color = product.colors.find(c => c.barcode === barcode);
+        if (color) {
+          console.log('تم العثور على اللون:', color.name, 'للمنتج:', product.name);
+          addVariantToCart(
+            product,
+            color.id,
+            undefined,
+            color.price,
+            color.name,
+            color.color_code,
+            undefined,
+            color.image_url
+          );
+          foundVariant = true;
+          break;
+        }
+        
+        // البحث في المقاسات
+        if (product.use_sizes) {
+          for (const color of product.colors) {
+            if (color.sizes && color.sizes.length > 0) {
+              const size = color.sizes.find(s => s.barcode === barcode);
+              if (size) {
+                console.log('تم العثور على المقاس:', size.name, 'للون:', color.name, 'للمنتج:', product.name);
+                                  addVariantToCart(
                     product,
                     color.id,
                     size.id,
                     size.price,
                     color.name,
                     color.color_code,
-                    size.size_name,
+                    size.name,
                     color.image_url
                   );
-                  foundColorProduct = true;
-                  break;
-                }
+                foundVariant = true;
+                break;
               }
             }
-            if (foundColorProduct) break;
           }
+          if (foundVariant) break;
         }
       }
-      
-      if (!foundColorProduct) {
-        toast.error("المنتج غير موجود");
-      }
+    }
+    
+    if (!foundVariant) {
+      console.log('لم يتم العثور على منتج بالباركود:', barcode);
+      toast.error(`لم يتم العثور على منتج بالباركود: ${barcode}`);
     }
   };
 
@@ -592,10 +762,44 @@ const POS = () => {
         <div className="mx-auto">
           <Card className="border-0 shadow-none bg-transparent">
             <CardHeader className="px-0 pt-0 pb-4">
-              <CardTitle className="text-2xl font-bold">نقطة البيع</CardTitle>
-              <CardDescription>
-                إدارة المبيعات وإضافة الخدمات وإصدار الفواتير
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div>
+                    <CardTitle className="text-2xl font-bold">نقطة البيع</CardTitle>
+                    <CardDescription>
+                      إدارة المبيعات وإضافة الخدمات وإصدار الفواتير
+                    </CardDescription>
+                  </div>
+                  
+                  {/* زر إعدادات نقطة البيع */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsPOSSettingsOpen(true)}
+                    className="flex items-center gap-2"
+                  >
+                    <Settings2 className="h-4 w-4" />
+                    <span>إعدادات</span>
+                  </Button>
+                </div>
+                
+                {/* مؤشر حالة قارئ الباركود */}
+                <div className="flex flex-col items-end gap-2">
+                  {barcodeBuffer.length > 0 && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="animate-pulse w-2 h-2 bg-blue-500 rounded-full"></div>
+                      <span className="text-sm font-mono text-blue-700">{barcodeBuffer}</span>
+                      <span className="text-xs text-blue-600">جاري قراءة الباركود...</span>
+                    </div>
+                  )}
+                  
+                  {/* نصيحة لاستخدام قارئ الباركود */}
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>💡</span>
+                    <span>استخدم قارئ الباركود مباشرة أو اذهب للإجراءات السريعة</span>
+                  </div>
+                </div>
+              </div>
             </CardHeader>
           </Card>
 
@@ -774,6 +978,12 @@ const POS = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* نافذة إعدادات نقطة البيع */}
+      <POSSettings
+        isOpen={isPOSSettingsOpen}
+        onOpenChange={setIsPOSSettingsOpen}
+      />
     </Layout>
   );
 };

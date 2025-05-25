@@ -88,27 +88,127 @@ export const useProductState = () => {
 export const useStickyButtonLogic = (orderFormRef: React.RefObject<HTMLDivElement>) => {
   const [showStickyButton, setShowStickyButton] = useState(false);
 
+  // دالة للعثور على زر الإرسال الفعلي
+  const findSubmitButton = (container: HTMLElement): HTMLElement | null => {
+    // أولاً: البحث بالـ ID (الطريقة الأسرع والأدق)
+    const submitButtonById = container.querySelector('#order-submit-button') as HTMLElement;
+    if (submitButtonById) {
+      if (process.env.NODE_ENV === 'development') {
+        console.debug('🎯 تم العثور على زر الإرسال بالـ ID:', submitButtonById);
+      }
+      return submitButtonById;
+    }
+    
+    // ثانياً: البحث عن جميع الأزرار في النموذج
+    const allButtons = container.querySelectorAll('button');
+    
+    for (const button of allButtons) {
+      const buttonText = button.textContent?.trim() || '';
+      const hasSubmitText = buttonText.includes('إرسال الطلب') || 
+                           buttonText.includes('اطلب الآن') ||
+                           buttonText.includes('تأكيد الطلب');
+      
+      // التحقق من وجود أيقونة CreditCard
+      const hasCreditCardIcon = button.querySelector('svg') || 
+                               button.innerHTML.includes('CreditCard');
+      
+      // التحقق من الكلاسات المتعلقة بالإرسال
+      const hasSubmitClass = button.className.includes('submit') ||
+                             button.className.includes('primary') ||
+                             button.id.includes('submit');
+      
+      if (hasSubmitText || (hasCreditCardIcon && hasSubmitClass)) {
+        if (process.env.NODE_ENV === 'development') {
+          console.debug('🎯 تم العثور على زر الإرسال بالنص/الأيقونة:', button, 'النص:', buttonText);
+        }
+        return button as HTMLElement;
+      }
+    }
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.debug('⚠️ لم يتم العثور على زر الإرسال في النموذج');
+    }
+    return null;
+  };
+
   useEffect(() => {
     const handleScroll = () => {
       if (!orderFormRef.current) return;
       
-      const orderFormPosition = orderFormRef.current.getBoundingClientRect().top;
-      const windowHeight = window.innerHeight;
+      // البحث عن زر الإرسال الفعلي
+      const actualSubmitButton = findSubmitButton(orderFormRef.current);
       
-      setShowStickyButton(orderFormPosition > windowHeight);
+      if (actualSubmitButton) {
+        const submitButtonPosition = actualSubmitButton.getBoundingClientRect().top;
+        const windowHeight = window.innerHeight;
+        
+        // إخفاء الزر الثابت فور ظهور زر الإرسال الفعلي في الشاشة
+        // استخدام windowHeight بدلاً من 0.7 ليختفي فور ظهور الزر
+        const shouldShow = submitButtonPosition > windowHeight;
+        
+        // لتقليل عدد التحديثات، تحديث فقط عند تغيير الحالة
+        if (showStickyButton !== shouldShow) {
+          setShowStickyButton(shouldShow);
+          if (process.env.NODE_ENV === 'development') {
+            console.debug('🔄 تحديث حالة الزر الثابت:', shouldShow ? 'مرئي' : 'مخفي', 
+                         `موقع زر الإرسال: ${submitButtonPosition.toFixed(0)}px, ارتفاع الشاشة: ${windowHeight.toFixed(0)}px`);
+          }
+        }
+      } else {
+        // إذا لم نجد الزر الفعلي، نستخدم المنطق القديم كبديل
+        const orderFormPosition = orderFormRef.current.getBoundingClientRect().top;
+        const windowHeight = window.innerHeight;
+        const shouldShow = orderFormPosition > windowHeight;
+        
+        if (showStickyButton !== shouldShow) {
+          setShowStickyButton(shouldShow);
+          if (process.env.NODE_ENV === 'development') {
+            console.debug('🔄 استخدام المنطق البديل للزر الثابت:', shouldShow ? 'مرئي' : 'مخفي');
+          }
+        }
+      }
     };
     
-    window.addEventListener('scroll', handleScroll);
-    handleScroll();
+    // استخدام throttle للأداء الأفضل
+    let ticking = false;
+    const scrollHandler = () => {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          handleScroll();
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+    
+    window.addEventListener('scroll', scrollHandler, { passive: true });
+    handleScroll(); // تشغيل أولي
     
     return () => {
-      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('scroll', scrollHandler);
     };
-  }, [orderFormRef]);
+  }, [orderFormRef, showStickyButton]);
 
   const scrollToOrderForm = () => {
     if (orderFormRef.current) {
-      orderFormRef.current.scrollIntoView({ behavior: 'smooth' });
+      // محاولة التمرير إلى زر الإرسال الفعلي أولاً
+      const actualSubmitButton = findSubmitButton(orderFormRef.current);
+      
+      if (actualSubmitButton) {
+        if (process.env.NODE_ENV === 'development') {
+          console.debug('📍 التمرير إلى زر الإرسال الفعلي');
+        }
+        actualSubmitButton.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center' // وضع الزر في وسط الشاشة
+        });
+      } else {
+        if (process.env.NODE_ENV === 'development') {
+          console.debug('📍 التمرير إلى النموذج (لم يتم العثور على الزر)');
+        }
+        // إذا لم نجد الزر، نتمرر إلى النموذج كبديل
+        orderFormRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
     }
   };
 

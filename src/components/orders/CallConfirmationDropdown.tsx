@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,18 +32,9 @@ import {
   CheckCircle2,
   XCircle,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
-import { useTenant } from "@/context/TenantContext";
 import { useToast } from "@/hooks/use-toast";
-
-// نوع حالة تأكيد الإتصال
-export type CallConfirmationStatus = {
-  id: number;
-  name: string;
-  color: string;
-  icon: string | null;
-  is_default: boolean;
-};
+import { useOrdersData } from "@/context/OrdersDataContext";
+import type { CallConfirmationStatus } from "@/context/OrdersDataContext";
 
 // نوع خصائص مكون القائمة المنسدلة
 type CallConfirmationDropdownProps = {
@@ -66,10 +57,8 @@ const CallConfirmationDropdown = ({
   userId,
 }: CallConfirmationDropdownProps) => {
   const [isUpdating, setIsUpdating] = useState(false);
-  const [statuses, setStatuses] = useState<CallConfirmationStatus[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [showAddDialog, setShowAddDialog] = useState(false);
   const [showNotesDialog, setShowNotesDialog] = useState(false);
+  const [showAddDialog, setShowAddDialog] = useState(false);
   const [selectedStatusId, setSelectedStatusId] = useState<number | null>(null);
   const [notes, setNotes] = useState("");
   
@@ -77,40 +66,11 @@ const CallConfirmationDropdown = ({
   const [newStatusName, setNewStatusName] = useState("");
   const [newStatusColor, setNewStatusColor] = useState("#6366F1");
   
-  const { currentOrganization } = useTenant();
+  const { data, loading, addCallConfirmationStatus } = useOrdersData();
   const { toast } = useToast();
 
-  // جلب حالات تأكيد الإتصال المتاحة
-  useEffect(() => {
-    const fetchCallConfirmationStatuses = async () => {
-      if (!currentOrganization?.id) return;
-      
-      try {
-        setIsLoading(true);
-        const { data, error } = await supabase
-          .from("call_confirmation_statuses")
-          .select("*")
-          .eq("organization_id", currentOrganization.id)
-          .order("is_default", { ascending: false })
-          .order("name");
-          
-        if (error) throw error;
-        
-        setStatuses(data || []);
-      } catch (error) {
-        console.error("خطأ في جلب حالات تأكيد الإتصال:", error);
-        toast({
-          variant: "destructive",
-          title: "خطأ",
-          description: "حدث خطأ أثناء جلب حالات تأكيد الإتصال",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    fetchCallConfirmationStatuses();
-  }, [currentOrganization?.id, toast]);
+  // الحصول على حالات تأكيد الإتصال من Context
+  const statuses = data.callConfirmationStatuses;
 
   // الحصول على الأيقونة المناسبة لكل حالة
   const getIconForStatus = (iconName: string | null) => {
@@ -160,33 +120,17 @@ const CallConfirmationDropdown = ({
   
   // إضافة حالة جديدة
   const handleAddNewStatus = async () => {
-    if (!newStatusName.trim() || !currentOrganization?.id) return;
+    if (!newStatusName.trim()) return;
     
     try {
       setIsUpdating(true);
       
-      // استدعاء وظيفة إضافة حالة جديدة
-      const { data, error } = await supabase.rpc(
-        "add_call_confirmation_status",
-        {
-          p_name: newStatusName.trim(),
-          p_organization_id: currentOrganization.id,
-          p_color: newStatusColor,
-        }
+      // استدعاء وظيفة إضافة حالة جديدة من Context
+      const newStatusId = await addCallConfirmationStatus(
+        newStatusName.trim(),
+        newStatusColor
       );
       
-      if (error) throw error;
-      
-      // إضافة الحالة الجديدة للقائمة المحلية
-      const newStatus: CallConfirmationStatus = {
-        id: data,
-        name: newStatusName.trim(),
-        color: newStatusColor,
-        icon: null,
-        is_default: false
-      };
-      
-      setStatuses(prev => [...prev, newStatus]);
       setNewStatusName("");
       setShowAddDialog(false);
       
@@ -196,7 +140,7 @@ const CallConfirmationDropdown = ({
       });
       
       // تعيين الحالة الجديدة للطلب
-      await handleStatusChange(newStatus.id);
+      await handleStatusChange(newStatusId);
       
     } catch (error) {
       console.error("فشل إضافة حالة تأكيد إتصال جديدة:", error);
@@ -211,7 +155,7 @@ const CallConfirmationDropdown = ({
   };
 
   // عرض حالة التحميل
-  if (isLoading) {
+  if (loading) {
     return (
       <Button
         variant="outline"

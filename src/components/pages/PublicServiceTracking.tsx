@@ -603,7 +603,7 @@ const PublicServiceTracking: React.FC = () => {
                             <div className="flex items-center justify-between">
                               <span className="text-sm text-muted-foreground">السعر:</span>
                               <span className="font-bold text-lg text-primary">
-                                {service.isPriceDynamic ? 'سعر مفتوح' : `${service.price} ر.س`}
+                                {service.isPriceDynamic ? 'سعر مفتوح' : `${service.price} دج`}
                               </span>
                             </div>
                           </div>

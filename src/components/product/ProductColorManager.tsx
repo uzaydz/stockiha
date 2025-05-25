@@ -510,7 +510,7 @@ const ProductColorManager = ({
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <div>
                         <span className="text-muted-foreground">السعر:</span>{' '}
-                        <span className="font-medium">{color.price} ر.س</span>
+                                                      <span className="font-medium">{color.price} دج</span>
                       </div>
                       <div>
                         <span className="text-muted-foreground">الكمية:</span>{' '}

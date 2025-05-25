@@ -388,21 +388,32 @@ export function DeliveryInfoFields({
       })()}
 
       {/* حقل العنوان - يعرض إذا كان التوصيل للمنزل أو للمكتب (لأن yalidine قد تطلبه لمكتب الاستلام أيضاً) */}
-      {((form.watch('deliveryOption') === 'home' && hasShippingIntegration) || (form.watch('deliveryOption') === 'desk' && hasShippingIntegration)) && (
+      {((form.watch('deliveryOption') === 'home') || (form.watch('deliveryOption') === 'desk' && hasShippingIntegration)) && (
         <FormField
           control={form.control}
           name="address"
           render={({ field }) => (
             <FormItem className="space-y-2">
-              <FormLabel>العنوان التفصيلي *</FormLabel>
+              <FormLabel>
+                {form.watch('deliveryOption') === 'home' ? 'العنوان التفصيلي *' : 'العنوان التفصيلي'}
+              </FormLabel>
               <FormControl>
                 <Textarea
-                  placeholder="أدخل العنوان التفصيلي (الشارع، الحي، الخ)"
+                  placeholder={
+                    form.watch('deliveryOption') === 'home' 
+                      ? "أدخل العنوان التفصيلي (الشارع، الحي، الخ)" 
+                      : "أدخل العنوان التفصيلي (اختياري)"
+                  }
                   {...field}
                   className="rtl:text-right dark:border-border"
                 />
               </FormControl>
               <FormMessage />
+              {form.watch('deliveryOption') === 'desk' && hasShippingIntegration && (
+                <p className="text-xs text-muted-foreground">
+                  العنوان اختياري عند الاستلام من المكتب
+                </p>
+              )}
             </FormItem>
           )}
         />

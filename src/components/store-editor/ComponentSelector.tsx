@@ -93,6 +93,14 @@ const componentOptions: ComponentTypeOption[] = [
     category: 'basic'
   },
   {
+    type: 'footer',
+    label: 'فوتر المتجر',
+    icon: <Layout className="h-4 w-4" />,
+    description: 'فوتر قابل للتخصيص مع روابط ومعلومات الاتصال',
+    category: 'basic',
+    popular: true
+  },
+  {
     type: 'product_categories',
     label: 'تصنيفات المنتجات',
     icon: <Layers className="h-4 w-4" />,

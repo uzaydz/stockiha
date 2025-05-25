@@ -1,0 +1,2826 @@
+{
+  "exportDate": "2025-05-25T18:26:06.413Z",
+  "exportOptions": {
+    "includeRawQueries": true,
+    "includeQueryDetails": true,
+    "includeResponses": false,
+    "includeStackTraces": false,
+    "includeSimilarGroups": true,
+    "includePerformanceInfo": true,
+    "queryLimit": 100,
+    "onlySlowQueries": false,
+    "onlyCacheableCandidates": false
+  },
+  "summary": {
+    "totalQueries": 86,
+    "slowQueries": 66,
+    "averageQueryTime": 2638.8720930232557
+  },
+  "queries": [
+    {
+      "id": "srr7llo",
+      "timestamp": "2025-05-25T18:25:29.988Z",
+      "method": "GET",
+      "url": "/rest/v1/shipping_providers",
+      "table": "shipping_providers",
+      "body": null,
+      "duration": 733,
+      "componentName": "ShippingProviders",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "shipping_providers",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple"
+    },
+    {
+      "id": "8pewr2q",
+      "timestamp": "2025-05-25T18:25:30.192Z",
+      "method": "GET",
+      "url": "/rest/v1/organization_subscriptions",
+      "table": "organization_subscriptions",
+      "body": null,
+      "duration": 650,
+      "componentName": "OrganizationSubscriptions",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "organization_subscriptions",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-1ewfkde",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 4 استعلامات مماثلة، مما يوفر 3 ثانية من وقت الاستجابة.",
+      "isSlowQuery": true,
+      "performanceImpact": "medium"
+    },
+    {
+      "id": "nylq3tr",
+      "timestamp": "2025-05-25T18:25:30.192Z",
+      "method": "GET",
+      "url": "/rest/v1/organizations",
+      "table": "organizations",
+      "body": null,
+      "duration": 666,
+      "componentName": "Organizations",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "organizations",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-yj0zr1n",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 2 استعلامات مماثلة، مما يوفر 1 ثانية من وقت الاستجابة.",
+      "isSlowQuery": true,
+      "performanceImpact": "medium"
+    },
+    {
+      "id": "u6xx2ci",
+      "timestamp": "2025-05-25T18:25:30.193Z",
+      "method": "GET",
+      "url": "/rest/v1/organization_subscriptions",
+      "table": "organization_subscriptions",
+      "body": null,
+      "duration": 676,
+      "componentName": "OrganizationSubscriptions",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "organization_subscriptions",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-1ewfkde",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 4 استعلامات مماثلة، مما يوفر 3 ثانية من وقت الاستجابة.",
+      "isSlowQuery": true,
+      "performanceImpact": "medium"
+    },
+    {
+      "id": "wioeqgr",
+      "timestamp": "2025-05-25T18:25:30.202Z",
+      "method": "POST",
+      "url": "/rest/v1/rpc/get_orders_count_by_status",
+      "table": "rpc:get_orders_count_by_status",
+      "body": {
+        "org_id": "fed872f9-1ade-4351-b020-5598fda976fe"
+      },
+      "duration": 0,
+      "componentName": "Rpc:getOrdersCountByStatus",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "rpc",
+      "tables": [
+        {
+          "name": "rpc:get_orders_count_by_status",
+          "operation": "rpc",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-8w0kor1",
+      "isCacheable": false,
+      "cacheabilityScore": 5,
+      "cacheRecommendation": "يمكن تخزين هذا الاستعلام مؤقتًا. تم تشغيله 3 مرة مع معلمات مماثلة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "3480jzj",
+      "timestamp": "2025-05-25T18:25:30.202Z",
+      "method": "POST",
+      "url": "/rest/v1/rpc/get_order_stats",
+      "table": "rpc:get_order_stats",
+      "body": {
+        "org_id": "fed872f9-1ade-4351-b020-5598fda976fe"
+      },
+      "duration": 0,
+      "componentName": "Rpc:getOrderStats",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "rpc",
+      "tables": [
+        {
+          "name": "rpc:get_order_stats",
+          "operation": "rpc",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-m3pcnu4",
+      "isCacheable": false,
+      "cacheabilityScore": 5,
+      "cacheRecommendation": "يمكن تخزين هذا الاستعلام مؤقتًا. تم تشغيله 3 مرة مع معلمات مماثلة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "wcghfrn",
+      "timestamp": "2025-05-25T18:25:30.202Z",
+      "method": "GET",
+      "url": "/rest/v1/online_orders",
+      "table": "online_orders",
+      "body": null,
+      "duration": 639,
+      "componentName": "OnlineOrders",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "online_orders",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple"
+    },
+    {
+      "id": "5cmp52g",
+      "timestamp": "2025-05-25T18:25:30.202Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 681,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 44 ثانية من وقت الاستجابة.",
+      "isSlowQuery": true,
+      "performanceImpact": "high"
+    },
+    {
+      "id": "3q2b4wb",
+      "timestamp": "2025-05-25T18:25:30.205Z",
+      "method": "GET",
+      "url": "/rest/v1/organization_subscriptions",
+      "table": "organization_subscriptions",
+      "body": null,
+      "duration": 711,
+      "componentName": "OrganizationSubscriptions",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "organization_subscriptions",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-1ewfkde",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 4 استعلامات مماثلة، مما يوفر 3 ثانية من وقت الاستجابة.",
+      "isSlowQuery": true,
+      "performanceImpact": "medium"
+    },
+    {
+      "id": "pqz7ar7",
+      "timestamp": "2025-05-25T18:25:30.213Z",
+      "method": "GET",
+      "url": "/rest/v1/organization_subscriptions",
+      "table": "organization_subscriptions",
+      "body": null,
+      "duration": 734,
+      "componentName": "OrganizationSubscriptions",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "organization_subscriptions",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-1ewfkde",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 4 استعلامات مماثلة، مما يوفر 3 ثانية من وقت الاستجابة.",
+      "isSlowQuery": true,
+      "performanceImpact": "medium"
+    },
+    {
+      "id": "8cbayty",
+      "timestamp": "2025-05-25T18:25:30.218Z",
+      "method": "POST",
+      "url": "/rest/v1/rpc/get_orders_count_by_status",
+      "table": "rpc:get_orders_count_by_status",
+      "body": {
+        "org_id": "fed872f9-1ade-4351-b020-5598fda976fe"
+      },
+      "duration": 0,
+      "componentName": "Rpc:getOrdersCountByStatus",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "rpc",
+      "tables": [
+        {
+          "name": "rpc:get_orders_count_by_status",
+          "operation": "rpc",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-8w0kor1",
+      "isCacheable": false,
+      "cacheabilityScore": 5,
+      "cacheRecommendation": "يمكن تخزين هذا الاستعلام مؤقتًا. تم تشغيله 3 مرة مع معلمات مماثلة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "2hsyxqd",
+      "timestamp": "2025-05-25T18:25:30.218Z",
+      "method": "POST",
+      "url": "/rest/v1/rpc/get_order_stats",
+      "table": "rpc:get_order_stats",
+      "body": {
+        "org_id": "fed872f9-1ade-4351-b020-5598fda976fe"
+      },
+      "duration": 0,
+      "componentName": "Rpc:getOrderStats",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "rpc",
+      "tables": [
+        {
+          "name": "rpc:get_order_stats",
+          "operation": "rpc",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-m3pcnu4",
+      "isCacheable": false,
+      "cacheabilityScore": 5,
+      "cacheRecommendation": "يمكن تخزين هذا الاستعلام مؤقتًا. تم تشغيله 3 مرة مع معلمات مماثلة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "xhuze7c",
+      "timestamp": "2025-05-25T18:25:30.218Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 763,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 49 ثانية من وقت الاستجابة.",
+      "isSlowQuery": true,
+      "performanceImpact": "high"
+    },
+    {
+      "id": "sxt7fqt",
+      "timestamp": "2025-05-25T18:25:30.476Z",
+      "method": "POST",
+      "url": "/rest/v1/rpc/get_orders_count_by_status",
+      "table": "rpc:get_orders_count_by_status",
+      "body": {
+        "org_id": "fed872f9-1ade-4351-b020-5598fda976fe"
+      },
+      "duration": 0,
+      "componentName": "Rpc:getOrdersCountByStatus",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "rpc",
+      "tables": [
+        {
+          "name": "rpc:get_orders_count_by_status",
+          "operation": "rpc",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-8w0kor1",
+      "isCacheable": false,
+      "cacheabilityScore": 5,
+      "cacheRecommendation": "يمكن تخزين هذا الاستعلام مؤقتًا. تم تشغيله 3 مرة مع معلمات مماثلة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "uvj9u4e",
+      "timestamp": "2025-05-25T18:25:30.476Z",
+      "method": "POST",
+      "url": "/rest/v1/rpc/get_order_stats",
+      "table": "rpc:get_order_stats",
+      "body": {
+        "org_id": "fed872f9-1ade-4351-b020-5598fda976fe"
+      },
+      "duration": 0,
+      "componentName": "Rpc:getOrderStats",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "rpc",
+      "tables": [
+        {
+          "name": "rpc:get_order_stats",
+          "operation": "rpc",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-m3pcnu4",
+      "isCacheable": false,
+      "cacheabilityScore": 5,
+      "cacheRecommendation": "يمكن تخزين هذا الاستعلام مؤقتًا. تم تشغيله 3 مرة مع معلمات مماثلة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "tnl7949",
+      "timestamp": "2025-05-25T18:25:30.476Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 245,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 16 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "medium"
+    },
+    {
+      "id": "5gn3t7v",
+      "timestamp": "2025-05-25T18:25:30.841Z",
+      "method": "GET",
+      "url": "/rest/v1/addresses",
+      "table": "addresses",
+      "body": null,
+      "duration": 219,
+      "componentName": "Addresses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "addresses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple"
+    },
+    {
+      "id": "blvgeic",
+      "timestamp": "2025-05-25T18:25:30.858Z",
+      "method": "GET",
+      "url": "/rest/v1/customers",
+      "table": "customers",
+      "body": null,
+      "duration": 175,
+      "componentName": "Customers",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "customers",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-p8itgkn",
+      "isCacheable": true,
+      "cacheabilityScore": 7,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 2 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "zlndj3o",
+      "timestamp": "2025-05-25T18:25:31.033Z",
+      "method": "GET",
+      "url": "/rest/v1/organizations",
+      "table": "organizations",
+      "body": null,
+      "duration": 139,
+      "componentName": "Organizations",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "organizations",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-yj0zr1n",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 2 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "5y57bq7",
+      "timestamp": "2025-05-25T18:25:31.060Z",
+      "method": "GET",
+      "url": "/rest/v1/yalidine_provinces_global",
+      "table": "yalidine_provinces_global",
+      "body": null,
+      "duration": 138,
+      "componentName": "YalidineProvincesGlobal",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "yalidine_provinces_global",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple"
+    },
+    {
+      "id": "snuwiin",
+      "timestamp": "2025-05-25T18:25:31.181Z",
+      "method": "GET",
+      "url": "/rest/v1/users",
+      "table": "users",
+      "body": null,
+      "duration": 162,
+      "componentName": "Users",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "users",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple"
+    },
+    {
+      "id": "wyn8th8",
+      "timestamp": "2025-05-25T18:25:31.198Z",
+      "method": "GET",
+      "url": "/rest/v1/yalidine_municipalities_global",
+      "table": "yalidine_municipalities_global",
+      "body": null,
+      "duration": 157,
+      "componentName": "YalidineMunicipalitiesGlobal",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "yalidine_municipalities_global",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple"
+    },
+    {
+      "id": "gjz984d",
+      "timestamp": "2025-05-25T18:25:31.355Z",
+      "method": "GET",
+      "url": "/rest/v1/customers",
+      "table": "customers",
+      "body": null,
+      "duration": 122,
+      "componentName": "Customers",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "customers",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-p8itgkn",
+      "isCacheable": true,
+      "cacheabilityScore": 7,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 2 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "e3snnmp",
+      "timestamp": "2025-05-25T18:25:31.477Z",
+      "method": "GET",
+      "url": "/rest/v1/guest_customers",
+      "table": "guest_customers",
+      "body": null,
+      "duration": 134,
+      "componentName": "GuestCustomers",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "guest_customers",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple"
+    },
+    {
+      "id": "rrvlwz8",
+      "timestamp": "2025-05-25T18:25:31.611Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 219,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 14 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "medium"
+    },
+    {
+      "id": "6pdle2x",
+      "timestamp": "2025-05-25T18:25:31.924Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 187,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "rh6ic03",
+      "timestamp": "2025-05-25T18:25:31.924Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 296,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "mxa5stw",
+      "timestamp": "2025-05-25T18:25:31.924Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 395,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "65r479y",
+      "timestamp": "2025-05-25T18:25:31.924Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 539,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "cekibrn",
+      "timestamp": "2025-05-25T18:25:31.924Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 722,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "fy58jbw",
+      "timestamp": "2025-05-25T18:25:31.924Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 819,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "vow8crr",
+      "timestamp": "2025-05-25T18:25:31.924Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 922,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "sjtvh97",
+      "timestamp": "2025-05-25T18:25:31.924Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 1015,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "136y4ih",
+      "timestamp": "2025-05-25T18:25:31.925Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 1117,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "yu65pbu",
+      "timestamp": "2025-05-25T18:25:31.925Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 1206,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "auz5vru",
+      "timestamp": "2025-05-25T18:25:31.925Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 1310,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "9bjxuc8",
+      "timestamp": "2025-05-25T18:25:31.925Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 1415,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "41duxfp",
+      "timestamp": "2025-05-25T18:25:31.925Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 1511,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "0lphlob",
+      "timestamp": "2025-05-25T18:25:31.925Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 1634,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "j5uiolb",
+      "timestamp": "2025-05-25T18:25:31.925Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 1774,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "pjsa4r7",
+      "timestamp": "2025-05-25T18:25:31.925Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 1872,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "965ejbx",
+      "timestamp": "2025-05-25T18:25:31.925Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 1973,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "di594nq",
+      "timestamp": "2025-05-25T18:25:31.925Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 2083,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "yhk9e5o",
+      "timestamp": "2025-05-25T18:25:31.925Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 2200,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "xookiaq",
+      "timestamp": "2025-05-25T18:25:31.925Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 2298,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "za11fus",
+      "timestamp": "2025-05-25T18:25:31.925Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 2393,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "20dk8v9",
+      "timestamp": "2025-05-25T18:25:31.925Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 2501,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "vdbvt30",
+      "timestamp": "2025-05-25T18:25:31.925Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 2681,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "we3zzb0",
+      "timestamp": "2025-05-25T18:25:31.925Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 2878,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "rnvfp05",
+      "timestamp": "2025-05-25T18:25:31.925Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 3104,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "idxzm4y",
+      "timestamp": "2025-05-25T18:25:31.926Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 3208,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "bmv1q5w",
+      "timestamp": "2025-05-25T18:25:31.926Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 3311,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "4v3abq3",
+      "timestamp": "2025-05-25T18:25:31.926Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 3411,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "hs66ro6",
+      "timestamp": "2025-05-25T18:25:31.926Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 3538,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "1n0pjei",
+      "timestamp": "2025-05-25T18:25:31.926Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 3646,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "zb35jj8",
+      "timestamp": "2025-05-25T18:25:31.926Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 3746,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "im8pntb",
+      "timestamp": "2025-05-25T18:25:31.926Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 3850,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "rsonvj0",
+      "timestamp": "2025-05-25T18:25:31.927Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 3950,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "769qt7e",
+      "timestamp": "2025-05-25T18:25:31.927Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 4052,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "p0xts93",
+      "timestamp": "2025-05-25T18:25:31.927Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 4160,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "yt5w0y0",
+      "timestamp": "2025-05-25T18:25:31.927Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 4317,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "7sa4m1v",
+      "timestamp": "2025-05-25T18:25:31.927Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 4450,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "c5y6hau",
+      "timestamp": "2025-05-25T18:25:31.927Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 4554,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "8a9dg37",
+      "timestamp": "2025-05-25T18:25:31.927Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 4654,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "zxytqst",
+      "timestamp": "2025-05-25T18:25:31.927Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 4768,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "44vaivo",
+      "timestamp": "2025-05-25T18:25:31.927Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 4903,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "5n6xg7q",
+      "timestamp": "2025-05-25T18:25:31.927Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 5001,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "ul8uwob",
+      "timestamp": "2025-05-25T18:25:31.927Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 5094,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "8k87wmr",
+      "timestamp": "2025-05-25T18:25:31.927Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 5269,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "dwx0idr",
+      "timestamp": "2025-05-25T18:25:31.927Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 5435,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "6biodfd",
+      "timestamp": "2025-05-25T18:25:31.927Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 5541,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "xcaw1kr",
+      "timestamp": "2025-05-25T18:25:31.927Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 5639,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "nc2r1i4",
+      "timestamp": "2025-05-25T18:25:31.927Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 5779,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "3jpa4oe",
+      "timestamp": "2025-05-25T18:25:31.927Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 5874,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "mtimuxy",
+      "timestamp": "2025-05-25T18:25:31.927Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 5993,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "sx0oymw",
+      "timestamp": "2025-05-25T18:25:31.928Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 6110,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "ccji5z6",
+      "timestamp": "2025-05-25T18:25:31.928Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 6224,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "3dfntd2",
+      "timestamp": "2025-05-25T18:25:31.928Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 6328,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "omthobl",
+      "timestamp": "2025-05-25T18:25:31.928Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 6425,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "bumdsfs",
+      "timestamp": "2025-05-25T18:25:31.928Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 6523,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "sbk5h55",
+      "timestamp": "2025-05-25T18:25:31.928Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 6622,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "هذا الاستعلام ليس مرشحًا جيدًا للتخزين المؤقت بسبب طبيعته أو معدل تغيير البيانات.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "u6kkb2k",
+      "timestamp": "2025-05-25T18:25:31.928Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 6736,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "هذا الاستعلام ليس مرشحًا جيدًا للتخزين المؤقت بسبب طبيعته أو معدل تغيير البيانات.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "cq5nyen",
+      "timestamp": "2025-05-25T18:25:31.928Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 6859,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "هذا الاستعلام ليس مرشحًا جيدًا للتخزين المؤقت بسبب طبيعته أو معدل تغيير البيانات.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "sovo8mv",
+      "timestamp": "2025-05-25T18:25:31.928Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 6966,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "هذا الاستعلام ليس مرشحًا جيدًا للتخزين المؤقت بسبب طبيعته أو معدل تغيير البيانات.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "3465gp7",
+      "timestamp": "2025-05-25T18:25:31.928Z",
+      "method": "GET",
+      "url": "/rest/v1/call_confirmation_statuses",
+      "table": "call_confirmation_statuses",
+      "body": null,
+      "duration": 7097,
+      "componentName": "CallConfirmationStatuses",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "call_confirmation_statuses",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple",
+      "similarQueryGroupId": "group-1748197531928-2kyb0cj",
+      "isCacheable": true,
+      "cacheabilityScore": 8,
+      "suggestedTTL": 120,
+      "cacheRecommendation": "هذا الاستعلام ليس مرشحًا جيدًا للتخزين المؤقت بسبب طبيعته أو معدل تغيير البيانات.",
+      "isSlowQuery": false,
+      "performanceImpact": "low"
+    },
+    {
+      "id": "rwhiyu1",
+      "timestamp": "2025-05-25T18:25:45.141Z",
+      "method": "GET",
+      "url": "/rest/v1/products",
+      "table": "products",
+      "body": null,
+      "duration": 102,
+      "componentName": "Products",
+      "fileLocation": "lib/supabase.ts",
+      "lineNumber": 164,
+      "queryType": "select",
+      "tables": [
+        {
+          "name": "products",
+          "operation": "select",
+          "joins": []
+        }
+      ],
+      "queryComplexity": "simple"
+    }
+  ],
+  "similarGroups": [
+    {
+      "id": "group-1748197531928-2kyb0cj",
+      "pattern": "GET /rest/v1/call_confirmation_statuses TABLE:call_confirmation_statuses TYPE:select",
+      "queryIds": [
+        "5cmp52g",
+        "xhuze7c",
+        "tnl7949",
+        "rrvlwz8",
+        "6pdle2x",
+        "rh6ic03",
+        "mxa5stw",
+        "65r479y",
+        "cekibrn",
+        "fy58jbw",
+        "vow8crr",
+        "sjtvh97",
+        "136y4ih",
+        "yu65pbu",
+        "auz5vru",
+        "9bjxuc8",
+        "41duxfp",
+        "0lphlob",
+        "j5uiolb",
+        "pjsa4r7",
+        "965ejbx",
+        "di594nq",
+        "yhk9e5o",
+        "xookiaq",
+        "za11fus",
+        "20dk8v9",
+        "vdbvt30",
+        "we3zzb0",
+        "rnvfp05",
+        "idxzm4y",
+        "bmv1q5w",
+        "4v3abq3",
+        "hs66ro6",
+        "1n0pjei",
+        "zb35jj8",
+        "im8pntb",
+        "rsonvj0",
+        "769qt7e",
+        "p0xts93",
+        "yt5w0y0",
+        "7sa4m1v",
+        "c5y6hau",
+        "8a9dg37",
+        "zxytqst",
+        "44vaivo",
+        "5n6xg7q",
+        "ul8uwob",
+        "8k87wmr",
+        "dwx0idr",
+        "6biodfd",
+        "xcaw1kr",
+        "nc2r1i4",
+        "3jpa4oe",
+        "mtimuxy",
+        "sx0oymw",
+        "ccji5z6",
+        "3dfntd2",
+        "omthobl",
+        "bumdsfs",
+        "sbk5h55",
+        "u6kkb2k",
+        "cq5nyen",
+        "sovo8mv",
+        "3465gp7"
+      ],
+      "count": 64,
+      "components": [
+        "CallConfirmationStatuses"
+      ],
+      "avgDuration": 29.8125,
+      "queryType": "select",
+      "tableName": "call_confirmation_statuses",
+      "complexity": "simple",
+      "cacheability": 8,
+      "cacheReason": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 44 ثانية من وقت الاستجابة.",
+      "suggestedTTL": 120
+    },
+    {
+      "id": "group-1748197531928-1ewfkde",
+      "pattern": "GET /rest/v1/organization_subscriptions TABLE:organization_subscriptions TYPE:select",
+      "queryIds": [
+        "8pewr2q",
+        "u6xx2ci",
+        "3q2b4wb",
+        "pqz7ar7"
+      ],
+      "count": 4,
+      "components": [
+        "OrganizationSubscriptions"
+      ],
+      "avgDuration": 692.75,
+      "queryType": "select",
+      "tableName": "organization_subscriptions",
+      "complexity": "simple",
+      "cacheability": 8,
+      "cacheReason": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 4 استعلامات مماثلة، مما يوفر 3 ثانية من وقت الاستجابة.",
+      "suggestedTTL": 120
+    },
+    {
+      "id": "group-1748197531928-8w0kor1",
+      "pattern": "POST /rest/v1/rpc/get_orders_count_by_status TABLE:rpc:get_orders_count_by_status TYPE:rpc",
+      "queryIds": [
+        "wioeqgr",
+        "8cbayty",
+        "sxt7fqt"
+      ],
+      "count": 3,
+      "components": [
+        "Rpc:getOrdersCountByStatus"
+      ],
+      "avgDuration": 0,
+      "queryType": "rpc",
+      "tableName": "rpc:get_orders_count_by_status",
+      "complexity": "simple",
+      "cacheability": 5,
+      "cacheReason": "يمكن تخزين هذا الاستعلام مؤقتًا. تم تشغيله 3 مرة مع معلمات مماثلة."
+    },
+    {
+      "id": "group-1748197531928-m3pcnu4",
+      "pattern": "POST /rest/v1/rpc/get_order_stats TABLE:rpc:get_order_stats TYPE:rpc",
+      "queryIds": [
+        "3480jzj",
+        "2hsyxqd",
+        "uvj9u4e"
+      ],
+      "count": 3,
+      "components": [
+        "Rpc:getOrderStats"
+      ],
+      "avgDuration": 0,
+      "queryType": "rpc",
+      "tableName": "rpc:get_order_stats",
+      "complexity": "simple",
+      "cacheability": 5,
+      "cacheReason": "يمكن تخزين هذا الاستعلام مؤقتًا. تم تشغيله 3 مرة مع معلمات مماثلة."
+    },
+    {
+      "id": "group-1748197531928-yj0zr1n",
+      "pattern": "GET /rest/v1/organizations TABLE:organizations TYPE:select",
+      "queryIds": [
+        "nylq3tr",
+        "zlndj3o"
+      ],
+      "count": 2,
+      "components": [
+        "Organizations"
+      ],
+      "avgDuration": 402.5,
+      "queryType": "select",
+      "tableName": "organizations",
+      "complexity": "simple",
+      "cacheability": 8,
+      "cacheReason": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 2 استعلامات مماثلة، مما يوفر 1 ثانية من وقت الاستجابة.",
+      "suggestedTTL": 120
+    },
+    {
+      "id": "group-1748197531928-p8itgkn",
+      "pattern": "GET /rest/v1/customers TABLE:customers TYPE:select",
+      "queryIds": [
+        "blvgeic",
+        "gjz984d"
+      ],
+      "count": 2,
+      "components": [
+        "Customers"
+      ],
+      "avgDuration": 148.5,
+      "queryType": "select",
+      "tableName": "customers",
+      "complexity": "simple",
+      "cacheability": 7,
+      "cacheReason": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 2 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+      "suggestedTTL": 120
+    }
+  ],
+  "performanceInfo": {
+    "totalQueries": 85,
+    "slowQueries": 9,
+    "totalQueryTime": 7963,
+    "avgQueryTime": 93.68235294117648,
+    "similarGroups": [
+      {
+        "id": "group-1748197531928-2kyb0cj",
+        "pattern": "GET /rest/v1/call_confirmation_statuses TABLE:call_confirmation_statuses TYPE:select",
+        "queryIds": [
+          "5cmp52g",
+          "xhuze7c",
+          "tnl7949",
+          "rrvlwz8",
+          "6pdle2x",
+          "rh6ic03",
+          "mxa5stw",
+          "65r479y",
+          "cekibrn",
+          "fy58jbw",
+          "vow8crr",
+          "sjtvh97",
+          "136y4ih",
+          "yu65pbu",
+          "auz5vru",
+          "9bjxuc8",
+          "41duxfp",
+          "0lphlob",
+          "j5uiolb",
+          "pjsa4r7",
+          "965ejbx",
+          "di594nq",
+          "yhk9e5o",
+          "xookiaq",
+          "za11fus",
+          "20dk8v9",
+          "vdbvt30",
+          "we3zzb0",
+          "rnvfp05",
+          "idxzm4y",
+          "bmv1q5w",
+          "4v3abq3",
+          "hs66ro6",
+          "1n0pjei",
+          "zb35jj8",
+          "im8pntb",
+          "rsonvj0",
+          "769qt7e",
+          "p0xts93",
+          "yt5w0y0",
+          "7sa4m1v",
+          "c5y6hau",
+          "8a9dg37",
+          "zxytqst",
+          "44vaivo",
+          "5n6xg7q",
+          "ul8uwob",
+          "8k87wmr",
+          "dwx0idr",
+          "6biodfd",
+          "xcaw1kr",
+          "nc2r1i4",
+          "3jpa4oe",
+          "mtimuxy",
+          "sx0oymw",
+          "ccji5z6",
+          "3dfntd2",
+          "omthobl",
+          "bumdsfs",
+          "sbk5h55",
+          "u6kkb2k",
+          "cq5nyen",
+          "sovo8mv",
+          "3465gp7"
+        ],
+        "count": 64,
+        "components": [
+          "CallConfirmationStatuses"
+        ],
+        "avgDuration": 29.8125,
+        "queryType": "select",
+        "tableName": "call_confirmation_statuses",
+        "complexity": "simple",
+        "cacheability": 8,
+        "cacheReason": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 64 استعلامات مماثلة، مما يوفر 44 ثانية من وقت الاستجابة.",
+        "suggestedTTL": 120
+      },
+      {
+        "id": "group-1748197531928-1ewfkde",
+        "pattern": "GET /rest/v1/organization_subscriptions TABLE:organization_subscriptions TYPE:select",
+        "queryIds": [
+          "8pewr2q",
+          "u6xx2ci",
+          "3q2b4wb",
+          "pqz7ar7"
+        ],
+        "count": 4,
+        "components": [
+          "OrganizationSubscriptions"
+        ],
+        "avgDuration": 692.75,
+        "queryType": "select",
+        "tableName": "organization_subscriptions",
+        "complexity": "simple",
+        "cacheability": 8,
+        "cacheReason": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 4 استعلامات مماثلة، مما يوفر 3 ثانية من وقت الاستجابة.",
+        "suggestedTTL": 120
+      },
+      {
+        "id": "group-1748197531928-8w0kor1",
+        "pattern": "POST /rest/v1/rpc/get_orders_count_by_status TABLE:rpc:get_orders_count_by_status TYPE:rpc",
+        "queryIds": [
+          "wioeqgr",
+          "8cbayty",
+          "sxt7fqt"
+        ],
+        "count": 3,
+        "components": [
+          "Rpc:getOrdersCountByStatus"
+        ],
+        "avgDuration": 0,
+        "queryType": "rpc",
+        "tableName": "rpc:get_orders_count_by_status",
+        "complexity": "simple",
+        "cacheability": 5,
+        "cacheReason": "يمكن تخزين هذا الاستعلام مؤقتًا. تم تشغيله 3 مرة مع معلمات مماثلة."
+      },
+      {
+        "id": "group-1748197531928-m3pcnu4",
+        "pattern": "POST /rest/v1/rpc/get_order_stats TABLE:rpc:get_order_stats TYPE:rpc",
+        "queryIds": [
+          "3480jzj",
+          "2hsyxqd",
+          "uvj9u4e"
+        ],
+        "count": 3,
+        "components": [
+          "Rpc:getOrderStats"
+        ],
+        "avgDuration": 0,
+        "queryType": "rpc",
+        "tableName": "rpc:get_order_stats",
+        "complexity": "simple",
+        "cacheability": 5,
+        "cacheReason": "يمكن تخزين هذا الاستعلام مؤقتًا. تم تشغيله 3 مرة مع معلمات مماثلة."
+      },
+      {
+        "id": "group-1748197531928-yj0zr1n",
+        "pattern": "GET /rest/v1/organizations TABLE:organizations TYPE:select",
+        "queryIds": [
+          "nylq3tr",
+          "zlndj3o"
+        ],
+        "count": 2,
+        "components": [
+          "Organizations"
+        ],
+        "avgDuration": 402.5,
+        "queryType": "select",
+        "tableName": "organizations",
+        "complexity": "simple",
+        "cacheability": 8,
+        "cacheReason": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 2 استعلامات مماثلة، مما يوفر 1 ثانية من وقت الاستجابة.",
+        "suggestedTTL": 120
+      },
+      {
+        "id": "group-1748197531928-p8itgkn",
+        "pattern": "GET /rest/v1/customers TABLE:customers TYPE:select",
+        "queryIds": [
+          "blvgeic",
+          "gjz984d"
+        ],
+        "count": 2,
+        "components": [
+          "Customers"
+        ],
+        "avgDuration": 148.5,
+        "queryType": "select",
+        "tableName": "customers",
+        "complexity": "simple",
+        "cacheability": 7,
+        "cacheReason": "يوصى بشدة بتخزين هذا الاستعلام مؤقتًا. تم العثور على 2 استعلامات مماثلة، مما يوفر 0 ثانية من وقت الاستجابة.",
+        "suggestedTTL": 120
+      }
+    ],
+    "cacheableCandidates": 72,
+    "potentialTimeSaved": 4507.4375,
+    "recommendations": [
+      {
+        "type": "cache",
+        "description": "يمكن تحسين الأداء بشكل كبير من خلال تخزين النتائج مؤقتًا لـ 3 من أنماط الاستعلامات المتكررة، مما يوفر حوالي 5 ثانية.",
+        "impact": "medium",
+        "relatedQueries": [
+          "8pewr2q",
+          "u6xx2ci",
+          "3q2b4wb",
+          "pqz7ar7",
+          "5cmp52g",
+          "xhuze7c",
+          "tnl7949",
+          "rrvlwz8",
+          "6pdle2x",
+          "rh6ic03",
+          "mxa5stw",
+          "65r479y",
+          "cekibrn",
+          "fy58jbw",
+          "vow8crr",
+          "sjtvh97",
+          "136y4ih",
+          "yu65pbu",
+          "auz5vru",
+          "9bjxuc8",
+          "41duxfp",
+          "0lphlob",
+          "j5uiolb",
+          "pjsa4r7",
+          "965ejbx",
+          "di594nq",
+          "yhk9e5o",
+          "xookiaq",
+          "za11fus",
+          "20dk8v9",
+          "vdbvt30",
+          "we3zzb0",
+          "rnvfp05",
+          "idxzm4y",
+          "bmv1q5w",
+          "4v3abq3",
+          "hs66ro6",
+          "1n0pjei",
+          "zb35jj8",
+          "im8pntb",
+          "rsonvj0",
+          "769qt7e",
+          "p0xts93",
+          "yt5w0y0",
+          "7sa4m1v",
+          "c5y6hau",
+          "8a9dg37",
+          "zxytqst",
+          "44vaivo",
+          "5n6xg7q",
+          "ul8uwob",
+          "8k87wmr",
+          "dwx0idr",
+          "6biodfd",
+          "xcaw1kr",
+          "nc2r1i4",
+          "3jpa4oe",
+          "mtimuxy",
+          "sx0oymw",
+          "ccji5z6",
+          "3dfntd2",
+          "omthobl",
+          "bumdsfs",
+          "sbk5h55",
+          "u6kkb2k",
+          "cq5nyen",
+          "sovo8mv",
+          "3465gp7",
+          "nylq3tr",
+          "zlndj3o"
+        ]
+      }
+    ]
+  }
+}

@@ -209,7 +209,11 @@ export const getProducts = async (organizationId?: string, includeInactive: bool
     // Always use the same query pattern for consistent behavior
     let query = supabase
       .from('products')
-      .select('*');
+      .select(`
+        *,
+        category:category_id(id, name, slug),
+        subcategory:subcategory_id(id, name, slug)
+      `);
     
     // Add organization filter
     query = query.eq('organization_id', organizationId);
@@ -232,6 +236,138 @@ export const getProducts = async (organizationId?: string, includeInactive: bool
   } catch (error) {
     console.error('خطأ غير متوقع أثناء جلب المنتجات:', error);
     return []; // Return empty array to prevent UI from hanging
+  }
+};
+
+// دالة جديدة لجلب المنتجات مع الـ pagination
+export const getProductsPaginated = async (
+  organizationId: string,
+  page: number = 1,
+  limit: number = 10,
+  options: {
+    includeInactive?: boolean;
+    searchQuery?: string;
+    categoryFilter?: string;
+    stockFilter?: string;
+    sortOption?: string;
+  } = {}
+): Promise<{
+  products: Product[];
+  totalCount: number;
+  totalPages: number;
+  currentPage: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}> => {
+  try {
+    if (!organizationId) {
+      console.error("لم يتم تمرير معرف المؤسسة إلى وظيفة getProductsPaginated");
+      return {
+        products: [],
+        totalCount: 0,
+        totalPages: 0,
+        currentPage: page,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      };
+    }
+
+    const {
+      includeInactive = false,
+      searchQuery = '',
+      categoryFilter = '',
+      stockFilter = 'all',
+      sortOption = 'newest'
+    } = options;
+
+    // حساب الفهرس للبداية
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+
+    // بناء الاستعلام الأساسي
+    let query = supabase
+      .from('products')
+      .select(`
+        *,
+        category:category_id(id, name, slug),
+        subcategory:subcategory_id(id, name, slug)
+      `, { count: 'exact' })
+      .eq('organization_id', organizationId);
+
+    // إضافة فلتر الحالة النشطة
+    if (!includeInactive) {
+      query = query.eq('is_active', true);
+    }
+
+    // إضافة فلتر البحث
+    if (searchQuery) {
+      query = query.or(`name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,sku.ilike.%${searchQuery}%,barcode.ilike.%${searchQuery}%`);
+    }
+
+    // إضافة فلتر الفئة
+    if (categoryFilter) {
+      query = query.eq('category_id', categoryFilter);
+    }
+
+    // إضافة فلتر المخزون
+    if (stockFilter !== 'all') {
+      if (stockFilter === 'in-stock') {
+        query = query.gt('stock_quantity', 0);
+      } else if (stockFilter === 'out-of-stock') {
+        query = query.eq('stock_quantity', 0);
+      } else if (stockFilter === 'low-stock') {
+        query = query.gt('stock_quantity', 0).lte('stock_quantity', 5);
+      }
+    }
+
+    // إضافة الترتيب
+    if (sortOption === 'newest') {
+      query = query.order('created_at', { ascending: false });
+    } else if (sortOption === 'oldest') {
+      query = query.order('created_at', { ascending: true });
+    } else if (sortOption === 'price-high') {
+      query = query.order('price', { ascending: false });
+    } else if (sortOption === 'price-low') {
+      query = query.order('price', { ascending: true });
+    } else if (sortOption === 'name-asc') {
+      query = query.order('name', { ascending: true });
+    } else if (sortOption === 'name-desc') {
+      query = query.order('name', { ascending: false });
+    }
+
+    // تطبيق الـ pagination
+    query = query.range(from, to);
+
+    const { data, error, count } = await query;
+
+    if (error) {
+      console.error('خطأ في جلب المنتجات المقسمة:', error);
+      throw error;
+    }
+
+    const totalCount = count || 0;
+    const totalPages = Math.ceil(totalCount / limit);
+    const hasNextPage = page < totalPages;
+    const hasPreviousPage = page > 1;
+
+    return {
+      products: (data as Product[]) || [],
+      totalCount,
+      totalPages,
+      currentPage: page,
+      hasNextPage,
+      hasPreviousPage,
+    };
+  } catch (error) {
+    console.error('خطأ غير متوقع أثناء جلب المنتجات المقسمة:', error);
+    return {
+      products: [],
+      totalCount: 0,
+      totalPages: 0,
+      currentPage: page,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    };
   }
 };
 
@@ -391,7 +527,7 @@ export const getFeaturedProducts = async (includeInactive: boolean = false, orga
     data.forEach(product => {
       console.log(`المنتج ${product.id} - ${product.name} - الصورة المصغرة:`, product.thumbnail_image);
       // فحص وجود حقل thumbnail_url
-      if ('thumbnail_url' in product) {
+      if ('thumbnail_url' in product && product.thumbnail_url && typeof product.thumbnail_url === 'string') {
         console.log(`المنتج ${product.id} - يحتوي على thumbnail_url:`, product.thumbnail_url);
       }
     });
@@ -402,7 +538,7 @@ export const getFeaturedProducts = async (includeInactive: boolean = false, orga
       let processedThumbnail = '';
       
       // تحقق من thumbnail_url أولاً إذا كان موجوداً
-      if ('thumbnail_url' in product && product.thumbnail_url) {
+      if ('thumbnail_url' in product && product.thumbnail_url && typeof product.thumbnail_url === 'string') {
         processedThumbnail = product.thumbnail_url.trim();
         console.log(`المنتج ${product.id} - يستخدم thumbnail_url:`, processedThumbnail);
       }

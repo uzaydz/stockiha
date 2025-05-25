@@ -24,8 +24,6 @@ import {
   Wrench, 
   Store,
   FileText,
-  Bell,
-  MessageSquare,
   Database,
   Tag,
   Truck,
@@ -37,7 +35,6 @@ import {
   Phone,
   Wallet,
   BanknoteIcon,
-  Server,
   Layout,
   Globe,
   ChevronRight,
@@ -66,6 +63,11 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
   // إضافة متغير لحفظ أي قائمة منبثقة مفتوحة حالياً
   const [activePopup, setActivePopup] = useState<string | null>(null);
   const popupRef = useRef<HTMLDivElement>(null);
+  
+  // تسجيل حالة القائمة المنبثقة
+  useEffect(() => {
+    console.log("activePopup تم تغييره إلى:", activePopup);
+  }, [activePopup]);
   
   // استعادة المجموعة النشطة من التخزين المحلي
   const getInitialActiveGroup = () => {
@@ -118,18 +120,32 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
       }
     };
 
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && activePopup) {
+        setActivePopup(null);
+      }
+    };
+
     document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscapeKey);
+    
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscapeKey);
     };
-  }, []);
+  }, [activePopup]);
 
   // تبديل حالة القائمة المنبثقة مع إغلاق الأخرى
   const togglePopup = (groupName: string) => {
-    console.log("تم النقر على المجموعة:", groupName); // سجل للتأكد من أن الوظيفة تعمل
+    console.log("تم النقر على المجموعة:", groupName); // للتأكد من أن الوظيفة تعمل
+    console.log("الحالة الحالية لـ activePopup:", activePopup);
     
     // إذا كانت نفس المجموعة مفتوحة، أغلقها؛ وإلا افتح المجموعة وأغلق الأخرى
-    setActivePopup(prev => prev === groupName ? null : groupName);
+    setActivePopup(prev => {
+      const newState = prev === groupName ? null : groupName;
+      console.log("الحالة الجديدة لـ activePopup:", newState);
+      return newState;
+    });
   };
 
   // تسجيل حالة القائمة
@@ -265,7 +281,7 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
       ]
     },
     {
-      group: 'المنتجات والخدمات',
+      group: 'المنتجات والمخزون',
       icon: Package,
       requiredPermission: 'viewProducts',
       items: [
@@ -274,20 +290,6 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
           icon: Package,
           href: '/dashboard/products',
           requiredPermission: 'viewProducts',
-          badge: 'جديد'
-        },
-        {
-          title: 'الخدمات',
-          icon: Wrench,
-          href: '/dashboard/services',
-          requiredPermission: 'viewServices',
-          badge: null
-        },
-        {
-          title: 'متابعة الخدمات',
-          icon: Calendar,
-          href: '/dashboard/service-tracking',
-          requiredPermission: 'trackServices',
           badge: null
         },
         {
@@ -307,17 +309,31 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
       ]
     },
     {
-      group: 'الطلبات والمبيعات',
+      group: 'الخدمات',
+      icon: Wrench,
+      requiredPermission: 'viewServices',
+      items: [
+        {
+          title: 'الخدمات',
+          icon: Wrench,
+          href: '/dashboard/services',
+          requiredPermission: 'viewServices',
+          badge: null
+        },
+        {
+          title: 'متابعة الخدمات',
+          icon: Calendar,
+          href: '/dashboard/service-tracking',
+          requiredPermission: 'trackServices',
+          badge: null
+        },
+      ]
+    },
+    {
+      group: 'المبيعات والطلبات',
       icon: ShoppingBag,
       requiredPermission: 'viewOrders',
       items: [
-        {
-          title: 'المبيعات',
-          icon: DollarSign,
-          href: '/dashboard/sales',
-          requiredPermission: 'viewSalesReports',
-          badge: null
-        },
         {
           title: 'الطلبات',
           icon: ShoppingBag,
@@ -333,24 +349,45 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
           badge: 'جديد'
         },
         {
+          title: 'المبيعات',
+          icon: DollarSign,
+          href: '/dashboard/sales',
+          requiredPermission: 'viewSalesReports',
+          badge: null
+        },
+        {
           title: 'الفواتير',
           icon: FileText,
           href: '/dashboard/invoices',
           requiredPermission: 'viewOrders',
           badge: null
         },
+      ]
+    },
+    {
+      group: 'العملاء',
+      icon: Users,
+      requiredPermission: 'viewCustomers',
+      items: [
         {
-          title: 'طلبات الصيانة',
-          icon: Wrench,
-          href: '/dashboard/repairs',
-          requiredPermission: 'trackServices',
+          title: 'العملاء',
+          icon: Users,
+          href: '/dashboard/customers',
+          requiredPermission: 'viewCustomers',
           badge: null
         },
         {
-          title: 'الشحن',
-          icon: Truck,
-          href: '/dashboard/shipping',
-          requiredPermission: 'updateOrderStatus',
+          title: 'إضافة عميل',
+          icon: Users,
+          href: '/dashboard/customers/add',
+          requiredPermission: 'manageCustomers',
+          badge: null
+        },
+        {
+          title: 'إدارة الديون',
+          icon: BanknoteIcon,
+          href: '/dashboard/customer-debts',
+          requiredPermission: 'viewDebts',
           badge: null
         },
       ]
@@ -379,48 +416,6 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
           icon: Receipt,
           href: '/dashboard/suppliers/payments',
           requiredPermission: 'managePurchases',
-          badge: null
-        },
-        {
-          title: 'التقارير',
-          icon: FileBarChart,
-          href: '/dashboard/suppliers/reports',
-          requiredPermission: 'viewReports',
-          badge: null
-        },
-      ]
-    },
-    {
-      group: 'العملاء والموظفين',
-      icon: Users,
-      requiredPermission: null,
-      items: [
-        {
-          title: 'العملاء',
-          icon: Users,
-          href: '/dashboard/customers',
-          requiredPermission: 'viewCustomers',
-          badge: null
-        },
-        {
-          title: 'إضافة عميل',
-          icon: Users,
-          href: '/dashboard/customers/add',
-          requiredPermission: 'manageCustomers',
-          badge: null
-        },
-        {
-          title: 'إدارة الديون',
-          icon: BanknoteIcon,
-          href: '/dashboard/customer-debts',
-          requiredPermission: 'viewDebts',
-          badge: null
-        },
-        {
-          title: 'الموظفين',
-          icon: Users,
-          href: '/dashboard/employees',
-          requiredPermission: 'viewEmployees',
           badge: null
         },
       ]
@@ -455,7 +450,7 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
     },
     {
       group: 'التقارير والتحليلات',
-      icon: FileText,
+      icon: BarChart3,
       requiredPermission: 'viewReports',
       items: [
         {
@@ -466,6 +461,13 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
           badge: null
         },
         {
+          title: 'تحليلات المبيعات',
+          icon: BarChart3,
+          href: '/dashboard/analytics',
+          requiredPermission: 'viewSalesReports',
+          badge: null
+        },
+        {
           title: 'المصروفات',
           icon: DollarSign,
           href: '/dashboard/expenses',
@@ -473,54 +475,40 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
           badge: null
         },
         {
-          title: 'تحليلات المبيعات',
-          icon: BarChart3,
-          href: '/dashboard/analytics',
-          requiredPermission: 'viewSalesReports',
+          title: 'تقارير الموردين',
+          icon: FileBarChart,
+          href: '/dashboard/suppliers/reports',
+          requiredPermission: 'viewReports',
           badge: null
         },
       ]
     },
     {
-      group: 'النطاقات المخصصة',
-      icon: Globe,
+      group: 'الموظفين والصلاحيات',
+      icon: Users,
+      requiredPermission: 'viewEmployees',
+      items: [
+        {
+          title: 'الموظفين',
+          icon: Users,
+          href: '/dashboard/employees',
+          requiredPermission: 'viewEmployees',
+          badge: null
+        },
+        {
+          title: 'إدارة الموظفين',
+          icon: Users,
+          href: '/dashboard/manage-employees',
+          requiredPermission: isAdmin ? null : 'manageEmployees',
+          badge: null
+        },
+      ]
+    },
+    {
+      group: 'إعدادات المتجر',
+      icon: Store,
       requiredPermission: 'manageOrganizationSettings',
       items: [
-        {
-          title: 'إعداد النطاقات',
-          icon: Globe,
-          href: '/dashboard/custom-domains',
-          requiredPermission: 'manageOrganizationSettings',
-          badge: 'جديد'
-        },
-        {
-          title: 'دليل النطاقات',
-          icon: FileText,
-          href: '/docs/custom-domains',
-          requiredPermission: 'manageOrganizationSettings',
-          badge: null
-        },
-      ]
-    },
-    {
-      group: 'النظام',
-      icon: Settings,
-      requiredPermission: 'viewSettings',
-      items: [
-        {
-          title: 'الإشعارات',
-          icon: Bell,
-          href: '/dashboard/notifications',
-          requiredPermission: 'manageNotificationSettings',
-          badge: '4'
-        },
-        {
-          title: 'الدعم الفني',
-          icon: MessageSquare,
-          href: '/dashboard/support',
-          requiredPermission: null,
-          badge: null
-        },
         {
           title: 'تخصيص المتجر',
           icon: Store,
@@ -529,9 +517,9 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
           badge: 'جديد'
         },
         {
-          title: 'خدمات التوصيل',
-          icon: Truck,
-          href: '/dashboard/shipping-settings',
+          title: 'صفحات الهبوط',
+          icon: Layout,
+          href: '/dashboard/landing-pages',
           requiredPermission: 'manageOrganizationSettings',
           badge: 'جديد'
         },
@@ -550,17 +538,31 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
           badge: 'جديد'
         },
         {
-          title: 'صفحات الهبوط',
-          icon: Layout,
-          href: '/dashboard/landing-pages',
+          title: 'خدمات التوصيل',
+          icon: Truck,
+          href: '/dashboard/shipping-settings',
           requiredPermission: 'manageOrganizationSettings',
           badge: 'جديد'
         },
+      ]
+    },
+    {
+      group: 'الإعدادات العامة',
+      icon: Settings,
+      requiredPermission: null,
+      items: [
         {
           title: 'الإعدادات',
           icon: Settings,
           href: '/dashboard/settings',
           requiredPermission: 'viewSettings',
+          badge: null
+        },
+        {
+          title: 'إعدادات المؤسسة',
+          icon: Building,
+          href: '/dashboard/organization',
+          requiredPermission: 'manageOrganizationSettings',
           badge: null
         },
         {
@@ -571,46 +573,18 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
           badge: null
         },
         {
-          title: 'إعدادات المؤسسة',
-          icon: Building,
-          href: '/dashboard/organization',
+          title: 'النطاقات المخصصة',
+          icon: Globe,
+          href: '/dashboard/custom-domains',
+          requiredPermission: 'manageOrganizationSettings',
+          badge: 'جديد'
+        },
+        {
+          title: 'دليل النطاقات',
+          icon: FileText,
+          href: '/docs/custom-domains',
           requiredPermission: 'manageOrganizationSettings',
           badge: null
-        },
-      ]
-    },
-    {
-      group: 'الإعدادات',
-      icon: Settings,
-      requiredPermission: null,
-      items: [
-        {
-          title: 'إعدادات النظام',
-          icon: Settings,
-          href: '/dashboard/system-settings',
-          requiredPermission: isAdmin ? null : 'manageSettings',
-          badge: null
-        },
-        {
-          title: 'الموظفين',
-          icon: Users,
-          href: '/dashboard/manage-employees',
-          requiredPermission: isAdmin ? null : 'manageEmployees',
-          badge: null
-        },
-        {
-          title: 'قاعدة البيانات',
-          icon: Database,
-          href: '/admin/database',
-          requiredPermission: isAdmin ? null : 'manageDatabase',
-          badge: 'جديد'
-        },
-        {
-          title: 'أدوات قاعدة البيانات',
-          icon: Server,
-          href: '/dashboard/database-tools',
-          requiredPermission: isAdmin ? null : 'manageDatabase',
-          badge: 'جديد'
         },
       ]
     },
@@ -652,40 +626,36 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
+          console.log("تم النقر على الزر للمجموعة:", group.group); // للتأكد من عمل النقر
           togglePopup(group.group);
         }}
+        onMouseDown={(e) => {
+          e.preventDefault(); // منع أي تداخل
+        }}
         className={cn(
-          "w-14 h-14 flex items-center justify-center relative z-10",
-          "rounded-lg transition-all duration-300 mx-auto mb-3",
+          "w-14 h-14 flex items-center justify-center relative z-10 group",
+          "rounded-xl transition-all duration-300 mx-auto mb-3",
+          "border-2 shadow-sm cursor-pointer select-none",
           (isActive || hasActiveItem)
-            ? "bg-primary/15 text-primary shadow-sm"
+            ? "bg-primary/15 border-primary/40 text-primary shadow-primary/10"
             : isPopupActive
-              ? "bg-primary/10 text-foreground"
-              : "text-muted-foreground hover:bg-muted/30 hover:text-foreground"
+              ? "bg-primary/10 border-primary/30 text-primary/90 shadow-md scale-105"
+              : "bg-card border-border text-muted-foreground hover:bg-primary/5 hover:border-primary/25 hover:text-primary/80 hover:shadow-md"
         )}
         aria-label={`قائمة ${group.group}`}
         aria-expanded={isPopupActive}
+        type="button"
       >
-        <group.icon className="w-5 h-5" />
-        
-        {/* تأثير الضوء عند النقر */}
-        {isPopupActive && (
-          <motion.div 
-            className="absolute inset-0 bg-primary/5 rounded-lg" 
-            layoutId="activePopupHighlight"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-          />
-        )}
+        <group.icon className="w-5 h-5 transition-transform group-hover:scale-110 pointer-events-none" />
         
         {/* إشارة إلى القائمة النشطة */}
         {(isActive || hasActiveItem) && (
-          <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-primary rounded-full" />
+          <div className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full border-2 border-sidebar-background pointer-events-none" />
         )}
         
         {/* إشارة إلى وجود شارة */}
         {group.badge && (
-          <div className="absolute -bottom-1 -left-1 w-2.5 h-2.5 bg-primary/60 rounded-full" />
+          <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-orange-500 rounded-full border-2 border-sidebar-background animate-pulse pointer-events-none" />
         )}
       </motion.button>
     );
@@ -729,42 +699,47 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
           "bg-sidebar-background overflow-y-auto overflow-x-hidden",
           "shadow-lg border-l border-sidebar-border",
           "sidebar-scrollbar",
-          isCollapsed ? "w-20" : "w-72",
-          scrolled ? "shadow-md" : ""
+          isCollapsed ? "w-20" : "w-72"
         )}
         dir="rtl"
         style={{ width: isCollapsed ? '5rem' : '18rem' }}
       >
         {/* هيدر القائمة - معلومات المستخدم والتبديل */}
         <div className={cn(
-          "sticky top-0 z-30 transition-all duration-300",
-          "bg-sidebar-background",
-          "border-b border-sidebar-border",
-          scrolled ? "shadow-sm" : ""
+          "transition-all duration-300 relative",
+          "bg-gradient-to-r from-primary/5 via-transparent to-primary/5",
+          "border-b border-sidebar-border/30 backdrop-blur-sm",
+          "before:absolute before:inset-0 before:bg-gradient-to-b before:from-transparent before:to-sidebar-background/20 before:pointer-events-none"
         )}>
           {!isCollapsed ? (
-            <div className="flex flex-col">
+            <div className="flex flex-col relative z-10">
               {/* القسم العلوي مع اسم المتجر والشعار */}
-              <div className="py-4 px-4 flex items-center justify-between border-b border-sidebar-border">
-                <h1 className="text-lg font-bold text-primary truncate">
-                  {userProfile?.store_name || 'متجر بازار'}
-                </h1>
+              <div className="py-5 px-5 flex items-center justify-between border-b border-sidebar-border/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20">
+                    <Store className="w-4 h-4 text-primary" />
+                  </div>
+                  <h1 className="text-lg font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent truncate">
+                    {userProfile?.store_name || 'متجر بازار'}
+                  </h1>
+                </div>
                 <button
                   onClick={toggleCollapse}
                   className={cn(
-                    "p-2 rounded-lg transition-all duration-300",
-                    "bg-primary/5 hover:bg-primary/10 text-primary"
+                    "p-2.5 rounded-xl transition-all duration-300 group",
+                    "bg-primary/5 hover:bg-primary/10 border border-primary/10 hover:border-primary/20",
+                    "text-primary hover:text-primary/80 hover:scale-105"
                   )}
                   aria-label="طي القائمة"
                 >
-                  <ArrowRightToLine className="w-4 h-4" />
+                  <ArrowRightToLine className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
                 </button>
               </div>
               
               {/* قسم معلومات المستخدم */}
-              <div className="p-4 flex items-center gap-3">
+              <div className="p-5 flex items-center gap-4">
                 <div className="relative">
-                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden border-2 border-primary/20">
+                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center overflow-hidden border-2 border-primary/20 shadow-sm">
                     {userProfile?.avatar_url ? (
                       <img 
                         src={userProfile.avatar_url} 
@@ -772,104 +747,119 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <User className="w-6 h-6 text-primary" />
+                      <User className="w-7 h-7 text-primary" />
                     )}
                   </div>
-                  <span className="absolute -bottom-1 -left-1 w-4 h-4 bg-green-500 border-2 border-sidebar-background rounded-full"></span>
+                  <span className="absolute -bottom-1 -left-1 w-5 h-5 bg-gradient-to-r from-green-400 to-green-500 border-2 border-sidebar-background rounded-full shadow-sm animate-pulse"></span>
                 </div>
-                <div className="flex flex-col">
-                  <p className="text-sm font-medium text-foreground truncate max-w-[170px]">
+                <div className="flex flex-col flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground truncate">
                     {userProfile?.full_name || user?.email || 'مستخدم المتجر'}
                   </p>
-                  <p className="text-xs text-muted-foreground truncate max-w-[170px]">
+                  <span className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                    <div className={cn(
+                      "w-2 h-2 rounded-full",
+                      userRole === 'admin' ? "bg-primary" : "bg-blue-500"
+                    )}></div>
                     {userRole === 'admin' ? 'مدير المتجر' : 'موظف'}
-                  </p>
+                  </span>
                 </div>
               </div>
               
               {/* شريط أدوات مع أيقونات الوضع المظلم والإعدادات */}
-              <div className="px-4 pb-2 flex items-center justify-between">
+              <div className="px-5 pb-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <button
                     onClick={toggleDarkMode}
-                    className="p-2 rounded-lg text-muted-foreground hover:text-foreground bg-muted hover:bg-accent transition-colors"
+                    className={cn(
+                      "p-2.5 rounded-xl transition-all duration-300 group",
+                      "bg-muted/50 hover:bg-accent border border-muted hover:border-accent",
+                      "text-muted-foreground hover:text-foreground hover:scale-105"
+                    )}
                     aria-label={isDarkMode ? "وضع الضوء" : "وضع الظلام"}
                   >
                     {isDarkMode ? (
-                      <Sun className="w-4 h-4" />
+                      <Sun className="w-4 h-4 transition-transform group-hover:rotate-180" />
                     ) : (
-                      <Moon className="w-4 h-4" />
+                      <Moon className="w-4 h-4 transition-transform group-hover:-rotate-12" />
                     )}
                   </button>
                   
                   <button
                     onClick={() => window.location.href = '/dashboard/settings'}
-                    className="p-2 rounded-lg text-muted-foreground hover:text-foreground bg-muted hover:bg-accent transition-colors"
+                    className={cn(
+                      "p-2.5 rounded-xl transition-all duration-300 group",
+                      "bg-muted/50 hover:bg-accent border border-muted hover:border-accent",
+                      "text-muted-foreground hover:text-foreground hover:scale-105"
+                    )}
                     aria-label="الإعدادات"
                   >
-                    <Settings className="w-4 h-4" />
-                  </button>
-                  
-                  <button
-                    onClick={() => window.location.href = '/dashboard/notifications'}
-                    className="p-2 rounded-lg text-muted-foreground hover:text-foreground bg-muted hover:bg-accent transition-colors relative"
-                    aria-label="الإشعارات"
-                  >
-                    <Bell className="w-4 h-4" />
-                    <span className="absolute -top-1 -left-1 w-3 h-3 bg-red-500 text-[8px] text-white rounded-full flex items-center justify-center">
-                      4
-                    </span>
+                    <Settings className="w-4 h-4 transition-transform group-hover:rotate-90" />
                   </button>
                 </div>
                 
                 <button
                   onClick={handleLogout}
-                  className="p-2 rounded-lg text-red-500 bg-red-50 dark:bg-red-900/10 hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors"
+                  className={cn(
+                    "p-2.5 rounded-xl transition-all duration-300 group",
+                    "bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30",
+                    "border border-red-200 dark:border-red-800 hover:border-red-300 dark:hover:border-red-700",
+                    "text-red-500 hover:text-red-600 hover:scale-105"
+                  )}
                   aria-label="تسجيل الخروج"
                 >
-                  <LogOut className="w-4 h-4" />
+                  <LogOut className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
                 </button>
               </div>
             </div>
           ) : (
-            <div className="p-4 flex flex-col items-center space-y-3">
-              <div className="w-10 h-10 rounded-full bg-primary/5 flex items-center justify-center">
+            <div className="p-4 flex flex-col items-center space-y-4">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center shadow-sm border border-primary/20">
                 <motion.div 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  transition={{ duration: 0.3 }}
                 >
                   {userProfile?.avatar_url ? (
                     <img 
                       src={userProfile.avatar_url} 
                       alt={userProfile?.full_name || 'المستخدم'} 
-                      className="w-10 h-10 rounded-full object-cover"
+                      className="w-12 h-12 rounded-xl object-cover"
                     />
                   ) : (
-                    <User className="w-5 h-5 text-primary" />
+                    <User className="w-6 h-6 text-primary" />
                   )}
                 </motion.div>
               </div>
               
-              <div className="flex flex-row justify-center space-x-1 space-x-reverse">
+              <div className="flex flex-row justify-center space-x-2 space-x-reverse">
                 <button
                   onClick={toggleDarkMode}
-                  className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground bg-muted hover:bg-accent transition-colors"
+                  className={cn(
+                    "w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-300 group",
+                    "bg-muted/50 hover:bg-accent border border-muted hover:border-accent",
+                    "text-muted-foreground hover:text-foreground hover:scale-110"
+                  )}
                   aria-label={isDarkMode ? "وضع الضوء" : "وضع الظلام"}
                 >
                   {isDarkMode ? (
-                    <Sun className="w-3.5 h-3.5" />
+                    <Sun className="w-3.5 h-3.5 transition-transform group-hover:rotate-180" />
                   ) : (
-                    <Moon className="w-3.5 h-3.5" />
+                    <Moon className="w-3.5 h-3.5 transition-transform group-hover:-rotate-12" />
                   )}
                 </button>
                 
                 <button
                   onClick={toggleCollapse}
-                  className="w-7 h-7 flex items-center justify-center rounded-md bg-primary/5 hover:bg-primary/10 text-primary transition-colors"
+                  className={cn(
+                    "w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-300 group",
+                    "bg-primary/10 hover:bg-primary/15 border border-primary/20 hover:border-primary/30",
+                    "text-primary hover:text-primary/80 hover:scale-110"
+                  )}
                   aria-label="توسيع القائمة"
                 >
-                  <ArrowLeftToLine className="w-3.5 h-3.5" />
+                  <ArrowLeftToLine className="w-3.5 h-3.5 transition-transform group-hover:-translate-x-0.5" />
                 </button>
               </div>
             </div>
@@ -878,143 +868,222 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
 
         {/* شريط جانبي للإشارة عندما تكون القائمة مطوية */}
         {isCollapsed && (
-          <div className="absolute top-20 right-0 h-12 w-1 bg-gradient-to-b from-primary/30 via-primary to-primary/30 rounded-l opacity-70" />
+          <div className="absolute top-28 right-0 h-12 w-1 bg-primary/60 rounded-l opacity-80" />
         )}
 
         {/* القسم الرئيسي للقائمة */}
         <nav className={cn(
           "flex-1 transition-all duration-300 ease-in-out",
-          isCollapsed ? "px-1 py-3" : "px-2 py-4"
+          isCollapsed ? "px-2 py-4" : "px-3 py-5"
         )}>
           <AnimatePresence mode="wait">
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="space-y-1"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+              className="space-y-2"
             >
               {/* عنوان القسم الرئيسي */}
               {!isCollapsed && (
-                <div className="px-3 my-2">
-                  <h2 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-3 flex items-center gap-1">
-                    <Menu className="w-3 h-3" />
+                <motion.div 
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="px-4 my-3"
+                >
+                  <h2 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-4 flex items-center gap-2">
+                    <Menu className="w-3 h-3 text-primary" />
                     القائمة الرئيسية
                   </h2>
-                </div>
+                </motion.div>
               )}
 
               {/* عناصر القائمة */}
-              <div className={isCollapsed ? "space-y-1 mt-2" : "space-y-1"}>
+              <div className={cn(
+                "transition-all duration-300",
+                isCollapsed ? "space-y-2 mt-3" : "space-y-1.5"
+              )}>
                 {filteredNavItems.map((group) => {
-            const isGroupActive = activeGroup === group.group;
-            const hasActiveItem = group.items.some(item => 
-              currentPath === item.href || 
-              (currentPath.startsWith(item.href + '/') && item.href !== '/dashboard') || 
-              (item.href === '/dashboard' && currentPath === '/dashboard')
-            );
+                  const isGroupActive = activeGroup === group.group;
+                  const hasActiveItem = group.items.some(item => 
+                    currentPath === item.href || 
+                    (currentPath.startsWith(item.href + '/') && item.href !== '/dashboard') || 
+                    (item.href === '/dashboard' && currentPath === '/dashboard')
+                  );
 
                   // عرض أزرار المجموعات في حالة الطي
                   if (isCollapsed) {
+                    console.log("عرض زر للمجموعة:", group.group, "- isActive:", isGroupActive, "- hasActiveItem:", hasActiveItem);
+                    console.log("activePopup الحالي:", activePopup, "- يجب عرض popup؟", activePopup === group.group);
+                    
                     return (
                       <div key={group.group} className="relative mb-3">
                         {renderCollapsedGroupButton(group, isGroupActive, hasActiveItem)}
                         
-                        {/* القائمة المنبثقة للعناصر الفرعية - تظهر عند تفعيلها فقط */}
+                        {/* القائمة المنبثقة للعناصر الفرعية */}
                         <AnimatePresence>
-                          {activePopup === group.group && (
-                            <motion.div
-                              ref={popupRef}
-                              initial={{ opacity: 0, x: -20, scale: 0.95 }}
-                              animate={{ opacity: 1, x: 0, scale: 1 }}
-                              exit={{ opacity: 0, x: -20, scale: 0.95 }}
-                              transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                              className={cn(
-                                "fixed z-50 right-20 top-auto",
-                                "transform -translate-y-1/2",
-                                "bg-card rounded-xl",
-                                "shadow-xl border border-sidebar-border",
-                                "p-3 min-w-64 origin-right",
-                                "backdrop-blur-sm"
-                              )}
-                              style={{
-                                // وضع القائمة بجانب الزر مباشرة
-                                top: `${(document.querySelector(`[data-group-button="${group.group}"]`) as HTMLElement)?.getBoundingClientRect().top}px`
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <div className="flex items-center justify-between mb-2.5 pb-2 border-b border-sidebar-border">
-                                <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
-                                  <group.icon className="w-4 h-4 ml-1 text-primary" />
-                                  {group.group}
-                                  {group.badge && (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-normal">
-                                      {group.badge}
-                                    </span>
-                                  )}
-                                </h3>
-                                <button 
-                                  onClick={() => setActivePopup(null)}
-                                  className="text-muted-foreground hover:text-foreground rounded-full hover:bg-muted p-1"
+                          {(() => {
+                            const shouldShowPopup = activePopup === group.group;
+                            console.log(`القائمة المنبثقة للمجموعة ${group.group}:`, {
+                              activePopup,
+                              groupName: group.group,
+                              shouldShowPopup,
+                              isEqual: activePopup === group.group
+                            });
+                            
+                            if (shouldShowPopup) {
+                              console.log("سيتم عرض القائمة المنبثقة للمجموعة:", group.group);
+                              console.log("عنصر القائمة المنبثقة سيتم تصيير:", true);
+                            }
+                            
+                            return shouldShowPopup ? (
+                              <motion.div
+                                ref={popupRef}
+                                initial={{ opacity: 0, scale: 0.95, x: 20 }}
+                                animate={{ opacity: 1, scale: 1, x: 0 }}
+                                exit={{ opacity: 0, scale: 0.95, x: 20 }}
+                                transition={{
+                                  type: "spring",
+                                  stiffness: 300,
+                                  damping: 25,
+                                  duration: 0.3
+                                }}
+                                className={cn(
+                                  "fixed z-[9999] right-20 min-w-64 max-w-80",
+                                  "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700",
+                                  "rounded-xl shadow-2xl",
+                                  "p-4"
+                                )}
+                                style={{
+                                  top: `${Math.min(window.innerHeight - 400, Math.max(100, (window.innerHeight / 2) - 150))}px`,
+                                  boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)"
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {/* مؤشر السهم */}
+                                <motion.div 
+                                  initial={{ opacity: 0 }}
+                                  animate={{ opacity: 1 }}
+                                  transition={{ delay: 0.1 }}
+                                  className="absolute right-[-8px] top-6 w-4 h-4 bg-white dark:bg-gray-800 border-r border-t border-gray-200 dark:border-gray-700 transform rotate-45 rounded-sm"
+                                />
+                                
+                                <motion.div 
+                                  initial={{ opacity: 0, y: -10 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  transition={{ delay: 0.1 }}
+                                  className="flex items-center justify-between mb-3 pb-3 border-b border-gray-200 dark:border-gray-600"
                                 >
-                                  <X className="w-3 h-3" />
-                                </button>
-                              </div>
-                              <div className="space-y-1 py-1 max-h-[calc(100vh-200px)] overflow-y-auto">
-                                {group.items
-                                  .filter(item => 
-                                    isAdmin || 
-                                    !item.requiredPermission || 
-                                    checkPermission(item.requiredPermission, permissions)
-                                  )
-                                  .map((item) => {
-                                    const isActive =
-                                      currentPath === item.href ||
-                                      (currentPath.startsWith(item.href + '/') && item.href !== '/dashboard') ||
-                                      (item.href === '/dashboard' && currentPath === '/dashboard');
-                                    
-                                    return (
-                                      <NavigationItem
-                                        key={`popup-${item.href}-${item.title}`}
-                                        item={item}
-                                        isActive={isActive}
-                                        isInPopup={true}
-                                      />
-                                    );
-                                  })}
-                              </div>
-                              
-                              {/* زر العودة إلى وضع التوسيع */}
-                              <div className="mt-3 pt-2 border-t border-sidebar-border">
-                                <button
-                                  onClick={toggleCollapse}
-                                  className="w-full flex items-center justify-center gap-2 p-2 text-xs font-medium text-primary bg-primary/5 hover:bg-primary/10 rounded-md transition-colors"
+                                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                    <motion.div 
+                                      whileHover={{ scale: 1.1, rotate: 5 }}
+                                      className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center"
+                                    >
+                                      <group.icon className="w-3.5 h-3.5 text-primary" />
+                                    </motion.div>
+                                    {group.group}
+                                    {group.badge && (
+                                      <motion.span 
+                                        initial={{ scale: 0 }}
+                                        animate={{ scale: 1 }}
+                                        transition={{ delay: 0.2, type: "spring" }}
+                                        className="text-[10px] px-2 py-1 rounded-full bg-primary/10 text-primary font-medium"
+                                      >
+                                        {group.badge}
+                                      </motion.span>
+                                    )}
+                                  </h3>
+                                  <motion.button 
+                                    whileHover={{ scale: 1.1, rotate: 90 }}
+                                    whileTap={{ scale: 0.9 }}
+                                    onClick={() => setActivePopup(null)}
+                                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 p-1.5 transition-colors"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </motion.button>
+                                </motion.div>
+                                
+                                <motion.div 
+                                  initial={{ opacity: 0 }}
+                                  animate={{ opacity: 1 }}
+                                  transition={{ delay: 0.2 }}
+                                  className="space-y-1 py-1 max-h-[calc(100vh-300px)] overflow-y-auto"
                                 >
-                                  <ArrowLeftToLine className="w-3 h-3" />
-                                  توسيع القائمة
-                                </button>
-                              </div>
-                            </motion.div>
-                          )}
+                                  {group.items
+                                    .filter(item => 
+                                      isAdmin || 
+                                      !item.requiredPermission || 
+                                      checkPermission(item.requiredPermission, permissions)
+                                    )
+                                    .map((item, index) => {
+                                      const isActive =
+                                        currentPath === item.href ||
+                                        (currentPath.startsWith(item.href + '/') && item.href !== '/dashboard') ||
+                                        (item.href === '/dashboard' && currentPath === '/dashboard');
+                                      
+                                      return (
+                                        <motion.div
+                                          key={`popup-${item.href}-${item.title}`}
+                                          initial={{ opacity: 0, x: -20 }}
+                                          animate={{ opacity: 1, x: 0 }}
+                                          transition={{ 
+                                            delay: 0.3 + (index * 0.05),
+                                            type: "spring",
+                                            stiffness: 300,
+                                            damping: 25
+                                          }}
+                                        >
+                                          <NavigationItem
+                                            item={item}
+                                            isActive={isActive}
+                                            isInPopup={true}
+                                          />
+                                        </motion.div>
+                                      );
+                                    })}
+                                </motion.div>
+                                
+                                {/* زر العودة إلى وضع التوسيع */}
+                                <motion.div 
+                                  initial={{ opacity: 0, y: 10 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  transition={{ delay: 0.4 }}
+                                  className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600"
+                                >
+                                  <motion.button
+                                    whileHover={{ scale: 1.02, backgroundColor: "var(--primary)/15" }}
+                                    whileTap={{ scale: 0.98 }}
+                                    onClick={toggleCollapse}
+                                    className="w-full flex items-center justify-center gap-2 p-2.5 text-xs font-medium text-primary bg-primary/5 hover:bg-primary/10 rounded-lg transition-colors"
+                                  >
+                                    <ArrowLeftToLine className="w-3.5 h-3.5" />
+                                    توسيع القائمة
+                                  </motion.button>
+                                </motion.div>
+                              </motion.div>
+                            ) : null;
+                          })()}
                         </AnimatePresence>
                       </div>
                     );
                   }
 
                   // عرض المجموعات في الوضع العادي
-            return (
-              <NavigationGroup
+                  return (
+                    <NavigationGroup
                       key={group.group}
-                group={group}
-                isAdmin={isAdmin}
-                permissions={permissions}
-                isGroupActive={isGroupActive}
-                hasActiveItem={hasActiveItem}
-                currentPath={currentPath}
-                toggleGroup={toggleGroup}
+                      group={group}
+                      isAdmin={isAdmin}
+                      permissions={permissions}
+                      isGroupActive={isGroupActive}
+                      hasActiveItem={hasActiveItem}
+                      currentPath={currentPath}
+                      toggleGroup={toggleGroup}
                       isCollapsed={isCollapsed}
-              />
-            );
-          })}
-      </div>
+                    />
+                  );
+                })}
+              </div>
             </motion.div>
           </AnimatePresence>
         </nav>
@@ -1023,52 +1092,91 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
         {!isCollapsed && (
           <>
             {/* خط فاصل قبل قسم الإعدادات */}
-            <div className={cn(
-              "mx-auto w-full opacity-40",
-              "border-t border-sidebar-border",
-              "w-[90%]"
-            )} />
+            <div className="mx-5 border-t border-gradient-to-r from-transparent via-sidebar-border/60 to-transparent opacity-60" />
 
             {/* قسم الإعدادات والخروج */}
-            <div className={cn(
-              "border-t border-sidebar-border",
-              "bg-muted/50",
-              "p-4"
-            )}>
-              <div className="flex justify-between mb-3">
-                <h3 className="text-xs text-muted-foreground font-medium">
-                  الاختصارات السريعة
-                </h3>
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className={cn(
+                "bg-gradient-to-r from-primary/5 via-sidebar-background to-primary/5",
+                "relative",
+                "p-5 mt-2",
+                "before:absolute before:inset-0 before:bg-gradient-to-b before:from-transparent before:to-sidebar-background/30 before:pointer-events-none"
+              )}
+            >
+              <div className="flex justify-between items-center mb-4 relative z-10">
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center border border-primary/30">
+                    <ChevronRight className="w-2.5 h-2.5 text-primary" />
+                  </div>
+                  <h3 className="text-xs text-muted-foreground font-semibold tracking-wide uppercase">
+                    الاختصارات السريعة
+                  </h3>
+                </div>
+                <div className="w-2 h-2 rounded-full bg-gradient-to-r from-primary/60 to-primary/30 animate-pulse"></div>
               </div>
-              <div className="flex items-center justify-between gap-2">
-                <button
+              
+              <div className="grid grid-cols-3 gap-3 relative z-10">
+                <motion.button
+                  whileHover={{ scale: 1.05, y: -2 }}
+                  whileTap={{ scale: 0.95 }}
                   onClick={() => window.location.href = '/dashboard/pos'}
-                  className="flex-1 flex flex-col items-center justify-center gap-1 p-2 rounded-lg text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+                  className={cn(
+                    "flex flex-col items-center justify-center gap-2 p-3 rounded-xl group",
+                    "bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/10",
+                    "border border-green-200 dark:border-green-800 hover:border-green-300 dark:hover:border-green-700",
+                    "text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300",
+                    "transition-all duration-300 shadow-sm hover:shadow-md"
+                  )}
                 >
-                  <Store className="w-4 h-4" />
-                  <span className="text-[10px]">نقطة البيع</span>
-                </button>
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-green-100 to-emerald-100 dark:from-green-800/30 dark:to-emerald-800/20 flex items-center justify-center border border-green-200 dark:border-green-700 group-hover:scale-110 transition-transform">
+                    <Store className="w-4 h-4" />
+                  </div>
+                  <span className="text-[10px] font-medium">نقطة البيع</span>
+                </motion.button>
                 
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.05, y: -2 }}
+                  whileTap={{ scale: 0.95 }}
                   onClick={() => window.location.href = '/dashboard/products/add'}
-                  className="flex-1 flex flex-col items-center justify-center gap-1 p-2 rounded-lg text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+                  className={cn(
+                    "flex flex-col items-center justify-center gap-2 p-3 rounded-xl group",
+                    "bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/10",
+                    "border border-blue-200 dark:border-blue-800 hover:border-blue-300 dark:hover:border-blue-700",
+                    "text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300",
+                    "transition-all duration-300 shadow-sm hover:shadow-md"
+                  )}
                 >
-                  <Package className="w-4 h-4" />
-                  <span className="text-[10px]">منتج جديد</span>
-                </button>
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-800/30 dark:to-indigo-800/20 flex items-center justify-center border border-blue-200 dark:border-blue-700 group-hover:scale-110 transition-transform">
+                    <Package className="w-4 h-4" />
+                  </div>
+                  <span className="text-[10px] font-medium">منتج جديد</span>
+                </motion.button>
                 
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.05, y: -2 }}
+                  whileTap={{ scale: 0.95 }}
                   onClick={() => window.location.href = '/dashboard/orders/new'}
-                  className="flex-1 flex flex-col items-center justify-center gap-1 p-2 rounded-lg text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+                  className={cn(
+                    "flex flex-col items-center justify-center gap-2 p-3 rounded-xl group",
+                    "bg-gradient-to-br from-purple-50 to-violet-50 dark:from-purple-900/20 dark:to-violet-900/10",
+                    "border border-purple-200 dark:border-purple-800 hover:border-purple-300 dark:hover:border-purple-700",
+                    "text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300",
+                    "transition-all duration-300 shadow-sm hover:shadow-md"
+                  )}
                 >
-                  <ShoppingBag className="w-4 h-4" />
-                  <span className="text-[10px]">طلب جديد</span>
-                </button>
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-100 to-violet-100 dark:from-purple-800/30 dark:to-violet-800/20 flex items-center justify-center border border-purple-200 dark:border-purple-700 group-hover:scale-110 transition-transform">
+                    <ShoppingBag className="w-4 h-4" />
+                  </div>
+                  <span className="text-[10px] font-medium">طلب جديد</span>
+                </motion.button>
               </div>
-            </div>
+            </motion.div>
           </>
         )}
-    </div>
+      </div>
 
       {/* مؤشر لعرض القائمة المطوية - خارج القائمة */}
       {isCollapsed && (
@@ -1076,17 +1184,28 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
           onClick={toggleCollapse}
           className={cn(
             "fixed top-1/2 right-16 z-10 transform -translate-y-1/2",
-            "h-9 w-9 rounded-full bg-primary text-primary-foreground shadow-lg",
+            "h-10 w-10 rounded-full bg-primary text-primary-foreground shadow-lg",
             "flex items-center justify-center",
-            "hover:scale-110 hover:shadow-md",
+            "hover:scale-110 hover:shadow-xl",
             "transition-all duration-300 ease-in-out"
           )}
-          whileHover={{ scale: 1.1, boxShadow: "0 8px 16px rgba(0, 0, 0, 0.12)" }}
+          whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.95 }}
           title="فتح القائمة"
         >
-          <ArrowLeftToLine className="w-3.5 h-3.5" />
+          <ArrowLeftToLine className="w-4 h-4" />
         </motion.button>
+      )}
+
+      {/* Overlay للقائمة المنبثقة */}
+      {isCollapsed && activePopup && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/20 z-[9998]"
+          onClick={() => setActivePopup(null)}
+        />
       )}
     </>
   );

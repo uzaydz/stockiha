@@ -95,9 +95,19 @@ export const useOrderSubmissionLogic = (
     const alwaysUseMunicipality = true; // تم إضافة متغير جديد للتحكم في استخدام البلديات دائمًا
 
     const formValues = form.getValues();
+    
+    // تحديد الحقول المطلوبة الأساسية
     const requiredFields = ["fullName", "phone", "province"];
+    
+    // فحص ما إذا كان النموذج يحتوي على حقول معينة في النموذج المخصص
+    const hasAddressField = visibleCustomFields.some(field => field.name === 'address' && field.isVisible);
+    
     if (formValues.deliveryOption === "home") {
-      requiredFields.push("municipality", "address");
+      requiredFields.push("municipality");
+      // إضافة العنوان فقط إذا كان موجود في النموذج المخصص
+      if (hasAddressField) {
+        requiredFields.push("address");
+      }
     } else if (formValues.deliveryOption === "desk") {
       // إذا كان الاستلام من المكتب، نطلب البلدية دائمًا بغض النظر عن شركة الشحن
       if (isZRExpress || alwaysUseMunicipality) {
@@ -139,7 +149,8 @@ export const useOrderSubmissionLogic = (
 
     if (formValues.deliveryOption === "home") {
       submissionValues.municipality = formValues.municipality || "غير محدد";
-      submissionValues.address = formValues.address || "غير محدد";
+      // استخدام العنوان إذا كان موجود، وإلا استخدام قيمة افتراضية
+      submissionValues.address = formValues.address || `التوصيل لولاية ${submissionValues.municipality}`;
     } else if (formValues.deliveryOption === "desk") {
       // بغض النظر عن شركة الشحن، دائمًا نستخدم البلدية
       submissionValues.municipality = formValues.municipality || "غير محدد";

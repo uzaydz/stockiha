@@ -489,7 +489,7 @@ const LandingPageView: React.FC = () => {
     return (
       <div className="flex flex-col min-h-screen bg-background animate-in fade-in duration-300">
         <Navbar />
-        <div className="container py-12">
+        <div className="container py-12 pt-24">
           <div className="w-full animate-pulse space-y-6">
             {/* هيكل تحميل لصفحة الهبوط */}
             <div className="flex flex-col items-center justify-center space-y-4">
@@ -518,7 +518,7 @@ const LandingPageView: React.FC = () => {
     return (
       <div className="flex flex-col min-h-screen bg-background animate-in fade-in duration-300">
         <Navbar />
-        <div className="container py-12">
+        <div className="container py-12 pt-24">
           <Alert variant="destructive" className="animate-in slide-in-from-top duration-300">
             <AlertCircle className="h-4 w-4 mr-2" />
             <AlertTitle>خطأ</AlertTitle>
@@ -546,7 +546,7 @@ const LandingPageView: React.FC = () => {
       
       <div className="flex flex-col min-h-screen bg-background view-transition-page">
         <Navbar />
-        <div className="flex-grow landing-page-container">
+        <div className="flex-grow landing-page-container pt-16">
           {landingPage?.components
             .filter(component => component.isActive)
             .sort((a, b) => a.position - b.position)

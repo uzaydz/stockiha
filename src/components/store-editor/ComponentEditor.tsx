@@ -11,6 +11,7 @@ import FeaturedProductsEditor from './editors/FeaturedProductsEditor';
 import TestimonialsEditor from './editors/TestimonialsEditor';
 import AboutEditor from './editors/AboutEditor';
 import CountdownOffersEditor from './editors/CountdownOffersEditor';
+import FooterEditor from './editors/FooterEditor';
 
 // استيراد مكون المعاينة
 import ComponentPreview from './preview/ComponentPreview';
@@ -26,12 +27,10 @@ interface ComponentEditorProps {
 const ComponentEditor: React.FC<ComponentEditorProps> = ({ component, onUpdate }) => {
   const { type, settings } = component;
   const [editableSettings, setEditableSettings] = useState<any>({ ...settings });
-  const [showPreview, setShowPreview] = useState(false);
   const { toast } = useToast();
 
   // تحديث الإعدادات عند تغيير المكون
   useEffect(() => {
-    
     setEditableSettings({ ...settings });
   }, [component.id, settings]);
 
@@ -85,17 +84,22 @@ const ComponentEditor: React.FC<ComponentEditorProps> = ({ component, onUpdate }
     updateSetting(key, array);
   };
 
+  // تحديث عدة إعدادات معاً (للحفظ المُجمع)
+  const updateMultipleSettings = (updates: Record<string, any>) => {
+    const newSettings = { ...editableSettings, ...updates };
+    updateSettings(newSettings);
+  };
+
   // محرر المكون حسب النوع
   const renderEditor = () => {
-    
-    
     const editorProps = {
       settings: editableSettings,
       updateSetting,
       updateNestedSetting,
       addArrayItem,
       removeArrayItem,
-      updateArrayItem
+      updateArrayItem,
+      updateMultipleSettings
     };
     
     // استخدام الاسم المصغر للمقارنة
@@ -106,23 +110,23 @@ const ComponentEditor: React.FC<ComponentEditorProps> = ({ component, onUpdate }
       return <HeroEditor {...editorProps} />;
     } 
     
-    // التعامل مع مكونات الفئات
-    if (typeKey === 'category_section' || typeKey === 'product_categories') {
+    // التعامل مع مكونات الفئات - إضافة "categories" للتوافق مع قاعدة البيانات
+    if (typeKey === 'category_section' || typeKey === 'categorysection' || typeKey === 'product_categories' || typeKey === 'categories') {
       // تحديد النوع المناسب للمحرر
-      const editorType = typeKey === 'category_section'
+      const editorType = (typeKey === 'category_section' || typeKey === 'categorysection')
         ? 'CategorySection' as const
         : 'ProductCategories' as const;
       
       return <CategorySectionEditor {...editorProps} type={editorType} />;
     }
     
-    // التعامل مع المنتجات المميزة
-    if (typeKey === 'featured_products') {
+    // التعامل مع المنتجات المميزة - إضافة "featuredproducts" للتوافق
+    if (typeKey === 'featured_products' || typeKey === 'featuredproducts') {
       return <FeaturedProductsEditor {...editorProps} />;
     }
     
-    // التعامل مع آراء العملاء
-    if (typeKey === 'testimonials') {
+    // التعامل مع آراء العملاء - إضافة "customertestimonials" للتوافق
+    if (typeKey === 'testimonials' || typeKey === 'customertestimonials') {
       return <TestimonialsEditor {...editorProps} />;
     }
     
@@ -136,50 +140,30 @@ const ComponentEditor: React.FC<ComponentEditorProps> = ({ component, onUpdate }
       return <CountdownOffersEditor {...editorProps} />;
     }
     
+    // التعامل مع الفوتر
+    if (typeKey === 'footer') {
+      return <FooterEditor {...editorProps} />;
+    }
+    
     // إذا لم يتم التعرف على النوع، اعرض رسالة أن المحرر قيد التطوير
     return (
-      <div className="text-center p-4 border border-dashed rounded-md">
-        <p>محرر {type} قيد التطوير</p>
-        <pre className="text-xs mt-2 text-muted-foreground overflow-auto max-h-[200px]">
-          {JSON.stringify(editableSettings, null, 2)}
-        </pre>
+      <div className="text-center p-6 border border-dashed rounded-md bg-muted/20">
+        <p className="text-muted-foreground mb-3">محرر {type} قيد التطوير</p>
+        <details className="text-left">
+          <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
+            عرض الإعدادات الحالية
+          </summary>
+          <pre className="text-xs mt-2 text-muted-foreground overflow-auto max-h-[200px] bg-background/50 p-3 rounded border">
+            {JSON.stringify(editableSettings, null, 2)}
+          </pre>
+        </details>
       </div>
     );
   };
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-sm font-medium text-muted-foreground">
-          {showPreview ? 'معاينة المكون' : 'تعديل الخصائص'}
-        </h3>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={() => setShowPreview(!showPreview)}
-          className="h-8 px-3 text-xs flex items-center gap-1"
-        >
-          {showPreview ? (
-            <>
-              <div className="w-3.5 h-3.5">✏️</div>
-              <span>تعديل</span>
-            </>
-          ) : (
-            <>
-              <Eye className="h-3.5 w-3.5" />
-              <span>معاينة</span>
-            </>
-          )}
-        </Button>
-      </div>
-
-      {showPreview ? (
-        <div className="mt-2">
-          <ComponentPreview type={type} settings={editableSettings} />
-        </div>
-      ) : (
-        renderEditor()
-      )}
+      {renderEditor()}
     </div>
   );
 };

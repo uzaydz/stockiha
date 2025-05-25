@@ -302,6 +302,143 @@ const ComponentPreview: React.FC<ComponentPreviewProps> = ({ type, settings }) =
         </div>
       );
       
+    case 'footer':
+      return (
+        <div className="border rounded-lg p-4 bg-muted/30">
+          <div className="text-center mb-4">
+            <h3 className="text-lg font-bold">فوتر المتجر</h3>
+            <p className="text-sm text-muted-foreground">معاينة سريعة للفوتر</p>
+          </div>
+          
+          {/* قسم الميزات */}
+          {settings.showFeatures !== false && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              {(settings.features || []).slice(0, 4).map((feature: any, i: number) => (
+                <div key={i} className="flex items-center gap-2 text-xs">
+                  <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center">
+                    <span className="text-xs">🚚</span>
+                  </div>
+                  <div>
+                    <div className="font-medium">{feature.title}</div>
+                    <div className="text-muted-foreground text-xs">{feature.description}</div>
+                  </div>
+                </div>
+              ))}
+              {(!settings.features || settings.features.length === 0) && (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-2 text-xs">
+                    <div className="w-6 h-6 rounded-full bg-primary/10"></div>
+                    <div>
+                      <div className="h-3 w-16 bg-muted rounded"></div>
+                      <div className="h-2 w-20 bg-muted/50 rounded mt-1"></div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+          
+          {/* القسم الرئيسي */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-xs">
+            {/* معلومات المتجر */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                {settings.logoUrl ? (
+                  <div className="w-8 h-8 rounded-lg bg-card border"></div>
+                ) : (
+                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-xs font-bold">
+                    {(settings.storeName || 'M').charAt(0)}
+                  </div>
+                )}
+                <span className="font-bold text-sm">{settings.storeName || 'متجرنا'}</span>
+              </div>
+              <p className="text-xs text-muted-foreground mb-3">
+                {settings.description ? settings.description.substring(0, 80) + '...' : 'وصف المتجر...'}
+              </p>
+              {settings.showSocialLinks !== false && (
+                <div className="flex gap-2">
+                  {(settings.socialLinks || []).slice(0, 4).map((social: any, i: number) => (
+                    <div key={i} className="w-6 h-6 rounded-full bg-muted border"></div>
+                  ))}
+                  {(!settings.socialLinks || settings.socialLinks.length === 0) && (
+                    <>
+                      <div className="w-6 h-6 rounded-full bg-muted"></div>
+                      <div className="w-6 h-6 rounded-full bg-muted"></div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            {/* أقسام الروابط */}
+            {(settings.footerSections || []).slice(0, 2).map((section: any, i: number) => (
+              <div key={i}>
+                <h4 className="font-bold text-xs mb-2">{section.title}</h4>
+                <div className="space-y-1">
+                  {section.links?.slice(0, 4).map((link: any, j: number) => (
+                    <div key={j} className="text-xs text-muted-foreground">
+                      {link.text}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {(!settings.footerSections || settings.footerSections.length === 0) && (
+              <>
+                <div>
+                  <div className="h-3 w-16 bg-muted rounded mb-2"></div>
+                  <div className="space-y-1">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <div key={i} className="h-2 w-20 bg-muted/50 rounded"></div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div className="h-3 w-20 bg-muted rounded mb-2"></div>
+                  <div className="space-y-1">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <div key={i} className="h-2 w-24 bg-muted/50 rounded"></div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+            
+            {/* النشرة البريدية */}
+            {settings.showNewsletter !== false && (
+              <div>
+                <h4 className="font-bold text-xs mb-2">
+                  {settings.newsletterSettings?.title || 'النشرة البريدية'}
+                </h4>
+                <p className="text-xs text-muted-foreground mb-2">
+                  {settings.newsletterSettings?.description?.substring(0, 50) + '...' || 'اشترك للحصول على العروض...'}
+                </p>
+                <div className="flex gap-1">
+                  <div className="h-6 flex-1 bg-muted rounded text-xs flex items-center px-2">
+                    {settings.newsletterSettings?.placeholder || 'البريد الإلكتروني'}
+                  </div>
+                  <div className="h-6 px-2 bg-primary/20 rounded text-xs flex items-center">
+                    {settings.newsletterSettings?.buttonText || 'اشتراك'}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {/* حقوق النشر */}
+          <div className="border-t pt-4 mt-6 flex justify-between items-center text-xs">
+            <p className="text-muted-foreground">
+              {settings.copyrightText || `© ${new Date().getFullYear()} ${settings.storeName || 'متجرنا'}. جميع الحقوق محفوظة.`}
+            </p>
+            <div className="flex gap-2">
+              {(settings.legalLinks || []).slice(0, 3).map((link: any, i: number) => (
+                <span key={i} className="text-muted-foreground">{link.text}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+      
     default:
       return (
         <div className="flex items-center justify-center h-40 bg-muted rounded-md">

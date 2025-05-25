@@ -153,11 +153,25 @@ export const DeliveryInfoFields: React.FC<DeliveryInfoFieldsProps> = ({
         name="address"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>العنوان *</FormLabel>
+            <FormLabel>
+              {deliveryType === 'home' ? 'العنوان *' : 'العنوان'}
+            </FormLabel>
             <FormControl>
-              <Input placeholder="أدخل العنوان بالتفصيل" {...field} />
+              <Input 
+                placeholder={
+                  deliveryType === 'home' 
+                    ? "أدخل العنوان بالتفصيل" 
+                    : "أدخل العنوان (اختياري)"
+                } 
+                {...field} 
+              />
             </FormControl>
             <FormMessage />
+            {deliveryType === 'desk' && (
+              <p className="text-xs text-muted-foreground">
+                العنوان اختياري عند الاستلام من المكتب
+              </p>
+            )}
           </FormItem>
         )}
       />

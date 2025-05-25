@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useTenant } from '@/context/TenantContext';
 import type { Product, UpsellDownsellItem } from '@/lib/api/products';
 import QueryVisualizer from '@/components/debug/QueryVisualizer';
@@ -399,9 +399,11 @@ const ProductPurchase = () => {
               </>
             )}
             
-            {showStickyButton && (
-              <StickyButton onClick={scrollToOrderForm} />
-            )}
+            <AnimatePresence>
+              {showStickyButton && (
+                <StickyButton onClick={scrollToOrderForm} />
+              )}
+            </AnimatePresence>
           </>
         ) : null}
       </div>

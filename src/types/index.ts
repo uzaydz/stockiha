@@ -19,6 +19,7 @@ export interface Product {
   sku: string;
   barcode?: string;
   category: ProductCategory;
+  category_id?: string; // إضافة معرف الفئة
   subcategory?: string;
   brand?: string;
   images: string[];

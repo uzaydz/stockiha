@@ -48,6 +48,7 @@ import { formatPrice } from '@/lib/utils';
 import BulkBarcodePrint from './BulkBarcodePrint';
 import { useAuth } from '@/context/AuthContext';
 import { EmployeePermissions } from '@/types/employee';
+import { createCleanPrintWindow } from '@/utils/printUtils';
 import {
   Dialog,
   DialogContent,
@@ -318,11 +319,14 @@ const ProductsList = ({ products, onRefreshProducts }: ProductsListProps) => {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {product.category 
-                        ? (typeof product.category === 'object' && product.category !== null && 'name' in product.category
-                          ? product.category.name
-                          : typeof product.category === 'string' ? product.category : '')
-                        : ''}
+                      {(() => {
+                        if (!product.category) return '';
+                        if (typeof product.category === 'string') return product.category;
+                        if (typeof product.category === 'object' && 'name' in product.category) {
+                          return (product.category as { name: string }).name;
+                        }
+                        return '';
+                      })()}
                     </TableCell>
                     <TableCell>{formatPrice(product.price)}</TableCell>
                     <TableCell>{product.stock_quantity}</TableCell>
@@ -569,76 +573,43 @@ const ProductsList = ({ products, onRefreshProducts }: ProductsListProps) => {
                   // لذلك سنغلق نافذة الباركود ونفتح نافذة طباعة جديدة
                   setIsBarcodeOpen(false);
                   
-                  // طباعة الباركود مباشرة
-                  const printWindow = window.open('', '_blank');
-                  if (printWindow) {
-                    printWindow.document.write(`
-                      <html>
-                        <head>
-                          <title>طباعة باركود ${barcodeProduct.name}</title>
-                          <style>
-                            body { 
-                              font-family: sans-serif;
-                              margin: 0;
-                              padding: 20px;
-                              text-align: center;
-                            }
-                            .barcode-container {
-                              margin: 0 auto;
-                              max-width: 90mm;
-                              padding: 5mm;
-                              border: 1px solid #eee;
-                            }
-                            .product-name {
-                              font-size: 14px;
-                              margin-bottom: 10px;
-                              font-weight: bold;
-                            }
-                            .barcode-image {
-                              max-width: 100%;
-                            }
-                            .price {
-                              font-size: 16px;
-                              margin-top: 10px;
-                              font-weight: bold;
-                            }
-                            .barcode-value {
-                              font-family: monospace;
-                              margin-top: 5px;
-                            }
-                            .no-print {
-                              margin-bottom: 20px;
-                            }
-                            @media print {
-                              .no-print {
-                                display: none;
-                              }
-                              @page {
-                                size: 90mm 50mm;
-                                margin: 0;
-                              }
-                              body {
-                                margin: 0;
-                                padding: 0;
-                              }
-                            }
-                          </style>
-                        </head>
-                        <body>
-                          <div class="no-print">
-                            <button onclick="window.print()">طباعة</button>
-                            <button onclick="window.close()">إغلاق</button>
-                          </div>
-                          <div class="barcode-container">
-                            <div class="product-name">${barcodeProduct.name}</div>
-                            <img class="barcode-image" src="https://bwipjs-api.metafloor.com/?bcid=code128&text=${barcodeProduct.barcode || barcodeProduct.sku}&scale=2&height=60&includetext=true" alt="باركود">
-                            <div class="barcode-value">${barcodeProduct.barcode || barcodeProduct.sku}</div>
-                            <div class="price">${barcodeProduct.price.toLocaleString()} دج</div>
-                          </div>
-                        </body>
-                      </html>
-                    `);
-                    printWindow.document.close();
+                  // طباعة الباركود مباشرة باستخدام الطباعة المحسّنة
+                  const printContent = `
+                    <div style="
+                      margin: 0 auto;
+                      max-width: 90mm;
+                      padding: 5mm;
+                      border: 1px solid #eee;
+                      text-align: center;
+                    ">
+                      <div style="font-size: 14px; margin-bottom: 10px; font-weight: bold;">${barcodeProduct.name}</div>
+                      <img style="max-width: 100%;" src="https://bwipjs-api.metafloor.com/?bcid=code128&text=${barcodeProduct.barcode || barcodeProduct.sku}&scale=2&height=60&includetext=true" alt="باركود">
+                      <div style="font-family: monospace; margin-top: 5px;">${barcodeProduct.barcode || barcodeProduct.sku}</div>
+                      <div style="font-size: 16px; margin-top: 10px; font-weight: bold;">${barcodeProduct.price.toLocaleString()} دج</div>
+                    </div>
+                    
+                    <style>
+                      @media print {
+                        @page {
+                          size: 90mm 50mm;
+                          margin: 0;
+                        }
+                        body {
+                          margin: 0;
+                          padding: 0;
+                          font-family: sans-serif;
+                          text-align: center;
+                          -webkit-print-color-adjust: exact;
+                          color-adjust: exact;
+                        }
+                      }
+                    </style>
+                  `;
+                  
+                  const printWindow = createCleanPrintWindow(printContent, `طباعة باركود ${barcodeProduct.name}`);
+                  
+                  if (!printWindow) {
+                    alert('تم منع فتح نافذة الطباعة من قبل المتصفح');
                   }
                 }}
               >

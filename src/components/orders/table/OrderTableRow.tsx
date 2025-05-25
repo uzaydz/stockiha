@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import {
   TableCell,
   TableRow,
@@ -23,6 +23,7 @@ import OrderActionsDropdown from "./OrderActionsDropdown";
 import { OrdersTableRowProps } from "./OrderTableTypes";
 import CallConfirmationDropdown from "../CallConfirmationDropdown";
 import CallConfirmationBadge from "../CallConfirmationBadge";
+import ShippingProviderBadge from "./ShippingProviderBadge";
 
 const OrdersTableRow = ({
   order,
@@ -216,6 +217,16 @@ const OrdersTableRow = ({
                 <span className="text-xs text-muted-foreground">لم يتم تحديد</span>
               )}
             </div>
+          </TableCell>
+        )}
+        
+        {/* مزود الشحن */}
+        {visibleColumns.includes("shipping_provider") && (
+          <TableCell>
+            <ShippingProviderBadge
+              yalidineTrackingId={order.yalidine_tracking_id}
+              zrexpressTrackingId={order.zrexpress_tracking_id}
+            />
           </TableCell>
         )}
         

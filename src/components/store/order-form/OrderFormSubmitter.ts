@@ -53,7 +53,18 @@ export const prepareOrderData = (props: OrderFormSubmitterProps, customFormData?
   const phone = customFormData?.phone || values.phone || "0000000000";
   const province = customFormData?.province || values.province || "غير محدد";
   const municipality = customFormData?.municipality || values.municipality || "غير محدد";
-  const address = customFormData?.address || values.address || "غير محدد";
+  
+  // تحديد العنوان بناءً على نوع التوصيل والبيانات المتوفرة
+  let address = customFormData?.address || values.address;
+  if (!address) {
+    const deliveryOption = customFormData?.deliveryOption || values.deliveryOption || "home";
+    if (deliveryOption === "home") {
+      address = `التوصيل المنزلي إلى ${municipality}, ${province}`;
+    } else {
+      address = `استلام من مكتب في ${municipality}, ${province}`;
+    }
+  }
+  
   const city = municipality; // استخدام البلدية كمدينة
   
   // استخراج stop_desk_id من النموذج أو البيانات المخصصة

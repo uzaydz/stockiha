@@ -56,6 +56,28 @@ export function NavbarMain({
   const isEmployee = userProfile?.role === 'employee';
   const isStaff = isAdmin || isEmployee;
   
+  // إضافة المساحة المطلوبة للمحتوى تحت النافبار الثابت
+  useEffect(() => {
+    // تحديد ارتفاع النافبار الثابت
+    const navbarHeight = '64px'; // تطابق h-16 في tailwind
+    
+    // تحقق إذا لم تكن المساحة مضافة بالفعل
+    if (!document.body.style.paddingTop || document.body.style.paddingTop !== navbarHeight) {
+      document.documentElement.style.setProperty('--navbar-height', navbarHeight);
+      document.body.style.paddingTop = navbarHeight;
+    }
+    
+    // تنظيف التأثير عند إلغاء المكون
+    return () => {
+      // تأكد من عدم حذف المساحة إذا كان هناك navbar آخر يستخدمها
+      const navbarsInPage = document.querySelectorAll('[data-navbar="true"]');
+      if (navbarsInPage.length <= 1) {
+        document.body.style.paddingTop = '';
+        document.documentElement.style.removeProperty('--navbar-height');
+      }
+    };
+  }, []);
+  
   // Handle scroll events for advanced header effects
   useEffect(() => {
     const handleScroll = () => {
@@ -206,6 +228,7 @@ export function NavbarMain({
 
   return (
     <header 
+      data-navbar="true"
       className={cn(
         "fixed top-0 left-0 right-0 z-50 w-full flex flex-col",
         "transition-all duration-500 ease-in-out",

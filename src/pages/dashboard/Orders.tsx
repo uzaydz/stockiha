@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import Layout from "@/components/Layout";
@@ -15,14 +15,12 @@ import { Loader2, ShieldAlert } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { checkUserPermissions } from "@/lib/api/permissions";
 
-// استيراد مكونات وأدوات لتتبع استعلامات Supabase
-import { interceptSupabaseQueries } from "@/lib/supabase-interceptor";
-import QueryVisualizer from "@/components/debug/QueryVisualizer";
-
 // استيراد المكونات الجديدة
-import OrdersTable, { type Order } from "@/components/orders/OrdersTable";
+import OrdersTable from "@/components/orders/table/OrdersTable";
+import { Order } from "@/components/orders/table/OrderTableTypes";
 import OrdersDashboard from "@/components/orders/OrdersDashboard";
 import OrdersAdvancedFilters from "@/components/orders/OrdersAdvancedFilters";
+import { OrdersDataProvider } from '@/context/OrdersDataContext';
 
 // تعريف أنواع حالات الطلب
 type OrderStatus = 'all' | 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
@@ -74,7 +72,7 @@ const Orders = () => {
   
   // متغيرات للتحميل المتدرج والتخزين المؤقت
   const [hasMoreOrders, setHasMoreOrders] = useState(true);
-  const [pageSize, setPageSize] = useState(30);
+  const [pageSize, setPageSize] = useState(15);
   const [currentPage, setCurrentPage] = useState(0);
   const ordersCache = useRef<Record<string, Order[]>>({});
   const loadingRef = useRef(false);
@@ -89,11 +87,10 @@ const Orders = () => {
   const [callConfirmationStatuses, setCallConfirmationStatuses] = useState<any[]>([]);
   const [callConfirmationLoading, setCallConfirmationLoading] = useState(false);
 
-  // تفعيل معترض Supabase لتتبع الاستعلامات
-  useEffect(() => {
-    // تهيئة معترض استعلامات Supabase
-    interceptSupabaseQueries(supabase);
-  }, []);
+  // حساب العدد الإجمالي للصفحات
+  const totalPages = useMemo(() => {
+    return Math.ceil((orderCounts.all || 0) / pageSize);
+  }, [orderCounts.all, pageSize]);
 
   // التحقق من صلاحيات المستخدم
   useEffect(() => {
@@ -514,11 +511,8 @@ const Orders = () => {
       // تخزين البيانات في ذاكرة التخزين المؤقت
       ordersCache.current[cacheKey] = processedOrders;
       
-      // تحديث حالة الطلبات
-      setOrders(prevOrders => {
-        if (page === 0) return processedOrders;
-        return [...prevOrders, ...processedOrders];
-      });
+      // تحديث حالة الطلبات - عرض الطلبات الجديدة فقط (pagination)
+      setOrders(processedOrders);
       
       // تحديث مؤشر وجود المزيد من الطلبات
       setHasMoreOrders(processedOrders.length === pageSize);
@@ -549,62 +543,38 @@ const Orders = () => {
     }
   }, [currentPage, dateRange, fetchOrders, filterStatus, hasMoreOrders, searchTerm]);
 
+  // دالة للانتقال إلى صفحة محددة
+  const handlePageChange = useCallback((page: number) => {
+    if (page < 1 || page > totalPages || loadingRef.current) return;
+    
+    // إعادة ضبط الطلبات عند الانتقال لصفحة جديدة
+    setOrders([]);
+    setCurrentPage(page - 1); // تحويل من 1-based إلى 0-based
+    
+    const dateFrom = dateRange.from ? dateRange.from.toISOString() : null;
+    const dateTo = dateRange.to ? dateRange.to.toISOString() : null;
+    
+    fetchOrders(page - 1, filterStatus, searchTerm, dateFrom, dateTo);
+  }, [dateRange, fetchOrders, filterStatus]);
+
   // تصفية الطلبات عند تغيير المرشحات
   const handleFilterChange = useCallback(({ status, searchTerm, dateRange }) => {
-    // إعادة ضبط الصفحة عند تغيير المرشحات
+    // إعادة ضبط الصفحة والطلبات عند تغيير المرشحات
     setCurrentPage(0);
+    setOrders([]);
     
     // تحديث متغيرات الحالة
     if (status) setFilterStatus(status);
     if (searchTerm !== undefined) setSearchTerm(searchTerm);
     if (dateRange) setDateRange(dateRange);
     
-    // تصفية البيانات المحلية للتحديث السريع
-    let filtered = [...orders];
-    
-    if (status && status !== 'all') {
-      filtered = filtered.filter(order => order.status === status);
-    }
-    
-    if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
-      filtered = filtered.filter(order => 
-        order.customer?.name?.toLowerCase().includes(searchLower) ||
-        order.customer?.phone?.toLowerCase().includes(searchLower) ||
-        (order.customer_order_number?.toString() || '').includes(searchLower) ||
-        order.id.toLowerCase().includes(searchLower)
-      );
-    }
-    
-    if (dateRange?.from) {
-      const fromDate = new Date(dateRange.from);
-      fromDate.setHours(0, 0, 0, 0);
-      
-      filtered = filtered.filter(order => {
-        const orderDate = new Date(order.created_at);
-        return orderDate >= fromDate;
-      });
-    }
-    
-    if (dateRange?.to) {
-      const toDate = new Date(dateRange.to);
-      toDate.setHours(23, 59, 59, 999);
-      
-      filtered = filtered.filter(order => {
-        const orderDate = new Date(order.created_at);
-        return orderDate <= toDate;
-      });
-    }
-    
-    setFilteredOrders(filtered);
-    
-    // جلب البيانات المصفاة من الخادم
+    // جلب البيانات المصفاة من الخادم (الصفحة الأولى)
     const dateFrom = dateRange?.from ? dateRange.from.toISOString() : null;
     const dateTo = dateRange?.to ? dateRange.to.toISOString() : null;
     
     fetchOrders(0, status || filterStatus, searchTerm || "", dateFrom, dateTo);
     
-  }, [fetchOrders, filterStatus, orders]);
+  }, [fetchOrders, filterStatus]);
 
   // تحديث حالة طلب واحد
   const updateOrderStatus = useCallback(async (orderId: string, status: string) => {
@@ -866,22 +836,14 @@ const Orders = () => {
                 hasCancelPermission={hasCancelPermission}
                 visibleColumns={visibleColumns}
                 currentUserId={user?.id}
+                currentPage={currentPage + 1}
+                totalItems={orderCounts.all}
+                pageSize={pageSize}
+                hasNextPage={currentPage + 1 < totalPages}
+                hasPreviousPage={currentPage > 0}
+                onPageChange={handlePageChange}
+                hasMoreOrders={hasMoreOrders}
               />
-              
-              {/* زر تحميل المزيد من الطلبات */}
-              {hasMoreOrders && !loading && (
-                <div className="flex justify-center">
-                  <button
-                    className="px-4 py-2 text-sm text-primary hover:text-primary-600 transition-colors"
-                    onClick={loadMoreOrders}
-                  >
-                    تحميل المزيد من الطلبات
-                  </button>
-                </div>
-              )}
-              
-              {/* إضافة مكون عارض استعلامات Supabase */}
-              <QueryVisualizer />
             </TabsContent>
           </Tabs>
         )}
@@ -890,4 +852,13 @@ const Orders = () => {
   );
 };
 
-export default Orders; 
+// تطبيق Provider على المكون الرئيسي
+const OrdersWithProvider = () => {
+  return (
+    <OrdersDataProvider>
+      <Orders />
+    </OrdersDataProvider>
+  );
+};
+
+export default OrdersWithProvider; 

@@ -8,9 +8,10 @@ interface NavigationItemProps {
   item: NavItem;
   isActive: boolean;
   isInPopup?: boolean;
+  onClick?: () => void;
 }
 
-const NavigationItem = ({ item, isActive, isInPopup = false }: NavigationItemProps) => {
+const NavigationItem = ({ item, isActive, isInPopup = false, onClick }: NavigationItemProps) => {
   return (
     <motion.div
       whileHover={{ scale: isInPopup ? 1.01 : 1.02, x: isInPopup ? 0 : 2 }}
@@ -31,6 +32,7 @@ const NavigationItem = ({ item, isActive, isInPopup = false }: NavigationItemPro
             : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
         )}
         aria-current={isActive ? "page" : undefined}
+        onClick={onClick}
       >
         <span className="flex items-center gap-2.5">
           <motion.div
@@ -54,7 +56,7 @@ const NavigationItem = ({ item, isActive, isInPopup = false }: NavigationItemPro
             {/* تأثير وهج عند النشاط */}
             {isActive && (
               <motion.div 
-                className="absolute inset-0 bg-primary/20 rounded-lg blur-sm"
+                className="absolute inset-0 bg-primary/20 rounded-lg"
                 initial={{ opacity: 0 }}
                 animate={{ 
                   opacity: [0.2, 0.5, 0.2],

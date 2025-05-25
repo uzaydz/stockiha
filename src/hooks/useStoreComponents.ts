@@ -97,13 +97,25 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
         // تحويل البيانات المستلمة إلى الصيغة المطلوبة واستبعاد مكون seo_settings
         const mappedComponents: StoreComponent[] = data
           .filter(item => item.component_type.toLowerCase() !== 'seo_settings') // استبعاد مكون seo_settings وتحويل إلى أحرف صغيرة
-          .map(item => ({
-            id: item.id,
-            type: item.component_type.toLowerCase() as ComponentType, // تحويل نوع المكون إلى أحرف صغيرة
-            settings: item.settings,
-            isActive: item.is_active,
-            orderIndex: item.order_index
-          }));
+          .map(item => {
+            // تطبيع نوع المكون للتوافق مع المحررات
+            let normalizedType = item.component_type.toLowerCase();
+            
+            // تحويل الأنواع للتوافق مع المحررات
+            if (normalizedType === 'categories') {
+              normalizedType = 'product_categories';
+            } else if (normalizedType === 'featuredproducts') {
+              normalizedType = 'featured_products';
+            }
+            
+            return {
+              id: item.id,
+              type: normalizedType as ComponentType,
+              settings: item.settings,
+              isActive: item.is_active,
+              orderIndex: item.order_index
+            };
+          });
 
         setComponents(mappedComponents);
         // حفظ نسخة أصلية للمقارنة وتحديد وجود تغييرات غير محفوظة
@@ -174,13 +186,25 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
       if (storeData && storeData.length > 0) {
         const mappedComponents: StoreComponent[] = storeData
           .filter(item => item.component_type.toLowerCase() !== 'seo_settings') // استبعاد مكون seo_settings وتحويل إلى أحرف صغيرة
-          .map(item => ({
-            id: item.id,
-            type: item.component_type.toLowerCase() as ComponentType, // تحويل نوع المكون إلى أحرف صغيرة
-            settings: item.settings,
-            isActive: item.is_active,
-            orderIndex: item.order_index
-          }));
+          .map(item => {
+            // تطبيع نوع المكون للتوافق مع المحررات
+            let normalizedType = item.component_type.toLowerCase();
+            
+            // تحويل الأنواع للتوافق مع المحررات
+            if (normalizedType === 'categories') {
+              normalizedType = 'product_categories';
+            } else if (normalizedType === 'featuredproducts') {
+              normalizedType = 'featured_products';
+            }
+            
+            return {
+              id: item.id,
+              type: normalizedType as ComponentType,
+              settings: item.settings,
+              isActive: item.is_active,
+              orderIndex: item.order_index
+            };
+          });
 
         setComponents(mappedComponents);
         // حفظ نسخة أصلية للمقارنة
@@ -293,6 +317,25 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
       // تحديث المكون النشط إذا كان هو المعدل
       if (activeComponent && activeComponent.id === id) {
         setActiveComponent({ ...activeComponent, settings: { ...newSettings } });
+      }
+
+      // معالجة خاصة لمكون Footer - حفظ savedPages مباشرة في قاعدة البيانات
+      const componentToUpdate = components.find(comp => comp.id === id);
+      if (componentToUpdate?.type === 'footer' && newSettings.savedPages) {
+        // حفظ الصفحات الجديدة في قاعدة البيانات فوراً
+        await supabase
+          .from('store_settings')
+          .update({
+            settings: newSettings,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', id)
+          .eq('organization_id', organizationId);
+
+        // مسح التخزين المؤقت لتحديث المتجر
+        await clearStoreCache(organizationId);
+        
+        console.log('تم حفظ الصفحات المُنشأة تلقائياً في قاعدة البيانات');
       }
 
       setHasUnsavedChanges(true);
@@ -423,13 +466,21 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
       for (const comp of componentsToSave) {
         const isNewComponent = comp.id.toString().startsWith('temp_');
         
+        // تطبيع نوع المكون للحفظ - تحويل للأسماء الأصلية في قاعدة البيانات
+        let componentTypeForSave = comp.type.toLowerCase();
+        
+        // تحويل الأنواع المطبعة إلى الأسماء الأصلية في قاعدة البيانات
+        if (componentTypeForSave === 'product_categories') {
+          componentTypeForSave = 'categories';
+        }
+        
         if (isNewComponent) {
           // إضافة مكون جديد
           const { data, error } = await supabase
             .from('store_settings')
             .insert({
               organization_id: organizationId,
-              component_type: comp.type.toLowerCase(),
+              component_type: componentTypeForSave,
               settings: comp.settings,
               is_active: comp.isActive,
               order_index: comp.orderIndex,
@@ -454,7 +505,7 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
           const { error } = await supabase
             .from('store_settings')
             .update({
-              component_type: comp.type.toLowerCase(),
+              component_type: componentTypeForSave,
               settings: comp.settings,
               is_active: comp.isActive,
               order_index: comp.orderIndex,

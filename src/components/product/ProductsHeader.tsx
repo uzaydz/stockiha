@@ -8,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Sliders, Search, FileUp, Loader2 } from 'lucide-react';
+import { Plus, Sliders, Search, FileUp, Loader2, QrCode } from 'lucide-react';
 import { PlusCircle } from 'lucide-react';
 import BulkBarcodePrint from './BulkBarcodePrint';
 import type { Product } from '@/lib/api/products';
@@ -58,7 +58,7 @@ const ProductsHeader = ({
         <div className="flex gap-2 w-full sm:w-auto">
           <Button 
             variant="default" 
-            className="w-1/2 sm:w-auto whitespace-nowrap" 
+            className="flex-1 sm:w-auto whitespace-nowrap" 
             onClick={() => navigate('/dashboard/product/new')}
           >
             <Plus className="h-4 w-4 ml-2" />
@@ -66,12 +66,15 @@ const ProductsHeader = ({
           </Button>
           <Button 
             variant="outline" 
-            className="w-1/2 sm:w-auto whitespace-nowrap"
+            className="flex-1 sm:w-auto whitespace-nowrap"
             onClick={onAddProductClick}
           >
             <Plus className="h-4 w-4 ml-2" />
             إضافة سريع
           </Button>
+          {products && products.length > 0 && (
+            <BulkBarcodePrint products={products} />
+          )}
         </div>
       </div>
 

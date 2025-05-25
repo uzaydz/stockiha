@@ -328,13 +328,15 @@ export async function getSubdomainFromOrganizationId(organizationId: string): Pr
 export async function clearStoreCacheByOrganizationId(organizationId: string): Promise<void> {
   const subdomain = await getSubdomainFromOrganizationId(organizationId);
   if (subdomain) {
-    const cacheKey = `store_data:${subdomain}`;
-    await clearCacheItem(cacheKey);
+    // مسح المفاتيح الصحيحة المستخدمة في storeDataService
+    await clearCacheItem(`store_init_data:${subdomain}`);
+    await clearCacheItem(`store_data:${subdomain}`); // للتوافق مع الإصدارات السابقة
     
     // حذف البيانات ذات الصلة أيضًا
     await clearCacheItem(`categories:${organizationId}`);
     await clearCacheItem(`products:${organizationId}`);
     await clearCacheItem(`shipping:${organizationId}`);
+    await clearCacheItem(`org_subdomain:${organizationId}`); // مسح تخزين النطاق الفرعي أيضاً
   }
 }
 

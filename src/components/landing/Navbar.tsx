@@ -23,6 +23,20 @@ const Navbar = () => {
   // استراتيجية التخزين المؤقت للبيانات المسترجعة
   const cacheKey = useRef<string>(`navbar_data_${window.location.hostname}`);
   
+  // إضافة المساحة المطلوبة للمحتوى تحت النافبار الثابت
+  useEffect(() => {
+    // إضافة padding-top للمحتوى لتجنب إخفاء المحتوى تحت النافبار
+    const navbarHeight = '64px'; // تطابق مع باقي النوافب
+    document.documentElement.style.setProperty('--navbar-height', navbarHeight);
+    document.body.style.paddingTop = navbarHeight;
+    
+    // تنظيف التأثير عند إلغاء المكون
+    return () => {
+      document.body.style.paddingTop = '';
+      document.documentElement.style.removeProperty('--navbar-height');
+    };
+  }, []);
+
   // استراتيجية View Transitions API للتغييرات المرئية
   const applyViewTransition = (callback: () => void) => {
     if (document.startViewTransition) {
@@ -142,6 +156,7 @@ const Navbar = () => {
 
   return (
     <header 
+      data-navbar="true"
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 py-3 ${
         isScrolled ? 'bg-background/80 backdrop-blur-md shadow-sm' : 'bg-transparent'
       }`}

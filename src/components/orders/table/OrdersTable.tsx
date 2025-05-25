@@ -36,6 +36,14 @@ type OrdersTableProps = {
   hasCancelPermission: boolean;
   visibleColumns?: string[];
   currentUserId?: string;
+  currentPage?: number;
+  totalItems?: number;
+  pageSize?: number;
+  hasNextPage?: boolean;
+  hasPreviousPage?: boolean;
+  onPageChange?: (page: number) => void;
+  onLoadMore?: () => void;
+  hasMoreOrders?: boolean;
 };
 
 const OrdersTable = ({
@@ -46,8 +54,16 @@ const OrdersTable = ({
   onBulkUpdateStatus,
   hasUpdatePermission,
   hasCancelPermission,
-  visibleColumns = ["checkbox", "expand", "id", "customer_name", "customer_contact", "total", "items", "status", "call_confirmation", "source", "actions"],
+  visibleColumns = ["checkbox", "expand", "id", "customer_name", "customer_contact", "total", "items", "status", "call_confirmation", "shipping_provider", "source", "actions"],
   currentUserId,
+  currentPage = 1,
+  totalItems = 0,
+  pageSize = 15,
+  hasNextPage = false,
+  hasPreviousPage = false,
+  onPageChange,
+  onLoadMore,
+  hasMoreOrders = false,
 }: OrdersTableProps) => {
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [searchFilter, setSearchFilter] = useState("");
@@ -206,6 +222,10 @@ const OrdersTable = ({
                   <TableHead className="font-medium">تأكيد المكالمة</TableHead>
                 )}
                 
+                {visibleColumns.includes("shipping_provider") && (
+                  <TableHead className="font-medium">مزود الشحن</TableHead>
+                )}
+                
                 {visibleColumns.includes("source") && (
                   <TableHead className="font-medium">معلومات الطلب</TableHead>
                 )}
@@ -333,11 +353,46 @@ const OrdersTable = ({
         {filteredOrders.length > 0 && (
           <div className="py-3 px-4 flex items-center justify-between border-t">
             <p className="text-sm text-muted-foreground">
-              عرض <span className="font-medium">{filteredOrders.length}</span> من إجمالي <span className="font-medium">{orders.length}</span> طلب
+              عرض <span className="font-medium">{(currentPage - 1) * pageSize + 1}</span> إلى <span className="font-medium">{Math.min(currentPage * pageSize, totalItems || orders.length)}</span> من إجمالي <span className="font-medium">{totalItems || orders.length}</span> طلب
             </p>
             <div className="flex items-center space-x-2 rtl:space-x-reverse">
-              <Button variant="outline" size="sm" disabled>السابق</Button>
-              <Button variant="outline" size="sm" disabled>التالي</Button>
+              {onPageChange ? (
+                <>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    disabled={!hasPreviousPage || currentPage <= 1}
+                    onClick={() => onPageChange(currentPage - 1)}
+                  >
+                    السابق
+                  </Button>
+                  <span className="text-sm text-muted-foreground px-2">
+                    صفحة {currentPage} من {Math.ceil((totalItems || orders.length) / pageSize)}
+                  </span>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    disabled={!hasNextPage}
+                    onClick={() => onPageChange(currentPage + 1)}
+                  >
+                    التالي
+                  </Button>
+                </>
+              ) : onLoadMore ? (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  disabled={!hasMoreOrders || loading}
+                  onClick={onLoadMore}
+                >
+                  {loading ? 'جاري التحميل...' : 'تحميل المزيد'}
+                </Button>
+              ) : (
+                <>
+                  <Button variant="outline" size="sm" disabled>السابق</Button>
+                  <Button variant="outline" size="sm" disabled>التالي</Button>
+                </>
+              )}
             </div>
           </div>
         )}

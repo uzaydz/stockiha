@@ -80,9 +80,26 @@ export default async function handler(req, res) {
   try {
     const { pixel_id, access_token, payload } = req.body;
 
-    if (!pixel_id || !access_token || !payload) {
+    // التحقق من المعاملات المطلوبة
+    if (!pixel_id) {
       return res.status(400).json({
-        error: 'معاملات مطلوبة مفقودة: pixel_id, access_token, payload'
+        error: 'معامل مطلوب مفقود: pixel_id'
+      });
+    }
+
+    if (!access_token) {
+      console.log('⚠️ Access token مفقود - سيتم تخطي إرسال Facebook Conversion API');
+      return res.status(200).json({
+        success: true,
+        message: 'تم تخطي Facebook Conversion API - access token مفقود',
+        skipped: true,
+        reason: 'missing_access_token'
+      });
+    }
+
+    if (!payload || !payload.data || !Array.isArray(payload.data)) {
+      return res.status(400).json({
+        error: 'معامل مطلوب مفقود أو غير صحيح: payload.data'
       });
     }
 
@@ -194,19 +211,60 @@ export default async function handler(req, res) {
     }
 
     // إرسال إلى Facebook Conversion API باستخدام v22.0
-    const facebookResponse = await fetch(
-      `https://graph.facebook.com/v22.0/${pixel_id}/events`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${access_token}`
-        },
-        body: JSON.stringify(improvedPayload)
-      }
-    );
+    let facebookResponse;
+    let facebookData;
+    
+    try {
+      facebookResponse = await fetch(
+        `https://graph.facebook.com/v22.0/${pixel_id}/events`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${access_token}`
+          },
+          body: JSON.stringify(improvedPayload),
+          timeout: 10000 // 10 seconds timeout
+        }
+      );
 
-    const facebookData = await facebookResponse.json();
+      // محاولة قراءة response كـ JSON
+      const responseText = await facebookResponse.text();
+      
+      if (responseText) {
+        try {
+          facebookData = JSON.parse(responseText);
+        } catch (parseError) {
+          console.error('❌ خطأ في parsing JSON response من Facebook:', {
+            responseText: responseText.substring(0, 500),
+            status: facebookResponse.status,
+            parseError: parseError.message
+          });
+          
+          return res.status(500).json({
+            error: 'خطأ في parsing response من Facebook',
+            details: 'Invalid JSON response',
+            status: facebookResponse.status,
+            response_preview: responseText.substring(0, 200)
+          });
+        }
+      } else {
+        facebookData = {};
+      }
+
+    } catch (fetchError) {
+      console.error('❌ خطأ في الاتصال بـ Facebook API:', {
+        error: fetchError.message,
+        code: fetchError.code,
+        type: fetchError.name
+      });
+      
+      return res.status(500).json({
+        error: 'فشل في الاتصال بـ Facebook API',
+        details: fetchError.message,
+        type: 'network_error'
+      });
+    }
 
     if (facebookResponse.ok) {
       console.log('✅ تم إرسال الحدث إلى Facebook بنجاح:', {
@@ -275,7 +333,11 @@ export default async function handler(req, res) {
     }
 
   } catch (error) {
-    console.error('❌ خطأ في Facebook Conversion API endpoint:', error);
+    console.error('❌ خطأ في Facebook Conversion API endpoint:', {
+      message: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
     return res.status(500).json({
       error: 'خطأ داخلي في الخادم',
       details: error.message

@@ -4,6 +4,7 @@ import { Card, CardContent } from './card';
 import { Button } from './button';
 import { Download, Printer, QrCode, ZoomIn, ZoomOut } from 'lucide-react';
 import { getBarcodeImageUrl, getQRCodeUrl } from '@/lib/barcode-utils';
+import { createCleanPrintWindow } from '@/utils/printUtils';
 
 export interface BarcodeDisplayProps {
   value: string;
@@ -134,131 +135,77 @@ const BarcodeDisplay: React.FC<BarcodeDisplayProps> = (props) => {
       : (document.querySelector(`[data-barcode-value="${value}"] canvas`) as HTMLCanvasElement)?.toDataURL('image/png');
     
     if (barcodeImg) {
-      const printWindow = window.open('', '_blank');
-      if (printWindow) {
-        let printWidth, printHeight;
+      let printWidth, printHeight;
+      
+      // تحديد أبعاد الطباعة بناءً على الحجم المحدد
+      switch (printSize) {
+        case 'small':
+          printWidth = '40mm';
+          printHeight = '25mm';
+          break;
+        case 'large':
+          printWidth = '90mm';
+          printHeight = '50mm';
+          break;
+        default: // medium
+          printWidth = '60mm';
+          printHeight = '35mm';
+          break;
+      }
+      
+      const printContent = `
+        <div style="
+          margin: 5px auto;
+          max-width: 100%;
+          text-align: center;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+        ">
+          ${title ? `<div style="margin-bottom: 3px; font-weight: bold; font-size: 8px;">${title}</div>` : ''}
+          <div style="
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0 auto;
+          ">
+            <img src="${barcodeImg}" alt="باركود ${value}" style="
+              max-width: 100%;
+              height: auto;
+              object-fit: contain;
+              width: auto !important;
+              max-height: ${printSize === 'small' ? '15mm' : printSize === 'large' ? '35mm' : '25mm'};
+              display: inline-block !important;
+            " />
+          </div>
+          ${includeText ? `<div style="margin-top: 3px; font-size: 10px; font-family: monospace;">${value}</div>` : ''}
+        </div>
         
-        // تحديد أبعاد الطباعة بناءً على الحجم المحدد
-        switch (printSize) {
-          case 'small':
-            printWidth = '40mm';
-            printHeight = '25mm';
-            break;
-          case 'large':
-            printWidth = '90mm';
-            printHeight = '50mm';
-            break;
-          default: // medium
-            printWidth = '60mm';
-            printHeight = '35mm';
-            break;
-        }
-        
-        const printDocument = printWindow.document;
-        printDocument.write(`
-          <html>
-            <head>
-              <title>طباعة باركود: ${value}</title>
-              <style>
-                body {
-                  margin: 0;
-                  padding: 5px;
-                  text-align: center;
-                  font-family: Arial, sans-serif;
-                }
-                img {
-                  max-width: 100%;
-                  height: auto;
-                  /* ضمان عدم تمدد صورة الباركود */
-                  object-fit: contain;
-                  width: auto !important;
-                  max-height: ${printSize === 'small' ? '15mm' : printSize === 'large' ? '35mm' : '25mm'};
-                  display: inline-block !important;
-                }
-                .barcode-container {
-                  margin: 5px auto;
-                  max-width: 100%;
-                  text-align: center;
-                  /* إضافة تحكم أفضل بأبعاد حاوية الباركود */
-                  display: flex;
-                  flex-direction: column;
-                  align-items: center;
-                  justify-content: center;
-                }
-                .value {
-                  margin-top: 3px;
-                  font-size: 10px;
-                  font-family: monospace;
-                }
-                .title {
-                  margin-bottom: 3px;
-                  font-weight: bold;
-                  font-size: 8px;
-                }
-                @media print {
-                  .no-print {
-                    display: none;
-                  }
-                  @page {
-                    size: ${printWidth} ${printHeight};
-                    margin: 0;
-                  }
-                  body {
-                    margin: 0;
-                    padding: 1mm;
-                  }
-                  /* تحسين ضبط تخطيط الطباعة */
-                  .barcode-container {
-                    page-break-inside: avoid;
-                    width: 100%;
-                    height: 100%;
-                    transform: scale(1);
-                  }
-                  /* ضمان ظهور الباركود بشكل صحيح */
-                  .barcode-image-wrapper {
-                    width: 100%;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    margin: 0 auto;
-                  }
-                }
-              </style>
-            </head>
-            <body>
-              <div class="barcode-container">
-                ${title ? `<div class="title">${title}</div>` : ''}
-                <div class="barcode-image-wrapper">
-                  <img src="${barcodeImg}" alt="باركود ${value}" />
-                </div>
-                ${includeText ? `<div class="value">${value}</div>` : ''}
-              </div>
-              <div class="no-print">
-                <button onclick="window.print()">طباعة</button>
-                <button onclick="window.close()">إغلاق</button>
-              </div>
-              <script>
-                // التأكد من تحميل الصورة قبل الطباعة
-                window.onload = function() {
-                  const img = document.querySelector('img');
-                  if (img.complete) {
-                    // اضبط التأخير للتأكد من أن الباركود جاهز للطباعة
-                    setTimeout(() => {
-                      window.focus();
-                    }, 500);
-                  } else {
-                    img.onload = function() {
-                      setTimeout(() => {
-                        window.focus();
-                      }, 500);
-                    };
-                  }
-                };
-              </script>
-            </body>
-          </html>
-        `);
-        printDocument.close();
+        <style>
+          @media print {
+            @page {
+              size: ${printWidth} ${printHeight};
+              margin: 0;
+            }
+            body {
+              margin: 0;
+              padding: 1mm;
+              text-align: center;
+              font-family: Arial, sans-serif;
+              -webkit-print-color-adjust: exact;
+              color-adjust: exact;
+            }
+          }
+        </style>
+      `;
+      
+      // استخدام الطباعة المحسّنة
+      const printWindow = createCleanPrintWindow(printContent, `طباعة باركود: ${value}`);
+      
+      if (!printWindow) {
+        alert('تم منع فتح نافذة الطباعة من قبل المتصفح');
       }
     }
   };

@@ -1,0 +1,292 @@
+L'URL de base d'une API
+URL DE BASE
+
+Testez l'en-tête de votre clé API
+GET
+
+Ajouter des Colis
+POST
+
+Body raw (json)
+{
+    "Colis" : [{   // Premier Colis
+        "Tracking" : "VotreTracking", 
+        "TypeLivraison" : "0", // Domicile : 0 & Stopdesk : 1
+        "TypeColis" : "0", // Echange : 1 
+         "Confrimee" : "", // 1 pour les colis Confirmer directement en pret a expedier 
+        "Client" : "Mohamed",
+        "MobileA" : "0990909090",
+        "MobileB" : "0880808080",
+        "Adresse" : "Rue 39",
+        "IDWilaya" : "31",
+        "Commune" : "Maraval",
+        "Total" : "1000",
+        "Note" : "",
+        "TProduit" :  "Article1",
+        "id_Externe" : "01" ,  // Votre ID ou Tracking 
+        "Source" : "" 
+        },
+        {  // Deuxième Colis
+        "Tracking" : "VotreTracking", 
+        "TypeLivraison" : "0", 
+        "TypeColis" : "0", 
+        "Confrimee" : "",
+        "Client" : "Mohamed",
+        "MobileA" : "0990909090",
+        "MobileB" : "0880808080",
+        "Adresse" : "Rue 39",
+        "IDWilaya" : "31",
+        "Commune" : "Maraval",
+        "Total" : "1000",
+        "Note" : "",
+        "TProduit" :  "Article1",
+        "id_Externe" : "02" , 
+        "Source" : "" 
+        }
+        ]
+}
+Lire liste Colis [ Tracking ]
+POST
+
+Body raw (json)
+{
+    "Colis" : [
+     { "Tracking" : "AAA001" },
+     { "Tracking" : "AAA002" }
+      ]
+}
+Changement situation en pret a expedier
+POST
+
+Body raw (json)
+{
+    "Colis" : [
+     { "Tracking" : "AAA001" },
+     { "Tracking" : "AAA002" }
+      ]
+}
+Tarification 
+POST
+
+Récupération des derniers colis mis à jour
+Ce endpoint permet de récupérer les derniers colis qui ont été mis à jour.
+GET
+
+
+
+نقطة النهاية (Endpoint):
+يتم إرسال طلب POST إلى العنوان التالي: https://procolis.com/api_v1/tarification
+الترويسات (Headers) المطلوبة:
+token: مفتاح التوثيق الخاص بك من ZR Express.
+key: المفتاح السري الخاص بك من ZR Express.
+Content-Type: application/json
+جسم الطلب (Request Body):
+للحصول على جميع أسعار التوصيل المتاحة، يبدو أن الكود في ProcolisProviderIntegration.php يرسل طلب POST مع جسم فارغ أو ربما كائن JSON فارغ مثل {}.
+الواجهة البرمجية (API) تُرجع قائمة كاملة بالأسعار.
+إذا كنت تريد سعرًا لولاية وجهة محددة (to_wilaya_id), فإن الكود الحالي في CourierDZ يقوم بتصفية هذه القائمة الكاملة بعد استلامها من الواجهة البرمجية. هذا يعني أن الواجهة البرمجية نفسها قد لا تدعم التصفية المباشرة حسب ولاية الوجهة في الطلب الأولي لجلب الأسعار (ستحتاج إلى مراجعة وثائقهم الرسمية للتأكد من ذلك، إذا أمكنك الوصول إليها).
+الاستجابة المتوقعة (Response):
+تكون الاستجابة عبارة عن مصفوفة JSON (JSON array).
+كل عنصر في هذه المصفوفة يمثل عادةً معلومات التسعير لولاية معينة أو منطقة معينة. بناءً على الكود، كل عنصر يحتوي على الأقل على IDWilaya وحقول أخرى متعلقة بالسعر.
+مثال تقريبي لشكل الاستجابة (بناءً على كيفية معالجة الكود لها):
+json
+CopyInsert
+[
+    {
+        "IDWilaya": 1,
+        "NomWilaya": "Adrar", // اسم الولاية (مثال، قد لا يكون هذا الحقل موجودًا بنفس الاسم)
+        "Price_Desk": 500,    // سعر التوصيل للمكتب (مثال)
+        "Price_Home": 700,    // سعر التوصيل للمنزل (مثال)
+        // ... حقول أخرى متعلقة بالأسعار والشروط ...
+    },
+    {
+        "IDWilaya": 16,
+        "NomWilaya": "Alger",
+        "Price_Desk": 400,
+        "Price_Home": 600,
+        // ...
+    }
+    // ... وهكذا لباقي الولايات ...
+]
+كيف تطبق هذا في موقع React الخاص بك:
+
+الواجهة الخلفية (Backend) - ضرورية هنا:
+سيقوم تطبيق React الخاص بك باستدعاء نقطة نهاية في الواجهة الخلفية التي تقوم أنت ببنائها (باستخدام Node.js/Express، Python، PHP، إلخ).
+ستقوم واجهتك الخلفية بتنفيذ الخطوات 1-3 المذكورة أعلاه: إرسال طلب POST إلى https://procolis.com/api_v1/tarification مع الترويسات الصحيحة وجسم الطلب المناسب.
+معالجة الاستجابة في الواجهة الخلفية:
+عندما تتلقى واجهتك الخلفية قائمة الأسعار الكاملة من ZR Express:
+الخيار أ (مفضل للطلبات المحددة): إذا كان المستخدم في تطبيق React قد حدد ولاية وجهة، يمكن لواجهتك الخلفية تصفية القائمة وإرجاع السعر الخاص بتلك الولاية فقط إلى تطبيق React. هذا يقلل من كمية البيانات المرسلة إلى العميل.
+الخيار ب (إذا كنت بحاجة لعرض جميع الأسعار): يمكنك إرسال القائمة الكاملة للأسعار كما هي إلى تطبيق React، ويقوم React بعرضها أو تصفيتها حسب الحاجة.
+العرض في React:
+يستقبل تطبيق React بيانات الأسعار من واجهتك الخلفية ويعرضها للمستخدم.
+مثال مبسط لتدفق البيانات:
+
+React App: المستخدم يطلب رؤية أسعار التوصيل (ربما لولاية معينة).
+javascript
+CopyInsert
+// في مكون React
+async function fetchShippingRates(destinationWilayaId) {
+  try {
+    // استدعاء الواجهة الخلفية الخاصة بك
+    const response = await fetch(`/api/shipping-rates?to_wilaya=${destinationWilayaId}`); // مثال
+    const ratesData = await response.json();
+    // استخدام ratesData لعرض الأسعار
+    console.log(ratesData);
+  } catch (error) {
+    console.error("Failed to fetch shipping rates:", error);
+  }
+}
+Your Backend (e.g., Node.js/Express):
+javascript
+CopyInsert
+// في سيرفر Express.js
+app.get('/api/shipping-rates', async (req, res) => {
+  const { to_wilaya } = req.query; // معرف الولاية من طلب React
+
+  try {
+    const zrExpressToken = 'YOUR_ZR_EXPRESS_TOKEN';
+    const zrExpressKey = 'YOUR_ZR_EXPRESS_KEY';
+
+    const apiResponse = await fetch('https://procolis.com/api_v1/tarification', {
+      method: 'POST',
+      headers: {
+        'token': zrExpressToken,
+        'key': zrExpressKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}), // إرسال جسم فارغ أو {}
+    });
+
+    if (!apiResponse.ok) {
+      throw new Error(`ZR Express API error: ${apiResponse.statusText}`);
+    }
+
+    const allRates = await apiResponse.json(); // قائمة جميع الأسعار
+
+    if (to_wilaya) {
+      const specificRate = allRates.find(rate => rate.IDWilaya == parseInt(to_wilaya));
+      if (specificRate) {
+        res.json(specificRate);
+      } else {
+        res.status(404).json({ message: 'Rates not found for the specified wilaya.' });
+      }
+    } else {
+      res.json(allRates); // أو أرسل جميع الأسعار إذا لم يتم تحديد ولاية
+    }
+
+  } catch (error) {
+    console.error('Error fetching from ZR Express:', error);
+    res.status(500).json({ message: 'Failed to retrieve shipping rates.' });
+  }
+});
+تذكر أنك ستحتاج إلى token و key صالحين من ZR Express لاستخدام هذه الواجهة البرمجية. الهيكل الدقيق للاستجابة (أسماء الحقول مثل Price_Desk, Price_Home) قد يختلف، وستعرفه بدقة عند اختبار الواجهة البرمجية أو إذا تمكنت من الوصول إلى وثائقهم.
+
+
+رابط وثائق API لـ ZR Express هو: https://zrexpress.com/ZREXPRESS_WEB/FR/Developpement.awp
+
+كيف ستساعدك هذه الوثائق في موقع React الخاص بك:
+
+فهم نقاط النهاية (Endpoints): ستوضح الوثائق الـ URLs المحددة التي تحتاج إلى إرسال طلبات إليها لإجراء عمليات مثل:
+إنشاء طلب شحن جديد.
+تتبع حالة شحنة موجودة.
+الحصول على أسعار الشحن (إذا كانت مدعومة).
+التحقق من صحة بيانات الاعتماد.
+معرفة هيكل الطلبات: ستشرح الوثائق:
+نوع طلب HTTP الذي يجب استخدامه (GET, POST, etc.).
+كيفية تمرير بيانات الاعتماد الخاصة بك (مثل الـ token والـ key التي رأيناها في كود PHP).
+تنسيق البيانات التي يجب إرسالها في جسم الطلب ( غالبًا ما تكون JSON)، بما في ذلك الحقول المطلوبة والاختيارية لتفاصيل الشحنة.
+فهم هيكل الاستجابات: ستوضح الوثائق:
+تنسيق البيانات التي سترسلها ZR Express كرد (غالبًا JSON).
+كيفية تفسير رموز الحالة المختلفة (مثل 200 للنجاح، 401 لخطأ في المصادقة، إلخ).
+معاني رسائل الخطأ المختلفة أو بيانات النجاح.
+الخطوات التالية المقترحة لموقع React الخاص بك:
+
+مراجعة وثائق ZR Express API: قم بزيارة الرابط أعلاه واقرأ الوثائق بعناية.
+تصميم الواجهة الخلفية (Backend):
+أنصحك بشدة بإنشاء واجهة خلفية (API خاصة بك) تتوسط بين تطبيق React الخاص بك وواجهة ZR Express. هذا يحافظ على أمان مفاتيح API الخاصة بك ويسمح لك بإضافة منطق خاص بك.
+يمكنك بناء هذه الواجهة الخلفية باستخدام تقنيات مثل Node.js/Express (شائع مع React)، Python/Flask/Django، أو حتى PHP (حيث يمكنك إعادة استخدام أجزاء من منطق CourierDZ إذا أردت).
+ستقوم واجهتك الخلفية باستقبال طلبات من تطبيق React الخاص بك، ثم تقوم بتكوين وإرسال الطلبات المناسبة إلى ZR Express API، ثم تعيد معالجة الردود وإرسالها مرة أخرى إلى تطبيق React.
+التفاعل من React:
+سيقوم تطبيق React الخاص بك بإجراء طلبات (مثل fetch أو باستخدام مكتبة مثل axios) إلى نقاط النهاية في واجهتك الخلفية التي قمت بإنشائها.
+هل ترغب في أن أحاول الوصول إلى محتوى صفحة وثائق ZR Express API لك وألخص أهم النقاط إذا كانت متاحة كنص؟ هذا قد يساعدك في الحصول على فكرة أولية قبل الغوص في التفاصيل.
+
+Cascade error
+Failed to fetch document content at https://zrexpress.com/ZREXPRESS_WEB/FR/Developpement.awp: Forbidden: Forbidden
+للأسف، واجهت خطأ "Forbidden (403)" عند محاولة الوصول إلى محتوى صفحة وثائق ZR Express API مباشرة. هذا يعني أن الخادم الخاص بـ ZR Express يمنع الوصول الآلي إلى تلك الصفحة، أو قد يتطلب الأمر معلومات تسجيل دخول أو ترويسات (headers) معينة لا يمكنني توفيرها.
+
+لا تقلق! لا يزال بإمكاننا استخلاص الكثير من المعلومات المفيدة حول كيفية عمل واجهة ZR Express البرمجية من خلال تحليلنا السابق لملف ProcolisProviderIntegration.php ضمن مكتبة CourierDZ. هذا الملف يحتوي على تطبيق عملي للتكامل معهم.
+
+ما يمكننا استنتاجه من كود ProcolisProviderIntegration.php (والذي ينطبق على ZR Express):
+
+نقاط النهاية (Endpoints) الأساسية (قاعدة URL: https://procolis.com/api_v1/):
+لاختبار بيانات الاعتماد: GET /token
+للحصول على أسعار الشحن: POST /tarification
+لإنشاء طلبية شحن جديدة: POST /add_colis
+للحصول على تفاصيل طلبية (تتبع): POST /lire
+المصادقة (Authentication):
+تتم عبر إرسال token و key كترويسات (headers) في كل طلب.
+CopyInsert
+headers: {
+    'token': 'YOUR_ZR_EXPRESS_TOKEN',
+    'key': 'YOUR_ZR_EXPRESS_KEY',
+    'Content-Type': 'application/json' // مهم للطلبات التي ترسل بيانات JSON
+}
+تنسيق الطلبات الشائعة (JSON):
+إنشاء طلبية (/add_colis):
+البيانات ترسل ككائن JSON داخل مصفوفة Colis. مثال على كائن الطلبية الواحد (من $getCreateOrderValidationRules):
+json
+CopyInsert
+{
+    "Colis": [
+        {
+            "Tracking": "رقم_تتبع_اختياري_من_عندك", // nullable|string
+            "TypeLivraison": "0", // Domicile : 0 & Stopdesk : 1
+            "TypeColis": "0",     // Echange : 1 (للاستبدال)
+            "Confrimee": "1",     // 1 للطلبيات المؤكدة جاهزة للشحن
+            "Client": "اسم العميل",
+            "MobileA": "رقم هاتف العميل",
+            "MobileB": "رقم هاتف إضافي (اختياري)",
+            "Adresse": "عنوان العميل",
+            "IDWilaya": 16, // رقم الولاية (مثال: 16 للجزائر العاصمة)
+            "Commune": "اسم البلدية",
+            "Total": 1500, // مبلغ الدفع عند الاستلام
+            "Note": "ملاحظات (اختياري)",
+            "TProduit": "وصف المنتج/الطرود",
+            "id_Externe": "معرف خارجي لك (اختياري)",
+            "Source": "مصدر الطلبية (اختياري)"
+        }
+    ]
+}
+الحصول على تفاصيل طلبية (/lire):
+json
+CopyInsert
+{
+    "Colis": [
+        {
+            "Tracking": "رقم_التتبع_المراد_الاستعلام_عنه"
+        }
+    ]
+}
+تنسيق الاستجابات المتوقعة (JSON):
+عند إنشاء طلبية ناجح: ستتلقى استجابة تحتوي على تفاصيل الطلبية التي تم إنشاؤها، بما في ذلك Tracking (رقم التتبع من ZR Express) و MessageRetour بقيمة "Good".
+json
+CopyInsert
+{
+    "Colis": [
+        {
+            "Tracking": "ZR123456789DZ", // مثال على رقم تتبع من ZR Express
+            "MessageRetour": "Good",
+            // ... حقول أخرى
+        }
+    ]
+}
+عند خطأ في إنشاء طلبية (مثل تتبع مكرر): MessageRetour سيكون له قيمة مثل "Double Tracking".
+عند الحصول على تفاصيل طلبية ناجح: ستتلقى تفاصيل الطلبية.
+عند عدم العثور على رقم تتبع: ستكون استجابة الواجهة البرمجية هي النص الحرفي "null" (بدون علامات اقتباس JSON حوله). الكود الذي تتعامل معه يجب أن يتحقق من هذه الحالة.
+نصائح لتطبيق React الخاص بك:
+
+استخدم واجهة خلفية (Backend): كما ذكرت سابقًا، من الأفضل أن يقوم تطبيق React الخاص بك بالاتصال بواجهة خلفية تقوم أنت ببنائها (باستخدام Node.js/Express، Python، PHP، إلخ). هذه الواجهة الخلفية هي التي ستتصل بأمان بـ ZR Express API باستخدام مفاتيحك.
+ستحتاج إلى الحصول على token و key من ZR Express لتتمكن من استخدام واجهتهم البرمجية.
+أعلم أن عدم القدرة على الوصول إلى الوثائق مباشرة أمر محبط، ولكن المعلومات المستخلصة من كود PHP توفر لك أساسًا قويًا جدًا للبدء. أنصحك بمحاولة زيارة صفحة الوثائق يدويًا من متصفحك، فقد تتمكن من رؤيتها.
+
+هل ترغب في توضيح أي من هذه النقاط أو لديك أسئلة أخرى حول كيفية ربط هذا بـ React؟
+

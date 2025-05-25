@@ -48,6 +48,7 @@ const OrderActionsDropdown = ({
   const [isUpdating, setIsUpdating] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [isSendingToYalidine, setIsSendingToYalidine] = useState(false);
+  const [isSendingToZRExpress, setIsSendingToZRExpress] = useState(false);
 
   const handleSendToYalidine = async () => {
     if (!currentOrganization || !order.id) {
@@ -120,6 +121,77 @@ const OrderActionsDropdown = ({
     }
   };
 
+  const handleSendToZRExpress = async () => {
+    if (!currentOrganization || !order.id) {
+      toast({
+        title: "خطأ",
+        description: "لم يتم العثور على معلومات المؤسسة أو معرّف الطلب.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      toast({
+        title: "خطأ في الإعداد",
+        description: "بيانات Supabase (URL أو Anon Key) غير مهيأة في متغيرات البيئة.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const functionUrl = `${supabaseUrl}/functions/v1/send-order-to-zrexpress`;
+
+    setIsSendingToZRExpress(true);
+    toast({ title: "جاري إرسال الطلب إلى ZR Express...", description: `الطلب رقم ${order.id}` });
+
+    try {
+      const response = await fetch(functionUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": supabaseAnonKey,
+          "Authorization": `Bearer ${supabaseAnonKey}`
+        },
+        body: JSON.stringify({ orderId: order.id }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        const errorData = result;
+        const errorMessage = errorData?.message || errorData?.error?.message || "فشل إرسال الطلب إلى ZR Express.";
+        throw new Error(errorMessage);
+      }
+      
+      if(!result.success) {
+         throw new Error(result.message || "فشل إرسال الطلب إلى ZR Express (حسب استجابة الدالة).");
+      }
+
+      toast({
+        title: "تم الإرسال بنجاح!",
+        description: `تم إرسال الطلب ${order.id} إلى ZR Express. رقم التتبع: ${result.tracking_id}`,
+        variant: "default",
+        className: "bg-blue-100 border-blue-400 text-blue-700",
+      });
+      if (onUpdateStatus) {
+        onUpdateStatus(order.id, "processing");
+      }
+
+    } catch (error: any) {
+      console.error("Error sending to ZR Express:", error);
+      toast({
+        title: "فشل إرسال الطلب",
+        description: error.message || "حدث خطأ غير متوقع.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingToZRExpress(false);
+    }
+  };
+
   const handleStatusUpdate = async (newStatus: string) => {
     if (newStatus === "cancelled") {
       setShowCancelConfirm(true);
@@ -174,6 +246,7 @@ const OrderActionsDropdown = ({
     download_invoice: { id: "download_invoice", label: "تنزيل الفاتورة", icon: DownloadIcon, action: handleDownloadInvoice, className: "hover:bg-slate-50" },
     track_shipment: { id: "track_shipment", label: "تتبع الشحنة", icon: ClipboardListIcon, action: handleTrackShipment, className: "hover:bg-slate-50" },
     send_to_yalidine: { id: "send_to_yalidine", label: "إرسال إلى Yalidine", icon: SendIcon, action: handleSendToYalidine, className: "text-green-700 hover:bg-green-50", disabled: isSendingToYalidine },
+    send_to_zrexpress: { id: "send_to_zrexpress", label: "إرسال إلى ZR Express", icon: TruckIcon, action: handleSendToZRExpress, className: "text-blue-700 hover:bg-blue-50", disabled: isSendingToZRExpress },
     cancel: { id: "cancel", label: "إلغاء الطلب", icon: X, action: () => setShowCancelConfirm(true), className: "text-rose-600 hover:bg-rose-50", separator: true },
   };
 
@@ -191,12 +264,14 @@ const OrderActionsDropdown = ({
       actionKeys.push("cancel");
     }
 
-    // Safely check for yalidine_tracking_id, assuming it might be missing from the Order type for now
+    // التحقق من حالة إرسال الشحنات
     const hasYalidineTracking = order['yalidine_tracking_id'] !== undefined && order['yalidine_tracking_id'] !== null && order['yalidine_tracking_id'] !== '';
-    const canSendToYalidine = (order.status === 'processing' || order.status === 'pending') && !hasYalidineTracking;
+    const hasZRExpressTracking = order['zrexpress_tracking_id'] !== undefined && order['zrexpress_tracking_id'] !== null && order['zrexpress_tracking_id'] !== '';
+    const canSendToShipping = (order.status === 'processing' || order.status === 'pending') && !hasYalidineTracking && !hasZRExpressTracking;
     
-    if (hasUpdatePermission && canSendToYalidine) {
+    if (hasUpdatePermission && canSendToShipping) {
       actionKeys.unshift("send_to_yalidine");
+      actionKeys.unshift("send_to_zrexpress");
     }
     return actionKeys.map(key => actionsMap[key]).filter(Boolean);
   };
@@ -211,7 +286,7 @@ const OrderActionsDropdown = ({
             <TooltipTrigger asChild>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-slate-100">
-                  {isUpdating || isSendingToYalidine ? (
+                  {isUpdating || isSendingToYalidine || isSendingToZRExpress ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <MoreHorizontal className="h-4 w-4" />
@@ -237,12 +312,12 @@ const OrderActionsDropdown = ({
                 {actionItem.separator && index > 0 && <DropdownMenuSeparator className="my-1" />}
                 <DropdownMenuItem
                   onClick={actionItem.action}
-                  disabled={actionItem.disabled || isUpdating || (actionItem.id === 'send_to_yalidine' && isSendingToYalidine)}
+                  disabled={actionItem.disabled || isUpdating || (actionItem.id === 'send_to_yalidine' && isSendingToYalidine) || (actionItem.id === 'send_to_zrexpress' && isSendingToZRExpress)}
                   className={`flex items-center gap-2 px-2 py-1.5 text-sm rounded-md cursor-pointer transition-colors ${actionItem.className || ''} ${
-                    (actionItem.disabled || isUpdating || (actionItem.id === 'send_to_yalidine' && isSendingToYalidine)) ? "opacity-50 cursor-not-allowed" : ""
+                    (actionItem.disabled || isUpdating || (actionItem.id === 'send_to_yalidine' && isSendingToYalidine) || (actionItem.id === 'send_to_zrexpress' && isSendingToZRExpress)) ? "opacity-50 cursor-not-allowed" : ""
                   }`}
                 >
-                  { (actionItem.id === "send_to_yalidine" && isSendingToYalidine) || (isUpdating && (actionItem.id === 'process' || actionItem.id === 'ship' || actionItem.id === 'deliver' || actionItem.id === 'cancel')) ? (
+                  { ((actionItem.id === "send_to_yalidine" && isSendingToYalidine) || (actionItem.id === "send_to_zrexpress" && isSendingToZRExpress) || (isUpdating && (actionItem.id === 'process' || actionItem.id === 'ship' || actionItem.id === 'deliver' || actionItem.id === 'cancel'))) ? (
                     <Loader2 className="ml-2 h-4 w-4 animate-spin" />
                   ) : (
                     actionItem.icon && <actionItem.icon className="ml-2 h-4 w-4" />

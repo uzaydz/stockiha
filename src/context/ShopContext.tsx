@@ -71,7 +71,7 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const tenant = useTenant();
 
-  // وظيفة محسّنة لجلب المنتجات باستخدام التخزين المؤقت
+  // وظيفة محسنة لجلب المنتجات باستخدام التخزين المؤقت
   const fetchProducts = useCallback(async (organizationId: string) => {
     // Skip if already loading
     if (loadingProducts.current) {
@@ -128,7 +128,7 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, []);
 
-  // دالة محسنة لجلب الطلبات
+  // وظيفة محسنة لجلب الطلبات
   const fetchOrders = useCallback(async (organizationId: string) => {
     
     
@@ -177,6 +177,74 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, []);
 
+  // وظيفة لجلب الخدمات
+  const fetchServices = useCallback(async (organizationId: string) => {
+    console.log('🔄 بدء جلب الخدمات للمنظمة:', organizationId);
+    
+    // إنشاء وقت انتهاء مهلة للاستعلام
+    const timeoutPromise = new Promise<Service[]>((_, reject) => {
+      setTimeout(() => {
+        console.error('❌ انتهت مهلة جلب الخدمات');
+        reject(new Error('انتهت مهلة جلب الخدمات'));
+      }, 30000);
+    });
+    
+    try {
+      // Use cache system to prevent duplicate requests
+      const servicesPromise = withCache<Service[]>(
+        `shop_services:${organizationId}`,
+        async () => {
+          console.log('📡 جلب الخدمات من قاعدة البيانات للمنظمة:', organizationId);
+          
+          // أولاً، دعنا نتحقق من العدد الكلي للخدمات في هذه المنظمة
+          const { data: allServicesData, error: allServicesError } = await supabase
+            .from('services')
+            .select('*')
+            .eq('organization_id', organizationId);
+            
+          console.log('📊 العدد الكلي للخدمات في المنظمة:', allServicesData?.length || 0);
+          
+          if (allServicesError) {
+            console.error('❌ خطأ في جلب كافة الخدمات:', allServicesError);
+          }
+          
+          // ثم نجلب الخدمات المتاحة فقط
+          const { data: servicesData, error: servicesError } = await supabase
+            .from('services')
+            .select('*')
+            .eq('organization_id', organizationId)
+            .eq('is_available', true);
+            
+          if (servicesError) {
+            console.error('❌ Error fetching services:', servicesError);
+            return [];
+          }
+          
+          console.log('✅ تم جلب الخدمات المتاحة بنجاح:', servicesData.length);
+          console.log('📋 بيانات الخدمات:', servicesData);
+          
+          // تحويل البيانات من Supabase إلى تنسيق التطبيق
+          const mappedServices = servicesData.map(service => {
+            console.log('🔄 تحويل خدمة:', service.name);
+            return mapSupabaseServiceToService(service);
+          });
+          
+          console.log('🎯 الخدمات المحولة النهائية:', mappedServices);
+          
+          return mappedServices;
+        },
+        SHORT_CACHE_TTL, // تخزين مؤقت لمدة 5 دقائق
+        true // استخدام ذاكرة التطبيق
+      );
+      
+      // استخدام Race بين الاستعلام والمهلة الزمنية
+      return await Promise.race([servicesPromise, timeoutPromise]);
+    } catch (error) {
+      console.error('❌ Error in fetchServices:', error);
+      return [];
+    }
+  }, []);
+
   // وظيفة لجلب البيانات بشكل متوازي
   const fetchData = useCallback(async () => {
     try {
@@ -215,10 +283,11 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.error('Error parsing stored users:', error);
       }
       
-      // تنفيذ عمليات الجلب بشكل متوازي لتسريع التحميل
-      const [fetchedProducts, fetchedOrders] = await Promise.allSettled([
+      // تنفيذ عمليات الجلب بشكل متوازي لتسريع التحميل - إضافة جلب الخدمات
+      const [fetchedProducts, fetchedOrders, fetchedServices] = await Promise.allSettled([
         fetchProducts(organizationId),
-        fetchOrders(organizationId)
+        fetchOrders(organizationId),
+        fetchServices(organizationId)
       ]);
       
       // معالجة نتائج المنتجات
@@ -235,6 +304,14 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         
       } else {
         console.error('فشل في تحميل الطلبات:', fetchedOrders.reason);
+      }
+      
+      // معالجة نتائج الخدمات
+      if (fetchedServices.status === 'fulfilled') {
+        setServices(fetchedServices.value);
+        console.log('تم تحديث حالة الخدمات بنجاح:', fetchedServices.value.length);
+      } else {
+        console.error('فشل في تحميل الخدمات:', fetchedServices.reason);
       }
       
       // جلب المستخدمين بشكل منفصل (لا نستخدم Promise.allSettled لأننا نحتاج إلى معالجة الخطأ مباشرة)
@@ -288,7 +365,7 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } finally {
       setIsLoading(false);
     }
-  }, [currentUser, fetchProducts, fetchOrders]);
+  }, [currentUser, fetchProducts, fetchOrders, fetchServices]);
 
   // Use useEffect with proper dependencies
   useEffect(() => {

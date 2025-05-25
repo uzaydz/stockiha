@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Product, ProductCategory } from '@/types';
-import { Search, Filter, ShoppingCart, Tag, Package, LayoutGrid, ListFilter, Percent, Users, Plus, ArrowUpDown, Layers, Grid3X3, Grid2X2, List } from 'lucide-react';
+import { Search, Filter, ShoppingCart, Tag, Package, LayoutGrid, ListFilter, Percent, Users, Plus, ArrowUpDown, Layers, Grid3X3, Grid2X2, List, ChevronDown } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent } from '@/components/ui/card';
@@ -12,6 +12,8 @@ import { cn } from '@/lib/utils';
 import { formatPrice } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { motion } from "framer-motion";
+import { getCategories, Category } from '@/lib/api/categories';
+import { useTenant } from '@/context/TenantContext';
 
 interface ProductCatalogProps {
   products: Product[];
@@ -25,21 +27,115 @@ export default function ProductCatalog({ products, onAddToCart }: ProductCatalog
   const [showFilters, setShowFilters] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'list' | 'compact'>('grid');
   const [sortOption, setSortOption] = useState<'name' | 'price-asc' | 'price-desc' | 'stock'>('name');
-
-  // استخراج الفئات الفريدة للمنتجات
-  const categories: string[] = ['all', ...Array.from(new Set(products.map(p => p.category)))];
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+  const [categorySearchQuery, setCategorySearchQuery] = useState('');
   
-  // أسماء الفئات بالعربية
-  const categoryNames: Record<string, string> = {
-    'all': 'الكل',
-    'consoles': 'أجهزة',
-    'accessories': 'إكسسوارات',
-    'games_physical': 'ألعاب فيزيائية',
-    'games_digital': 'ألعاب رقمية',
-    'controllers': 'وحدات تحكم',
-    'components': 'قطع غيار',
-    'merchandise': 'منتجات تذكارية'
+  const { currentOrganization } = useTenant();
+
+  // جلب الفئات من قاعدة البيانات
+  useEffect(() => {
+    const fetchCategories = async () => {
+      if (!currentOrganization?.id) return;
+      
+      setIsLoadingCategories(true);
+      try {
+        const fetchedCategories = await getCategories(currentOrganization.id);
+        setCategories(fetchedCategories);
+      } catch (error) {
+        console.error('خطأ في جلب الفئات:', error);
+        setCategories([]);
+      } finally {
+        setIsLoadingCategories(false);
+      }
+    };
+
+    fetchCategories();
+  }, [currentOrganization?.id]);
+
+  // دالة مساعدة للحصول على اسم الفئة من معرفها أو اسمها
+  const getCategoryInfo = (categoryValue: string): { id: string; name: string } => {
+    // البحث أولاً بالمعرف
+    const categoryById = categories.find(cat => cat.id === categoryValue);
+    if (categoryById) {
+      return { id: categoryById.id, name: categoryById.name };
+    }
+    
+    // البحث بالاسم
+    const categoryByName = categories.find(cat => cat.name === categoryValue);
+    if (categoryByName) {
+      return { id: categoryByName.id, name: categoryByName.name };
+    }
+    
+    // إذا لم يتم العثور على الفئة، إرجاع القيمة كما هي
+    return { id: categoryValue, name: categoryValue };
   };
+
+  // دالة مساعدة للتحقق من انتماء المنتج لفئة معينة
+  const isProductInCategory = (product: any, categoryId: string): boolean => {
+    // التحقق من category_id أولاً (الأولوية)
+    if (product.category_id === categoryId) {
+      return true;
+    }
+    
+    // التحقق من حقل category إذا كان يحتوي على معرف الفئة
+    if (product.category === categoryId) {
+      return true;
+    }
+    
+    // التحقق من حقل category إذا كان يحتوي على اسم الفئة
+    if (product.category && typeof product.category === 'string') {
+      const category = categories.find(cat => cat.name === product.category);
+      if (category && category.id === categoryId) {
+        return true;
+      }
+    }
+    
+    return false;
+  };
+
+  // عرض جميع فئات المؤسسة مع عدد المنتجات وفلترة البحث
+  const getDisplayCategories = () => {
+    // حساب عدد المنتجات لكل فئة
+    const categoriesWithCount = categories
+      .filter(cat => cat.is_active)
+      .map(cat => {
+        const productCount = products.filter(product => 
+          isProductInCategory(product, cat.id)
+        ).length;
+        
+        return {
+          id: cat.id,
+          name: cat.name,
+          icon: cat.icon,
+          productCount
+        };
+      })
+      // ترتيب الفئات: الفئات التي لها منتجات أولاً، ثم حسب عدد المنتجات
+      .sort((a, b) => {
+        if (a.productCount === 0 && b.productCount === 0) {
+          return a.name.localeCompare(b.name);
+        }
+        if (a.productCount === 0) return 1;
+        if (b.productCount === 0) return -1;
+        return b.productCount - a.productCount;
+      });
+
+    // فلترة الفئات حسب البحث
+    if (categorySearchQuery.trim()) {
+      const query = categorySearchQuery.toLowerCase();
+      return categoriesWithCount.filter(cat => 
+        cat.name.toLowerCase().includes(query)
+      );
+    }
+
+    return categoriesWithCount;
+  };
+
+  const displayCategories = getDisplayCategories();
+
+  // حساب إجمالي المنتجات
+  const totalProducts = products.length;
 
   // تصفية وفرز المنتجات
   useEffect(() => {
@@ -47,7 +143,9 @@ export default function ProductCatalog({ products, onAddToCart }: ProductCatalog
     
     // تصفية حسب الفئة
     if (selectedCategory !== 'all') {
-      filtered = filtered.filter(p => p.category === selectedCategory);
+      filtered = filtered.filter(product => 
+        isProductInCategory(product, selectedCategory)
+      );
     }
     
     // تصفية حسب البحث
@@ -78,7 +176,7 @@ export default function ProductCatalog({ products, onAddToCart }: ProductCatalog
     });
     
     setFilteredProducts(filtered);
-  }, [products, searchQuery, selectedCategory, sortOption]);
+  }, [products, searchQuery, selectedCategory, sortOption, categories]);
 
   const handleProductClick = (product: Product) => {
     if (product.stockQuantity > 0) {
@@ -235,22 +333,99 @@ export default function ProductCatalog({ products, onAddToCart }: ProductCatalog
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
           >
-            <Tabs defaultValue="all" value={selectedCategory} className="w-full" onValueChange={setSelectedCategory}>
-              <ScrollArea className="max-w-full">
-                <TabsList className="flex flex-nowrap overflow-auto bg-background/40 shadow-sm rounded-md">
-                  {categories.map(category => (
-                    <TabsTrigger
-                      key={category}
-                      value={category}
-                      className="whitespace-nowrap flex items-center gap-1"
+            {/* بحث في الفئات عندما يكون هناك أكثر من 5 فئات */}
+            {categories.length > 5 && (
+              <div className="mb-2">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder={`بحث في ${categories.length} فئة...`}
+                    className="pl-9 h-8 text-sm border-primary/20 focus:border-primary"
+                    value={categorySearchQuery}
+                    onChange={(e) => setCategorySearchQuery(e.target.value)}
+                  />
+                </div>
+                {categorySearchQuery.trim() && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {displayCategories.length} من {categories.length} فئة
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                <Tag className="h-4 w-4" />
+                <span>الفئة:</span>
+              </div>
+              
+              <Select
+                value={selectedCategory}
+                onValueChange={setSelectedCategory}
+              >
+                <SelectTrigger className="w-[220px]">
+                  <SelectValue>
+                    {selectedCategory === 'all' 
+                      ? `جميع الفئات (${totalProducts})`
+                      : `${displayCategories.find(cat => cat.id === selectedCategory)?.name || selectedCategory} (${
+                          displayCategories.find(cat => cat.id === selectedCategory)?.productCount || 0
+                        })`
+                    }
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent className="max-h-[300px]">
+                  {/* خيار "الكل" */}
+                  <SelectItem value="all" className="flex items-center justify-between font-medium">
+                    <div className="flex items-center gap-2">
+                      <Package className="h-4 w-4" />
+                      <span>جميع الفئات</span>
+                    </div>
+                    <Badge variant="default" className="text-xs">
+                      {totalProducts}
+                    </Badge>
+                  </SelectItem>
+                  
+                  <div className="border-t my-1" />
+                  
+                  {/* باقي الفئات */}
+                  {displayCategories.map(category => (
+                    <SelectItem 
+                      key={category.id} 
+                      value={category.id} 
+                      className={cn(
+                        "flex items-center justify-between",
+                        category.productCount === 0 && "opacity-60"
+                      )}
+                      disabled={category.productCount === 0}
                     >
-                      {category === 'all' ? <Package className="h-3.5 w-3.5" /> : <Tag className="h-3.5 w-3.5" />}
-                      {categoryNames[category] || category}
-                    </TabsTrigger>
+                      <div className="flex items-center gap-2">
+                        <Tag className="h-4 w-4" />
+                        <span>{category.name}</span>
+                        {category.productCount === 0 && (
+                          <span className="text-xs text-muted-foreground">(فارغة)</span>
+                        )}
+                      </div>
+                      <Badge 
+                        variant={category.productCount > 0 ? "secondary" : "outline"} 
+                        className="text-xs"
+                      >
+                        {category.productCount}
+                      </Badge>
+                    </SelectItem>
                   ))}
-                </TabsList>
-              </ScrollArea>
-            </Tabs>
+
+                  {/* إظهار رسالة إذا لم يتم العثور على فئات في البحث */}
+                  {categorySearchQuery.trim() && displayCategories.length === 0 && (
+                    <div className="text-center py-3 text-sm text-muted-foreground">
+                      <Tag className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                      <div>لم يتم العثور على فئات</div>
+                      <div className="text-xs">جرب مصطلح بحث آخر</div>
+                    </div>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
           </motion.div>
         )}
       </div>
@@ -266,7 +441,7 @@ export default function ProductCatalog({ products, onAddToCart }: ProductCatalog
         <div className="text-muted-foreground flex items-center gap-2">
           {selectedCategory !== 'all' && (
             <Badge variant="outline" className="bg-background/80 shadow-sm border-primary/20">
-              {categoryNames[selectedCategory] || selectedCategory}
+              {displayCategories.find(cat => cat.id === selectedCategory)?.name || selectedCategory}
             </Badge>
           )}
           {searchQuery && (

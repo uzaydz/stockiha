@@ -15,7 +15,7 @@ export const LazyCustomerTestimonials = lazy(() => import('./CustomerTestimonial
 export const LazyStoreAbout = lazy(() => import('./StoreAbout'));
 export const LazyCountdownOffersSection = lazy(() => import('./CountdownOffersSection'));
 export const LazyStoreContact = lazy(() => import('./StoreContact'));
-export const LazyStoreFooter = lazy(() => import('./StoreFooter'));
+export const LazyStoreFooter = lazy(() => import('./CustomizableStoreFooter'));
 export const LazyComponentPreview = lazy(() => import('./LazyComponentPreviewWrapper'));
 
 // مكون LazyLoad لتبسيط استخدام التحميل الكسول

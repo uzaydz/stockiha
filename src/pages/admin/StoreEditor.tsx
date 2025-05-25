@@ -9,7 +9,7 @@ import { useStoreComponents } from '@/hooks/useStoreComponents';
 import { DragEndEvent } from '@dnd-kit/core';
 import StoreSettings from '@/components/settings/StoreSettings';
 import { useToast } from '@/components/ui/use-toast';
-import AdminLayout from '@/components/AdminLayout';
+import Layout from '@/components/Layout';
 
 const StoreEditor = () => {
   const { currentOrganization, isOrgAdmin } = useTenant();
@@ -63,16 +63,16 @@ const StoreEditor = () => {
 
   if (isLoading) {
     return (
-      <AdminLayout title="تخصيص المتجر">
+      <Layout>
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
         </div>
-      </AdminLayout>
+      </Layout>
     );
   }
 
   return (
-    <AdminLayout title="تخصيص المتجر">
+    <Layout>
       <div className="container mx-auto px-4 py-6">
         <div className="flex justify-between items-center mb-8">
           <div>
@@ -133,7 +133,7 @@ const StoreEditor = () => {
           />
         )}
       </div>
-    </AdminLayout>
+    </Layout>
   );
 };
 

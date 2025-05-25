@@ -248,7 +248,7 @@ const ProductSizeManager = ({
                 <div className="grid grid-cols-2 gap-2 text-sm mb-3">
                   <div>
                     <span className="text-muted-foreground">السعر:</span>{' '}
-                    <span className="font-medium">{size.price || basePrice} ر.س</span>
+                                                      <span className="font-medium">{size.price || basePrice} دج</span>
                   </div>
                   <div>
                     <span className="text-muted-foreground">الكمية:</span>{' '}
