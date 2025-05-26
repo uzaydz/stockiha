@@ -351,6 +351,17 @@ export const getCategoryById = async (id: string, organizationId?: string): Prom
 
 export const createCategory = async (categoryData: Partial<Category>, organizationId: string): Promise<Category> => {
   try {
+    // التحقق من صحة organizationId
+    if (!organizationId || organizationId.trim() === '') {
+      throw new Error('معرف المؤسسة مطلوب ولا يمكن أن يكون فارغًا');
+    }
+    
+    // التحقق من أن organizationId هو UUID صالح
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(organizationId)) {
+      throw new Error('معرف المؤسسة غير صالح - يجب أن يكون UUID صحيح');
+    }
+    
     // التحقق من حالة الاتصال
     if (!isOnline()) {
       

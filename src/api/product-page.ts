@@ -110,43 +110,114 @@ export const getProductPageData = async (organizationId: string, slug: string): 
     cacheKey,
     async () => {
       try {
-        console.log('Client: Attempting to invoke function with supabase.functions.invoke for key:', cacheKey);
+        console.log('[getProductPageData] Starting request for:', { organizationId, slug, cacheKey });
+        
+        // التحقق من صحة المعاملات
+        if (!organizationId || !slug) {
+          console.error('[getProductPageData] Invalid parameters:', { organizationId, slug });
+          throw new Error('معاملات غير صحيحة: معرف المؤسسة أو slug مفقود');
+        }
+
         const { data: responseData, error: functionError } = await supabase.functions.invoke<ProductPageData>(
-          'get-product-page-data', // اسم الدالة الطرفية
+          'get-product-page-data',
           {
             body: { slug: slug, organization_id: organizationId },
           }
         );
 
-        console.log('Client: getProductPageData - Response from supabase.functions.invoke for key:', cacheKey);
-        console.log('Client: functionError:', JSON.stringify(functionError, null, 2));
-        console.log('Client: data (should be ProductPageData object):', JSON.stringify(responseData, null, 2));
+        console.log('[getProductPageData] Response received:', {
+          cacheKey,
+          hasError: !!functionError,
+          hasData: !!responseData,
+          errorDetails: functionError ? {
+            message: functionError.message,
+            status: (functionError as any)?.status,
+            code: (functionError as any)?.code
+          } : null
+        });
 
         if (functionError) {
-          console.error('خطأ في استدعاء Edge Function get-product-page-data (supabase.functions.invoke) for key:', cacheKey, functionError);
-          if ((functionError as any)?.status === 404 || functionError.message?.includes('404') || functionError.message?.includes('Product not found')) {
+          console.error('[getProductPageData] Edge Function error:', functionError);
+          
+          // معالجة أنواع مختلفة من الأخطاء
+          const errorStatus = (functionError as any)?.status;
+          const errorMessage = functionError.message || '';
+          
+          if (errorStatus === 404 || errorMessage.includes('404') || errorMessage.includes('Product not found')) {
+            console.log('[getProductPageData] Product not found (404)');
             return null; // المنتج غير موجود
           }
-          throw functionError;
+          
+          if (errorStatus === 500 || errorMessage.includes('500')) {
+            console.error('[getProductPageData] Server error (500)');
+            throw new Error('خطأ في الخادم. يرجى المحاولة مرة أخرى.');
+          }
+          
+          if (errorStatus === 403 || errorMessage.includes('403')) {
+            console.error('[getProductPageData] Access forbidden (403)');
+            throw new Error('ليس لديك صلاحية للوصول إلى هذا المنتج.');
+          }
+          
+          if (errorMessage.includes('timeout') || errorMessage.includes('network')) {
+            console.error('[getProductPageData] Network/timeout error');
+            throw new Error('انتهت مهلة الاتصال. يرجى التحقق من اتصال الإنترنت والمحاولة مرة أخرى.');
+          }
+          
+          // خطأ عام
+          throw new Error(errorMessage || 'حدث خطأ أثناء تحميل بيانات المنتج');
         }
 
-        // التحقق من أن responseData هو كائن ويحتوي على مفتاح product على الأقل
-        if (!responseData || typeof responseData !== 'object' || !('product' in responseData)) {
-          console.error('لم يتم إرجاع بيانات صالحة (ProductPageData) من Edge Function for key:', cacheKey, responseData);
-          return null;
+        // التحقق من صحة البيانات المُرجعة
+        if (!responseData || typeof responseData !== 'object') {
+          console.error('[getProductPageData] Invalid response format:', responseData);
+          throw new Error('تنسيق استجابة غير صحيح من الخادم');
         }
         
-        // إذا كان المنتج داخل responseData هو null، فهذا يعني أن المنتج المحدد بالـ slug لم يتم العثور عليه
+        if (!('product' in responseData)) {
+          console.error('[getProductPageData] Missing product field in response:', responseData);
+          throw new Error('بيانات المنتج مفقودة في الاستجابة');
+        }
+        
+        // إذا كان المنتج null، فهذا يعني أن المنتج غير موجود
         if (responseData.product === null) {
-            console.warn('المنتج المحدد بالـ slug لم يتم العثور عليه داخل ProductPageData for key:', cacheKey);
-            return null; // نُرجع null إذا كان المنتج الداخلي هو null
+          console.log('[getProductPageData] Product is null in response - product not found');
+          return null;
         }
 
-        // البيانات تبدو جيدة، نُرجع الكائن responseData بأكمله
+        // التحقق من صحة بيانات المنتج
+        if (!responseData.product.id) {
+          console.error('[getProductPageData] Product missing required fields:', responseData.product);
+          throw new Error('بيانات المنتج غير مكتملة');
+        }
+
+        console.log('[getProductPageData] Success:', {
+          cacheKey,
+          productId: responseData.product.id,
+          productName: responseData.product.name,
+          colorsCount: responseData.colors?.length || 0,
+          sizesCount: responseData.sizes?.length || 0,
+          hasFormSettings: !!responseData.form_settings,
+          hasMarketingSettings: !!responseData.marketing_settings,
+          reviewsCount: responseData.reviews?.length || 0
+        });
+
         return responseData;
       } catch (error) {
-        console.error('خطأ عام في getProductPageData عند استدعاء Edge Function (supabase.functions.invoke) for key:', cacheKey, error);
-        throw error;
+        console.error('[getProductPageData] Exception caught:', {
+          cacheKey,
+          error: error instanceof Error ? {
+            name: error.name,
+            message: error.message,
+            stack: error.stack
+          } : error
+        });
+        
+        // إعادة رمي الخطأ مع معلومات إضافية إذا لزم الأمر
+        if (error instanceof Error) {
+          throw error;
+        } else {
+          throw new Error('خطأ غير متوقع أثناء تحميل بيانات المنتج');
+        }
       }
     },
     SHORT_CACHE_TTL,

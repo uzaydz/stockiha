@@ -27,8 +27,6 @@ import {
   AlertCircle, 
   CheckCircle2, 
   Tags,
-  Printer,
-  QrCode,
   Loader2,
   Settings
 } from 'lucide-react';
@@ -45,10 +43,8 @@ import DeleteProductDialog from './DeleteProductDialog';
 import ViewProductDialog from './ViewProductDialog';
 import type { Product } from '@/lib/api/products';
 import { formatPrice } from '@/lib/utils';
-import BulkBarcodePrint from './BulkBarcodePrint';
 import { useAuth } from '@/context/AuthContext';
 import { EmployeePermissions } from '@/types/employee';
-import { createCleanPrintWindow } from '@/utils/printUtils';
 import {
   Dialog,
   DialogContent,
@@ -57,7 +53,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import BarcodeDisplay from '@/components/ui/BarcodeDisplay';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { checkUserPermissions, refreshUserData } from '@/lib/api/permissions';
@@ -73,12 +68,10 @@ const ProductsList = ({ products, onRefreshProducts }: ProductsListProps) => {
   const [viewProduct, setViewProduct] = useState<Product | null>(null);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [deleteProduct, setDeleteProduct] = useState<Product | null>(null);
-  const [barcodeProduct, setBarcodeProduct] = useState<Product | null>(null);
   const [productForFeatures, setProductForFeatures] = useState<Product | null>(null);
   const [isViewOpen, setIsViewOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [isBarcodeOpen, setIsBarcodeOpen] = useState(false);
   const [isFeaturesOpen, setIsFeaturesOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [showPermissionAlert, setShowPermissionAlert] = useState(false);
@@ -163,11 +156,6 @@ const ProductsList = ({ products, onRefreshProducts }: ProductsListProps) => {
       setShowPermissionAlert(true);
       toast.error("ليس لديك صلاحية حذف المنتجات");
     }
-  };
-
-  const handleShowBarcode = (product: Product) => {
-    setBarcodeProduct(product);
-    setIsBarcodeOpen(true);
   };
 
   const handleEditFeatures = (product: Product) => {
@@ -356,15 +344,6 @@ const ProductsList = ({ products, onRefreshProducts }: ProductsListProps) => {
                           <span className="sr-only">تعديل</span>
                         </Button>
                         
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleShowBarcode(product)}
-                        >
-                          <QrCode className="h-4 w-4" />
-                          <span className="sr-only">الباركود</span>
-                        </Button>
-                        
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon">
@@ -373,19 +352,6 @@ const ProductsList = ({ products, onRefreshProducts }: ProductsListProps) => {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleView(product)}>
-                              <Eye className="ml-2 h-4 w-4" />
-                              عرض التفاصيل
-                            </DropdownMenuItem>
-                            
-                            {/* خيار التعديل في القائمة المنسدلة - يظهر فقط عند وجود صلاحية */}
-                            {canEditProducts && (
-                              <DropdownMenuItem onClick={() => handleEdit(product)}>
-                                <Edit className="ml-2 h-4 w-4" />
-                                تعديل المنتج
-                              </DropdownMenuItem>
-                            )}
-                            
                             {/* إضافة خيار تعديل ميزات المنتج */}
                             {canEditProducts && (
                               <DropdownMenuItem onClick={() => handleEditFeatures(product)}>
@@ -393,11 +359,6 @@ const ProductsList = ({ products, onRefreshProducts }: ProductsListProps) => {
                                 تعديل مميزات المنتج
                               </DropdownMenuItem>
                             )}
-                            
-                            <DropdownMenuItem onClick={() => handleShowBarcode(product)}>
-                              <QrCode className="ml-2 h-4 w-4" />
-                              عرض الباركود
-                            </DropdownMenuItem>
                             
                             {/* ===== بداية الإضافة ===== */}
                             <DropdownMenuItem asChild>
@@ -512,116 +473,6 @@ const ProductsList = ({ products, onRefreshProducts }: ProductsListProps) => {
           onOpenChange={setIsDeleteOpen}
           onProductDeleted={onRefreshProducts}
         />
-      )}
-
-      {/* Barcode Dialog */}
-      {barcodeProduct && (
-        <Dialog open={isBarcodeOpen} onOpenChange={setIsBarcodeOpen}>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>باركود المنتج</DialogTitle>
-              <DialogDescription>
-                باركود المنتج: {barcodeProduct.name}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-sm font-medium">رمز المنتج (SKU):</span>
-                  <span className="text-sm font-mono">{barcodeProduct.sku}</span>
-                </div>
-                {barcodeProduct.barcode && (
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium">الباركود:</span>
-                    <span className="text-sm font-mono">{barcodeProduct.barcode}</span>
-                  </div>
-                )}
-              </div>
-              
-              <div className="border rounded-lg p-4">
-                <h4 className="text-sm font-semibold mb-2">الباركود الرئيسي:</h4>
-                <BarcodeDisplay 
-                  value={barcodeProduct.barcode || barcodeProduct.sku} 
-                  height={60}
-                  width={1.5}
-                  title={barcodeProduct.name}
-                />
-              </div>
-              
-              <div className="border rounded-lg p-4">
-                <h4 className="text-sm font-semibold mb-2">رمز المنتج (SKU):</h4>
-                <BarcodeDisplay 
-                  value={barcodeProduct.sku} 
-                  height={60}
-                  width={1.5}
-                  title="رمز المنتج"
-                />
-              </div>
-            </div>
-            <DialogFooter className="gap-2">
-              <Button 
-                variant="outline" 
-                onClick={() => {
-                  // طباعة الباركود الخاص بهذا المنتج فقط
-                  const singleProductToPrint = [barcodeProduct];
-                  // إنشاء مكون الطباعة مع منتج واحد فقط
-                  const printComponent = document.createElement('div');
-                  printComponent.style.display = 'none';
-                  document.body.appendChild(printComponent);
-                  const bulkPrintInstance = <BulkBarcodePrint products={singleProductToPrint} isButtonVisible={false} />;
-                  // هنا يفترض أن يتم فتح مكون الطباعة برمجيًا، ولكن هذا ليس ممكنًا مباشرة
-                  // لذلك سنغلق نافذة الباركود ونفتح نافذة طباعة جديدة
-                  setIsBarcodeOpen(false);
-                  
-                  // طباعة الباركود مباشرة باستخدام الطباعة المحسّنة
-                  const printContent = `
-                    <div style="
-                      margin: 0 auto;
-                      max-width: 90mm;
-                      padding: 5mm;
-                      border: 1px solid #eee;
-                      text-align: center;
-                    ">
-                      <div style="font-size: 14px; margin-bottom: 10px; font-weight: bold;">${barcodeProduct.name}</div>
-                      <img style="max-width: 100%;" src="https://bwipjs-api.metafloor.com/?bcid=code128&text=${barcodeProduct.barcode || barcodeProduct.sku}&scale=2&height=60&includetext=true" alt="باركود">
-                      <div style="font-family: monospace; margin-top: 5px;">${barcodeProduct.barcode || barcodeProduct.sku}</div>
-                      <div style="font-size: 16px; margin-top: 10px; font-weight: bold;">${barcodeProduct.price.toLocaleString()} دج</div>
-                    </div>
-                    
-                    <style>
-                      @media print {
-                        @page {
-                          size: 90mm 50mm;
-                          margin: 0;
-                        }
-                        body {
-                          margin: 0;
-                          padding: 0;
-                          font-family: sans-serif;
-                          text-align: center;
-                          -webkit-print-color-adjust: exact;
-                          color-adjust: exact;
-                        }
-                      }
-                    </style>
-                  `;
-                  
-                  const printWindow = createCleanPrintWindow(printContent, `طباعة باركود ${barcodeProduct.name}`);
-                  
-                  if (!printWindow) {
-                    alert('تم منع فتح نافذة الطباعة من قبل المتصفح');
-                  }
-                }}
-              >
-                <Printer className="h-4 w-4 ml-2" />
-                طباعة الباركود
-              </Button>
-              <Button onClick={() => setIsBarcodeOpen(false)}>
-                إغلاق
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       )}
 
       {/* Dialog تعديل ميزات المنتج */}

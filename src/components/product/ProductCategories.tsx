@@ -44,6 +44,11 @@ export default function ProductCategories({
       return;
     }
     
+    if (!organizationId || organizationId.trim() === '') {
+      toast.error('خطأ: لم يتم تحديد معرف المؤسسة. يرجى إعادة تحميل الصفحة والمحاولة مرة أخرى.');
+      return;
+    }
+    
     setIsCreatingCategory(true);
     try {
       const newCategory = await createCategory({
@@ -58,6 +63,7 @@ export default function ProductCategories({
       setShowNewCategoryInput(false);
       toast.success('تم إنشاء الفئة بنجاح');
     } catch (error) {
+      console.error('Error creating category:', error);
       toast.error('حدث خطأ أثناء إنشاء الفئة');
     } finally {
       setIsCreatingCategory(false);

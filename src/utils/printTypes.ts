@@ -18,6 +18,8 @@ export interface PrintSettings {
   customHeight?: number;
   includeName: boolean;
   includePrice: boolean;
+  includeStoreName?: boolean;
+  storeName?: string;
   showSku: boolean;
   fontSize: number;
   fontFamily: string;
@@ -37,6 +39,8 @@ export interface MultiplePrintSettings {
   paperSize: string;
   includeName: boolean;
   includePrice: boolean;
+  includeStoreName?: boolean;
+  storeName?: string;
   showSku: boolean;
   itemSpacing?: number;
   gridGap?: number;

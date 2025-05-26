@@ -20,6 +20,8 @@ export interface BarcodeSettings {
   includePrice: boolean;
   includeName: boolean;
   includeText: boolean;
+  includeStoreName: boolean;
+  storeName: string;
   columns: number;
   rows: number;
   marginTop: number;
@@ -56,6 +58,8 @@ export const DEFAULT_BARCODE_SETTINGS: BarcodeSettings = {
   includePrice: true,
   includeName: true,
   includeText: true,
+  includeStoreName: true,
+  storeName: '',
   columns: 3,
   rows: 8,
   marginTop: 10,
@@ -235,6 +239,13 @@ const BarcodeSettings = ({ settings, onChange }: BarcodeSettingsProps) => {
           <Label>بيانات لإظهارها مع الباركود</Label>
           <div className="flex flex-wrap gap-2">
             <Toggle 
+              pressed={settings.includeStoreName} 
+              onPressedChange={(pressed) => handleSettingChange('includeStoreName', pressed)}
+              variant="outline"
+            >
+              اسم المتجر
+            </Toggle>
+            <Toggle 
               pressed={settings.includeName} 
               onPressedChange={(pressed) => handleSettingChange('includeName', pressed)}
               variant="outline"
@@ -263,6 +274,24 @@ const BarcodeSettings = ({ settings, onChange }: BarcodeSettingsProps) => {
               رمز المنتج (SKU)
             </Toggle>
           </div>
+          
+          {/* حقل اسم المتجر المخصص */}
+          {settings.includeStoreName && (
+            <div className="space-y-2">
+              <Label htmlFor="storeName">اسم المتجر</Label>
+              <Input 
+                id="storeName"
+                type="text" 
+                placeholder="أدخل اسم المتجر"
+                value={settings.storeName} 
+                onChange={(e) => handleSettingChange('storeName', e.target.value)} 
+                className="w-full"
+              />
+              <p className="text-sm text-muted-foreground">
+                سيظهر اسم المتجر في أعلى كل ملصق باركود
+              </p>
+            </div>
+          )}
           
           <div className="space-y-4">
             <Label htmlFor="copiesPerProduct">عدد النسخ لكل منتج</Label>

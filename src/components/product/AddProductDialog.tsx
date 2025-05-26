@@ -1259,7 +1259,7 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
                           form={form}
                           categories={categories}
                           subcategories={subcategories}
-                          organizationId={organizationId}
+                          organizationId={currentOrganization?.id || organizationId}
                           onCategoryCreated={(category) => {
                             setCategories([...categories, category]);
                           }}
@@ -1276,7 +1276,7 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
                       <CardContent className="p-0">
                         <ProductShippingAndTemplates 
                           form={form}
-                          organizationId={organizationId}
+                          organizationId={currentOrganization?.id || organizationId}
                         />
                       </CardContent>
                     </Card>
@@ -1287,7 +1287,7 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
                       <CardContent className="p-0">
                         <MarketingAndEngagementTabs 
                           form={form}
-                          organizationId={organizationId}
+                          organizationId={currentOrganization?.id || organizationId}
                         />
                       </CardContent>
                     </Card>

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getProductPageData, ProductPageData, ProductMarketingSettings, ProductReview } from '@/api/product-page';
 import type { Product, ProductColor, ProductSize } from '@/lib/api/products';
@@ -22,6 +22,27 @@ interface ProductDataLoaderProps {
   dataFetchedRef: React.MutableRefObject<boolean>;
 }
 
+// إعدادات إعادة المحاولة
+const RETRY_CONFIG = {
+  maxRetries: 3,
+  baseDelay: 1000, // 1 ثانية
+  maxDelay: 5000,  // 5 ثواني
+  backoffMultiplier: 2
+};
+
+// دالة مساعدة للانتظار
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// دالة مساعدة لحساب تأخير إعادة المحاولة
+const calculateRetryDelay = (attempt: number): number => {
+  const delay = Math.min(
+    RETRY_CONFIG.baseDelay * Math.pow(RETRY_CONFIG.backoffMultiplier, attempt),
+    RETRY_CONFIG.maxDelay
+  );
+  // إضافة عشوائية بسيطة لتجنب thundering herd
+  return delay + Math.random() * 1000;
+};
+
 export const useProductDataLoader = ({
   slug,
   organizationId,
@@ -39,105 +60,178 @@ export const useProductDataLoader = ({
   dataFetchedRef
 }: ProductDataLoaderProps) => {
   const navigate = useNavigate();
+  const retryCountRef = useRef(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    // إلغاء أي طلب سابق عند تغيير المعاملات
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // إنشاء AbortController جديد
+    abortControllerRef.current = new AbortController();
+    const currentAbortController = abortControllerRef.current;
+
     if (dataFetchedRef.current && !slug) return;
     
-    const loadProduct = async () => {
+    const loadProductWithRetry = async () => {
+      // التحقق من إلغاء الطلب
+      if (currentAbortController.signal.aborted) return;
+
+      // إذا كان organizationId غير متاح ولا يزال يتم تحميله، انتظر قليلاً
+      if (!organizationId && isOrganizationLoading) {
+        console.log('[ProductDataLoader] Organization still loading, waiting...');
+        setIsLoading(true);
+        return;
+      }
+
+      // إذا لم يكن لدينا slug أو organizationId بعد انتهاء التحميل
       if (!slug || !organizationId) {
         if (!isOrganizationLoading && !organizationId) {
-          setError("Organization context is missing.");
+          console.error('[ProductDataLoader] Organization context is missing after loading completed');
+          setError("معرف المؤسسة غير متاح. يرجى إعادة تحميل الصفحة.");
         }
         setIsLoading(false);
         return;
       }
 
-      try {
-        setIsLoading(true);
-        setError(null); 
-        
-        const responseData: ProductPageData | null = await getProductPageData(organizationId, slug);
-        
-        if (!responseData || !responseData.product || !responseData.product.id) {
-          console.error('لم يتم العثور على المنتج أو لم يتم تحميل البيانات بشكل صحيح من Edge Function. الاستجابة:', responseData);
-          setError('المنتج غير موجود أو تعذر تحميل تفاصيله.');
-          setProduct(null);
-          setEffectiveProduct(null);
-          setSelectedColor(null);
-          setSizes([]);
-          setSelectedSize(null);
-          setFormSettings(null);
-          setCustomFormFields([]);
-          setMarketingSettings(null);
-          setIsLoading(false);
-          return;
-        }
-        
-        const actualProduct = responseData.product as Product;
-        
-        setProduct(actualProduct);
-        setEffectiveProduct(actualProduct);
-        console.log('[ProductDataLoader] Product data loaded:', actualProduct);
-        console.log('[ProductDataLoader] Colors:', responseData.colors);
-        console.log('[ProductDataLoader] Sizes:', responseData.sizes);
-        console.log('[ProductDataLoader] Form Settings:', responseData.form_settings);
-        console.log('[ProductDataLoader] Marketing Settings:', responseData.marketing_settings);
-        console.log('[ProductDataLoader] Reviews:', responseData.reviews);
-        setIsLoading(false);
-        
-        if (responseData.colors && Array.isArray(responseData.colors) && responseData.colors.length > 0) {
-          const defaultColor = responseData.colors.find(c => c.is_default) || responseData.colors[0];
-          if (defaultColor) {
-            setSelectedColor(defaultColor as ProductColor);
-            if (actualProduct.use_sizes) {
-              const filteredSizes = (responseData.sizes || []).filter(
-                (size: ProductSize) => size.color_id === defaultColor.id && size.product_id === actualProduct.id
-              );
-              if (filteredSizes.length > 0) {
-                setSizes(filteredSizes);
-                const defaultSize = filteredSizes.find(s => s.is_default) || filteredSizes[0];
-                setSelectedSize(defaultSize);
+      let lastError: Error | null = null;
+      
+      for (let attempt = 0; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
+        // التحقق من إلغاء الطلب قبل كل محاولة
+        if (currentAbortController.signal.aborted) return;
+
+        try {
+          setIsLoading(true);
+          setError(null);
+          
+          console.log(`[ProductDataLoader] Attempt ${attempt + 1}/${RETRY_CONFIG.maxRetries + 1} - Loading product data for slug: ${slug}, orgId: ${organizationId}`);
+          
+          const responseData: ProductPageData | null = await getProductPageData(organizationId, slug);
+          
+          // التحقق من إلغاء الطلب بعد الحصول على الاستجابة
+          if (currentAbortController.signal.aborted) return;
+          
+          if (!responseData || !responseData.product || !responseData.product.id) {
+            throw new Error('المنتج غير موجود أو تعذر تحميل تفاصيله.');
+          }
+          
+          const actualProduct = responseData.product as Product;
+          
+          // تحديث البيانات فقط إذا لم يتم إلغاء الطلب
+          if (!currentAbortController.signal.aborted) {
+            setProduct(actualProduct);
+            setEffectiveProduct(actualProduct);
+            console.log('[ProductDataLoader] Product data loaded successfully:', actualProduct.name);
+            
+            // تحديث الألوان والأحجام
+            if (responseData.colors && Array.isArray(responseData.colors) && responseData.colors.length > 0) {
+              const defaultColor = responseData.colors.find(c => c.is_default) || responseData.colors[0];
+              if (defaultColor) {
+                setSelectedColor(defaultColor as ProductColor);
+                if (actualProduct.use_sizes) {
+                  const filteredSizes = (responseData.sizes || []).filter(
+                    (size: ProductSize) => size.color_id === defaultColor.id && size.product_id === actualProduct.id
+                  );
+                  if (filteredSizes.length > 0) {
+                    setSizes(filteredSizes);
+                    const defaultSize = filteredSizes.find(s => s.is_default) || filteredSizes[0];
+                    setSelectedSize(defaultSize);
+                  }
+                }
               }
+            } else {
+              setSelectedColor(null);
+              setSizes([]);
+              setSelectedSize(null);
             }
-          }
-        } else {
-          setSelectedColor(null);
-          setSizes([]);
-          setSelectedSize(null);
-        }
-        
-        if (responseData.form_settings && typeof responseData.form_settings === 'object' && !Array.isArray(responseData.form_settings)) {
-          const fs = responseData.form_settings as ExtendedFormSettings;
-          setFormSettings(fs);
-          if (fs.fields && Array.isArray(fs.fields)) {
-            const processedFields = fs.fields.map(field => ({ ...field, isVisible: field.isVisible !== undefined ? field.isVisible : true })) as CustomFormField[];
-            setCustomFormFields(processedFields);
-          }
-        } else {
-          setFormSettings(null);
-          setCustomFormFields([]);
-        }
+            
+            // تحديث إعدادات النموذج
+            if (responseData.form_settings && typeof responseData.form_settings === 'object' && !Array.isArray(responseData.form_settings)) {
+              const fs = responseData.form_settings as ExtendedFormSettings;
+              setFormSettings(fs);
+              if (fs.fields && Array.isArray(fs.fields)) {
+                const processedFields = fs.fields.map(field => ({ 
+                  ...field, 
+                  isVisible: field.isVisible !== undefined ? field.isVisible : true 
+                })) as CustomFormField[];
+                setCustomFormFields(processedFields);
+              }
+            } else {
+              setFormSettings(null);
+              setCustomFormFields([]);
+            }
 
-        if (responseData.marketing_settings && typeof responseData.marketing_settings === 'object' && !Array.isArray(responseData.marketing_settings)) {
-          const ms = responseData.marketing_settings as LocalProductMarketingSettings;
-          setMarketingSettings(ms);
-        } else {
-          setMarketingSettings(null);
-        }
+            // تحديث إعدادات التسويق
+            if (responseData.marketing_settings && typeof responseData.marketing_settings === 'object' && !Array.isArray(responseData.marketing_settings)) {
+              const ms = responseData.marketing_settings as LocalProductMarketingSettings;
+              setMarketingSettings(ms);
+            } else {
+              setMarketingSettings(null);
+            }
 
-        dataFetchedRef.current = true;
-      } catch (error: any) {
-        console.error('Error loading product in ProductDataLoader:', error);
-        setError(error.message || 'حدث خطأ أثناء تحميل المنتج');
-        setProduct(null);
-        setEffectiveProduct(null);
-      } finally {
-        setIsLoading(false);
+            dataFetchedRef.current = true;
+            retryCountRef.current = 0; // إعادة تعيين عداد المحاولات عند النجاح
+          }
+          
+          setIsLoading(false);
+          return; // نجح التحميل، الخروج من الحلقة
+          
+        } catch (error: any) {
+          lastError = error;
+          console.error(`[ProductDataLoader] Attempt ${attempt + 1} failed:`, error);
+          
+          // التحقق من إلغاء الطلب
+          if (currentAbortController.signal.aborted) return;
+          
+          // إذا كان خطأ 404 أو منتج غير موجود، لا نعيد المحاولة
+          if (error.message?.includes('404') || 
+              error.message?.includes('Product not found') ||
+              error.message?.includes('المنتج غير موجود')) {
+            console.log('[ProductDataLoader] Product not found, not retrying');
+            setError(error.message || 'المنتج غير موجود');
+            setProduct(null);
+            setEffectiveProduct(null);
+            setSelectedColor(null);
+            setSizes([]);
+            setSelectedSize(null);
+            setFormSettings(null);
+            setCustomFormFields([]);
+            setMarketingSettings(null);
+            setIsLoading(false);
+            return;
+          }
+          
+          // إذا كانت هذه المحاولة الأخيرة، اعرض الخطأ
+          if (attempt === RETRY_CONFIG.maxRetries) {
+            console.error('[ProductDataLoader] All retry attempts failed');
+            setError(error.message || 'حدث خطأ أثناء تحميل المنتج. يرجى إعادة تحميل الصفحة.');
+            setProduct(null);
+            setEffectiveProduct(null);
+            setIsLoading(false);
+            return;
+          }
+          
+          // انتظار قبل إعادة المحاولة
+          const retryDelay = calculateRetryDelay(attempt);
+          console.log(`[ProductDataLoader] Retrying in ${retryDelay}ms...`);
+          await delay(retryDelay);
+          
+          retryCountRef.current = attempt + 1;
+        }
       }
     };
 
-    loadProduct();
-    return () => { dataFetchedRef.current = false; };
+    loadProductWithRetry();
+
+    // تنظيف عند إلغاء تركيب المكون أو تغيير المعاملات
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      dataFetchedRef.current = false;
+    };
   }, [
     slug, 
     organizationId, 

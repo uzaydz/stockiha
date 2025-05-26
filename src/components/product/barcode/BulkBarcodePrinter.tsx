@@ -31,6 +31,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { FormDescription } from '@/components/ui/form';
 import { createCleanPrintWindow, printSeparateBarcodes } from '@/utils/printUtils';
+import { useTenant } from '@/context/TenantContext';
 
 // إضافة خيارات الطباعة للألوان والمقاسات
 export type ColorPrintOption = 'default' | 'selected' | 'all';
@@ -42,6 +43,7 @@ export interface ExtendedBarcodeSettings extends BarcodeSettingsType {
   sizePrintOption: SizePrintOption;
   selectedColors: string[];
   selectedSizes: Record<string, string[]>; // معرف اللون: [معرفات المقاسات]
+  storeName: string;
 }
 
 // إضافة الإعدادات الافتراضية الموسعة
@@ -50,7 +52,8 @@ export const DEFAULT_EXTENDED_BARCODE_SETTINGS: ExtendedBarcodeSettings = {
   colorPrintOption: 'default',
   sizePrintOption: 'default',
   selectedColors: [],
-  selectedSizes: {}
+  selectedSizes: {},
+  storeName: 'المتجر'
 };
 
 // إصلاح أخطاء اللينتر بتعديل واجهة المنتج
@@ -87,11 +90,17 @@ const BulkBarcodePrinter = ({
   title = "طباعة الباركود للمنتجات",
   buttonText = "طباعة الباركود"
 }: BulkBarcodePrinterProps) => {
+  const { currentOrganization } = useTenant();
   const [open, setOpen] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState<string[]>(defaultSelectedProducts);
-  const [settings, setSettings] = useState<ExtendedBarcodeSettings>({
-    ...DEFAULT_EXTENDED_BARCODE_SETTINGS
+  
+  // إنشاء الإعدادات الافتراضية مع اسم المتجر
+  const getDefaultSettings = (): ExtendedBarcodeSettings => ({
+    ...DEFAULT_EXTENDED_BARCODE_SETTINGS,
+    storeName: currentOrganization?.name || 'المتجر'
   });
+  
+  const [settings, setSettings] = useState<ExtendedBarcodeSettings>(getDefaultSettings());
   const [activeTab, setActiveTab] = useState<string>('select');
   const [isLoading, setIsLoading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
@@ -105,6 +114,16 @@ const BulkBarcodePrinter = ({
   const [loadingSizes, setLoadingSizes] = useState(false);
   const [selectedColorsByProduct, setSelectedColorsByProduct] = useState<Record<string, string[]>>({});
   const [selectedSizesByColor, setSelectedSizesByColor] = useState<Record<string, string[]>>({});
+
+  // تحديث اسم المتجر عند تغيير المؤسسة
+  useEffect(() => {
+    if (currentOrganization?.name && settings.storeName !== currentOrganization.name) {
+      setSettings(prev => ({
+        ...prev,
+        storeName: currentOrganization.name
+      }));
+    }
+  }, [currentOrganization?.name, settings.storeName]);
 
   // تحميل الإعدادات المحفوظة من التخزين المحلي
   useEffect(() => {
@@ -240,9 +259,7 @@ const BulkBarcodePrinter = ({
   // إعادة تعيين الحالة عند فتح النافذة أو إغلاقها
   const resetState = () => {
     setSelectedProducts(defaultSelectedProducts);
-    setSettings({
-      ...DEFAULT_EXTENDED_BARCODE_SETTINGS
-    });
+    setSettings(getDefaultSettings());
     setActiveTab('select');
     setShowPreview(false);
     setIsLoading(false);
@@ -504,13 +521,21 @@ const BulkBarcodePrinter = ({
             ? generateBarcodeValue(barcodeValue, 'code39')
             : generateBarcodeValue(barcodeValue, 'code128');
           
-          const barcodeScale = settings.barcodeSize === 'small' ? 1 : 
-                              settings.barcodeSize === 'large' ? 2 : 
-                              settings.barcodeSize === 'custom' ? settings.scaleValue : 1.5;
-                              
-          const barcodeHeight = settings.barcodeSize === 'small' ? 40 : 
-                               settings.barcodeSize === 'large' ? 80 : 
-                               settings.barcodeSize === 'custom' ? settings.heightValue : 60;
+          // تعديل حجم الباركود بناءً على التنسيق المخصص
+          let barcodeScale = settings.barcodeSize === 'small' ? 1 : 
+                           settings.barcodeSize === 'large' ? 2 : 
+                           settings.barcodeSize === 'custom' ? settings.scaleValue : 1.5;
+                           
+          let barcodeHeight = settings.barcodeSize === 'small' ? 40 : 
+                            settings.barcodeSize === 'large' ? 80 : 
+                            settings.barcodeSize === 'custom' ? settings.heightValue : 60;
+          
+          // تعديل الأبعاد للتنسيق المخصص
+          if (settings.paperSize === 'custom') {
+            const smallerDimension = Math.min(settings.customWidth, settings.customHeight);
+            barcodeScale = Math.max(smallerDimension / 50, 1);
+            barcodeHeight = Math.floor(smallerDimension * 0.4);
+          }
           
           const barcodeImageUrl = getBarcodeImageUrl(
             formattedBarcodeValue, 
@@ -527,24 +552,36 @@ const BulkBarcodePrinter = ({
             productName: item.productName,
             price: item.price,
             colorName: item.colorName,
-            sizeName: item.sizeName
+            sizeName: item.sizeName,
+            sku: item.barcode
           };
         });
         
-        // استخدام دالة الطباعة المنفصلة
+        // استخدام دالة الطباعة المنفصلة مع إعدادات محسنة
         printSeparateBarcodes(separateItems, {
           paperSize: settings.paperSize,
           customWidth: settings.customWidth,
           customHeight: settings.customHeight,
           includeName: settings.includeName,
           includePrice: settings.includePrice,
+          includeStoreName: settings.includeStoreName,
+          storeName: settings.storeName,
           showSku: settings.showSku,
           fontSize: settings.fontSize,
           fontFamily: settings.fontFamily,
           orientation: settings.orientation,
           colorScheme: settings.colorScheme,
           fontColor: settings.fontColor,
-          backgroundColor: settings.backgroundColor
+          backgroundColor: settings.backgroundColor,
+          barcodeType: settings.barcodeType === 'qrcode' ? 'code128' : settings.barcodeType as 'compact128' | 'code128' | 'code39' | 'ean13' | 'upc',
+          // إضافة إعدادات جديدة للتنسيق المخصص
+          isCustomFormat: settings.paperSize === 'custom',
+          customSettings: settings.paperSize === 'custom' ? {
+            containerPadding: '1mm',
+            nameMargin: '0.5mm',
+            priceMargin: '0.5mm',
+            elementSpacing: '0.5mm'
+          } : undefined
         });
         
         toast.success(`تم إنشاء ${itemsToPrint.length} ملصق منفصل للطباعة`);
@@ -622,6 +659,7 @@ const BulkBarcodePrinter = ({
         // بناء عنصر HTML للباركود
         barcodeItems += `
           <div class="barcode-item">
+            ${settings.includeStoreName && settings.storeName ? `<div class="store-name">${settings.storeName}</div>` : ''}
             ${settings.includeName ? `<div class="product-name">${titleText}</div>` : ''}
             <div class="barcode-image-container">
               <img src="${barcodeImageUrl}" alt="باركود ${formattedBarcodeValue}" class="barcode-image" onerror="this.style.display='none'; this.parentNode.innerHTML += '<div style=\\'color:red; font-size:10px;\\'>خطأ في الباركود</div>';">
@@ -748,6 +786,20 @@ const BulkBarcodePrinter = ({
             line-height: 1.2 !important;
             word-wrap: break-word !important;
             overflow-wrap: break-word !important;
+          }
+          
+          .store-name {
+            font-size: ${Math.max(settings.fontSize - 1, 8)}px !important;
+            margin-bottom: 1mm !important;
+            font-weight: bold !important;
+            font-family: ${settings.fontFamily}, sans-serif !important;
+            text-align: ${settings.labelTextAlign} !important;
+            line-height: 1.1 !important;
+            word-wrap: break-word !important;
+            overflow-wrap: break-word !important;
+            opacity: 0.9 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.5px !important;
           }
           
           .price {

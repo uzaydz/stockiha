@@ -78,6 +78,7 @@ import StoreRouter from '@/components/routing/StoreRouter';
 import ProductForm from "./pages/ProductForm";
 import CustomPageView from "./pages/CustomPageView";
 import CustomPagesManager from "./pages/dashboard/CustomPagesManager";
+import QuickBarcodePrintPage from './pages/dashboard/QuickBarcodePrintPage';
 
 // Super Admin Pages
 import SuperAdminDashboard from '@/pages/super-admin/SuperAdminDashboard';
@@ -367,6 +368,23 @@ const App = () => {
                       {/* صفحة إدارة الاشتراك */}
                       <Route path="/dashboard/subscription" element={<SubscriptionPage />} />
                       
+                      <Route path="/dashboard/products" element={
+                        <SubscriptionCheck>
+                          <Products />
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/inventory" element={
+                        <SubscriptionCheck>
+                          <Inventory />
+                        </SubscriptionCheck>
+                      } />
+                      {/* START - Quick Barcode Print Route */}
+                      <Route path="/dashboard/quick-barcode-print" element={
+                        <SubscriptionCheck>
+                          <QuickBarcodePrintPage />
+                        </SubscriptionCheck>
+                      } />
+                      {/* END - Quick Barcode Print Route */}
                       <Route path="/dashboard/categories" element={
                         <SubscriptionCheck>
                           <PermissionGuard requiredPermissions={['manageProductCategories']}>

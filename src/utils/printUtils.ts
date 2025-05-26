@@ -109,7 +109,14 @@ export const printSeparateBarcodes = (
         page-break-after: ${index < items.length - 1 ? 'always' : 'avoid'};
       ">
         <div class="barcode-container">
-          <!-- اسم المنتج في الأعلى -->
+          <!-- اسم المتجر في الأعلى -->
+          ${settings.includeStoreName && settings.storeName ? `
+            <div class="store-name">
+              ${settings.storeName}
+            </div>
+          ` : ''}
+          
+          <!-- اسم المنتج -->
             ${settings.includeName && fullName ? `
             <div class="product-name">
               ${fullName}
@@ -202,6 +209,10 @@ export const printMultipleBarcodes = (
     
       return `
         <div class="grid-item">
+          ${settings.includeStoreName && settings.storeName ? `
+          <div class="store-name">${settings.storeName}</div>
+          ` : ''}
+          
           ${settings.includeName && fullName ? `
           <div class="product-name">${fullName}</div>
           ` : ''}

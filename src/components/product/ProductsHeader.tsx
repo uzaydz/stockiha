@@ -8,9 +8,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Sliders, Search, FileUp, Loader2, QrCode } from 'lucide-react';
+import { Plus, Sliders, Search, FileUp, Loader2, Printer } from 'lucide-react';
 import { PlusCircle } from 'lucide-react';
-import BulkBarcodePrint from './BulkBarcodePrint';
 import type { Product } from '@/lib/api/products';
 
 interface ProductsHeaderProps {
@@ -72,9 +71,14 @@ const ProductsHeader = ({
             <Plus className="h-4 w-4 ml-2" />
             إضافة سريع
           </Button>
-          {products && products.length > 0 && (
-            <BulkBarcodePrint products={products} />
-          )}
+          <Button 
+            variant="outline" 
+            className="flex-1 sm:w-auto whitespace-nowrap"
+            onClick={() => navigate('/dashboard/quick-barcode-print')}
+          >
+            <Printer className="h-4 w-4 ml-2" />
+            طباعة سريعة
+          </Button>
         </div>
       </div>
 

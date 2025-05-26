@@ -114,6 +114,18 @@ export const calculatePageDimensions = (settings: PrintSettings): PageDimensions
         nameMargin = '0.5mm';
         priceMargin = '0.5mm';
         priceFontSize = actualFontSize;
+        
+        // تحسينات إضافية للأحجام المخصصة الصغيرة جداً
+        if (settings.customWidth <= 40 || settings.customHeight <= 60) {
+          marginSize = '0.2mm';
+          containerMaxWidth = '99%';
+          actualFontSize = Math.max(3, Math.min(settings.fontSize, 10));
+          priceFontSize = actualFontSize;
+          elementSpacing = '0.05mm';
+          containerPadding = '0.2mm';
+          nameMargin = '0.2mm';
+          priceMargin = '0.2mm';
+        }
       }
       break;
 

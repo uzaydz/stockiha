@@ -117,245 +117,174 @@ export const getSeparatePrintCSS = (
     priceFontSize, 
     nameMargin, 
     priceMargin, 
-    elementSpacing, 
+    elementSpacing,
     containerMaxWidth,
     isThermal,
     isSmallLabel
   } = dimensions;
 
+  // التحقق مما إذا كان التنسيق مخصصاً
+  const isCustomFormat = settings.paperSize === 'custom';
+  
+  // تحديد الأبعاد للتنسيق المخصص
+  const customWidth = isCustomFormat ? `${settings.customWidth}mm` : '100%';
+  const customHeight = isCustomFormat ? `${settings.customHeight}mm` : '100%';
+  
+  // حساب أحجام الخط بناءً على أبعاد الورق المخصص
+  const customFontSize = isCustomFormat 
+    ? Math.max(Math.min(settings.customWidth, settings.customHeight) * 0.08, 8)
+    : actualFontSize;
+    
+  const customPriceFontSize = isCustomFormat
+    ? Math.max(customFontSize * 1.2, 10)
+    : priceFontSize;
+    
+  const customStoreFontSize = isCustomFormat
+    ? Math.max(customFontSize * 0.8, 6)
+    : Math.max(actualFontSize - 2, 8);
+
   return `
     @media print {
       @page {
-        size: ${pageSize};
-        margin: 0;
+        size: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
       }
       
       html, body {
         margin: 0 !important;
         padding: 0 !important;
-        font-family: 'Helvetica Neue', Helvetica, 'Segoe UI', -apple-system, BlinkMacSystemFont, ${settings.fontFamily}, sans-serif !important;
+        font-family: ${settings.fontFamily}, sans-serif !important;
         color: ${settings.colorScheme === 'custom' && settings.fontColor ? settings.fontColor : '#000000'} !important;
         background-color: ${settings.colorScheme === 'custom' && settings.backgroundColor ? settings.backgroundColor : '#ffffff'} !important;
         -webkit-print-color-adjust: exact !important;
         color-adjust: exact !important;
         width: 100% !important;
         height: 100% !important;
-        overflow: hidden !important;
-        
-        /* تحسينات خاصة للطابعات الحرارية */
-        ${isThermal ? `
-        font-variant-numeric: tabular-nums !important;
-        letter-spacing: 0.5px !important;
-        font-synthesis: none !important;
-        text-rendering: optimizeSpeed !important;
-        -webkit-font-smoothing: none !important;
-        font-smooth: never !important;
-        ${thermalSettings?.dithering ? 'image-rendering: crisp-edges !important;' : ''}
-        ` : ''}
       }
-      
+
       .barcode-page {
-        page-break-inside: avoid !important;
-        page-break-after: always !important;
         position: relative !important;
-        width: 100% !important;
-        height: 100vh !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        page-break-before: always !important;
+        page-break-after: always !important;
+        page-break-inside: avoid !important;
+        break-before: page !important;
+        break-after: page !important;
+        break-inside: avoid !important;
         margin: 0 !important;
         padding: 0 !important;
+        box-sizing: border-box !important;
         overflow: hidden !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
+        min-width: 100% !important;
+        min-height: 100% !important;
       }
-      
+
+      .barcode-page:first-child {
+        page-break-before: avoid !important;
+        break-before: avoid !important;
+      }
+
       .barcode-page:last-child {
         page-break-after: avoid !important;
+        break-after: avoid !important;
       }
-      
+
       .barcode-container {
-        position: relative !important;
+        width: 100% !important;
+        height: 100% !important;
         display: flex !important;
         flex-direction: column !important;
+        justify-content: space-between !important;
         align-items: center !important;
-        justify-content: flex-start !important;
-        text-align: center !important;
+        padding: ${isCustomFormat ? '1mm' : containerPadding} !important;
+        margin: 0 !important;
         box-sizing: border-box !important;
-        padding: ${containerPadding} !important;
-        
-        /* أبعاد للمحتوى بدون دوران */
-        width: 90% !important;
-        height: 95% !important;
-        max-width: 90% !important;
-        max-height: 95% !important;
-        
-        /* لا نطبق دوران هنا، فقط نترك الصفحة تحدد الاتجاه */
-        ${isSmallLabel ? `
-        width: 95% !important;
-        height: 98% !important;
-        max-width: 95% !important;
-        max-height: 98% !important;
-        ` : ''}
+        overflow: hidden !important;
       }
-      
+
+      .store-name {
+        width: 100% !important;
+        font-size: ${customStoreFontSize}px !important;
+        line-height: 1 !important;
+        font-weight: bold !important;
+        text-align: center !important;
+        margin: 0 0 0.5mm 0 !important;
+        padding: 0 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        flex: 0 0 auto !important;
+      }
+
       .product-name {
         width: 100% !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        text-align: center !important;
-        color: #000000 !important;
-        font-weight: bold !important;
-        word-break: break-word !important;
-        hyphens: auto !important;
+        font-size: ${customFontSize}px !important;
         line-height: 1.1 !important;
+        font-weight: bold !important;
+        text-align: center !important;
+        margin: 0 0 0.5mm 0 !important;
+        padding: 0 !important;
         overflow: hidden !important;
-        box-sizing: border-box !important;
-        margin-bottom: ${nameMargin} !important;
-        font-size: ${actualFontSize}px !important;
-        
-        /* نسب مناسبة للمحتوى */
-        height: 25% !important;
-        
-        /* تحسينات للطابعات الحرارية */
-        ${isThermal ? `
-        line-height: 0.9 !important;
-        letter-spacing: 0.2px !important;
-        height: 22% !important;
-        ` : ''}
+        display: -webkit-box !important;
+        -webkit-line-clamp: 2 !important;
+        -webkit-box-orient: vertical !important;
+        flex: 0 0 auto !important;
       }
-      
+
       .barcode-image {
         width: 100% !important;
+        flex: 1 1 auto !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        overflow: hidden !important;
-        box-sizing: border-box !important;
-        margin: ${elementSpacing} 0 !important;
-        
-        /* نسب مناسبة للمحتوى */
-        height: 50% !important;
-        
-        /* تحسينات للطابعات الحرارية */
-        ${isThermal ? `
-        height: 56% !important;
         margin: 0.5mm 0 !important;
-        ` : ''}
+        padding: 0 !important;
+        overflow: hidden !important;
       }
-      
+
       .barcode-image img {
-        max-width: 100% !important;
-        max-height: 100% !important;
+        max-width: 98% !important;
+        max-height: 98% !important;
         width: auto !important;
         height: auto !important;
-        display: block !important;
-        margin: 0 auto !important;
-        
-        /* تحسينات جودة الصورة للطابعات الحرارية */
-        ${isThermal ? `
-        image-rendering: -webkit-optimize-contrast !important;
-        image-rendering: crisp-edges !important;
-        image-rendering: pixelated !important;
-        filter: contrast(${thermalSettings?.contrast || 100}%) !important;
-        ` : `
-        image-rendering: auto !important;
-        `}
+        object-fit: contain !important;
       }
-      
+
       .price-text {
         width: 100% !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        text-align: center !important;
-        color: #000000 !important;
+        font-size: ${customPriceFontSize}px !important;
+        line-height: 1 !important;
         font-weight: bold !important;
-        overflow: hidden !important;
-        box-sizing: border-box !important;
-        margin-top: ${priceMargin} !important;
-        font-size: ${priceFontSize}px !important;
-        
-        /* نسب مناسبة للمحتوى */
-        height: 25% !important;
-        
-        /* تحسينات للطابعات الحرارية */
-        ${isThermal ? `
-        line-height: 0.9 !important;
-        letter-spacing: 0.2px !important;
-        height: 22% !important;
-        ` : ''}
+        text-align: center !important;
+        margin: 0.5mm 0 0 0 !important;
+        padding: 0 !important;
+        flex: 0 0 auto !important;
       }
-      
-      /* إخفاء العناصر الفارغة وإعادة توزيع المساحة */
-      .price-text:empty {
-        display: none !important;
-      }
-      
-      /* ضبط التوزيع عند عدم وجود بعض العناصر */
-      .barcode-container:has(.product-name:empty) .barcode-image {
-        height: 70% !important;
-        ${isThermal ? `
-        height: 75% !important;
-        ` : ''}
-      }
-      
-      .barcode-container:has(.price-text:empty) .barcode-image {
-        height: 70% !important;
-        ${isThermal ? `
-        height: 75% !important;
-        ` : ''}
-      }
-      
-      .barcode-container:has(.product-name:empty):has(.price-text:empty) .barcode-image {
-        height: 85% !important;
-        ${isThermal ? `
-        height: 90% !important;
-        ` : ''}
+
+      .sku {
+        width: 100% !important;
+        font-family: monospace !important;
+        font-size: ${Math.max(customFontSize * 0.8, 6)}px !important;
+        text-align: center !important;
+        margin: 0.5mm 0 0 0 !important;
+        padding: 0 !important;
+        opacity: 0.8 !important;
+        flex: 0 0 auto !important;
       }
     }
     
     @media screen {
       .barcode-page {
-        min-height: 100vh;
-        border: 1px solid #ddd;
-        margin-bottom: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        position: relative;
-        background: #f9f9f9;
-      }
-      
-      .barcode-container {
-        max-width: 70%;
-        max-height: 70%;
-        border: 2px solid #333;
-        padding: 8mm;
-        background: #ffffff;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        border-radius: 4px;
-        position: relative;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: ${elementSpacing};
-      }
-      
-      .product-name,
-      .price-text {
-        position: relative !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-      }
-      
-      .barcode-image {
-        position: relative !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        flex-grow: 1;
+        width: ${customWidth} !important;
+        height: ${customHeight} !important;
+        margin: 10px auto !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+        overflow: hidden !important;
       }
     }
   `;
