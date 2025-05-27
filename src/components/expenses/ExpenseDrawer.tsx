@@ -109,4 +109,4 @@ export function ExpenseDrawer({ expense, open, onClose }: ExpenseDrawerProps) {
       </SheetContent>
     </Sheet>
   );
-} 
+}

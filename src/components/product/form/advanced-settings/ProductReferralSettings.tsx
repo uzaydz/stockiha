@@ -191,4 +191,4 @@ const ProductReferralSettings: React.FC<ProductReferralSettingsProps> = ({ form 
   );
 };
 
-export default ProductReferralSettings; 
+export default ProductReferralSettings;

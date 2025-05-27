@@ -5,4 +5,4 @@ export { default as UserProfileCard } from './sidebar/UserProfileCard';
 export { default as NavigationGroup } from './sidebar/NavigationGroup';
 export { default as NavigationItem } from './sidebar/NavigationItem';
 export { default as SideMenuFooter } from './sidebar/SideMenuFooter';
-export { default as VersionInfo } from './sidebar/VersionInfo'; 
+export { default as VersionInfo } from './sidebar/VersionInfo';

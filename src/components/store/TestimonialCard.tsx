@@ -183,4 +183,4 @@ export default function TestimonialCard({ testimonial }: TestimonialCardProps) {
       </CardContent>
     </Card>
   );
-} 
+}

@@ -8,8 +8,6 @@ const formattedBase = apiBase.endsWith('/') ? apiBase.slice(0, -1) : apiBase;
 // تحديد BASE_URL النهائي
 const BASE_URL = formattedBase || '';
 
-
-
 // التعرف على ما إذا كانت القاعدة المستخدمة هي Supabase
 const isSupabaseUrl = BASE_URL.includes('supabase');
 
@@ -27,8 +25,7 @@ export const apiClient = axios.create({
 // إضافة معترضات لمعالجة الأخطاء بشكل موحد
 apiClient.interceptors.request.use(
   (config) => {
-    
-    
+
     // إضافة التوكن المناسب استناداً إلى نوع الواجهة
     if (isSupabaseUrl) {
       // إضافة مفتاح Supabase إذا كنا نستخدم Supabase
@@ -48,7 +45,6 @@ apiClient.interceptors.request.use(
     return config;
   },
   (error) => {
-    console.error('خطأ في إعداد طلب API:', error);
     return Promise.reject(error);
   }
 );
@@ -62,7 +58,6 @@ apiClient.interceptors.response.use(
     const { response } = error;
     
     if (response) {
-      console.error(`[API Error] ${response.status} ${response.config.url}:`, response.data);
       
       // معالجة أخطاء الاستجابة
       switch (response.status) {
@@ -100,7 +95,6 @@ apiClient.interceptors.response.use(
           });
       }
     } else {
-      console.error('[API Error] خطأ في الاتصال:', error.message);
       
       // خطأ في الاتصال بالخادم
       toast({
@@ -112,4 +106,4 @@ apiClient.interceptors.response.use(
     
     return Promise.reject(error);
   }
-); 
+);

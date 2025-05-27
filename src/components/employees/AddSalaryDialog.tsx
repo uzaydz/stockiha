@@ -98,7 +98,6 @@ const AddSalaryDialog = ({
       resetForm();
       onOpenChange(false);
     } catch (error) {
-      console.error('Error adding salary:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء إضافة الراتب. الرجاء المحاولة مرة أخرى.',
@@ -245,4 +244,4 @@ const AddSalaryDialog = ({
   );
 };
 
-export default AddSalaryDialog; 
+export default AddSalaryDialog;

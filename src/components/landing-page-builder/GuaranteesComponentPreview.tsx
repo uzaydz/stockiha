@@ -230,4 +230,4 @@ const GuaranteesComponentPreview: React.FC<GuaranteesComponentPreviewProps> = ({
   );
 };
 
-export default GuaranteesComponentPreview; 
+export default GuaranteesComponentPreview;

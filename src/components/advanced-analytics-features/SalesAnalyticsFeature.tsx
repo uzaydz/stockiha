@@ -392,4 +392,4 @@ const SalesAnalyticsFeature = () => {
   );
 };
 
-export default SalesAnalyticsFeature; 
+export default SalesAnalyticsFeature;

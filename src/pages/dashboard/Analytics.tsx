@@ -41,16 +41,12 @@ const Analytics: React.FC = () => {
       
       return;
     }
-    
-    
-    
+
     const fetchAnalyticsData = async () => {
       try {
         setIsLoading(true);
         setError(null);
-        
-        
-        
+
         // استخدام البيانات الحقيقية من الـ API
         const data = await getAllAnalytics(
           currentOrganization.id, 
@@ -61,8 +57,7 @@ const Analytics: React.FC = () => {
         
         // التأكد من أن بيانات المصروفات موجودة
         if (!data.expenses || !data.expenses.categories || Object.keys(data.expenses.categories).length === 0) {
-          
-          
+
           // إذا كانت المصروفات فارغة، استخدم بيانات تجريبية للمصروفات
           data.expenses = {
             total: 27000,
@@ -75,11 +70,9 @@ const Analytics: React.FC = () => {
             }
           };
         }
-        
-        
+
         setAnalyticsData(data);
       } catch (err) {
-        console.error('خطأ في تحميل بيانات التحليلات:', err);
         setError('حدث خطأ أثناء تحميل بيانات التحليلات');
         toast.error('فشل في تحميل بيانات التحليلات');
         
@@ -322,4 +315,4 @@ const Analytics: React.FC = () => {
   );
 };
 
-export default Analytics; 
+export default Analytics;

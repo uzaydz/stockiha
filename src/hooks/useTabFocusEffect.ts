@@ -66,8 +66,7 @@ export function useTabFocusEffect(
         const timeSinceLastFocus = now - lastFocusTime.current;
         
         // تسجيل للتصحيح
-        
-        
+
         // تنظيف أي عملية سابقة قبل تنفيذ الوظيفة من جديد
         if (cleanupRef.current) {
           cleanupRef.current();
@@ -144,4 +143,4 @@ export function useTabFocusEffect(
   };
 }
 
-export default useTabFocusEffect; 
+export default useTabFocusEffect;

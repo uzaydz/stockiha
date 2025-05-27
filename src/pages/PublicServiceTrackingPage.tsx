@@ -15,4 +15,4 @@ const PublicServiceTrackingPage: React.FC = () => {
   );
 };
 
-export default PublicServiceTrackingPage; 
+export default PublicServiceTrackingPage;

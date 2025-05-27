@@ -25,4 +25,4 @@ const DomainSettings: React.FC = () => {
   );
 };
 
-export default DomainSettings; 
+export default DomainSettings;

@@ -22,10 +22,8 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       try {
         const { data, error } = await supabaseClient.auth.getSession();
         if (error) {
-          console.error('خطأ في استرجاع جلسة المستخدم:', error);
         }
       } catch (error) {
-        console.error('استثناء عند استرجاع جلسة المستخدم:', error);
       } finally {
         setIsLoading(false);
       }
@@ -59,4 +57,4 @@ export const useSupabase = (): SupabaseContextType => {
     throw new Error('useSupabase يجب استخدامه داخل SupabaseProvider');
   }
   return context;
-}; 
+};

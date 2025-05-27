@@ -318,4 +318,4 @@ const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({ settings }) => {
   );
 };
 
-export default ReceiptPreview; 
+export default ReceiptPreview;

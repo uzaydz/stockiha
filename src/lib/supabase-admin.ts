@@ -18,7 +18,6 @@ export const getSupabaseAdmin = () => {
     adminInstanceInitialized = true; // وضع علامة على أن التهيئة قيد التنفيذ
     
     if (!supabaseUrl || !supabaseServiceKey) {
-      console.error('عدم وجود متغيرات البيئة المطلوبة لـ Supabase Admin!');
       adminInstanceInitialized = false; // إعادة تعيين العلامة في حالة الفشل
       return null;
     }
@@ -52,7 +51,6 @@ export const getSupabaseAdmin = () => {
         }
       );
     } catch (error) {
-      console.error('فشل في إنشاء عميل Supabase Admin:', error);
       supabaseAdminInstance = null;
       adminInstanceInitialized = false; // إعادة تعيين العلامة في حالة الفشل
     }
@@ -85,12 +83,10 @@ export const getTables = async (): Promise<string[]> => {
         // استخراج أسماء الجداول فقط من النتائج مع fallback
         const tableNames = data.map(item => item.table_name || item.tablename).filter(Boolean);
         if (tableNames.length === 0) {
-          console.warn('لم يتم العثور على أي جداول في النتائج!');
         }
         return tableNames;
       }
     } catch (error1) {
-      console.warn('فشل في استدعاء get_available_tables:', error1);
     }
     
     // الخيار 2: محاولة استخدام get_public_tables
@@ -101,7 +97,6 @@ export const getTables = async (): Promise<string[]> => {
         return data;
       }
     } catch (error2) {
-      console.warn('فشل في استدعاء get_public_tables:', error2);
     }
 
     // الخيار 3: محاولة استخدام query_tables
@@ -118,7 +113,6 @@ export const getTables = async (): Promise<string[]> => {
         return tableNames;
       }
     } catch (error3) {
-      console.warn('فشل في استخدام الاستعلام المباشر:', error3);
     }
     
     // الخيار 4: محاولة استخدام الوصول المباشر إلى جدول معلومات النظام
@@ -134,11 +128,9 @@ export const getTables = async (): Promise<string[]> => {
         return tableNames;
       }
     } catch (error4) {
-      console.warn('فشل في الوصول المباشر إلى جدول information_schema.tables:', error4);
     }
     
     // إذا وصلنا إلى هنا، فكل المحاولات قد فشلت، استخدم القائمة الافتراضية
-    console.warn('جميع محاولات الحصول على الجداول فشلت، استخدام قائمة افتراضية');
     return [
       'users',
       'products',
@@ -154,7 +146,6 @@ export const getTables = async (): Promise<string[]> => {
       'sync_queue'
     ];
   } catch (error) {
-    console.error('استثناء غير متوقع في الحصول على الجداول:', error);
     return [
       'users',
       'products',
@@ -182,7 +173,6 @@ export const executeRawQuery = async (queryText: string): Promise<any[]> => {
       return data;
     }
   } catch (rpcError) {
-    console.warn('فشل في استدعاء query_tables RPC:', rpcError);
   }
   
   // محاولة بديلة باستخدام REST API
@@ -192,10 +182,8 @@ export const executeRawQuery = async (queryText: string): Promise<any[]> => {
     // ويعتمد على تكوين الإذن المناسب
     
     // في حالة عدم وجود إمكانية للاستعلام المباشر، نرجع مصفوفة فارغة
-    console.warn('لا يوجد دعم للاستعلام المباشر في Supabase، ستحتاج إلى إنشاء وظيفة query_tables');
     return [];
   } catch (error) {
-    console.error('فشل في تنفيذ الاستعلام المباشر:', error);
     return [];
   }
 };
@@ -212,7 +200,6 @@ export const getTableIndexes = async (tableName: string): Promise<any[]> => {
       return data;
     }
   } catch (rpcError) {
-    console.warn(`فشل في استدعاء get_table_indexes RPC لجدول ${tableName}:`, rpcError);
   }
   
   // محاولة استخدام query_tables كبديل
@@ -236,7 +223,6 @@ export const getTableIndexes = async (tableName: string): Promise<any[]> => {
         c2.relname NOT LIKE '%_pkey'
     `);
   } catch (error) {
-    console.warn(`فشل في استرداد فهارس جدول ${tableName} بالطريقة البديلة:`, error);
     return [];
   }
 };
@@ -253,7 +239,6 @@ export const getTableColumns = async (tableName: string): Promise<any[]> => {
       return data;
     }
   } catch (rpcError) {
-    console.warn(`فشل في استدعاء get_table_columns RPC لجدول ${tableName}:`, rpcError);
   }
   
   // محاولة استخدام المخطط المعلوماتي كبديل
@@ -269,7 +254,6 @@ export const getTableColumns = async (tableName: string): Promise<any[]> => {
       return data;
     }
   } catch (directError) {
-    console.warn(`فشل في استخدام information_schema مباشرة لجدول ${tableName}:`, directError);
   }
   
   // محاولة استخدام query_tables كبديل أخير
@@ -290,7 +274,6 @@ export const getTableColumns = async (tableName: string): Promise<any[]> => {
         ordinal_position
     `);
   } catch (error) {
-    console.warn(`فشل في استخدام الاستعلام المباشر للحصول على أعمدة جدول ${tableName}:`, error);
     return [];
   }
-}; 
+};

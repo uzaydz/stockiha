@@ -448,4 +448,4 @@ const ComponentPreview: React.FC<ComponentPreviewProps> = ({ type, settings }) =
   }
 };
 
-export default ComponentPreview; 
+export default ComponentPreview;

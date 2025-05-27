@@ -151,7 +151,6 @@ const LandingPageBuilder: React.FC = () => {
       document.title = `${pageData.name} - محرر صفحة الهبوط`;
       
     } catch (error) {
-      console.error('خطأ في جلب بيانات صفحة الهبوط:', error);
       toast.error(t('حدث خطأ أثناء تحميل صفحة الهبوط'));
     }
   };
@@ -169,7 +168,6 @@ const LandingPageBuilder: React.FC = () => {
       await saveLandingPageData(currentPage, organization.id);
       toast.success(t('تم حفظ الصفحة بنجاح'));
     } catch (error) {
-      console.error('خطأ في حفظ صفحة الهبوط:', error);
       toast.error(t('حدث خطأ أثناء حفظ صفحة الهبوط'));
     } finally {
       setIsSaving(false);
@@ -367,7 +365,6 @@ const LandingPageBuilder: React.FC = () => {
           .eq('landing_page_id', pageId);
       }
     } catch (error) {
-      console.error('خطأ في تحديث مكونات الصفحة:', error);
       throw error;
     }
   };
@@ -467,7 +464,4 @@ const LandingPageBuilder: React.FC = () => {
   );
 };
 
-export default LandingPageBuilder; 
- 
- 
- 
+export default LandingPageBuilder;

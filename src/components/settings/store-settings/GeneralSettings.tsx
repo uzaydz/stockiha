@@ -237,4 +237,4 @@ const GeneralSettings = ({ settings, updateSetting, currentOrganization }: Gener
   );
 };
 
-export default GeneralSettings; 
+export default GeneralSettings;

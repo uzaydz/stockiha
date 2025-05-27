@@ -15,4 +15,4 @@ export const useOrganization = () => {
   };
 };
 
-export default useOrganization; 
+export default useOrganization;

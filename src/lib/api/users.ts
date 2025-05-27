@@ -11,7 +11,6 @@ export const getUsers = async (): Promise<User[]> => {
     .select('*');
 
   if (error) {
-    console.error('Error fetching users:', error);
     throw error;
   }
 
@@ -31,7 +30,6 @@ export const getUserById = async (id: string): Promise<User | null> => {
       
       return null;
     }
-    console.error(`Error fetching user ${id}:`, error);
     throw error;
   }
 
@@ -39,8 +37,7 @@ export const getUserById = async (id: string): Promise<User | null> => {
 };
 
 export const getUserByEmail = async (email: string): Promise<User | null> => {
-  
-  
+
   const { data, error } = await supabase
     .from('users')
     .select('*')
@@ -53,11 +50,9 @@ export const getUserByEmail = async (email: string): Promise<User | null> => {
       
       return null;
     }
-    console.error(`Error fetching user by email ${email}:`, error);
     throw error;
   }
 
-  
   return data;
 };
 
@@ -69,7 +64,6 @@ export const createUser = async (user: InsertUser): Promise<User> => {
     .single();
 
   if (error) {
-    console.error('Error creating user:', error);
     throw error;
   }
 
@@ -85,7 +79,6 @@ export const updateUser = async (id: string, updates: UpdateUser): Promise<User>
     .single();
 
   if (error) {
-    console.error(`Error updating user ${id}:`, error);
     throw error;
   }
 
@@ -99,7 +92,6 @@ export const deleteUser = async (id: string): Promise<void> => {
     .eq('id', id);
 
   if (error) {
-    console.error(`Error deleting user ${id}:`, error);
     throw error;
   }
 };
@@ -134,8 +126,7 @@ export const getCurrentUserProfile = async (): Promise<User | null> => {
     }
     
     // إذا لم نجد المستخدم عن طريق المعرف أو البريد الإلكتروني
-    
-    
+
     // إنشاء سجل للمستخدم بناءً على بيانات المصادقة فقط إذا لم يتم العثور عليه بطريقة أخرى
     if (authData.user.email) {
       // تحقق مرة أخرى من عدم وجود مستخدم بنفس البريد الإلكتروني
@@ -162,7 +153,6 @@ export const getCurrentUserProfile = async (): Promise<User | null> => {
         const createdUser = await createUser(newUser);
         return createdUser;
       } catch (createError) {
-        console.error("Error creating user profile:", createError);
         // محاولة الحصول على المستخدم مرة أخرى بواسطة البريد الإلكتروني
         return getUserByEmail(authData.user.email);
       }
@@ -170,7 +160,6 @@ export const getCurrentUserProfile = async (): Promise<User | null> => {
     
     return null;
   } catch (error) {
-    console.error("Error in getCurrentUserProfile:", error);
     return null;
   }
 };
@@ -191,13 +180,11 @@ export const getUserPermissionsByEmail = async (email: string): Promise<any | nu
         
         return null;
       }
-      console.error(`Error fetching permissions for user with email ${email}:`, error);
       throw error;
     }
 
     return data?.permissions || null;
   } catch (error) {
-    console.error(`Error fetching permissions for email ${email}:`, error);
     return null;
   }
 };
@@ -213,13 +200,11 @@ export const updateUserPermissions = async (userId: string, permissions: any): P
       .eq('id', userId);
 
     if (error) {
-      console.error(`Error updating permissions for user ${userId}:`, error);
       return false;
     }
 
     return true;
   } catch (error) {
-    console.error(`Error updating permissions for user ${userId}:`, error);
     return false;
   }
-}; 
+};

@@ -57,15 +57,12 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
   );
 
   useEffect(() => {
-    console.log('[StorePage] customComponents updated:', customComponents);
-    console.log('[StorePage] customComponents count:', customComponents.length);
   }, [customComponents]);
 
   useEffect(() => {
     if (dataLoading) {
       forceTimerRef.current = setTimeout(() => {
         if (dataLoading) {
-          console.warn('[StorePage] Data loading timeout reached.');
           setDataLoading(false);
           if (!storeData && !dataError) {
             setDataError("استغرق تحميل بيانات المتجر وقتًا طويلاً.");
@@ -86,10 +83,8 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
 
   const getExtendedCategories = () => {
     if (!storeData?.categories || storeData.categories.length === 0) {
-      console.log('[StorePage] getExtendedCategories: No storeData.categories or empty.');
       return [];
     }
-    console.log('[StorePage] getExtendedCategories: storeData.categories BEFORE extending:', JSON.parse(JSON.stringify(storeData.categories)));
     const extended = storeData.categories.map(category => ({
       ...category,
       imageUrl: category.image_url || '',
@@ -97,7 +92,6 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
       icon: category.icon || 'folder', 
       color: 'from-blue-500 to-indigo-600' 
     }));
-    console.log('[StorePage] getExtendedCategories: categories AFTER extending:', JSON.parse(JSON.stringify(extended)));
     return extended;
   };
 
@@ -123,7 +117,6 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
         .maybeSingle();
       
       if (error) {
-        console.warn('[StorePage] خطأ في البحث عن المؤسسة بالنطاق المخصص:', error.message);
         return false;
       }
       
@@ -133,7 +126,6 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
         return orgData.subdomain;
       }
     } catch (error: any) {
-      console.warn('[StorePage] خطأ في التحقق من النطاق المخصص:', error.message);
     }
     return false;
   };
@@ -155,7 +147,6 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
       }
 
       if (!subdomainToUse) {
-        console.warn("[StorePage] No subdomain available to fetch data.");
         if (!(initialStoreData && Object.keys(initialStoreData).length > 0)) setDataLoading(false);
         setDataError("لم يتم تحديد المتجر. يرجى التحقق من الرابط.");
         return;
@@ -165,7 +156,6 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
         const result = await getStoreDataFast(subdomainToUse);
 
         if (result.data?.error) {
-          console.error('[StorePage] Error fetching store data from RPC:', result.data.error);
           setDataError(result.data.error);
           setStoreData(null); 
           setStoreSettings(null);
@@ -178,14 +168,12 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
             updateTheme(subdomainToUse, result.data.organization_settings);
           }
         } else {
-          console.warn('[StorePage] No data returned from getStoreDataFast for subdomain:', subdomainToUse);
           setDataError("لم يتم العثور على بيانات للمتجر أو قد تكون البيانات فارغة.");
           setStoreData(null);
           setStoreSettings(null);
           setCustomComponents([]);
         }
       } catch (error: any) {
-        console.error('[StorePage] Exception while loading store data:', error);
         setDataError(error.message || "خطأ غير معروف أثناء تحميل البيانات.");
         setStoreData(null);
         setStoreSettings(null);
@@ -224,7 +212,6 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
       try {
         const result = await forceReloadStoreData(subdomainToReload);
         if (result.data?.error) {
-          console.error('[StorePage] Error on force reload:', result.data.error);
           setDataError(result.data.error);
           setStoreData(null);
           setStoreSettings(null);
@@ -243,7 +230,6 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
           setCustomComponents([]);
         }
       } catch (error: any) {
-        console.error('[StorePage] Exception on force reload:', error);
         setDataError(error.message || "خطأ غير معروف أثناء إعادة التحميل.");
         setStoreData(null);
         setStoreSettings(null);
@@ -316,13 +302,7 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
     })
     .sort((a, b) => a.orderIndex - b.orderIndex);
 
-  console.log('[StorePage] Custom components after filtering:', filteredCustomComponents);
-  console.log('[StorePage] Has custom components:', filteredCustomComponents.length > 0);
-
   const componentsToRender = filteredCustomComponents.length > 0 ? filteredCustomComponents : defaultStoreComponents;
-  
-  console.log('[StorePage] Components to render:', componentsToRender.length > 0 ? 'custom' : 'default');
-  console.log('[StorePage] Number of components to render:', componentsToRender.length);
 
   const navBarProps: NavbarProps = {
   };
@@ -343,11 +323,9 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
           .maybeSingle();
 
         if (!error && footerData?.settings) {
-          console.log('[StorePage] Footer settings loaded:', footerData.settings);
           setFooterSettings(footerData.settings);
         }
       } catch (error) {
-        console.error('[StorePage] خطأ في جلب إعدادات الفوتر:', error);
       }
     };
 
@@ -418,12 +396,7 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
                     let categoriesForProps: any[] = [];
                     if (component.type === 'product_categories') {
                       categoriesForProps = getExtendedCategories();
-                      console.log(`[StorePage] Preparing to render 'product_categories' (ID: ${component.id}). Categories prop will be:`, JSON.parse(JSON.stringify(categoriesForProps)));
-                      console.log(`[StorePage] storeData.categories at this point:`, JSON.parse(JSON.stringify(storeData?.categories)));
-                      console.log(`[StorePage] All categories (passed to allCategories prop):`, JSON.parse(JSON.stringify(storeData?.categories)));
                     }
-
-                    console.log(`[StorePage] Rendering component ${index + 1}/${componentsToRender.length}: ${component.type} (ID: ${component.id})`);
 
                     return (
                       <LazyLoad key={component.id || `component-${index}`}>
@@ -439,7 +412,6 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
                         )}
                         {(component.type === 'featured_products' || component.type === 'featuredproducts') && (
                           (() => {
-                            console.log(`[StorePage] Rendering featured_products component. Organization ID: ${storeData.organization_details?.id}`);
                             return (
                               <LazyFeaturedProducts 
                                 {...(component.settings as any)} 

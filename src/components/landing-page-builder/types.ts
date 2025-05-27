@@ -410,5 +410,3 @@ export function getDefaultSettingsForType(type: ComponentType): Record<string, a
       return {};
   }
 }
- 
- 

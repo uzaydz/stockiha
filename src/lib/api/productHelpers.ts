@@ -15,7 +15,6 @@ export const syncProductImages = async (productId: string): Promise<boolean> => 
       .single();
     
     if (productError) {
-      console.error('Error fetching product data for image sync:', productError);
       return false;
     }
 
@@ -26,7 +25,6 @@ export const syncProductImages = async (productId: string): Promise<boolean> => 
       .eq('product_id', productId);
     
     if (imagesError) {
-      console.error('Error fetching existing product images:', imagesError);
       return false;
     }
 
@@ -36,16 +34,13 @@ export const syncProductImages = async (productId: string): Promise<boolean> => 
     const additionalImages = Array.isArray(product?.images) 
       ? product.images.filter(img => img !== product.thumbnail_image)
       : [];
-    
-    
-    
+
     // 4. إضافة الصور الموجودة في مصفوفة images ولكنها غير موجودة في جدول product_images
     let addedCount = 0;
     for (let i = 0; i < additionalImages.length; i++) {
       const imageUrl = additionalImages[i];
       if (!existingImageUrls.includes(imageUrl)) {
-        
-        
+
         const { data, error } = await supabase
           .from('product_images')
           .insert({
@@ -55,18 +50,14 @@ export const syncProductImages = async (productId: string): Promise<boolean> => 
           });
         
         if (error) {
-          console.error(`[syncProductImages] Error adding image to product_images:`, error);
         } else {
           addedCount++;
         }
       }
     }
-    
-    
-    
+
     return true;
   } catch (error) {
-    console.error('[syncProductImages] Unexpected error while syncing product images:', error);
     return false;
   }
 };
@@ -84,7 +75,6 @@ export const migrateProductImages = async (): Promise<{ success: boolean, migrat
       .filter('images', 'gte', '{,}'); // مصفوفة تحتوي على أكثر من عنصر واحد
     
     if (productsError) {
-      console.error('Error fetching products for migration:', productsError);
       return { success: false, migratedProducts: 0, totalImages: 0 };
     }
     
@@ -92,9 +82,7 @@ export const migrateProductImages = async (): Promise<{ success: boolean, migrat
       
       return { success: true, migratedProducts: 0, totalImages: 0 };
     }
-    
-    
-    
+
     let migratedProducts = 0;
     let totalImages = 0;
     
@@ -113,7 +101,6 @@ export const migrateProductImages = async (): Promise<{ success: boolean, migrat
     
     return { success: true, migratedProducts, totalImages };
   } catch (error) {
-    console.error('Unexpected error during product images migration:', error);
     return { success: false, migratedProducts: 0, totalImages: 0 };
   }
-}; 
+};

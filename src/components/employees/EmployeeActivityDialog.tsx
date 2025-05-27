@@ -62,7 +62,6 @@ const EmployeeActivityDialog = ({
       const data = await getEmployeeActivities(employee.id, 50); // جلب آخر 50 نشاط
       setActivities(data);
     } catch (error) {
-      console.error('Error loading activities:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء تحميل سجل النشاطات',

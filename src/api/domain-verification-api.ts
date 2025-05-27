@@ -56,7 +56,6 @@ export const verifyDomainDNS = async (domain: string): Promise<DNSVerificationRe
         : 'بعض سجلات DNS غير صحيحة، يرجى التحقق من الإعدادات'
     };
   } catch (error) {
-    console.error('خطأ أثناء التحقق من سجلات DNS:', error);
     return {
       success: false,
       records: [],
@@ -117,7 +116,6 @@ export const updateDomainVerificationStatus = async (
       return !error;
     }
   } catch (error) {
-    console.error('خطأ أثناء تحديث حالة التحقق من النطاق:', error);
     return false;
   }
 };
@@ -142,7 +140,6 @@ export const checkDomainSSL = async (domain: string): Promise<{
         : 'لم يتم العثور على شهادة SSL صالحة'
     };
   } catch (error) {
-    console.error('خطأ أثناء التحقق من حالة SSL:', error);
     return {
       valid: false,
       message: 'حدث خطأ أثناء التحقق من حالة SSL'
@@ -213,7 +210,6 @@ export const verifyAndUpdateDomainStatus = async (
       message: 'تم التحقق من النطاق بنجاح وهو نشط الآن'
     };
   } catch (error) {
-    console.error('خطأ أثناء عملية التحقق الكاملة من النطاق:', error);
     
     // تحديث الحالة في حالة حدوث خطأ
     await updateDomainVerificationStatus(
@@ -294,7 +290,6 @@ export async function verifyVercelDomainStatus(
       throw new Error('استجابة Vercel API غير صالحة');
     }
   } catch (error) {
-    console.error('خطأ في استعلام حالة النطاق من Vercel:', error);
     
     if (axios.isAxiosError(error)) {
       // التعامل مع أخطاء Axios
@@ -339,8 +334,6 @@ export async function linkDomainToVercelProject(
       };
     }
 
-    
-
     try {
       // إضافة النطاق إلى مشروع Vercel
       const response = await axios.post(
@@ -382,11 +375,6 @@ export async function linkDomainToVercelProject(
         
         // أخطاء Axios أخرى
         const errorMessage = axiosError.response?.data?.error?.message || 'خطأ في الاتصال بـ Vercel API';
-        console.error('خطأ Axios في ربط النطاق:', {
-          status: axiosError.response?.status,
-          message: errorMessage,
-          data: axiosError.response?.data
-        });
         
         return {
           success: false,
@@ -395,14 +383,12 @@ export async function linkDomainToVercelProject(
       } 
       
       // أخطاء أخرى
-      console.error('خطأ غير متوقع في ربط النطاق:', axiosError);
       return {
         success: false,
         error: axiosError instanceof Error ? axiosError.message : 'حدث خطأ أثناء ربط النطاق'
       };
     }
   } catch (error) {
-    console.error('خطأ عام في ربط النطاق بمشروع Vercel:', error);
     
     return {
       success: false,
@@ -440,7 +426,6 @@ export async function removeDomainFromVercelProject(
 
     return { success: response.status >= 200 && response.status < 300 };
   } catch (error) {
-    console.error('خطأ في حذف النطاق من مشروع Vercel:', error);
     
     return {
       success: false,
@@ -518,4 +503,4 @@ export function generateCustomDomainDnsInstructions(
       }
     ];
   }
-} 
+}

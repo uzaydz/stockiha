@@ -54,8 +54,6 @@ export async function removeDomain(domain, organizationId) {
     const VERCEL_PROJECT_ID = getVercelProjectId();
     const hasConfig = hasVercelConfig();
 
-    
-
     if (!hasConfig) {
       return {
         success: false,
@@ -71,7 +69,6 @@ export async function removeDomain(domain, organizationId) {
     );
 
     if (!removeResult.success) {
-      console.error('خطأ في إزالة النطاق من Vercel:', removeResult.error);
       // سنستمر في تنفيذ الحذف من قاعدة البيانات حتى لو فشل الحذف من Vercel
     }
 
@@ -97,10 +94,8 @@ export async function removeDomain(domain, organizationId) {
         .eq('domain', domain);
 
       if (deleteError) {
-        console.error('خطأ في حذف سجل التحقق:', deleteError);
       }
     } catch (deleteError) {
-      console.error('خطأ غير متوقع في حذف سجل التحقق:', deleteError);
       // سنتجاهل هذا الخطأ ونستمر
     }
 
@@ -110,10 +105,9 @@ export async function removeDomain(domain, organizationId) {
       message: 'تمت إزالة النطاق بنجاح'
     };
   } catch (error) {
-    console.error('خطأ غير متوقع أثناء إزالة النطاق:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'حدث خطأ غير متوقع'
     };
   }
-} 
+}

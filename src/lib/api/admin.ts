@@ -35,7 +35,6 @@ export const registerAdmin = async (
     });
 
     if (authError) {
-      console.error('Error creating admin auth account:', authError);
       return { success: false, error: authError };
     }
 
@@ -64,7 +63,6 @@ export const registerAdmin = async (
       });
 
       if (error) {
-        console.error('Error creating admin user via RPC:', error);
         // محاولة بديلة: استخدام الوصول المباشر مع تعطيل RLS
         try {
           const { data, error: directError } = await supabase
@@ -80,11 +78,9 @@ export const registerAdmin = async (
             });
 
           if (directError) {
-            console.error('Error creating admin user directly:', directError);
             return { success: false, error: directError };
           }
         } catch (insertError) {
-          console.error('Exception during direct user creation:', insertError);
           return { success: false, error: error };
         }
       }
@@ -101,7 +97,6 @@ export const registerAdmin = async (
       error: new Error('Failed to create admin user')
     };
   } catch (error) {
-    console.error('Error registering admin:', error);
     return { success: false, error: error as Error };
   }
 };
@@ -111,8 +106,7 @@ export const registerAdmin = async (
  */
 export const isUserAdminByEmail = async (email: string, organizationId: string): Promise<boolean> => {
   try {
-    
-    
+
     const { data, error } = await supabase
       .from('users')
       .select('is_org_admin')
@@ -126,13 +120,11 @@ export const isUserAdminByEmail = async (email: string, organizationId: string):
         
         return false;
       }
-      console.error('Error checking admin status by email:', error);
       return false;
     }
     
     return Boolean(data.is_org_admin);
   } catch (error) {
-    console.error('Unexpected error checking admin status by email:', error);
     return false;
   }
 };
@@ -149,14 +141,12 @@ export const isUserAdmin = async (userId: string): Promise<boolean> => {
       .single();
     
     if (error) {
-      console.error('Error checking admin status:', error);
       return false;
     }
     
     // اعتبار المستخدم مسؤولاً إذا كان دوره "admin" أو كان مسؤول المؤسسة
     return data.role === 'admin' || Boolean(data.is_org_admin);
   } catch (error) {
-    console.error('Unexpected error checking admin status:', error);
     return false;
   }
 };
@@ -174,14 +164,12 @@ export const getUserIdByEmail = async (email: string): Promise<string | null> =>
     
     if (error) {
       if (error.code !== 'PGRST116') {
-        console.error('Error getting user id by email:', error);
       }
       return null;
     }
     
     return data.id;
   } catch (error) {
-    console.error('Unexpected error getting user id by email:', error);
     return null;
   }
-}; 
+};

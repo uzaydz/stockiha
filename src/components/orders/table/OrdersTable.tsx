@@ -121,15 +121,15 @@ const OrdersTable = ({
   };
 
   return (
-    <Card className="border rounded-lg overflow-hidden shadow-sm">
+    <Card className="border border-border rounded-lg overflow-hidden shadow-sm bg-card">
       <CardContent className="p-0">
-        <div className="p-4 flex flex-col space-y-4 sm:flex-row sm:space-y-0 sm:space-x-4 sm:items-center sm:justify-between border-b">
+        <div className="p-4 flex flex-col space-y-4 sm:flex-row sm:space-y-0 sm:space-x-4 sm:items-center sm:justify-between border-b border-border">
           <div className="relative flex items-center w-full sm:w-72">
             <Search className="absolute left-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               type="search"
               placeholder="البحث في الطلبات..."
-              className="pl-8 w-full focus:ring-2 focus:ring-primary/20 transition-all"
+              className="pl-8 w-full focus:ring-2 focus:ring-primary/20 transition-all bg-background border-border text-foreground"
               value={searchFilter}
               onChange={(e) => setSearchFilter(e.target.value)}
             />
@@ -137,9 +137,9 @@ const OrdersTable = ({
           
           <div className="flex items-center gap-2 flex-wrap rtl:space-x-reverse">
             {selectedOrders.length > 0 && (
-              <div className="mr-2 bg-muted/50 px-3 py-1 rounded-md text-sm flex items-center">
-                <span className="font-medium">{selectedOrders.length}</span>
-                <span className="mr-1 text-muted-foreground">طلب محدد</span>
+              <div className="mr-2 bg-primary/10 border border-primary/20 px-3 py-1 rounded-md text-sm flex items-center">
+                <span className="font-medium text-primary">{selectedOrders.length}</span>
+                <span className="mr-1 text-primary/80">طلب محدد</span>
               </div>
             )}
             
@@ -153,22 +153,22 @@ const OrdersTable = ({
               />
             )}
             
-            <Button variant="outline" size="sm" className="gap-1">
+            <Button variant="outline" size="sm" className="gap-1 bg-background border-border text-foreground hover:bg-accent">
               <Filter className="h-4 w-4" />
               <span>تصفية</span>
             </Button>
             
-            <Button variant="outline" size="sm" className="gap-1">
+            <Button variant="outline" size="sm" className="gap-1 bg-background border-border text-foreground hover:bg-accent">
               <SlidersHorizontal className="h-4 w-4" />
               <span>الأعمدة</span>
             </Button>
             
-            <Button variant="outline" size="sm" className="gap-1">
+            <Button variant="outline" size="sm" className="gap-1 bg-background border-border text-foreground hover:bg-accent">
               <Download className="h-4 w-4" />
               <span>تصدير</span>
             </Button>
             
-            <Button variant="outline" size="sm" className="gap-1">
+            <Button variant="outline" size="sm" className="gap-1 bg-background border-border text-foreground hover:bg-accent">
               <Printer className="h-4 w-4" />
               <span>طباعة</span>
             </Button>
@@ -178,7 +178,7 @@ const OrdersTable = ({
         <div className="overflow-x-auto">
           <Table className="w-full">
             <TableHeader className="bg-muted/30">
-              <TableRow>
+              <TableRow className="border-b border-border">
                 {visibleColumns.includes("checkbox") && (
                   <TableHead className="w-10">
                     <Checkbox
@@ -195,43 +195,43 @@ const OrdersTable = ({
                 )}
                 
                 {visibleColumns.includes("id") && (
-                  <TableHead className="font-medium">رقم الطلب</TableHead>
+                  <TableHead className="font-medium text-foreground">رقم الطلب</TableHead>
                 )}
                 
                 {visibleColumns.includes("customer_name") && (
-                  <TableHead className="font-medium">اسم العميل</TableHead>
+                  <TableHead className="font-medium text-foreground">اسم العميل</TableHead>
                 )}
                 
                 {visibleColumns.includes("customer_contact") && (
-                  <TableHead className="font-medium">بيانات الاتصال</TableHead>
+                  <TableHead className="font-medium text-foreground">بيانات الاتصال</TableHead>
                 )}
                 
                 {visibleColumns.includes("total") && (
-                  <TableHead className="font-medium">إجمالي الطلب</TableHead>
+                  <TableHead className="font-medium text-foreground">إجمالي الطلب</TableHead>
                 )}
                 
                 {visibleColumns.includes("items") && (
-                  <TableHead className="font-medium">المنتجات</TableHead>
+                  <TableHead className="font-medium text-foreground">المنتجات</TableHead>
                 )}
                 
                 {visibleColumns.includes("status") && (
-                  <TableHead className="font-medium">حالة الطلب</TableHead>
+                  <TableHead className="font-medium text-foreground">حالة الطلب</TableHead>
                 )}
                 
                 {visibleColumns.includes("call_confirmation") && (
-                  <TableHead className="font-medium">تأكيد المكالمة</TableHead>
+                  <TableHead className="font-medium text-foreground">تأكيد المكالمة</TableHead>
                 )}
                 
                 {visibleColumns.includes("shipping_provider") && (
-                  <TableHead className="font-medium">مزود الشحن</TableHead>
+                  <TableHead className="font-medium text-foreground">مزود الشحن</TableHead>
                 )}
                 
                 {visibleColumns.includes("source") && (
-                  <TableHead className="font-medium">معلومات الطلب</TableHead>
+                  <TableHead className="font-medium text-foreground">معلومات الطلب</TableHead>
                 )}
                 
                 {visibleColumns.includes("actions") && (
-                  <TableHead className="text-right font-medium w-14">الإجراءات</TableHead>
+                  <TableHead className="text-right font-medium w-14 text-foreground">الإجراءات</TableHead>
                 )}
               </TableRow>
             </TableHeader>
@@ -239,81 +239,81 @@ const OrdersTable = ({
             <TableBody>
               {loading ? (
                 Array.from({ length: 5 }).map((_, index) => (
-                  <TableRow key={`skeleton-${index}`} className="hover:bg-muted/20">
+                  <TableRow key={`skeleton-${index}`} className="hover:bg-muted/20 border-b border-border">
                     {visibleColumns.includes("checkbox") && (
                       <TableCell>
-                        <Skeleton className="h-4 w-4" />
+                        <Skeleton className="h-4 w-4 bg-muted" />
                       </TableCell>
                     )}
                     
                     {visibleColumns.includes("expand") && (
                       <TableCell>
-                        <Skeleton className="h-4 w-4" />
+                        <Skeleton className="h-4 w-4 bg-muted" />
                       </TableCell>
                     )}
                     
                     <TableCell>
-                      <Skeleton className="h-5 w-24" />
+                      <Skeleton className="h-5 w-24 bg-muted" />
                     </TableCell>
                     
                     <TableCell>
                       <div className="flex flex-col gap-1">
-                        <Skeleton className="h-5 w-32" />
-                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="h-5 w-32 bg-muted" />
+                        <Skeleton className="h-4 w-24 bg-muted" />
                       </div>
                     </TableCell>
                     
                     <TableCell>
                       <div className="flex flex-col gap-2">
                         <div className="flex items-center gap-1">
-                          <Skeleton className="h-5 w-16" />
-                          <Skeleton className="h-5 w-16" />
+                          <Skeleton className="h-5 w-16 bg-muted" />
+                          <Skeleton className="h-5 w-16 bg-muted" />
                         </div>
-                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-4 w-32 bg-muted" />
                       </div>
                     </TableCell>
                     
                     <TableCell>
-                      <Skeleton className="h-5 w-16" />
+                      <Skeleton className="h-5 w-16 bg-muted" />
                     </TableCell>
                     
                     {visibleColumns.includes("items") && (
                       <TableCell>
-                        <Skeleton className="h-5 w-10" />
+                        <Skeleton className="h-5 w-10 bg-muted" />
                       </TableCell>
                     )}
                     
                     <TableCell>
-                      <Skeleton className="h-5 w-24" />
+                      <Skeleton className="h-5 w-24 bg-muted" />
                     </TableCell>
                     
                     <TableCell>
-                      <Skeleton className="h-5 w-32" />
+                      <Skeleton className="h-5 w-32 bg-muted" />
                     </TableCell>
                     
                     {visibleColumns.includes("call_confirmation") && (
                       <TableCell>
-                        <Skeleton className="h-6 w-20" />
+                        <Skeleton className="h-6 w-20 bg-muted" />
                       </TableCell>
                     )}
                     
                     <TableCell>
                       <div className="flex items-center gap-1.5">
-                        <Skeleton className="h-3.5 w-3.5 rounded-full" />
-                        <Skeleton className="h-5 w-32" />
+                        <Skeleton className="h-3.5 w-3.5 rounded-full bg-muted" />
+                        <Skeleton className="h-5 w-32 bg-muted" />
                       </div>
                     </TableCell>
                     
                     <TableCell>
                       <div className="flex flex-col gap-1">
-                        <Skeleton className="h-5 w-20" />
-                        <Skeleton className="h-4 w-16" />
+                        <Skeleton className="h-5 w-20 bg-muted" />
+                        <Skeleton className="h-4 w-16 bg-muted" />
                       </div>
                     </TableCell>
                     
                     <TableCell>
                       <div className="flex justify-end space-x-2">
-                        <Skeleton className="h-8 w-8" />
+                        <Skeleton className="h-8 w-8 bg-muted" />
                       </div>
                     </TableCell>
                   </TableRow>
@@ -323,7 +323,7 @@ const OrdersTable = ({
                   <TableCell colSpan={visibleColumns.length + 1} className="h-24 text-center">
                     <div className="flex flex-col items-center justify-center text-muted-foreground py-8">
                       <Search className="h-8 w-8 mb-2 opacity-20" />
-                      <p className="text-lg font-medium mb-1">لا توجد طلبات</p>
+                      <p className="text-lg font-medium mb-1 text-foreground">لا توجد طلبات</p>
                       <p className="text-sm">لم يتم العثور على طلبات تطابق معايير البحث.</p>
                     </div>
                   </TableCell>
@@ -351,9 +351,9 @@ const OrdersTable = ({
         </div>
         
         {filteredOrders.length > 0 && (
-          <div className="py-3 px-4 flex items-center justify-between border-t">
+          <div className="py-3 px-4 flex items-center justify-between border-t border-border">
             <p className="text-sm text-muted-foreground">
-              عرض <span className="font-medium">{(currentPage - 1) * pageSize + 1}</span> إلى <span className="font-medium">{Math.min(currentPage * pageSize, totalItems || orders.length)}</span> من إجمالي <span className="font-medium">{totalItems || orders.length}</span> طلب
+              عرض <span className="font-medium text-foreground">{(currentPage - 1) * pageSize + 1}</span> إلى <span className="font-medium text-foreground">{Math.min(currentPage * pageSize, totalItems || orders.length)}</span> من إجمالي <span className="font-medium text-foreground">{totalItems || orders.length}</span> طلب
             </p>
             <div className="flex items-center space-x-2 rtl:space-x-reverse">
               {onPageChange ? (
@@ -363,6 +363,7 @@ const OrdersTable = ({
                     size="sm" 
                     disabled={!hasPreviousPage || currentPage <= 1}
                     onClick={() => onPageChange(currentPage - 1)}
+                    className="bg-background border-border text-foreground hover:bg-accent"
                   >
                     السابق
                   </Button>
@@ -374,6 +375,7 @@ const OrdersTable = ({
                     size="sm" 
                     disabled={!hasNextPage}
                     onClick={() => onPageChange(currentPage + 1)}
+                    className="bg-background border-border text-foreground hover:bg-accent"
                   >
                     التالي
                   </Button>
@@ -384,13 +386,14 @@ const OrdersTable = ({
                   size="sm" 
                   disabled={!hasMoreOrders || loading}
                   onClick={onLoadMore}
+                  className="bg-background border-border text-foreground hover:bg-accent"
                 >
                   {loading ? 'جاري التحميل...' : 'تحميل المزيد'}
                 </Button>
               ) : (
                 <>
-                  <Button variant="outline" size="sm" disabled>السابق</Button>
-                  <Button variant="outline" size="sm" disabled>التالي</Button>
+                  <Button variant="outline" size="sm" disabled className="bg-background border-border text-muted-foreground">السابق</Button>
+                  <Button variant="outline" size="sm" disabled className="bg-background border-border text-muted-foreground">التالي</Button>
                 </>
               )}
             </div>
@@ -401,4 +404,4 @@ const OrdersTable = ({
   );
 };
 
-export default OrdersTable; 
+export default OrdersTable;

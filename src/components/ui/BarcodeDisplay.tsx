@@ -242,7 +242,6 @@ const BarcodeDisplay: React.FC<BarcodeDisplayProps> = (props) => {
                 alt={`Barcode: ${value}`} 
                 style={{ maxWidth: '100%', width: 'auto', height: 'auto' }}
                 onError={(e) => {
-                  console.error('فشل تحميل صورة الباركود:', value);
                   e.currentTarget.style.display = 'none';
                 }}
               />
@@ -314,4 +313,4 @@ const BarcodeDisplay: React.FC<BarcodeDisplayProps> = (props) => {
   );
 };
 
-export default BarcodeDisplay; 
+export default BarcodeDisplay;

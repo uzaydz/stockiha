@@ -28,4 +28,4 @@ export { syncMunicipalities } from './municipalities-sync';
 export { syncCenters } from './centers-sync';
 export { syncFees } from './fees-sync';
 
-// إرشاد للمطورين: يرجى استخدام الوحدات المنفصلة مباشرة في الكود الجديد 
+// إرشاد للمطورين: يرجى استخدام الوحدات المنفصلة مباشرة في الكود الجديد

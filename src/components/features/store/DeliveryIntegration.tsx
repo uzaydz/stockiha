@@ -323,4 +323,4 @@ const DeliveryIntegration = () => {
   );
 };
 
-export default DeliveryIntegration; 
+export default DeliveryIntegration;

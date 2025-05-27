@@ -44,7 +44,6 @@ export const ActivationService = {
       
       return newCode as ActivationCode;
     } catch (error) {
-      console.error('Error creating activation code:', error);
       throw error;
     }
   },
@@ -96,7 +95,6 @@ export const ActivationService = {
         codesCount: data.count
       };
     } catch (error) {
-      console.error('Error creating activation code batch:', error);
       throw error;
     }
   },
@@ -117,11 +115,7 @@ export const ActivationService = {
       const organizationId = data.organizationId || data.organization_id;
       const activationCode = data.activationCode || data.activation_code;
 
-      
-      
-
       if (!organizationId) {
-        console.error('No organization ID provided for activation');
         return {
           success: false,
           message: "معرّف المؤسسة غير متوفر، يرجى تسجيل الدخول مرة أخرى"
@@ -144,7 +138,6 @@ export const ActivationService = {
       }
 
       // استدعاء وظيفة تفعيل الاشتراك مباشرة
-      
 
       const { data: result, error } = await supabase.rpc(
         'activate_subscription',
@@ -155,20 +148,16 @@ export const ActivationService = {
       );
       
       if (error) {
-        console.error('RPC error when activating subscription:', error);
         return {
           success: false,
           message: error.message || 'حدث خطأ أثناء تفعيل الاشتراك'
         };
       }
-      
-      
-      
+
       const activationResult = result[0];
       
       // طباعة معرف الاشتراك للتأكد من وجوده
-      
-      
+
       return {
         success: activationResult.success,
         message: activationResult.message,
@@ -176,7 +165,6 @@ export const ActivationService = {
         subscription_end_date: activationResult.subscription_end_date
       };
     } catch (error: any) {
-      console.error('Error activating subscription:', error);
       return {
         success: false,
         message: error.message || 'حدث خطأ أثناء تفعيل الاشتراك'
@@ -236,7 +224,6 @@ export const ActivationService = {
         total: count || 0
       };
     } catch (error) {
-      console.error('Error fetching activation codes:', error);
       throw error;
     }
   },
@@ -272,7 +259,6 @@ export const ActivationService = {
       
       return data as any;
     } catch (error) {
-      console.error('Error fetching activation code details:', error);
       throw error;
     }
   },
@@ -355,7 +341,6 @@ export const ActivationService = {
         total: count || 0
       };
     } catch (error) {
-      console.error('Error fetching activation code batches:', error);
       throw error;
     }
   },
@@ -383,7 +368,6 @@ export const ActivationService = {
       
       return updatedCode as ActivationCode;
     } catch (error) {
-      console.error('Error updating activation code:', error);
       throw error;
     }
   },
@@ -455,11 +439,10 @@ export const ActivationService = {
         plan: data.subscription_plans
       };
     } catch (error) {
-      console.error('Error verifying activation code:', error);
       return {
         isValid: false,
         message: 'حدث خطأ أثناء التحقق من كود التفعيل'
       };
     }
   }
-}; 
+};

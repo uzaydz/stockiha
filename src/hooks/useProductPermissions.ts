@@ -45,7 +45,6 @@ export const useProductPermissions = ({ isEditMode }: UseProductPermissionsProps
           navigate('/products');
         }
       } catch (error) {
-        console.error('Error checking permissions:', error);
         // Fallback permission check (simplified from original)
         const permissions = user.user_metadata?.permissions || {};
         const isAdmin =
@@ -73,4 +72,4 @@ export const useProductPermissions = ({ isEditMode }: UseProductPermissionsProps
   }, [user, isEditMode, navigate]);
 
   return { hasPermission, isCheckingPermission };
-}; 
+};

@@ -11,8 +11,7 @@ export const isValidUUID = (uuid: string) => {
 
 // دوال تحويل البيانات من Supabase إلى التطبيق
 export const mapSupabaseProductToProduct = (product: SupabaseProduct): Product => {
-  
-  
+
   return {
     id: product.id,
     name: product.name,
@@ -86,7 +85,6 @@ export const mapSupabaseOrderToOrder = async (
       .eq('order_id', order.id);
       
     if (servicesError) {
-      console.error('Error fetching service bookings:', servicesError);
     }
     serviceBookingsData = serviceBookings;
   }
@@ -141,4 +139,4 @@ export const mapSupabaseOrderToOrder = async (
     organization_id: order.organization_id,
     slug: order.slug
   };
-}; 
+};

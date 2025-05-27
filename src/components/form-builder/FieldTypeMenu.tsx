@@ -88,4 +88,4 @@ export function FieldTypeMenu({ onSelectFieldType, onAddPresetFields }: FieldTyp
       </DropdownMenuContent>
     </DropdownMenu>
   );
-} 
+}

@@ -39,7 +39,6 @@ export const updateLocalProduct = async (productId: string, updates: Partial<Pro
     const existingProduct = await productsStore.getItem<LocalProduct>(productId);
     
     if (!existingProduct) {
-      console.error(`منتج غير موجود بالمعرف: ${productId}`);
       return null;
     }
     
@@ -71,7 +70,6 @@ export const updateLocalProduct = async (productId: string, updates: Partial<Pro
     
     return updatedProduct;
   } catch (error) {
-    console.error('خطأ في تحديث المنتج محلياً:', error);
     return null;
   }
 };
@@ -82,12 +80,10 @@ export const reduceLocalProductStock = async (productId: string, quantity: numbe
     const product = await productsStore.getItem<LocalProduct>(productId);
     
     if (!product) {
-      console.error(`منتج غير موجود بالمعرف: ${productId}`);
       return null;
     }
     
     if (product.stock_quantity < quantity) {
-      console.error(`كمية المخزون غير كافية للمنتج: ${productId}`);
       return null;
     }
     
@@ -98,7 +94,6 @@ export const reduceLocalProductStock = async (productId: string, quantity: numbe
       last_inventory_update: new Date().toISOString()
     });
   } catch (error) {
-    console.error('خطأ في تقليل مخزون المنتج محلياً:', error);
     return null;
   }
 };
@@ -132,7 +127,6 @@ export const markProductAsSynced = async (productId: string, remoteData?: Partia
     const product = await productsStore.getItem<LocalProduct>(productId);
     
     if (!product) {
-      console.error(`منتج غير موجود بالمعرف: ${productId}`);
       return null;
     }
     
@@ -148,7 +142,6 @@ export const markProductAsSynced = async (productId: string, remoteData?: Partia
     await productsStore.setItem(productId, updatedProduct);
     return updatedProduct;
   } catch (error) {
-    console.error('خطأ في تحديث حالة مزامنة المنتج:', error);
     return null;
   }
 };
@@ -159,7 +152,6 @@ export const deleteLocalProduct = async (productId: string): Promise<boolean> =>
     const product = await productsStore.getItem<LocalProduct>(productId);
     
     if (!product) {
-      console.error(`منتج غير موجود بالمعرف: ${productId}`);
       return false;
     }
     
@@ -189,7 +181,6 @@ export const deleteLocalProduct = async (productId: string): Promise<boolean> =>
     await productsStore.removeItem(productId);
     return true;
   } catch (error) {
-    console.error('خطأ في حذف المنتج محلياً:', error);
     return false;
   }
-}; 
+};

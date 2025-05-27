@@ -191,4 +191,4 @@ const ProductAdvancedSettingsTabs: React.FC<ProductAdvancedSettingsTabsProps> = 
   );
 };
 
-export default ProductAdvancedSettingsTabs; 
+export default ProductAdvancedSettingsTabs;

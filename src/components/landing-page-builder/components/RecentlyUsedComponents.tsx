@@ -76,4 +76,4 @@ const RecentlyUsedComponents: React.FC<RecentlyUsedComponentsProps> = ({
   );
 };
 
-export default RecentlyUsedComponents; 
+export default RecentlyUsedComponents;

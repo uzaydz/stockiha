@@ -62,11 +62,9 @@ export function CustomerTestimonials({
           const data = await getTestimonials(organizationId, true);
           setTestimonials(data.length > 0 ? data : defaultTestimonials);
         } else {
-          console.warn('لم يتم تمرير معرف المؤسسة إلى مكون آراء العملاء');
           setTestimonials(defaultTestimonials);
         }
       } catch (error) {
-        console.error('خطأ في جلب آراء العملاء:', error);
         setTestimonials(defaultTestimonials);
       } finally {
         setLoading(false);
@@ -288,4 +286,4 @@ export function CustomerTestimonials({
   );
 }
 
-export default CustomerTestimonials; 
+export default CustomerTestimonials;

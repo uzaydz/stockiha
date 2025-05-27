@@ -23,7 +23,6 @@ const RequireTenant = ({ children }: RequireTenantProps) => {
   useEffect(() => {
     // في حالة وجود خطأ في تحميل بيانات المؤسسة، توجيه المستخدم لصفحة لوحة التحكم
     if (error && !isLoading) {
-      console.error('Error loading organization data:', error);
       navigate('/dashboard');
     }
   }, [error, isLoading, navigate]);
@@ -80,4 +79,4 @@ const RequireTenant = ({ children }: RequireTenantProps) => {
   return children ? <>{children}</> : <Outlet />;
 };
 
-export default RequireTenant; 
+export default RequireTenant;

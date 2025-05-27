@@ -185,4 +185,4 @@ const EditCloneDialog: React.FC<EditCloneDialogProps> = ({
   );
 };
 
-export default EditCloneDialog; 
+export default EditCloneDialog;

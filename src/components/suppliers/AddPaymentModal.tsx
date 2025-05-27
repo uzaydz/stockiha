@@ -63,4 +63,4 @@ const AddPaymentModal: React.FC<{
   );
 };
 
-export default AddPaymentModal; 
+export default AddPaymentModal;

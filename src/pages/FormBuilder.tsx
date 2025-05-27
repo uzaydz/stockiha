@@ -160,7 +160,6 @@ export default function FormBuilder() {
           ]);
         }
       } catch (error) {
-        console.error('Error loading form data:', error);
         toast({
           title: 'خطأ',
           description: 'حدث خطأ أثناء تحميل البيانات',
@@ -461,7 +460,6 @@ export default function FormBuilder() {
         navigate('/dashboard/form-settings');
       }
     } catch (error) {
-      console.error('Error saving form:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء حفظ النموذج',
@@ -647,4 +645,4 @@ export default function FormBuilder() {
       {pageContent}
     </Layout>
   );
-} 
+}

@@ -83,7 +83,6 @@ export default function SupplierPurchases() {
           setSelectedSupplier(supplierIdParam);
         }
       } catch (error) {
-        console.error('Error loading initial data:', error);
         toast({
           title: 'خطأ',
           description: 'حدث خطأ أثناء تحميل البيانات',
@@ -117,7 +116,6 @@ export default function SupplierPurchases() {
           navigate('/dashboard/suppliers/purchases');
         }
       } catch (error) {
-        console.error('Error loading purchase:', error);
         toast({
           title: 'خطأ',
           description: 'حدث خطأ أثناء تحميل بيانات المشتريات',
@@ -135,10 +133,7 @@ export default function SupplierPurchases() {
     
     const isNewPurchase = location.pathname.endsWith('/new');
     const hasPurchaseId = purchaseId && purchaseId !== 'new';
-    
-    
-    
-    
+
     if (isNewPurchase) {
       
       setSelectedPurchase(null);
@@ -190,8 +185,7 @@ export default function SupplierPurchases() {
         });
       } else {
         // إضافة مشتريات جديدة
-        
-        
+
         // حفظ حالة المشتريات المطلوبة
         const requestedStatus = data.status;
         
@@ -221,8 +215,7 @@ export default function SupplierPurchases() {
           
           // إذا كان product_id هو "none" أو قيمة فارغة، نضع null
           const productId = item.product_id === 'none' || !item.product_id ? null : item.product_id;
-          
-          
+
           return {
             product_id: productId,
             description: item.description,
@@ -231,15 +224,11 @@ export default function SupplierPurchases() {
             tax_rate: Number(item.tax_rate) || 0,
           };
         });
-        
-        
-        
-        
+
         try {
           const newPurchase = await createPurchase(organizationId, purchaseData, items);
           if (newPurchase) {
-            
-            
+
             // إذا كان المستخدم قد طلب حالة "مؤكدة"، قم بتحديث الحالة
             if (requestedStatus === 'confirmed') {
               
@@ -247,7 +236,6 @@ export default function SupplierPurchases() {
                 const updated = await updatePurchaseStatus(organizationId, newPurchase.id, 'confirmed');
                 
               } catch (updateError) {
-                console.error("خطأ أثناء تحديث حالة المشتريات:", updateError);
               }
             }
             
@@ -260,7 +248,6 @@ export default function SupplierPurchases() {
                   // محاولة التحقق من تحديث المخزون (اختياري)
                   
                 } catch (checkError) {
-                  console.error("خطأ أثناء التحقق من تحديث المخزون:", checkError);
                 }
               }, 1000);
             }
@@ -272,7 +259,6 @@ export default function SupplierPurchases() {
             navigate('/dashboard/suppliers/purchases');
           }
         } catch (purchaseError: any) {
-          console.error('Error during purchase creation:', purchaseError);
           
           // التحقق من نوع الخطأ وإظهار رسالة أكثر تفصيلاً
           let errorMessage = 'فشل إنشاء المشتريات';
@@ -290,7 +276,6 @@ export default function SupplierPurchases() {
         }
       }
     } catch (error) {
-      console.error('Error saving purchase:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء حفظ المشتريات',
@@ -342,4 +327,4 @@ export default function SupplierPurchases() {
       />
     </Layout>
   );
-} 
+}

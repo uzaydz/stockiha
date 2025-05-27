@@ -52,4 +52,4 @@ const ComponentsPanel: React.FC<ComponentsPanelProps> = ({
   );
 };
 
-export default ComponentsPanel; 
+export default ComponentsPanel;

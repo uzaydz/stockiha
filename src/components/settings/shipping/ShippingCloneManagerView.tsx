@@ -293,4 +293,4 @@ const ShippingCloneManagerView: React.FC<ShippingCloneManagerViewProps> = ({ org
   );
 };
 
-export default ShippingCloneManagerView; 
+export default ShippingCloneManagerView;

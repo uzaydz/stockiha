@@ -167,9 +167,7 @@ const FormSettingsPanel: React.FC<FormSettingsPanelProps> = ({ settings, onSetti
   
   // تحديث الإعدادات بقيم جديدة
   const updateSettings = (path: string, value: any) => {
-    
-    
-    
+
     // استنساخ الإعدادات الحالية
     const newAdvancedSettings = JSON.parse(JSON.stringify(advancedSettings));
     
@@ -182,16 +180,13 @@ const FormSettingsPanel: React.FC<FormSettingsPanelProps> = ({ settings, onSetti
       current = current[pathParts[i]];
     }
     current[pathParts[pathParts.length - 1]] = value;
-    
-    
-    
+
     // تحديث الإعدادات
     const updatedSettings = {
       ...settings,
       advancedSettings: newAdvancedSettings
     };
-    
-    
+
     onSettingsChange(updatedSettings);
   };
   
@@ -204,8 +199,7 @@ const FormSettingsPanel: React.FC<FormSettingsPanelProps> = ({ settings, onSetti
         ...settings,
         advancedSettings: JSON.parse(JSON.stringify(preset.settings))
       };
-      
-      
+
       onSettingsChange(updatedSettings);
     }
   };
@@ -625,4 +619,4 @@ const FormSettingsPanel: React.FC<FormSettingsPanelProps> = ({ settings, onSetti
   );
 };
 
-export default FormSettingsPanel; 
+export default FormSettingsPanel;

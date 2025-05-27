@@ -21,11 +21,9 @@ export const removeSyncQueueItemsSafely = async (objectId: string, objectType: '
       try {
         await syncQueueStore.removeItem(key);
       } catch (error) {
-        console.warn(`فشل في حذف عنصر قائمة المزامنة ${key}:`, error);
       }
     }
   } catch (error) {
-    console.error('خطأ في إزالة عناصر قائمة المزامنة:', error);
   }
 };
 
@@ -43,8 +41,7 @@ export const hasSyncQueueItems = async (objectId: string, objectType: 'product' 
       }
     });
   } catch (error) {
-    console.error('خطأ في التحقق من وجود عناصر في قائمة المزامنة:', error);
   }
   
   return hasItems;
-}; 
+};

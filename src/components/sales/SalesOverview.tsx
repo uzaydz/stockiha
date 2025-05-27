@@ -277,4 +277,4 @@ const SalesOverview = () => {
   );
 };
 
-export default SalesOverview; 
+export default SalesOverview;

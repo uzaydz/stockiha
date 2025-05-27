@@ -151,4 +151,4 @@ const ProductCustomCurrency: React.FC<ProductCustomCurrencyProps> = ({ form }) =
   );
 };
 
-export default ProductCustomCurrency; 
+export default ProductCustomCurrency;

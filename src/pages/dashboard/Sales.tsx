@@ -42,7 +42,6 @@ export default function Sales() {
         const canViewReports = await checkUserPermissions(user, 'viewReports' as any);
         setHasViewReportsPermission(canViewReports);
       } catch (error) {
-        console.error('خطأ في التحقق من الصلاحيات:', error);
         toast({
           variant: "destructive",
           title: "خطأ في التحقق من الصلاحيات",
@@ -140,4 +139,4 @@ export default function Sales() {
       </div>
     </Layout>
   );
-} 
+}

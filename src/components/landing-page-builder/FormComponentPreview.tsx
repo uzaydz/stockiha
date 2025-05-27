@@ -247,6 +247,4 @@ const FormComponentPreview: React.FC<FormComponentPreviewProps> = React.memo(({ 
 
 FormComponentPreview.displayName = 'FormComponentPreview';
 
-export default FormComponentPreview; 
- 
- 
+export default FormComponentPreview;

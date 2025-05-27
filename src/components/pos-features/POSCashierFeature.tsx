@@ -312,4 +312,4 @@ const POSCashierFeature = () => {
   );
 };
 
-export default POSCashierFeature; 
+export default POSCashierFeature;

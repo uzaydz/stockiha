@@ -130,4 +130,4 @@ const NavigationItem = ({ item, isActive, isInPopup = false, onClick }: Navigati
   );
 };
 
-export default NavigationItem; 
+export default NavigationItem;

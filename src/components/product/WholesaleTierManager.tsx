@@ -40,7 +40,6 @@ export default function WholesaleTierManager({
       setTiers(tiersData);
       onChange?.(tiersData);
     } catch (error) {
-      console.error('Error loading wholesale tiers:', error);
       toast.error('حدث خطأ أثناء تحميل مراحل أسعار الجملة');
     } finally {
       setIsLoading(false);
@@ -52,14 +51,12 @@ export default function WholesaleTierManager({
     
     // Validate required IDs
     if (!productId) {
-      console.error('Cannot add tier: missing product ID');
       toast.error('تعذر إضافة مرحلة سعرية: يجب حفظ المنتج أولاً');
       return;
     }
     
     // التأكد من وجود معرف المؤسسة
     if (!organizationId) {
-      console.error('Cannot add tier: missing organization ID');
       toast.error('تعذر إضافة مرحلة سعرية: معرف المؤسسة غير متوفر');
       return;
     }
@@ -72,9 +69,7 @@ export default function WholesaleTierManager({
     try {
       // For new product without ID, just update the local state
       if (!productId.startsWith('temp-') && !productId.includes('new')) {
-        
-        
-        
+
         try {
           // إنشاء مرحلة سعرية جديدة للجملة
           const newTierData = {
@@ -94,18 +89,15 @@ export default function WholesaleTierManager({
             toast.success('تمت إضافة مرحلة سعرية جديدة');
             return;
           } else {
-            console.error('فشل إنشاء المرحلة السعرية، لم يتم إرجاع بيانات من API');
             throw new Error('فشل إنشاء المرحلة السعرية');
           }
         } catch (apiError) {
-          console.error('خطأ عند استدعاء createWholesaleTier:', apiError);
           throw apiError;
         }
       }
       
       // If we're in product creation mode or API call failed, use a temp ID
-      
-      
+
       // حل مشكلة TypeScript باستخدام نوع بيانات متوافق مع الواجهة
       const tempTier: WholesaleTier = {
         id: `temp-${Date.now()}`,
@@ -124,7 +116,6 @@ export default function WholesaleTierManager({
       onChange?.(updatedTiers);
       toast.success('تمت إضافة مرحلة سعرية جديدة (وضع مؤقت)');
     } catch (error) {
-      console.error('خطأ عام عند إضافة مرحلة سعرية:', error);
       toast.error('حدث خطأ أثناء إضافة مرحلة سعرية جديدة');
     }
   };
@@ -151,13 +142,11 @@ export default function WholesaleTierManager({
           const updated = await updateWholesaleTier(tier.id, { [field]: value });
           
         } catch (updateError) {
-          console.error(`Error updating tier ${field}:`, updateError);
           toast.error('حدث خطأ أثناء تحديث المرحلة السعرية');
           // Don't call loadTiers here to avoid unexpected state changes while editing
         }
       }
     } catch (error) {
-      console.error(`Error updating tier ${field}:`, error);
       toast.error('حدث خطأ أثناء تحديث المرحلة السعرية');
     }
   };
@@ -184,7 +173,6 @@ export default function WholesaleTierManager({
             toast.success('تم حذف المرحلة السعرية بنجاح');
           }
         } catch (deleteError) {
-          console.error(`Error deleting tier ${tier.id}:`, deleteError);
           toast.error('حدث خطأ أثناء حذف المرحلة السعرية');
           // Don't call loadTiers here to avoid UI confusion
         }
@@ -193,7 +181,6 @@ export default function WholesaleTierManager({
         toast.success('تم حذف المرحلة السعرية');
       }
     } catch (error) {
-      console.error('Error removing tier:', error);
       toast.error('حدث خطأ أثناء حذف المرحلة السعرية');
     }
   };
@@ -271,4 +258,4 @@ export default function WholesaleTierManager({
       </div>
     </div>
   );
-} 
+}

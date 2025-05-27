@@ -29,4 +29,4 @@ export function generateTrackingNumber(length: number = 10): string {
   
   // Trim or pad to exact length
   return result.slice(0, length).padStart(length, '0');
-} 
+}

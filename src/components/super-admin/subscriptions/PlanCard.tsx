@@ -124,4 +124,4 @@ export function PlanCard({ plan, onEdit, onDelete, onToggleActive }: PlanCardPro
       </CardFooter>
     </Card>
   );
-} 
+}

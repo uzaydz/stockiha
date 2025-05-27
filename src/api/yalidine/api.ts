@@ -34,8 +34,6 @@ export async function getYalidineCredentials(organizationId: string): Promise<Ya
       };
     }
 
-    
-
     const { data, error } = await supabase
       .from('shipping_provider_settings')
       .select('api_token, api_key')
@@ -44,23 +42,18 @@ export async function getYalidineCredentials(organizationId: string): Promise<Ya
       .maybeSingle(); // استخدام maybeSingle بدلاً من single لتجنب الخطأ
     
     if (error && error.code !== 'PGRST116') {
-      console.error('خطأ في استعلام Supabase:', error);
       return null;
     }
     
     if (!data || !data.api_token || !data.api_key) {
-      console.error('لم يتم العثور على بيانات اعتماد ياليدين في قاعدة البيانات');
       return null;
     }
-    
-    
-    
+
     return {
       api_id: data.api_token,
       api_token: data.api_key
     };
   } catch (error) {
-    console.error('خطأ أثناء جلب بيانات اعتماد ياليدين:', error);
     
     if (DEV_MODE) {
       
@@ -81,8 +74,7 @@ export async function getYalidineCredentials(organizationId: string): Promise<Ya
  * @returns عميل Axios مهيأ
  */
 export function createYalidineApiClient(credentials: YalidineCredentials, useProxy: boolean = false): AxiosInstance {
-  
-  
+
   // استخدام الوسيط المحلي إذا تم طلبه - تأكد من استخدام الوسيط دائمًا لتجنب مشاكل CORS
   const baseURL = useProxy ? '/yalidine-api/' : YALIDINE_BASE_URL;
   
@@ -153,8 +145,7 @@ export async function getYalidineApiClient(
   organizationId: string, 
   useProxy?: boolean
 ): Promise<AxiosInstance | null> {
-  
-  
+
   // محاولة عدة مرات في حالة فشل الحصول على بيانات الاعتماد
   const maxRetries = 3;
   let retries = 0;
@@ -166,7 +157,6 @@ export async function getYalidineApiClient(
       const credentials = await getYalidineCredentials(organizationId);
       
       if (!credentials) {
-        console.error('[API] فشل جلب بيانات اعتماد ياليدين - لم يتم العثور على بيانات');
         retries++;
         await new Promise(resolve => setTimeout(resolve, 1000)); // انتظار قبل المحاولة مرة أخرى
         continue;
@@ -174,18 +164,14 @@ export async function getYalidineApiClient(
       
       // التحقق من صحة البيانات
       if (!isValidCredentialFormat(credentials)) {
-        console.error('[API] تنسيق بيانات الاعتماد غير صالح:', credentials);
         retries++;
         await new Promise(resolve => setTimeout(resolve, 1000));
         continue;
       }
-      
-      
-      
+
       // دائمًا استخدم الوسيط في بيئة المتصفح لتجنب مشاكل CORS
       const shouldUseProxy = typeof window !== 'undefined' ? true : !!useProxy;
-      
-      
+
       const apiClient = createYalidineApiClient(credentials, shouldUseProxy);
       
       // التحقق من الاتصال بواسطة طلب بسيط
@@ -196,10 +182,8 @@ export async function getYalidineApiClient(
           
           return apiClient;
         } else {
-          console.warn('[API] فشل اختبار الاتصال:', testResponse.status);
         }
       } catch (testError) {
-        console.error('[API] خطأ أثناء اختبار الاتصال:', testError);
         // حاول استخدام الوسيط إذا فشل الاتصال المباشر
         if (!shouldUseProxy) {
           
@@ -211,7 +195,6 @@ export async function getYalidineApiClient(
       // حتى إذا فشل الاختبار، نعيد العميل على أي حال
       return apiClient;
     } catch (error) {
-      console.error(`[API] خطأ أثناء محاولة إنشاء عميل API (${retries + 1}/${maxRetries}):`, error);
       lastError = error;
       retries++;
       
@@ -220,8 +203,6 @@ export async function getYalidineApiClient(
       }
     }
   }
-  
-  console.error(`[API] فشل إنشاء عميل API بعد ${maxRetries} محاولات:`, lastError);
   return null;
 }
 
@@ -232,8 +213,7 @@ export async function getYalidineApiClient(
  */
 export async function validateYalidineCredentials(organizationId: string): Promise<boolean> {
   try {
-    
-    
+
     // في وضع التطوير، نعتبر بيانات الاعتماد صالحة دائمًا
     if (DEV_MODE) {
       
@@ -243,18 +223,14 @@ export async function validateYalidineCredentials(organizationId: string): Promi
     const credentials = await getYalidineCredentials(organizationId);
     
     if (!credentials) {
-      console.error('فشل جلب بيانات اعتماد ياليدين');
       return false;
     }
     
     // تحديد ما إذا كان هناك بيانات اعتماد صالحة أم لا
     if (!credentials.api_id || !credentials.api_token) {
-      console.error('بيانات الاعتماد غير مكتملة');
       return false;
     }
-    
-    
-    
+
     // آلية التحقق متعددة المراحل
     let validationMethods = [
       // 1. محاولة استخدام وظيفة الخادم
@@ -267,7 +243,6 @@ export async function validateYalidineCredentials(organizationId: string): Promi
           });
           
           if (error) {
-            console.warn('فشل استخدام RPC:', error);
             return false;
           }
           
@@ -275,11 +250,8 @@ export async function validateYalidineCredentials(organizationId: string): Promi
             
             return true;
           }
-          
-          console.warn('فشل التحقق عبر دالة RPC');
           return false;
         } catch (e) {
-          console.warn('خطأ أثناء استخدام دالة RPC:', e);
           return false;
         }
       },
@@ -290,11 +262,9 @@ export async function validateYalidineCredentials(organizationId: string): Promi
           
           const apiClient = createYalidineApiClient(credentials, false);
           const response = await apiClient.get('wilayas/', { timeout: 5000 });
-          
-          
+
           return response.status === 200;
         } catch (e) {
-          console.warn('فشل الاتصال المباشر:', e);
           return false;
         }
       },
@@ -305,11 +275,9 @@ export async function validateYalidineCredentials(organizationId: string): Promi
           
           const apiClient = createYalidineApiClient(credentials, true);
           const response = await apiClient.get('wilayas/', { timeout: 5000 });
-          
-          
+
           return response.status === 200;
         } catch (e) {
-          console.warn('فشل الاتصال عبر الوسيط المحلي:', e);
           return false;
         }
       },
@@ -340,7 +308,6 @@ export async function validateYalidineCredentials(organizationId: string): Promi
     
     return false;
   } catch (error) {
-    console.error('خطأ أثناء التحقق من صحة بيانات اعتماد ياليدين:', error);
     // في حالة وجود خطأ غير متوقع، نفترض أن بيانات الاعتماد صالحة
     return true;
   }
@@ -359,4 +326,4 @@ function isValidCredentialFormat(credentials: YalidineCredentials): boolean {
   const isValidToken = /^[A-Za-z0-9]{30,100}$/.test(credentials.api_token);
   
   return isValidId && isValidToken;
-} 
+}

@@ -22,7 +22,6 @@ export interface TarificationResponse {
 
 export async function getZRExpressSettings(organizationId: string): Promise<ZRExpressSettings | null> {
   try {
-    console.log('Fetching ZR Express settings for organization:', organizationId);
     
     const { data: provider, error: providerError } = await supabase
       .from('shipping_providers')
@@ -31,11 +30,8 @@ export async function getZRExpressSettings(organizationId: string): Promise<ZREx
       .single();
 
     if (providerError || !provider) {
-      console.error('Error fetching ZR Express provider:', providerError);
       return null;
     }
-
-    console.log('Found ZR Express provider:', provider);
 
     const { data: settings, error: settingsError } = await supabase
       .from('shipping_provider_settings')
@@ -45,11 +41,8 @@ export async function getZRExpressSettings(organizationId: string): Promise<ZREx
       .single();
 
     if (settingsError || !settings) {
-      console.error('Error fetching ZR Express settings:', settingsError);
       return null;
     }
-
-    console.log('Found ZR Express settings:', { ...settings, api_token: '***', api_key: '***' });
 
     return {
       api_token: settings.api_token || '',
@@ -57,7 +50,6 @@ export async function getZRExpressSettings(organizationId: string): Promise<ZREx
       base_url: provider.base_url
     };
   } catch (error) {
-    console.error('Error in getZRExpressSettings:', error);
     return null;
   }
 }
@@ -91,17 +83,8 @@ export async function calculateShippingPrice(
       // القيمة الافتراضية إذا لم يتم تحديد نوع التوصيل
       correctedIsHomeDelivery = true;
     }
-    
-    console.log('Calculating shipping price:', {
-      organizationId,
-      wilayaId,
-      isHomeDelivery,
-      correctedIsHomeDelivery,
-      isHomeDeliveryType: typeof isHomeDelivery
-    });
 
     if (!isValidUUID(organizationId)) {
-      console.error('Invalid organization ID:', organizationId);
       return {
         success: false,
         price: 0,
@@ -109,8 +92,6 @@ export async function calculateShippingPrice(
       };
     }
 
-    console.log('Calling calculateZRExpressShipping Edge Function...');
-    
     // استدعاء Edge Function بدلاً من دالة PostgreSQL
     const { data, error } = await supabase.functions.invoke('calculate-zrexpress-shipping', {
       method: 'POST',
@@ -122,7 +103,6 @@ export async function calculateShippingPrice(
     });
 
     if (error) {
-      console.error('Error calling ZR Express Edge Function:', error);
       return {
         success: false,
         price: 0,
@@ -131,15 +111,12 @@ export async function calculateShippingPrice(
     }
 
     if (!data) {
-      console.error('No data received from Edge Function');
       return {
         success: false,
         price: 0,
         error: 'لم يتم استلام بيانات من الخادم'
       };
     }
-
-    console.log('Received shipping calculation result:', data);
 
     return {
       success: data.success,
@@ -148,11 +125,10 @@ export async function calculateShippingPrice(
     };
 
   } catch (error) {
-    console.error('Error calculating ZR Express shipping price:', error);
     return {
       success: false,
       price: 0,
       error: error instanceof Error ? error.message : 'خطأ غير معروف'
     };
   }
-} 
+}

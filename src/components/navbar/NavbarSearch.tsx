@@ -488,4 +488,4 @@ export function NavbarSearch({
 // }
 // .dark .custom-scrollbar::-webkit-scrollbar-thumb {
 //   background-color: rgba(255, 255, 255, 0.2);
-// } 
+// }

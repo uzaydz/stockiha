@@ -89,7 +89,6 @@ export const useFileUpload = ({
         throw new Error('لم يتم استلام رابط الملف المرفوع');
       }
     } catch (error) {
-      console.error('فشل في رفع الملف:', error);
       
       // استدعاء دالة الخطأ إذا تم توفيرها
       if (onError && error instanceof Error) {
@@ -125,4 +124,4 @@ export const useFileUpload = ({
   };
 };
 
-export default useFileUpload; 
+export default useFileUpload;

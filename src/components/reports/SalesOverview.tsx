@@ -368,4 +368,4 @@ const SalesOverview = ({ data, dateRange, isLoading }: SalesOverviewProps) => {
   );
 };
 
-export default SalesOverview; 
+export default SalesOverview;

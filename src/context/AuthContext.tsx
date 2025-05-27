@@ -70,9 +70,7 @@ const extractSubdomain = (hostname: string) => {
   if (cachedSubdomain) {
     return cachedSubdomain === 'null' ? null : cachedSubdomain;
   }
-  
-  
-  
+
   let subdomain = null;
   
   // خاص بـ localhost: التعامل مع النطاقات الفرعية في بيئة التطوير
@@ -101,8 +99,7 @@ const extractSubdomain = (hostname: string) => {
     // إذا كان لدينا أكثر من جزئين، الجزء الأول هو النطاق الفرعي
     if (hostParts.length > 2) {
       subdomain = hostParts[0];
-      
-      
+
       // لا نعتبر 'www' كنطاق فرعي حقيقي
       if (subdomain === 'www') {
         
@@ -171,7 +168,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           );
           setUserProfile(profile);
         } catch (error) {
-          console.error("Error loading user profile:", error);
           setUserProfile(null); 
         } finally {
           setIsLoadingUserProfile(false);
@@ -213,7 +209,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 organizationData = data;
                 localStorage.setItem('bazaar_organization_id', data.id);
               } else if (error && error.code !== 'PGRST116') {
-                console.error('خطأ في جلب المؤسسة الافتراضية:', error);
               }
             }
           } else {
@@ -226,7 +221,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               organizationData = data;
               localStorage.setItem('bazaar_organization_id', data.id);
             } else if (error && error.code !== 'PGRST116') {
-              console.error('خطأ في جلب بيانات المؤسسة باستخدام النطاق الفرعي:', error);
             }
           }
 
@@ -241,7 +235,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               if (!error && data) {
                 organizationData = data;
               } else if (error && error.code !== 'PGRST116') {
-                console.error('خطأ في جلب بيانات المؤسسة من التخزين المحلي ID:', error);
               }
             }
           }
@@ -261,7 +254,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               }
             } catch (e: any) { 
               if (e?.code !== 'PGRST116') {
-                console.error('Error fetching subscription for org:', e);
               }
             }
             
@@ -289,7 +281,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       return !!orgDetails;
     } catch (error) {
-      console.error("Error in loadOrganizationData:", error);
       setOrganization(null);
       setIsTenant(false);
       return false;
@@ -304,7 +295,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const { data: { session: initialSession }, error } = await supabase.auth.getSession();
         if (error) {
-          console.error("Error getting initial session state:", error);
           // Potentially set user/session to null explicitly if error indicates auth failure
         }
         // Update session and user states once after getting the initial session.
@@ -312,7 +302,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSession(initialSession);
         setUser(initialSession?.user ?? null);
       } catch (error) {
-        console.error("Critical error in getInitialSession:", error);
       } finally {
         // setLoading(false); // Defer this to onAuthStateChange INITIAL_SESSION or first SIGNED_IN
       }
@@ -357,19 +346,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     const validateSubdomain = async () => {
       if (!currentSubdomain || !isActive) return;
-      
-      
+
       if (currentSubdomain) {
         try {
           
           const organization = await getOrganizationBySubdomain(currentSubdomain);
-          
-          
+
           // If the subdomain doesn't exist, redirect to the main domain
           // Only redirect if we're in production and not on localhost
           if (!organization && !window.location.hostname.includes('localhost')) {
-            
-            
+
             // Only redirect if not in the middle of a login flow
             // Check if current path is not login or auth related
             const authPaths = ['/login', '/signup', '/tenant/signup', '/auth'];
@@ -395,7 +381,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }
         } catch (error) {
-          console.error('خطأ في التحقق من صحة النطاق الفرعي:', error);
         }
       }
     };
@@ -532,7 +517,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Organization might persist if it's a public tenant page, so reload it
       await loadOrganizationData(currentSubdomain); 
     } catch (error) {
-      console.error("Error signing out:", error);
       // Optionally, handle sign-out errors (e.g., display a message to the user)
     }
   }, [loadOrganizationData, currentSubdomain]);
@@ -558,8 +542,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isTenant, currentSubdomain, refreshOrganizationData
   ]);
 
-  console.log("AuthContext value in AuthProvider:", authContextValue); // Log the context value
-
   // Ensure all states are updated before rendering children
   if (loading || isLoadingUserProfile || isLoadingOrganization) {
     // Optionally, render a global loading indicator or null
@@ -577,8 +559,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    console.error("useAuth: AuthContext is undefined. This usually means you are trying to use useAuth outside of an AuthProvider.");
     throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
-}; 
+};

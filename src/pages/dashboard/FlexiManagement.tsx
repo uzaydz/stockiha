@@ -122,10 +122,6 @@ export default function FlexiManagement() {
       );
 
       if (networksWithoutBalances.length > 0) {
-        console.warn(
-          'شبكات بدون أرصدة:', 
-          networksWithoutBalances.map(n => n.name).join(', ')
-        );
       }
     } catch (error) {
       toast({
@@ -133,7 +129,6 @@ export default function FlexiManagement() {
         title: 'حدث خطأ',
         description: 'لم نتمكن من تحميل بيانات الفليكسي'
       });
-      console.error(error);
     } finally {
       setLoadingFlexi(false);
     }
@@ -152,7 +147,6 @@ export default function FlexiManagement() {
         title: 'حدث خطأ',
         description: 'لم نتمكن من تحميل بيانات العملات الرقمية'
       });
-      console.error(error);
     } finally {
       setLoadingCurrencies(false);
     }
@@ -195,11 +189,7 @@ export default function FlexiManagement() {
       
       // اختيار المعرف الأول المتوفر من الخيارات
       const finalOrgId = storedOrgId || organizationId || fallbackOrgId;
-      
-      
-      
-      
-      
+
       await updateFlexiBalance(selectedFlexiNetwork, parseFloat(newBalance), finalOrgId);
       
       toast({
@@ -220,7 +210,6 @@ export default function FlexiManagement() {
         title: 'حدث خطأ',
         description: 'لم نتمكن من تحديث رصيد الفليكسي'
       });
-      console.error(error);
     } finally {
       setIsUpdatingFlexi(false);
     }
@@ -244,9 +233,7 @@ export default function FlexiManagement() {
       
       // اختيار المعرف الأول المتوفر من الخيارات
       const finalOrgId = storedOrgId || organizationId || fallbackOrgId;
-      
-      
-      
+
       await updateCurrencyBalance(selectedCurrency, parseFloat(newBalance), finalOrgId);
       toast({
         title: 'تم التحديث',
@@ -259,7 +246,6 @@ export default function FlexiManagement() {
         title: 'حدث خطأ',
         description: 'لم نتمكن من تحديث رصيد العملة'
       });
-      console.error(error);
     } finally {
       setIsUpdatingCurrency(false);
     }
@@ -281,17 +267,13 @@ export default function FlexiManagement() {
       const storedOrgId = localStorage.getItem('organization_id');
       
       // عمل فحص إضافي للمعرف المخزن في local storage
-      
-      
-      
+
       // استخدام المعرف الاحتياطي في حالة كل شيء آخر فشل
       const fallbackOrgId = "fed872f9-1ade-4351-b020-5598fda976fe";
       
       // اختيار المعرف الأول المتوفر من الخيارات
       const finalOrgId = storedOrgId || organizationId || fallbackOrgId;
-      
-      
-      
+
       // إضافة شبكة فليكسي جديدة باستخدام وظيفة RPC الآمنة مع تمرير معرف المؤسسة
       await addFlexiNetwork({
         ...newFlexiNetwork,
@@ -318,7 +300,6 @@ export default function FlexiManagement() {
         title: 'حدث خطأ',
         description: error instanceof Error ? error.message : 'لم نتمكن من إضافة شبكة فليكسي جديدة'
       });
-      console.error(error);
     } finally {
       setIsAddingFlexiNetwork(false);
     }
@@ -344,9 +325,7 @@ export default function FlexiManagement() {
       
       // اختيار المعرف الأول المتوفر من الخيارات
       const finalOrgId = storedOrgId || organizationId || fallbackOrgId;
-      
-      
-      
+
       await addDigitalCurrency({
         ...newCurrency,
         type: newCurrency.type as "currency" | "platform",
@@ -376,7 +355,6 @@ export default function FlexiManagement() {
         title: 'حدث خطأ',
         description: error instanceof Error ? error.message : 'لم نتمكن من إضافة عملة رقمية جديدة'
       });
-      console.error(error);
     } finally {
       setIsAddingCurrency(false);
     }
@@ -404,7 +382,6 @@ export default function FlexiManagement() {
         title: 'حدث خطأ',
         description: 'لم نتمكن من تحديث شبكة الفليكسي'
       });
-      console.error(error);
     }
   };
   
@@ -436,7 +413,6 @@ export default function FlexiManagement() {
         title: 'حدث خطأ',
         description: 'لم نتمكن من تحديث العملة الرقمية'
       });
-      console.error(error);
     }
   };
   
@@ -471,7 +447,6 @@ export default function FlexiManagement() {
         title: 'حدث خطأ',
         description: `لم نتمكن من حذف ${deleteType === 'flexi' ? 'شبكة الفليكسي' : 'العملة الرقمية'}`
       });
-      console.error(error);
     } finally {
       setIsConfirmingDelete(false);
       setDeleteId(null);
@@ -1029,4 +1004,4 @@ export default function FlexiManagement() {
       </div>
     </Layout>
   );
-} 
+}

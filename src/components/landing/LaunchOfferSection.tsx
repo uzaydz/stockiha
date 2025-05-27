@@ -144,4 +144,4 @@ const LaunchOfferSection = () => {
   );
 };
 
-export default LaunchOfferSection; 
+export default LaunchOfferSection;

@@ -181,7 +181,6 @@ export async function sendWhatsappMessage(
     
     // In development mode, just log instead of actually sending
     if (import.meta.env.DEV) {
-      console.log(`Would send WhatsApp message to ${formattedPhone}: ${message}`);
       return { success: true, messageId: 'dev-mode-message-id' };
     }
     
@@ -204,10 +203,9 @@ export async function sendWhatsappMessage(
     
     return { success: true, messageId: data.id };
   } catch (error) {
-    console.error('Error sending WhatsApp message:', error);
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error sending WhatsApp message'
     };
   }
-} 
+}

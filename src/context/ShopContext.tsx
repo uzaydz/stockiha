@@ -80,12 +80,10 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
     
     loadingProducts.current = true;
-    
-    
+
     // إنشاء وقت انتهاء مهلة للاستعلام
     const timeoutPromise = new Promise<Product[]>((_, reject) => {
       setTimeout(() => {
-        console.error('انتهت مهلة جلب المنتجات');
         reject(new Error('انتهت مهلة جلب المنتجات'));
       }, 30000); // زيادة المهلة إلى 30 ثانية
     });
@@ -95,8 +93,7 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const productsPromise = withCache<Product[]>(
         `shop_products:${organizationId}`,
         async () => {
-          
-          
+
           // استخدام استعلام مباشر لتجنب المشاكل
           const { data: productsData, error: productsError } = await supabase
             .from('products')
@@ -105,12 +102,9 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             .eq('is_active', true);
             
           if (productsError) {
-            console.error('Error fetching products:', productsError);
             return [];
           }
-          
-          
-          
+
           // تبسيط تحويل البيانات لتحسين الأداء
           return productsData.map(product => mapSupabaseProductToProduct(product));
         },
@@ -121,7 +115,6 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // استخدام Race بين الاستعلام والمهلة الزمنية
       return await Promise.race([productsPromise, timeoutPromise]);
     } catch (error) {
-      console.error('Error in fetchProducts:', error);
       return [];
     } finally {
       loadingProducts.current = false;
@@ -130,12 +123,10 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // وظيفة محسنة لجلب الطلبات
   const fetchOrders = useCallback(async (organizationId: string) => {
-    
-    
+
     // إنشاء وقت انتهاء مهلة للاستعلام
     const timeoutPromise = new Promise<Order[]>((_, reject) => {
       setTimeout(() => {
-        console.error('انتهت مهلة جلب الطلبات');
         reject(new Error('انتهت مهلة جلب الطلبات'));
       }, 30000); // زيادة المهلة إلى 30 ثانية
     });
@@ -145,8 +136,7 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const ordersPromise = withCache<Order[]>(
         `shop_orders:${organizationId}`,
         async () => {
-          
-          
+
           // استخدام استعلام مباشر وبسيط
           const { data: ordersData, error: ordersError } = await supabase
             .from('orders')
@@ -155,12 +145,9 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             .order('created_at', { ascending: false });
             
           if (ordersError) {
-            console.error('Error fetching orders:', ordersError);
             return [];
           }
-          
-          
-          
+
           // تحويل البيانات - معالجة الوعود بشكل صحيح
           const orderPromises = ordersData.map(order => mapSupabaseOrderToOrder(order, false));
           return Promise.all(orderPromises);
@@ -172,19 +159,16 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // استخدام Race بين الاستعلام والمهلة الزمنية
       return await Promise.race([ordersPromise, timeoutPromise]);
     } catch (error) {
-      console.error('Error in fetchOrders:', error);
       return [];
     }
   }, []);
 
   // وظيفة لجلب الخدمات
   const fetchServices = useCallback(async (organizationId: string) => {
-    console.log('🔄 بدء جلب الخدمات للمنظمة:', organizationId);
     
     // إنشاء وقت انتهاء مهلة للاستعلام
     const timeoutPromise = new Promise<Service[]>((_, reject) => {
       setTimeout(() => {
-        console.error('❌ انتهت مهلة جلب الخدمات');
         reject(new Error('انتهت مهلة جلب الخدمات'));
       }, 30000);
     });
@@ -194,18 +178,14 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const servicesPromise = withCache<Service[]>(
         `shop_services:${organizationId}`,
         async () => {
-          console.log('📡 جلب الخدمات من قاعدة البيانات للمنظمة:', organizationId);
           
           // أولاً، دعنا نتحقق من العدد الكلي للخدمات في هذه المنظمة
           const { data: allServicesData, error: allServicesError } = await supabase
             .from('services')
             .select('*')
             .eq('organization_id', organizationId);
-            
-          console.log('📊 العدد الكلي للخدمات في المنظمة:', allServicesData?.length || 0);
           
           if (allServicesError) {
-            console.error('❌ خطأ في جلب كافة الخدمات:', allServicesError);
           }
           
           // ثم نجلب الخدمات المتاحة فقط
@@ -216,20 +196,13 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             .eq('is_available', true);
             
           if (servicesError) {
-            console.error('❌ Error fetching services:', servicesError);
             return [];
           }
           
-          console.log('✅ تم جلب الخدمات المتاحة بنجاح:', servicesData.length);
-          console.log('📋 بيانات الخدمات:', servicesData);
-          
           // تحويل البيانات من Supabase إلى تنسيق التطبيق
           const mappedServices = servicesData.map(service => {
-            console.log('🔄 تحويل خدمة:', service.name);
             return mapSupabaseServiceToService(service);
           });
-          
-          console.log('🎯 الخدمات المحولة النهائية:', mappedServices);
           
           return mappedServices;
         },
@@ -240,7 +213,6 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // استخدام Race بين الاستعلام والمهلة الزمنية
       return await Promise.race([servicesPromise, timeoutPromise]);
     } catch (error) {
-      console.error('❌ Error in fetchServices:', error);
       return [];
     }
   }, []);
@@ -254,19 +226,16 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return;
       }
 
-      
       setIsLoading(true);
       
       // الحصول على معرف المنظمة
       const organizationId = await getOrganizationId(currentUser);
           
       if (!organizationId) {
-        console.error('لم يتم العثور على معرف المنظمة');
         setIsLoading(false);
         return;
       }
-      
-      
+
       setCurrentOrganization({ id: organizationId });
       
       // التأكد من وجود عميل زائر
@@ -280,7 +249,6 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setUsers(parsedUsers);
         }
       } catch (error) {
-        console.error('Error parsing stored users:', error);
       }
       
       // تنفيذ عمليات الجلب بشكل متوازي لتسريع التحميل - إضافة جلب الخدمات
@@ -295,7 +263,6 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setProducts(fetchedProducts.value);
         
       } else {
-        console.error('فشل في تحميل المنتجات:', fetchedProducts.reason);
       }
       
       // معالجة نتائج الطلبات
@@ -303,15 +270,12 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setOrders(fetchedOrders.value);
         
       } else {
-        console.error('فشل في تحميل الطلبات:', fetchedOrders.reason);
       }
       
       // معالجة نتائج الخدمات
       if (fetchedServices.status === 'fulfilled') {
         setServices(fetchedServices.value);
-        console.log('تم تحديث حالة الخدمات بنجاح:', fetchedServices.value.length);
       } else {
-        console.error('فشل في تحميل الخدمات:', fetchedServices.reason);
       }
       
       // جلب المستخدمين بشكل منفصل (لا نستخدم Promise.allSettled لأننا نحتاج إلى معالجة الخطأ مباشرة)
@@ -323,7 +287,6 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           .eq('organization_id', organizationId);
           
         if (usersError) {
-          console.error('Error fetching users:', usersError);
         } else {
           const mappedUsers = usersData.map(mapSupabaseUserToUser);
           setUsers(prevUsers => {
@@ -348,20 +311,16 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             try {
               localStorage.setItem('bazaar_users', JSON.stringify(mergedUsers));
             } catch (storageError) {
-              console.error('Error storing users in localStorage:', storageError);
             }
             
             return mergedUsers;
           });
         }
       } catch (usersError) {
-        console.error('Error in users fetch:', usersError);
       }
-      
-      
+
       isInitialized.current = true;
     } catch (error) {
-      console.error('Error in fetchData:', error);
     } finally {
       setIsLoading(false);
     }
@@ -389,7 +348,6 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
       return false;
     } catch (error) {
-      console.error('Login error:', error);
     return false;
     }
   };
@@ -399,7 +357,6 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       await userService.logout();
     setCurrentUser(null);
     } catch (error) {
-      console.error('Logout error:', error);
     }
   };
   
@@ -410,7 +367,6 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setProducts([...products, newProduct]);
       return newProduct;
     } catch (error) {
-      console.error('Error in addProduct:', error);
       throw error;
     }
   };
@@ -421,7 +377,6 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setProducts(products.map(p => p.id === product.id ? updatedProduct : p));
       return updatedProduct;
     } catch (error) {
-      console.error('Error in updateProduct:', error);
       throw error;
     }
   };
@@ -432,7 +387,6 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setProducts(products.filter(p => p.id !== productId));
       return true;
     } catch (error) {
-      console.error('Error in deleteProduct:', error);
       throw error;
     }
   };
@@ -444,7 +398,6 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setServices([...services, newService]);
       return newService;
     } catch (error) {
-      console.error('Error in addService:', error);
       throw error;
     }
   };
@@ -455,7 +408,6 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setServices(services.map(s => s.id === service.id ? updatedService : s));
       return updatedService;
     } catch (error) {
-      console.error('Error in updateService:', error);
       throw error;
     }
   };
@@ -466,7 +418,6 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setServices(services.filter(s => s.id !== serviceId));
       return true;
     } catch (error) {
-      console.error('Error in deleteService:', error);
       throw error;
     }
   };
@@ -488,7 +439,6 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       );
       await refreshData();
     } catch (error) {
-      console.error('Error in updateServiceBookingStatus:', error);
       throw error;
     }
   };
@@ -502,7 +452,6 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       await serviceService.assignServiceBooking(orderId, serviceBookingId, employeeId);
       await refreshData();
     } catch (error) {
-      console.error('Error in assignServiceBooking:', error);
       throw error;
     }
   };
@@ -511,7 +460,6 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       return await serviceService.getServiceBookings(currentOrganization?.id);
     } catch (error) {
-      console.error('Error in getServiceBookings:', error);
       throw error;
     }
   };
@@ -551,7 +499,6 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       throw new Error('فشل في إنشاء العميل');
         } catch (error) {
-      console.error('Error creating customer:', error);
           throw error;
         }
   };
@@ -563,7 +510,6 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setOrders([newOrder, ...orders]);
       return newOrder;
      } catch (error) {
-       console.error('Error in addOrder:', error);
        throw error;
      }
     };
@@ -579,7 +525,6 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       orderService.deleteOrder(orderId);
      setOrders(orders.filter(o => o.id !== orderId));
     } catch (error) {
-      console.error('Error deleting order:', error);
       throw error;
     }
    };

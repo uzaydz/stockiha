@@ -80,7 +80,6 @@ export const TestimonialsComponent: React.FC<TestimonialsComponentProps> = ({
         setTestimonials(mappedItems);
       }
     } catch (err) {
-      console.error('Error fetching testimonials:', err);
       setError('Failed to load testimonials');
       // Fallback to local items
       setTestimonials(settings.items || []);
@@ -186,7 +185,6 @@ export const TestimonialsComponent: React.FC<TestimonialsComponentProps> = ({
   }
 
   if (error) {
-    console.error('Testimonials component error:', error);
     // Silently render with local items instead of showing error
   }
 
@@ -274,4 +272,4 @@ export const TestimonialsComponent: React.FC<TestimonialsComponentProps> = ({
   );
 };
 
-export default TestimonialsComponent; 
+export default TestimonialsComponent;

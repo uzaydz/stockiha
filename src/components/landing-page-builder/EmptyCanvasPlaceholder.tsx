@@ -29,6 +29,4 @@ const EmptyCanvasPlaceholder: React.FC<EmptyCanvasPlaceholderProps> = ({ onAddCl
   );
 };
 
-export default EmptyCanvasPlaceholder; 
- 
- 
+export default EmptyCanvasPlaceholder;

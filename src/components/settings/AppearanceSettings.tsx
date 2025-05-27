@@ -48,7 +48,6 @@ const AppearanceSettings = () => {
           setUserSettings(userSettingsData);
           setThemeMode(userSettingsData.theme_mode || 'system');
         } catch (error) {
-          console.error('Error fetching user settings:', error);
         }
       }
 
@@ -79,7 +78,6 @@ const AppearanceSettings = () => {
             setEnableCustomCSS(false);
           }
         } catch (error) {
-          console.error('Error fetching organization settings:', error);
         }
       }
     };
@@ -111,7 +109,6 @@ const AppearanceSettings = () => {
         setSaveSuccessUser(false);
       }, 2000);
     } catch (error) {
-      console.error('Error saving user settings:', error);
       setIsSavingUser(false);
       toast({
         title: 'خطأ',
@@ -146,7 +143,6 @@ const AppearanceSettings = () => {
         setSaveSuccessOrg(false);
       }, 2000);
     } catch (error) {
-      console.error('Error saving organization settings:', error);
       setIsSavingOrg(false);
       toast({
         title: 'خطأ',
@@ -278,4 +274,4 @@ const AppearanceSettings = () => {
   );
 };
 
-export default AppearanceSettings; 
+export default AppearanceSettings;

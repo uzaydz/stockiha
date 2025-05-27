@@ -74,4 +74,4 @@ const OrderItemsList = ({ items }: OrderItemsListProps) => {
   );
 };
 
-export default OrderItemsList; 
+export default OrderItemsList;

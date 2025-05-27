@@ -52,22 +52,6 @@ export function NavbarLinks({
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
   const [hoveredLink, setHoveredLink] = useState<string | null>(null);
   const [dropdownHovered, setDropdownHovered] = useState<string | null>(null);
-  const [newProducts, setNewProducts] = useState<boolean>(false);
-  const [featuredItems, setFeaturedItems] = useState<{id: string, name: string}[]>([]);
-  
-  // محاكاة وجود منتجات جديدة أو مميزة - في التطبيق الحقيقي ستأتي من واجهة برمجة التطبيقات
-  useEffect(() => {
-    // افتراض وجود منتجات جديدة بعد فترة قصيرة للعرض التوضيحي
-    const timer = setTimeout(() => {
-      setNewProducts(true);
-      setFeaturedItems([
-        { id: 'feat1', name: 'PlayStation 5' },
-        { id: 'feat2', name: 'سماعات ألعاب لاسلكية' }
-      ]);
-    }, 1500);
-    
-    return () => clearTimeout(timer);
-  }, []);
   
   const getLinks = (): NavLink[] => {
     if (isAdminPage) {
@@ -84,9 +68,7 @@ export function NavbarLinks({
           path: '/products', 
           icon: Tag, 
           hasSubmenu: true, 
-          submenuItems: categories,
-          hasNew: newProducts,
-          featured: featuredItems
+          submenuItems: categories
         },
         { name: 'خدمات الإصلاح', path: '/services', icon: Settings },
         { name: 'تتبع الخدمات', path: '/service-tracking-public', icon: Truck },
@@ -106,9 +88,7 @@ export function NavbarLinks({
           path: '/products', 
           icon: Tag, 
           hasSubmenu: true, 
-          submenuItems: defaultSubmenuItems,
-          hasNew: newProducts,
-          featured: featuredItems
+          submenuItems: defaultSubmenuItems
         },
         { name: 'خدمات الإصلاح', path: '/services', icon: Settings },
         { name: 'تتبع الخدمات', path: '/service-tracking-public', icon: Truck },
@@ -191,31 +171,6 @@ export function NavbarLinks({
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator className="my-1.5 bg-border/40" />
-                  
-                  {link.featured && link.featured.length > 0 && (
-                    <>
-                      <DropdownMenuLabel className="text-xs font-medium text-muted-foreground px-2 py-1.5 flex items-center">
-                        <Sparkles className="w-3.5 h-3.5 text-amber-500 mr-1.5" /> منتجات مميزة
-                      </DropdownMenuLabel>
-                      <div className="mb-2">
-                        {link.featured.map((item, idx) => (
-                          <DropdownMenuItem key={idx} asChild className="group cursor-pointer rounded-lg my-0.5 transition-all duration-200">
-                            <Link 
-                              to={`/product/${item.id}`}
-                              className="flex items-center gap-2 w-full py-1.5"
-                            >
-                              <div className="flex items-center justify-center w-7 h-7 rounded-md bg-amber-100/70 text-amber-700 dark:bg-amber-900/30 dark:text-amber-500 transition-all duration-300 group-hover:scale-110">
-                                <Sparkles className="h-3.5 w-3.5" />
-                              </div>
-                              <span className="text-sm font-medium">{item.name}</span>
-                              <Badge variant="outline" className="ml-auto scale-75 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/50">جديد</Badge>
-                            </Link>
-                          </DropdownMenuItem>
-                        ))}
-                      </div>
-                      <DropdownMenuSeparator className="my-1.5 bg-border/40" />
-                    </>
-                  )}
                   
                   <div className="grid grid-cols-2 gap-1 p-1">
                     {link.submenuItems && link.submenuItems.map((subItem, subIndex) => (
@@ -332,29 +287,7 @@ export function NavbarLinks({
                     <span className="font-medium">تصفح كل المنتجات</span>
                   </Link>
                   
-                  {link.featured && link.featured.length > 0 && (
-                    <>
-                      <div className="py-1.5 px-4 text-xs font-medium text-muted-foreground flex items-center">
-                        <Sparkles className="w-3.5 h-3.5 text-amber-500 mr-1.5" /> منتجات مميزة
-                      </div>
-                      
-                      {link.featured.map((item, idx) => (
-                        <Link 
-                          key={idx}
-                          to={`/product/${item.id}`}
-                          className="flex items-center py-2.5 px-4 text-sm group hover:bg-amber-50/50 dark:hover:bg-amber-900/10 rounded-xl transition-colors duration-200"
-                        >
-                          <div className="flex items-center justify-center w-6 h-6 rounded-md bg-amber-100/70 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 transition-all duration-300 group-hover:scale-110 mr-2">
-                            <Sparkles className="h-3.5 w-3.5" />
-                          </div>
-                          <span className="font-medium">{item.name}</span>
-                          <Badge variant="outline" className="ml-auto scale-75 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/50">جديد</Badge>
-                        </Link>
-                      ))}
-                      
-                      <div className="h-px bg-border/30 my-2 w-full"></div>
-                    </>
-                  )}
+                  <div className="h-px bg-border/30 my-2 w-full"></div>
                   
                   {link.submenuItems && link.submenuItems.map((subItem, subIndex) => (
                     <Link 
@@ -405,4 +338,4 @@ export function NavbarLinks({
       })}
     </div>
   );
-} 
+}

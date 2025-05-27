@@ -112,4 +112,4 @@ const OfferTimerExample: React.FC = () => {
   );
 };
 
-export default OfferTimerExample; 
+export default OfferTimerExample;

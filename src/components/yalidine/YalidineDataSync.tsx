@@ -39,7 +39,6 @@ export default function YalidineDataSync() {
         setSyncProgress(progress);
       }
     } catch (error) {
-      console.error('Error fetching sync status:', error);
     }
   }
 
@@ -86,7 +85,6 @@ export default function YalidineDataSync() {
       // تحديث حالة المزامنة بعد البدء
       fetchSyncStatus();
     } catch (error) {
-      console.error('Error starting sync:', error);
       fetchSyncStatus(); // تحديث الحالة في حالة حدوث خطأ
     } finally {
       setIsSyncing(false);
@@ -183,4 +181,4 @@ export default function YalidineDataSync() {
       )}
     </div>
   );
-} 
+}

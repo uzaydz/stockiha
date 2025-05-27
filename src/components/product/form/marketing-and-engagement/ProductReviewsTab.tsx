@@ -310,4 +310,4 @@ const ProductReviewsTab: React.FC<ProductReviewsTabProps> = ({ form, organizatio
   );
 };
 
-export default ProductReviewsTab; 
+export default ProductReviewsTab;

@@ -252,4 +252,4 @@ export function NavbarUserMenu({ isAdminPage = false }: NavbarUserMenuProps) {
       </DropdownMenuContent>
     </DropdownMenu>
   );
-} 
+}

@@ -20,7 +20,6 @@ router.get('/conversion-settings/:productId', async (req, res) => {
       });
 
     if (error) {
-      console.error('خطأ في جلب إعدادات التحويل:', error);
       return res.status(500).json({
         error: 'فشل في جلب الإعدادات'
       });
@@ -39,7 +38,6 @@ router.get('/conversion-settings/:productId', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('خطأ في API إعدادات التحويل:', error);
     res.status(500).json({
       error: 'خطأ داخلي في الخادم'
     });
@@ -92,8 +90,6 @@ router.post('/conversion-events', async (req, res) => {
           event_id: finalEventId
         });
       }
-      
-      console.error('خطأ في حفظ حدث التحويل:', error);
       return res.status(500).json({
         error: 'فشل في حفظ الحدث'
       });
@@ -117,7 +113,6 @@ router.post('/conversion-events', async (req, res) => {
       });
 
     if (queueError) {
-      console.error('خطأ في إضافة الحدث للطابور:', queueError);
     }
 
     res.status(201).json({
@@ -127,7 +122,6 @@ router.post('/conversion-events', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('خطأ في API أحداث التحويل:', error);
     res.status(500).json({
       error: 'خطأ داخلي في الخادم'
     });
@@ -158,7 +152,6 @@ router.post('/facebook-conversion-api', async (req, res) => {
     const result = await response.json();
 
     if (!response.ok) {
-      console.error('خطأ Facebook API:', result);
       return res.status(response.status).json({
         error: 'فشل في إرسال الحدث إلى Facebook',
         details: result
@@ -171,7 +164,6 @@ router.post('/facebook-conversion-api', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('خطأ في Facebook Conversion API:', error);
     res.status(500).json({
       error: 'خطأ داخلي في الخادم'
     });
@@ -198,11 +190,10 @@ router.get('/conversion-events/:eventId/status', async (req, res) => {
     res.json(data);
 
   } catch (error) {
-    console.error('خطأ في جلب حالة الحدث:', error);
     res.status(500).json({
       error: 'خطأ داخلي في الخادم'
     });
   }
 });
 
-export default router; 
+export default router;

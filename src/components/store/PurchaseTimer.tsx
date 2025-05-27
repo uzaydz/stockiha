@@ -269,4 +269,4 @@ const PurchaseTimer = ({
   );
 };
 
-export default PurchaseTimer; 
+export default PurchaseTimer;

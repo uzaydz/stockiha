@@ -64,7 +64,6 @@ export const SubscriptionService = {
       .order('display_order', { ascending: true });
     
     if (error) {
-      console.error('Error fetching subscription plans:', error);
       throw error;
     }
     
@@ -91,7 +90,6 @@ export const SubscriptionService = {
       .single();
     
     if (error) {
-      console.error('Error fetching current subscription:', error);
       return null;
     }
     
@@ -108,7 +106,6 @@ export const SubscriptionService = {
       .order('name');
     
     if (error) {
-      console.error('Error fetching payment methods:', error);
       throw error;
     }
     
@@ -151,7 +148,6 @@ export const SubscriptionService = {
       .single();
     
     if (error) {
-      console.error('Error creating subscription:', error);
       throw error;
     }
     
@@ -168,7 +164,6 @@ export const SubscriptionService = {
     });
     
     if (error) {
-      console.error('Error activating subscription with code:', error);
       throw error;
     }
     
@@ -196,9 +191,7 @@ export const SubscriptionService = {
     // الفترة التجريبية 5 أيام
     const trialDays = 5;
     const remainingDays = trialDays - diffDays;
-    
-    
-    
+
     return {
       isTrialActive: remainingDays > 0,
       daysLeft: Math.max(0, remainingDays)
@@ -228,10 +221,9 @@ export const SubscriptionService = {
       .order('created_at', { ascending: false });
     
     if (error) {
-      console.error('Error fetching subscription history:', error);
       throw error;
     }
     
     return data || [];
   }
-}; 
+};

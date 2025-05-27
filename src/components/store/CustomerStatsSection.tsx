@@ -202,4 +202,4 @@ const RatingBar = ({ rating, percentage }: RatingBarProps) => {
   );
 };
 
-export default CustomerStatsSection; 
+export default CustomerStatsSection;

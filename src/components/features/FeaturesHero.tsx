@@ -111,4 +111,4 @@ const FeaturesHero = () => {
   );
 };
 
-export default FeaturesHero; 
+export default FeaturesHero;

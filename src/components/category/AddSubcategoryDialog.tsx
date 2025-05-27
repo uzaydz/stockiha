@@ -68,7 +68,6 @@ const AddSubcategoryDialog = ({ parentCategory, open, onOpenChange, onSubcategor
       onOpenChange(false);
       onSubcategoryAdded();
     } catch (error) {
-      console.error('Error creating subcategory:', error);
       // Check for duplicate subcategory name error
       if (error instanceof Error && error.message.includes('duplicate key value violates unique constraint')) {
         toast.error('هذا الاسم موجود بالفعل، يرجى اختيار اسم آخر للفئة الفرعية');
@@ -153,4 +152,4 @@ const AddSubcategoryDialog = ({ parentCategory, open, onOpenChange, onSubcategor
   );
 };
 
-export default AddSubcategoryDialog; 
+export default AddSubcategoryDialog;

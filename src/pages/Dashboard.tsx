@@ -90,10 +90,6 @@ const DiagnosticsPanel = ({ isVisible, setIsVisible, createTestProduct, orgId })
   const [accessCheckResults, setAccessCheckResults] = useState<any>(null);
   const [checkingAccess, setCheckingAccess] = useState(false);
 
-  
-  
-  
-
   // وظيفة للتحقق من اتصال قاعدة البيانات
   const handleCheckDbConnection = async () => {
     try {
@@ -105,7 +101,6 @@ const DiagnosticsPanel = ({ isVisible, setIsVisible, createTestProduct, orgId })
         message: result.success ? 'تم الاتصال بقاعدة البيانات بنجاح' : `فشل الاتصال: ${result.error}`
       });
     } catch (error) {
-      console.error("Error checking database connection:", error);
       setDbConnectionStatus({
         success: false,
         message: `خطأ غير متوقع: ${error instanceof Error ? error.message : 'خطأ غير معروف'}`
@@ -131,7 +126,6 @@ const DiagnosticsPanel = ({ isVisible, setIsVisible, createTestProduct, orgId })
         "لديك صلاحية الوصول إلى هذه المؤسسة" : 
         "ليس لديك صلاحية الوصول إلى هذه المؤسسة");
     } catch (error) {
-      console.error("Error checking organization access:", error);
       toast.error(`خطأ في التحقق من صلاحيات الوصول: ${error instanceof Error ? error.message : 'خطأ غير معروف'}`);
     } finally {
       setCheckingAccess(false);
@@ -155,7 +149,6 @@ const DiagnosticsPanel = ({ isVisible, setIsVisible, createTestProduct, orgId })
         toast.error(`فشل جلب بيانات المستخدم: ${result.error}`);
       }
     } catch (error) {
-      console.error("Error testing user data:", error);
       toast.error(`خطأ في اختبار بيانات المستخدم: ${error instanceof Error ? error.message : 'خطأ غير معروف'}`);
     }
   };
@@ -170,7 +163,6 @@ const DiagnosticsPanel = ({ isVisible, setIsVisible, createTestProduct, orgId })
         window.location.reload();
       }, 1000);
     } catch (error) {
-      console.error("خطأ في حذف معرف المؤسسة:", error);
       toast.error("حدث خطأ أثناء حذف معرف المؤسسة");
     }
   };
@@ -206,7 +198,6 @@ const DiagnosticsPanel = ({ isVisible, setIsVisible, createTestProduct, orgId })
       }, 300);
       
     } catch (error) {
-      console.error("خطأ في تحديث السياقات:", error);
     }
   };
 
@@ -222,11 +213,9 @@ const DiagnosticsPanel = ({ isVisible, setIsVisible, createTestProduct, orgId })
           window.location.reload();
         }, 1000);
       } else {
-        console.error("لا يمكن حفظ معرف المؤسسة: المعرف غير متوفر");
         toast.error("لا يمكن حفظ معرف المؤسسة: المعرف غير متوفر");
       }
     } catch (error) {
-      console.error("خطأ في حفظ معرف المؤسسة:", error);
       toast.error("حدث خطأ أثناء حفظ معرف المؤسسة");
     }
   };
@@ -248,8 +237,7 @@ const DiagnosticsPanel = ({ isVisible, setIsVisible, createTestProduct, orgId })
       toast.success("المعرف المخزن يتطابق مع معرف المؤسسة الحالي");
     } else {
       toast.error("المعرف المخزن لا يتطابق مع معرف المؤسسة الحالي");
-      
-      
+
     }
   };
 
@@ -414,10 +402,8 @@ const getDashboardStats = async (
   endDate?: Date
 ): Promise<DashboardStats | null> => {
   try {
-    
-    
+
     if (!orgId) {
-      console.error("معرف المؤسسة مفقود");
       return null;
     }
     
@@ -425,16 +411,9 @@ const getDashboardStats = async (
     const analyticsData = await getAllAnalytics(orgId, period, startDate, endDate);
     
     if (!analyticsData) {
-      console.error("فشل في الحصول على بيانات التحليلات");
       return null;
     }
 
-    
-    
-    
-    
-    
-    
     // تحويل بيانات التحليلات إلى تنسيق DashboardStats
     const dashboardStats: DashboardStats = {
       sales: {
@@ -471,17 +450,9 @@ const getDashboardStats = async (
         new: Math.round(analyticsData.totalOrders * 0.2) // تقريبي - تقدير العملاء الجدد
       }
     };
-    
-    
-    
-    
-    
-    
-    
-    
+
     return dashboardStats;
   } catch (error) {
-    console.error("خطأ في الحصول على إحصائيات لوحة التحكم:", error);
     return null;
   }
 };
@@ -538,7 +509,6 @@ const fetchDashboardStats = async (orgId: string, period: AnalyticsPeriod, start
     const statsData = await getDashboardStats(orgId, period, startDate, endDate);
     return statsData || getEmptyDashboardStats();
   } catch (error) {
-    console.error("Error fetching dashboard stats:", error);
     return getEmptyDashboardStats();
   }
 };
@@ -549,7 +519,6 @@ const fetchProducts = async (orgId: string) => {
   try {
     return await getProducts(orgId) || [];
   } catch (error) {
-    console.error("Error fetching products:", error);
     return [];
   }
 };
@@ -577,7 +546,6 @@ const fetchOrders = async (orgId: string) => {
       updatedAt: new Date(order.updated_at)
     })) as Order[];
   } catch (error) {
-    console.error("Error fetching orders:", error);
     return [];
   }
 };
@@ -667,27 +635,19 @@ const Dashboard = () => {
     
     try {
       if (!orgId) {
-        console.error("معرف المؤسسة غير متوفر. يرجى الانتظار لاكتمال تحميل بيانات المؤسسة");
         toast.error("معرف المؤسسة غير متوفر. يرجى الانتظار لاكتمال تحميل بيانات المؤسسة");
         return;
       }
-      
-      
-      
+
       let categoryId;
-      
-      
+
       const { data: categories, error: catError } = await supabase
         .from('product_categories')
         .select('id')
         .eq('organization_id', orgId)
         .limit(1);
-      
-      
-      
-      
+
       if (catError) {
-        console.error("خطأ في التحقق من فئات المنتجات:", catError);
         throw catError;
       }
       
@@ -702,12 +662,8 @@ const Dashboard = () => {
           })
           .select('id')
           .single();
-          
-        
-        
-          
+
         if (newCatError) {
-          console.error("خطأ في إنشاء فئة المنتجات:", newCatError);
           throw newCatError;
         }
         
@@ -749,15 +705,13 @@ const Dashboard = () => {
       };
       
       const createdProduct = await createProduct(testProduct);
-      
-      
+
       toast.success("تم إنشاء منتج اختباري بنجاح");
       
       // إعادة تحميل المنتجات
       const productsData = await getProducts(orgId);
       return productsData || [];
     } catch (error) {
-      console.error("Error creating test product:", error);
       toast.error("حدث خطأ أثناء إنشاء المنتج الاختباري");
     }
   };
@@ -765,13 +719,7 @@ const Dashboard = () => {
   // عرض بيانات التشخيص بدون إعادة تصيير الصفحة
   useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
-      
-      
-      
-      
-      
-      
-      
+
     }
   }, [currentOrganization, currentSubdomain, orgLoading]);
   

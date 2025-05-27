@@ -355,4 +355,4 @@ const BeforeAfterItemEditor: React.FC<BeforeAfterItemEditorProps> = ({
   );
 };
 
-export default BeforeAfterItemEditor; 
+export default BeforeAfterItemEditor;

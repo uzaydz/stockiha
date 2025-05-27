@@ -24,8 +24,7 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
     let defaultType = field.defaultValue || 'home';
     
     if (shippingProviderSettings) {
-      
-      
+
       // التحقق بشكل صريح من نوع القيم
       homeEnabled = shippingProviderSettings.is_home_delivery_enabled === true;
       deskEnabled = shippingProviderSettings.is_desk_delivery_enabled === true;
@@ -86,17 +85,14 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
     // تنفيذ التهيئة بعد تأخير قصير لضمان تحميل الإعدادات بشكل كامل
     initializationTimeoutRef.current = setTimeout(() => {
       const { homeEnabled, deskEnabled, defaultType } = detectDeliveryOptions();
-      
-      
-      
+
       // تحديث حالة الخيارات المتاحة
       setIsHomeDeliveryEnabled(homeEnabled);
       setIsDeskDeliveryEnabled(deskEnabled);
       
       // إذا لم يتم التهيئة بعد، قم بتهيئة القيمة الافتراضية
       if (!hasInitialized) {
-        
-        
+
         // تحديث قيمة المكون المحلية
         setSelectedDeliveryType(defaultType);
         
@@ -147,9 +143,7 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
       }
     };
   }, [shippingProviderSettings]);
-  
-  
-  
+
   // تحديث القيمة المحددة والنموذج عند تغيير نوع التوصيل
   const updateDeliveryOption = (type: string) => {
     // التحقق من صلاحية الخيار المطلوب
@@ -160,8 +154,7 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
       type = 'home'; // استخدام المنزل بدلاً من المكتب إذا كان المكتب غير متاح
       
     }
-    
-    
+
     setSelectedDeliveryType(type);
     
     // تحديث قيمة react-hook-form إذا كان الحقل له اسم
@@ -204,8 +197,7 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
   
   // عرض الحالات الخاصة للخيار الواحد
   if (forceOneOption) {
-    
-    
+
     // خيار المنزل فقط
     if (isHomeDeliveryEnabled && !isDeskDeliveryEnabled) {
       return (
@@ -349,4 +341,4 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
       </div>
     </div>
   );
-}; 
+};

@@ -141,4 +141,4 @@ const ColorSelector: React.FC<ColorSelectorProps> = ({
   );
 };
 
-export default ColorSelector; 
+export default ColorSelector;

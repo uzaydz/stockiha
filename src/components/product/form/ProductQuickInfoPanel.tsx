@@ -111,4 +111,4 @@ const ProductQuickInfoPanel: React.FC<ProductQuickInfoPanelProps> = ({
   );
 };
 
-export default ProductQuickInfoPanel; 
+export default ProductQuickInfoPanel;

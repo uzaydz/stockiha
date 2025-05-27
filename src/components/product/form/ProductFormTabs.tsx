@@ -114,12 +114,13 @@ const ProductFormTabs: React.FC<ProductFormTabsProps> = ({
   const watchName = form.watch('name');
   const watchCategoryId = form.watch('category_id');
   const watchSku = form.watch('sku');
+  const watchBarcode = form.watch('barcode');
 
   // Calculate completion status for each tab
   const getTabStatus = (tabValue: string) => {
     switch (tabValue) {
       case 'basic':
-        return watchName && watchCategoryId && watchSku ? 'complete' : watchName ? 'partial' : 'empty';
+        return watchName && watchCategoryId && watchSku && watchBarcode ? 'complete' : watchName ? 'partial' : 'empty';
       case 'media':
         return watchThumbnailImage ? 'complete' : 'empty';
       case 'pricing_inventory':
@@ -246,54 +247,55 @@ const ProductFormTabs: React.FC<ProductFormTabsProps> = ({
       <FormProvider {...form}>
         <div className="space-y-6">
           {/* Progress Header */}
-          <Card className="p-4 bg-gradient-to-r from-background to-background/95">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Package className="w-5 h-5 text-primary" />
+          <Card className="p-6 bg-gradient-to-r from-background/95 via-background to-background/95 dark:from-background/90 dark:via-background dark:to-background/90 shadow-lg dark:shadow-2xl dark:shadow-black/20 backdrop-blur-sm border-border/50">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 dark:from-primary/30 dark:to-primary/15 flex items-center justify-center shadow-md">
+                  <Package className="w-5 h-5 text-primary dark:text-primary-foreground" />
                 </div>
                 <div>
-                  <h2 className="font-semibold text-lg">تفاصيل المنتج</h2>
+                  <h2 className="font-bold text-lg text-foreground">تفاصيل المنتج</h2>
                   <p className="text-sm text-muted-foreground">
                     أكمل المعلومات المطلوبة لإنشاء منتجك
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-4">
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-primary">{calculateProgress()}%</div>
-                  <Badge variant={calculateProgress() === 100 ? "default" : "secondary"} className="text-xs">
+                  <div className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">{calculateProgress()}%</div>
+                  <Badge variant={calculateProgress() === 100 ? "default" : "secondary"} className="text-xs shadow-sm">
                     {calculateProgress() === 100 ? "مكتمل" : "في التقدم"}
                   </Badge>
                 </div>
               </div>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-3">
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>التقدم الإجمالي</span>
                 <span>{calculateProgress()}/100</span>
               </div>
-              <Progress value={calculateProgress()} className="h-2" />
+              <Progress value={calculateProgress()} className="h-2 bg-muted/50 dark:bg-muted/30" />
             </div>
           </Card>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             {/* Enhanced Tabs List */}
-            <Card className="p-3 mb-6">
-              <div className="flex items-center justify-between mb-3">
-                <div className="text-sm text-muted-foreground">
+            <Card className="p-4 mb-6 shadow-lg dark:shadow-2xl dark:shadow-black/20 bg-card/50 backdrop-blur-sm border-border/50">
+              <div className="flex items-center justify-between mb-4">
+                <div className="text-sm text-muted-foreground flex items-center gap-2">
+                  <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
                   التبويب {getCurrentTabIndex() + 1} من {tabsData.length}
                 </div>
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 dark:bg-muted/20 px-3 py-1.5 rounded-lg">
                   <span>استخدم</span>
-                  <kbd className="px-1 py-0.5 bg-muted rounded text-xs">Ctrl</kbd>
+                  <kbd className="px-2 py-1 bg-background dark:bg-background/80 border border-border/50 rounded text-xs shadow-sm">Ctrl</kbd>
                   <span>+</span>
-                  <kbd className="px-1 py-0.5 bg-muted rounded text-xs">→</kbd>
+                  <kbd className="px-2 py-1 bg-background dark:bg-background/80 border border-border/50 rounded text-xs shadow-sm">→</kbd>
                   <span>للتنقل</span>
                 </div>
               </div>
               
-              <TabsList className="grid w-full h-auto bg-transparent p-0 gap-2" style={{
+              <TabsList className="grid w-full h-auto bg-gradient-to-r from-muted/30 to-muted/10 dark:from-muted/20 dark:to-muted/5 p-2 gap-2 rounded-xl backdrop-blur-sm" style={{
                 gridTemplateColumns: `repeat(${tabsData.length}, 1fr)`
               }}>
                 {tabsData.map((tab, index) => {
@@ -304,19 +306,25 @@ const ProductFormTabs: React.FC<ProductFormTabsProps> = ({
                       <TooltipTrigger asChild>
                         <TabsTrigger 
                           value={tab.value}
-                          className={`flex flex-col items-center gap-2 p-3 h-auto rounded-lg border transition-all duration-200 relative ${
+                          className={`flex flex-col items-center gap-2 p-3 h-auto rounded-xl border transition-all duration-300 relative overflow-hidden group ${
                             isActive 
-                              ? 'bg-primary text-primary-foreground border-primary shadow-md' 
-                              : 'bg-background hover:bg-muted/50 border-border/50'
+                              ? 'bg-gradient-to-br from-primary via-primary/90 to-primary/80 text-primary-foreground border-primary/50 shadow-lg shadow-primary/25 scale-[1.02]' 
+                              : 'bg-background/80 dark:bg-background/60 hover:bg-gradient-to-br hover:from-muted/50 hover:to-muted/30 dark:hover:from-muted/30 dark:hover:to-muted/15 border-border/50 hover:border-primary/30 hover:shadow-md backdrop-blur-sm'
                           }`}
                         >
                           {/* Tab Number */}
-                          <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-muted border text-xs flex items-center justify-center">
+                          <div className={`absolute -top-1 -right-1 w-5 h-5 rounded-full border-2 text-xs flex items-center justify-center font-medium transition-all duration-300 ${
+                            isActive 
+                              ? 'bg-primary-foreground text-primary border-primary-foreground shadow-sm' 
+                              : 'bg-muted text-muted-foreground border-border group-hover:bg-primary/10 group-hover:text-primary group-hover:border-primary/30'
+                          }`}>
                             {index + 1}
                           </div>
                           
                           <div className="flex items-center gap-2">
-                            <tab.icon className="w-4 h-4" />
+                            <tab.icon className={`w-4 h-4 transition-all duration-300 ${
+                              isActive ? 'scale-110' : 'group-hover:scale-105'
+                            }`} />
                             {status !== 'empty' && status !== 'optional' && (
                               <StatusIcon status={status} />
                             )}
@@ -328,15 +336,22 @@ const ProductFormTabs: React.FC<ProductFormTabsProps> = ({
                               <span className="sm:hidden">{tab.shortLabel}</span>
                             </div>
                             {tab.required && (
-                              <div className="text-xs text-muted-foreground mt-0.5">
+                              <div className={`text-xs mt-1 transition-colors duration-300 ${
+                                isActive ? 'text-primary-foreground/80' : 'text-muted-foreground'
+                              }`}>
                                 مطلوب
                               </div>
                             )}
                           </div>
+                          
+                          {/* Hover effect overlay */}
+                          <div className={`absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 transition-opacity duration-300 pointer-events-none rounded-xl ${
+                            !isActive ? 'group-hover:opacity-100' : ''
+                          }`} />
                         </TabsTrigger>
                       </TooltipTrigger>
-                      <TooltipContent>
-                        <p className="font-medium">{tab.label}</p>
+                      <TooltipContent className="bg-background/95 dark:bg-background/90 backdrop-blur-md border-border/60 shadow-xl">
+                        <p className="font-medium text-foreground text-sm">{tab.label}</p>
                         <p className="text-xs text-muted-foreground">{tab.tooltip}</p>
                       </TooltipContent>
                     </Tooltip>
@@ -351,9 +366,9 @@ const ProductFormTabs: React.FC<ProductFormTabsProps> = ({
                   size="sm"
                   onClick={goToPreviousTab}
                   disabled={isFirstTab()}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 h-9 px-3 text-sm border-border/60 hover:bg-gradient-to-r hover:from-muted/50 hover:to-muted/30 dark:hover:from-muted/30 dark:hover:to-muted/15 hover:border-primary/30 transition-all duration-300 shadow-sm hover:shadow-md disabled:opacity-50"
                 >
-                  <ChevronRight className="w-4 h-4" />
+                  <ChevronRight className="w-3.5 h-3.5" />
                   السابق
                 </Button>
                 
@@ -362,64 +377,98 @@ const ProductFormTabs: React.FC<ProductFormTabsProps> = ({
                   size="sm"
                   onClick={goToNextTab}
                   disabled={isLastTab()}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 h-9 px-3 text-sm border-border/60 hover:bg-gradient-to-r hover:from-muted/50 hover:to-muted/30 dark:hover:from-muted/30 dark:hover:to-muted/15 hover:border-primary/30 transition-all duration-300 shadow-sm hover:shadow-md disabled:opacity-50"
                 >
                   التالي
-                  <ChevronLeft className="w-4 h-4" />
+                  <ChevronLeft className="w-3.5 h-3.5" />
                 </Button>
               </div>
             </Card>
 
             {/* Content Container */}
-            <Card className="min-h-[500px] overflow-hidden">
+            <Card className="min-h-[500px] overflow-hidden shadow-lg dark:shadow-2xl dark:shadow-black/20 bg-card/50 backdrop-blur-sm border-border/50">
               <Suspense fallback={<SectionLoader />}>
                 <TabsContent value="basic" className="p-6 space-y-6 m-0">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Info className="w-5 h-5 text-primary" />
-                    <h3 className="font-semibold text-lg">المعلومات الأساسية</h3>
-                    <Badge variant="outline">مطلوب</Badge>
+                  <div className="flex items-center gap-3 mb-6 p-4 bg-gradient-to-r from-primary/5 via-primary/3 to-transparent dark:from-primary/10 dark:via-primary/5 dark:to-transparent rounded-xl border border-primary/20 dark:border-primary/30">
+                    <div className="bg-gradient-to-br from-primary/20 to-primary/10 dark:from-primary/30 dark:to-primary/15 p-2 rounded-lg shadow-sm">
+                      <Info className="w-4 h-4 text-primary dark:text-primary-foreground" />
+                    </div>
+                    <h3 className="font-bold text-base text-foreground">المعلومات الأساسية</h3>
+                    <Badge variant="destructive" className="text-xs shadow-sm">مطلوب</Badge>
                     <Tooltip>
-                      <TooltipTrigger>
-                        <HelpCircle className="w-4 h-4 text-muted-foreground" />
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          className="inline-flex items-center justify-center"
+                          onClick={(e) => e.preventDefault()}
+                        >
+                          <HelpCircle className="w-4 h-4 text-muted-foreground hover:text-primary transition-colors cursor-help" />
+                        </button>
                       </TooltipTrigger>
-                      <TooltipContent>
-                        <p>املأ جميع الحقول المطلوبة لضمان ظهور المنتج بشكل صحيح</p>
+                      <TooltipContent 
+                        className="bg-background/95 dark:bg-background/90 backdrop-blur-md border-border/60 shadow-xl z-50"
+                        side="top"
+                        sideOffset={5}
+                      >
+                        <p className="text-sm">املأ جميع الحقول المطلوبة لضمان ظهور المنتج بشكل صحيح</p>
                       </TooltipContent>
                     </Tooltip>
                   </div>
-                  <Separator />
-                  <div className="grid gap-6 lg:grid-cols-2">
-                    <div className="space-y-6">
+                  <Separator className="bg-gradient-to-r from-transparent via-border to-transparent" />
+                  
+                  {/* Main Content Grid */}
+                  <div className="space-y-8">
+                    {/* Basic Product Information */}
+                    <div>
                       <BasicProductInfo form={form} />
                     </div>
-                    <div className="space-y-6">
-                      <ProductCategories
-                        form={form}
-                        categories={categories}
-                        subcategories={subcategories}
-                        onCategoryCreated={onCategoryCreated}
-                        onSubcategoryCreated={onSubcategoryCreated}
-                      />
-                      <ProductSellingType form={form} onHasVariantsChange={onHasVariantsChange} />
+                    
+                    {/* Categories and Selling Type */}
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                      <div className="space-y-6">
+                        <ProductCategories
+                          form={form}
+                          categories={categories}
+                          subcategories={subcategories}
+                          organizationId={organizationId}
+                          onCategoryCreated={onCategoryCreated}
+                          onSubcategoryCreated={onSubcategoryCreated}
+                        />
+                      </div>
+                      <div className="space-y-6">
+                        <ProductSellingType form={form} onHasVariantsChange={onHasVariantsChange} />
+                      </div>
                     </div>
                   </div>
                 </TabsContent>
                 
                 <TabsContent value="media" className="p-6 space-y-6 m-0">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Images className="w-5 h-5 text-primary" />
-                    <h3 className="font-semibold text-lg">صور المنتج</h3>
-                    <Badge variant="outline">مطلوب</Badge>
+                  <div className="flex items-center gap-3 mb-6 p-4 bg-gradient-to-r from-blue-50/60 via-indigo-50/40 to-transparent dark:from-blue-950/30 dark:via-indigo-950/20 dark:to-transparent rounded-xl border border-blue-200/50 dark:border-blue-800/30">
+                    <div className="bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/60 dark:to-indigo-900/60 p-2 rounded-lg shadow-sm">
+                      <Images className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <h3 className="font-bold text-base text-foreground">صور المنتج</h3>
+                    <Badge variant="destructive" className="text-xs shadow-sm">مطلوب</Badge>
                     <Tooltip>
-                      <TooltipTrigger>
-                        <HelpCircle className="w-4 h-4 text-muted-foreground" />
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          className="inline-flex items-center justify-center"
+                          onClick={(e) => e.preventDefault()}
+                        >
+                          <HelpCircle className="w-4 h-4 text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-help" />
+                        </button>
                       </TooltipTrigger>
-                      <TooltipContent>
-                        <p>أضف صورة رئيسية عالية الجودة وصور إضافية لعرض المنتج</p>
+                      <TooltipContent 
+                        className="bg-background/95 dark:bg-background/90 backdrop-blur-md border-border/60 shadow-xl z-50"
+                        side="top"
+                        sideOffset={5}
+                      >
+                        <p className="text-sm">أضف صورة رئيسية عالية الجودة وصور إضافية لعرض المنتج</p>
                       </TooltipContent>
                     </Tooltip>
                   </div>
-                  <Separator />
+                  <Separator className="bg-gradient-to-r from-transparent via-border to-transparent" />
                   <ProductImagesManager
                     mainImage={watchThumbnailImage || ''}
                     additionalImages={additionalImages}
@@ -430,17 +479,42 @@ const ProductFormTabs: React.FC<ProductFormTabsProps> = ({
                 </TabsContent>
                 
                 <TabsContent value="pricing_inventory" className="p-6 space-y-6 m-0">
-                  <div className="flex items-center gap-2 mb-4">
-                    <DollarSign className="w-5 h-5 text-primary" />
-                    <h3 className="font-semibold text-lg">السعر والمخزون</h3>
-                    <Badge variant="outline">مطلوب</Badge>
+                  <div className="flex items-center gap-3 mb-6 p-4 bg-gradient-to-r from-green-50/60 via-emerald-50/40 to-transparent dark:from-green-950/30 dark:via-emerald-950/20 dark:to-transparent rounded-xl border border-green-200/50 dark:border-green-800/30">
+                    <div className="bg-gradient-to-br from-green-100 to-emerald-100 dark:from-green-900/60 dark:to-emerald-900/60 p-2 rounded-lg shadow-sm">
+                      <DollarSign className="w-4 h-4 text-green-600 dark:text-green-400" />
+                    </div>
+                    <h3 className="font-bold text-base text-foreground">السعر والمخزون</h3>
+                    <Badge variant="destructive" className="text-xs shadow-sm">مطلوب</Badge>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          className="inline-flex items-center justify-center"
+                          onClick={(e) => e.preventDefault()}
+                        >
+                          <HelpCircle className="w-4 h-4 text-muted-foreground hover:text-green-600 dark:hover:text-green-400 transition-colors cursor-help" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent 
+                        className="bg-background/95 dark:bg-background/90 backdrop-blur-md border-border/60 shadow-xl z-50"
+                        side="top"
+                        sideOffset={5}
+                      >
+                        <p className="text-sm">حدد أسعار المنتج وكمية المخزون المتوفرة</p>
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
-                  <Separator />
-                  <div className="grid gap-6 lg:grid-cols-2">
-                    <div className="space-y-6">
+                  <Separator className="bg-gradient-to-r from-transparent via-border to-transparent" />
+                  
+                  {/* Main Content - Responsive Layout */}
+                  <div className="space-y-8">
+                    {/* Pricing Section */}
+                    <div className="w-full">
                       <ProductPricing form={form} />
                     </div>
-                    <div className="space-y-6">
+                    
+                    {/* Inventory Section */}
+                    <div className="w-full">
                       <ProductInventory
                         form={form}
                         organizationId={organizationId}
@@ -453,12 +527,14 @@ const ProductFormTabs: React.FC<ProductFormTabsProps> = ({
                 
                 {watchHasVariants && (
                   <TabsContent value="variants" className="p-6 space-y-6 m-0">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Palette className="w-5 h-5 text-primary" />
-                      <h3 className="font-semibold text-lg">متغيرات المنتج</h3>
-                      <Badge variant="secondary">اختياري</Badge>
+                    <div className="flex items-center gap-3 mb-6 p-4 bg-gradient-to-r from-purple-50/60 via-indigo-50/40 to-transparent dark:from-purple-950/30 dark:via-indigo-950/20 dark:to-transparent rounded-xl border border-purple-200/50 dark:border-purple-800/30">
+                      <div className="bg-gradient-to-br from-purple-100 to-indigo-100 dark:from-purple-900/60 dark:to-indigo-900/60 p-2 rounded-lg shadow-sm">
+                        <Palette className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                      </div>
+                      <h3 className="font-bold text-base text-foreground">متغيرات المنتج</h3>
+                      <Badge variant="secondary" className="text-xs shadow-sm">اختياري</Badge>
                     </div>
-                    <Separator />
+                    <Separator className="bg-gradient-to-r from-transparent via-border to-transparent" />
                     <ProductColorManager
                       colors={productColors}
                       onChange={onProductColorsChange}
@@ -474,16 +550,20 @@ const ProductFormTabs: React.FC<ProductFormTabsProps> = ({
                 )}
                 
                 <TabsContent value="advanced" className="p-6 space-y-6 m-0">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Settings className="w-5 h-5 text-primary" />
-                    <h3 className="font-semibold text-lg">خيارات متقدمة</h3>
-                    <Badge variant="secondary">اختياري</Badge>
+                  <div className="flex items-center gap-3 mb-6 p-4 bg-gradient-to-r from-amber-50/60 via-orange-50/40 to-transparent dark:from-amber-950/30 dark:via-orange-950/20 dark:to-transparent rounded-xl border border-amber-200/50 dark:border-amber-800/30">
+                    <div className="bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/60 dark:to-orange-900/60 p-2 rounded-lg shadow-sm">
+                      <Settings className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <h3 className="font-bold text-base text-foreground">خيارات متقدمة</h3>
+                    <Badge variant="secondary" className="text-xs shadow-sm">اختياري</Badge>
                   </div>
-                  <Separator />
+                  <Separator className="bg-gradient-to-r from-transparent via-border to-transparent" />
                   <div className="space-y-8">
-                    <div className="bg-muted/30 rounded-lg p-4 border border-border/50">
-                      <h4 className="font-medium mb-3 flex items-center gap-2">
-                        <Truck className="w-4 h-4 text-primary" />
+                    <div className="bg-gradient-to-r from-muted/40 to-muted/20 dark:from-muted/20 dark:to-muted/10 rounded-xl p-6 border border-border/50 backdrop-blur-sm shadow-sm">
+                      <h4 className="font-medium mb-4 flex items-center gap-3 text-foreground text-sm">
+                        <div className="bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/60 dark:to-blue-800/60 p-2 rounded-lg shadow-sm">
+                          <Truck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                        </div>
                         أسعار الجملة
                       </h4>
                       <WholesaleTierManager
@@ -493,9 +573,11 @@ const ProductFormTabs: React.FC<ProductFormTabsProps> = ({
                       />
                     </div>
                     
-                    <div className="bg-muted/30 rounded-lg p-4 border border-border/50">
-                      <h4 className="font-medium mb-3 flex items-center gap-2">
-                        <Package className="w-4 h-4 text-primary" />
+                    <div className="bg-gradient-to-r from-muted/40 to-muted/20 dark:from-muted/20 dark:to-muted/10 rounded-xl p-6 border border-border/50 backdrop-blur-sm shadow-sm">
+                      <h4 className="font-medium mb-4 flex items-center gap-3 text-foreground text-sm">
+                        <div className="bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900/60 dark:to-green-800/60 p-2 rounded-lg shadow-sm">
+                          <Package className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+                        </div>
                         التوصيل والنماذج
                       </h4>
                       <ProductShippingAndTemplates
@@ -504,9 +586,11 @@ const ProductFormTabs: React.FC<ProductFormTabsProps> = ({
                       />
                     </div>
                     
-                    <div className="bg-muted/30 rounded-lg p-4 border border-border/50">
-                      <h4 className="font-medium mb-3 flex items-center gap-2">
-                        <Megaphone className="w-4 h-4 text-primary" />
+                    <div className="bg-gradient-to-r from-muted/40 to-muted/20 dark:from-muted/20 dark:to-muted/10 rounded-xl p-6 border border-border/50 backdrop-blur-sm shadow-sm">
+                      <h4 className="font-medium mb-4 flex items-center gap-3 text-foreground text-sm">
+                        <div className="bg-gradient-to-br from-purple-100 to-purple-200 dark:from-purple-900/60 dark:to-purple-800/60 p-2 rounded-lg shadow-sm">
+                          <Megaphone className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                        </div>
                         التسويق والمشاركة
                       </h4>
                       <MarketingAndEngagementTabs 
@@ -516,9 +600,11 @@ const ProductFormTabs: React.FC<ProductFormTabsProps> = ({
                       />
                     </div>
                     
-                    <div className="bg-muted/30 rounded-lg p-4 border border-border/50">
-                      <h4 className="font-medium mb-3 flex items-center gap-2">
-                        <Settings className="w-4 h-4 text-primary" />
+                    <div className="bg-gradient-to-r from-muted/40 to-muted/20 dark:from-muted/20 dark:to-muted/10 rounded-xl p-6 border border-border/50 backdrop-blur-sm shadow-sm">
+                      <h4 className="font-medium mb-4 flex items-center gap-3 text-foreground text-sm">
+                        <div className="bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-900/60 dark:to-amber-800/60 p-2 rounded-lg shadow-sm">
+                          <Settings className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                        </div>
                         إعدادات متقدمة
                       </h4>
                       <ProductAdvancedSettingsTabs
@@ -538,4 +624,4 @@ const ProductFormTabs: React.FC<ProductFormTabsProps> = ({
   );
 };
 
-export default ProductFormTabs; 
+export default ProductFormTabs;

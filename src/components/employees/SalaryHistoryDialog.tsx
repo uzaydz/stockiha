@@ -56,7 +56,6 @@ const SalaryHistoryDialog = ({
       const data = await getEmployeeSalaries(employee.id);
       setSalaries(data);
     } catch (error) {
-      console.error('Error loading salaries:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء تحميل سجل الرواتب',
@@ -213,4 +212,4 @@ const SalaryHistoryDialog = ({
   );
 };
 
-export default SalaryHistoryDialog; 
+export default SalaryHistoryDialog;

@@ -78,7 +78,6 @@ export function useShippingProviders() {
 
         setProviders(mergedProviders as ShippingProvider[]);
       } catch (err: any) {
-        console.error('Error in useShippingProviders:', err);
         setError(err);
         setProviders([]);
       } finally {
@@ -90,4 +89,4 @@ export function useShippingProviders() {
   }, [currentOrganization]);
 
   return { providers, isLoading, error };
-} 
+}

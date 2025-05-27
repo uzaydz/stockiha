@@ -6,4 +6,4 @@ export {
   ComponentEditor, 
   ComponentPreview,
   AboutEditor
-}; 
+};

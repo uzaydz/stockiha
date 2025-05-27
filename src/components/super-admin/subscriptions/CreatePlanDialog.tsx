@@ -266,4 +266,4 @@ export function CreatePlanDialog({ onCreatePlan }: CreatePlanDialogProps) {
       </DialogContent>
     </Dialog>
   );
-} 
+}

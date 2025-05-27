@@ -282,4 +282,4 @@ export default function PublicLayout({ children }: PublicLayoutProps) {
       </footer>
     </div>
   );
-} 
+}

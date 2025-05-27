@@ -423,4 +423,4 @@ const ProductPerformance = ({ products, dateRange, isLoading }: ProductPerforman
   );
 };
 
-export default ProductPerformance; 
+export default ProductPerformance;

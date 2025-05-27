@@ -97,7 +97,6 @@ const CustomersList = ({
       });
       // Parent component would need to refresh the customer list
     } catch (error) {
-      console.error('Error deleting customer:', error);
       toast({
         title: 'حدث خطأ',
         description: 'لم نتمكن من حذف العميل. الرجاء المحاولة مرة أخرى.',
@@ -230,4 +229,4 @@ const CustomersList = ({
   );
 };
 
-export default CustomersList; 
+export default CustomersList;

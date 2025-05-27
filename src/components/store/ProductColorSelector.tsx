@@ -77,4 +77,4 @@ const ProductColorSelector = ({
   );
 };
 
-export default ProductColorSelector; 
+export default ProductColorSelector;

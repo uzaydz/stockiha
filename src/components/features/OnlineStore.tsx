@@ -170,4 +170,4 @@ const OnlineStore = () => {
   );
 };
 
-export default OnlineStore; 
+export default OnlineStore;

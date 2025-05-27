@@ -2,25 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Trash, ChevronDown, Star, X, Edit, PlusCircle, Save, Eye, Search, Check } from 'lucide-react';
-import { Separator } from '@/components/ui/separator';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from '@/components/ui/badge';
-import ImageUploader from '@/components/ui/ImageUploader';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogClose, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { getProducts } from '@/lib/api/products';
+import { Plus, Trash, ChevronDown, Star, X, Edit, PlusCircle, Save, Search, Check } from 'lucide-react';
+import ImageUploader from '@/components/ui/ImageUploader';
+import { getSupabaseClient } from '@/lib/supabase';
 import { useTenant } from '@/context/TenantContext';
 
 interface TestimonialsEditorProps {
@@ -32,109 +27,81 @@ interface TestimonialsEditorProps {
   updateArrayItem: (key: string, index: number, value: any) => void;
 }
 
-// مكون فرعي لاختيار المنتج لرأي العميل
+// Product Picker Component
 const ProductPicker = ({ onSelectProduct, currentProductId = null }) => {
   const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  
-  // استخدام سياق المستأجر للحصول على معرف المؤسسة
-  const { currentOrganization } = useTenant();
-  const organizationId = currentOrganization?.id;
+  const { tenant } = useTenant();
 
-  // جلب قائمة المنتجات من قاعدة البيانات
   useEffect(() => {
-    setLoading(true);
-    
     const fetchProducts = async () => {
+      if (!tenant?.id) return;
+      
+      setLoading(true);
       try {
-        const data = await getProducts(organizationId);
-        
-        // تنسيق البيانات
-        const formattedProducts = data.map(prod => ({
-          id: prod.id,
-          name: prod.name,
-          thumbnail_image: prod.thumbnail_image,
-          price: Number(prod.price),
-          slug: prod.slug
-        }));
-        
-        setProducts(formattedProducts);
-        setError(null);
-      } catch (err) {
-        console.error('خطأ في جلب المنتجات:', err);
-        setError('حدث خطأ أثناء جلب المنتجات. يرجى المحاولة مرة أخرى.');
+        const supabase = getSupabaseClient();
+        const { data, error } = await supabase
+          .from('products')
+          .select('id, name, price, images, slug')
+          .eq('tenant_id', tenant.id)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(20);
+
+        if (error) throw error;
+        setProducts(data || []);
+      } catch (error) {
+        console.error('Error fetching products:', error);
       } finally {
         setLoading(false);
       }
     };
 
     fetchProducts();
-  }, [organizationId]);
+  }, [tenant?.id]);
 
-  // تصفية المنتجات حسب البحث
-  const filteredProducts = products.filter(product => 
+  const filteredProducts = products.filter(product =>
     product.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
-  if (loading) {
-    return (
-      <div className="text-center p-4">
-        <div className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full mx-auto"></div>
-        <p className="text-xs mt-2 text-muted-foreground">جاري تحميل المنتجات...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-4 border border-destructive/20 bg-destructive/10 rounded-md">
-        <p className="text-xs text-destructive">{error}</p>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          className="mt-2 text-xs h-8 w-full"
-          onClick={() => window.location.reload()}
-        >
-          إعادة المحاولة
-        </Button>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-3">
       <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
         <Input
           placeholder="ابحث عن منتج..."
           value={searchTerm}
-          onChange={e => setSearchTerm(e.target.value)}
-          className="h-9"
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-10 h-9"
         />
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
       </div>
       
-      {products.length === 0 ? (
-        <div className="text-center py-4 border border-dashed rounded-md">
-          <p className="text-sm text-muted-foreground">لا توجد منتجات متاحة</p>
-        </div>
-      ) : (
-        <ScrollArea className="h-[250px]">
-          <div className="space-y-1">
-            {filteredProducts.map(product => (
-              <button
+      <ScrollArea className="h-[200px] border rounded-md">
+        <div className="p-2 space-y-2">
+          {loading ? (
+            <div className="text-center py-4 text-muted-foreground text-sm">
+              جاري التحميل...
+            </div>
+          ) : filteredProducts.length === 0 ? (
+            <div className="text-center py-4 text-muted-foreground text-sm">
+              {searchTerm ? 'لا توجد منتجات مطابقة للبحث' : 'لا توجد منتجات'}
+            </div>
+          ) : (
+            filteredProducts.map((product) => (
+              <div
                 key={product.id}
-                type="button"
-                className={`w-full flex items-center px-3 py-2 rounded-md text-left hover:bg-muted transition-colors ${
-                  currentProductId === product.id ? 'bg-primary/10 border border-primary/30' : 'border border-transparent'
+                className={`flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors ${
+                  currentProductId === product.id 
+                    ? 'bg-primary/10 border border-primary/20' 
+                    : 'hover:bg-muted/50'
                 }`}
                 onClick={() => onSelectProduct(product)}
               >
-                <div className="h-10 w-10 bg-muted rounded-md overflow-hidden mr-3 flex-shrink-0">
-                  {product.thumbnail_image ? (
+                <div className="w-10 h-10 bg-muted rounded-md overflow-hidden flex-shrink-0">
+                  {product.images && product.images.length > 0 ? (
                     <img 
-                      src={product.thumbnail_image} 
+                      src={product.images[0]} 
                       alt={product.name} 
                       className="h-full w-full object-cover"
                     />
@@ -145,26 +112,24 @@ const ProductPicker = ({ onSelectProduct, currentProductId = null }) => {
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium truncate">{product.name}</span>
-                    <span className="text-xs text-muted-foreground">{product.price.toLocaleString()} دج</span>
-                  </div>
+                  <h4 className="font-medium text-sm truncate">{product.name}</h4>
+                  <p className="text-xs text-muted-foreground">
+                    {product.price.toLocaleString()} دج
+                  </p>
                 </div>
                 {currentProductId === product.id && (
-                  <div className="w-5 h-5 flex-shrink-0 rounded-full bg-primary flex items-center justify-center">
-                    <Check className="h-3 w-3 text-white" />
-                  </div>
+                  <Check className="h-4 w-4 text-primary" />
                 )}
-              </button>
-            ))}
-          </div>
-        </ScrollArea>
-      )}
+              </div>
+            ))
+          )}
+        </div>
+      </ScrollArea>
     </div>
   );
 };
 
-// مكون فرعي لنموذج إضافة/تعديل رأي
+// Testimonial Form Component
 const TestimonialForm = ({ 
   testimonial = {
     id: `testimonial-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
@@ -183,15 +148,8 @@ const TestimonialForm = ({
   submitLabel = 'حفظ'
 }) => {
   const [formData, setFormData] = useState(testimonial);
-  const [activeTab, setActiveTab] = useState("general");
   const [selectedProduct, setSelectedProduct] = useState(null);
-
-  // جلب المنتج المحدد إذا كان هناك واحد
-  useEffect(() => {
-    if (formData.productId) {
-      // سيتم تحديثه من ProductPicker عند اختيار منتج
-    }
-  }, [formData.productId]);
+  const [activeTab, setActiveTab] = useState('general');
 
   const handleChange = (field, value) => {
     setFormData(prev => ({
@@ -206,7 +164,7 @@ const TestimonialForm = ({
       ...prev,
       productId: product.id,
       productName: product.name,
-      productImage: product.thumbnail_image || '',
+      productImage: product.images?.[0] || '',
       productSlug: product.slug || ''
     }));
   };
@@ -229,10 +187,9 @@ const TestimonialForm = ({
         onValueChange={setActiveTab} 
         className="w-full"
       >
-        <TabsList className="grid grid-cols-3 mb-4">
+        <TabsList className="grid grid-cols-2 mb-4">
           <TabsTrigger value="general">البيانات الأساسية</TabsTrigger>
           <TabsTrigger value="product">المنتج</TabsTrigger>
-          <TabsTrigger value="preview">معاينة</TabsTrigger>
         </TabsList>
         
         <TabsContent value="general" className="space-y-4">
@@ -418,112 +375,9 @@ const TestimonialForm = ({
             </div>
           )}
         </TabsContent>
-        
-        <TabsContent value="preview" className="pt-2">
-          <div className="border rounded-md p-4 bg-background">
-            <h3 className="text-sm font-medium mb-3">معاينة الرأي كما سيظهر للعملاء</h3>
-            <div className="border rounded-lg p-4 max-w-md mx-auto bg-white">
-              <div className="flex items-start gap-3 mb-3">
-                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium overflow-hidden flex-shrink-0">
-                  {formData.customerAvatar ? (
-                    <img 
-                      src={formData.customerAvatar} 
-                      alt={formData.customerName} 
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    formData.customerName ? formData.customerName.substring(0, 2) : "؟؟"
-                  )}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">
-                      {formData.customerName || "اسم العميل"}
-                    </span>
-                    {formData.verified && (
-                      <Badge variant="outline" className="h-5 text-[10px] bg-green-50 text-green-700 hover:bg-green-50">
-                        موثق
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <div className="flex">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <Star 
-                          key={i}
-                          className={`h-3 w-3 ${i < formData.rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200'}`}
-                        />
-                      ))}
-                    </div>
-                    {formData.purchaseDate && (
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(formData.purchaseDate).toLocaleDateString()}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-              
-              <p className="text-sm leading-relaxed my-3">
-                {formData.comment || "نص التعليق سيظهر هنا..."}
-              </p>
-              
-              {(formData.productName || formData.productImage) && (
-                <div className="flex gap-3 mt-4 pt-3 border-t">
-                  <div className={`flex gap-3 items-center ${formData.productSlug ? 'cursor-pointer transition-colors hover:bg-muted/20 rounded-md p-1.5' : 'p-1.5'}`}>
-                    {formData.productImage && (
-                      <div className="w-12 h-12 rounded-md border bg-muted/20 overflow-hidden flex-shrink-0">
-                        <img 
-                          src={formData.productImage} 
-                          alt={formData.productName || "المنتج"} 
-                          className="w-full h-full object-contain"
-                        />
-                      </div>
-                    )}
-                    {formData.productName && (
-                      <div className="text-xs">
-                        <div className="text-muted-foreground mb-0.5">تم شراء:</div>
-                        <div className={`font-medium ${formData.productSlug ? 'text-primary' : ''}`}>
-                          {formData.productName}
-                          {formData.productSlug && (
-                            <span className="inline-flex items-center text-xs text-primary ml-1 gap-0.5">
-                              <Eye className="h-3 w-3" />
-                              <span className="underline">مشاهدة</span>
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="mt-4">
-              <p className="text-xs text-muted-foreground text-center">
-                {formData.productSlug ? 
-                  "سيتم توجيه العميل إلى صفحة المنتج عند النقر عليه" : 
-                  formData.productName ? 
-                    "لم يتم تحديد رابط للمنتج، لن يكون المنتج قابل للنقر" : ""}
-              </p>
-            </div>
-          </div>
-        </TabsContent>
       </Tabs>
       
       <DialogFooter className="mt-6 gap-2">
-        <div className="flex-1 flex items-center">
-          {(activeTab !== "preview") && (
-            <Button 
-              type="button" 
-              variant="ghost"
-              onClick={() => setActiveTab("preview")}
-              className="text-xs h-8"
-            >
-              <Eye className="h-3.5 w-3.5 mr-1" /> معاينة
-            </Button>
-          )}
-        </div>
         <DialogClose asChild>
           <Button type="button" variant="outline">إلغاء</Button>
         </DialogClose>
@@ -867,4 +721,4 @@ const TestimonialsEditor: React.FC<TestimonialsEditorProps> = ({
   );
 };
 
-export default TestimonialsEditor; 
+export default TestimonialsEditor;

@@ -134,4 +134,4 @@ export const ProductSummary: React.FC<ProductSummaryProps> = React.memo(({
       </CardContent>
     </Card>
   );
-}); 
+});

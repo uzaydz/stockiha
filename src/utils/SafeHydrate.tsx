@@ -12,4 +12,4 @@ function SafeHydrate({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default SafeHydrate; 
+export default SafeHydrate;

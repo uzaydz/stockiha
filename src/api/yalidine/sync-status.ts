@@ -41,7 +41,6 @@ export function getSyncStatus(): SyncStatus {
       }
     }
   } catch (error) {
-    console.error('خطأ في قراءة حالة المزامنة:', error);
   }
   
   // إذا لم نجد حالة صالحة، نعيد كائن افتراضي
@@ -66,7 +65,6 @@ export function updateSyncStatus(status: SyncStatus): void {
     localStorage.setItem('yalidine_sync_status', JSON.stringify(statusWithTimestamp));
     
   } catch (error) {
-    console.error('خطأ في تحديث حالة المزامنة:', error);
   }
 }
 
@@ -94,7 +92,6 @@ export function updatePartialSyncStatus(
       
     }
   } catch (error) {
-    console.error(`خطأ في التحديث الجزئي لحالة المزامنة (${category}):`, error);
   }
 }
 
@@ -114,16 +111,14 @@ export function updateFeeSyncStatus(total: number, added: number, status: SyncSt
     if (added > previousAdded && previousAdded > 0) {
       const progressChange = added - previousAdded;
       const progressPercent = Math.round((added / Math.max(total, 1)) * 100);
-      
-      
+
       // تقدير الوقت المتبقي
       if (added > 5 && added < total) {
         const remainingItems = total - added;
         const avgTimePerItem = 1000; // تقديري (مللي ثانية)
         const estimatedRemainingMs = remainingItems * avgTimePerItem;
         const estimatedMinutes = Math.ceil(estimatedRemainingMs / 60000);
-        
-        
+
       }
     } else {
       
@@ -140,7 +135,6 @@ export function updateFeeSyncStatus(total: number, added: number, status: SyncSt
     // حفظ الحالة الجديدة
     updateSyncStatus(currentStatus);
   } catch (error) {
-    console.error('خطأ في تحديث حالة مزامنة الأسعار:', error);
   }
 }
 
@@ -154,4 +148,4 @@ export function createInitialSyncStatus(): SyncStatus {
     centers: { total: 0, added: 0, status: 'pending' },
     fees: { total: 0, added: 0, status: 'pending' }
   };
-} 
+}

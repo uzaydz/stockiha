@@ -163,4 +163,4 @@ export function monitorPagePerformance() {
   });
 
   return transaction;
-} 
+}

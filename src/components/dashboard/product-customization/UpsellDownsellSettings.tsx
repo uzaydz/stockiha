@@ -158,7 +158,6 @@ const UpsellDownsellSettings = ({
         const filteredResults = results.filter(r => !selectedIds.includes(r.id));
         setSearchResults(filteredResults);
       } catch (error) {
-        console.error("خطأ في البحث عن المنتجات:", error);
         setSearchResults([]);
       } finally {
         setIsLoadingSearch(false);
@@ -590,4 +589,4 @@ const formatCurrency = (amount: number | null | undefined): string => {
   return `${amount.toLocaleString()} د.ج`;
 };
 
-export default UpsellDownsellSettings; 
+export default UpsellDownsellSettings;

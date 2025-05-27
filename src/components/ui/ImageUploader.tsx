@@ -69,7 +69,6 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
             onImageUploaded(base64Content);
           }
         } else {
-          console.warn('محتوى الصورة المحلية غير موجود في localStorage:', localKey);
           // تعيين صورة فارغة بدلاً من صورة غير موجودة
           const emptyImg = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
           setPreview(emptyImg);
@@ -168,9 +167,7 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
               
               // حساب نسبة الضغط
               const compressionRatio = ((file.size - compressedFile.size) / file.size * 100).toFixed(2);
-              
-              
-              
+
               resolve(compressedFile);
             },
             mimeType,
@@ -233,9 +230,7 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
       if (!(file instanceof File)) {
         throw new Error('الملف المقدم ليس ملفًا صالحًا');
       }
-      
-      
-      
+
       // استخدام formData بدلاً من تمرير الملف مباشرة
       const formData = new FormData();
       formData.append('file', file, file.name);
@@ -251,7 +246,6 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
         });
       
       if (error) {
-        console.error('خطأ Supabase:', error);
         throw error;
       }
       
@@ -259,11 +253,9 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
       const { data: urlData } = supabase.storage
         .from("organization-assets")
         .getPublicUrl(filePath);
-      
-      
+
       return urlData.publicUrl;
     } catch (error) {
-      console.error('خطأ في رفع الصورة إلى Supabase:', error);
       throw error; // إعادة إلقاء الخطأ ليتم التعامل معه بشكل مناسب
     }
   };
@@ -286,7 +278,6 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
       if (base64Image) {
         return base64Image;
       } else {
-        console.warn('محتوى الصورة المحلية غير موجود في localStorage:', localImageKey);
         // إرجاع صورة فارغة بدلاً من مسار محلي غير صالح
         return 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
       }
@@ -325,8 +316,7 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
       const file = event.target.files[0];
       
       // تسجيل معلومات الملف الأصلي
-      
-      
+
       // --- إعادة تمكين الضغط ---
       const compressedFile = await compressImage(file);
       // const compressedFile = file; // استخدام الملف الأصلي مباشرة - تم الإلغاء
@@ -344,8 +334,7 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
       // const filePath = `${folder}/${organizationFolder}/${uniqueFileName}`; // استخدام الاسم الفريد المولد - تم الإلغاء
       
       // تسجيل معلومات عملية الرفع
-      
-      
+
       try {
         // رفع الصورة إلى Supabase
         const imageUrl = await uploadImageWithOfflineSupport(compressedFile, filePath);
@@ -360,7 +349,6 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
           description: "تم رفع الصورة بنجاح والحصول على الرابط",
         });
       } catch (error: any) {
-        console.error('خطأ في رفع الصورة إلى Supabase:', error);
         
         // إظهار رسالة خطأ
         toast({
@@ -370,7 +358,6 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
         });
       }
     } catch (error: any) {
-      console.error('خطأ في معالجة الصورة:', error);
       
       // إظهار رسالة خطأ
       toast({
@@ -507,4 +494,4 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
 
 ImageUploader.displayName = "ImageUploader";
 
-export default ImageUploader; 
+export default ImageUploader;

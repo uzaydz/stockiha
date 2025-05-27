@@ -21,13 +21,11 @@ export const getActiveSubscriptionByOrgId = async (organizationId: string) => {
       .single();
       
     if (error) {
-      console.error('Error fetching active subscription:', error);
       return null;
     }
     
     return data;
   } catch (error) {
-    console.error('Exception when fetching active subscription:', error);
     return null;
   }
 };
@@ -56,13 +54,11 @@ export const getOrganizationById = async (
 
         if (error) {
           if (error.code !== 'PGRST116') { // PGRST116: "The result contains 0 rows"
-            console.error(`Error fetching organization by ID ${organizationId}:`, error);
           }
           return null;
         }
         return data as Organization || null;
       } catch (error) {
-        console.error(`Error fetching organization by ID ${organizationId} (catch block):`, error);
         return null;
       }
     },
@@ -99,4 +95,4 @@ export const getOrganizationById = async (
 //     ttl,
 //     true
 //   );
-// }; 
+// };

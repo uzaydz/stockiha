@@ -61,7 +61,6 @@ export default function ProductShippingSelector({
         setSelectedCloneId(null);
       }
     } catch (err) {
-      console.error('خطأ في تحميل نسخ مزودي التوصيل:', err);
       setError('حدث خطأ أثناء تحميل نسخ مزودي التوصيل');
     } finally {
       setIsLoading(false);
@@ -74,7 +73,6 @@ export default function ProductShippingSelector({
     
     // تعامل خاص مع قيمة default
     if (value === 'default' || value === 'default_provider' || value === '1' || value === '0') {
-      console.log("تم اختيار القيمة 'default' وتحويلها إلى null");
       // تعيين null عوضًا عن default
       setSelectedCloneId(null);
       if (onChange) onChange(null);
@@ -93,7 +91,6 @@ export default function ProductShippingSelector({
         if (onChange) onChange(null);
       }
     } catch (error) {
-      console.error('خطأ في معالجة قيمة مزود الشحن:', error);
       setSelectedCloneId(null);
       if (onChange) onChange(null);
     }
@@ -107,7 +104,6 @@ export default function ProductShippingSelector({
           
         await linkProductToShippingClone(productId, finalValue || null);
       } catch (err) {
-        console.error('خطأ في ربط المنتج بمزود التوصيل:', err);
         setError('حدث خطأ أثناء حفظ التغييرات');
       }
     }
@@ -199,4 +195,4 @@ export default function ProductShippingSelector({
       </CardContent>
     </Card>
   );
-} 
+}

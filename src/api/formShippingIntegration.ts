@@ -33,8 +33,7 @@ export async function checkYalidineConfiguration(organizationId: string): Promis
   data?: any;
 }> {
   try {
-    
-    
+
     // التحقق من وجود جدول shipping_provider_settings
     const { data: tableInfo, error: tableError } = await supabase
       .from('shipping_provider_settings')
@@ -42,15 +41,12 @@ export async function checkYalidineConfiguration(organizationId: string): Promis
       .limit(1);
     
     if (tableError) {
-      console.error('خطأ في الوصول إلى جدول بيانات الشحن:', tableError);
       return { 
         success: false, 
         message: 'فشل الوصول إلى جدول بيانات الشحن: ' + tableError.message 
       };
     }
-    
-    
-    
+
     // التحقق من وجود بيانات اعتماد ياليدين للمؤسسة المحددة
     const { data: yalidineSettings, error: settingsError } = await supabase
       .from('shipping_provider_settings')
@@ -61,7 +57,6 @@ export async function checkYalidineConfiguration(organizationId: string): Promis
     
     if (settingsError && settingsError.code !== 'PGRST116') {
       // PGRST116 هو خطأ "لم يتم العثور على نتائج" وهو ما نتوقعه في بعض الحالات
-      console.error('خطأ في جلب بيانات اعتماد ياليدين للمؤسسة:', settingsError);
       return { 
         success: false, 
         message: 'حدث خطأ أثناء البحث عن بيانات اعتماد ياليدين: ' + settingsError.message
@@ -69,15 +64,12 @@ export async function checkYalidineConfiguration(organizationId: string): Promis
     }
     
     if (!yalidineSettings || !yalidineSettings.api_key || !yalidineSettings.api_token) {
-      console.error('بيانات اعتماد ياليدين غير مكتملة أو غير موجودة');
       return { 
         success: false, 
         message: 'بيانات اعتماد ياليدين غير مكتملة أو غير موجودة' 
       };
     }
-    
-    
-    
+
     // إخفاء معلومات حساسة قبل الإرجاع
     const safeData = {
       ...yalidineSettings,
@@ -92,7 +84,6 @@ export async function checkYalidineConfiguration(organizationId: string): Promis
       data: safeData
     };
   } catch (error) {
-    console.error('خطأ أثناء فحص تكوين ياليدين:', error);
     return { 
       success: false, 
       message: 'خطأ غير متوقع: ' + (error instanceof Error ? error.message : String(error)) 
@@ -113,7 +104,6 @@ export async function getProvinces(organizationId: string): Promise<Province[]> 
     // ترتيب الولايات أبجديًا بالعربية
     return provinces.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
   } catch (error) {
-    console.error('خطأ في جلب الولايات:', error);
     return [];
   }
 }
@@ -130,8 +120,7 @@ export async function getMunicipalities(
   deliveryType: DeliveryType
 ): Promise<Municipality[]> {
   try {
-    
-    
+
     // استخدام الوظيفة المخصصة لتصفية البلديات حسب نوع التوصيل
     const municipalities = await getMunicipalitiesByDeliveryType(
       organizationId,
@@ -143,7 +132,6 @@ export async function getMunicipalities(
     // ترتيب البلديات أبجديًا بالعربية
     return municipalities.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
   } catch (error) {
-    console.error('خطأ في جلب البلديات:', error);
     return [];
   }
 }
@@ -159,14 +147,12 @@ export async function getCenters(
   provinceId: string
 ): Promise<Center[]> {
   try {
-    
-    
+
     const centers = await fetchCenters(organizationId, provinceId);
     
     // ترتيب المراكز أبجديًا بالعربية
     return centers.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
   } catch (error) {
-    console.error('خطأ في جلب مراكز الاستلام:', error);
     return [];
   }
 }
@@ -182,14 +168,12 @@ export async function getCentersByCommune(
   communeId: string
 ): Promise<Center[]> {
   try {
-    
-    
+
     const centers = await fetchCentersByCommune(organizationId, communeId);
     
     // ترتيب المراكز أبجديًا بالعربية
     return centers.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
   } catch (error) {
-    console.error('خطأ في جلب مراكز الاستلام للبلدية:', error);
     return [];
   }
 }
@@ -213,8 +197,7 @@ export async function getDeliveryPrice(
   weight?: number
 ): Promise<number | null> {
   try {
-    
-    
+
     const price = await calculateYalidineDeliveryPrice(
       organizationId,
       fromProvinceId,
@@ -226,7 +209,6 @@ export async function getDeliveryPrice(
     
     return price;
   } catch (error) {
-    console.error('خطأ في حساب سعر التوصيل:', error);
     return null;
   }
 }
@@ -269,7 +251,6 @@ export async function updateFormShippingIntegration(
       message: 'تم تحديث إعدادات الشحن بنجاح'
     };
   } catch (error) {
-    console.error('Error updating form shipping integration:', error);
     return { 
       success: false, 
       error,
@@ -306,7 +287,6 @@ export async function getFormShippingIntegration(formId: string) {
       }
     };
   } catch (error) {
-    console.error('Error fetching form shipping integration:', error);
     return { 
       success: false, 
       error,
@@ -316,4 +296,4 @@ export async function getFormShippingIntegration(formId: string) {
       }
     };
   }
-} 
+}

@@ -55,7 +55,6 @@ export const useDeliveryTypeUpdater = (
         const municipalityId = municipalityField?.value;
         
         if (provinceId && municipalityId) {
-          console.log(`[DeliveryTypeUpdater] استخدام البلدية ${municipalityId} مباشرة كقيمة للاستلام منها`);
           onFieldChange('stopDeskId', municipalityId);
           
           // تعليق على الكود القديم الذي كان يبحث عن مكاتب ياليدين
@@ -63,16 +62,13 @@ export const useDeliveryTypeUpdater = (
           findStopDeskForMunicipality(provinceId, municipalityId)
             .then(stopDeskId => {
               if (stopDeskId) {
-                console.log(`[CustomFormFields] تعيين قيمة مكتب الاستلام = ${stopDeskId} بناءً على البلدية ${municipalityId}`);
                 onFieldChange('stopDeskId', stopDeskId);
               } else {
-                console.log("[CustomFormFields] تعيين قيمة افتراضية لـ stopDeskId = 1 (لم يتم العثور على مكتب)");
                 onFieldChange('stopDeskId', '1');
               }
             });
           */
         } else {
-          console.log(`[DeliveryTypeUpdater] لا يمكن تحديد قيمة للاستلام (البلدية غير متوفرة، ولاية=${provinceId}, بلدية=${municipalityId})`);
           // استخدام رقم البلدية المحدد مسبقًا إذا كان متوفرًا، وإلا استخدام قيمة افتراضية
           if (provinceId) {
             onFieldChange('stopDeskId', provinceId);
@@ -85,4 +81,4 @@ export const useDeliveryTypeUpdater = (
   }, [shippingProviderSettings, setValue, onFieldChange, extendedFields]);
 
   return { deliveryTypeUpdateRef }; // Exporting the ref, ensure it's handled correctly if shared or modified elsewhere
-}; 
+};

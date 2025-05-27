@@ -261,4 +261,4 @@ const formatCurrency = (amount: number | null | undefined): string => {
   return `${amount.toLocaleString()} د.ج`;
 };
 
-export default UpsellDownsellDisplay; 
+export default UpsellDownsellDisplay;

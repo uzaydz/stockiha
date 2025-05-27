@@ -36,7 +36,6 @@ router.get('/check-domain-status', async (req, res) => {
       data: result
     });
   } catch (error) {
-    console.error('خطأ أثناء التحقق من حالة النطاق:', error);
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'حدث خطأ غير متوقع'
@@ -103,7 +102,6 @@ router.post('/link-domain', async (req, res) => {
       data: linkResult.data
     });
   } catch (error) {
-    console.error('خطأ أثناء ربط النطاق:', error);
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'حدث خطأ غير متوقع'
@@ -168,7 +166,6 @@ router.post('/remove-domain', async (req, res) => {
     );
 
     if (!removeResult.success) {
-      console.error('خطأ في إزالة النطاق من Vercel:', removeResult.error);
       // سنستمر في تنفيذ الحذف من قاعدة البيانات حتى لو فشل الحذف من Vercel
     }
 
@@ -193,7 +190,6 @@ router.post('/remove-domain', async (req, res) => {
       .eq('domain', domain);
 
     if (deleteError) {
-      console.error('خطأ في حذف سجل التحقق:', deleteError);
     }
 
     return res.status(200).json({
@@ -201,7 +197,6 @@ router.post('/remove-domain', async (req, res) => {
       message: 'تمت إزالة النطاق بنجاح'
     });
   } catch (error) {
-    console.error('خطأ غير متوقع أثناء إزالة النطاق:', error);
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'حدث خطأ غير متوقع'
@@ -287,7 +282,6 @@ router.post('/check-domain', async (req, res) => {
         ]);
       
       if (updateError) {
-        console.error('خطأ في تحديث حالة التحقق:', updateError);
       }
     }
     
@@ -299,7 +293,6 @@ router.post('/check-domain', async (req, res) => {
       results
     });
   } catch (error) {
-    console.error('خطأ أثناء التحقق من النطاق:', error);
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'حدث خطأ غير متوقع'
@@ -307,4 +300,4 @@ router.post('/check-domain', async (req, res) => {
   }
 });
 
-export default router; 
+export default router;

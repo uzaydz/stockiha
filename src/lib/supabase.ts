@@ -8,12 +8,7 @@ import { recordSupabaseQuery, updateSupabaseQuery } from '@/components/debug/que
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-
-
-
-
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('عدم وجود متغيرات البيئة المطلوبة لـ Supabase!');
 }
 
 // تهيئة مخزن محلي لبيانات المصادقة
@@ -36,7 +31,6 @@ const options = {
           const data = await authStore.getItem(key);
           return JSON.stringify(data);
         } catch (error) {
-          console.error('خطأ في استرجاع بيانات المصادقة:', error);
           return null;
         }
       },
@@ -45,14 +39,12 @@ const options = {
           const data = JSON.parse(value);
           await authStore.setItem(key, data);
         } catch (error) {
-          console.error('خطأ في تخزين بيانات المصادقة:', error);
         }
       },
       removeItem: async (key) => {
         try {
           await authStore.removeItem(key);
         } catch (error) {
-          console.error('خطأ في حذف بيانات المصادقة:', error);
         }
       }
     },
@@ -64,7 +56,6 @@ const options = {
         // عند محاولة تحديث رمز الوصول في وضع عدم الاتصال
         const urlStr = typeof url === 'string' ? url : url.toString();
         if (urlStr.includes('token?grant_type=refresh_token')) {
-          console.warn('تجاوز تحديث رمز الوصول في وضع عدم الاتصال');
           // إعادة استجابة وهمية بدلاً من الفشل
           return Promise.resolve(new Response(
             JSON.stringify({ error: 'offline_mode', message: 'Application is offline' }), 
@@ -73,7 +64,6 @@ const options = {
         }
         
         // التحقق من نوع الطلب الآخر
-        console.warn('محاولة وصول إلى الخادم في وضع عدم الاتصال:', urlStr);
         return Promise.reject(new Error('ERR_INTERNET_DISCONNECTED'));
       }
       
@@ -137,7 +127,6 @@ export const getSupabaseClient = () => {
     }
     
     if (!supabaseUrl || !supabaseAnonKey) {
-      console.error('عدم وجود متغيرات البيئة المطلوبة لـ Supabase!');
       instanceInitialized = false; // إعادة تعيين العلامة في حالة الفشل
       return null;
     }
@@ -145,8 +134,7 @@ export const getSupabaseClient = () => {
     try {
       // إنشاء عميل Supabase
       supabaseInstance = createClient<Database>(supabaseUrl, supabaseAnonKey, options);
-      
-      
+
       // إضافة مستمع لأحداث المصادقة لرصد المشاكل
       supabaseInstance.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_OUT') {
@@ -160,7 +148,6 @@ export const getSupabaseClient = () => {
         }
       });
     } catch (error) {
-      console.error('Error creating Supabase client:', error);
       supabaseInstance = null;
       instanceInitialized = false; // إعادة تعيين العلامة في حالة الفشل
     }
@@ -392,7 +379,6 @@ export const getAuthStatus = async () => {
     const { data, error } = await client.auth.getSession();
     
     if (error) {
-      console.error('خطأ في التحقق من حالة المصادقة:', error);
       return { isAuthenticated: false, isOffline: false, session: null };
     }
     
@@ -402,7 +388,6 @@ export const getAuthStatus = async () => {
       session: data.session
     };
   } catch (error) {
-    console.error('خطأ غير متوقع في التحقق من حالة المصادقة:', error);
     return { isAuthenticated: false, isOffline: true, session: null };
   }
-}; 
+};

@@ -37,16 +37,9 @@ export const prepareOrderData = (props: OrderFormSubmitterProps, customFormData?
     metadata
   } = props;
 
-  
-  
-  
-
   // استخراج معرف النموذج المخصص ومزود الشحن المستنسخ من البيانات
   const form_id = values.form_id || null;
   const shipping_clone_id = values.shipping_clone_id || null;
-  
-  
-  
 
   // استخدام البيانات المخصصة إذا كانت متوفرة
   const fullName = customFormData?.fullName || values.fullName || "زائر";
@@ -69,8 +62,6 @@ export const prepareOrderData = (props: OrderFormSubmitterProps, customFormData?
   
   // استخراج stop_desk_id من النموذج أو البيانات المخصصة
   const stop_desk_id = customFormData?.stop_desk_id || customFormData?.stopDeskId || values.stopDeskId || null;
-  
-  console.log(`[OrderFormSubmitter] إعداد بيانات الطلب، stop_desk_id: ${stop_desk_id}`);
 
   // إضافة معلومات تفصيلية أكثر في metadata
   let enhancedMetadata: Record<string, any> = { ...metadata };
@@ -128,8 +119,7 @@ export const prepareOrderData = (props: OrderFormSubmitterProps, customFormData?
     // Add metadata to the prepared order data
     metadata: enhancedMetadata 
   };
-  
-  
+
   return orderData;
 };
 
@@ -159,7 +149,6 @@ export const attemptOrderSubmission = async (
     
     return result;
   } catch (error) {
-    console.error("خطأ في محاولة إرسال الطلب:", error);
     throw error;
   }
 };
@@ -238,7 +227,6 @@ export const submitOrderForm = async (props: OrderFormSubmitterProps): Promise<b
       }
     }
   } catch (trackingError) {
-    console.warn('تحذير: فشل في تتبع initiate_checkout:', trackingError);
     // لا نوقف العملية بسبب خطأ في التتبع
   }
   
@@ -258,9 +246,7 @@ export const submitOrderForm = async (props: OrderFormSubmitterProps): Promise<b
     
     // إعداد بيانات الطلب
     const orderData = prepareOrderData(props, formData);
-    
-    
-    
+
     // إعداد معلمات محاولة إعادة الإرسال
     let retryCount = 0;
     const MAX_RETRIES = 1; // محاولة واحدة إضافية
@@ -276,7 +262,6 @@ export const submitOrderForm = async (props: OrderFormSubmitterProps): Promise<b
         break;
       } catch (error) {
         lastError = error;
-        console.error(`فشلت المحاولة رقم ${retryCount + 1}:`, error);
         
         if (retryCount < MAX_RETRIES) {
           // انتظار قبل المحاولة التالية
@@ -292,12 +277,10 @@ export const submitOrderForm = async (props: OrderFormSubmitterProps): Promise<b
     
     // التحقق من نجاح العملية
     if (!orderResult) {
-      console.error("عادت نتيجة فارغة من معالجة الطلب");
       throw new Error("لم يتم استلام أي استجابة من الخادم. يرجى المحاولة مرة أخرى.");
     }
     
     if (orderResult && orderResult.error) {
-      console.error("استجابة الخطأ من الخادم:", orderResult.error);
       throw new Error(`خطأ API: ${orderResult.error}. التفاصيل: ${orderResult.detail || 'لا توجد تفاصيل متاحة'}`);
     }
     
@@ -376,21 +359,13 @@ export const submitOrderForm = async (props: OrderFormSubmitterProps): Promise<b
           });
         }
 
-        console.log('✅ تم تتبع حدث الشراء بنجاح:', {
-          order_number: orderResult.data.customer_order_number,
-          total_price: totalPrice,
-          customer_phone: values.phone ? 'موجود' : 'مفقود'
-        });
-
       } catch (trackingError) {
-        console.warn('تحذير: فشل في تتبع حدث الشراء:', trackingError);
         // لا نوقف العملية
       }
     }
     
     return true;
   } catch (error) {
-    console.error("خطأ في تقديم الطلب:", error);
     let errorMessage = error instanceof Error ? error.message : 'خطأ غير معروف';
     
     // معالجة أنواع الأخطاء المختلفة
@@ -415,4 +390,4 @@ export const submitOrderForm = async (props: OrderFormSubmitterProps): Promise<b
     // إنهاء عملية التقديم
     onSubmitEnd();
   }
-}; 
+};

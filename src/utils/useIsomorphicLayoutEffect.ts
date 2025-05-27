@@ -13,4 +13,4 @@ const canUseDOM = !!(
  */
 const useIsomorphicLayoutEffect = canUseDOM ? useLayoutEffect : useEffect;
 
-export default useIsomorphicLayoutEffect; 
+export default useIsomorphicLayoutEffect;

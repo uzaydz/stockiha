@@ -127,6 +127,4 @@ const TextComponentEditor: React.FC<TextComponentEditorProps> = ({ settings, onU
   );
 };
 
-export default TextComponentEditor; 
- 
- 
+export default TextComponentEditor;

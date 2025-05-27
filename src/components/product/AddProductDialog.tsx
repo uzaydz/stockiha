@@ -148,16 +148,13 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
           is_super_admin: userData?.is_super_admin || user.user_metadata?.is_super_admin,
           role: userData?.role || user.user_metadata?.role,
         };
-        
-        
-        
+
         // التحقق من صلاحية إضافة المنتجات فقط
         let canAddProducts = false;
         try {
           canAddProducts = await checkUserPermissions(mergedUserData, 'addProducts');
           
         } catch (permError) {
-          console.error('AddProductDialog: خطأ في التحقق من الصلاحية:', permError);
           // في حالة حدوث خطأ، نستخدم الطريقة البديلة
           canAddProducts = false;
         }
@@ -168,7 +165,6 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
         setHasPermission(hasAddPermission);
         setShowPermissionAlert(!hasAddPermission);
       } catch (error) {
-        console.error('AddProductDialog: خطأ في التحقق من الصلاحيات:', error);
         
         // في حالة الخطأ، تحقق مباشرة من البيانات الخام
         const isAdmin = 
@@ -183,9 +179,7 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
         
         // النتيجة النهائية: إما أن يكون مسؤولاً أو لديه الصلاحية المحددة
         const fallbackPermission = isAdmin || hasExplicitPermission;
-        
-        
-        
+
         setHasPermission(fallbackPermission);
         setShowPermissionAlert(!fallbackPermission);
       } finally {
@@ -232,7 +226,6 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
         .limit(5);
       
       if (usersError) {
-        console.error('Error al buscar usuarios con organizaciones:', usersError);
       } else if (usersList && usersList.length > 0) {
         // Usar el primer organization_id válido que encontremos
         for (const user of usersList) {
@@ -253,7 +246,6 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
         .limit(1);
       
       if (orgError) {
-        console.error('Error al buscar organizaciones:', orgError);
       } else if (orgList && orgList.length > 0) {
         const orgId = orgList[0].id;
         
@@ -269,7 +261,6 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
       localStorage.setItem('bazaar_organization_id', hardcodedId);
       
     } catch (error) {
-      console.error('Error al obtener organización de la BD:', error);
     }
   };
 
@@ -292,7 +283,6 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
         .single();
         
       if (error) {
-        console.error('Error fetching user organization:', error);
         return null;
       }
       
@@ -303,7 +293,6 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
       
       return null;
     } catch (error) {
-      console.error('Error in getUserOrganization:', error);
       return null;
     }
   };
@@ -312,8 +301,7 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
   useEffect(() => {
     // Obtener el ID de la organización si no está disponible en el contexto
     const getOrganizationId = () => {
-      
-      
+
       // Intentar obtener el ID desde el contexto
       if (currentOrganization?.id && isValidUUID(currentOrganization.id)) {
         
@@ -331,8 +319,7 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
       
       for (const key of keysToTry) {
         const storedId = localStorage.getItem(key);
-        
-        
+
         if (storedId && isValidUUID(storedId)) {
           
           setOrganizationId(storedId);
@@ -343,8 +330,7 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
       // Intentar obtener desde sessionStorage
       for (const key of keysToTry) {
         const sessionId = sessionStorage.getItem(key);
-        
-        
+
         if (sessionId && isValidUUID(sessionId)) {
           
           setOrganizationId(sessionId);
@@ -378,19 +364,23 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
   
   // Verificación adicional de que tenemos un ID válido
   useEffect(() => {
-    
-    
+
   }, [organizationId]);
   
   // استرجاع الفئات
   useEffect(() => {
-    // تحميل الفئات عند فتح النافذة
+    // تحميل الفئات عند فتح النافذة وتوفر معرف المؤسسة
     const fetchCategories = async () => {
+      // التأكد من وجود معرف المؤسسة قبل جلب الفئات
+      const orgId = currentOrganization?.id || organizationId;
+      if (!orgId) {
+        return;
+      }
+
       try {
-        const categoriesData = await getCategories(organizationId);
+        const categoriesData = await getCategories(orgId);
         setCategories(categoriesData || []);
       } catch (error) {
-        console.error('Error fetching categories:', error);
         toast.error('حدث خطأ أثناء تحميل الفئات');
         // في حالة الخطأ، تأكد من أن categories هي مصفوفة فارغة على الأقل
         setCategories([]);
@@ -414,16 +404,18 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
           }
         }
       } catch (error) {
-        console.error('Error fetching session:', error);
         setSessionChecked(true);
       }
     };
     
     if (open) {
-      fetchCategories();
       fetchUserSession();
+      // جلب الفئات فقط إذا كان معرف المؤسسة متوفرًا
+      if (currentOrganization?.id || organizationId) {
+        fetchCategories();
+      }
     }
-  }, [open]);
+  }, [open, currentOrganization?.id, organizationId]); // إضافة organizationId إلى dependencies
   
   // Initialize form with react-hook-form and zod validation
   const form = useForm<ProductFormValues>({
@@ -478,7 +470,6 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
           const subcategoriesData = await getSubcategories(watchCategoryId);
           setSubcategories(subcategoriesData || []);
         } catch (error) {
-          console.error('Error fetching subcategories:', error);
           toast.error('حدث خطأ أثناء تحميل الفئات الفرعية');
           // في حالة الخطأ، تأكد من أن subcategories هي مصفوفة فارغة على الأقل
           setSubcategories([]);
@@ -520,7 +511,6 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
     
     // تأكد من أن urls ليست فارغة وهي مصفوفة
     if (!Array.isArray(urls)) {
-      console.error('AddProductDialog: تم استلام قيمة غير صالحة للصور الإضافية:', urls);
       return;
     }
     
@@ -585,10 +575,7 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
 
   const onSubmit = async (values: ProductFormValues) => {
     setIsSubmitting(true);
-    
-    
-    
-    
+
     try {
       // التأكد من وجود صورة رئيسية
       if (!values.thumbnail_image) {
@@ -662,24 +649,18 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
         organization_id: organizationId,
         slug: `${values.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`
       };
-      
-      
-      
-        
+
       // إنشاء المنتج
       const product = await createProduct(productData);
           
       if (product) {
-        
-        
+
         // إضافة الألوان والمقاسات إذا كان المنتج يدعم المتغيرات
         if (values.has_variants && productColors.length > 0) {
-          
-            
+
           for (const color of productColors) {
             try {
-              
-              
+
               // تحديث حالة has_sizes
               const colorHasSize = values.use_sizes && (color.has_sizes || (color.sizes && color.sizes.length > 0));
               
@@ -695,16 +676,13 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
                 barcode: color.barcode || null,
                 has_sizes: colorHasSize
               };
-              
-              
+
               const createdColor = await createProductColor(colorData);
               const colorId = createdColor.id; // استخراج معرف اللون من الكائن المسترجع
-              
-              
+
               // إضافة المقاسات إذا كان اللون يدعم المقاسات
               if (values.use_sizes && colorHasSize && color.sizes && color.sizes.length > 0) {
-                
-                
+
                 for (const size of color.sizes) {
                   try {
                     // استخدام معرف اللون النصي المرجع من createProductColor
@@ -717,25 +695,21 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
                       barcode: size.barcode || null,
                       is_default: size.is_default
                     };
-                    
-                    
+
                     const sizeId = await createProductSize(sizeData);
                     
                   } catch (sizeError) {
-                    console.error('خطأ في إنشاء المقاس:', sizeError);
                   }
                 }
               }
             } catch (colorError) {
-              console.error('خطأ في إنشاء اللون:', colorError);
             }
           }
         }
             
         // إضافة الصور الإضافية
         if (additionalImages.length > 0) {
-          
-            
+
           for (let i = 0; i < additionalImages.length; i++) {
             try {
               const imageData = {
@@ -743,11 +717,9 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
                 image_url: additionalImages[i],
                 sort_order: i
               };
-                
-              
+
               await createProductImage(imageData);
             } catch (imageError) {
-              console.error(`خطأ في إضافة الصورة ${i+1}:`, imageError);
             }
           }
         }
@@ -766,15 +738,12 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
                   };
                   await createWholesaleTier(tierData);
                 } catch (tierError) {
-                  console.error('خطأ في إضافة مرحلة سعرية:', tierError);
                   toast.error(`خطأ عند إضافة خطة لكمية ${tier.min_quantity}`);
                 }
               } else {
-                console.warn('تخطي خطة أسعار جملة غير صالحة أو غير مكتملة:', tier);
               }
             }
           } else {
-            console.warn("Organization ID is missing from context, cannot create wholesale tiers.");
             toast.warning("معرف المؤسسة (من السياق) مفقود، لا يمكن إنشاء خطط أسعار الجملة.");
           }
         }
@@ -784,7 +753,6 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
         onOpenChange(false);
       }
     } catch (error) {
-      console.error('Error creating product:', error);
       toast.error('حدث خطأ أثناء إضافة المنتج');
     } finally {
       setIsSubmitting(false);
@@ -804,14 +772,12 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        console.error('No active session found');
         toast.error('يرجى تسجيل الدخول مرة أخرى لإضافة منتجات');
         return false;
       }
       
       return true;
     } catch (error) {
-      console.error('Error checking auth session:', error);
       return false;
     } finally {
       setSessionChecked(true);
@@ -850,7 +816,6 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
       
       toast.success('تم إنشاء الفئة بنجاح');
     } catch (error) {
-      console.error('Error creating category:', error);
       toast.error('حدث خطأ أثناء إنشاء الفئة');
     } finally {
       setIsCreatingCategory(false);
@@ -894,7 +859,6 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
       
       toast.success('تم إنشاء الفئة الفرعية بنجاح');
     } catch (error) {
-      console.error('Error creating subcategory:', error);
       toast.error('حدث خطأ أثناء إنشاء الفئة الفرعية');
     } finally {
       setIsCreatingSubcategory(false);
@@ -942,7 +906,6 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
         toast.error('فشل في توليد رمز المنتج');
       }
     } catch (error) {
-      console.error('Error generating SKU:', error);
       toast.error('حدث خطأ أثناء توليد رمز المنتج');
     } finally {
       setGeneratingSku(false);
@@ -974,7 +937,6 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
         toast.error('فشل في توليد الباركود');
       }
     } catch (error) {
-      console.error('Error generating barcode:', error);
       toast.error('حدث خطأ أثناء توليد الباركود');
     } finally {
       setGeneratingBarcode(false);
@@ -1259,7 +1221,7 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
                           form={form}
                           categories={categories}
                           subcategories={subcategories}
-                          organizationId={currentOrganization?.id || organizationId}
+                          organizationId={currentOrganization?.id || organizationId || ''}
                           onCategoryCreated={(category) => {
                             setCategories([...categories, category]);
                           }}
@@ -1318,4 +1280,4 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
   );
 };
 
-export default AddProductDialog; 
+export default AddProductDialog;

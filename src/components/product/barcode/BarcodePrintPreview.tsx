@@ -66,7 +66,6 @@ const BarcodePrintPreview = ({
             const colors = await getProductColors(product.id);
             return { productId: product.id, colors };
           } catch (error) {
-            console.error(`Error loading colors for product ${product.id}:`, error);
             return { productId: product.id, colors: [] };
           }
         });
@@ -93,7 +92,6 @@ const BarcodePrintPreview = ({
                   getProductSizes(color.id)
                     .then(sizes => ({ colorId: color.id, sizes }))
                     .catch(error => {
-                      console.error(`Error loading sizes for color ${color.id}:`, error);
                       return { colorId: color.id, sizes: [] };
                     })
                 );
@@ -114,7 +112,6 @@ const BarcodePrintPreview = ({
         // إنشاء عناصر المعاينة
         generatePreviewItems(selectedProductsData, colorsMap, sizesMap);
       } catch (error) {
-        console.error('Error loading product data:', error);
       } finally {
         setLoadingData(false);
       }
@@ -433,4 +430,4 @@ const BarcodePrintPreview = ({
   );
 };
 
-export default BarcodePrintPreview; 
+export default BarcodePrintPreview;

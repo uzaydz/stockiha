@@ -27,7 +27,6 @@ export const useCategoryData = ({ organizationId, watchCategoryId }: UseCategory
           setCategories(productCategories);
         })
         .catch(error => {
-          console.error('Error fetching categories:', error);
           toast.error('حدث خطأ أثناء تحميل الفئات');
         })
         .finally(() => setIsLoadingCategories(false));
@@ -41,7 +40,6 @@ export const useCategoryData = ({ organizationId, watchCategoryId }: UseCategory
       fetchSubcategoriesAPI(watchCategoryId)
         .then(setSubcategories)
         .catch(error => {
-          console.error('Error fetching subcategories:', error);
           toast.error('حدث خطأ أثناء تحميل الفئات الفرعية');
         })
         .finally(() => setIsLoadingSubcategories(false));
@@ -66,4 +64,4 @@ export const useCategoryData = ({ organizationId, watchCategoryId }: UseCategory
     handleCategoryCreated,
     handleSubcategoryCreated,
   };
-}; 
+};

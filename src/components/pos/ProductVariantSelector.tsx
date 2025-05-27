@@ -65,8 +65,7 @@ export default function ProductVariantSelector({
   useEffect(() => {
     if (selectedColorId && product.use_sizes && selectedColor?.has_sizes) {
       setLoadingSizes(true);
-      
-      
+
       getProductSizes(selectedColorId)
         .then(sizeData => {
           
@@ -75,7 +74,6 @@ export default function ProductVariantSelector({
           setSelectedSizeId(null); // إعادة تعيين المقاس المحدد
         })
         .catch(err => {
-          console.error("خطأ في تحميل المقاسات:", err);
           toast.error("حدث خطأ أثناء تحميل المقاسات");
         })
         .finally(() => {
@@ -265,4 +263,4 @@ export default function ProductVariantSelector({
       </div>
     </div>
   );
-} 
+}

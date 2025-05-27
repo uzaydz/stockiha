@@ -62,4 +62,4 @@ const ProductPurchaseOptions: React.FC<ProductPurchaseOptionsProps> = ({ form })
   );
 };
 
-export default ProductPurchaseOptions; 
+export default ProductPurchaseOptions;

@@ -193,19 +193,14 @@ export type Category = Database['public']['Tables']['product_categories']['Row']
 export type Subcategory = Database['public']['Tables']['product_subcategories']['Row'];
 
 export const getProducts = async (organizationId?: string, includeInactive: boolean = false): Promise<Product[]> => {
-  
-  
+
   try {
     if (!organizationId) {
-      console.error("لم يتم تمرير معرف المؤسسة إلى وظيفة getProducts");
       return [];
     }
-    
-    
-    
+
     // Use a simpler approach with consistent logging
-    
-    
+
     // Always use the same query pattern for consistent behavior
     let query = supabase
       .from('products')
@@ -222,19 +217,15 @@ export const getProducts = async (organizationId?: string, includeInactive: bool
     if (!includeInactive) {
       query = query.eq('is_active', true);
     }
-    
-    
+
     const { data, error } = await query;
     
     if (error) {
-      console.error('خطأ في جلب المنتجات:', error);
       return [];
     }
-    
-    
+
     return (data as any) || [];
   } catch (error) {
-    console.error('خطأ غير متوقع أثناء جلب المنتجات:', error);
     return []; // Return empty array to prevent UI from hanging
   }
 };
@@ -261,7 +252,6 @@ export const getProductsPaginated = async (
 }> => {
   try {
     if (!organizationId) {
-      console.error("لم يتم تمرير معرف المؤسسة إلى وظيفة getProductsPaginated");
       return {
         products: [],
         totalCount: 0,
@@ -341,7 +331,6 @@ export const getProductsPaginated = async (
     const { data, error, count } = await query;
 
     if (error) {
-      console.error('خطأ في جلب المنتجات المقسمة:', error);
       throw error;
     }
 
@@ -359,7 +348,6 @@ export const getProductsPaginated = async (
       hasPreviousPage,
     };
   } catch (error) {
-    console.error('خطأ غير متوقع أثناء جلب المنتجات المقسمة:', error);
     return {
       products: [],
       totalCount: 0,
@@ -387,7 +375,6 @@ export const getProductById = async (id: string): Promise<Product | null> => {
     .single();
 
   if (error) {
-    console.error(`Error fetching product with id ${id}:`, error);
     throw error;
   }
 
@@ -436,7 +423,6 @@ export const getProductById = async (id: string): Promise<Product | null> => {
     try {
       (processedData as any).purchase_page_config = JSON.parse(rawData.purchase_page_config);
     } catch (e) {
-      console.error('Error parsing purchase_page_config:', e);
       (processedData as any).purchase_page_config = null;
     }
   } else if (typeof rawData.purchase_page_config === 'object' && rawData.purchase_page_config !== null) {
@@ -446,9 +432,7 @@ export const getProductById = async (id: string): Promise<Product | null> => {
     (processedData as any).purchase_page_config = null;
   }
 
-  
   if (processedData.is_active === false) {
-    console.warn(`تحذير: المنتج ${id} معطل ولن يظهر في نقاط البيع أو واجهة المتجر`);
   }
 
   // The processedData should now more closely match the Product type
@@ -473,7 +457,6 @@ export const getProductsByCategory = async (categoryId: string, includeInactive:
   const { data, error } = await query;
 
   if (error) {
-    console.error(`Error fetching products in category ${categoryId}:`, error);
     throw error;
   }
 
@@ -482,11 +465,8 @@ export const getProductsByCategory = async (categoryId: string, includeInactive:
 
 export const getFeaturedProducts = async (includeInactive: boolean = false, organizationId?: string): Promise<Product[]> => {
   if (!organizationId) {
-    console.warn("لم يتم تمرير معرف المؤسسة إلى وظيفة getFeaturedProducts");
     return [];
   }
-  
-  console.log('جلب المنتجات المميزة للمؤسسة:', organizationId);
   
   try {
     let query = supabase
@@ -511,24 +491,18 @@ export const getFeaturedProducts = async (includeInactive: boolean = false, orga
     const { data, error } = await query;
 
     if (error) {
-      console.error('Error fetching featured products:', error);
       return [];
     }
     
-    console.log('المنتجات المميزة الخام:', data);
-    
     // تأكد من رجوع البيانات قبل المتابعة
     if (!data || data.length === 0) {
-      console.log('لم يتم العثور على منتجات مميزة');
       return [];
     }
 
     // قم بفحص وطباعة قيم thumbnail_image لكل منتج
     data.forEach(product => {
-      console.log(`المنتج ${product.id} - ${product.name} - الصورة المصغرة:`, product.thumbnail_image);
       // فحص وجود حقل thumbnail_url
       if ('thumbnail_url' in product && product.thumbnail_url && typeof product.thumbnail_url === 'string') {
-        console.log(`المنتج ${product.id} - يحتوي على thumbnail_url:`, product.thumbnail_url);
       }
     });
     
@@ -540,12 +514,10 @@ export const getFeaturedProducts = async (includeInactive: boolean = false, orga
       // تحقق من thumbnail_url أولاً إذا كان موجوداً
       if ('thumbnail_url' in product && product.thumbnail_url && typeof product.thumbnail_url === 'string') {
         processedThumbnail = product.thumbnail_url.trim();
-        console.log(`المنتج ${product.id} - يستخدم thumbnail_url:`, processedThumbnail);
       }
       // ثم تحقق من thumbnail_image كخيار ثاني
       else if (product.thumbnail_image) {
         processedThumbnail = product.thumbnail_image.trim();
-        console.log(`المنتج ${product.id} - يستخدم thumbnail_image:`, processedThumbnail);
       }
       
       // إضافة بروتوكول إذا كان مفقودًا
@@ -572,24 +544,16 @@ export const getFeaturedProducts = async (includeInactive: boolean = false, orga
         try {
           new URL(processedThumbnail);
         } catch (e) {
-          console.warn(`رابط صورة غير صالح لـ ${product.id} - ${product.name}:`, processedThumbnail);
           // استخدام صورة افتراضية في حالة الرابط غير الصالح
           processedThumbnail = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470';
         }
-        
-        console.log(`المنتج ${product.id} - رابط الصورة بعد المعالجة:`, processedThumbnail);
       } else {
         // استخدام صورة افتراضية في حالة عدم وجود صورة
         processedThumbnail = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470';
-        console.log(`المنتج ${product.id} - تم تعيين صورة افتراضية`);
       }
       
       // حفظ رابط الصورة الأصلي في سجل التصحيح للمقارنة
       if (product.thumbnail_image !== processedThumbnail) {
-        console.log(`تم تعديل رابط الصورة للمنتج ${product.id}:`, {
-          قبل: product.thumbnail_image,
-          بعد: processedThumbnail
-        });
       }
       
       // معالجة مصفوفة الصور أيضًا إذا كانت موجودة
@@ -634,7 +598,6 @@ export const getFeaturedProducts = async (includeInactive: boolean = false, orga
 
     return processedProducts as any;
   } catch (error) {
-    console.error('خطأ في جلب المنتجات المميزة:', error);
     return [];
   }
 };
@@ -658,13 +621,11 @@ export const searchProductsByName = async (
       .limit(limit);
 
     if (error) {
-      console.error('Error searching products by name:', error);
       throw error;
     }
 
     return data || [];
   } catch (error) {
-    console.error('Unexpected error during product search:', error);
     // Depending on requirements, you might want to re-throw or return empty
     return []; 
   }
@@ -680,28 +641,21 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
     ...mainProductData 
   } = productData;
 
-  console.log('Starting createProduct with data:', productData);
-
   // Correctly destructure advancedSettings (camelCase) from ProductFormValues
   // then we will use this `advancedSettingsFromForm` when we refer to the advanced settings data.
   const { advancedSettings: advancedSettingsFromForm, ...productCoreDataFromForm } = productData;
 
   // DEBUGGING ADVANCED SETTINGS - Step 1: Log received advanced_settings
-  console.log('[createProduct] Received advancedSettingsFromForm (from productData):', JSON.stringify(advancedSettingsFromForm, null, 2));
-  console.log('[createProduct] Received productCoreDataFromForm:', productCoreDataFromForm);
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
     const error = new Error("User not authenticated");
-    console.error('Authentication error:', error);
     toast.error("يجب تسجيل الدخول لإنشاء منتج.");
     throw error;
   }
-  console.log('User authenticated:', user.id);
 
   if (!productData.organization_id) {
     const error = new Error("Organization ID is required");
-    console.error('Validation error:', error);
     toast.error("معرف المؤسسة مطلوب");
     throw error;
   }
@@ -794,9 +748,6 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
     is_active: true,
   };
 
-  console.log('Inserting product with core data:', productCoreDataToInsert);
-  console.log('Value of form_template_id being sent to DB:', productCoreDataToInsert.form_template_id);
-
   const { data: createdProduct, error: productCreationError } = await supabase
       .from('products')
     .insert(productCoreDataToInsert)
@@ -804,31 +755,22 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
       .single();
 
   if (productCreationError) {
-    console.error('Error creating product. Data sent:', productCoreDataToInsert);
-    console.error('Supabase error:', productCreationError);
     toast.error(`فشل إنشاء المنتج: ${productCreationError.message}`);
     throw productCreationError;
   }
 
   if (!createdProduct) {
     const noProductMsg = "Product creation failed, no data returned.";
-    console.error('Creation error:', noProductMsg);
     toast.error("فشل إنشاء المنتج، لم يتم إرجاع بيانات المنتج.");
     throw new Error(noProductMsg);
   }
 
-  console.log('Product created successfully:', createdProduct);
-
   // DEBUGGING ADVANCED SETTINGS - Step 2: Log before the condition
-  console.log('[createProduct] Checking condition: newProduct is', createdProduct ? 'defined' : 'undefined');
   // Use advancedSettingsFromForm (the actual data from the form) for the check and for insertion
-  console.log('[createProduct] Checking condition: advancedSettingsFromForm is', JSON.stringify(advancedSettingsFromForm, null, 2));
   const conditionMet = createdProduct && advancedSettingsFromForm && Object.keys(advancedSettingsFromForm).length > 0;
-  console.log('[createProduct] Condition (createdProduct && advancedSettingsFromForm && Object.keys(advancedSettingsFromForm).length > 0) is:', conditionMet);
 
   let createdAdvancedSettings = null;
   if (conditionMet) { 
-    console.log('[createProduct] Advanced settings condition met. Product ID:', createdProduct.id);
     const advancedSettingsDataToInsert: TablesInsert<'product_advanced_settings'> = {
       ...(advancedSettingsFromForm as Partial<TablesInsert<'product_advanced_settings'>>), // Spread the received advanced settings
       product_id: createdProduct.id,
@@ -848,7 +790,6 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
     }
     
     // DEBUGGING ADVANCED SETTINGS - Step 3: Log object to be inserted
-    console.log('[createProduct] Final advancedSettingsDataToInsert for DB:', JSON.stringify(advancedSettingsDataToInsert, null, 2));
 
     const { data: newAdvancedSettings, error: advancedSettingsError } = await supabase
       .from('product_advanced_settings')
@@ -857,15 +798,11 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
       .single();
 
     if (advancedSettingsError) {
-      console.error('Error creating product advanced settings:', advancedSettingsError);
       toast.error(`تنبيه: تم إنشاء المنتج ولكن فشل حفظ الإعدادات المتقدمة: ${advancedSettingsError.message}`);
     } else if (newAdvancedSettings) {
       createdAdvancedSettings = newAdvancedSettings;
-      console.log('Product advanced settings created successfully for product id:', createdProduct.id);
     }
   } else {
-    console.log('[createProduct] No advanced settings provided or advanced_settings object is empty. Product ID:', createdProduct?.id, '. Skipping advanced settings creation.');
-    console.log('[createProduct] advancedSettingsFromForm object was:', JSON.stringify(advancedSettingsFromForm, null, 2));
   }
 
   let createdMarketingSettings = null;
@@ -876,7 +813,6 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
       .select()
       .single();
     if (mktSettingsError) {
-      console.error('Error creating product marketing settings:', mktSettingsError);
       toast.error(`فشل حفظ إعدادات التسويق: ${mktSettingsError.message}`);
     }
     createdMarketingSettings = mktSettings;
@@ -892,7 +828,6 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
     }));
     const { data: newImagesResult, error: imagesError } = await supabase.from('product_images').insert(imageInserts).select();
     if (imagesError) {
-      console.error('Error inserting product images:', imagesError);
       toast.error(`تنبيه: تم إنشاء المنتج ولكن فشل حفظ بعض الصور: ${imagesError.message}`);
     } else {
       createdImagesArray = newImagesResult || [];
@@ -921,8 +856,6 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
     marketingSettings, // Destructure marketingSettings
     ...mainProductUpdates 
   } = updates;
-
-  console.log(`Updating product ${id} with data:`, updates);
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -954,19 +887,15 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
       .single();
 
     if (productUpdateError) {
-    console.error(`Error updating product ${id}:`, productUpdateError);
     toast.error(`فشل تحديث المنتج: ${productUpdateError.message}`);
       throw productUpdateError;
     }
     
   if (!updatedProductData) {
     const errorMessage = `Product with ID ${id} not found or update failed to return data.`;
-    console.error(errorMessage);
     toast.error(errorMessage);
     throw new Error(errorMessage);
     }
-
-  console.log('Product core data updated successfully:', updatedProductData);
 
   let currentAdvancedSettings = null;
     if (advancedSettings && Object.keys(advancedSettings).length > 0) {
@@ -982,8 +911,6 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
       }
     }
 
-    console.log(`Upserting advanced settings for product ${id}:`, settingsToUpsert);
-
     const { data: upsertedSettings, error: advancedSettingsError } = await supabase
           .from('product_advanced_settings')
       .upsert(settingsToUpsert, { onConflict: 'product_id' })
@@ -991,21 +918,17 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
           .single();
 
     if (advancedSettingsError) {
-      console.error(`Error upserting advanced settings for product ${id}:`, advancedSettingsError);
       toast.error(`تنبيه: تم تحديث المنتج، ولكن فشل تحديث الإعدادات المتقدمة: ${advancedSettingsError.message}`);
       const { data: existingSettingsOnError, error: fetchExistingOnError } = await supabase.from('product_advanced_settings').select('*').eq('product_id', id).single();
       if (fetchExistingOnError) {
-        console.error(`Error fetching existing advanced settings for product ${id} after upsert failure:`, fetchExistingOnError);
       }
       currentAdvancedSettings = existingSettingsOnError || null;
         } else {
       currentAdvancedSettings = upsertedSettings;
-      console.log(`Advanced settings for product ${id} upserted successfully.`);
         }
       } else {
     const { data: existingSettings, error: fetchExistingError } = await supabase.from('product_advanced_settings').select('*').eq('product_id', id).single();
     if (fetchExistingError) {
-        console.error(`Error fetching existing advanced settings for product ${id} when no updates provided:`, fetchExistingError);
         // في حالة الفشل هنا، currentAdvancedSettings سيبقى null كما تم تهيئته
         } else {
         currentAdvancedSettings = existingSettings;
@@ -1020,7 +943,6 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
       .select()
       .single();
     if (mktSettingsError) {
-      console.error('Error upserting product marketing settings:', mktSettingsError);
       toast.error(`فشل تحديث إعدادات التسويق: ${mktSettingsError.message}`);
     }
     currentMarketingSettings = mktSettings;
@@ -1036,8 +958,6 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
     additional_images: updatedProductData.product_images?.map(img => img.image_url) || [],
     purchase_page_config: updatedProductData.purchase_page_config ? JSON.parse(JSON.stringify(updatedProductData.purchase_page_config)) : null,
   };
-  
-  console.log(`Product ${id} updated successfully with advanced settings:`, resultProduct);
   toast.success("تم تحديث المنتج بنجاح!");
   return resultProduct;
 };
@@ -1051,7 +971,6 @@ export const deleteProduct = async (id: string, forceDisable: boolean = false): 
       .limit(1);
 
     if (orderItemsError) {
-      console.error(`خطأ في التحقق من ارتباطات المنتج ${id}:`, orderItemsError);
       throw orderItemsError;
     }
 
@@ -1068,7 +987,6 @@ export const deleteProduct = async (id: string, forceDisable: boolean = false): 
         details: 'المنتج مرتبط بطلبات سابقة ويجب الاحتفاظ به للحفاظ على سجلات الطلبات سليمة.',
         canDisable: true
       };
-      console.error(`لا يمكن حذف المنتج ${id}:`, error);
       throw error;
     }
 
@@ -1078,11 +996,9 @@ export const deleteProduct = async (id: string, forceDisable: boolean = false): 
       .eq('id', id);
 
     if (error) {
-      console.error(`خطأ في حذف المنتج ${id}:`, error);
       throw error;
     }
   } catch (error) {
-    console.error(`خطأ في عملية حذف المنتج ${id}:`, error);
     throw error;
   }
 };
@@ -1094,7 +1010,6 @@ export const getCategories = async (): Promise<Category[]> => {
     .order('name');
 
   if (error) {
-    console.error('Error fetching categories:', error);
     throw error;
   }
 
@@ -1109,7 +1024,6 @@ export const getCategoryById = async (id: string): Promise<Category | null> => {
     .single();
 
   if (error) {
-    console.error(`Error fetching category with id ${id}:`, error);
     throw error;
   }
 
@@ -1135,7 +1049,6 @@ export const createCategory = async (category: {
     .single();
 
   if (error) {
-    console.error('Error creating category:', error);
     throw error;
   }
 
@@ -1155,7 +1068,6 @@ export const getSubcategories = async (categoryId?: string): Promise<Subcategory
   const { data, error } = await query;
 
   if (error) {
-    console.error('Error fetching subcategories:', error);
     throw error;
   }
 
@@ -1170,7 +1082,6 @@ export const getSubcategoryById = async (id: string): Promise<Subcategory | null
     .single();
 
   if (error) {
-    console.error(`Error fetching subcategory with id ${id}:`, error);
     throw error;
   }
 
@@ -1190,7 +1101,6 @@ export const createSubcategory = async (subcategory: { category_id: string; name
     .single();
 
   if (error) {
-    console.error('Error creating subcategory:', error);
     throw error;
   }
 
@@ -1198,10 +1108,8 @@ export const createSubcategory = async (subcategory: { category_id: string; name
 };
 
 export const getWholesaleTiers = async (productId: string) => {
-  
-  
+
   if (!productId) {
-    console.error('Invalid product ID provided to getWholesaleTiers:', productId);
     return [];
   }
   
@@ -1213,14 +1121,11 @@ export const getWholesaleTiers = async (productId: string) => {
       .order('min_quantity', { ascending: true });
 
     if (error) {
-      console.error(`Error fetching wholesale tiers for product ${productId}:`, error);
       throw error;
     }
 
-    
     return data || [];
   } catch (error) {
-    console.error(`Exception in getWholesaleTiers for product ${productId}:`, error);
     throw error;
   }
 };
@@ -1245,7 +1150,6 @@ export const createWholesaleTier = async (tier: {
     .single();
 
   if (error) {
-    console.error('Error creating wholesale tier:', error);
     throw error;
   }
   return data;
@@ -1266,17 +1170,14 @@ export const updateWholesaleTier = async (
     .single();
 
   if (error) {
-    console.error('Error updating wholesale tier:', error);
     throw error;
   }
   return data;
 };
 
 export const deleteWholesaleTier = async (tierId: string) => {
-  
-  
+
   if (!tierId) {
-    console.error('محاولة حذف مرحلة سعرية بدون توفير معرف');
     throw new Error('معرف المرحلة السعرية مطلوب للحذف');
   }
   
@@ -1287,14 +1188,11 @@ export const deleteWholesaleTier = async (tierId: string) => {
       .eq('id', tierId);
 
     if (error) {
-      console.error(`خطأ في حذف مرحلة سعرية للجملة ${tierId}:`, error);
       throw error;
     }
 
-    
     return true;
   } catch (error) {
-    console.error(`خطأ عام في حذف مرحلة سعرية للجملة ${tierId}:`, error);
     throw error;
   }
 };
@@ -1307,7 +1205,6 @@ export const getProductPriceForQuantity = async (productId: string, quantity: nu
     });
 
   if (error) {
-    console.error(`Error getting price for product ${productId} with quantity ${quantity}:`, error);
     throw error;
   }
 
@@ -1345,13 +1242,11 @@ export const generateAutomaticSku = async (
           return generateAutomaticSku(categoryShortName, brandShortName, organizationId);
         }
       } catch (checkError) {
-        console.error('خطأ في التحقق من تفرد رمز SKU:', checkError);
       }
     }
     
     return generatedSku;
   } catch (error) {
-    console.error('خطأ غير متوقع في توليد رمز المنتج (SKU):', error);
     
     const prefix = categoryShortName ? categoryShortName.substring(0, 2).toUpperCase() : 'PR';
     const timestamp = Date.now().toString(36).toUpperCase();
@@ -1366,14 +1261,12 @@ export const generateAutomaticBarcode = async (): Promise<string> => {
     const { data, error } = await supabase.rpc('generate_product_barcode');
 
     if (error) {
-      console.error('خطأ في توليد الباركود:', error);
       
       return generateEAN13Fallback();
     }
 
     return data;
   } catch (error) {
-    console.error('خطأ غير متوقع في توليد الباركود:', error);
     
     return generateEAN13Fallback();
   }
@@ -1413,7 +1306,6 @@ export const generateVariantBarcode = async (
     });
 
     if (error) {
-      console.error('خطأ في توليد باركود المتغير:', error);
       
       const { data: product } = await supabase
         .from('products')
@@ -1433,7 +1325,6 @@ export const generateVariantBarcode = async (
 
     return data;
   } catch (error) {
-    console.error('خطأ غير متوقع في توليد باركود المتغير:', error);
     
     const randomSuffix = Math.floor(Math.random() * 100).toString().padStart(2, '0');
     const timestamp = Date.now().toString().substring(8);
@@ -1448,14 +1339,12 @@ export const validateBarcode = async (barcode: string): Promise<boolean> => {
     });
 
     if (error) {
-      console.error('خطأ في التحقق من صحة الباركود:', error);
       
       return validateEAN13Locally(barcode);
     }
 
     return data;
   } catch (error) {
-    console.error('خطأ غير متوقع في التحقق من صحة الباركود:', error);
     
     return validateEAN13Locally(barcode);
   }
@@ -1487,8 +1376,7 @@ const validateEAN13Locally = (barcode: string): boolean => {
 };
 
 export const disableProduct = async (id: string): Promise<Product> => {
-  
-  
+
   try {
     const { data, error } = await supabase
       .from('products')
@@ -1502,25 +1390,21 @@ export const disableProduct = async (id: string): Promise<Product> => {
       .single();
 
     if (error) {
-      console.error(`خطأ في تعطيل المنتج ${id}:`, error);
       throw error;
     }
 
     if (!data) {
       throw new Error(`لم يتم العثور على المنتج بعد التعطيل: ${id}`);
     }
-    
-    
+
     return data as any;
   } catch (error) {
-    console.error(`خطأ عام في تعطيل المنتج ${id}:`, error);
     throw error;
   }
 };
 
 export const enableProduct = async (id: string): Promise<Product> => {
-  
-  
+
   try {
     const { data, error } = await supabase
       .from('products')
@@ -1534,18 +1418,15 @@ export const enableProduct = async (id: string): Promise<Product> => {
       .single();
 
     if (error) {
-      console.error(`خطأ في تفعيل المنتج ${id}:`, error);
       throw error;
     }
 
     if (!data) {
       throw new Error(`لم يتم العثور على المنتج بعد التفعيل: ${id}`);
     }
-    
-    
+
     return data as any;
   } catch (error) {
-    console.error(`خطأ عام في تفعيل المنتج ${id}:`, error);
     throw error;
   }
 };
@@ -1555,7 +1436,6 @@ export const updateProductPurchaseConfig = async (
   config: PurchasePageConfig | null
 ): Promise<Product | null> => {
   if (!productId) {
-    console.error('Product ID is required to update purchase page config.');
     throw new Error('Product ID is required.');
   }
 
@@ -1586,7 +1466,6 @@ export const updateProductPurchaseConfig = async (
       .single();
 
     if (error) {
-      console.error(`Error updating purchase page config for product ${productId}:`, error);
       throw error;
     }
     
@@ -1594,10 +1473,8 @@ export const updateProductPurchaseConfig = async (
       throw new Error(`Product not found after updating purchase page config: ${productId}`);
     }
 
-    
     return data as any;
   } catch (error) {
-    console.error(`Unexpected error updating purchase page config for product ${productId}:`, error);
     throw error;
   }
 };
@@ -1606,7 +1483,6 @@ export const getProductListForOrganization = async (
   organizationId: string
 ): Promise<{ id: string; name: string }[]> => {
   if (!organizationId) {
-    console.error("Organization ID is required for getProductListForOrganization");
     return [];
   }
 
@@ -1619,13 +1495,11 @@ export const getProductListForOrganization = async (
       .order('name', { ascending: true });
 
     if (error) {
-      console.error('Error fetching product list for organization:', error);
       throw error;
     }
 
     return data || [];
   } catch (error) {
-    console.error('Unexpected error fetching product list:', error);
     return [];
   }
 };
@@ -1651,8 +1525,7 @@ export const getProductReviews = async (productId: string): Promise<Review[]> =>
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('Error fetching product reviews:', error);
     return [];
   }
   return data as Review[];
-}; 
+};

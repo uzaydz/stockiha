@@ -33,8 +33,7 @@ export default function YalidineCredentialsCard({
     setIsEnabled(checked);
     
     try {
-      
-      
+
       // Always save the new enabled state
       await saveSettings({
         is_enabled: checked,
@@ -54,7 +53,6 @@ export default function YalidineCredentialsCard({
       // Refresh settings data
       refetch();
     } catch (error) {
-      console.error('Error toggling enabled state:', error);
       
       // Revert state on error
       setIsEnabled(!checked);
@@ -75,8 +73,7 @@ export default function YalidineCredentialsCard({
     setTestResult(null);
 
     try {
-      
-      
+
       // Create an instance of the shipping service with Yalidine provider
       const shippingService = createShippingService(
         ShippingProvider.YALIDINE, 
@@ -96,7 +93,6 @@ export default function YalidineCredentialsCard({
         handleSaveSettings();
       }
     } catch (error) {
-      console.error('Error testing connection:', error);
       setTestResult({
         success: false,
         message: 'حدث خطأ أثناء الاتصال بالخدمة: ' + ((error as Error)?.message || 'خطأ غير معروف')
@@ -109,8 +105,7 @@ export default function YalidineCredentialsCard({
   const handleSaveSettings = async () => {
     setIsSaving(true);
     try {
-      
-      
+
       await saveSettings({
         is_enabled: isEnabled,
         api_token: apiToken,
@@ -127,7 +122,6 @@ export default function YalidineCredentialsCard({
       // Refresh settings data
       refetch();
     } catch (error) {
-      console.error('Error saving settings:', error);
       toast({
         title: "خطأ في الحفظ",
         description: "حدث خطأ أثناء حفظ الإعدادات: " + ((error as Error)?.message || 'خطأ غير معروف'),
@@ -288,4 +282,4 @@ export default function YalidineCredentialsCard({
       </CardFooter>
     </Card>
   );
-} 
+}

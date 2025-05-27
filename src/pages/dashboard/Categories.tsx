@@ -30,7 +30,6 @@ const Categories = () => {
         setCategories(categoriesData);
         setFilteredCategories(categoriesData);
       } catch (error) {
-        console.error('Error fetching categories:', error);
         toast.error('حدث خطأ أثناء تحميل الفئات');
       } finally {
         setIsLoading(false);
@@ -90,7 +89,6 @@ const Categories = () => {
       setCategories(categoriesData);
       toast.success('تم تحديث قائمة الفئات بنجاح');
     } catch (error) {
-      console.error('Error refreshing categories:', error);
       toast.error('حدث خطأ أثناء تحديث الفئات');
     }
   };
@@ -147,4 +145,4 @@ const Categories = () => {
   );
 };
 
-export default Categories; 
+export default Categories;

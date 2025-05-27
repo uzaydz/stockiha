@@ -120,7 +120,6 @@ export default function YalidineDataSync({
         // ينفذ هذا الكود عند إلغاء معالج الصف تلقائيًا
         if (isSyncing && !syncAbortedRef.current) {
           syncAbortedRef.current = true;
-          console.warn('[SYNC] تم إلغاء المزامنة بسبب تجاوز حد معالج معدل الطلبات');
           
           // تحديث حالة المزامنة إلى فاشلة
           const currentStatus = getSyncStatus();
@@ -194,9 +193,7 @@ export default function YalidineDataSync({
       localStorage.setItem('yalidine_sync_options', JSON.stringify({
         sourceProvinceId: selectedSourceProvince
       }));
-      
-      
-      
+
       // استخدام وظيفة المزامنة الجديدة
       const success = await syncFees(currentOrganizationId, undefined, {
         sourceProvinceId: selectedSourceProvince
@@ -221,7 +218,6 @@ export default function YalidineDataSync({
       setSyncProgress(finalStatus);
       
     } catch (error) {
-      console.error('خطأ أثناء مزامنة بيانات ياليدين:', error);
       toast({
         title: "خطأ في المزامنة",
         description: "حدث خطأ أثناء مزامنة بيانات ياليدين: " + ((error as Error)?.message || 'خطأ غير معروف'),
@@ -264,7 +260,6 @@ export default function YalidineDataSync({
         });
       }
     } catch (error) {
-      console.error('Error syncing global provinces:', error);
       toast({
         title: "خطأ في المزامنة",
         description: "حدث خطأ غير متوقع أثناء مزامنة بيانات الولايات العالمية",
@@ -337,7 +332,6 @@ export default function YalidineDataSync({
       });
       
       if (error) {
-        console.error('خطأ في فحص حالة الجداول:', error);
         toast({
           title: "خطأ",
           description: "حدث خطأ أثناء فحص حالة الجداول",
@@ -348,7 +342,6 @@ export default function YalidineDataSync({
       
       setTableStatus(data);
     } catch (error) {
-      console.error('خطأ غير متوقع:', error);
     } finally {
       setIsCheckingTableStatus(false);
     }
@@ -365,7 +358,6 @@ export default function YalidineDataSync({
       });
       
       if (error) {
-        console.error('خطأ في إصلاح الجداول:', error);
         toast({
           title: "خطأ",
           description: "حدث خطأ أثناء إصلاح الجداول",
@@ -385,7 +377,6 @@ export default function YalidineDataSync({
       // إعادة فحص حالة الجداول
       await checkTablesStatus();
     } catch (error) {
-      console.error('خطأ غير متوقع:', error);
     } finally {
       setIsFixingData(false);
     }
@@ -416,10 +407,8 @@ export default function YalidineDataSync({
           });
         
         if (error) {
-          console.error('خطأ في تحديث ولاية المصدر:', error);
         }
       } catch (error) {
-        console.error('خطأ غير متوقع:', error);
       }
     };
     

@@ -34,6 +34,3 @@ const TextComponentPreview: React.FC<TextComponentPreviewProps> = ({ settings })
 };
 
 export default TextComponentPreview;
-
- 
- 

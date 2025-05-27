@@ -13,4 +13,4 @@ export function useTitle(title: string) {
       document.title = originalTitle;
     };
   }, [title]);
-} 
+}

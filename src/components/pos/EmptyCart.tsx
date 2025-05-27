@@ -82,4 +82,4 @@ export default function EmptyCart({ onAddProduct }: EmptyCartProps) {
       </motion.div>
     </div>
   );
-} 
+}

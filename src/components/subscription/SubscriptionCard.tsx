@@ -143,4 +143,4 @@ const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
   );
 };
 
-export default SubscriptionCard; 
+export default SubscriptionCard;

@@ -36,33 +36,27 @@ export async function syncFees(
   options?: FeeSyncOptions
 ): Promise<boolean> {
   try {
-    
-    
+
     // تحديث حالة التقدم
     updateFeeSyncStatus(0, 0, 'syncing');
     
     // عميل API للاستخدام
     const clientToUse = await setupApiClient(organizationId, apiClient, options);
     if (!clientToUse) {
-      console.error('[FEES] فشل في إعداد عميل API');
       updateFeeSyncStatus(0, 0, 'failed');
       return false;
     }
     
     // تحديد ولاية المصدر
     const sourceProvinceId = await determineSourceProvince(organizationId, options);
-    
-    
+
     // جلب قائمة الولايات للمعالجة
     const targetProvinces = await getTargetProvinces(organizationId, options);
     if (targetProvinces.length === 0) {
-      console.error('[FEES] لم يتم العثور على أي ولايات للمعالجة');
       updateFeeSyncStatus(0, 0, 'failed');
       return false;
     }
-    
-    
-    
+
     // تحديث حالة التقدم
     updateFeeSyncStatus(targetProvinces.length, 0, 'syncing');
     
@@ -85,16 +79,13 @@ export async function syncFees(
     for (let i = 0; i < targetProvinces.length; i += BATCH_SIZE) {
       provinceBatches.push(targetProvinces.slice(i, i + BATCH_SIZE));
     }
-    
-    
-    
+
     // معالجة كل مجموعة من الولايات بالتوازي
     for (const batch of provinceBatches) {
       // إنشاء مصفوفة من الوعود لكل ولاية في المجموعة الحالية
       const batchPromises = batch.map(async (targetProvince) => {
         try {
-          
-          
+
           // استخدام نقطة النهاية /fees مع معلمات صحيحة
           const response = await yalidineRateLimiter.schedule(() => 
             apiClientWithRetry.get(`fees/?from_wilaya_id=${sourceProvinceId}&to_wilaya_id=${targetProvince.id}`, {
@@ -103,7 +94,6 @@ export async function syncFees(
           );
           
           if (response.status !== 200 || !response.data) {
-            console.warn(`[FEES] فشل جلب بيانات أسعار التوصيل من ${sourceProvinceId} إلى ${targetProvince.id}`);
             return { success: false, fees: [] };
           }
           
@@ -112,7 +102,6 @@ export async function syncFees(
           
           // التحقق من تنسيق البيانات المستلمة
           if (!responseData || !responseData.per_commune) {
-            console.warn(`[FEES] تنسيق بيانات غير صالح من API لـ ${sourceProvinceId} إلى ${targetProvince.id}`);
             return { success: false, fees: [] };
           }
           
@@ -161,12 +150,9 @@ export async function syncFees(
               last_updated_at: new Date()
             });
           }
-          
-          
-          
+
           return { success: true, fees: processingFees };
         } catch (error) {
-          console.error(`[FEES] خطأ أثناء معالجة الولاية ${targetProvince.id}:`, error);
           return { success: false, fees: [] };
         }
       });
@@ -193,13 +179,11 @@ export async function syncFees(
       updateFeeSyncStatus(targetProvinces.length, targetProvinces.length, 'success');
       return true;
     } else {
-      console.error('[FEES] لم يتم العثور على أي بيانات أسعار للحفظ');
       updateFeeSyncStatus(targetProvinces.length, targetProvinces.length, 'failed');
       return false;
     }
     
   } catch (error) {
-    console.error('[FEES] خطأ أثناء مزامنة أسعار التوصيل:', error);
     updateFeeSyncStatus(0, 0, 'failed');
     return false;
   }
@@ -290,7 +274,6 @@ async function determineSourceProvince(
     // إذا لم يتم العثور على إعداد، استخدم الإعداد الافتراضي (الجزائر العاصمة)
     return 16; // معرف ولاية الجزائر العاصمة
   } catch (error) {
-    console.error('[FEES] خطأ أثناء تحديد ولاية المصدر:', error);
     // استخدام القيمة الافتراضية في حالة الخطأ
     return 16;
   }
@@ -347,7 +330,6 @@ async function deleteOldFeesForSourceWilaya(sourceWilayaId: number, organization
     });
     
     if (error) {
-      console.error('[FEES] خطأ أثناء حذف الأسعار القديمة باستخدام RPC:', error);
       
       // محاولة الحذف المباشر
       const { error: deleteError } = await supabase
@@ -357,7 +339,6 @@ async function deleteOldFeesForSourceWilaya(sourceWilayaId: number, organization
         .eq('from_wilaya_id', sourceWilayaId);
       
       if (deleteError) {
-        console.error('[FEES] خطأ أثناء الحذف المباشر للأسعار القديمة:', deleteError);
       } else {
         
       }
@@ -365,7 +346,6 @@ async function deleteOldFeesForSourceWilaya(sourceWilayaId: number, organization
       
     }
   } catch (error) {
-    console.error('[FEES] خطأ أثناء حذف الأسعار القديمة:', error);
   }
 }
 
@@ -383,14 +363,11 @@ async function saveFees(fees: any[], organizationId: string): Promise<void> {
     for (let i = 0; i < fees.length; i += batchSize) {
       batches.push(fees.slice(i, i + batchSize));
     }
-    
-    
-    
+
     // معالجة كل مجموعة
     for (let i = 0; i < batches.length; i++) {
       const batch = batches[i];
-      
-      
+
       try {
         // إعداد البيانات للإدخال
         const preparedBatch = batch.map(fee => ({
@@ -430,15 +407,11 @@ async function saveFees(fees: any[], organizationId: string): Promise<void> {
                 return;
               }
             } catch (retryError) {
-              console.error(`[FEES] فشلت المحاولة الثانية لاستدعاء الدالة:`, retryError);
             }
           }
           
-          console.error(`[FEES] خطأ أو لم يتم إدراج سجلات باستخدام simple_insert_yalidine_fees. الخطأ: ${error ? error.message : 'N/A'}, عدد السجلات المدرجة: ${rpcInsertedCount}`);
-          
           // محاولة الإدخال المباشر
-          
-          
+
           const { error: insertError } = await supabase
             .from('yalidine_fees')
             .upsert(preparedBatch, {
@@ -447,7 +420,6 @@ async function saveFees(fees: any[], organizationId: string): Promise<void> {
             });
           
           if (insertError) {
-            console.error(`[FEES] فشل أيضًا في الإدخال المباشر:`, insertError);
             
             // إدخال كل سجل على حدة
             
@@ -465,8 +437,7 @@ async function saveFees(fees: any[], organizationId: string): Promise<void> {
                 successCount++;
               }
             }
-            
-            
+
           } else {
             
           }
@@ -475,7 +446,6 @@ async function saveFees(fees: any[], organizationId: string): Promise<void> {
           
         }
       } catch (e) {
-        console.error(`[FEES] استثناء أثناء حفظ الدفعة:`, e);
       }
       
       // إضافة تأخير بين الدفعات
@@ -486,7 +456,6 @@ async function saveFees(fees: any[], organizationId: string): Promise<void> {
       }
     }
   } catch (error) {
-    console.error('[FEES] خطأ أثناء حفظ أسعار التوصيل:', error);
     throw error;
   }
 }

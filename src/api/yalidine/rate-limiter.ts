@@ -273,8 +273,7 @@ class YalidineRateLimiter {
       if (this.dayCounter.requests.length > MAX_REQUESTS_TO_KEEP.day) {
         this.dayCounter.requests = this.dayCounter.requests.slice(-MAX_REQUESTS_TO_KEEP.day);
       }
-      
-      
+
     }
   }
 
@@ -362,12 +361,10 @@ class YalidineRateLimiter {
    */
   public async schedule<T>(task: () => Promise<T>): Promise<T> {
     return new Promise((resolve, reject) => {
-      
-      
+
       // إعادة تعيين معالجة القائمة إذا كانت عالقة لأكثر من 20 ثانية (تقليل من 30 ثانية)
       const now = Date.now();
       if (this.isProcessing && this.lastProcessingStartTime && now - this.lastProcessingStartTime > 20000) {
-        console.warn('[RateLimiter] إعادة تعيين معالجة القائمة - كانت عالقة لأكثر من 20 ثانية');
         this.isProcessing = false;
         this.lastProcessingStartTime = null;
         
@@ -381,8 +378,7 @@ class YalidineRateLimiter {
       // إضافة مهمة جديدة إلى قائمة الانتظار
       this.queue.push(async () => {
         try {
-          
-          
+
           // تنفيذ المهمة مع آلية إعادة المحاولة البسيطة
           let result: T;
           let attempts = 0;
@@ -405,13 +401,11 @@ class YalidineRateLimiter {
               if (error && error.code === 'ERR_NETWORK' && attempts < maxAttempts) {
                 // حساب فترة الانتظار مع تأخير متزايد
                 const retryDelay = Math.min(1000 * Math.pow(2, attempts - 1), 5000);
-                console.warn(`[RateLimiter] خطأ شبكة، إعادة المحاولة ${attempts}/${maxAttempts} بعد ${retryDelay}ms: ${error.message}`);
                 
                 // انتظار قبل المحاولة التالية
                 await new Promise(resolveRetry => setTimeout(resolveRetry, retryDelay));
               } else {
                 // إذا لم يكن خطأ شبكة أو وصلنا للحد الأقصى من المحاولات
-                console.error('[RateLimiter] خطأ أثناء تنفيذ المهمة:', error);
                 reject(error);
                 break;
               }
@@ -420,7 +414,6 @@ class YalidineRateLimiter {
           
           // إذا استنفدنا جميع المحاولات ولا يزال هناك خطأ
           if (attempts >= maxAttempts && lastError) {
-            console.error(`[RateLimiter] فشلت جميع محاولات إعادة المحاولة (${maxAttempts}):`, lastError);
             reject(lastError);
           }
           
@@ -438,7 +431,6 @@ class YalidineRateLimiter {
             }, 5); // تقليل التأخير من 10ms إلى 5ms
           }
         } catch (error) {
-          console.error('[RateLimiter] خطأ أثناء تنفيذ المهمة:', error);
           reject(error);
         }
       });
@@ -446,7 +438,6 @@ class YalidineRateLimiter {
       // بدء معالجة قائمة الانتظار إذا لم تكن قيد المعالجة بالفعل
       if (!this.isProcessing) {
         this.processQueue().catch(error => {
-          console.error('[RateLimiter] خطأ أثناء معالجة قائمة الانتظار:', error);
           this.isProcessing = false; // إعادة تعيين في حالة حدوث خطأ
           this.lastProcessingStartTime = null; 
           reject(error);
@@ -471,8 +462,7 @@ class YalidineRateLimiter {
       
       return;
     }
-    
-    
+
     this.isProcessing = true;
     this.lastProcessingStartTime = Date.now();
     
@@ -482,7 +472,6 @@ class YalidineRateLimiter {
     }
     
     this.watchdogTimer = setTimeout(() => {
-      console.warn('[RateLimiter] تم تشغيل مؤقت مراقبة الحارس - إعادة تعيين حالة المعالجة العالقة');
       this.isProcessing = false;
       this.lastProcessingStartTime = null;
       
@@ -502,9 +491,7 @@ class YalidineRateLimiter {
         
         // الحد الأقصى لعدد المهام المتوازية - زيادة عدد المهام المتوازية لتحسين الأداء
         const maxParallelTasks = 10;
-        
-        
-        
+
         // تحديد عدد المهام التي يمكن تنفيذها بالتوازي
         const availableSlots = Math.min(
           availableSecondSlots,
@@ -514,9 +501,7 @@ class YalidineRateLimiter {
         if (availableSlots > 0) {
           // جمع المهام التي سيتم تنفيذها بالتوازي
           const tasksToExecute = [];
-          
-          
-          
+
           for (let i = 0; i < availableSlots; i++) {
             if (this.queue.length > 0) {
               const task = this.queue.shift();
@@ -532,7 +517,6 @@ class YalidineRateLimiter {
             // تنفيذ المهام بالتوازي بشكل فعلي
             const promises = tasksToExecute.map(task => {
               return task().catch(error => {
-                console.error('[RateLimiter] خطأ أثناء تنفيذ المهمة:', error);
               });
             });
             
@@ -585,10 +569,8 @@ class YalidineRateLimiter {
         // تحديث وقت بدء المعالجة لتفادي تنشيط مؤقت المراقبة
         this.lastProcessingStartTime = Date.now();
       }
-      
-      
+
     } catch (error) {
-      console.error('[RateLimiter] خطأ أثناء معالجة قائمة الانتظار:', error);
     } finally {
       // إلغاء مؤقت المراقبة
       if (this.watchdogTimer) {
@@ -674,18 +656,14 @@ class YalidineRateLimiter {
     const pendingTasks = [...this.queue];
     const queueLength = this.queue.length;
     this.queue = [];
-    
-    
-    
+
     // إعادة جدولة المهام بعد فترة انتظار إذا كان هناك مهام معلقة
     if (pendingTasks.length > 0) {
-      
-      
+
       // انتظار فترة (2 دقيقة) قبل إعادة جدولة المهام
       setTimeout(() => {
         if (pendingTasks.length > 0) {
-          
-          
+
           // إعادة المهام إلى قائمة الانتظار
           this.queue = [...pendingTasks];
           
@@ -723,13 +701,11 @@ class YalidineRateLimiter {
    * إطلاق حدث الإلغاء وتنفيذ جميع المستمعين
    */
   private triggerCancelEvent(reason: string): void {
-    console.warn(`[RateLimiter] إلغاء المعالجة: ${reason}`);
     this.cancelProcessing();
     this.onCancelListeners.forEach(listener => {
       try {
         listener();
       } catch (error) {
-        console.error('[RateLimiter] خطأ أثناء تنفيذ مستمع الإلغاء:', error);
       }
     });
   }
@@ -765,4 +741,4 @@ class YalidineRateLimiter {
 export const yalidineRateLimiter = new YalidineRateLimiter();
 
 // تصدير الفئة للاستخدام المباشر
-export default YalidineRateLimiter; 
+export default YalidineRateLimiter;

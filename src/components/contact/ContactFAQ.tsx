@@ -90,4 +90,4 @@ const ContactFAQ = () => {
   );
 };
 
-export default ContactFAQ; 
+export default ContactFAQ;

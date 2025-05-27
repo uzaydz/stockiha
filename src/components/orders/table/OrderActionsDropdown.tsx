@@ -110,7 +110,6 @@ const OrderActionsDropdown = ({
       }
 
     } catch (error: any) {
-      console.error("Error sending to Yalidine:", error);
       toast({
         title: "فشل إرسال الطلب",
         description: error.message || "حدث خطأ غير متوقع.",
@@ -181,7 +180,6 @@ const OrderActionsDropdown = ({
       }
 
     } catch (error: any) {
-      console.error("Error sending to ZR Express:", error);
       toast({
         title: "فشل إرسال الطلب",
         description: error.message || "حدث خطأ غير متوقع.",
@@ -201,7 +199,6 @@ const OrderActionsDropdown = ({
     try {
       if (onUpdateStatus) await onUpdateStatus(order.id, newStatus);
     } catch (error) {
-      console.error("فشل تحديث حالة الطلب:", error);
       toast({ title: "خطأ", description: "فشل تحديث حالة الطلب.", variant: "destructive" });
     } finally {
       setIsUpdating(false);
@@ -214,7 +211,6 @@ const OrderActionsDropdown = ({
       if (onUpdateStatus) await onUpdateStatus(order.id, "cancelled");
       setShowCancelConfirm(false);
     } catch (error) {
-      console.error("فشل إلغاء الطلب:", error);
       toast({ title: "خطأ", description: "فشل إلغاء الطلب.", variant: "destructive" });
     } finally {
       setIsUpdating(false);
@@ -359,4 +355,4 @@ const OrderActionsDropdown = ({
   );
 };
 
-export default OrderActionsDropdown; 
+export default OrderActionsDropdown;

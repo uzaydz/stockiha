@@ -64,11 +64,9 @@ const ActivateWithCode: React.FC<ActivateWithCodeProps> = ({ onActivated }) => {
             return;
           }
         } catch (err) {
-          console.error("خطأ عند محاولة الحصول على معرف المؤسسة من بيانات المستخدم:", err);
         }
       }
 
-      console.error("لم يتم العثور على معرف المؤسسة من أي مصدر");
     };
 
     getOrganizationId();
@@ -83,11 +81,8 @@ const ActivateWithCode: React.FC<ActivateWithCodeProps> = ({ onActivated }) => {
     }
     
     // طباعة معلومات المؤسسة للتشخيص
-    
-    
-    
+
     if (!organizationId) {
-      console.error('Missing organization ID in ActivateWithCode component');
       setResult({
         success: false,
         message: 'لم يتم العثور على معلومات المؤسسة. يرجى تسجيل الدخول مرة أخرى أو التأكد من إنشاء مؤسسة.'
@@ -99,8 +94,7 @@ const ActivateWithCode: React.FC<ActivateWithCodeProps> = ({ onActivated }) => {
     setLoading(true);
     
     try {
-      
-      
+
       // استخدام خدمة التفعيل من ActivationService بدلاً من استدعاء RPC مباشرة
       const result = await ActivationService.activateSubscription({
         activation_code: activationCode.trim(),
@@ -115,8 +109,7 @@ const ActivateWithCode: React.FC<ActivateWithCodeProps> = ({ onActivated }) => {
         // تحديث بيانات المؤسسة في قاعدة البيانات مع معرف الاشتراك
         try {
           if (result.subscription_id) {
-            
-            
+
             const { error: updateError } = await supabase
               .from('organizations')
               .update({
@@ -128,15 +121,12 @@ const ActivateWithCode: React.FC<ActivateWithCodeProps> = ({ onActivated }) => {
               .eq('id', organizationId);
               
             if (updateError) {
-              console.error('خطأ في تحديث بيانات المؤسسة:', updateError);
             } else {
               
             }
           } else {
-            console.error('لم يتم العثور على معرف الاشتراك في نتيجة التفعيل');
           }
         } catch (updateError) {
-          console.error('خطأ أثناء تحديث بيانات المؤسسة:', updateError);
         }
         
         // تحديث بيانات المؤسسة في سياق المصادقة
@@ -159,7 +149,6 @@ const ActivateWithCode: React.FC<ActivateWithCodeProps> = ({ onActivated }) => {
         toast.error(result.message || 'حدث خطأ أثناء تفعيل الاشتراك');
       }
     } catch (error: any) {
-      console.error('Error activating subscription:', error);
       toast.error(error.message || 'حدث خطأ أثناء تفعيل الاشتراك');
       setResult({
         success: false,
@@ -225,4 +214,4 @@ const ActivateWithCode: React.FC<ActivateWithCodeProps> = ({ onActivated }) => {
   );
 };
 
-export default ActivateWithCode; 
+export default ActivateWithCode;

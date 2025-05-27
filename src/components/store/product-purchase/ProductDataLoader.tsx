@@ -81,7 +81,6 @@ export const useProductDataLoader = ({
 
       // إذا كان organizationId غير متاح ولا يزال يتم تحميله، انتظر قليلاً
       if (!organizationId && isOrganizationLoading) {
-        console.log('[ProductDataLoader] Organization still loading, waiting...');
         setIsLoading(true);
         return;
       }
@@ -89,7 +88,6 @@ export const useProductDataLoader = ({
       // إذا لم يكن لدينا slug أو organizationId بعد انتهاء التحميل
       if (!slug || !organizationId) {
         if (!isOrganizationLoading && !organizationId) {
-          console.error('[ProductDataLoader] Organization context is missing after loading completed');
           setError("معرف المؤسسة غير متاح. يرجى إعادة تحميل الصفحة.");
         }
         setIsLoading(false);
@@ -106,8 +104,6 @@ export const useProductDataLoader = ({
           setIsLoading(true);
           setError(null);
           
-          console.log(`[ProductDataLoader] Attempt ${attempt + 1}/${RETRY_CONFIG.maxRetries + 1} - Loading product data for slug: ${slug}, orgId: ${organizationId}`);
-          
           const responseData: ProductPageData | null = await getProductPageData(organizationId, slug);
           
           // التحقق من إلغاء الطلب بعد الحصول على الاستجابة
@@ -123,7 +119,6 @@ export const useProductDataLoader = ({
           if (!currentAbortController.signal.aborted) {
             setProduct(actualProduct);
             setEffectiveProduct(actualProduct);
-            console.log('[ProductDataLoader] Product data loaded successfully:', actualProduct.name);
             
             // تحديث الألوان والأحجام
             if (responseData.colors && Array.isArray(responseData.colors) && responseData.colors.length > 0) {
@@ -180,7 +175,6 @@ export const useProductDataLoader = ({
           
         } catch (error: any) {
           lastError = error;
-          console.error(`[ProductDataLoader] Attempt ${attempt + 1} failed:`, error);
           
           // التحقق من إلغاء الطلب
           if (currentAbortController.signal.aborted) return;
@@ -189,7 +183,6 @@ export const useProductDataLoader = ({
           if (error.message?.includes('404') || 
               error.message?.includes('Product not found') ||
               error.message?.includes('المنتج غير موجود')) {
-            console.log('[ProductDataLoader] Product not found, not retrying');
             setError(error.message || 'المنتج غير موجود');
             setProduct(null);
             setEffectiveProduct(null);
@@ -205,7 +198,6 @@ export const useProductDataLoader = ({
           
           // إذا كانت هذه المحاولة الأخيرة، اعرض الخطأ
           if (attempt === RETRY_CONFIG.maxRetries) {
-            console.error('[ProductDataLoader] All retry attempts failed');
             setError(error.message || 'حدث خطأ أثناء تحميل المنتج. يرجى إعادة تحميل الصفحة.');
             setProduct(null);
             setEffectiveProduct(null);
@@ -215,7 +207,6 @@ export const useProductDataLoader = ({
           
           // انتظار قبل إعادة المحاولة
           const retryDelay = calculateRetryDelay(attempt);
-          console.log(`[ProductDataLoader] Retrying in ${retryDelay}ms...`);
           await delay(retryDelay);
           
           retryCountRef.current = attempt + 1;
@@ -249,4 +240,4 @@ export const useProductDataLoader = ({
     setMarketingSettings,
     dataFetchedRef
   ]);
-}; 
+};

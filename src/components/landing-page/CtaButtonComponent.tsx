@@ -163,8 +163,7 @@ const CtaButtonComponent: React.FC<CtaButtonComponentProps> = ({ settings }) => 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (scrollToId) {
       e.preventDefault();
-      
-      
+
       // محاولة العثور على العنصر بعدة طرق
       let element = document.getElementById(scrollToId);
       
@@ -182,7 +181,6 @@ const CtaButtonComponent: React.FC<CtaButtonComponentProps> = ({ settings }) => 
               
             }
           } catch (err) {
-            console.error("خطأ أثناء البحث باستخدام محدد البيانات:", err);
           }
           
           // محاولة البحث بواسطة الفئة
@@ -264,14 +262,12 @@ const CtaButtonComponent: React.FC<CtaButtonComponentProps> = ({ settings }) => 
             }, scrollDuration);
             
           } catch (err) {
-            console.error("خطأ أثناء التمرير:", err);
             // استعادة الأنماط الأصلية في حالة حدوث خطأ
             element.style.transition = originalTransition;
             element.style.zIndex = originalZIndex;
           }
         }, 100);
       } else {
-        console.warn(`لم يتم العثور على العنصر: #${scrollToId}`);
       }
     }
   };
@@ -397,4 +393,4 @@ const CtaButtonComponent: React.FC<CtaButtonComponentProps> = ({ settings }) => 
   );
 };
 
-export default CtaButtonComponent; 
+export default CtaButtonComponent;

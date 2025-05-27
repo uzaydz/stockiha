@@ -101,4 +101,4 @@ const SkeletonLoader = ({ type }: SkeletonLoaderProps) => {
   }
 };
 
-export default SkeletonLoader; 
+export default SkeletonLoader;

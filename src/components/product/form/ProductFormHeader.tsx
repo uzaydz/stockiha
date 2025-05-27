@@ -115,4 +115,4 @@ const ProductFormHeader: React.FC<ProductFormHeaderProps> = ({
   );
 };
 
-export default ProductFormHeader; 
+export default ProductFormHeader;

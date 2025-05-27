@@ -110,4 +110,4 @@ const StoreCategoriesBar = ({
   );
 };
 
-export default StoreCategoriesBar; 
+export default StoreCategoriesBar;

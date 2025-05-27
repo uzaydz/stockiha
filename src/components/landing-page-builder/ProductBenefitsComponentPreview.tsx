@@ -244,4 +244,4 @@ const ProductBenefitsComponentPreview: React.FC<ProductBenefitsComponentPreviewP
   );
 };
 
-export default ProductBenefitsComponentPreview; 
+export default ProductBenefitsComponentPreview;

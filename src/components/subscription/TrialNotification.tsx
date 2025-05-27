@@ -71,11 +71,7 @@ export const TrialNotification: React.FC = () => {
     setDaysLeft(daysRemaining);
     
     // سجل للتشخيص
-    
-    
-    
-    
-    
+
     // عرض الإشعار إذا كان متبقي 3 أيام أو أقل
     setShowNotification(diffDays <= 3 && diffDays > 0);
 
@@ -113,4 +109,4 @@ export const TrialNotification: React.FC = () => {
   );
 };
 
-export default TrialNotification; 
+export default TrialNotification;

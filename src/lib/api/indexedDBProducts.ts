@@ -20,7 +20,6 @@ export async function getIndexDBProducts(): Promise<Product[]> {
     
     return products;
   } catch (error) {
-    console.error("فشل في جلب المنتجات من قاعدة البيانات المحلية:", error);
     toast.error("حدث خطأ أثناء جلب المنتجات");
     return [];
   }
@@ -63,13 +62,11 @@ export async function addProduct(product: Omit<Product, "id" | "synced">): Promi
           return { ...serverProduct, synced: true } as Product;
         }
       } catch (error) {
-        console.error("فشل في مزامنة المنتج الجديد مع الخادم:", error);
       }
     }
     
     return newProduct as Product;
   } catch (error) {
-    console.error("فشل في إضافة المنتج:", error);
     toast.error("حدث خطأ أثناء إضافة المنتج");
     throw error;
   }
@@ -116,13 +113,11 @@ export async function updateIndexDBProduct(id: string, product: Partial<Product>
           return { ...updatedProduct, synced: true } as Product;
         }
       } catch (error) {
-        console.error("فشل في مزامنة تحديث المنتج مع الخادم:", error);
       }
     }
     
     return updatedProduct as Product;
   } catch (error) {
-    console.error("فشل في تحديث المنتج:", error);
     toast.error("حدث خطأ أثناء تحديث المنتج");
     throw error;
   }
@@ -143,7 +138,6 @@ export async function deleteIndexDBProduct(id: string): Promise<void> {
           method: "DELETE",
         });
       } catch (error) {
-        console.error("فشل في مزامنة حذف المنتج مع الخادم:", error);
         // إضافة المنتج إلى جدول الحذف المؤجل للمزامنة لاحقاً
         await db.deletedProducts.add({ id, deletedAt: new Date().toISOString() });
       }
@@ -152,7 +146,6 @@ export async function deleteIndexDBProduct(id: string): Promise<void> {
       await db.deletedProducts.add({ id, deletedAt: new Date().toISOString() });
     }
   } catch (error) {
-    console.error("فشل في حذف المنتج:", error);
     toast.error("حدث خطأ أثناء حذف المنتج");
     throw error;
   }
@@ -218,7 +211,6 @@ export async function syncIndexDBProducts(): Promise<{ success: boolean; syncedC
           }
         }
       } catch (error) {
-        console.error(`فشل في مزامنة المنتج ${product.id}:`, error);
       }
     }
     
@@ -233,7 +225,6 @@ export async function syncIndexDBProducts(): Promise<{ success: boolean; syncedC
         await db.deletedProducts.delete(item.id);
         syncedCount++;
       } catch (error) {
-        console.error(`فشل في مزامنة حذف المنتج ${item.id}:`, error);
       }
     }
     
@@ -245,7 +236,6 @@ export async function syncIndexDBProducts(): Promise<{ success: boolean; syncedC
     
     return { success: true, syncedCount };
   } catch (error) {
-    console.error("فشل في مزامنة المنتجات:", error);
     toast.error("حدث خطأ أثناء مزامنة المنتجات");
     return { success: false, syncedCount: 0 };
   }
@@ -267,7 +257,6 @@ export async function getUnsyncedProductsCount(): Promise<number> {
     // إجمالي العناصر التي تحتاج إلى مزامنة
     return unsyncedProducts + deletedProducts;
   } catch (error) {
-    console.error("فشل في حساب عدد المنتجات غير المتزامنة:", error);
     return 0;
   }
 }
@@ -301,7 +290,6 @@ export function generateLocalSku(
     // تكوين SKU النهائي: [رمز الفئة][رمز الماركة]-[السنة]-[رقم عشوائي]-[طابع زمني]
     return `${cleanCategoryCode}${brandCode}-${yearCode}-${randomNum}-${timestamp}`;
   } catch (error) {
-    console.error("خطأ في توليد رمز SKU محلياً:", error);
     
     // إرجاع قيمة افتراضية في حالة الخطأ
     const timestamp = Date.now().toString(36).toUpperCase().substring(0, 6);
@@ -341,7 +329,6 @@ export function generateLocalEAN13(): string {
     // إرجاع الباركود كاملاً
     return prefix + body + checkDigit.toString();
   } catch (error) {
-    console.error("خطأ في توليد باركود EAN-13 محلياً:", error);
     
     // إرجاع قيمة افتراضية في حالة الخطأ
     const timestamp = Date.now().toString().substring(0, 12);
@@ -365,7 +352,6 @@ export function generateLocalVariantBarcode(productBarcode: string): string {
     const suffix = Math.floor(Math.random() * 100).toString().padStart(2, '0');
     return `${productBarcode}-${suffix}`;
   } catch (error) {
-    console.error("خطأ في توليد باركود المتغير محلياً:", error);
     
     // إرجاع قيمة افتراضية في حالة الخطأ
     const timestamp = Date.now().toString().substring(8);
@@ -405,4 +391,4 @@ export function validateLocalEAN13(barcode: string): boolean {
   
   // التحقق من تطابق رقم التحقق
   return checkDigit === calculatedCheckDigit;
-} 
+}

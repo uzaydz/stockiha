@@ -80,4 +80,4 @@ export interface SubscriptionAnalytics {
     date: string;
     amount: number;
   }[];
-} 
+}

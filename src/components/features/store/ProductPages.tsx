@@ -168,4 +168,4 @@ const ProductPages = () => {
   );
 };
 
-export default ProductPages; 
+export default ProductPages;

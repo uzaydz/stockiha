@@ -189,4 +189,4 @@ const SidebarNavigation: React.FC<SidebarNavigationProps> = ({
   );
 };
 
-export default SidebarNavigation; 
+export default SidebarNavigation;

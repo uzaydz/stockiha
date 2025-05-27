@@ -406,4 +406,4 @@ const BeforeAfterComponent: React.FC<BeforeAfterComponentProps> = ({ settings })
   );
 };
 
-export default BeforeAfterComponent; 
+export default BeforeAfterComponent;

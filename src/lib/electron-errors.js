@@ -34,8 +34,6 @@ export const processElectronError = (error) => {
   // Buscar si es un error conocido
   for (const knownError of KNOWN_ERRORS) {
     if (knownError.pattern.test(errorMsg)) {
-      console.error(`[ElectronError] ${knownError.code}: ${errorMsg}`);
-      console.info(`[ElectronError] Posible solución: ${knownError.solution}`);
       
       return {
         isKnownError: true,
@@ -85,12 +83,11 @@ export const registerGlobalErrorHandler = () => {
         }
       }
     });
-    
-    
+
   }
 };
 
 export default {
   processElectronError,
   registerGlobalErrorHandler
-}; 
+};

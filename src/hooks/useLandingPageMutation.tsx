@@ -53,7 +53,6 @@ export function useLandingPageMutation() {
 
       return data as UpdateResult;
     } catch (err: any) {
-      console.error('Error al actualizar la landing page:', err);
       
       // Formatear mensaje de error para el usuario
       const errorMessage = err.message || 'Ha ocurrido un error al actualizar la página.';
@@ -73,4 +72,4 @@ export function useLandingPageMutation() {
     isUpdating,
     error
   };
-} 
+}

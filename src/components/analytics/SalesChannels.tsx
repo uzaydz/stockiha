@@ -136,4 +136,4 @@ const SalesChannels: React.FC<SalesChannelsProps> = ({ data }) => {
   );
 };
 
-export default SalesChannels; 
+export default SalesChannels;

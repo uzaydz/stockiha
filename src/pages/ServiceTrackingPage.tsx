@@ -13,4 +13,4 @@ const ServiceTrackingPage = () => {
   );
 };
 
-export default ServiceTrackingPage; 
+export default ServiceTrackingPage;

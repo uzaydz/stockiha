@@ -111,7 +111,6 @@ const SubscriptionDialog: React.FC<SubscriptionDialogProps> = ({
           setSelectedPaymentMethod(data[0]);
         }
       } catch (error) {
-        console.error('Error fetching payment methods:', error);
         toast.error('حدث خطأ أثناء جلب طرق الدفع');
       }
     };
@@ -236,7 +235,6 @@ const SubscriptionDialog: React.FC<SubscriptionDialogProps> = ({
       toast.success(isRenewal ? 'تم تجديد الاشتراك بنجاح' : 'تم الاشتراك بنجاح');
       setStep('complete');
     } catch (error: any) {
-      console.error('Error subscribing:', error);
       toast.error(error.message || 'حدث خطأ أثناء عملية الاشتراك');
     } finally {
       setLoading(false);
@@ -265,7 +263,6 @@ const SubscriptionDialog: React.FC<SubscriptionDialogProps> = ({
       setUploadUrl(data.publicUrl);
       toast.success('تم رفع إثبات الدفع بنجاح');
     } catch (error: any) {
-      console.error('Error uploading payment proof:', error);
       toast.error(error.message || 'حدث خطأ أثناء رفع إثبات الدفع');
     } finally {
       setUploading(false);
@@ -539,4 +536,4 @@ const SubscriptionDialog: React.FC<SubscriptionDialogProps> = ({
   );
 };
 
-export default SubscriptionDialog; 
+export default SubscriptionDialog;

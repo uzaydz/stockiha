@@ -20,4 +20,4 @@ const TenantSignup = () => {
   );
 };
 
-export default TenantSignup; 
+export default TenantSignup;

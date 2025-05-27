@@ -170,7 +170,6 @@ const EmployeeList = ({ employees, isLoading, onDataChange }: EmployeeListProps)
       
       onDataChange(); // تحديث البيانات
     } catch (error) {
-      console.error('Error toggling employee status:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء تغيير حالة الموظف',
@@ -193,7 +192,6 @@ const EmployeeList = ({ employees, isLoading, onDataChange }: EmployeeListProps)
       
       onDataChange(); // تحديث البيانات
     } catch (error) {
-      console.error('Error deleting employee:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء حذف الموظف',
@@ -420,4 +418,4 @@ const EmployeeList = ({ employees, isLoading, onDataChange }: EmployeeListProps)
   );
 };
 
-export default EmployeeList; 
+export default EmployeeList;

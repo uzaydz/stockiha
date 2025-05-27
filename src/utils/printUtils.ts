@@ -161,7 +161,6 @@ export const printSeparateBarcodes = (
     }
     
   } catch (error) {
-    console.error('خطأ في طباعة الملصقات المنفصلة:', error);
     showPrintError('حدث خطأ غير متوقع في الطباعة');
   }
 };
@@ -256,7 +255,6 @@ export const printMultipleBarcodes = (
     }
     
   } catch (error) {
-    console.error('خطأ في طباعة الباركودات المتعددة:', error);
     showPrintError('حدث خطأ غير متوقع في الطباعة');
   }
 };
@@ -332,4 +330,4 @@ export default {
   validatePrintSettings,
   checkPrintSupport,
   showPrintError
-}; 
+};

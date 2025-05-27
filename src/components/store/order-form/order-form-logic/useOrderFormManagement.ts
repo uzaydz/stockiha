@@ -54,7 +54,6 @@ export const useOrderFormManagement = (
           is_deliverable: true
         })));
       } catch (error) {
-        console.error('Error loading provinces:', error);
       } finally {
         setIsLoadingWilayas(false);
       }
@@ -75,7 +74,6 @@ export const useOrderFormManagement = (
           setShippingProviderSettings(settings);
         }
       } catch (error) {
-        console.error('Error loading shipping provider settings:', error);
       }
     };
 
@@ -88,13 +86,10 @@ export const useOrderFormManagement = (
     
     setIsLoadingCommunes(true);
     try {
-      console.log('تحميل البلديات في handleWilayaChange');
       
       // استخدم دائمًا getShippingMunicipalities من api/product-page لتحميل البلديات
       // هذا سيضمن عرض البلديات دائمًا بغض النظر عن شركة الشحن
       const municipalities = await getShippingMunicipalities(Number(wilayaId), tenant.id);
-      
-      console.log(`تم تحميل ${municipalities.length} بلدية`);
       
       setCommunesList(municipalities.map(m => ({
         id: m.id,
@@ -106,7 +101,6 @@ export const useOrderFormManagement = (
         delivery_time_payment: 48
       })));
     } catch (error) {
-      console.error('Error loading municipalities:', error);
     } finally {
       setIsLoadingCommunes(false);
     }
@@ -134,4 +128,4 @@ export const useOrderFormManagement = (
     yalidineCentersList,
     isLoadingYalidineCenters,
   };
-}; 
+};

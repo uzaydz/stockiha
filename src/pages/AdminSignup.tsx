@@ -42,7 +42,6 @@ const AdminSignup = () => {
       }
     } catch (error) {
       toast.error('حدث خطأ أثناء إنشاء حساب المسؤول');
-      console.error(error);
     } finally {
       setIsLoading(false);
     }
@@ -141,4 +140,4 @@ const AdminSignup = () => {
   );
 };
 
-export default AdminSignup; 
+export default AdminSignup;

@@ -100,7 +100,6 @@ export class YalidineApiClient {
       // إذا وصلنا إلى هنا، فإما التخزين المؤقت غير مفعل أو نريد تحديث إجباري أو لا توجد بيانات
       return await this.fetchWilayasDirectly();
     } catch (error) {
-      console.error('Error in getWilayas:', error);
       // في حالة حدوث خطأ، حاول الاستدعاء المباشر
       return await this.fetchWilayasDirectly();
     }
@@ -112,8 +111,7 @@ export class YalidineApiClient {
    */
   async fetchWilayasDirectly() {
     try {
-      
-      
+
       // تسجيل طلب API
       await this.supabase.rpc('log_yalidine_api_request', {
         endpoint: '/wilayas/',
@@ -135,8 +133,7 @@ export class YalidineApiClient {
       }
       
       const wilayasData = response.data.data;
-      
-      
+
       // تخزين البيانات في قاعدة البيانات
       for (const wilaya of wilayasData) {
         const { error } = await this.supabase
@@ -152,7 +149,6 @@ export class YalidineApiClient {
           });
         
         if (error) {
-          console.error('Error storing wilaya:', error, wilaya);
         }
       }
       
@@ -164,7 +160,6 @@ export class YalidineApiClient {
       
       return wilayasData;
     } catch (error) {
-      console.error('Error fetching wilayas directly from API:', error);
       
       // تسجيل فشل الطلب
       await this.supabase.rpc('log_yalidine_api_request', {
@@ -212,7 +207,6 @@ export class YalidineApiClient {
       // إذا وصلنا إلى هنا، فإما التخزين المؤقت غير مفعل أو نريد تحديث إجباري أو لا توجد بيانات
       return await this.fetchCommunesDirectly();
     } catch (error) {
-      console.error('Error in getCommunes:', error);
       // في حالة حدوث خطأ، حاول الاستدعاء المباشر
       return await this.fetchCommunesDirectly();
     }
@@ -244,7 +238,6 @@ export class YalidineApiClient {
         return this.fetchParcelDirectly(tracking);
       }
     } catch (error) {
-      console.error('Error fetching parcel:', error);
       
       // في حالة فشل التخزين المؤقت، حاول استرجاع البيانات مباشرة من API
       return this.fetchParcelDirectly(tracking);
@@ -278,7 +271,6 @@ export class YalidineApiClient {
         return this.fetchFeesDirectly(fromWilayaId, toWilayaId);
       }
     } catch (error) {
-      console.error('Error fetching shipping fees:', error);
       
       // في حالة فشل التخزين المؤقت، حاول استرجاع البيانات مباشرة من API
       return this.fetchFeesDirectly(fromWilayaId, toWilayaId);
@@ -357,7 +349,6 @@ export class YalidineApiClient {
         data: responseData
       };
     } catch (error) {
-      console.error('Error creating parcel:', error);
       return {
         success: false,
         error: error
@@ -407,7 +398,6 @@ export class YalidineApiClient {
       // إذا وصلنا إلى هنا، فإما التخزين المؤقت غير مفعل أو نريد تحديث إجباري أو لا توجد بيانات
       return await this.fetchCentersDirectly();
     } catch (error) {
-      console.error('Error in getCenters:', error);
       // في حالة حدوث خطأ، حاول الاستدعاء المباشر
       return await this.fetchCentersDirectly();
     }
@@ -466,7 +456,6 @@ export class YalidineApiClient {
       
       return centersData;
     } catch (error) {
-      console.error('Error in fetchCentersDirectly:', error);
       
       // تسجيل فشل طلب API
       await this.supabase.rpc('log_yalidine_api_request', {
@@ -534,7 +523,6 @@ export class YalidineApiClient {
       
       return communesData;
     } catch (error) {
-      console.error('Error in fetchCommunesDirectly:', error);
       
       // تسجيل فشل طلب API
       await this.supabase.rpc('log_yalidine_api_request', {
@@ -598,7 +586,6 @@ export class YalidineApiClient {
         fromCache: false
       };
     } catch (error) {
-      console.error('Error fetching parcel directly:', error);
       return {
         success: false,
         error: error,
@@ -649,7 +636,6 @@ export class YalidineApiClient {
         fromCache: false
       };
     } catch (error) {
-      console.error('Error fetching fees directly:', error);
       return {
         success: false,
         error: error,
@@ -702,4 +688,4 @@ const FALLBACK_COMMUNES = [
   { id: 10, name: "الحراش", wilaya_id: 16, is_deliverable: true },
   { id: 11, name: "وهران", wilaya_id: 31, is_deliverable: true },
   { id: 12, name: "عين الترك", wilaya_id: 31, is_deliverable: true }
-]; 
+];

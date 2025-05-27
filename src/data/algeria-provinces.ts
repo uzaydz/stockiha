@@ -69,4 +69,4 @@ const provinces: Province[] = [
   { id: 58, name: "المنيعة", code: "58" },
 ];
 
-export default provinces; 
+export default provinces;

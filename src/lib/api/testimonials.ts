@@ -69,7 +69,6 @@ export const getTestimonials = async (
     if (error) throw error;
     return data || [];
   } catch (error) {
-    console.error('Error fetching testimonials:', error);
     throw error;
   }
 };
@@ -90,7 +89,6 @@ export const getTestimonialById = async (testimonialId: string) => {
     if (error) throw error;
     return data;
   } catch (error) {
-    console.error('Error fetching testimonial:', error);
     throw error;
   }
 };
@@ -128,7 +126,6 @@ export const createTestimonial = async (
     if (error) throw error;
     return data;
   } catch (error) {
-    console.error('Error creating testimonial:', error);
     throw error;
   }
 };
@@ -157,7 +154,6 @@ export const updateTestimonial = async (
     if (error) throw error;
     return data;
   } catch (error) {
-    console.error('Error updating testimonial:', error);
     throw error;
   }
 };
@@ -177,7 +173,6 @@ export const deleteTestimonial = async (testimonialId: string) => {
     if (error) throw error;
     return true;
   } catch (error) {
-    console.error('Error deleting testimonial:', error);
     throw error;
   }
 };
@@ -206,7 +201,6 @@ export const updateTestimonialActiveStatus = async (
     if (error) throw error;
     return data;
   } catch (error) {
-    console.error('Error updating testimonial status:', error);
     throw error;
   }
 };
@@ -234,7 +228,6 @@ export const syncTestimonialStatus = async (
     if (error) throw error;
     return true;
   } catch (error) {
-    console.error('Error syncing testimonial status:', error);
     throw error;
   }
-}; 
+};

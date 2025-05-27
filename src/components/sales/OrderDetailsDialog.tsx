@@ -302,4 +302,4 @@ const OrderDetailsDialog = ({
   );
 };
 
-export default OrderDetailsDialog; 
+export default OrderDetailsDialog;

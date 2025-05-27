@@ -201,11 +201,9 @@ export function SupplierPurchaseDialog({
   
   // عند الإرسال
   const onSubmit = async (data: FormValues) => {
-    
-    
+
     // التحقق من وجود عناصر في المشتريات
     if (!data.items || data.items.length === 0) {
-      console.error("تم تقديم النموذج بدون عناصر");
       return;
     }
     
@@ -218,7 +216,6 @@ export function SupplierPurchaseDialog({
       if (!hasValidProduct) {
         // عرض رسالة تحذير للمستخدم
         alert("تحذير: لم يتم تحديد أي منتج. تأكد من اختيار منتج واحد على الأقل لتحديث المخزون.");
-        console.warn("مشتريات مؤكدة بدون منتجات محددة قد لا تؤثر على المخزون");
         // استمر في المعالجة رغم التحذير
       }
     }
@@ -226,7 +223,6 @@ export function SupplierPurchaseDialog({
     try {
       await onSave(data);
     } catch (error) {
-      console.error("Error during form submission:", error);
     }
   };
   
@@ -240,8 +236,7 @@ export function SupplierPurchaseDialog({
   
   // استدعاء عند اختيار منتج
   const handleProductSelect = (index: number, productId: string) => {
-    
-    
+
     if (productId === "none") {
       // إذا كان المستخدم قد اختار "بدون منتج"، تأكد من أن له وصف
       const currentDescription = form.getValues(`items.${index}.description`);
@@ -263,7 +258,6 @@ export function SupplierPurchaseDialog({
       form.setValue(`items.${index}.unit_price`, product.price);
       
     } else {
-      console.error(`لم يتم العثور على المنتج بالمعرف: ${productId}`);
     }
   };
   
@@ -706,4 +700,4 @@ export function SupplierPurchaseDialog({
       </DialogContent>
     </Dialog>
   );
-} 
+}

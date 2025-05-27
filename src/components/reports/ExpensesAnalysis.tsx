@@ -320,4 +320,4 @@ const ExpensesAnalysis = ({ data, dateRange, isLoading }: ExpensesAnalysisProps)
   );
 };
 
-export default ExpensesAnalysis; 
+export default ExpensesAnalysis;

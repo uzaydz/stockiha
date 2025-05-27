@@ -97,7 +97,6 @@ export function ShippingIntegrationFields({ shippingIntegration }: ShippingInteg
             setLoadingCenters(false);
           })
           .catch(err => {
-            console.error('خطأ في جلب مراكز التوصيل:', err);
             setLoadingCenters(false);
           });
       }
@@ -318,4 +317,4 @@ export function ShippingIntegrationFields({ shippingIntegration }: ShippingInteg
       </CardContent>
     </Card>
   );
-} 
+}

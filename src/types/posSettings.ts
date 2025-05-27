@@ -143,4 +143,4 @@ export const pricePositionOptions = [
 export const currencyPositionOptions = [
   { value: 'before', label: 'قبل الرقم' },
   { value: 'after', label: 'بعد الرقم' },
-] as const; 
+] as const;

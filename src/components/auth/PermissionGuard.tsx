@@ -79,7 +79,6 @@ const PermissionGuard = ({
         }
       }
     } catch (error) {
-      console.error('خطأ عند محاولة مسح التنبيهات القديمة:', error);
     }
   };
   
@@ -128,11 +127,9 @@ const PermissionGuard = ({
         const hasAnyPermission = permissionChecks.some(result => result === true);
         
         // طباعة معلومات تشخيصية
-        
-        
+
         setHasPermission(hasAnyPermission);
       } catch (error) {
-        console.error('[PermissionGuard] خطأ أثناء التحقق من الصلاحيات:', error);
         setHasPermission(false);
       } finally {
         setIsChecking(false);
@@ -234,4 +231,4 @@ const PermissionGuard = ({
   );
 };
 
-export default PermissionGuard; 
+export default PermissionGuard;

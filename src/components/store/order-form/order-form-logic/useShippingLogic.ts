@@ -82,12 +82,9 @@ export const useShippingLogic = (
   const loadMunicipalitiesForZRExpress = useCallback(async (provinceId: string) => {
     setIsLoadingCommunes(true);
     try {
-      console.log('تحميل البلديات للاستلام من المكتب');
       const municipalities = await getShippingMunicipalities(Number(provinceId), tenantId || "");
-      console.log(`تم تحميل ${municipalities?.length || 0} بلدية`);
       setCommunesList(Array.isArray(municipalities) ? municipalities : []);
     } catch (e) {
-      console.error('خطأ في تحميل البلديات:', e);
       setCommunesList([]);
     } finally {
       setIsLoadingCommunes(false);
@@ -96,7 +93,6 @@ export const useShippingLogic = (
 
   const handleDeliveryTypeChange = useCallback(
     (value: "home" | "desk") => {
-      console.log('تغيير نوع التوصيل:', value);
       setSelectedDeliveryType(value);
       form.setValue("deliveryOption", value);
       
@@ -113,21 +109,14 @@ export const useShippingLogic = (
       
       // أضف تأخيرًا قصيرًا للسماح للحالة بالتحديث
       setTimeout(async () => {
-        console.log('handleDeliveryTypeChange - تغيير خيار التوصيل:', { 
-          value, 
-          currentProvince
-        });
 
         // تحميل البلديات دائمًا بغض النظر عن نوع التوصيل أو شركة الشحن
         setIsLoadingCommunes(true);
         try {
-          console.log('تحميل البلديات بعد تغيير نوع التوصيل');
           const municipalities = await getShippingMunicipalities(Number(currentProvince), tenantId || "");
-          console.log(`تم تحميل ${municipalities?.length || 0} بلدية`);
           setCommunesList(Array.isArray(municipalities) ? municipalities : []);
           
           // إعادة حساب سعر الشحن بعد تحميل البلديات
-          console.log(`إعادة حساب سعر الشحن بعد تغيير نوع التوصيل إلى ${value}`);
           if (municipalities && municipalities.length > 0) {
             // اختيار البلدية الأولى افتراضيًا لحساب السعر
             const firstMunicipality = municipalities[0].id.toString();
@@ -137,7 +126,6 @@ export const useShippingLogic = (
             // سيتم استدعاء recalculateAndSetDeliveryPrice في useEffect
           } else {
             // لا يوجد بلديات للاختيار
-            console.log('لا توجد بلديات متاحة لحساب سعر الشحن');
           }
           
           // دالة مساعدة لإعادة حساب سعر الشحن
@@ -148,7 +136,6 @@ export const useShippingLogic = (
             
             // بالنسبة لـ ZRExpress، نتحقق مما إذا كان نوع التوصيل هو للمنزل أم للمكتب
             const isHomeDelivery = value === 'home';
-            console.log(`حساب سعر ZR Express بنوع توصيل ${value}, isHomeDelivery: ${isHomeDelivery}`);
             
             try {
               // الاتصال مباشرة بـ Edge Function
@@ -162,14 +149,11 @@ export const useShippingLogic = (
               });
               
               if (!error && data && data.success) {
-                console.log('تم حساب سعر الشحن:', data.price);
                 setCurrentDeliveryFee(data.price);
               } else {
-                console.error('خطأ في حساب سعر الشحن:', error || data?.error);
                 setCurrentDeliveryFee(isHomeDelivery ? 800 : 300);
               }
             } catch (e) {
-              console.error('خطأ أثناء حساب سعر الشحن:', e);
               setCurrentDeliveryFee(isHomeDelivery ? 800 : 300);
             } finally {
               setIsLoadingDeliveryFee(false);
@@ -180,7 +164,6 @@ export const useShippingLogic = (
           await recalculateShippingPrice();
           
         } catch (e) {
-          console.error('خطأ في تحميل البلديات:', e);
           setCommunesList([]);
         } finally {
           setIsLoadingCommunes(false);
@@ -201,20 +184,13 @@ export const useShippingLogic = (
 
       const currentDeliveryOption = form.getValues("deliveryOption");
       setTimeout(async () => {
-        console.log('handleWilayaChange - تغيير الولاية:', { 
-          wilayaId, 
-          currentDeliveryOption
-        });
 
         // تحميل البلديات دائمًا بغض النظر عن نوع التوصيل أو شركة الشحن
         setIsLoadingCommunes(true);
         try {
-          console.log('تحميل البلديات بعد تغيير الولاية');
           const municipalities = await getShippingMunicipalities(Number(wilayaId), tenantId || "");
-          console.log(`تم تحميل ${municipalities?.length || 0} بلدية`);
           setCommunesList(Array.isArray(municipalities) ? municipalities : []);
         } catch (e) {
-          console.error('خطأ في تحميل البلديات:', e);
           setCommunesList([]);
         } finally {
           setIsLoadingCommunes(false);
@@ -240,7 +216,6 @@ export const useShippingLogic = (
           .single();
         if (providerData) setShippingProviderCode(providerData.code);
       } catch (error) {
-        console.error("Error fetching provider code:", error);
       }
     }
     return null;
@@ -254,7 +229,6 @@ export const useShippingLogic = (
     if (!isNaN(selectedCloneId)) return selectedCloneId;
     return formSettings?.settings?.shipping_integration?.provider_id || null;
   }, [formSettings]);
-
 
   useEffect(() => {
     const getCloneId = async () => {
@@ -274,8 +248,6 @@ export const useShippingLogic = (
                     .select("code, name") 
                     .eq("id", formSettings.settings.shipping_integration.provider_id)
                     .single();
-                    
-                console.log('fetchSettings - providerData:', providerData);
                 if (providerData) {
                     setShippingProviderCode(providerData.code);
                     const defaultSettings: ShippingProviderSettings = {
@@ -292,11 +264,9 @@ export const useShippingLogic = (
                         is_free_delivery_home: false,
                         is_free_delivery_desk: false,
                     };
-                    console.log('fetchSettings - defaultSettings:', defaultSettings);
                     setShippingProviderSettings(defaultSettings);
                 }
             } catch (error) {
-                console.error("Error fetching default provider code:", error);
                 setShippingProviderSettings(null); 
             }
         } else {
@@ -307,11 +277,9 @@ export const useShippingLogic = (
       setIsLoadingProviderSettings(true);
       try {
         const cloneData = await getShippingProviderClone(Number(shippingCloneId));
-        console.log('fetchSettings - cloneData:', cloneData);
         if (cloneData) {
           setShippingProviderSettings(cloneData as ShippingProviderSettings);
           const typedCloneData = cloneData as ShippingProviderSettings;
-          console.log('fetchSettings - provider_code:', typedCloneData.provider_code);
           if (!typedCloneData.is_home_delivery_enabled && typedCloneData.is_desk_delivery_enabled) {
             setSelectedDeliveryType("desk");
             form.setValue("deliveryOption", "desk");
@@ -325,7 +293,6 @@ export const useShippingLogic = (
           form.setValue("deliveryOption", "home");
         }
       } catch (error) {
-        console.error("Error in fetchSettings:", error);
         setShippingProviderSettings(null);
         setSelectedDeliveryType("home");
         form.setValue("deliveryOption", "home");
@@ -361,7 +328,6 @@ export const useShippingLogic = (
       // التأكد من أن selectedDeliveryType يتماشى مع deliveryOption الحالية
       if (currentDeliveryOption === 'desk' || currentDeliveryOption === 'home') {
         if (selectedDeliveryType !== currentDeliveryOption) {
-          console.log(`تحديث selectedDeliveryType من ${selectedDeliveryType} إلى ${currentDeliveryOption} قبل حساب السعر`);
           setSelectedDeliveryType(currentDeliveryOption);
         }
       }
@@ -373,8 +339,6 @@ export const useShippingLogic = (
           .select('shipping_provider_id, shipping_clone_id, use_shipping_clone')
           .eq('id', productId)
           .single();
-          
-        console.log('updateDeliveryFee - productData:', productData);
         
         if (!productError && productData) {
           if (productData.shipping_provider_id) {
@@ -383,11 +347,8 @@ export const useShippingLogic = (
               .select('code')
               .eq('id', productData.shipping_provider_id)
               .single();
-              
-            console.log('updateDeliveryFee - providerData:', providerData);
             
             if (providerData && providerData.code === 'zrexpress') {
-              console.log('تم تحديد ZRExpress كشركة شحن للمنتج:', productId);
               // قم بتعيين إعدادات مزود الشحن يدوياً إذا لم تكن قد تم تعيينها
               if (!shippingProviderSettings || shippingProviderSettings.provider_code !== 'zrexpress') {
                 const zrExpressSettings: ShippingProviderSettings = {
@@ -405,13 +366,11 @@ export const useShippingLogic = (
                   is_free_delivery_desk: false,
                 };
                 setShippingProviderSettings(zrExpressSettings);
-                console.log('تم تعيين إعدادات ZRExpress يدوياً:', zrExpressSettings);
               }
               
               try {
                 // استخدام قيمة currentDeliveryOption بدلاً من selectedDeliveryType للتحقق
                 const isHomeDelivery = currentDeliveryOption === 'home';
-                console.log(`حساب سعر ZR Express بنوع توصيل ${currentDeliveryOption}, isHomeDelivery: ${isHomeDelivery}`);
                 
                 const response = await calculateZRExpressShippingPrice(
                   tenantId,
@@ -424,13 +383,11 @@ export const useShippingLogic = (
                   setCurrentDeliveryFee(response.price);
                   return;
                 } else if (response.error) {
-                  console.error("خطأ في حساب سعر ZR Express:", response.error);
                   // استخدام السعر الافتراضي في حالة الخطأ
                   setCurrentDeliveryFee(isHomeDelivery ? 800 : 300);
                   return;
                 }
               } catch (error) {
-                console.error("خطأ في حساب سعر ZR Express:", error);
                 // استخدام السعر الافتراضي في حالة الخطأ
                 const isHomeDelivery = currentDeliveryOption === 'home';
                 setCurrentDeliveryFee(isHomeDelivery ? 800 : 300);
@@ -446,15 +403,6 @@ export const useShippingLogic = (
       const appropriateShippingId = getAppropriateShippingId(selectedDeliveryCompany);
       const estimatedWeight = Math.max(1, Math.ceil(quantity || 1));
 
-      console.log('updateDeliveryFee - المعاملات:', {
-        tenantId,
-        provinceId,
-        municipalityId,
-        currentDeliveryOption,
-        estimatedWeight,
-        appropriateShippingId
-      });
-
       const fee = await calculateShippingFee(
         tenantId,
         Number(provinceId),
@@ -465,7 +413,6 @@ export const useShippingLogic = (
       );
       setCurrentDeliveryFee(fee);
     } catch (error) {
-      console.error("خطأ في حساب سعر التوصيل:", error);
       // استخدام السعر الافتراضي في حالة الخطأ
       const currentDeliveryOption = form.getValues("deliveryOption") || 'home';
       const isHomeDelivery = currentDeliveryOption === 'home';
@@ -477,7 +424,6 @@ export const useShippingLogic = (
 
   // دالة للتعامل مع تغيير شركة التوصيل
   const handleShippingProviderChange = useCallback(async (providerId: string) => {
-    console.log('تغيير شركة التوصيل إلى:', providerId);
     
     if (!providerId) return;
     
@@ -490,11 +436,8 @@ export const useShippingLogic = (
         .single();
       
       if (error || !providerData) {
-        console.error('خطأ في العثور على معلومات شركة التوصيل:', error);
         return;
       }
-      
-      console.log('تم العثور على معلومات شركة التوصيل:', providerData);
       
       // تحديث المعلومات
       setShippingProviderCode(providerData.code);
@@ -514,8 +457,6 @@ export const useShippingLogic = (
         is_free_delivery_home: false,
         is_free_delivery_desk: false,
       };
-      
-      console.log('تحديث إعدادات مزود الشحن:', defaultSettings);
       setShippingProviderSettings(defaultSettings);
       
       // إعادة تحميل البلديات حسب الولاية الحالية وخيار التوصيل
@@ -526,12 +467,9 @@ export const useShippingLogic = (
         // دائمًا تحميل البلديات بغض النظر عن شركة الشحن أو خيار التوصيل
         setIsLoadingCommunes(true);
         try {
-          console.log('تحميل البلديات بعد تغيير شركة التوصيل');
           const municipalities = await getShippingMunicipalities(Number(currentProvince), tenantId || "");
-          console.log(`تم تحميل ${municipalities?.length || 0} بلدية`);
           setCommunesList(Array.isArray(municipalities) ? municipalities : []);
         } catch (e) {
-          console.error('خطأ في تحميل البلديات:', e);
           setCommunesList([]);
         } finally {
           setIsLoadingCommunes(false);
@@ -539,7 +477,6 @@ export const useShippingLogic = (
       }
       
     } catch (error) {
-      console.error('خطأ أثناء تغيير شركة التوصيل:', error);
     }
   }, [form, tenantId]);
 
@@ -566,4 +503,4 @@ export const useShippingLogic = (
     getAppropriateShippingId, // Export if used in submission logic
     handleShippingProviderChange, // تصدير الدالة الجديدة
   };
-}; 
+};

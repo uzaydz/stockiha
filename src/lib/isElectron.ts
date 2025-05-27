@@ -70,4 +70,4 @@ export function isElectron(): boolean {
   return false;
 }
 
-export default isElectron; 
+export default isElectron;

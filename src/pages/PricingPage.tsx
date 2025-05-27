@@ -36,7 +36,6 @@ const PricingPage = () => {
           setError('لا توجد خطط اشتراك متاحة حالياً');
         }
       } catch (err: any) {
-        console.error('Error fetching subscription plans:', err);
         setError(err.message);
       } finally {
         setIsLoading(false);
@@ -96,4 +95,4 @@ const PricingPage = () => {
   );
 };
 
-export default PricingPage; 
+export default PricingPage;

@@ -171,7 +171,6 @@ export function SupplierPaymentDialog({
       await onSave(paymentData);
       form.reset();
     } catch (error) {
-      console.error('Error saving payment:', error);
     }
   };
   
@@ -469,4 +468,4 @@ export function SupplierPaymentDialog({
       </DialogContent>
     </Dialog>
   );
-} 
+}

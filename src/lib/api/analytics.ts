@@ -127,8 +127,7 @@ export const getSalesSummary = async (
   endDate?: Date
 ): Promise<SalesSummary> => {
   try {
-    
-    
+
     if (!organizationId) {
       throw new Error("معرف المؤسسة مطلوب");
     }
@@ -136,11 +135,9 @@ export const getSalesSummary = async (
     // الحصول على معرف المستخدم الحالي
     const { data: { user } } = await supabase.auth.getUser();
     const userId = user?.id || '00000000-0000-0000-0000-000000000000'; // استخدام معرف افتراضي إذا كان المستخدم غير مسجل دخوله
-    
 
     // حساب نطاقات التاريخ
     const { dateRange, prevDateRange } = getDateRanges(period, startDate, endDate);
-    
 
     // استعلام لإجمالي المبيعات والطلبات
     const { data: currentPeriodData, error: currentError } = await supabase.rpc(
@@ -152,10 +149,7 @@ export const getSalesSummary = async (
       }
     );
 
-    
-    
     if (currentError) {
-      console.error('خطأ في استعلام ملخص المبيعات:', currentError);
       throw currentError;
     }
 
@@ -182,10 +176,7 @@ export const getSalesSummary = async (
       }
     );
 
-    
-    
     if (prevError) {
-      console.error('خطأ في استعلام الفترة السابقة:', prevError);
       throw prevError;
     }
 
@@ -225,7 +216,6 @@ export const getSalesSummary = async (
     );
 
     if (ordersError) {
-      console.error('خطأ في استعلام إحصائيات الطلبات:', ordersError);
       throw ordersError;
     }
 
@@ -245,7 +235,6 @@ export const getSalesSummary = async (
     );
 
     if (channelError) {
-      console.error('خطأ في استعلام المبيعات حسب القناة:', channelError);
       throw channelError;
     }
 
@@ -269,11 +258,9 @@ export const getSalesSummary = async (
         online: channelStats.online_sales || 0
       }
     };
-    
-    
+
     return result;
   } catch (error) {
-    console.error('خطأ في الحصول على ملخص المبيعات:', error);
     throw error;
   }
 };
@@ -292,8 +279,7 @@ export const getMonthlySales = async (
   endDate?: Date
 ): Promise<MonthlySales> => {
   try {
-    
-    
+
     if (!organizationId) {
       throw new Error("معرف المؤسسة مطلوب");
     }
@@ -301,7 +287,6 @@ export const getMonthlySales = async (
     // الحصول على معرف المستخدم الحالي
     const { data: { user } } = await supabase.auth.getUser();
     const userId = user?.id || '00000000-0000-0000-0000-000000000000'; // استخدام معرف افتراضي إذا كان المستخدم غير مسجل دخوله
-    
 
     // تحديد نطاق التاريخ
     const { dateRange } = getDateRanges(period, startDate, endDate);
@@ -318,10 +303,7 @@ export const getMonthlySales = async (
       }
     );
 
-    
-    
     if (error) {
-      console.error('خطأ في استعلام المبيعات الشهرية:', error);
       throw error;
     }
 
@@ -352,10 +334,8 @@ export const getMonthlySales = async (
       }
     });
 
-    
     return { salesByMonth };
   } catch (error) {
-    console.error('خطأ في الحصول على المبيعات الشهرية:', error);
     throw error;
   }
 };
@@ -376,8 +356,7 @@ export const getTopProducts = async (
   limit: number = 5
 ): Promise<TopProducts> => {
   try {
-    
-    
+
     if (!organizationId) {
       throw new Error("معرف المؤسسة مطلوب");
     }
@@ -385,7 +364,6 @@ export const getTopProducts = async (
     // الحصول على معرف المستخدم الحالي
     const { data: { user } } = await supabase.auth.getUser();
     const userId = user?.id || '00000000-0000-0000-0000-000000000000'; // استخدام معرف افتراضي إذا كان المستخدم غير مسجل دخوله
-    
 
     // تحديد نطاق التاريخ
     const { dateRange } = getDateRanges(period, startDate, endDate);
@@ -402,10 +380,7 @@ export const getTopProducts = async (
       }
     );
 
-    
-    
     if (error) {
-      console.error('خطأ في استعلام أعلى المنتجات:', error);
       throw error;
     }
 
@@ -421,10 +396,8 @@ export const getTopProducts = async (
       quantity: item.total_quantity
     }));
 
-    
     return { topProducts };
   } catch (error) {
-    console.error('خطأ في الحصول على أعلى المنتجات:', error);
     throw error;
   }
 };
@@ -445,8 +418,7 @@ export const getTopCategories = async (
   limit: number = 5
 ): Promise<TopCategories> => {
   try {
-    
-    
+
     if (!organizationId) {
       throw new Error("معرف المؤسسة مطلوب");
     }
@@ -454,7 +426,6 @@ export const getTopCategories = async (
     // الحصول على معرف المستخدم الحالي
     const { data: { user } } = await supabase.auth.getUser();
     const userId = user?.id || '00000000-0000-0000-0000-000000000000'; // استخدام معرف افتراضي إذا كان المستخدم غير مسجل دخوله
-    
 
     // تحديد نطاق التاريخ
     const { dateRange } = getDateRanges(period, startDate, endDate);
@@ -471,10 +442,7 @@ export const getTopCategories = async (
       }
     );
 
-    
-    
     if (error) {
-      console.error('خطأ في استعلام أعلى الفئات:', error);
       throw error;
     }
 
@@ -491,7 +459,6 @@ export const getTopCategories = async (
 
     return { topCategories };
   } catch (error) {
-    console.error('خطأ في الحصول على أعلى الفئات:', error);
     throw error;
   }
 };
@@ -510,8 +477,7 @@ export const getExpenses = async (
   endDate?: Date
 ): Promise<ExpensesData> => {
   try {
-    
-    
+
     if (!organizationId) {
       throw new Error("معرف المؤسسة مطلوب");
     }
@@ -519,7 +485,6 @@ export const getExpenses = async (
     // الحصول على معرف المستخدم الحالي
     const { data: { user } } = await supabase.auth.getUser();
     const userId = user?.id || '00000000-0000-0000-0000-000000000000'; // استخدام معرف افتراضي إذا كان المستخدم غير مسجل دخوله
-    
 
     // تحديد نطاق التاريخ
     const { dateRange } = getDateRanges(period, startDate, endDate);
@@ -535,10 +500,7 @@ export const getExpenses = async (
       }
     );
 
-    
-    
     if (totalError) {
-      console.error('خطأ في استعلام إجمالي المصروفات:', totalError);
       throw totalError;
     }
 
@@ -558,10 +520,7 @@ export const getExpenses = async (
       }
     );
 
-    
-    
     if (categoryError) {
-      console.error('خطأ في استعلام المصروفات حسب الفئة:', categoryError);
       throw categoryError;
     }
 
@@ -578,11 +537,9 @@ export const getExpenses = async (
       total: totalExpenses.total_amount || 0,
       categories
     };
-    
-    
+
     return result;
   } catch (error) {
-    console.error('خطأ في الحصول على بيانات المصروفات:', error);
     throw error;
   }
 };
@@ -595,8 +552,7 @@ export const getInventoryStatus = async (
   organizationId: string
 ): Promise<InventoryData> => {
   try {
-    
-    
+
     if (!organizationId) {
       throw new Error("معرف المؤسسة مطلوب");
     }
@@ -604,7 +560,6 @@ export const getInventoryStatus = async (
     // الحصول على معرف المستخدم الحالي
     const { data: { user } } = await supabase.auth.getUser();
     const userId = user?.id || '00000000-0000-0000-0000-000000000000'; // استخدام معرف افتراضي إذا كان المستخدم غير مسجل دخوله
-    
 
     // استعلام لحالة المخزون
     const { data, error } = await supabase.rpc(
@@ -615,10 +570,7 @@ export const getInventoryStatus = async (
       }
     );
 
-    
-    
     if (error) {
-      console.error('خطأ في استعلام حالة المخزون:', error);
       throw error;
     }
 
@@ -639,11 +591,9 @@ export const getInventoryStatus = async (
       outOfStock: inventoryStatus.out_of_stock_count || 0,
       totalItems: inventoryStatus.total_products || 0
     };
-    
-    
+
     return result;
   } catch (error) {
-    console.error('خطأ في الحصول على حالة المخزون:', error);
     throw error;
   }
 };
@@ -662,8 +612,7 @@ export const getAllAnalytics = async (
   endDate?: Date
 ): Promise<AnalyticsData> => {
   try {
-    
-    
+
     // استدعاء جميع وظائف التحليلات
     const [salesSummary, monthlySales, topProducts, topCategories, expenses, inventory] = await Promise.all([
       getSalesSummary(organizationId, period, startDate, endDate),
@@ -691,11 +640,9 @@ export const getAllAnalytics = async (
       expenses: expenses,
       inventory: inventory
     };
-    
-    
+
     return analyticsData;
   } catch (error) {
-    console.error('خطأ في الحصول على جميع التحليلات:', error);
     throw error;
   }
 };
@@ -764,4 +711,4 @@ function getDateRanges(
     dateRange: { start, end },
     prevDateRange: { start: prevStart, end: prevEnd }
   };
-} 
+}

@@ -186,4 +186,4 @@ const SalesSummary: React.FC<SalesSummaryProps> = ({ data, period }) => {
   );
 };
 
-export default SalesSummary; 
+export default SalesSummary;

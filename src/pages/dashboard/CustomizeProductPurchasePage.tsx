@@ -71,7 +71,6 @@ const CustomizeProductPurchasePage = () => {
   // Handle fetch error separately
   useEffect(() => {
     if (productError) {
-      console.error("Error fetching product:", productError);
       toast.error('حدث خطأ أثناء جلب بيانات المنتج.');
       // Optionally navigate back or show persistent error message
     }
@@ -86,7 +85,6 @@ const CustomizeProductPurchasePage = () => {
       // State update is handled by the useEffect watching `product` after invalidation
     },
     onError: (err) => {
-      console.error("Error saving config:", err);
       toast.error('حدث خطأ أثناء حفظ التغييرات.');
     },
   });
@@ -240,4 +238,4 @@ const CustomizeProductPurchasePage = () => {
   );
 };
 
-export default CustomizeProductPurchasePage; 
+export default CustomizeProductPurchasePage;

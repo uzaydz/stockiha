@@ -304,4 +304,4 @@ export default function ThankYouContent({ template, orderInfo }: ThankYouContent
       </div>
     </div>
   );
-} 
+}

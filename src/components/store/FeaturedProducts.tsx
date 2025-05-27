@@ -104,9 +104,6 @@ const defaultProducts: Product[] = [
 // وظيفة لتحويل منتج من قاعدة البيانات إلى منتج للواجهة
 const convertDatabaseProductToStoreProduct = (dbProduct: DBProduct): Product => {
   // إضافة سجلات للتصحيح
-  console.log('تحويل بيانات المنتج من قاعدة البيانات:', dbProduct);
-  console.log('صورة المنتج (thumbnail_image):', dbProduct.thumbnail_image);
-  console.log('صورة المنتج (thumbnail_url):', dbProduct.thumbnail_url);
   
   let categoryName = '';
   // تحقق من أن category موجود وله نوع
@@ -127,12 +124,10 @@ const convertDatabaseProductToStoreProduct = (dbProduct: DBProduct): Product => 
   // تحقق من وجود thumbnail_url أولاً (يأتي من API الجديد)
   if (dbProduct.thumbnail_url) {
     imageUrl = dbProduct.thumbnail_url.trim();
-    console.log('استخدام thumbnail_url:', imageUrl);
   } 
   // ثم تحقق من thumbnail_image كخيار ثاني (للتوافق مع البيانات القديمة)
   else if (dbProduct.thumbnail_image) {
     imageUrl = dbProduct.thumbnail_image.trim();
-    console.log('استخدام thumbnail_image:', imageUrl);
   }
   
   // التحقق من صحة هيكل الرابط وإصلاحه إذا لزم الأمر
@@ -158,9 +153,7 @@ const convertDatabaseProductToStoreProduct = (dbProduct: DBProduct): Product => 
     
     // تأكد من أن الرابط لا يحتوي على مسافات داخلية
     imageUrl = imageUrl.replace(/\s+/g, '%20');
-    console.log('رابط الصورة بعد المعالجة:', imageUrl);
   } else {
-    console.log('لا توجد صورة مصغرة للمنتج، سيتم استخدام صورة افتراضية');
     // استخدم صورة افتراضية إذا لم تكن هناك صورة مصغرة
     imageUrl = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470';
   }
@@ -180,7 +173,6 @@ const convertDatabaseProductToStoreProduct = (dbProduct: DBProduct): Product => 
   };
   
   // إضافة سجلات للتصحيح
-  console.log('المنتج بعد التحويل:', product);
   
   return product;
 };
@@ -211,7 +203,6 @@ const FeaturedProducts = ({
   const validateImageUrl = useCallback((url: string): Promise<boolean> => {
     return new Promise((resolve) => {
       if (!url || url.trim() === '') {
-        console.log('رابط الصورة فارغ');
         resolve(false);
         return;
       }
@@ -238,16 +229,12 @@ const FeaturedProducts = ({
       // استبدال المسافات بـ %20
       testUrl = testUrl.replace(/\s+/g, '%20');
       
-      console.log('جاري اختبار صحة الصورة:', testUrl);
-      
       // فحص الصورة بطريقة أبسط باستخدام طلب HEAD لتجنب مشاكل CORS
       fetch(testUrl, { method: 'HEAD', mode: 'no-cors' })
         .then(() => {
-          console.log(`صورة صالحة: ${testUrl}`);
           resolve(true);
         })
         .catch(() => {
-          console.warn(`صورة غير صالحة: ${testUrl}`);
           resolve(false);
         });
       
@@ -267,7 +254,6 @@ const FeaturedProducts = ({
       if (initialProducts && initialProducts.length > 0) {
         setProducts(initialProducts.slice(0, displayCount));
       } else if (!effectiveOrgId && selectionMethod === 'automatic') {
-        console.warn('لم يتم تمرير معرف المؤسسة إلى مكون المنتجات المميزة (في fetchProductData). سيتم استخدام المنتجات الافتراضية.');
         setProducts(defaultProducts.slice(0, displayCount));
       }
       setLoading(false);
@@ -277,36 +263,36 @@ const FeaturedProducts = ({
     setLoading(true);
     try {
       let productDataResult: Product[] = [];
-      console.log('جلب المنتجات للمؤسسة:', effectiveOrgId);
-      console.log('طريقة الاختيار:', selectionMethod, 'معيار الاختيار:', selectionCriteria);
       
-      if (selectionMethod === 'manual' && selectedProducts && selectedProducts.length > 0) {
-        console.log('جلب المنتجات المحددة يدويًا:', selectedProducts);
-        const allProductsData = await getProducts(effectiveOrgId);
-        console.log('المنتجات المجلوبة من API:', allProductsData);
+      // التحقق من طريقة الاختيار أولاً
+      if (selectionMethod === 'manual') {
         
-        if (!allProductsData || allProductsData.length === 0) {
-          console.warn('لم يتم العثور على منتجات من API');
-          setProducts(defaultProducts.slice(0, displayCount));
+        // التحقق من وجود منتجات محددة وأنها ليست مصفوفة فارغة
+        if (selectedProducts && Array.isArray(selectedProducts) && selectedProducts.length > 0) {
+          const allProductsData = await getProducts(effectiveOrgId);
+          
+          if (!allProductsData || allProductsData.length === 0) {
+            setProducts(defaultProducts.slice(0, displayCount));
+            setLoading(false);
+            return;
+          }
+          
+          const selectedFilteredProducts = allProductsData.filter(p => selectedProducts.includes(p.id));
+          
+          // تحويل البيانات مع التحقق من صحة روابط الصور
+          productDataResult = selectedFilteredProducts.map(p => convertDatabaseProductToStoreProduct(p as unknown as DBProduct));
+        } else {
+          setProducts([]);
           setLoading(false);
           return;
         }
-        
-        const selectedFilteredProducts = allProductsData.filter(p => selectedProducts.includes(p.id));
-        console.log('المنتجات المختارة بعد التصفية:', selectedFilteredProducts);
-        
-        // تحويل البيانات مع التحقق من صحة روابط الصور
-        productDataResult = selectedFilteredProducts.map(p => convertDatabaseProductToStoreProduct(p as unknown as DBProduct));
-      } else if (selectionMethod === 'automatic') {
-        console.log('جلب المنتجات تلقائيًا باستخدام معيار:', selectionCriteria);
+      } else {
+        // الوضع التلقائي - تجاهل selectedProducts تماماً
         
         if (selectionCriteria === 'featured') {
-          console.log('جلب المنتجات المميزة للمؤسسة:', effectiveOrgId);
           const featuredDbProducts = await libGetFeaturedProducts(false, effectiveOrgId);
-          console.log('المنتجات المميزة المجلوبة من API:', featuredDbProducts);
           
           if (!featuredDbProducts || featuredDbProducts.length === 0) {
-            console.warn('لم يتم العثور على منتجات مميزة');
             setProducts(defaultProducts.slice(0, displayCount));
             setLoading(false);
             return;
@@ -314,12 +300,8 @@ const FeaturedProducts = ({
           
           // تحويل البيانات
           productDataResult = featuredDbProducts.map(p => {
-            console.log(`معالجة المنتج المميز: ID=${p.id}, Name=${p.name}`);
-            console.log(`روابط الصور: thumbnail_image=${(p as any).thumbnail_image}, thumbnail_url=${(p as any).thumbnail_url}`);
             return convertDatabaseProductToStoreProduct(p as unknown as DBProduct);
           });
-          
-          console.log('المنتجات المميزة بعد التنسيق:', productDataResult);
         } else if (selectionCriteria === 'newest') {
           const newestDbProducts = await getProducts(effectiveOrgId);
           const sortedProducts = [...newestDbProducts].sort((a, b) => {
@@ -340,22 +322,15 @@ const FeaturedProducts = ({
         } else {
           productDataResult = defaultProducts;
         }
-      } else {
-        setProducts(defaultProducts.slice(0, displayCount));
-        setLoading(false);
-        return;
       }
       
       // التحقق النهائي من البيانات قبل التعيين
       if (!productDataResult || productDataResult.length === 0) {
-        console.warn('لم يتم العثور على منتجات من API، سيتم استخدام المنتجات الافتراضية');
         setProducts(defaultProducts.slice(0, displayCount));
       } else {
-        console.log(`تعيين ${productDataResult.length} منتج في المكون`);
         setProducts(productDataResult.slice(0, displayCount));
       }
     } catch (error) {
-      console.error('خطأ في جلب المنتجات المميزة:', error);
       setProducts(defaultProducts.slice(0, displayCount));
     } finally {
       setLoading(false);
@@ -386,7 +361,6 @@ const FeaturedProducts = ({
     }
     
     if (!effectiveOrgId && selectionMethod === 'automatic') {
-      console.warn('useEffect: لم يتم تمرير معرف المؤسسة. سيتم استخدام المنتجات الافتراضية.');
       setProducts(defaultProducts.slice(0, displayCount));
       setLoading(false);
       return;
@@ -397,22 +371,18 @@ const FeaturedProducts = ({
     // إضافة معالجة للصور غير القابلة للتحميل
     const handleBrokenImages = () => {
       // تسجيل معلومات تصحيح الأخطاء
-      console.log('جاري فحص الصور المعطوبة...');
       
       try {
         // البحث عن جميع صور المنتجات في الصفحة
         const productImages = document.querySelectorAll('.product-image');
-        console.log(`تم العثور على ${productImages.length} صورة منتج`);
         
         productImages.forEach((img, index) => {
           const imgElement = img as HTMLImageElement;
           
           // تسجيل معلومات كل صورة للتصحيح
-          console.log(`صورة #${index + 1}:`, imgElement.src, 'مكتملة:', imgElement.complete, 'العرض الطبيعي:', imgElement.naturalWidth);
           
           // التحقق من أن الصورة لم تحمل بعد أو فشل تحميلها
           if (imgElement.complete && imgElement.naturalWidth === 0) {
-            console.warn(`تم اكتشاف صورة معطوبة (رقم ${index + 1}):`, imgElement.src);
             imgElement.src = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470';
             // تأكد من أن الصورة فوق الخلفية
             imgElement.style.zIndex = '25';
@@ -421,7 +391,6 @@ const FeaturedProducts = ({
           
           // إضافة معالج أخطاء لكل صورة
           imgElement.addEventListener('error', function(e) {
-            console.warn(`خطأ في تحميل الصورة (رقم ${index + 1}):`, imgElement.src);
             // استبدل المصدر بصورة افتراضية
             imgElement.src = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470';
             // تأكد من أن الصورة فوق الخلفية
@@ -431,14 +400,12 @@ const FeaturedProducts = ({
           
           // إضافة معالج لنجاح تحميل الصورة
           imgElement.addEventListener('load', function() {
-            console.log(`تم تحميل الصورة (رقم ${index + 1}) بنجاح:`, imgElement.src);
             // تأكد من أن الصورة فوق الخلفية عند تحميلها بنجاح
             imgElement.style.zIndex = '25';
             imgElement.style.opacity = '1';
           });
         });
       } catch (error) {
-        console.error('خطأ أثناء معالجة الصور المعطوبة:', error);
       }
     };
     
@@ -594,10 +561,8 @@ const FeaturedProducts = ({
                               onLoad={(e) => {
                                 // عند تحميل الصورة بنجاح، تأكد من أنها فوق الخلفية
                                 e.currentTarget.style.zIndex = '25';
-                                console.log('تم تحميل الصورة بنجاح:', product.name, product.imageUrl);
                               }}
                               onError={(e) => {
-                                console.error('خطأ في تحميل صورة المنتج:', product.id, product.name, 'الرابط:', product.imageUrl);
                                 // استبدل المصدر بصورة افتراضية
                                 e.currentTarget.src = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470';
                                 e.currentTarget.style.zIndex = '25';
@@ -734,10 +699,8 @@ const FeaturedProducts = ({
                               onLoad={(e) => {
                                 // عند تحميل الصورة بنجاح، تأكد من أنها فوق الخلفية
                                 e.currentTarget.style.zIndex = '25';
-                                console.log('تم تحميل الصورة بنجاح:', product.name, product.imageUrl);
                               }}
                               onError={(e) => {
-                                console.error('خطأ في تحميل صورة المنتج:', product.id, product.name, 'الرابط:', product.imageUrl);
                                 // استبدل المصدر بصورة افتراضية
                                 e.currentTarget.src = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470';
                                 e.currentTarget.style.zIndex = '25';

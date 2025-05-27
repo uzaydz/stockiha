@@ -74,7 +74,6 @@ const CustomPagesManager: React.FC = () => {
       const pagesData = await getCustomPages();
       setPages(pagesData);
     } catch (error) {
-      console.error('Error loading pages:', error);
       toast({
         title: "خطأ",
         description: "حدث خطأ أثناء تحميل الصفحات",
@@ -187,7 +186,6 @@ const CustomPagesManager: React.FC = () => {
         });
       }
     } catch (error) {
-      console.error('Error saving page:', error);
       toast({
         title: "خطأ",
         description: "حدث خطأ أثناء حفظ الصفحة",
@@ -220,7 +218,6 @@ const CustomPagesManager: React.FC = () => {
         });
       }
     } catch (error) {
-      console.error('Error deleting page:', error);
       toast({
         title: "خطأ",
         description: "حدث خطأ أثناء حذف الصفحة",
@@ -477,4 +474,4 @@ const CustomPagesManager: React.FC = () => {
   );
 };
 
-export default CustomPagesManager; 
+export default CustomPagesManager;

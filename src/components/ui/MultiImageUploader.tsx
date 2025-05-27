@@ -73,7 +73,6 @@ export default function MultiImageUploader({
         return newImages;
       });
     } else {
-      console.error("MultiImageUploader: received empty URL for uploaded image");
     }
     setIsAddingImage(false);
   };
@@ -249,4 +248,4 @@ export default function MultiImageUploader({
       )}
     </div>
   );
-} 
+}

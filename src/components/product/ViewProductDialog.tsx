@@ -64,7 +64,6 @@ const ViewProductDialog = ({ product, open, onOpenChange }: ViewProductDialogPro
             setAdditionalImages(imageUrls);
           }
         } catch (error) {
-          console.error('خطأ في تحميل الصور الإضافية:', error);
         }
       };
       
@@ -331,4 +330,4 @@ const ViewProductDialog = ({ product, open, onOpenChange }: ViewProductDialogPro
   );
 };
 
-export default ViewProductDialog; 
+export default ViewProductDialog;

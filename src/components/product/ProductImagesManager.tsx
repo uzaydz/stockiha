@@ -141,4 +141,4 @@ export default function ProductImagesManager({
       </Card>
     </div>
   );
-} 
+}

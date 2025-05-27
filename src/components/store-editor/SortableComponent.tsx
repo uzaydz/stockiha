@@ -182,4 +182,4 @@ const SortableComponent: React.FC<SortableComponentProps> = ({
   );
 };
 
-export default SortableComponent; 
+export default SortableComponent;

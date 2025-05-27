@@ -67,6 +67,7 @@ interface ServiceTrackingResult {
   assigned_to?: string;
   completed_at?: string;
   customer_name?: string;
+  customer_phone?: string;
   order_id: string;
   progress?: ServiceProgress[];
   order?: {
@@ -126,7 +127,6 @@ const PublicServiceTracking: React.FC = () => {
         
         // إذا لم يتم العثور على معرف المؤسسة، عرض خطأ
         if (!organizationId) {
-          console.error('لم يتم العثور على معرف المؤسسة');
           setServices([]);
           return;
         }
@@ -157,7 +157,6 @@ const PublicServiceTracking: React.FC = () => {
 
         setServices(formattedServices);
       } catch (err) {
-        console.error('Error fetching services:', err);
         setServices([]);
       } finally {
         setIsLoadingServices(false);
@@ -181,10 +180,10 @@ const PublicServiceTracking: React.FC = () => {
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
   };
 
-  // دالة للبحث عن خدمة باستخدام كود التتبع
+  // دالة للبحث عن خدمة باستخدام كود التتبع أو رقم الهاتف
   const handleTrackService = async () => {
     if (!trackingCode.trim()) {
-      setError('يرجى إدخال رمز التتبع للبحث عن خدمتك');
+      setError('يرجى إدخال رمز التتبع أو رقم الهاتف للبحث عن خدمتك');
       return;
     }
 
@@ -213,6 +212,39 @@ const PublicServiceTracking: React.FC = () => {
         }
       }
 
+      // التحقق من نوع البحث (رقم هاتف أم كود تتبع)
+      const isPhoneNumber = /^[0-9+\-\s()]+$/.test(trackingCode.trim());
+      
+      if (isPhoneNumber) {
+        // البحث برقم الهاتف
+        const { data: phoneSearchData, error: phoneSearchError } = await supabase
+          .from('service_bookings')
+          .select(`
+            *,
+            orders:order_id (id, created_at, organization_id)
+          `)
+          .eq('customer_phone', trackingCode.trim())
+          .order('created_at', { ascending: false });
+
+        if (!phoneSearchError && phoneSearchData && phoneSearchData.length > 0) {
+          // فلترة الخدمات التي تنتمي للمؤسسة الحالية
+          const orgServices = organizationId ? 
+            phoneSearchData.filter(s => s.orders && s.orders.organization_id === organizationId) : 
+            phoneSearchData;
+            
+          if (orgServices.length > 0) {
+            // اختر أحدث خدمة
+            serviceData = orgServices[0];
+          } else {
+            setError('لم يتم العثور على خدمات مرتبطة بهذا الرقم في المتجر الحالي');
+            return;
+          }
+        } else {
+          setError('لم يتم العثور على خدمات مرتبطة بهذا الرقم');
+          return;
+        }
+      } else {
+        // البحث بكود التتبع (الكود الأصلي)
       // 1. أولا، محاولة البحث المباشر باستخدام كود التتبع العام
       const { data: trackingCodeData, error: trackingCodeError } = await supabase
         .from('service_bookings')
@@ -334,6 +366,7 @@ const PublicServiceTracking: React.FC = () => {
               
               if (matchingService) {
                 serviceData = matchingService;
+                }
               }
             }
           }
@@ -350,7 +383,6 @@ const PublicServiceTracking: React.FC = () => {
           .order('timestamp', { ascending: false });
 
         if (progressError) {
-          console.error('Error fetching service progress:', progressError);
         } else if (progressData) {
           // تحويل تنسيق البيانات للتوافق مع واجهة ServiceProgress
           const formattedProgress: ServiceProgress[] = progressData.map(item => ({
@@ -366,10 +398,9 @@ const PublicServiceTracking: React.FC = () => {
 
         setServiceResult(serviceData as ServiceTrackingResult);
       } else {
-        setError('لم يتم العثور على خدمة بهذا الرمز');
+        setError(isPhoneNumber ? 'لم يتم العثور على خدمات مرتبطة بهذا الرقم' : 'لم يتم العثور على خدمة بهذا الرمز');
       }
     } catch (err) {
-      console.error('Error tracking service:', err);
       setError('حدث خطأ أثناء البحث عن الخدمة');
     } finally {
       setIsLoading(false);
@@ -400,7 +431,6 @@ const PublicServiceTracking: React.FC = () => {
         setTimeout(() => setIsCopied(false), 2000);
       })
       .catch(err => {
-        console.error('فشل نسخ الرمز:', err);
         toast.error('حدث خطأ أثناء نسخ الرمز');
       });
   };
@@ -449,6 +479,12 @@ const PublicServiceTracking: React.FC = () => {
                   <span className="text-muted-foreground">العميل</span>
                   <span className="font-medium">{serviceResult.customer_name || 'غير محدد'}</span>
                 </div>
+                {serviceResult.customer_phone && (
+                  <div className="flex justify-between py-1 border-b">
+                    <span className="text-muted-foreground">رقم الهاتف</span>
+                    <span className="font-medium">{serviceResult.customer_phone}</span>
+                  </div>
+                )}
                 <div className="flex justify-between py-1 border-b">
                   <span className="text-muted-foreground">تاريخ الاستلام</span>
                   <span className="font-medium">{formatServiceDate(serviceResult.order?.created_at)}</span>
@@ -700,7 +736,7 @@ const PublicServiceTracking: React.FC = () => {
               <CardHeader className="bg-muted/30">
                 <CardTitle className="text-2xl">تتبع حالة خدمتك</CardTitle>
                 <CardDescription>
-                  أدخل رمز التتبع الخاص بخدمتك لمعرفة حالتها الحالية وتفاصيل الإصلاح
+                  أدخل رمز التتبع الخاص بخدمتك أو رقم الهاتف المسجل لمعرفة حالتها الحالية وتفاصيل الإصلاح
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-6">
@@ -709,7 +745,7 @@ const PublicServiceTracking: React.FC = () => {
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" size={18} />
                     <Input
                       type="text"
-                      placeholder="أدخل رمز التتبع..."
+                      placeholder="أدخل رمز التتبع أو رقم الهاتف..."
                       className="pl-10"
                       value={trackingCode}
                       onChange={(e) => setTrackingCode(e.target.value)}
@@ -831,4 +867,4 @@ const PublicServiceTracking: React.FC = () => {
   );
 };
 
-export default PublicServiceTracking; 
+export default PublicServiceTracking;

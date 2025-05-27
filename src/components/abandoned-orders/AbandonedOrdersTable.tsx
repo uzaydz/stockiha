@@ -614,4 +614,4 @@ export function AbandonedOrdersTable({
       )}
     </div>
   );
-} 
+}

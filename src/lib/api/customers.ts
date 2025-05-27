@@ -19,12 +19,9 @@ export const getCustomers = async (): Promise<Customer[]> => {
   }
   
   if (!organizationId) {
-    console.error('No organization ID found for filtering customers');
     return [];
   }
-  
-  
-  
+
   // Get all customers from the organization
   const { data: orgCustomers, error } = await supabase
     .from('customers')
@@ -33,7 +30,6 @@ export const getCustomers = async (): Promise<Customer[]> => {
     .order('created_at', { ascending: false });
   
   if (error) {
-    console.error('Error fetching customers:', error);
     throw new Error(error.message);
   }
   
@@ -46,7 +42,6 @@ export const getCustomers = async (): Promise<Customer[]> => {
     .order('created_at', { ascending: false });
   
   if (userError) {
-    console.error('Error fetching customer users:', userError);
   }
   
   // Filter out any entries with the problematic ID '00000000-0000-0000-0000-000000000000'
@@ -99,7 +94,6 @@ export const getCustomerById = async (id: string): Promise<Customer | null> => {
     .single();
     
   if (error) {
-    console.error('Error fetching customer:', error);
     throw new Error(error.message);
   }
   
@@ -116,7 +110,6 @@ export const getCustomerOrdersCount = async (customerId: string): Promise<number
       .eq('customer_id', customerId);
       
     if (errorById) {
-      console.error('Error fetching customer orders count by ID:', errorById);
     }
     
     // فحص طريقة 2: البحث من خلال الملاحظات التي تحتوي على معرف العميل
@@ -126,7 +119,6 @@ export const getCustomerOrdersCount = async (customerId: string): Promise<number
       .ilike('notes', `%${customerId}%`);
       
     if (errorByNotes) {
-      console.error('Error fetching customer orders count by notes:', errorByNotes);
     }
     
     // الحصول على العميل للبحث عن اسمه في الملاحظات
@@ -137,7 +129,6 @@ export const getCustomerOrdersCount = async (customerId: string): Promise<number
       .single();
       
     if (customerError) {
-      console.error('Error fetching customer for name search:', customerError);
     }
     
     let countByName = 0;
@@ -149,7 +140,6 @@ export const getCustomerOrdersCount = async (customerId: string): Promise<number
         .ilike('notes', `%${customer.name}%`);
         
       if (nameError) {
-        console.error('Error fetching customer orders count by name:', nameError);
       } else {
         countByName = nameCount || 0;
       }
@@ -165,7 +155,6 @@ export const getCustomerOrdersCount = async (customerId: string): Promise<number
     
     return maxCount;
   } catch (error) {
-    console.error('Error in combined customer orders count:', error);
     return 0; // نعيد 0 في حالة حدوث خطأ
   }
 };
@@ -180,7 +169,6 @@ export const getCustomerOrdersTotal = async (customerId: string): Promise<number
       .eq('customer_id', customerId);
       
     if (errorById) {
-      console.error('Error fetching customer orders total by ID:', errorById);
     }
     
     // فحص طريقة 2: البحث من خلال الملاحظات التي تحتوي على معرف العميل
@@ -190,7 +178,6 @@ export const getCustomerOrdersTotal = async (customerId: string): Promise<number
       .ilike('notes', `%${customerId}%`);
       
     if (errorByNotes) {
-      console.error('Error fetching customer orders total by notes:', errorByNotes);
     }
     
     // الحصول على العميل للبحث عن اسمه في الملاحظات
@@ -201,7 +188,6 @@ export const getCustomerOrdersTotal = async (customerId: string): Promise<number
       .single();
       
     if (customerError) {
-      console.error('Error fetching customer for name search:', customerError);
     }
     
     let ordersByName: any[] = [];
@@ -213,7 +199,6 @@ export const getCustomerOrdersTotal = async (customerId: string): Promise<number
         .ilike('notes', `%${customer.name}%`);
         
       if (nameError) {
-        console.error('Error fetching customer orders total by name:', nameError);
       } else {
         ordersByName = nameOrders || [];
       }
@@ -233,7 +218,6 @@ export const getCustomerOrdersTotal = async (customerId: string): Promise<number
     
     return total;
   } catch (error) {
-    console.error('Error in combined customer orders total:', error);
     return 0; // نعيد 0 في حالة حدوث خطأ
   }
 };
@@ -251,7 +235,6 @@ export const createCustomer = async (customer: Omit<Customer, 'id' | 'created_at
     .single();
     
   if (error) {
-    console.error('Error creating customer:', error);
     throw new Error(error.message);
   }
   
@@ -271,7 +254,6 @@ export const updateCustomer = async (id: string, updates: Partial<Omit<Customer,
     .single();
     
   if (error) {
-    console.error('Error updating customer:', error);
     throw new Error(error.message);
   }
   
@@ -286,7 +268,6 @@ export const deleteCustomer = async (id: string): Promise<void> => {
     .eq('id', id);
     
   if (error) {
-    console.error('Error deleting customer:', error);
     throw new Error(error.message);
   }
 };
@@ -308,7 +289,6 @@ export const searchCustomers = async (query: string): Promise<Customer[]> => {
   }
   
   if (!organizationId) {
-    console.error('No organization ID found for filtering customers');
     return [];
   }
   
@@ -320,7 +300,6 @@ export const searchCustomers = async (query: string): Promise<Customer[]> => {
     .order('created_at', { ascending: false });
     
   if (error) {
-    console.error('Error searching customers:', error);
     throw new Error(error.message);
   }
   
@@ -349,7 +328,6 @@ export const getCustomerStats = async (): Promise<{
     }
     
     if (!organizationId) {
-      console.error('No organization ID found for filtering customer stats');
       return {
         total: 0,
         newLast30Days: 0,
@@ -365,7 +343,6 @@ export const getCustomerStats = async (): Promise<{
       .not('id', 'eq', '00000000-0000-0000-0000-000000000000');
 
     if (customersError) {
-      console.error('Error fetching total customers:', customersError);
     }
 
     // Total customers from users table with role='customer'
@@ -377,7 +354,6 @@ export const getCustomerStats = async (): Promise<{
       .not('id', 'eq', '00000000-0000-0000-0000-000000000000');
 
     if (usersError) {
-      console.error('Error fetching total customer users:', usersError);
     }
 
     // Combined total (this may include some duplicates if a customer exists in both tables)
@@ -396,7 +372,6 @@ export const getCustomerStats = async (): Promise<{
       .not('id', 'eq', '00000000-0000-0000-0000-000000000000');
 
     if (newCustomersError) {
-      console.error('Error fetching new customers:', newCustomersError);
     }
 
     const { count: newUsersCount, error: newUsersError } = await supabase
@@ -408,7 +383,6 @@ export const getCustomerStats = async (): Promise<{
       .not('id', 'eq', '00000000-0000-0000-0000-000000000000');
 
     if (newUsersError) {
-      console.error('Error fetching new customer users:', newUsersError);
     }
 
     const newLast30Days = (newCustomersCount || 0) + (newUsersCount || 0);
@@ -424,7 +398,6 @@ export const getCustomerStats = async (): Promise<{
       .not('customer_id', 'eq', '00000000-0000-0000-0000-000000000000');
 
     if (activeError) {
-      console.error('Error fetching active customers:', activeError);
     }
 
     // Luego, verificar cuáles de estos ID corresponden a clientes reales en users o customers
@@ -467,11 +440,10 @@ export const getCustomerStats = async (): Promise<{
       activeLast30Days: validActiveCustomers
     };
   } catch (error) {
-    console.error('Error getting customer stats:', error);
     return {
       total: 0,
       newLast30Days: 0,
       activeLast30Days: 0
     };
   }
-}; 
+};

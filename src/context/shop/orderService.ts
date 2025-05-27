@@ -14,14 +14,10 @@ export const addOrder = async (
   currentOrganizationId: string | undefined
 ): Promise<Order> => {
   try {
-    
-    
+
     // التحقق من وجود العميل وإنشائه إذا لم يكن موجودًا
     const customerId = await ensureCustomerExists(order.customerId, currentOrganizationId);
-    
-    
-    
-    
+
     const orderSlug = `order-${new Date().getTime()}`;
     
     // إنشاء الطلب في قاعدة لبيانات
@@ -58,17 +54,14 @@ export const addOrder = async (
     }
     
     const newOrderId = orderData[0].id;
-    
-    
+
     // إضافة عناصر الطلب - حل جذري
     if (order.items && order.items.length > 0) {
-      
-      
+
       try {
         // إضافة معلومات المنتجات لتحديث المخزون بشكل صحيح
         // السطر التالي يحتاج إلى تغيير لتحديث مخزون المتغيرات (الألوان والمقاسات)
-        
-        
+
         // تحديث مخزون المنتجات مع الأخذ بالاعتبار متغيرات الألوان والمقاسات
         for (const item of order.items) {
           try {
@@ -76,8 +69,7 @@ export const addOrder = async (
             const hasVariantInfo = item.variant_info && (item.variant_info.colorId || item.variant_info.sizeId);
             
             if (hasVariantInfo) {
-              
-              
+
               // تحديد المعرف الذي سيستخدم لتحديث المخزون
               let variantId = null;
               
@@ -113,10 +105,8 @@ export const addOrder = async (
                       .eq('id', item.variant_info.sizeId);
                       
                     if (updateError) {
-                      console.error('خطأ في تحديث مخزون المقاس:', updateError);
                     } else {
-                      
-                      
+
                       // تحديث كمية اللون المرتبط (إذا كان هناك لون)
                       if (item.variant_info.colorId) {
                         await updateColorQuantityFromSizes(item.variant_info.colorId);
@@ -147,10 +137,8 @@ export const addOrder = async (
                       .eq('id', item.variant_info.colorId);
                       
                     if (updateError) {
-                      console.error('خطأ في تحديث مخزون اللون:', updateError);
                     } else {
-                      
-                      
+
                       // تحديث كمية المنتج الأساسي
                       await updateProductQuantityFromColors(item.productId);
                     }
@@ -162,12 +150,10 @@ export const addOrder = async (
               await updateProductStock(item.productId, item.quantity);
             }
           } catch (error) {
-            console.error('خطأ في تحديث مخزون المنتج:', error, item);
             // استمر مع العناصر الأخرى حتى لو فشل هذا العنصر
           }
         }
       } catch (error) {
-        console.error("خطأ عام في معالجة العناصر:", error);
         
       }
     }
@@ -189,7 +175,6 @@ export const addOrder = async (
       slug: orderSlug
     };
   } catch (error) {
-    console.error('Error in addOrder:', error);
     throw error;
   }
 };
@@ -202,9 +187,7 @@ const addServiceBookings = async (
   employeeId: string | undefined,
   organizationId: string | undefined
 ) => {
-  
-  
-  
+
   // معالجة كل خدمة على حدة مع الحفاظ على معرف العميل الخاص بها
   for (const service of services) {
     try {
@@ -213,9 +196,7 @@ const addServiceBookings = async (
       
       // 2. جلب اسم العميل واستخدامه بدلاً من "زائر" الافتراضي
       let customerName = "زائر"; // القيمة الافتراضية
-      
-      
-      
+
       // إذا كان العميل مرتبطًا بالخدمة، استخدم اسمه مباشرة
       if (service.customer_name) {
         customerName = service.customer_name;
@@ -271,12 +252,9 @@ const addServiceBookings = async (
         slug: `booking-${new Date().getTime()}-${Math.floor(Math.random() * 1000)}`,
         organization_id: organizationId
       };
-      
-      
-      
+
       // 5. إدراج حجز الخدمة في قاعدة البيانات
-      
-      
+
       try {
         let insertedBookingData = null;
         const { data: insertedBooking, error: serviceBookingError } = await supabase
@@ -285,19 +263,16 @@ const addServiceBookings = async (
           .select();
           
         if (serviceBookingError) {
-          console.error(`خطأ في إدراج حجز الخدمة: ${serviceBookingError.message}`);
           
           // في حالة كان الخطأ متعلقًا بالعميل، حاول مرة أخرى مع معرف عميل فارغ
           if (serviceBookingError.message.includes('service_bookings_customer_id_fkey')) {
-            
-            
+
             const { data: retryData, error: retryError } = await supabase
               .from('service_bookings')
               .insert({...serviceBookingData, customer_id: null})
               .select();
               
             if (retryError) {
-              console.error(`فشلت المحاولة الثانية لإدراج الخدمة: ${retryError.message}`);
               continue;
             } else {
               
@@ -350,18 +325,14 @@ const addServiceBookings = async (
             });
             
           if (progressError) {
-            console.warn(`لم يتم إضافة تقدم أولي للخدمة: ${progressError.message}`);
           } else {
             
           }
         } catch (error) {
-          console.error(`خطأ في إضافة تقدم أولي للخدمة: ${error}`);
         }
       } catch (error) {
-        console.error(`خطأ في إدراج حجز الخدمة: ${error}`);
       }
     } catch (error) {
-      console.error(`خطأ في معالجة الخدمة: ${error}`);
     }
   }
 };
@@ -396,7 +367,6 @@ const addOrderTransaction = async (
     
     return true;
   } catch (error) {
-    console.error('Error adding transaction:', error);
     throw error;
   }
 };
@@ -416,13 +386,11 @@ export const updateOrderStatus = async (
       .eq('id', orderId);
       
     if (error) {
-      console.error('Error updating order status:', error);
       throw error;
     }
     
     return true;
   } catch (error) {
-    console.error('Error updating order status:', error);
     throw error;
   }
 };
@@ -437,7 +405,6 @@ export const deleteOrder = async (orderId: string): Promise<boolean> => {
       .eq('order_id', orderId);
       
     if (itemsError) {
-      console.error('Error deleting order items:', itemsError);
     }
     
     const { error: servicesError } = await supabase
@@ -446,7 +413,6 @@ export const deleteOrder = async (orderId: string): Promise<boolean> => {
       .eq('order_id', orderId);
       
     if (servicesError) {
-      console.error('Error deleting service bookings:', servicesError);
     }
     
     // حذف المعاملات المرتبطة بالطلب
@@ -456,7 +422,6 @@ export const deleteOrder = async (orderId: string): Promise<boolean> => {
       .eq('order_id', orderId);
       
     if (transactionsError) {
-      console.error('Error deleting transactions:', transactionsError);
     }
     
     // حذف الطلب نفسه
@@ -466,13 +431,11 @@ export const deleteOrder = async (orderId: string): Promise<boolean> => {
       .eq('id', orderId);
       
     if (error) {
-      console.error('Error deleting order:', error);
       throw error;
     }
     
     return true;
   } catch (error) {
-    console.error('Error deleting order:', error);
     throw error;
   }
 };
@@ -487,7 +450,6 @@ async function updateColorQuantityFromSizes(colorId: string) {
       .eq('color_id', colorId);
       
     if (sizesError) {
-      console.error('خطأ في جلب كميات المقاسات:', sizesError);
       return;
     }
     
@@ -500,12 +462,10 @@ async function updateColorQuantityFromSizes(colorId: string) {
       .eq('id', colorId);
       
     if (updateError) {
-      console.error('خطأ في تحديث كمية اللون:', updateError);
     } else {
       
     }
   } catch (error) {
-    console.error('خطأ في تحديث كمية اللون من المقاسات:', error);
   }
 }
 
@@ -519,7 +479,6 @@ async function updateProductQuantityFromColors(productId: string) {
       .eq('product_id', productId);
       
     if (colorsError) {
-      console.error('خطأ في جلب كميات الألوان:', colorsError);
       return;
     }
     
@@ -532,12 +491,10 @@ async function updateProductQuantityFromColors(productId: string) {
       .eq('id', productId);
       
     if (updateError) {
-      console.error('خطأ في تحديث كمية المنتج:', updateError);
     } else {
       
     }
   } catch (error) {
-    console.error('خطأ في تحديث كمية المنتج من الألوان:', error);
   }
 }
 
@@ -552,7 +509,6 @@ async function updateProductStock(productId: string, quantity: number) {
       .single();
       
     if (productError) {
-      console.error('خطأ في جلب معلومات المنتج:', productError);
       return;
     }
     
@@ -566,11 +522,9 @@ async function updateProductStock(productId: string, quantity: number) {
       .eq('id', productId);
       
     if (updateError) {
-      console.error('خطأ في تحديث مخزون المنتج:', updateError);
     } else {
       
     }
   } catch (error) {
-    console.error('خطأ في تحديث مخزون المنتج:', error);
   }
-} 
+}

@@ -288,4 +288,4 @@ const StoreFooter = ({
   );
 };
 
-export default StoreFooter; 
+export default StoreFooter;

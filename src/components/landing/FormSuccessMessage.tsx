@@ -44,4 +44,4 @@ export const FormSuccessMessage: React.FC<FormSuccessMessageProps> = React.memo(
       </div>
     </section>
   );
-}); 
+});

@@ -190,4 +190,4 @@ const TimerSettings = ({ timerConfig, onChange }: TimerSettingsProps) => {
   );
 };
 
-export default TimerSettings; 
+export default TimerSettings;

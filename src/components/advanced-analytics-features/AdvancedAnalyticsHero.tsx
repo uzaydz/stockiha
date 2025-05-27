@@ -214,4 +214,4 @@ const AdvancedAnalyticsHero = () => {
   );
 };
 
-export default AdvancedAnalyticsHero; 
+export default AdvancedAnalyticsHero;

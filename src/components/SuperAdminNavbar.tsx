@@ -192,4 +192,4 @@ function ShieldIcon({ className }: { className?: string }) {
       <path d="M8 11l3 3 6-6" />
     </svg>
   );
-} 
+}

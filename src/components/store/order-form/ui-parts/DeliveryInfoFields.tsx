@@ -62,12 +62,6 @@ export const DeliveryInfoFields: React.FC<DeliveryInfoFieldsProps> = ({
 
   // تسجيل لتتبع حالة المكون
   useEffect(() => {
-    console.log('DeliveryInfoFields (ui-parts) - حالة المكون:', {
-      deliveryType,
-      selectedWilaya,
-      isZRExpress,
-      municipalitiesCount: municipalities?.length || 0
-    });
   }, [deliveryType, selectedWilaya, isZRExpress, municipalities]);
 
   return (
@@ -187,7 +181,6 @@ export const DeliveryInfoFields: React.FC<DeliveryInfoFieldsProps> = ({
               <RadioGroup
                 onValueChange={(value) => {
                   field.onChange(value);
-                  console.log('تغيير نوع التوصيل إلى:', value);
                   
                   // إذا كان العنصر الحالي هو ZRExpress ويحاول المستخدم التغيير إلى "desk"،
                   // تأكد من تجهيز قائمة البلديات
@@ -196,7 +189,6 @@ export const DeliveryInfoFields: React.FC<DeliveryInfoFieldsProps> = ({
                   
                   if (currentProvinceValue && onWilayaChange) {
                     // تأكد من تحميل البلديات المناسبة
-                    console.log('إعادة تحميل البلديات بعد تغيير نوع التوصيل');
                     onWilayaChange(currentProvinceValue);
                   }
                 }}
@@ -235,7 +227,6 @@ export const DeliveryInfoFields: React.FC<DeliveryInfoFieldsProps> = ({
               onValueChange={(value) => {
                 field.onChange(value);
                 // اضافة سجل للتأكد أن تغيير شركة التوصيل يعمل
-                console.log('تم تغيير شركة التوصيل إلى:', value);
                 // استدعاء دالة تغيير شركة التوصيل إذا كانت متوفرة
                 if (onDeliveryCompanyChange) {
                   onDeliveryCompanyChange(value);
@@ -284,4 +275,4 @@ export const DeliveryInfoFields: React.FC<DeliveryInfoFieldsProps> = ({
       )}
     </div>
   );
-}; 
+};

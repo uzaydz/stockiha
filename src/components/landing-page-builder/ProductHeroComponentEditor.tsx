@@ -782,4 +782,4 @@ const ProductHeroComponentEditor: React.FC<ProductHeroComponentEditorProps> = ({
   );
 };
 
-export default ProductHeroComponentEditor; 
+export default ProductHeroComponentEditor;

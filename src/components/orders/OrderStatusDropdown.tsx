@@ -79,7 +79,6 @@ const OrderStatusDropdown = ({
     try {
       await onUpdateStatus(orderId, newStatus);
     } catch (error) {
-      console.error("فشل تحديث حالة الطلب:", error);
     } finally {
       setIsUpdating(false);
     }
@@ -141,4 +140,4 @@ const OrderStatusDropdown = ({
   );
 };
 
-export default OrderStatusDropdown; 
+export default OrderStatusDropdown;

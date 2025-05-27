@@ -100,8 +100,6 @@ export default function FlexiSales() {
           localStorage.getItem('organization_id') ||
           "7519afc0-d068-4235-a0f2-f92935772e0c"; // استخدام معرف افتراضي إذا لم يتوفر
 
-        
-
         // حفظ معرف المنظمة في التخزين المحلي لضمان الاتساق بين مختلف API
         if (organizationId) {
           localStorage.setItem('organization_id', organizationId);
@@ -111,9 +109,7 @@ export default function FlexiSales() {
       // استدعاء API ودع الوظائف تعالج الفلترة بنفسها
       const networks = await getFlexiNetworks();
       const balances = await getFlexiBalances();
-      
-      
-      
+
       setFlexiNetworks(networks);
       setFlexiBalances(balances);
     } catch (error) {
@@ -122,7 +118,6 @@ export default function FlexiSales() {
         title: 'حدث خطأ',
         description: 'لم نتمكن من تحميل بيانات الفليكسي'
       });
-      console.error(error);
     } finally {
       setLoadingFlexi(false);
     }
@@ -141,7 +136,6 @@ export default function FlexiSales() {
         title: 'حدث خطأ',
         description: 'لم نتمكن من تحميل بيانات العملات الرقمية'
       });
-      console.error(error);
     } finally {
       setLoadingCurrencies(false);
     }
@@ -255,7 +249,6 @@ export default function FlexiSales() {
       // إذا لم نتمكن من العثور على معرف المنظمة، نستخدم المعرف الافتراضي
       if (!organizationId) {
         organizationId = "7519afc0-d068-4235-a0f2-f92935772e0c";
-        console.warn('استخدام المعرف الافتراضي للمنظمة:', organizationId);
       }
       
       // تخزين معرف المنظمة في localStorage للاستخدام في العمليات المستقبلية
@@ -264,12 +257,8 @@ export default function FlexiSales() {
       // التحقق من أن الشبكة تنتمي إلى نفس المنظمة
       const selectedNetwork = flexiNetworks.find(n => n.id === flexiSaleData.network_id);
       if (selectedNetwork && selectedNetwork.organization_id !== organizationId) {
-        console.warn(`تنبيه: منظمة الشبكة (${selectedNetwork.organization_id}) تختلف عن المنظمة الحالية (${organizationId})`);
       }
-      
-      
-      
-      
+
       try {
         // إتمام عملية البيع
         await addFlexiSale({
@@ -306,7 +295,6 @@ export default function FlexiSales() {
             setFlexiNetworks(networks);
             setFlexiBalances(balances);
           } catch (refreshError) {
-            console.error('خطأ في تحديث البيانات بعد البيع:', refreshError);
           }
         }, 2000);
         
@@ -343,7 +331,6 @@ export default function FlexiSales() {
             });
             setFlexiBalances(updatedBalances);
           } catch (updateError) {
-            console.error('فشل في تحديث الرصيد:', updateError);
           }
           
           // محاولة إعادة تحميل البيانات بعد تأخير أطول مع تمرير معرف المنظمة
@@ -354,7 +341,6 @@ export default function FlexiSales() {
               setFlexiNetworks(networks);
               setFlexiBalances(balances);
             } catch (refreshError) {
-              console.error('خطأ في تحديث البيانات بعد البيع:', refreshError);
             }
           }, 3000);
           
@@ -381,7 +367,6 @@ export default function FlexiSales() {
         title: 'حدث خطأ',
         description: error.message || 'لم نتمكن من إتمام عملية البيع'
       });
-      console.error(error);
     } finally {
       setIsSelling(false);
     }
@@ -439,9 +424,7 @@ export default function FlexiSales() {
       
       // استخدام المعرف المكتشف أو المعرف المؤقت
       const finalOrgId = organizationId || tempOrgId;
-      
-      
-      
+
       try {
         // إتمام عملية البيع
         await addCurrencySale({
@@ -514,7 +497,6 @@ export default function FlexiSales() {
         title: 'حدث خطأ',
         description: error.message || 'لم نتمكن من إتمام عملية البيع'
       });
-      console.error(error);
     } finally {
       setIsSelling(false);
     }
@@ -879,4 +861,4 @@ export default function FlexiSales() {
       </div>
     </Layout>
   );
-} 
+}

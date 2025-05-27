@@ -281,4 +281,4 @@ const OfflineSalesSystem = () => {
   );
 };
 
-export default OfflineSalesSystem; 
+export default OfflineSalesSystem;

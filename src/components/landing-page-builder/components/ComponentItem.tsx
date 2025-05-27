@@ -427,4 +427,4 @@ const ComponentItem: React.FC<ComponentItemProps> = ({
   );
 };
 
-export default ComponentItem; 
+export default ComponentItem;

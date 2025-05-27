@@ -34,4 +34,4 @@ export const SentryErrorBoundary = Sentry.withErrorBoundary(
   {
     fallback: ErrorFallback,
   }
-); 
+);

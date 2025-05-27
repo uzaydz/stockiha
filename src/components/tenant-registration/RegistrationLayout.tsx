@@ -72,4 +72,4 @@ const RegistrationLayout = ({ children, sidebar }: RegistrationLayoutProps) => {
   );
 };
 
-export default RegistrationLayout; 
+export default RegistrationLayout;

@@ -53,4 +53,4 @@ export const clearCart = (): CartItem[] => {
 // حساب المجموع الكلي لعربة التسوق
 export const calculateCartTotal = (cart: CartItem[]): number => {
   return cart.reduce((total, item) => total + (item.product.price * item.quantity), 0);
-}; 
+};

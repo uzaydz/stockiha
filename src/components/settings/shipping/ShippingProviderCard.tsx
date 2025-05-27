@@ -79,4 +79,4 @@ const ShippingProviderCard: React.FC<ShippingProviderCardProps> = ({
   );
 };
 
-export default ShippingProviderCard; 
+export default ShippingProviderCard;

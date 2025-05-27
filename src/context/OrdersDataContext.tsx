@@ -88,13 +88,10 @@ export const OrdersDataProvider: React.FC<{ children: ReactNode }> = ({ children
       ]);
 
       if (callConfirmationResult.error) {
-        console.error('خطأ في جلب حالات تأكيد الإتصال:', callConfirmationResult.error);
       }
       if (provincesResult.error) {
-        console.error('خطأ في جلب الولايات:', provincesResult.error);
       }
       if (municipalitiesResult.error) {
-        console.error('خطأ في جلب البلديات:', municipalitiesResult.error);
       }
 
       setData({
@@ -104,7 +101,6 @@ export const OrdersDataProvider: React.FC<{ children: ReactNode }> = ({ children
       });
 
     } catch (error) {
-      console.error('خطأ في جلب البيانات:', error);
       toast({
         variant: "destructive",
         title: "خطأ في جلب البيانات",
@@ -147,7 +143,6 @@ export const OrdersDataProvider: React.FC<{ children: ReactNode }> = ({ children
 
       return newStatusId;
     } catch (error) {
-      console.error('خطأ في إضافة حالة تأكيد الإتصال:', error);
       throw error;
     }
   }, [currentOrganization?.id]);
@@ -189,4 +184,4 @@ export const useOrdersData = (): OrdersDataContextType => {
     throw new Error('useOrdersData must be used within an OrdersDataProvider');
   }
   return context;
-}; 
+};

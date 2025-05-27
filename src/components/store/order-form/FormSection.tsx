@@ -51,4 +51,4 @@ export const FormSection: React.FC<FormSectionProps> = ({
       </motion.div>
     </div>
   );
-}; 
+};

@@ -70,10 +70,7 @@ export default function ConversionTracking({
       await tracker.current.trackEvent(event);
       hasTracked.current = true;
 
-      console.log(`✅ تم تتبع الحدث: ${eventType} للمنتج: ${productId}`);
-      
     } catch (error) {
-      console.error('خطأ في تتبع التحويل:', error);
     }
   };
 
@@ -132,7 +129,6 @@ export function useConversionTracking(productId: string) {
 
   const track = async (event: Partial<ConversionEvent>) => {
     if (!event.event_type || !event.product_id) {
-      console.warn('بيانات الحدث غير كاملة');
       return;
     }
 
@@ -159,4 +155,4 @@ export function useConversionTracking(productId: string) {
   };
 
   return { track };
-} 
+}

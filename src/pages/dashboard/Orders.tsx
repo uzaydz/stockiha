@@ -111,7 +111,6 @@ const Orders = () => {
         const canCancelOrders = await checkUserPermissions(user, 'cancelOrders' as any);
         setHasCancelPermission(canCancelOrders);
       } catch (error) {
-        console.error('خطأ في التحقق من الصلاحيات:', error);
         toast({
           variant: "destructive",
           title: "خطأ في التحقق من الصلاحيات",
@@ -155,7 +154,6 @@ const Orders = () => {
         setOrderCounts(counts);
       }
     } catch (error) {
-      console.error('خطأ في جلب عدد الطلبات:', error);
     }
   }, [currentOrganization?.id]);
 
@@ -183,7 +181,6 @@ const Orders = () => {
         // <-- END: Cast RPC result to any -->
       }
     } catch (error) {
-      console.error('خطأ في جلب إحصاءات الطلبات:', error);
     }
   }, [currentOrganization?.id]);
 
@@ -297,7 +294,6 @@ const Orders = () => {
           .in('id', addressIds);
           
         if (addressesError) {
-          console.error('خطأ في جلب بيانات العناوين:', addressesError);
         } else {
           addressesData = addresses || [];
           
@@ -318,7 +314,6 @@ const Orders = () => {
               .in('id', provinceIds);
               
             if (provincesError) {
-              console.error('خطأ في جلب بيانات الولايات:', provincesError);
             } else if (provinces) {
               // إضافة أسماء الولايات إلى بيانات العناوين
               addressesData = addressesData.map(addr => {
@@ -344,7 +339,6 @@ const Orders = () => {
               .in('id', municipalityIds);
               
             if (municipalitiesError) {
-              console.error('خطأ في جلب بيانات البلديات:', municipalitiesError);
             } else if (municipalities) {
               // إضافة أسماء البلديات إلى بيانات العناوين
               addressesData = addressesData.map(addr => {
@@ -374,7 +368,6 @@ const Orders = () => {
           .eq('organization_id', currentOrganization.id);
           
         if (customersError) {
-          console.error('خطأ في جلب بيانات العملاء:', customersError);
         } else {
           customersData = regularCustomers || [];
         }
@@ -387,7 +380,6 @@ const Orders = () => {
           .eq('organization_id', currentOrganization.id);
           
         if (guestCustomersError) {
-          console.error('خطأ في جلب بيانات العملاء الضيوف:', guestCustomersError);
         } else {
           guestCustomersData = guestCustomers || [];
         }
@@ -418,7 +410,6 @@ const Orders = () => {
           .eq('organization_id', currentOrganization.id);
           
         if (statusesError) {
-          console.error('خطأ في جلب حالات تأكيد الإتصال:', statusesError);
         } else {
           confirmationStatusesData = statusesData || [];
         }
@@ -460,7 +451,6 @@ const Orders = () => {
           try {
             formData = JSON.parse(formData);
           } catch (e) {
-            console.error('خطأ في تحليل بيانات النموذج:', e);
             formData = null;
           }
         }
@@ -518,7 +508,6 @@ const Orders = () => {
       setHasMoreOrders(processedOrders.length === pageSize);
       
     } catch (error) {
-      console.error('خطأ في جلب الطلبات:', error);
       toast({
         variant: "destructive",
         title: "خطأ في جلب الطلبات",
@@ -613,7 +602,6 @@ const Orders = () => {
       });
       
     } catch (error) {
-      console.error('خطأ في تحديث حالة الطلب:', error);
       toast({
         variant: "destructive",
         title: "خطأ في تحديث حالة الطلب",
@@ -659,7 +647,6 @@ const Orders = () => {
       });
       
     } catch (error) {
-      console.error('خطأ في تحديث حالة الطلبات:', error);
       toast({
         variant: "destructive",
         title: "خطأ في تحديث حالة الطلبات",
@@ -686,7 +673,6 @@ const Orders = () => {
       
       setCallConfirmationStatuses(data || []);
     } catch (error) {
-      console.error('خطأ في جلب حالات تأكيد الإتصال:', error);
     } finally {
       setCallConfirmationLoading(false);
     }
@@ -747,7 +733,6 @@ const Orders = () => {
       });
       
     } catch (error) {
-      console.error('خطأ في تحديث حالة تأكيد الإتصال:', error);
       toast({
         variant: "destructive",
         title: "خطأ في التحديث",
@@ -861,4 +846,4 @@ const OrdersWithProvider = () => {
   );
 };
 
-export default OrdersWithProvider; 
+export default OrdersWithProvider;

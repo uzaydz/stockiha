@@ -94,7 +94,6 @@ export const useStickyButtonLogic = (orderFormRef: React.RefObject<HTMLDivElemen
     const submitButtonById = container.querySelector('#order-submit-button') as HTMLElement;
     if (submitButtonById) {
       if (process.env.NODE_ENV === 'development') {
-        console.debug('🎯 تم العثور على زر الإرسال بالـ ID:', submitButtonById);
       }
       return submitButtonById;
     }
@@ -119,14 +118,12 @@ export const useStickyButtonLogic = (orderFormRef: React.RefObject<HTMLDivElemen
       
       if (hasSubmitText || (hasCreditCardIcon && hasSubmitClass)) {
         if (process.env.NODE_ENV === 'development') {
-          console.debug('🎯 تم العثور على زر الإرسال بالنص/الأيقونة:', button, 'النص:', buttonText);
         }
         return button as HTMLElement;
       }
     }
     
     if (process.env.NODE_ENV === 'development') {
-      console.debug('⚠️ لم يتم العثور على زر الإرسال في النموذج');
     }
     return null;
   };
@@ -150,8 +147,6 @@ export const useStickyButtonLogic = (orderFormRef: React.RefObject<HTMLDivElemen
         if (showStickyButton !== shouldShow) {
           setShowStickyButton(shouldShow);
           if (process.env.NODE_ENV === 'development') {
-            console.debug('🔄 تحديث حالة الزر الثابت:', shouldShow ? 'مرئي' : 'مخفي', 
-                         `موقع زر الإرسال: ${submitButtonPosition.toFixed(0)}px, ارتفاع الشاشة: ${windowHeight.toFixed(0)}px`);
           }
         }
       } else {
@@ -163,7 +158,6 @@ export const useStickyButtonLogic = (orderFormRef: React.RefObject<HTMLDivElemen
         if (showStickyButton !== shouldShow) {
           setShowStickyButton(shouldShow);
           if (process.env.NODE_ENV === 'development') {
-            console.debug('🔄 استخدام المنطق البديل للزر الثابت:', shouldShow ? 'مرئي' : 'مخفي');
           }
         }
       }
@@ -196,7 +190,6 @@ export const useStickyButtonLogic = (orderFormRef: React.RefObject<HTMLDivElemen
       
       if (actualSubmitButton) {
         if (process.env.NODE_ENV === 'development') {
-          console.debug('📍 التمرير إلى زر الإرسال الفعلي');
         }
         actualSubmitButton.scrollIntoView({ 
           behavior: 'smooth', 
@@ -204,7 +197,6 @@ export const useStickyButtonLogic = (orderFormRef: React.RefObject<HTMLDivElemen
         });
       } else {
         if (process.env.NODE_ENV === 'development') {
-          console.debug('📍 التمرير إلى النموذج (لم يتم العثور على الزر)');
         }
         // إذا لم نجد الزر، نتمرر إلى النموذج كبديل
         orderFormRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -333,4 +325,4 @@ export const useProductPrice = ({
     calculatePrice,
     getAvailableQuantity
   };
-}; 
+};

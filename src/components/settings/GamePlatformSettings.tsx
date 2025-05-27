@@ -44,7 +44,6 @@ const GamePlatformSettings = () => {
           setEnablePublicSite(settings.enable_public_site !== false);
         }
       } catch (error) {
-        console.error('Error al cargar la configuración de la plataforma:', error);
         toast({
           title: 'خطأ',
           description: 'حدث خطأ أثناء تحميل إعدادات المنصة',
@@ -90,7 +89,6 @@ const GamePlatformSettings = () => {
         description: 'تم حفظ إعدادات المنصة بنجاح',
       });
     } catch (error) {
-      console.error('Error al guardar la configuración:', error);
       toast({
         title: 'خطأ',
         description: 'فشل في حفظ إعدادات المنصة',
@@ -230,4 +228,4 @@ const GamePlatformSettings = () => {
   );
 };
 
-export default GamePlatformSettings; 
+export default GamePlatformSettings;

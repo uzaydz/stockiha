@@ -598,4 +598,4 @@ export default function ThankYouPageSettings({
       </Card>
     </div>
   );
-} 
+}

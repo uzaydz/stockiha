@@ -52,7 +52,6 @@ const StoreEditor = () => {
         description: "تم حفظ جميع التغييرات بنجاح",
       });
     } catch (error) {
-      console.error("فشل في حفظ التغييرات:", error);
       toast({
         title: "خطأ",
         description: "حدث خطأ أثناء حفظ التغييرات",
@@ -130,6 +129,7 @@ const StoreEditor = () => {
               updateComponentSettings(id, settings);
             }}
             onDragEnd={handleDragEnd}
+            onSave={saveChanges}
           />
         )}
       </div>
@@ -137,4 +137,4 @@ const StoreEditor = () => {
   );
 };
 
-export default StoreEditor; 
+export default StoreEditor;

@@ -144,4 +144,4 @@ const ProductsHeader = ({
   );
 };
 
-export default ProductsHeader; 
+export default ProductsHeader;

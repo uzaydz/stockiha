@@ -165,4 +165,4 @@ const IconSelector = ({ value, onChange }: IconSelectorProps) => {
   );
 };
 
-export default IconSelector; 
+export default IconSelector;

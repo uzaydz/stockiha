@@ -4,6 +4,12 @@ import './lib/module-polyfill';
 // تهيئة Sentry
 import './sentry';
 
+// تطبيق النظام الموحد للثيمات فوراً قبل تحميل React
+import { applyInstantTheme } from './lib/themeManager';
+
+// تطبيق الثيم الفوري لمنع الوميض
+applyInstantTheme();
+
 // إصلاح createContext وأخرى: تأكد من تحميل React APIs قبل أي شيء آخر
 // (window as any).React = (window as any).React || {}; // إزالة أو تعليق هذا
 

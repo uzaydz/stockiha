@@ -190,8 +190,8 @@ const ActionButtons = ({
               size="sm"
               className={cn(
                 "text-xs h-8 w-8 p-0",
-                "hover:bg-gray-100 text-gray-700",
-                "dark:hover:bg-gray-800 dark:text-gray-300"
+                "hover:bg-accent dark:hover:bg-zinc-700 text-muted-foreground dark:text-zinc-400",
+                "hover:text-foreground dark:hover:text-zinc-200"
               )}
               onClick={() => onStockUpdate(product)}
               disabled={!canEdit}
@@ -199,7 +199,7 @@ const ActionButtons = ({
               <ArrowUpDown className="h-4 w-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>
+          <TooltipContent className="bg-background dark:bg-zinc-800 border-border dark:border-zinc-700 text-foreground dark:text-zinc-200">
             <p>تحديث الكمية</p>
           </TooltipContent>
         </Tooltip>
@@ -213,15 +213,15 @@ const ActionButtons = ({
               size="sm"
               className={cn(
                 "text-xs h-8 w-8 p-0",
-                "hover:bg-gray-100 text-gray-700",
-                "dark:hover:bg-gray-800 dark:text-gray-300"
+                "hover:bg-accent dark:hover:bg-zinc-700 text-muted-foreground dark:text-zinc-400",
+                "hover:text-foreground dark:hover:text-zinc-200"
               )}
               onClick={() => onShowLog(product)}
             >
               <History className="h-4 w-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>
+          <TooltipContent className="bg-background dark:bg-zinc-800 border-border dark:border-zinc-700 text-foreground dark:text-zinc-200">
             <p>سجل المخزون</p>
           </TooltipContent>
         </Tooltip>
@@ -234,27 +234,33 @@ const ActionButtons = ({
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className={cn(
                   "h-8 w-8 p-0",
-                  "hover:bg-gray-100 text-gray-700",
-                  "dark:hover:bg-gray-800 dark:text-gray-300"
+                  "hover:bg-accent dark:hover:bg-zinc-700 text-muted-foreground dark:text-zinc-400",
+                  "hover:text-foreground dark:hover:text-zinc-200"
                 )}>
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
             </TooltipTrigger>
-            <TooltipContent>
+            <TooltipContent className="bg-background dark:bg-zinc-800 border-border dark:border-zinc-700 text-foreground dark:text-zinc-200">
               <p>المزيد من الخيارات</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
-        <DropdownMenuContent align="start">
-          <DropdownMenuItem onClick={() => onShowMinStock(product)}>
+        <DropdownMenuContent align="start" className="bg-background dark:bg-zinc-800 border-border dark:border-zinc-700">
+          <DropdownMenuItem 
+            onClick={() => onShowMinStock(product)}
+            className="text-foreground dark:text-zinc-200 hover:bg-accent dark:hover:bg-zinc-700"
+          >
             <ShoppingCart className="ml-2 h-4 w-4" />
             <span>ضبط حدود المخزون</span>
           </DropdownMenuItem>
           {product.colors && product.colors.length > 0 && (
             <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => onShowVariants(product)}>
+              <DropdownMenuSeparator className="bg-border dark:bg-zinc-700" />
+              <DropdownMenuItem 
+                onClick={() => onShowVariants(product)}
+                className="text-foreground dark:text-zinc-200 hover:bg-accent dark:hover:bg-zinc-700"
+              >
                 <Palette className="ml-2 h-4 w-4" />
                 <span>عرض المتغيرات</span>
               </DropdownMenuItem>
@@ -285,19 +291,19 @@ const TableRow = ({
   return (
     <div className={cn(
       "grid grid-cols-12 py-4 px-4 items-center border-b gap-4",
-      "border-border dark:border-zinc-800",
-      "hover:bg-accent/10 dark:hover:bg-accent/5 transition-colors"
+      "border-border dark:border-zinc-700",
+      "hover:bg-muted/30 dark:hover:bg-zinc-800/30 transition-colors"
     )}>
       {/* المنتج */}
       <div className="col-span-3 flex items-center gap-3">
-        <Avatar className="rounded-md h-10 w-10 border border-border dark:border-zinc-800 shadow-sm flex-shrink-0">
+        <Avatar className="rounded-md h-10 w-10 border border-border dark:border-zinc-700 shadow-sm flex-shrink-0">
           <AvatarImage src={product.thumbnailImage} alt={product.name} />
           <AvatarFallback className="rounded-md bg-primary/10 dark:bg-primary/20 text-primary dark:text-primary/80">
             {product.name.substring(0, 2)}
           </AvatarFallback>
         </Avatar>
         <div className="min-w-0">
-          <div className="font-medium truncate text-foreground dark:text-zinc-200">{product.name}</div>
+          <div className="font-medium truncate text-foreground dark:text-zinc-100">{product.name}</div>
           {product.barcode && (
             <div className="text-xs text-muted-foreground dark:text-zinc-400 truncate">
               الباركود: {product.barcode}
@@ -308,12 +314,12 @@ const TableRow = ({
       </div>
       
       {/* الصنف */}
-      <div className="col-span-2 truncate text-foreground dark:text-zinc-300">
+      <div className="col-span-2 truncate text-foreground dark:text-zinc-200">
         {product.category}
       </div>
       
       {/* SKU */}
-      <div className="col-span-2 font-mono text-sm truncate text-foreground dark:text-zinc-300">
+      <div className="col-span-2 font-mono text-sm truncate text-foreground dark:text-zinc-200">
         {product.sku}
       </div>
       
@@ -322,17 +328,17 @@ const TableRow = ({
         <Button
           variant="outline"
           size="icon"
-          className="h-8 w-8 rounded-full flex-shrink-0 border-border dark:border-zinc-800 bg-background dark:bg-zinc-800 text-foreground dark:text-zinc-300"
+          className="h-8 w-8 rounded-full flex-shrink-0 border-border dark:border-zinc-700 bg-background dark:bg-zinc-800 text-foreground dark:text-zinc-200 hover:bg-accent dark:hover:bg-zinc-700"
           onClick={() => onStockUpdate(product)}
           disabled={!canEdit}
         >
           <Minus className="h-3 w-3" />
         </Button>
-        <span className="w-12 text-center font-medium text-lg text-foreground dark:text-zinc-200">{product.stock_quantity}</span>
+        <span className="w-12 text-center font-medium text-lg text-foreground dark:text-zinc-100">{product.stock_quantity}</span>
         <Button
           variant="outline"
           size="icon"
-          className="h-8 w-8 rounded-full flex-shrink-0 border-border dark:border-zinc-800 bg-background dark:bg-zinc-800 text-foreground dark:text-zinc-300"
+          className="h-8 w-8 rounded-full flex-shrink-0 border-border dark:border-zinc-700 bg-background dark:bg-zinc-800 text-foreground dark:text-zinc-200 hover:bg-accent dark:hover:bg-zinc-700"
           onClick={() => onStockUpdate(product)}
           disabled={!canEdit}
         >
@@ -377,18 +383,18 @@ const CardRow = ({
   canEdit: boolean;
 }) => {
   return (
-    <Card className="mb-3 overflow-hidden border-border dark:border-zinc-800 bg-background dark:bg-zinc-900">
+    <Card className="mb-3 overflow-hidden border-border dark:border-zinc-700 bg-background dark:bg-zinc-900">
       <CardHeader className="pb-2 pt-4 px-4">
         <div className="flex justify-between items-start">
           <div className="flex gap-3 items-center">
-            <Avatar className="rounded-md h-10 w-10 border border-border dark:border-zinc-800 shadow-sm flex-shrink-0">
+            <Avatar className="rounded-md h-10 w-10 border border-border dark:border-zinc-700 shadow-sm flex-shrink-0">
               <AvatarImage src={product.thumbnailImage} alt={product.name} />
               <AvatarFallback className="rounded-md bg-primary/10 dark:bg-primary/20 text-primary dark:text-primary/80">
                 {product.name.substring(0, 2)}
               </AvatarFallback>
             </Avatar>
             <div>
-              <CardTitle className="text-base text-foreground dark:text-zinc-200">{product.name}</CardTitle>
+              <CardTitle className="text-base text-foreground dark:text-zinc-100">{product.name}</CardTitle>
               <CardDescription className="text-muted-foreground dark:text-zinc-400">
                 {product.category} • {product.sku}
               </CardDescription>
@@ -406,17 +412,17 @@ const CardRow = ({
               <Button
                 variant="outline"
                 size="icon"
-                className="h-8 w-8 rounded-full border-border dark:border-zinc-800 bg-background dark:bg-zinc-800 text-foreground dark:text-zinc-300"
+                className="h-8 w-8 rounded-full border-border dark:border-zinc-700 bg-background dark:bg-zinc-800 text-foreground dark:text-zinc-200 hover:bg-accent dark:hover:bg-zinc-700"
                 onClick={() => onStockUpdate(product)}
                 disabled={!canEdit}
               >
                 <Minus className="h-3 w-3" />
               </Button>
-              <span className="w-12 text-center font-medium text-lg text-foreground dark:text-zinc-200">{product.stock_quantity}</span>
+              <span className="w-12 text-center font-medium text-lg text-foreground dark:text-zinc-100">{product.stock_quantity}</span>
               <Button
                 variant="outline"
                 size="icon"
-                className="h-8 w-8 rounded-full border-border dark:border-zinc-800 bg-background dark:bg-zinc-800 text-foreground dark:text-zinc-300"
+                className="h-8 w-8 rounded-full border-border dark:border-zinc-700 bg-background dark:bg-zinc-800 text-foreground dark:text-zinc-200 hover:bg-accent dark:hover:bg-zinc-700"
                 onClick={() => onStockUpdate(product)}
                 disabled={!canEdit}
               >
@@ -443,9 +449,9 @@ const CardRow = ({
 // مكون حالة عدم وجود منتجات
 const EmptyInventory = () => {
   return (
-    <Card className="border border-dashed border-border dark:border-zinc-800 bg-background dark:bg-zinc-900">
+    <Card className="border border-dashed border-border dark:border-zinc-700 bg-background dark:bg-zinc-900">
       <CardHeader className="text-center">
-        <CardTitle className="text-foreground dark:text-zinc-200">لا توجد منتجات</CardTitle>
+        <CardTitle className="text-foreground dark:text-zinc-100">لا توجد منتجات</CardTitle>
         <CardDescription className="text-muted-foreground dark:text-zinc-400">لم يتم العثور على أي منتجات تطابق معايير البحث</CardDescription>
       </CardHeader>
       <CardContent className="flex justify-center pb-6">
@@ -460,8 +466,8 @@ const TableHeader = () => {
   return (
     <div className={cn(
       "grid grid-cols-12 py-3 px-4 font-medium text-sm sticky top-0 z-10 border-b gap-4",
-      "bg-gray-50 text-gray-700 border-border",
-      "dark:bg-zinc-900 dark:text-zinc-300 dark:border-zinc-800"
+      "bg-muted/50 text-muted-foreground border-border",
+      "dark:bg-zinc-800/50 dark:text-zinc-300 dark:border-zinc-700"
     )}>
       <div className="col-span-3">المنتج</div>
       <div className="col-span-2">الصنف</div>
@@ -541,7 +547,7 @@ const InventoryPagination = ({
           <Button 
             variant="outline" 
             size="sm" 
-            className="h-8 w-8 p-0" 
+            className="h-8 w-8 p-0 bg-background dark:bg-zinc-800 border-border dark:border-zinc-700 text-foreground dark:text-zinc-200 hover:bg-accent dark:hover:bg-zinc-700" 
             onClick={() => onPageChange(1)}
             disabled={currentPage === 1}
           >
@@ -552,7 +558,7 @@ const InventoryPagination = ({
           <Button 
             variant="outline" 
             size="sm" 
-            className="h-8 w-8 p-0" 
+            className="h-8 w-8 p-0 bg-background dark:bg-zinc-800 border-border dark:border-zinc-700 text-foreground dark:text-zinc-200 hover:bg-accent dark:hover:bg-zinc-700" 
             onClick={handlePrevious}
             disabled={currentPage === 1}
           >
@@ -563,7 +569,7 @@ const InventoryPagination = ({
         {pageNumbers.map((page, index) => (
           page === 'ellipsis-start' || page === 'ellipsis-end' ? (
             <PaginationItem key={`ellipsis-${index}`}>
-              <PaginationEllipsis />
+              <PaginationEllipsis className="text-muted-foreground dark:text-zinc-400" />
             </PaginationItem>
           ) : (
             <PaginationItem key={`page-${page}`}>
@@ -572,7 +578,9 @@ const InventoryPagination = ({
                 size="sm" 
                 className={cn(
                   "h-8 w-8 p-0",
-                  currentPage === page && "bg-primary text-white"
+                  currentPage === page 
+                    ? "bg-primary text-primary-foreground dark:bg-primary dark:text-primary-foreground" 
+                    : "bg-background dark:bg-zinc-800 border-border dark:border-zinc-700 text-foreground dark:text-zinc-200 hover:bg-accent dark:hover:bg-zinc-700"
                 )}
                 onClick={() => onPageChange(page as number)}
                 disabled={currentPage === page}
@@ -587,7 +595,7 @@ const InventoryPagination = ({
           <Button 
             variant="outline" 
             size="sm" 
-            className="h-8 w-8 p-0" 
+            className="h-8 w-8 p-0 bg-background dark:bg-zinc-800 border-border dark:border-zinc-700 text-foreground dark:text-zinc-200 hover:bg-accent dark:hover:bg-zinc-700" 
             onClick={handleNext}
             disabled={currentPage === totalPages}
           >
@@ -598,7 +606,7 @@ const InventoryPagination = ({
           <Button 
             variant="outline" 
             size="sm" 
-            className="h-8 w-8 p-0" 
+            className="h-8 w-8 p-0 bg-background dark:bg-zinc-800 border-border dark:border-zinc-700 text-foreground dark:text-zinc-200 hover:bg-accent dark:hover:bg-zinc-700" 
             onClick={() => onPageChange(totalPages)}
             disabled={currentPage === totalPages}
           >
@@ -614,33 +622,33 @@ const InventoryPagination = ({
 const LoadingState = () => (
   <div className="space-y-4">
     <div className="flex justify-between items-center">
-      <Skeleton className="h-8 w-48 dark:bg-zinc-800" />
-      <Skeleton className="h-8 w-32 dark:bg-zinc-800" />
+      <Skeleton className="h-8 w-48 bg-muted dark:bg-zinc-800" />
+      <Skeleton className="h-8 w-32 bg-muted dark:bg-zinc-800" />
     </div>
     {Array(5).fill(0).map((_, index) => (
-      <Card key={index} className="border border-border dark:border-zinc-800 bg-background dark:bg-zinc-900">
+      <Card key={index} className="border border-border dark:border-zinc-700 bg-background dark:bg-zinc-900">
         <CardHeader className="pb-2 pt-4 px-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-3">
-              <Skeleton className="h-10 w-10 rounded-md dark:bg-zinc-800" />
+              <Skeleton className="h-10 w-10 rounded-md bg-muted dark:bg-zinc-800" />
               <div className="space-y-2">
-                <Skeleton className="h-5 w-40 dark:bg-zinc-800" />
-                <Skeleton className="h-4 w-32 dark:bg-zinc-800" />
+                <Skeleton className="h-5 w-40 bg-muted dark:bg-zinc-800" />
+                <Skeleton className="h-4 w-32 bg-muted dark:bg-zinc-800" />
               </div>
             </div>
-            <Skeleton className="h-6 w-16 dark:bg-zinc-800" />
+            <Skeleton className="h-6 w-16 bg-muted dark:bg-zinc-800" />
           </div>
         </CardHeader>
         <CardContent className="px-4 py-2">
           <div className="flex justify-between items-center">
-            <Skeleton className="h-10 w-32 dark:bg-zinc-800" />
-            <Skeleton className="h-10 w-24 dark:bg-zinc-800" />
+            <Skeleton className="h-10 w-32 bg-muted dark:bg-zinc-800" />
+            <Skeleton className="h-10 w-24 bg-muted dark:bg-zinc-800" />
           </div>
         </CardContent>
       </Card>
     ))}
     <div className="flex justify-center">
-      <Skeleton className="h-8 w-64 dark:bg-zinc-800" />
+      <Skeleton className="h-8 w-64 bg-muted dark:bg-zinc-800" />
     </div>
   </div>
 );
@@ -740,8 +748,8 @@ const InventoryTable = ({ products, onStockUpdate, onProductUpdated, canEdit = t
     <>
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-medium">قائمة المخزون</h3>
-          <p className="text-sm text-muted-foreground">
+          <h3 className="text-lg font-medium text-foreground dark:text-zinc-100">قائمة المخزون</h3>
+          <p className="text-sm text-muted-foreground dark:text-zinc-400">
             عرض {startIndex + 1} - {endIndex} من أصل {products.length} منتج
           </p>
         </div>
@@ -760,7 +768,7 @@ const InventoryTable = ({ products, onStockUpdate, onProductUpdated, canEdit = t
                   <span>جدول</span>
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>
+              <TooltipContent className="bg-background dark:bg-zinc-800 border-border dark:border-zinc-700 text-foreground dark:text-zinc-200">
                 <p>عرض كجدول</p>
               </TooltipContent>
             </Tooltip>
@@ -779,7 +787,7 @@ const InventoryTable = ({ products, onStockUpdate, onProductUpdated, canEdit = t
                   <span>بطاقات</span>
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>
+              <TooltipContent className="bg-background dark:bg-zinc-800 border-border dark:border-zinc-700 text-foreground dark:text-zinc-200">
                 <p>عرض كبطاقات</p>
               </TooltipContent>
             </Tooltip>
@@ -793,11 +801,11 @@ const InventoryTable = ({ products, onStockUpdate, onProductUpdated, canEdit = t
         <>
           {/* عرض جدول للشاشات المتوسطة والكبيرة */}
           {viewMode === 'table' && (
-            <div className="bg-white dark:bg-zinc-900 rounded-lg border shadow-sm overflow-hidden dark:border-zinc-800" ref={tableRef}>
+            <div className="bg-background dark:bg-zinc-900 rounded-lg border border-border dark:border-zinc-700 shadow-sm overflow-hidden" ref={tableRef}>
               <div className="overflow-x-auto">
                 <TableHeader />
                 
-                <div className="divide-y divide-gray-100 dark:divide-zinc-800">
+                <div className="divide-y divide-border dark:divide-zinc-700">
                   {currentProducts.map((product) => (
                     <TableRow
                       key={product.id}
@@ -951,4 +959,4 @@ const InventoryTable = ({ products, onStockUpdate, onProductUpdated, canEdit = t
   );
 };
 
-export default InventoryTable; 
+export default InventoryTable;

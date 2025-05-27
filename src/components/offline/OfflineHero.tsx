@@ -139,4 +139,4 @@ const OfflineHero = () => {
   );
 };
 
-export default OfflineHero; 
+export default OfflineHero;

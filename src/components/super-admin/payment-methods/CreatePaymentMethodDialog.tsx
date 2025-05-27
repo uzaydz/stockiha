@@ -312,4 +312,4 @@ export function CreatePaymentMethodDialog({ onCreateMethod }: CreatePaymentMetho
       </DialogContent>
     </Dialog>
   );
-} 
+}

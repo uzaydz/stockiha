@@ -172,6 +172,3 @@ const LandingPageEditor: React.FC<LandingPageEditorProps> = ({ page, onPageUpdat
 };
 
 export default LandingPageEditor;
- 
- 
- 

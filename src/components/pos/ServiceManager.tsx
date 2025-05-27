@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
-import { Service, ServiceCategory, User } from '@/types';
-import { Wrench, Calendar, Search, Clock, Tag, ClipboardCheck, CalendarClock, ListFilter, Filter, Settings, Info, User as UserIcon, UserPlus } from 'lucide-react';
+import { Service, ServiceCategory, User, RepairLocation } from '@/types';
+import { Wrench, Calendar, Search, Clock, Tag, ClipboardCheck, CalendarClock, ListFilter, Filter, Settings, Info, User as UserIcon, UserPlus, Building } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -36,14 +36,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import RepairLocationManager from './RepairLocationManager';
+import { getDefaultRepairLocation } from '@/lib/api/repairLocations';
 
 interface ServiceManagerProps {
   services: Service[];
-  onAddService: (service: Service, scheduledDate?: Date, notes?: string) => void;
+  onAddService: (service: Service, scheduledDate?: Date, notes?: string, repairLocationId?: string) => void;
   customers: User[];
+  organizationId: string;
 }
 
-export default function ServiceManager({ services, onAddService, customers = [] }: ServiceManagerProps) {
+export default function ServiceManager({ services, onAddService, customers = [], organizationId }: ServiceManagerProps) {
   const { createCustomer } = useShop();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedService, setSelectedService] = useState<Service | null>(null);
@@ -58,6 +61,28 @@ export default function ServiceManager({ services, onAddService, customers = [] 
   const [searchCustomer, setSearchCustomer] = useState('');
   const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
   const [newCustomer, setNewCustomer] = useState({ name: '', email: '', phone: '' });
+  
+  // إضافة حالة لمكان التصليح المختار
+  const [selectedRepairLocation, setSelectedRepairLocation] = useState<RepairLocation | null>(null);
+  const [showRepairLocationManager, setShowRepairLocationManager] = useState(false);
+  
+  // تحميل المكان الافتراضي عند بدء التشغيل
+  useEffect(() => {
+    const loadDefaultLocation = async () => {
+      if (organizationId) {
+        try {
+          const defaultLocation = await getDefaultRepairLocation(organizationId);
+          if (defaultLocation) {
+            setSelectedRepairLocation(defaultLocation);
+          }
+        } catch (error) {
+        }
+      } else {
+      }
+    };
+
+    loadDefaultLocation();
+  }, [organizationId]);
   
   // Categorías únicas de servicios
   const categories: string[] = ['all', ...Array.from(new Set(services.map(s => s.category)))];
@@ -95,6 +120,7 @@ export default function ServiceManager({ services, onAddService, customers = [] 
     setScheduledDate('');
     setServiceNotes('');
     setSelectedCustomer(null);
+    // لا نعيد تعيين مكان التصليح لأنه يجب أن يبقى المكان الافتراضي
   };
 
   const handleCustomerSelect = (userId: string) => {
@@ -131,9 +157,13 @@ export default function ServiceManager({ services, onAddService, customers = [] 
       
       toast.success(`تم إضافة العميل ${createdCustomer.name} بنجاح`);
     } catch (error) {
-      console.error('Error creating customer:', error);
       toast.error("حدث خطأ أثناء إضافة العميل");
     }
+  };
+
+  const handleRepairLocationSelect = (location: RepairLocation) => {
+    setSelectedRepairLocation(location);
+    setShowRepairLocationManager(false);
   };
 
   const handleAddService = () => {
@@ -149,7 +179,8 @@ export default function ServiceManager({ services, onAddService, customers = [] 
       onAddService(
         serviceWithCustomer, 
         date, 
-        serviceNotes || undefined
+        serviceNotes || undefined,
+        selectedRepairLocation?.id // إضافة معرف مكان التصليح
       );
       
       toast.success(`تمت إضافة خدمة "${selectedService.name}"`);
@@ -159,6 +190,7 @@ export default function ServiceManager({ services, onAddService, customers = [] 
       setScheduledDate('');
       setServiceNotes('');
       setSelectedCustomer(null); // إعادة تعيين العميل المختار
+      // لا نعيد تعيين مكان التصليح لأنه يجب أن يبقى المكان الافتراضي
     }
   };
 
@@ -313,7 +345,7 @@ export default function ServiceManager({ services, onAddService, customers = [] 
               <Wrench className="h-5 w-5 text-primary" />
             </SheetTitle>
             <SheetDescription>
-              أدخل تفاصيل الخدمة وتاريخ الجدولة
+              أدخل تفاصيل الخدمة وتاريخ الجدولة ومكان التصليح
             </SheetDescription>
           </SheetHeader>
           
@@ -406,6 +438,77 @@ export default function ServiceManager({ services, onAddService, customers = [] 
                     اختر العميل أو أضف عميلاً جديداً لربط هذه الخدمة به
                   </p>
                 </div>
+
+                {/* إضافة قسم اختيار مكان التصليح */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-sm font-medium flex items-center gap-1.5">
+                      <Building className="h-4 w-4 text-primary" />
+                      مكان التصليح
+                    </label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowRepairLocationManager(true)}
+                      className="gap-1"
+                    >
+                      <Building className="h-3 w-3" />
+                      إدارة الأماكن
+                    </Button>
+                  </div>
+                  
+                  {selectedRepairLocation ? (
+                    <Card className="shadow-sm border-primary/20">
+                      <CardContent className="p-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h4 className="font-medium text-sm">{selectedRepairLocation.name}</h4>
+                              {selectedRepairLocation.is_default && (
+                                <Badge variant="secondary" className="bg-primary/10 text-primary text-xs">
+                                  افتراضي
+                                </Badge>
+                              )}
+                            </div>
+                            {selectedRepairLocation.address && (
+                              <p className="text-xs text-muted-foreground mb-1">
+                                {selectedRepairLocation.address}
+                              </p>
+                            )}
+                            {selectedRepairLocation.phone && (
+                              <p className="text-xs text-muted-foreground">
+                                📞 {selectedRepairLocation.phone}
+                              </p>
+                            )}
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSelectedRepairLocation(null)}
+                            className="text-muted-foreground hover:text-foreground"
+                          >
+                            إلغاء
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full justify-start gap-2"
+                      onClick={() => setShowRepairLocationManager(true)}
+                    >
+                      <Building className="h-4 w-4" />
+                      اختر مكان التصليح
+                    </Button>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    اختر مكان التصليح حيث ستتم الخدمة
+                  </p>
+                </div>
                 
                 <div>
                   <label htmlFor="service-notes" className="block text-sm font-medium mb-1 flex items-center gap-1.5">
@@ -430,7 +533,7 @@ export default function ServiceManager({ services, onAddService, customers = [] 
                   </h4>
                   <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
                     <li>سيتم إضافة الخدمة إلى سلة المشتريات الحالية</li>
-                    <li>يمكن ربط الخدمة بعميل محدد من خلال عربة التسوق بعد الإضافة</li>
+                    <li>يمكن ربط الخدمة بعميل محدد ومكان تصليح</li>
                     <li>يمكن جدولة مواعيد متعددة لنفس الخدمة</li>
                     <li>سيتم إرسال تأكيد بالموعد عند إتمام الطلب</li>
                   </ul>
@@ -516,6 +619,26 @@ export default function ServiceManager({ services, onAddService, customers = [] 
               إضافة العميل
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* نافذة إدارة أماكن التصليح */}
+      <Dialog open={showRepairLocationManager} onOpenChange={setShowRepairLocationManager}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>إدارة أماكن التصليح</DialogTitle>
+            <DialogDescription>
+              اختر مكان التصليح أو أضف مكان جديد
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="h-[70vh]">
+            <RepairLocationManager
+              organizationId={organizationId}
+              onLocationSelect={handleRepairLocationSelect}
+              selectedLocationId={selectedRepairLocation?.id}
+            />
+          </div>
         </DialogContent>
       </Dialog>
     </div>

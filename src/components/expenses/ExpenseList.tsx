@@ -243,7 +243,6 @@ export function ExpenseList({ showRecurringOnly }: { showRecurringOnly?: boolean
         setIsDeleteDialogOpen(false);
         setExpenseToDelete(null);
       } catch (error) {
-        console.error("Error deleting expense:", error);
       }
     }
   };
@@ -664,4 +663,4 @@ export function ExpenseList({ showRecurringOnly }: { showRecurringOnly?: boolean
       </Card>
     </div>
   );
-} 
+}

@@ -8,4 +8,4 @@ export * from './ProductDataLoader';
 export * from './UIComponents';
 
 // تصدير الواجهة الإضافية
-export { default as UpsellDownsellDisplay } from './UpsellDownsellDisplay'; 
+export { default as UpsellDownsellDisplay } from './UpsellDownsellDisplay';

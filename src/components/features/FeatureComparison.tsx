@@ -111,4 +111,4 @@ const FeatureComparison = () => {
   );
 };
 
-export default FeatureComparison; 
+export default FeatureComparison;

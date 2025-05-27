@@ -65,7 +65,6 @@ const url = {
         query: Object.fromEntries(parsed.searchParams)
       };
     } catch (e) {
-      console.error('Error al parsear URL:', e);
       return {};
     }
   },
@@ -91,7 +90,6 @@ const url = {
       if (urlObj.hash) result += urlObj.hash;
       return result;
     } catch (e) {
-      console.error('Error al formatear URL:', e);
       return '';
     }
   }
@@ -123,7 +121,6 @@ const crypto = {
                 cryptoAlgorithm = 'SHA-512';
                 break;
               case 'md5':
-                console.warn('MD5 غير مدعوم في Web Crypto API، استخدام SHA-256 كبديل');
                 cryptoAlgorithm = 'SHA-256';
                 break;
               default:
@@ -151,7 +148,6 @@ const crypto = {
   
   // دالة مساعدة لتنفيذ الهاش بشكل متزامن عندما يكون مطلوباً
   createHashSync: (algorithm, data, encoding = 'hex') => {
-    console.warn('createHashSync غير مدعومة في المتصفح، استخدام تنفيذ غير متزامن');
     // نرجع نتيجة افتراضية (هذا ليس حلاً مثالياً ولكنه يتجنب الأخطاء)
     const dummyHash = Array(64).fill('0').join('');
     return dummyHash;
@@ -181,7 +177,6 @@ if (typeof window !== 'undefined') {
     globalThis.crypto = crypto;
   }
 
-  
 }
 
 // Export for ESM usage
@@ -202,4 +197,4 @@ export default {
   http,
   url,
   crypto // إضافة crypto للتصدير الافتراضي
-}; 
+};

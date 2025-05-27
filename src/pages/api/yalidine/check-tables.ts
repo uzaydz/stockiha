@@ -28,11 +28,10 @@ export default async function handler(
       triggerStatus: statusInfo.triggerStatus
     });
   } catch (error) {
-    console.error('خطأ غير متوقع في التحقق من جداول ياليدين:', error);
     res.status(500).json({
       success: false,
       message: 'خطأ غير متوقع في التحقق من جداول ياليدين',
       error: error instanceof Error ? error.message : String(error)
     });
   }
-} 
+}

@@ -156,7 +156,6 @@ export default function SuperAdminOrganizations() {
         setOrganizations(cachedOrganizations || []);
 
       } catch (err: any) {
-        console.error("Error fetching organizations:", err);
         setError(err.message || 'فشل في جلب بيانات المؤسسات');
         setOrganizations([]); // تعيين قائمة فارغة في حالة الخطأ
       } finally {
@@ -379,4 +378,4 @@ export default function SuperAdminOrganizations() {
       </div>
     </SuperAdminLayout>
   );
-} 
+}

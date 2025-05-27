@@ -57,7 +57,6 @@ export const createLocalCustomer = async (
     
     return localCustomer;
   } catch (error) {
-    console.error('خطأ في إنشاء العميل محلياً:', error);
     throw new Error('فشل في إنشاء العميل محلياً');
   }
 };
@@ -77,7 +76,6 @@ export const updateLocalCustomer = async (
     const existingCustomer = await customersStore.getItem<LocalCustomer>(id);
     
     if (!existingCustomer) {
-      console.error(`لم يتم العثور على العميل بالمعرّف: ${id}`);
       return null;
     }
     
@@ -114,7 +112,6 @@ export const updateLocalCustomer = async (
     
     return updatedCustomer;
   } catch (error) {
-    console.error(`خطأ في تحديث العميل ${id} محلياً:`, error);
     throw new Error(`فشل في تحديث العميل محلياً`);
   }
 };
@@ -130,7 +127,6 @@ export const deleteLocalCustomer = async (id: string): Promise<boolean> => {
     const existingCustomer = await customersStore.getItem<LocalCustomer>(id);
     
     if (!existingCustomer) {
-      console.error(`لم يتم العثور على العميل بالمعرّف: ${id}`);
       return false;
     }
     
@@ -164,7 +160,6 @@ export const deleteLocalCustomer = async (id: string): Promise<boolean> => {
     
     return true;
   } catch (error) {
-    console.error(`خطأ في حذف العميل ${id} محلياً:`, error);
     throw new Error(`فشل في حذف العميل محلياً`);
   }
 };
@@ -211,7 +206,6 @@ export const getLocalCustomers = async (
     
     return customers;
   } catch (error) {
-    console.error('خطأ في استرجاع العملاء المحليين:', error);
     return [];
   }
 };
@@ -225,7 +219,6 @@ export const getLocalCustomerById = async (id: string): Promise<LocalCustomer | 
   try {
     return await customersStore.getItem<LocalCustomer>(id);
   } catch (error) {
-    console.error(`خطأ في استرجاع العميل ${id} محلياً:`, error);
     return null;
   }
 };
@@ -244,7 +237,6 @@ export const markCustomerAsSynced = async (
     const localCustomer = await customersStore.getItem<LocalCustomer>(id);
     
     if (!localCustomer) {
-      console.error(`لم يتم العثور على العميل ${id} للتحديث بعد المزامنة`);
       return null;
     }
     
@@ -268,7 +260,6 @@ export const markCustomerAsSynced = async (
     await customersStore.setItem(id, updatedCustomer);
     return updatedCustomer;
   } catch (error) {
-    console.error(`خطأ في تحديث حالة المزامنة للعميل ${id}:`, error);
     return null;
   }
 };
@@ -321,7 +312,6 @@ export const createLocalAddress = async (
     
     return localAddress;
   } catch (error) {
-    console.error('خطأ في إنشاء العنوان محلياً:', error);
     throw new Error('فشل في إنشاء العنوان محلياً');
   }
 };
@@ -343,7 +333,6 @@ export const getLocalAddressesByCustomerId = async (customerId: string): Promise
     
     return addresses;
   } catch (error) {
-    console.error(`خطأ في استرجاع عناوين العميل ${customerId} محلياً:`, error);
     return [];
   }
-}; 
+};

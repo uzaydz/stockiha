@@ -13,7 +13,6 @@ export const useRecentComponents = () => {
       try {
         setRecentComponents(JSON.parse(storedRecent));
       } catch (e) {
-        console.error('Error parsing recent components:', e);
         setRecentComponents([]);
       }
     }
@@ -46,4 +45,4 @@ export const useRecentComponents = () => {
     addToRecent,
     clearRecentComponents
   };
-}; 
+};

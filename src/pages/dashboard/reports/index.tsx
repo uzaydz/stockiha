@@ -228,7 +228,6 @@ const FinancialReports = () => {
       setSalesData(salesByCategory || []);
       
     } catch (error) {
-      console.error('Error loading report data:', error);
       toast({
         title: "خطأ في تحميل البيانات",
         description: "حدث خطأ أثناء تحميل بيانات التقارير. يرجى المحاولة مرة أخرى.",
@@ -579,4 +578,4 @@ const FinancialReports = () => {
   );
 };
 
-export default FinancialReports; 
+export default FinancialReports;

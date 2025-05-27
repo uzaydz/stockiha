@@ -67,7 +67,6 @@ export function useFormShippingIntegration({ enabled, provider }: ShippingIntegr
           }
         })
         .catch(err => {
-          console.error('خطأ أثناء فحص التكوين:', err);
           setDiagnostic({
             lastChecked: Date.now(),
             configStatus: 'invalid',
@@ -88,7 +87,6 @@ export function useFormShippingIntegration({ enabled, provider }: ShippingIntegr
           setLoading(false);
         })
         .catch(err => {
-          console.error('خطأ في جلب الولايات:', err);
           setDiagnostic(prev => ({ 
             ...prev, 
             message: 'فشل في جلب الولايات. قد تكون هناك مشكلة في الاتصال بالإنترنت أو مشكلة CORS.' 
@@ -112,8 +110,7 @@ export function useFormShippingIntegration({ enabled, provider }: ShippingIntegr
           setLoading(false);
           
           // تسجيل عدد البلديات المتاحة
-          
-          
+
           // إذا كان نوع التوصيل هو مكتب، تحقق من وجود بلديات بها مكاتب استلام
           if (deliveryType === 'desk' && data.length === 0) {
             setDiagnostic(prev => ({ 
@@ -123,7 +120,6 @@ export function useFormShippingIntegration({ enabled, provider }: ShippingIntegr
           }
         })
         .catch(err => {
-          console.error('خطأ في جلب البلديات:', err);
           setDiagnostic(prev => ({ 
             ...prev, 
             message: 'فشل في جلب البلديات. قد تكون هناك مشكلة في الاتصال بالإنترنت أو مشكلة CORS.' 
@@ -154,7 +150,6 @@ export function useFormShippingIntegration({ enabled, provider }: ShippingIntegr
           setLoading(false);
         })
         .catch(err => {
-          console.error('خطأ في حساب سعر التوصيل:', err);
           setDiagnostic(prev => ({ 
             ...prev, 
             message: 'فشل في حساب سعر التوصيل. قد تكون هناك مشكلة في الاتصال بالإنترنت أو مشكلة CORS.' 
@@ -174,7 +169,6 @@ export function useFormShippingIntegration({ enabled, provider }: ShippingIntegr
       const data = await getMunicipalities(organizationId, provinceId, type);
       return data;
     } catch (err) {
-      console.error('خطأ في جلب البلديات في الوظيفة المساعدة:', err);
       return [];
     }
   }, [enabled, provider, organizationId]);
@@ -223,4 +217,4 @@ export function useFormShippingIntegration({ enabled, provider }: ShippingIntegr
     setFieldValue,
     isEnabled: enabled && Boolean(provider)
   };
-} 
+}

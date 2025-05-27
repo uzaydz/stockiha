@@ -24,8 +24,7 @@ const MAIN_TABLES = [
 
 async function exportDatabaseSchema() {
   try {
-    
-    
+
     // التحقق من وجود الدوال المطلوبة
     const supabase = getSupabaseAdmin();
     
@@ -36,9 +35,7 @@ async function exportDatabaseSchema() {
     });
     
     if (functionError) {
-      console.error('خطأ في التحقق من وجود الدالة:', functionError);
-      
-      
+
       // قراءة ملف SQL وتنفيذه
       const sqlFilePath = path.join(__dirname, '../sql/create_complete_schema_extractor.sql');
       
@@ -51,13 +48,10 @@ async function exportDatabaseSchema() {
         });
         
         if (createError) {
-          console.error('خطأ في إنشاء الدالة:', createError);
           return;
         }
-        
-        
+
       } else {
-        console.error(`ملف SQL غير موجود: ${sqlFilePath}`);
         return;
       }
     } else {
@@ -71,8 +65,7 @@ async function exportDatabaseSchema() {
     });
     
     if (tablesError || !tablesFunction) {
-      
-      
+
       const sqlFilePath = path.join(__dirname, '../sql/create_get_available_tables_function.sql');
       
       if (fs.existsSync(sqlFilePath)) {
@@ -84,12 +77,10 @@ async function exportDatabaseSchema() {
         });
         
         if (createError) {
-          console.error('خطأ في إنشاء الدالة:', createError);
         } else {
           
         }
       } else {
-        console.error(`ملف SQL غير موجود: ${sqlFilePath}`);
       }
     } else {
       
@@ -100,7 +91,6 @@ async function exportDatabaseSchema() {
     const { data: schema, error: schemaError } = await supabase.rpc('get_complete_db_schema');
     
     if (schemaError) {
-      console.error('خطأ في استخراج هيكل قاعدة البيانات:', schemaError);
       return;
     }
     
@@ -116,14 +106,12 @@ async function exportDatabaseSchema() {
     fs.writeFileSync(schemaFilePath, schema, 'utf8');
     
     // استخراج البيانات من الجداول المحددة
-    
-    
+
     for (const table of MAIN_TABLES) {
       
       const { data, error } = await supabase.from(table).select('*');
       
       if (error) {
-        console.error(`خطأ في استخراج بيانات جدول ${table}:`, error);
         continue;
       }
       
@@ -135,13 +123,9 @@ async function exportDatabaseSchema() {
         
       }
     }
-    
-    
-    
-    
+
     return { success: true };
   } catch (error) {
-    console.error('حدث خطأ أثناء استخراج هيكل قاعدة البيانات:', error);
     return { success: false, error };
   }
 }
@@ -152,7 +136,6 @@ exportDatabaseSchema()
     if (result.success) {
       
     } else {
-      console.error('فشل التنفيذ');
     }
   })
-  .catch(err => console.error('فشل التنفيذ بسبب خطأ:', err)); 
+  .catch(err => console.error('فشل التنفيذ بسبب خطأ:', err));

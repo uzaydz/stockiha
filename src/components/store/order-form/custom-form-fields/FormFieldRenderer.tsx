@@ -208,10 +208,9 @@ export const FormFieldRenderer: React.FC<FormFieldRendererProps> = ({
         // or handled by DeliveryTypeField if it's meant to be a more complex component.
         // For simplicity, if it's a simple select, it's handled by the 'select' case above.
         // If it is handled by fixedDeliveryType, then this specific case might not be hit if fixedDeliveryType is always present.
-        console.log("Rendering deliveryType as SelectField, ensure this is intended if fixedDeliveryType exists.");
         return <SelectField field={field} key={field.id} updateValue={updateValue} />;
 
     default:
       return null;
   }
-}; 
+};

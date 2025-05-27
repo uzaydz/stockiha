@@ -38,10 +38,7 @@ export const useProductFormInitialization = ({
   const isEditMode = !!id;
   const navigate = useNavigate();
 
-  console.log('[Hook] useProductFormInitialization - id:', id, 'isEditMode:', isEditMode, 'orgId passed:', organizationId);
-
   const resetData = useCallback((productData: Product | null) => {
-    console.log('[Hook resetData] productData (type Product | null from api):', productData, 'orgId from prop:', organizationId);
 
     const defaultAdvancedSettings: ProductAdvancedSettings = productAdvancedSettingsSchema.parse({});
 
@@ -64,7 +61,6 @@ export const useProductFormInitialization = ({
     const formSpecifications = (productData as any)?.specifications || {}; // specifications not strongly typed in Product
     const formWholesaleTiers = (productData as any)?.wholesale_tiers || []; // wholesale_tiers not strongly typed in Product
     const formUseVariantPrices = (productData as any)?.use_variant_prices || false; // use_variant_prices not strongly typed in Product
-
 
     const defaultValuesForForm: ProductFormValues = {
       id: productData?.id || '',
@@ -195,7 +191,6 @@ export const useProductFormInitialization = ({
         points_expiration_months: 0,
       },
     };
-    console.log('[Hook resetData] Resetting form with compiled values:', defaultValuesForForm);
     form.reset(defaultValuesForForm);
 
     if (productData) {
@@ -226,9 +221,7 @@ export const useProductFormInitialization = ({
       }
       setIsLoading(true);
       try {
-        console.log('[Hook useEffect] Edit mode, fetching product with id:', id);
         const fetchedProductData = await getProductById(id); // Returns Product | null
-        console.log('[Hook useEffect] Fetched productData (type Product | null from api):', fetchedProductData);
         if (fetchedProductData) {
             resetData(fetchedProductData);
         } else {
@@ -237,7 +230,6 @@ export const useProductFormInitialization = ({
              resetData(null); // Reset to new product form if product not found
         }
       } catch (error) {
-        console.error('Error fetching product:', error);
         toast.error('حدث خطأ أثناء تحميل بيانات المنتج.');
         resetData(null); // Reset to new product form on error
       }
@@ -248,11 +240,10 @@ export const useProductFormInitialization = ({
       loadProduct();
     } else {
       // New product mode
-      console.log('[Hook useEffect] New product mode. Calling resetData(null). OrgId to be used by resetData:', organizationId);
       resetData(null);
         setIsLoading(false);
     }
   }, [isEditMode, id, resetData, organizationId, setIsLoading, navigate]); // Added navigate to deps as it's used indirectly via toast potentially
 
   return { isLoading, productNameForTitle, isEditMode, initialDataSet };
-}; 
+};

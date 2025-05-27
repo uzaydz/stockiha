@@ -58,4 +58,4 @@ const AdvancedAnalyticsFeaturesPage = () => {
   );
 };
 
-export default AdvancedAnalyticsFeaturesPage; 
+export default AdvancedAnalyticsFeaturesPage;

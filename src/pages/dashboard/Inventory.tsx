@@ -93,9 +93,7 @@ const Inventory = () => {
         setIsCheckingPermissions(false);
         return;
       }
-      
-      
-      
+
       // التحقق من صلاحية مشاهدة المخزون
       const hasViewPermission = await checkUserPermissions(user, 'viewInventory');
       
@@ -157,7 +155,6 @@ const Inventory = () => {
         fetchUnsyncedCount();
       }
     } catch (error) {
-      console.error('Error fetching inventory data:', error);
       toast.error('حدث خطأ أثناء تحميل بيانات المخزون');
     } finally {
       if (isInitialLoad) {
@@ -197,7 +194,6 @@ const Inventory = () => {
         const data = await getProductsToReorder();
         setProductsToReorder(data);
       } catch (error) {
-        console.error('Error fetching products to reorder:', error);
         toast.error('حدث خطأ أثناء تحميل قائمة المنتجات التي تحتاج إعادة طلب');
       } finally {
         setIsReorderLoading(false);
@@ -239,12 +235,10 @@ const Inventory = () => {
     setIsRefreshing(true);
     
     try {
-      
-      
+
       // تحقق من حالة الاتصال
       if (!isOnline) {
-        
-        
+
         try {
           // إنشاء اتصال مباشر بقاعدة بيانات Dexie المحلية
           const inventoryDB = await import('@/lib/db/inventoryDB');
@@ -282,7 +276,6 @@ const Inventory = () => {
           setStats(getInventoryStats(localProducts));
           
         } catch (localError) {
-          console.error('خطأ في تحديث المنتجات محليًا:', localError);
         }
         
         // تحديث عدد العناصر غير المتزامنة
@@ -306,7 +299,6 @@ const Inventory = () => {
       
       toast.success('تم تحديث قائمة المخزون بنجاح');
     } catch (error) {
-      console.error('Error refreshing products:', error);
       toast.error('حدث خطأ أثناء تحديث المخزون');
     } finally {
       setIsRefreshing(false);
@@ -415,12 +407,12 @@ const Inventory = () => {
       <div className="container mx-auto py-10">
         <div className="space-y-4">
           <div className="flex items-center space-x-4">
-            <div className="bg-primary/10 p-3 rounded-full">
-              <Database className="h-6 w-6 text-primary" />
+            <div className="bg-primary/10 dark:bg-primary/20 p-3 rounded-full">
+              <Database className="h-6 w-6 text-primary dark:text-primary/90" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">إدارة المخزون</h1>
-              <p className="text-muted-foreground">
+              <h1 className="text-2xl font-bold text-foreground dark:text-zinc-100">إدارة المخزون</h1>
+              <p className="text-muted-foreground dark:text-zinc-400">
                 متابعة وتحديث كميات المنتجات في المخزون
               </p>
             </div>
@@ -428,46 +420,46 @@ const Inventory = () => {
           
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Total Stock Items */}
-            <div className="bg-background border rounded-lg p-4 flex items-center">
-              <div className="bg-primary/10 p-3 rounded-full ml-4">
-                <Package className="h-5 w-5 text-primary" />
+            <div className="bg-background dark:bg-zinc-900 border dark:border-zinc-800 rounded-lg p-4 flex items-center shadow-sm">
+              <div className="bg-primary/10 dark:bg-primary/20 p-3 rounded-full ml-4">
+                <Package className="h-5 w-5 text-primary dark:text-primary/90" />
               </div>
               <div>
-                <p className="text-muted-foreground text-sm">إجمالي المنتجات</p>
-                <p className="text-2xl font-bold">{stats.totalProducts}</p>
+                <p className="text-muted-foreground dark:text-zinc-400 text-sm">إجمالي المنتجات</p>
+                <p className="text-2xl font-bold text-foreground dark:text-zinc-100">{stats.totalProducts}</p>
               </div>
             </div>
             
             {/* In Stock Items */}
-            <div className="bg-background border rounded-lg p-4 flex items-center">
-              <div className="bg-green-100 p-3 rounded-full ml-4">
-                <Package className="h-5 w-5 text-green-600" />
+            <div className="bg-background dark:bg-zinc-900 border dark:border-zinc-800 rounded-lg p-4 flex items-center shadow-sm">
+              <div className="bg-green-100 dark:bg-green-900/30 p-3 rounded-full ml-4">
+                <Package className="h-5 w-5 text-green-600 dark:text-green-400" />
               </div>
               <div>
-                <p className="text-muted-foreground text-sm">متوفر في المخزون</p>
-                <p className="text-2xl font-bold">{stats.inStockProducts}</p>
+                <p className="text-muted-foreground dark:text-zinc-400 text-sm">متوفر في المخزون</p>
+                <p className="text-2xl font-bold text-foreground dark:text-zinc-100">{stats.inStockProducts}</p>
               </div>
             </div>
             
             {/* Low Stock Items */}
-            <div className="bg-background border rounded-lg p-4 flex items-center">
-              <div className="bg-amber-100 p-3 rounded-full ml-4">
-                <PackageMinus className="h-5 w-5 text-amber-600" />
+            <div className="bg-background dark:bg-zinc-900 border dark:border-zinc-800 rounded-lg p-4 flex items-center shadow-sm">
+              <div className="bg-amber-100 dark:bg-amber-900/30 p-3 rounded-full ml-4">
+                <PackageMinus className="h-5 w-5 text-amber-600 dark:text-amber-400" />
               </div>
               <div>
-                <p className="text-muted-foreground text-sm">منخفض المخزون</p>
-                <p className="text-2xl font-bold">{stats.lowStockProducts}</p>
+                <p className="text-muted-foreground dark:text-zinc-400 text-sm">منخفض المخزون</p>
+                <p className="text-2xl font-bold text-foreground dark:text-zinc-100">{stats.lowStockProducts}</p>
               </div>
             </div>
             
             {/* Out of Stock Items */}
-            <div className="bg-background border rounded-lg p-4 flex items-center">
-              <div className="bg-red-100 p-3 rounded-full ml-4">
-                <PackageX className="h-5 w-5 text-red-600" />
+            <div className="bg-background dark:bg-zinc-900 border dark:border-zinc-800 rounded-lg p-4 flex items-center shadow-sm">
+              <div className="bg-red-100 dark:bg-red-900/30 p-3 rounded-full ml-4">
+                <PackageX className="h-5 w-5 text-red-600 dark:text-red-400" />
               </div>
               <div>
-                <p className="text-muted-foreground text-sm">نفذ من المخزون</p>
-                <p className="text-2xl font-bold">{stats.outOfStockProducts}</p>
+                <p className="text-muted-foreground dark:text-zinc-400 text-sm">نفذ من المخزون</p>
+                <p className="text-2xl font-bold text-foreground dark:text-zinc-100">{stats.outOfStockProducts}</p>
               </div>
             </div>
           </div>
@@ -475,10 +467,10 @@ const Inventory = () => {
         
         {/* عرض تحذير لصلاحية المشاهدة فقط */}
         {canViewInventory && !canManageInventory && (
-          <Alert className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>صلاحية محدودة</AlertTitle>
-            <AlertDescription>
+          <Alert className="mb-4 bg-background dark:bg-zinc-900 border-border dark:border-zinc-800">
+            <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <AlertTitle className="text-foreground dark:text-zinc-200">صلاحية محدودة</AlertTitle>
+            <AlertDescription className="text-muted-foreground dark:text-zinc-400">
               لديك صلاحية مشاهدة المخزون فقط. لا يمكنك تعديل كميات المخزون. 
               إذا كنت تحتاج إلى صلاحية التعديل، يرجى التواصل مع مدير النظام.
             </AlertDescription>
@@ -497,16 +489,16 @@ const Inventory = () => {
             className="w-full"
           >
             <div className="flex items-center justify-between mb-4">
-              <TabsList className="grid w-96 grid-cols-2">
-                <TabsTrigger value="all" className="flex items-center gap-2">
+              <TabsList className="grid w-96 grid-cols-2 bg-muted dark:bg-zinc-800 border-border dark:border-zinc-700">
+                <TabsTrigger value="all" className="flex items-center gap-2 data-[state=active]:bg-background dark:data-[state=active]:bg-zinc-900 text-foreground dark:text-zinc-200">
                   <Package className="h-4 w-4" />
                   جميع المنتجات
                 </TabsTrigger>
-                <TabsTrigger value="to-reorder" className="flex items-center gap-2">
+                <TabsTrigger value="to-reorder" className="flex items-center gap-2 data-[state=active]:bg-background dark:data-[state=active]:bg-zinc-900 text-foreground dark:text-zinc-200">
                   <ShoppingCart className="h-4 w-4" />
                   يحتاج إعادة طلب
                   {stats.lowStockProducts > 0 && (
-                    <span className="flex items-center justify-center bg-amber-100 text-amber-700 rounded-full h-5 w-5 text-xs font-medium">
+                    <span className="flex items-center justify-center bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full h-5 w-5 text-xs font-medium">
                       {stats.lowStockProducts}
                     </span>
                   )}
@@ -515,9 +507,9 @@ const Inventory = () => {
               
               <div className="flex items-center gap-2">
                 {!isOnline && (
-                  <Badge variant="outline" className="bg-amber-50 flex items-center gap-1 border-amber-200">
-                    <WifiOff className="h-3 w-3 text-amber-600" />
-                    <span className="text-amber-700">وضع عدم الاتصال</span>
+                  <Badge variant="outline" className="bg-amber-50 dark:bg-amber-900/20 flex items-center gap-1 border-amber-200 dark:border-amber-700/30 text-amber-700 dark:text-amber-400">
+                    <WifiOff className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                    <span>وضع عدم الاتصال</span>
                   </Badge>
                 )}
                 
@@ -525,7 +517,7 @@ const Inventory = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="flex items-center gap-2 text-xs"
+                    className="flex items-center gap-2 text-xs bg-background dark:bg-zinc-800 border-border dark:border-zinc-700 text-foreground dark:text-zinc-200 hover:bg-accent dark:hover:bg-zinc-700"
                     onClick={handleSyncInventory}
                     disabled={!isOnline || isSyncing}
                   >
@@ -535,7 +527,7 @@ const Inventory = () => {
                       <Cloud className="h-3.5 w-3.5" />
                     )}
                     مزامنة المخزون
-                    <Badge variant="secondary" className="ml-1">
+                    <Badge variant="secondary" className="ml-1 bg-secondary/50 dark:bg-zinc-700 text-foreground dark:text-zinc-200">
                       {unsyncedCount}
                     </Badge>
                   </Button>
@@ -544,7 +536,7 @@ const Inventory = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="flex items-center gap-2 text-xs"
+                  className="flex items-center gap-2 text-xs bg-background dark:bg-zinc-800 border-border dark:border-zinc-700 text-foreground dark:text-zinc-200 hover:bg-accent dark:hover:bg-zinc-700"
                   onClick={refreshProducts}
                 >
                   <History className="h-3.5 w-3.5" />
@@ -662,4 +654,4 @@ const Inventory = () => {
   );
 };
 
-export default Inventory; 
+export default Inventory;

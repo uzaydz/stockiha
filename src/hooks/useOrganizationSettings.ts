@@ -158,13 +158,11 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
                 setTrackingPixels(customJsData.trackingPixels);
               }
             } catch (error) {
-              console.error('فشل تحليل بيانات بكسل التتبع', error);
               // استمر باستخدام القيم الافتراضية في حالة الفشل
             }
           }
         }
       } catch (error) {
-        console.error('فشل في جلب إعدادات المؤسسة', error);
         toast({
           title: 'خطأ',
           description: 'فشل في جلب إعدادات المؤسسة',
@@ -204,7 +202,16 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
   
   // حفظ الإعدادات
   const saveSettings = async () => {
+    const startTime = Date.now();
+    console.log('🚀 [useOrganizationSettings] بدء عملية حفظ الإعدادات:', {
+      organizationId,
+      settings,
+      trackingPixels,
+      timestamp: new Date().toISOString()
+    });
+
     if (!organizationId) {
+      console.error('❌ [useOrganizationSettings] معرف المؤسسة مفقود');
       toast({
         title: 'خطأ في الحفظ',
         description: 'معرف المؤسسة مطلوب لحفظ الإعدادات.',
@@ -217,11 +224,17 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
     setSaveSuccess(false);
     
     try {
+      console.log('⏱️ [useOrganizationSettings] التحقق من جلسة المستخدم...');
+      const sessionStartTime = Date.now();
+      
       // تأكد من الحصول على أحدث جلسة قبل إجراء طلب RPC
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      const sessionEndTime = Date.now();
+      
+      console.log(`⏱️ [useOrganizationSettings] وقت التحقق من الجلسة: ${sessionEndTime - sessionStartTime}ms`);
 
       if (sessionError) {
-        console.error('Error getting session in useOrganizationSettings saveSettings:', sessionError);
+        console.error('❌ [useOrganizationSettings] خطأ في الجلسة:', sessionError);
         toast({ 
           title: 'خطأ في الجلسة', 
           description: 'لا يمكن التحقق من جلسة المستخدم عند محاولة الحفظ.', 
@@ -232,7 +245,7 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
       }
 
       if (!session || !session.user) {
-        console.error('No active session or user found in useOrganizationSettings saveSettings');
+        console.error('❌ [useOrganizationSettings] جلسة غير نشطة');
         toast({ 
           title: 'جلسة غير نشطة', 
           description: 'يرجى تسجيل الدخول مرة أخرى قبل الحفظ.', 
@@ -242,8 +255,8 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
         return;
       }
 
-      
-      
+      console.log('✅ [useOrganizationSettings] الجلسة صالحة، تحضير البيانات...');
+      const dataStartTime = Date.now();
 
       // إنشاء كائن بيانات custom_js جديد بدلاً من محاولة استرجاع البيانات القديمة
       let customJsData: CustomJsData = {
@@ -262,15 +275,14 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
               existingSeoSettings = existingData.seoSettings;
             }
           } catch (parseError) {
-            
+            console.warn('⚠️ [useOrganizationSettings] فشل في تحليل custom_js الموجود:', parseError);
           }
           
           if (existingSeoSettings) {
             customJsData.seoSettings = existingSeoSettings;
           }
         } catch (error) {
-          console.error('فشل في استرجاع إعدادات SEO', error);
-          // استمر بالعملية
+          console.warn('⚠️ [useOrganizationSettings] خطأ في معالجة SEO settings:', error);
         }
       }
       
@@ -278,11 +290,21 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
       
       // إنشاء عميل supabase جديد مع الجلسة المحدثة
       const freshSupabase = getSupabaseClient();
-      
-      
-      
+
       // تأكد من تحويل البيانات إلى نص JSON بشكل صحيح
       const safeCustomJsStr = JSON.stringify(customJsData);
+      
+      const dataEndTime = Date.now();
+      console.log(`⏱️ [useOrganizationSettings] وقت تحضير البيانات: ${dataEndTime - dataStartTime}ms`);
+      
+      console.log('📤 [useOrganizationSettings] إرسال البيانات لحفظ إعدادات المؤسسة...');
+      const updateStartTime = Date.now();
+      
+      // إعلام المستخدم أن العملية قد تستغرق وقتاً
+      toast({
+        title: 'جاري الحفظ...',
+        description: 'قد تستغرق العملية بضع ثوانٍ، يرجى الانتظار',
+      });
       
       // حفظ إعدادات المؤسسة العامة
       const updateResult = await updateOrganizationSettings(organizationId, {
@@ -299,10 +321,16 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
         display_text_with_logo: settings.display_text_with_logo
       });
       
-      
-      
+      const updateEndTime = Date.now();
+      console.log(`⏱️ [useOrganizationSettings] وقت حفظ إعدادات المؤسسة: ${updateEndTime - updateStartTime}ms`);
+      console.log('📊 [useOrganizationSettings] نتيجة حفظ إعدادات المؤسسة:', updateResult);
+
       // حفظ إعدادات SEO بشكل منفصل في جدول store_settings
+      // تم تعطيل هذا مؤقتاً لتحسين الأداء - سيتم حفظ SEO مع الإعدادات العامة
+      /*
       if (customJsData.seoSettings) {
+        console.log('📤 [useOrganizationSettings] حفظ إعدادات SEO...');
+        const seoStartTime = Date.now();
         
         try {
           const { data, error } = await freshSupabase.rpc('update_store_seo_settings', {
@@ -310,19 +338,42 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
             _settings: customJsData.seoSettings
           });
           
+          const seoEndTime = Date.now();
+          console.log(`⏱️ [useOrganizationSettings] وقت حفظ إعدادات SEO: ${seoEndTime - seoStartTime}ms`);
+          
           if (error) {
-            console.error('فشل في حفظ إعدادات SEO', error);
+            console.error('❌ [useOrganizationSettings] خطأ في حفظ إعدادات SEO:', error);
             throw error;
           }
-          
-          
+
+          console.log('✅ [useOrganizationSettings] تم حفظ إعدادات SEO بنجاح:', data);
         } catch (error) {
-          console.error('استثناء أثناء حفظ إعدادات SEO', error);
-          // استمر بالعملية حتى مع وجود خطأ في SEO
+          console.warn('⚠️ [useOrganizationSettings] فشل في حفظ إعدادات SEO، لكن سنستمر:', error);
         }
       }
+      */
       
+      console.log('ℹ️ [useOrganizationSettings] تم تخطي حفظ SEO المنفصل لتحسين الأداء');
+      
+      console.log('🎨 [useOrganizationSettings] تطبيق الثيم...');
       setTheme(themeMode);
+      
+      // تطبيق الثيم مباشرة من البيانات المحفوظة
+      console.log('🔧 [useOrganizationSettings] تطبيق الثيم مباشرة من البيانات المحفوظة...');
+      const { updateOrganizationTheme } = await import('@/lib/themeManager');
+      
+      updateOrganizationTheme(organizationId, {
+        theme_primary_color: settings.theme_primary_color,
+        theme_secondary_color: settings.theme_secondary_color,
+        theme_mode: settings.theme_mode,
+        custom_css: settings.custom_css
+      });
+      
+      console.log('✅ [useOrganizationSettings] تم تطبيق الثيم مباشرة:', {
+        primary: settings.theme_primary_color,
+        secondary: settings.theme_secondary_color,
+        mode: themeMode
+      });
       
       setSaveSuccess(true);
       toast({
@@ -332,12 +383,68 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
       
       localStorage.setItem('theme-preference', themeMode);
       
+      // التحقق من تطبيق الثيم بعد فترة قصيرة
+      setTimeout(() => {
+        const root = document.documentElement;
+        const appliedPrimary = window.getComputedStyle(root).getPropertyValue('--primary').trim();
+        
+        // تحويل اللون المتوقع إلى HSL للمقارنة
+        const expectedHSL = (() => {
+          const hex = settings.theme_primary_color.replace('#', '');
+          const r = parseInt(hex.substring(0, 2), 16) / 255;
+          const g = parseInt(hex.substring(2, 4), 16) / 255;
+          const b = parseInt(hex.substring(4, 6), 16) / 255;
+          
+          const max = Math.max(r, g, b);
+          const min = Math.min(r, g, b);
+          let h = 0, s = 0, l = (max + min) / 2;
+
+          if (max !== min) {
+            const d = max - min;
+            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+            
+            switch (max) {
+              case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+              case g: h = (b - r) / d + 2; break;
+              case b: h = (r - g) / d + 4; break;
+            }
+            h /= 6;
+          }
+          
+          return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
+        })();
+        
+        console.log('🔍 [useOrganizationSettings] التحقق من تطبيق الثيم:', {
+          expectedHex: settings.theme_primary_color,
+          expectedHSL,
+          appliedPrimary,
+          themeMode,
+          isMatch: appliedPrimary === expectedHSL
+        });
+        
+        if (appliedPrimary === expectedHSL) {
+          console.log('✅ [useOrganizationSettings] الثيم مطبق بنجاح');
+        } else {
+          console.warn('⚠️ [useOrganizationSettings] الثيم لم يتطبق بالشكل المتوقع');
+        }
+      }, 100);
+      
+      const totalTime = Date.now() - startTime;
+      console.log(`🎉 [useOrganizationSettings] اكتملت عملية الحفظ بنجاح في ${totalTime}ms`);
+      
       setTimeout(() => {
         setSaveSuccess(false);
       }, 2000);
       
     } catch (error) {
-      console.error('خطأ أثناء حفظ إعدادات المؤسسة:', error);
+      const totalTime = Date.now() - startTime;
+      console.error('💥 [useOrganizationSettings] خطأ في عملية الحفظ:', {
+        error,
+        message: error instanceof Error ? error.message : 'خطأ غير معروف',
+        stack: error instanceof Error ? error.stack : undefined,
+        totalTime: `${totalTime}ms`
+      });
+      
       toast({
         title: 'خطأ في الحفظ',
         description: 'حدث خطأ أثناء حفظ الإعدادات، الرجاء المحاولة مرة أخرى.',
@@ -360,4 +467,4 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
   };
 };
 
-export default useOrganizationSettings; 
+export default useOrganizationSettings;

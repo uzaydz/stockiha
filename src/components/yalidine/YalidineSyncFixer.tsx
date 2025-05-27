@@ -63,7 +63,6 @@ export default function YalidineSyncFixer({ onComplete }: SyncFixerProps) {
           );
           
           if (sqlError) {
-            console.error('Error creating database functions:', sqlError);
             setFixResult({
               success: false,
               message: 'فشل في إنشاء وظائف قاعدة البيانات اللازمة للإصلاح'
@@ -75,7 +74,6 @@ export default function YalidineSyncFixer({ onComplete }: SyncFixerProps) {
       // تعيين الحالة بناءً على نتيجة التشخيص
       setStatus(result.hasProblem ? 'error' : 'success');
     } catch (error) {
-      console.error('Error during diagnostics:', error);
       setStatus('error');
       setFixResult({
         success: false,
@@ -104,7 +102,6 @@ export default function YalidineSyncFixer({ onComplete }: SyncFixerProps) {
         );
         
         if (constraintError) {
-          console.error('Error fixing constraints:', constraintError);
           setFixResult({
             success: false,
             message: 'فشل في إصلاح قيود المفتاح الفريد: ' + constraintError.message
@@ -119,7 +116,6 @@ export default function YalidineSyncFixer({ onComplete }: SyncFixerProps) {
         );
         
         if (cleanupError) {
-          console.error('Error cleaning up duplicates:', cleanupError);
           // يمكن المتابعة حتى مع وجود خطأ في التنظيف
         }
         
@@ -146,7 +142,6 @@ export default function YalidineSyncFixer({ onComplete }: SyncFixerProps) {
         setStatus('error');
       }
     } catch (error) {
-      console.error('Error applying fix:', error);
       setFixResult({
         success: false,
         message: 'حدث خطأ أثناء تطبيق الإصلاح: ' + (error as Error).message
@@ -292,4 +287,4 @@ function Spinner({ size = "default", className = "" }) {
       </svg>
     </div>
   );
-} 
+}

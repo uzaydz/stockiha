@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useShop } from '@/context/ShopContext';
 import { useTenant } from '@/context/TenantContext';
-import { User, ServiceStatus, ServiceBooking as ServiceBookingType, UserRole, ServiceProgress } from '@/types';
+import { User, ServiceStatus, ServiceBooking as ServiceBookingType, UserRole, ServiceProgress, RepairLocation } from '@/types';
 import { getServiceRequests } from '@/lib/api/services';
+import { getRepairLocationById, getActiveRepairLocations } from '@/lib/api/repairLocations';
 import {
   Table,
   TableBody,
@@ -39,10 +40,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { AlertCircle, CheckCircle, Clock, Search, XCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { AlertCircle, CheckCircle, Clock, Search, XCircle, ChevronLeft, ChevronRight, Building } from 'lucide-react';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/supabase';
+import RepairLocationManager from '@/components/pos/RepairLocationManager';
 
 interface ServiceBookingWithOrder {
   orderId: string;
@@ -93,6 +95,8 @@ const ServiceTracking = () => {
   const { currentOrganization, isLoading: orgLoading } = useTenant();
   
   const [serviceBookings, setServiceBookings] = useState<ServiceBookingWithOrder[]>([]);
+  const [repairLocations, setRepairLocations] = useState<Record<string, RepairLocation>>({});
+  const [availableLocations, setAvailableLocations] = useState<RepairLocation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -103,8 +107,43 @@ const ServiceTracking = () => {
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
   const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
+  const [isRepairLocationManagerOpen, setIsRepairLocationManagerOpen] = useState(false);
+  const [isChangeLocationDialogOpen, setIsChangeLocationDialogOpen] = useState(false);
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  
+  // دالة لتحميل أماكن التصليح
+  const loadRepairLocations = async (locationIds: string[]) => {
+    try {
+      const locations: Record<string, RepairLocation> = {};
+      
+      for (const locationId of locationIds) {
+        if (!repairLocations[locationId] && currentOrganization) {
+          const location = await getRepairLocationById(currentOrganization.id, locationId);
+          if (location) {
+            locations[locationId] = location;
+          }
+        }
+      }
+      
+      if (Object.keys(locations).length > 0) {
+        setRepairLocations(prev => ({ ...prev, ...locations }));
+      }
+    } catch (error) {
+    }
+  };
+  
+  // دالة لتحميل أماكن التصليح المتاحة
+  const loadAvailableLocations = async () => {
+    if (!currentOrganization) return;
+    
+    try {
+      const locations = await getActiveRepairLocations(currentOrganization.id);
+      setAvailableLocations(locations);
+    } catch (error) {
+    }
+  };
   
   // الحصول على الخدمات
   const fetchServiceBookings = async () => {
@@ -119,9 +158,7 @@ const ServiceTracking = () => {
         setIsLoading(false);
         return;
       }
-      
-      
-      
+
       // التحقق من وجود خدمات للمؤسسة الحالية وإصلاح المشكلة إذا لزم الأمر
       try {
         // فحص ما إذا كانت هناك أي خدمات في النظام
@@ -133,27 +170,22 @@ const ServiceTracking = () => {
         if (!servicesError && availableServices && availableServices.length > 0) {
           // الحصول على قائمة المؤسسات التي لديها خدمات
           const orgsWithServices = [...new Set(availableServices.map(s => s.organization_id))];
-          
-          
-          
-          
-          
+
           // إذا لم تكن المؤسسة الحالية موجودة في القائمة، يمكننا محاولة استخدام إحدى المؤسسات المتاحة
           if (!orgsWithServices.includes(currentOrganization.id) && orgsWithServices.length > 0) {
             
           }
         }
       } catch (checkError) {
-        console.error('خطأ أثناء التحقق من توفر الخدمات:', checkError);
       }
       
       // استخدام الدالة الجديدة لجلب طلبات الخدمات
       const data = await getServiceRequests(currentOrganization.id);
       
       // تحويل البيانات إلى الصيغة المطلوبة
-      const transformedData = data.map(booking => ({
+      const transformedData = data.map((booking: any) => ({
         orderId: booking.order_id,
-        order: booking.orders || {},
+        order: {}, // سنحتاج لجلب بيانات الطلب منفصلة إذا لزم الأمر
         serviceBooking: {
           id: booking.id,
           serviceId: booking.service_id,
@@ -163,18 +195,28 @@ const ServiceTracking = () => {
           notes: booking.notes,
           customerId: booking.customer_id,
           customer_name: booking.customer_name || undefined,
+          customer_phone: booking.customer_phone || undefined,
           status: booking.status as ServiceStatus,
           assignedTo: booking.assigned_to,
           completedAt: booking.completed_at ? new Date(booking.completed_at) : undefined,
           public_tracking_code: booking.public_tracking_code,
-          progress: []
+          progress: [],
+          repair_location_id: booking.repair_location_id
         }
       }));
       
       setServiceBookings(transformedData);
       
+      // تحميل أماكن التصليح للخدمات التي لديها repair_location_id
+      const locationIds = transformedData
+        .map(item => item.serviceBooking.repair_location_id)
+        .filter(Boolean) as string[];
+      
+      if (locationIds.length > 0) {
+        await loadRepairLocations(locationIds);
+      }
+      
     } catch (error) {
-      console.error('Error fetching service bookings:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء جلب طلبات الخدمات',
@@ -193,6 +235,13 @@ const ServiceTracking = () => {
     }
   }, [currentOrganization]);
   
+  // تحميل أماكن التصليح المتاحة عند فتح نافذة تغيير المكان
+  useEffect(() => {
+    if (isChangeLocationDialogOpen) {
+      loadAvailableLocations();
+    }
+  }, [isChangeLocationDialogOpen]);
+  
   // تصفية الخدمات بناءً على البحث وحالة الخدمة
   const filteredBookings = serviceBookings.filter((booking) => {
     // تصفية البحث
@@ -200,6 +249,7 @@ const ServiceTracking = () => {
     const matchesSearch = 
       booking.serviceBooking.serviceName.toLowerCase().includes(searchLower) || 
       (booking.serviceBooking.customer_name?.toLowerCase().includes(searchLower)) ||
+      (booking.serviceBooking.customer_phone?.toLowerCase().includes(searchLower)) ||
       (booking.serviceBooking.notes?.toLowerCase().includes(searchLower));
     
     // تصفية الحالة
@@ -244,7 +294,6 @@ const ServiceTracking = () => {
       setSelectedStatus(null);
       await fetchServiceBookings();
     } catch (error) {
-      console.error('Error updating service status:', error);
       // يمكن إضافة رسالة خطأ هنا
     }
   };
@@ -264,7 +313,6 @@ const ServiceTracking = () => {
       setSelectedEmployeeId(null);
       await fetchServiceBookings();
     } catch (error) {
-      console.error('Error assigning employee:', error);
       // يمكن إضافة رسالة خطأ هنا
     }
   };
@@ -279,8 +327,52 @@ const ServiceTracking = () => {
   // الحصول على الموظفين الذين يمكن تعيينهم للخدمة
   const getAssignableEmployees = () => {
     return users.filter(user => 
-      user.role === 'employee' || user.role === 'admin' || user.role === 'owner'
+      user.role === 'admin' || 
+      user.role === 'employee' || 
+      user.role === 'owner'
     );
+  };
+  
+  // دالة للحصول على اسم مكان التصليح
+  const getRepairLocationName = (locationId?: string) => {
+    if (!locationId) return 'غير محدد';
+    
+    const location = repairLocations[locationId];
+    return location ? location.name : 'جاري التحميل...';
+  };
+  
+  // دالة لتحديث مكان التصليح للخدمة
+  const handleChangeRepairLocation = async () => {
+    if (!selectedService) return;
+    
+    try {
+      // تحديث مكان التصليح في قاعدة البيانات
+      const { error } = await (supabase as any)
+        .from('service_bookings')
+        .update({ repair_location_id: selectedLocationId })
+        .eq('id', selectedService.serviceBooking.id);
+      
+      if (error) {
+        throw error;
+      }
+      
+      toast({
+        title: 'تم التحديث بنجاح',
+        description: selectedLocationId 
+          ? 'تم تحديث مكان التصليح للخدمة'
+          : 'تم إزالة مكان التصليح من الخدمة',
+      });
+      
+      setIsChangeLocationDialogOpen(false);
+      setSelectedLocationId(null);
+      await fetchServiceBookings();
+    } catch (error) {
+      toast({
+        title: 'خطأ',
+        description: 'حدث خطأ أثناء تحديث مكان التصليح',
+        variant: 'destructive',
+      });
+    }
   };
   
   return (
@@ -293,7 +385,7 @@ const ServiceTracking = () => {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
           <Input
             type="text"
-            placeholder="بحث عن خدمة، عميل، ملاحظات..."
+            placeholder="بحث عن خدمة، عميل، رقم هاتف، ملاحظات..."
             className="pl-10 w-full"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -323,6 +415,15 @@ const ServiceTracking = () => {
         >
           تحديث
         </Button>
+        
+        <Button 
+          onClick={() => setIsRepairLocationManagerOpen(true)}
+          variant="outline"
+          className="gap-2"
+        >
+          <Building className="h-4 w-4" />
+          إدارة أماكن التصليح
+        </Button>
       </div>
       
       {/* عرض الخدمات */}
@@ -348,6 +449,8 @@ const ServiceTracking = () => {
                   <TableRow>
                     <TableHead>الخدمة</TableHead>
                     <TableHead>العميل</TableHead>
+                    <TableHead>رقم الهاتف</TableHead>
+                    <TableHead>مكان التصليح</TableHead>
                     <TableHead>كود التتبع</TableHead>
                     <TableHead>السعر</TableHead>
                     <TableHead>التاريخ المجدول</TableHead>
@@ -371,6 +474,17 @@ const ServiceTracking = () => {
                       </TableCell>
                       <TableCell>
                         {booking.serviceBooking.customer_name || 'زبون غير مسجل'}
+                      </TableCell>
+                      <TableCell>
+                        {booking.serviceBooking.customer_phone || 'غير معروف'}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Building className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm text-muted-foreground">
+                            {getRepairLocationName(booking.serviceBooking.repair_location_id)}
+                          </span>
+                        </div>
                       </TableCell>
                       <TableCell className="font-mono text-xs">
                         {booking.serviceBooking.public_tracking_code || booking.serviceBooking.id.substring(0, 13)}
@@ -416,6 +530,16 @@ const ServiceTracking = () => {
                             }}
                           >
                             تعيين مسؤول
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedService(booking);
+                              setIsChangeLocationDialogOpen(true);
+                            }}
+                          >
+                            تغيير المكان
                           </Button>
                           <Button
                             size="sm"
@@ -676,8 +800,149 @@ const ServiceTracking = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+      {/* نافذة تغيير مكان التصليح */}
+      <Dialog open={isChangeLocationDialogOpen} onOpenChange={(open) => {
+        setIsChangeLocationDialogOpen(open);
+        if (!open) {
+          setSelectedLocationId(null);
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Building className="h-5 w-5" />
+              تغيير مكان التصليح
+            </DialogTitle>
+            <DialogDescription>
+              اختر مكان التصليح الجديد للخدمة: {selectedService?.serviceBooking.serviceName}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-1 gap-2">
+              {availableLocations.length === 0 ? (
+                <div className="text-center py-4 text-muted-foreground">
+                  لا توجد أماكن تصليح متاحة
+                </div>
+              ) : (
+                <>
+                  {/* خيار إزالة مكان التصليح */}
+                  <Button
+                    variant={selectedLocationId === null ? 'default' : 'outline'}
+                    className="justify-start p-4 h-auto border-dashed"
+                    onClick={() => setSelectedLocationId(null)}
+                  >
+                    <div className="flex items-center gap-3 w-full">
+                      <XCircle className="h-5 w-5 text-muted-foreground" />
+                      <span className="text-muted-foreground">إزالة مكان التصليح</span>
+                    </div>
+                  </Button>
+                  
+                  {/* أماكن التصليح المتاحة */}
+                  {availableLocations.map((location) => (
+                    <Button
+                      key={location.id}
+                      variant={selectedLocationId === location.id ? 'default' : 'outline'}
+                      className="justify-start p-4 h-auto"
+                      onClick={() => setSelectedLocationId(location.id)}
+                    >
+                      <div className="flex items-start gap-3 w-full">
+                        <Building className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                        <div className="text-left flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{location.name}</span>
+                            {location.is_default && (
+                              <Badge variant="secondary" className="bg-primary/10 text-primary text-xs">
+                                افتراضي
+                              </Badge>
+                            )}
+                          </div>
+                          {location.address && (
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {location.address}
+                            </p>
+                          )}
+                          {location.phone && (
+                            <p className="text-sm text-muted-foreground">
+                              📞 {location.phone}
+                            </p>
+                          )}
+                          {location.specialties && location.specialties.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {location.specialties.slice(0, 3).map((specialty, index) => (
+                                <Badge key={index} variant="outline" className="text-xs">
+                                  {specialty}
+                                </Badge>
+                              ))}
+                              {location.specialties.length > 3 && (
+                                <Badge variant="outline" className="text-xs">
+                                  +{location.specialties.length - 3}
+                                </Badge>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </Button>
+                  ))}
+                </>
+              )}
+            </div>
+            
+            <div className="mt-4 p-3 bg-muted/30 rounded-lg">
+              <p className="text-sm text-muted-foreground">
+                💡 يمكنك إدارة أماكن التصليح من خلال زر "إدارة أماكن التصليح" في الشريط العلوي
+              </p>
+            </div>
+          </div>
+          
+          <DialogFooter className="flex justify-between">
+            <Button variant="outline" onClick={() => setIsChangeLocationDialogOpen(false)}>
+              إلغاء
+            </Button>
+            <Button 
+              onClick={handleChangeRepairLocation}
+              disabled={false}
+            >
+              تأكيد التغيير
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* نافذة إدارة أماكن التصليح */}
+      <Dialog open={isRepairLocationManagerOpen} onOpenChange={setIsRepairLocationManagerOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Building className="h-5 w-5" />
+              إدارة أماكن التصليح
+            </DialogTitle>
+            <DialogDescription>
+              إدارة وتحرير أماكن التصليح المتاحة في المؤسسة
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="h-[70vh]">
+            {currentOrganization && (
+              <RepairLocationManager
+                organizationId={currentOrganization.id}
+                onLocationSelect={() => {}} // لا نحتاج لاختيار مكان هنا
+                selectedLocationId={undefined}
+              />
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button onClick={() => setIsRepairLocationManagerOpen(false)}>
+              إغلاق
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
 
-export default ServiceTracking; 
+export default ServiceTracking;

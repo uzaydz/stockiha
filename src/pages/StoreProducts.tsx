@@ -70,7 +70,6 @@ const StoreProducts = () => {
           setPriceRange([minPrice, maxPrice]);
         }
       } catch (error) {
-        console.error('Error fetching data:', error);
         toast.error('حدث خطأ أثناء تحميل البيانات');
       } finally {
         setIsLoading(false);
@@ -106,20 +105,39 @@ const StoreProducts = () => {
     // Apply category filter
     if (categoryFilter) {
       result = result.filter(product => {
-        // استخدام category_id كخيار أول إذا كان موجوداً
+        // الطريقة الأولى: التحقق من category_id
         if (product.category_id === categoryFilter) {
           return true;
         }
         
-        // التحقق من كائن category إذا كان موجوداً واستخراج id منه
-        const category = product.category;
-        if (!category || typeof category !== 'object') {
-          return false;
+        // الطريقة الثانية: التحقق من حقل category إذا كان string
+        if (product.category && typeof product.category === 'string' && product.category === categoryFilter) {
+          return true;
         }
         
-        // فحص إضافي للتأكد من وجود id
-        if ('id' in category) {
-          return (category as any).id === categoryFilter;
+        // الطريقة الثالثة: التحقق من كائن category إذا كان موجوداً
+        if (product.category && typeof product.category === 'object') {
+          // فحص إضافي للتأكد من وجود id
+          if ('id' in product.category && (product.category as any).id === categoryFilter) {
+            return true;
+          }
+          
+          // فحص إضافي للتأكد من وجود name
+          if ('name' in product.category) {
+            // البحث عن الفئة بالاسم
+            const categoryByName = categories.find(cat => cat.name === (product.category as any).name);
+            if (categoryByName && categoryByName.id === categoryFilter) {
+              return true;
+            }
+          }
+        }
+        
+        // الطريقة الرابعة: البحث بالاسم مباشرة في حقل category
+        if (product.category && typeof product.category === 'string') {
+          const categoryByName = categories.find(cat => cat.name === product.category as string);
+          if (categoryByName && categoryByName.id === categoryFilter) {
+            return true;
+          }
         }
         
         return false;
@@ -533,4 +551,4 @@ const StoreProducts = () => {
   );
 };
 
-export default StoreProducts; 
+export default StoreProducts;

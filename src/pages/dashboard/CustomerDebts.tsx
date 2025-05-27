@@ -53,7 +53,6 @@ const CustomerDebts: React.FC = () => {
 
         setPermissionsChecked(true);
       } catch (err) {
-        console.error('خطأ في التحقق من الصلاحيات:', err);
         setHasViewPermission(false);
         setHasPaymentPermission(false);
       }
@@ -73,23 +72,17 @@ const CustomerDebts: React.FC = () => {
       
       return;
     }
-    
-    
-    
+
     const fetchDebtsData = async () => {
       try {
         setIsLoading(true);
         setError(null);
-        
-        
-        
+
         // استخدام البيانات الحقيقية من الـ API
         const data = await getDebtsData(currentOrganization.id);
-        
-        
+
         setDebtsData(data);
       } catch (err) {
-        console.error('خطأ في تحميل بيانات الديون:', err);
         setError('حدث خطأ أثناء تحميل بيانات الديون');
         toast.error('فشل في تحميل بيانات الديون');
         
@@ -142,7 +135,6 @@ const CustomerDebts: React.FC = () => {
       setPaymentModalOpen(false);
       setRefreshTrigger(prev => prev + 1);
     } catch (err) {
-      console.error('خطأ في تسجيل الدفع:', err);
       toast.error('فشل في تسجيل الدفع');
     } finally {
       setIsLoading(false);
@@ -350,4 +342,4 @@ const CustomerDebts: React.FC = () => {
   );
 };
 
-export default CustomerDebts; 
+export default CustomerDebts;

@@ -15,8 +15,7 @@ import { getSyncStatus, updateSyncStatus } from './sync-status';
  */
 export async function syncMunicipalities(organizationId: string, apiClient: AxiosInstance): Promise<boolean> {
   try {
-    
-    
+
     // تحديث حالة التقدم
     const syncStatus = getSyncStatus();
     syncStatus.municipalities.status = 'syncing';
@@ -28,16 +27,13 @@ export async function syncMunicipalities(organizationId: string, apiClient: Axio
       .select('*', { count: 'exact' });
     
     if (globalError || !globalMunicipalities || globalMunicipalities.length === 0) {
-      console.error('[ERROR] لا توجد بيانات بلديات عالمية، محاولة مزامنة البيانات العالمية أولاً');
       
       // تحديث حالة الفشل
       syncStatus.municipalities.status = 'failed';
       updateSyncStatus(syncStatus);
       return false;
     }
-    
-    
-    
+
     // تحديث حالة التقدم
     syncStatus.municipalities.total = globalMunicipalities.length;
     updateSyncStatus(syncStatus);
@@ -50,7 +46,6 @@ export async function syncMunicipalities(organizationId: string, apiClient: Axio
       .eq('organization_id', organizationId);
     
     if (deleteError) {
-      console.error('[ERROR] خطأ أثناء حذف بيانات البلديات القديمة:', deleteError);
       syncStatus.municipalities.status = 'failed';
       updateSyncStatus(syncStatus);
       return false;
@@ -63,16 +58,13 @@ export async function syncMunicipalities(organizationId: string, apiClient: Axio
     for (let i = 0; i < globalMunicipalities.length; i += chunkSize) {
       municipalityChunks.push(globalMunicipalities.slice(i, i + chunkSize));
     }
-    
-    
-    
+
     // إدخال البيانات على دفعات
     let insertedCount = 0;
     for (let chunkIndex = 0; chunkIndex < municipalityChunks.length; chunkIndex++) {
       const chunk = municipalityChunks[chunkIndex];
       try {
-        
-        
+
         const dataToInsert = chunk.map((municipality) => ({
           id: municipality.id,
           organization_id: organizationId,
@@ -91,7 +83,6 @@ export async function syncMunicipalities(organizationId: string, apiClient: Axio
           .insert(dataToInsert);
         
         if (insertError) {
-          console.error('[ERROR] خطأ أثناء إدخال دفعة من بيانات البلديات:', insertError);
         } else {
           insertedCount += dataToInsert.length;
           // تحديث عدد العناصر المدخلة
@@ -103,7 +94,6 @@ export async function syncMunicipalities(organizationId: string, apiClient: Axio
         // انتظار قصير بين عمليات الإدخال - أقل بكثير من طلبات API
         await new Promise(resolve => setTimeout(resolve, 50));
       } catch (insertError) {
-        console.error('[ERROR] استثناء أثناء إدخال دفعة من بيانات البلديات:', insertError);
       }
     }
     
@@ -111,11 +101,9 @@ export async function syncMunicipalities(organizationId: string, apiClient: Axio
     syncStatus.municipalities.total = globalMunicipalities.length;
     syncStatus.municipalities.status = 'success';
     updateSyncStatus(syncStatus);
-    
-    
+
     return true;
   } catch (error) {
-    console.error('[ERROR] خطأ أثناء مزامنة بيانات البلديات:', error);
     
     // تحديث حالة المزامنة في حالة الخطأ
     const syncStatus = getSyncStatus();
@@ -124,4 +112,4 @@ export async function syncMunicipalities(organizationId: string, apiClient: Axio
     
     return false;
   }
-} 
+}

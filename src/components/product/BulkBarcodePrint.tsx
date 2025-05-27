@@ -24,4 +24,4 @@ const BulkBarcodePrint = ({
   );
 };
 
-export default BulkBarcodePrint; 
+export default BulkBarcodePrint;

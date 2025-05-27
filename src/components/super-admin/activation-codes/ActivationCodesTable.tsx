@@ -104,7 +104,6 @@ export default function ActivationCodesTable({
         });
       })
       .catch((error) => {
-        console.error('Error copying code:', error);
         toast({
           title: "خطأ في نسخ الكود",
           description: "تعذر نسخ الكود إلى الحافظة",
@@ -132,7 +131,6 @@ export default function ActivationCodesTable({
       // تحديث قائمة الأكواد
       onRefresh();
     } catch (error: any) {
-      console.error('Error updating code status:', error);
       toast({
         title: "خطأ في تحديث حالة الكود",
         description: error.message || "حدث خطأ أثناء تحديث حالة كود التفعيل",
@@ -396,4 +394,4 @@ export default function ActivationCodesTable({
       </AlertDialog>
     </>
   );
-} 
+}

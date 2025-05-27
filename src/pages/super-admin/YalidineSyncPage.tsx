@@ -68,7 +68,6 @@ export default function YalidineSyncPage() {
       }
 
       if (!supabaseUrl || !supabaseAnonKey) {
-        console.error("Supabase URL or Anon Key is missing for fetchSyncStatus.", { supabaseUrlExists: !!supabaseUrl, supabaseAnonKeyExists: !!supabaseAnonKey });
         throw new Error("Supabase URL or Anon Key is not configured for fetchSyncStatus.");
       }
 
@@ -80,8 +79,6 @@ export default function YalidineSyncPage() {
         throw new Error("Access token is missing, cannot fetch status."); 
       }
 
-      
-
       const response = await fetch(`${supabaseUrl}/functions/v1/get-global-yalidine-sync-info`, {
         method: 'GET', 
         headers: {
@@ -92,7 +89,6 @@ export default function YalidineSyncPage() {
       });
 
       const responseData = await response.json();
-      
 
       if (!response.ok) {
         const errorMessage = responseData?.error || responseData?.message || `Request failed with status ${response.status}`;
@@ -111,11 +107,9 @@ export default function YalidineSyncPage() {
             setFeedbackMessage({ type: 'info', text: 'يرجى إدخال مفتاح ورمز Yalidine API لبدء المزامنة.' });
         }
       } else {
-        console.warn("Received no data or unexpected data format from get-global-yalidine-sync-info (fetch)", responseData);
       }
 
     } catch (error: any) {
-      console.error("Error fetching sync status with fetch:", error);
       setSyncStatus(null); 
       if (!feedbackMessage || (feedbackMessage.type !== 'error' && !feedbackMessage.text.includes("401"))) {
          setFeedbackMessage({ type: 'error', text: `فشل في جلب حالة المزامنة: ${error.message}` });
@@ -136,7 +130,6 @@ export default function YalidineSyncPage() {
     }
     setIsSavingConfig(true);
     setFeedbackMessage(null);
-    
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -147,7 +140,6 @@ export default function YalidineSyncPage() {
       }
 
       if (!supabaseUrl || !supabaseAnonKey) {
-        console.error("Supabase URL or Anon Key is missing from environment variables.", { supabaseUrl, supabaseAnonKeyExists: !!supabaseAnonKey });
         throw new Error("Supabase URL or Anon Key is not configured in environment variables.");
       }
       
@@ -162,7 +154,6 @@ export default function YalidineSyncPage() {
       });
 
       const responseData = await response.json(); 
-      
 
       if (!response.ok) {
         const errorMessage = responseData?.error || responseData?.message || `Request failed with status ${response.status}`;
@@ -176,7 +167,6 @@ export default function YalidineSyncPage() {
       await fetchSyncStatus(); 
 
     } catch (error: any) {
-      console.error("Error saving config with fetch (catch block):", error);
       setFeedbackMessage({ type: 'error', text: `فشل في حفظ الإعدادات: ${error.message}` });
     } finally {
       setIsSavingConfig(false);
@@ -197,7 +187,6 @@ export default function YalidineSyncPage() {
     }
 
     if (!supabaseUrl || !supabaseAnonKey) {
-      console.error("Supabase URL or Anon Key is missing for handleSyncNow.", { supabaseUrlExists: !!supabaseUrl, supabaseAnonKeyExists: !!supabaseAnonKey });
       setFeedbackMessage({ type: 'error', text: 'Supabase URL or Anon Key is not configured for sync.' });
       return;
     }
@@ -224,7 +213,6 @@ export default function YalidineSyncPage() {
       }
       
       const data = await response.json();
-      
 
       let resultMessage = (data && data.message) || 'اكتملت عملية المزامنة.';
       if (data && data.results) {
@@ -241,7 +229,6 @@ export default function YalidineSyncPage() {
         setFeedbackMessage({ type: 'info', text: 'اكتملت المزامنة ولكن لم يتم إرجاع نتائج تفصيلية من الخادم.'});
       }
     } catch (error: any) {
-      console.error("Error syncing data:", error);
       if (!feedbackMessage || !(feedbackMessage.type === 'error' && feedbackMessage.text.includes("خطأ في المصادقة"))){
         setFeedbackMessage({ type: 'error', text: `فشل في مزامنة البيانات: ${error.message}` });
       }
@@ -259,10 +246,6 @@ export default function YalidineSyncPage() {
       return "تاريخ غير صالح";
     }
   };
-
-  
-  
-  
 
   if (!isAuthenticated && !isLoadingStatus) {
     return (

@@ -158,4 +158,4 @@ export function PaymentMethodCard({ method, onEdit, onDelete, onToggleActive }: 
       </CardFooter>
     </Card>
   );
-} 
+}

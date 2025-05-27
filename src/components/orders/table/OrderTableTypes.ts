@@ -131,4 +131,4 @@ export type OrderSourceBadgeProps = {
 
 export type OrderDetailsPanelProps = {
   order: Order;
-}; 
+};

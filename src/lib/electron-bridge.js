@@ -3,8 +3,6 @@
  * يوفر واجهة موحدة للوصول إلى وظائف Electron أو محاكاتها في المتصفح
  */
 
-
-
 /**
  * التحقق مما إذا كان التطبيق يعمل في بيئة Electron
  */
@@ -33,8 +31,7 @@ export const invoke = async (channel, ...args) => {
   }
   
   // محاكاة الوظائف الأساسية للاختبار والتطوير
-  
-  
+
   // محاكاة نتائج بناءً على القناة
   switch (channel) {
     case 'db:init':
@@ -72,12 +69,9 @@ export const on = (channel, callback) => {
     if (channel === 'sync:update' && window.electronAPI.sync && window.electronAPI.sync.onUpdate) {
       return window.electronAPI.sync.onUpdate(callback);
     }
-    
-    console.warn(`[ElectronBridge] القناة ${channel} غير مدعومة للاستماع`);
     return () => {}; // وظيفة تنظيف فارغة
   }
-  
-  
+
   return () => {}; // وظيفة تنظيف فارغة
 };
 
@@ -89,6 +83,4 @@ const electronBridge = {
   on
 };
 
-
-
-export default electronBridge; 
+export default electronBridge;

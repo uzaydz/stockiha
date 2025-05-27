@@ -65,7 +65,6 @@ export function useSyncState() {
           lastStatus = newStatusString;
         }
       } catch (e) {
-        console.error('خطأ في قراءة حالة المزامنة:', e);
       }
     };
     

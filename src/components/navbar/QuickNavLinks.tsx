@@ -379,4 +379,4 @@ export function QuickNavLinks({
   if (variant === 'horizontal') return renderHorizontalLinks();
   if (variant === 'vertical') return renderVerticalLinks();
   return renderGridLinks();
-} 
+}

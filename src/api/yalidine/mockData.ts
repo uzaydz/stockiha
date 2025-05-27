@@ -81,4 +81,4 @@ export const mockDeliveryFees: DeliveryFee[] = [
   
   // داخل وهران
   { from_province_id: 31, to_province_id: 31, home_delivery: 500, desk_delivery: 400 }
-]; 
+];

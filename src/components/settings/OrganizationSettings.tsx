@@ -77,4 +77,4 @@ const OrganizationSettingsPage = () => {
   );
 };
 
-export default OrganizationSettingsPage; 
+export default OrganizationSettingsPage;

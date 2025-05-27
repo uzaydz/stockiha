@@ -3,12 +3,12 @@ import { Suspense, lazy } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTenant } from '@/context/TenantContext';
 import type { Product, UpsellDownsellItem } from '@/lib/api/products';
-import QueryVisualizer from '@/components/debug/QueryVisualizer';
 import React from 'react';
 
 // Components
 import Navbar from '@/components/Navbar';
 import StoreFooter from '@/components/store/StoreFooter';
+import CustomizableStoreFooter from '@/components/store/CustomizableStoreFooter';
 import ProductBreadcrumb from '@/components/store/product/ProductBreadcrumb';
 import ProductDescription from '@/components/store/product/ProductDescription';
 
@@ -40,6 +40,9 @@ import {
   UpsellDownsellDisplay
 } from '@/components/store/product-purchase';
 
+// استيراد getSupabaseClient
+import { getSupabaseClient } from '@/lib/supabase';
+
 // Lazy-loaded components
 const OrderForm = lazy(() => import('@/components/store/OrderForm'));
 const QuantityOffersDisplay = lazy(() => import('@/components/store/product/QuantityOffersDisplay'));
@@ -48,6 +51,9 @@ const ProductPurchase = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const { currentOrganization, isLoading: isOrganizationLoading } = useTenant();
+  
+  // حالة إعدادات الفوتر المخصص
+  const [footerSettings, setFooterSettings] = React.useState<any>(null);
   
   // استخدام الخطافات المستخرجة
   const {
@@ -128,6 +134,32 @@ const ProductPurchase = () => {
   // استخدام خطاف الزر اللاصق
   const { showStickyButton, scrollToOrderForm } = useStickyButtonLogic(orderFormRef);
 
+  // تحميل إعدادات الفوتر المخصص
+  React.useEffect(() => {
+    const fetchFooterSettings = async () => {
+      if (!currentOrganization?.id) return;
+      
+      try {
+        const supabase = getSupabaseClient();
+        const { data: footerData, error } = await supabase
+          .from('store_settings')
+          .select('settings')
+          .eq('organization_id', currentOrganization.id)
+          .eq('component_type', 'footer')
+          .eq('is_active', true)
+          .maybeSingle();
+
+        if (!error && footerData?.settings) {
+          setFooterSettings(footerData.settings);
+        }
+      } catch (error) {
+        // تجاهل الأخطاء - سيتم استخدام الإعدادات الافتراضية
+      }
+    };
+
+    fetchFooterSettings();
+  }, [currentOrganization?.id]);
+
   // معالجة تغيير الكمية
   const handleProductQuantityChange = (newQuantity: number) => {
     handleQuantityChange(newQuantity, getAvailableQuantity());
@@ -166,7 +198,6 @@ const ProductPurchase = () => {
           });
         }
       } catch (error) {
-        console.warn('تحذير: فشل في تتبع add_to_cart:', error);
       }
     }
   };
@@ -193,12 +224,6 @@ const ProductPurchase = () => {
   // تسجيل حالة مؤقت العرض في وضع التطوير
   React.useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
-      console.log('🕐 حالة مؤقت العرض:', {
-        productId: product?.id,
-        marketingSettings,
-        offerTimerEnabled,
-        offerTimerSettings,
-      });
     }
   }, [product?.id, marketingSettings, offerTimerEnabled, offerTimerSettings]);
 
@@ -429,13 +454,98 @@ const ProductPurchase = () => {
         />
       )}
       
-      {/* إضافة عارض استعلامات Supabase */}
-      <div className="container mx-auto py-6 px-4 md:px-6">
-        <QueryVisualizer />
-      </div>
-      <StoreFooter />
+      {/* الفوتر المخصص مع إعدادات ديناميكية */}
+      {React.useMemo(() => {
+        // إعدادات افتراضية للفوتر
+        const defaultFooterSettings = {
+          storeName: currentOrganization?.name || 'متجرنا',
+          logoUrl: currentOrganization?.logo_url,
+          description: currentOrganization?.description || 'متجر إلكتروني متخصص في بيع أحدث المنتجات التقنية والإلكترونية بأفضل الأسعار وجودة عالية.',
+          showSocialLinks: true,
+          showContactInfo: true,
+          showFeatures: true,
+          showNewsletter: true,
+          showPaymentMethods: true,
+          socialLinks: [
+            { platform: 'facebook', url: 'https://facebook.com' },
+            { platform: 'instagram', url: 'https://instagram.com' }
+          ],
+          contactInfo: {
+            phone: '+213 123 456 789',
+            email: currentOrganization?.name ? `info@${currentOrganization.name.toLowerCase().replace(/\s+/g, '')}.com` : 'info@store.com',
+            address: 'الجزائر'
+          },
+          footerSections: [
+            {
+              id: '1',
+              title: 'روابط سريعة',
+              links: [
+                { id: '1-1', text: 'الصفحة الرئيسية', url: '/', isExternal: false },
+                { id: '1-2', text: 'المنتجات', url: '/products', isExternal: false },
+                { id: '1-3', text: 'اتصل بنا', url: '/contact', isExternal: false }
+              ]
+            },
+            {
+              id: '2',
+              title: 'خدمة العملاء',
+              links: [
+                { id: '2-1', text: 'مركز المساعدة', url: '/help', isExternal: false },
+                { id: '2-2', text: 'سياسة الشحن', url: '/shipping-policy', isExternal: false },
+                { id: '2-3', text: 'الأسئلة الشائعة', url: '/faq', isExternal: false }
+              ]
+            }
+          ],
+          features: [
+            {
+              id: '1',
+              icon: 'Truck',
+              title: 'شحن سريع',
+              description: 'توصيل مجاني للطلبات +5000 د.ج'
+            },
+            {
+              id: '2',
+              icon: 'CreditCard',
+              title: 'دفع آمن',
+              description: 'طرق دفع متعددة 100% آمنة'
+            },
+            {
+              id: '3',
+              icon: 'Heart',
+              title: 'ضمان الجودة',
+              description: 'منتجات عالية الجودة معتمدة'
+            },
+            {
+              id: '4',
+              icon: 'ShieldCheck',
+              title: 'دعم 24/7',
+              description: 'مساعدة متوفرة طول اليوم'
+            }
+          ],
+          newsletterSettings: {
+            enabled: true,
+            title: 'النشرة البريدية',
+            description: 'اشترك في نشرتنا البريدية للحصول على آخر العروض والتحديثات.',
+            placeholder: 'البريد الإلكتروني',
+            buttonText: 'اشتراك'
+          },
+          paymentMethods: ['visa', 'mastercard', 'paypal'],
+          legalLinks: [
+            { id: 'legal-1', text: 'شروط الاستخدام', url: '/terms', isExternal: false },
+            { id: 'legal-2', text: 'سياسة الخصوصية', url: '/privacy', isExternal: false }
+          ]
+        };
+
+        // دمج الإعدادات المخصصة مع الافتراضية
+        const finalFooterSettings = footerSettings 
+          ? { ...defaultFooterSettings, ...footerSettings } 
+          : defaultFooterSettings;
+
+        return (
+          <CustomizableStoreFooter {...finalFooterSettings} />
+        );
+      }, [footerSettings, currentOrganization])}
     </div>
   );
 };
 
-export default ProductPurchase; 
+export default ProductPurchase;

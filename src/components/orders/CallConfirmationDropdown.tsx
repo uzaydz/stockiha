@@ -107,7 +107,6 @@ const CallConfirmationDropdown = ({
       setShowNotesDialog(false);
       setNotes("");
     } catch (error) {
-      console.error("فشل تحديث حالة تأكيد الإتصال:", error);
       toast({
         variant: "destructive",
         title: "خطأ",
@@ -143,7 +142,6 @@ const CallConfirmationDropdown = ({
       await handleStatusChange(newStatusId);
       
     } catch (error) {
-      console.error("فشل إضافة حالة تأكيد إتصال جديدة:", error);
       toast({
         variant: "destructive",
         title: "خطأ",
@@ -336,4 +334,4 @@ const CallConfirmationDropdown = ({
   );
 };
 
-export default CallConfirmationDropdown; 
+export default CallConfirmationDropdown;

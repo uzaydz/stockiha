@@ -97,4 +97,4 @@ const FeaturesCTA = () => {
   );
 };
 
-export default FeaturesCTA; 
+export default FeaturesCTA;

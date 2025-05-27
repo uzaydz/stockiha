@@ -46,7 +46,6 @@ export function collectCustomFormData(form: HTMLFormElement, customFields: Custo
     
     return result;
   } catch (error) {
-    console.error('Error collecting custom form data:', error);
     return null;
   }
 }
@@ -138,7 +137,6 @@ export async function checkDatabaseConnection(): Promise<boolean> {
     const { data, error } = await supabase.from('health_check').select('*').limit(1);
     return !error;
   } catch (error) {
-    console.error('Database connection error:', error);
     return false;
   }
 }
@@ -167,7 +165,6 @@ export async function calculateShippingFee(
         .single();
       
       if (cloneError || !cloneData) {
-        console.warn('لم يتم العثور على مزود الشحن المستنسخ، استخدام الأسعار الافتراضية');
         return deliveryOption === 'home' ? 400 : 350;
       }
       
@@ -196,7 +193,6 @@ export async function calculateShippingFee(
           .single();
         
         if (priceError || !priceData) {
-          console.warn('لم يتم العثور على أسعار مخصصة للولاية، استخدام الأسعار الموحدة');
           if (deliveryOption === 'home') {
             // التحقق من التوصيل المجاني للمنزل
             if (cloneData.is_free_delivery_home) {
@@ -228,7 +224,6 @@ export async function calculateShippingFee(
         }
       }
     } catch (error) {
-      console.error('خطأ في حساب رسوم التوصيل لمزود مستنسخ:', error);
     }
   }
   
@@ -295,7 +290,6 @@ export async function calculateShippingFee(
       }
     }
   } catch (error) {
-    console.error('خطأ في حساب رسوم التوصيل:', error);
   }
   
   // إرجاع الرسوم الافتراضية في حالة الفشل
@@ -307,8 +301,7 @@ export async function calculateShippingFee(
  * @param cloneId - معرف المزود المستنسخ
  */
 export async function getShippingProviderClone(cloneId: number) {
-  
-  
+
   try {
     const { data, error } = await supabase
       .from('shipping_provider_clones')
@@ -317,17 +310,11 @@ export async function getShippingProviderClone(cloneId: number) {
       .single();
     
     if (error) {
-      console.error('خطأ في جلب معلومات مزود الشحن المستنسخ:', error);
       return null;
     }
-    
-    
-    
-    
-    
+
     return data;
   } catch (error) {
-    console.error('خطأ في جلب معلومات مزود الشحن المستنسخ:', error);
     return null;
   }
 }
@@ -347,7 +334,6 @@ export async function getAvailableProvincesForClone(cloneId: number, deliveryTyp
       .single();
     
     if (cloneError || !cloneData) {
-      console.error('خطأ في جلب معلومات مزود الشحن المستنسخ:', cloneError);
       return [];
     }
     
@@ -369,7 +355,6 @@ export async function getAvailableProvincesForClone(cloneId: number, deliveryTyp
       .eq('clone_id', cloneId);
     
     if (pricesError) {
-      console.error('خطأ في جلب أسعار التوصيل للولايات:', pricesError);
       return [];
     }
     
@@ -389,7 +374,6 @@ export async function getAvailableProvincesForClone(cloneId: number, deliveryTyp
     
     return availableProvinces;
   } catch (error) {
-    console.error('خطأ في جلب الولايات المتاحة لمزود الشحن المستنسخ:', error);
     return [];
   }
-} 
+}

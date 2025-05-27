@@ -65,7 +65,6 @@ const Customers = () => {
         // التحقق من صلاحية حذف العملاء - نستخدم نفس الصلاحية manageCustomers
         setHasDeletePermission(canAddCustomers);
       } catch (error) {
-        console.error('خطأ في التحقق من الصلاحيات:', error);
         toast({
           variant: "destructive",
           title: "خطأ في التحقق من الصلاحيات",
@@ -104,7 +103,6 @@ const Customers = () => {
         setFilteredCustomers(customersData);
         setStats(statsData);
       } catch (error) {
-        console.error('Error fetching customer data:', error);
         toast({
           title: 'خطأ',
           description: 'حدث خطأ أثناء تحميل بيانات العملاء',
@@ -279,4 +277,4 @@ const Customers = () => {
   );
 };
 
-export default Customers; 
+export default Customers;

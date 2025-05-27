@@ -68,7 +68,6 @@ export const useAbandonedCartLogic = (
           const { data: { session } } = await supabase.auth.getSession();
           accessToken = session?.access_token || "";
         } catch (e) {
-          console.error("Error getting access token:", e);
         }
 
         const response = await fetch(functionUrl, {
@@ -88,12 +87,10 @@ export const useAbandonedCartLogic = (
           } catch (e) {
             errorData.message = response.statusText || errorData.message;
           }
-          console.error("Error saving abandoned cart:", errorData);
         } else {
           // const data = await response.json(); // Optional: process success response
         }
       } catch (invokeError) {
-        console.error("Exception invoking Supabase function with fetch:", invokeError);
       }
     }, 3000),
     [tenantId, productId, productColorId, productSizeId, currentDeliveryFee, subtotal, discountAmount, hasFreeShipping]
@@ -167,4 +164,4 @@ export const useAbandonedCartLogic = (
     handlePhoneBlur,
     handleTextFieldBlur,
   };
-}; 
+};

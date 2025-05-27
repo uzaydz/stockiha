@@ -36,7 +36,6 @@ export default async function handler(
       );
 
       if (error) {
-        console.error('فشل في تعطيل المحفز:', error);
         
         // محاولة تنفيذ استعلام SQL مباشر (قد لا يكون مسموحاً به)
         
@@ -59,7 +58,6 @@ export default async function handler(
           );
           
           if (directError) {
-            console.error('فشل الاستعلام المباشر أيضاً:', directError);
             return res.status(500).json({
               success: false,
               message: 'فشل تعطيل المحفز - تحقق من أذونات قاعدة البيانات',
@@ -67,15 +65,13 @@ export default async function handler(
               directError: directError.message
             });
           }
-          
-          
+
           return res.status(200).json({
             success: true,
             message: 'تم تعطيل المحفز بنجاح (باستخدام الاستعلام المباشر)',
             data: directData
           });
         } catch (directSqlError) {
-          console.error('فشل في تنفيذ الاستعلام المباشر:', directSqlError);
           return res.status(500).json({
             success: false,
             message: 'فشل تعطيل المحفز - يرجى تنفيذ الاستعلام يدوياً في قاعدة البيانات',
@@ -99,7 +95,6 @@ export default async function handler(
         }
       });
     } catch (error) {
-      console.error('خطأ في تنفيذ إصلاح محفز ياليدين:', error);
       return res.status(500).json({
         success: false,
         message: 'خطأ في تنفيذ إصلاح المحفز',
@@ -107,11 +102,10 @@ export default async function handler(
       });
     }
   } catch (error) {
-    console.error('خطأ غير متوقع:', error);
     return res.status(500).json({
       success: false,
       message: 'خطأ غير متوقع',
       error: error instanceof Error ? error.message : String(error)
     });
   }
-} 
+}

@@ -1,183 +1,44 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback } from 'react';
-import { getOrganizationSettings, getOrganizationTheme } from '@/lib/api/settings';
+import { getOrganizationSettings } from '@/lib/api/settings';
+import { updateOrganizationTheme, initializeSystemThemeListener } from '@/lib/themeManager';
+import type { OrganizationThemeMode } from '@/types/settings';
 
 type Theme = 'light' | 'dark' | 'system';
 
 interface ThemeContextType {
   theme: Theme;
   setTheme: (theme: Theme) => void;
-  reloadOrganizationTheme: (organizationId?: string) => Promise<void>;
+  reloadOrganizationTheme: (orgId?: string) => Promise<void>;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+
+export const useTheme = () => {
+  const context = useContext(ThemeContext);
+  if (context === undefined) {
+    throw new Error('useTheme must be used within a ThemeProvider');
+  }
+  return context;
+};
 
 interface ThemeProviderProps {
   children: ReactNode;
   initialOrganizationId?: string;
 }
 
-// Función auxiliar para convertir colores HEX a HSL para CSS variables
-const hexToHSL = (hex: string): string => {
-  // Removemos el # si existe
-  hex = hex.replace(/^#/, '');
-  
-  // Convertimos a RGB
-  let r = 0, g = 0, b = 0;
-  if (hex.length === 3) {
-    r = parseInt(hex[0] + hex[0], 16);
-    g = parseInt(hex[1] + hex[1], 16);
-    b = parseInt(hex[2] + hex[2], 16);
-  } else if (hex.length === 6) {
-    r = parseInt(hex.substring(0, 2), 16);
-    g = parseInt(hex.substring(2, 4), 16);
-    b = parseInt(hex.substring(4, 6), 16);
-  } else {
-    // Si el formato no es válido, retornamos un color por defecto
-    return '270 70% 60%';
-  }
-  
-  // Normalizamos RGB a valores entre 0 y 1
-  r /= 255;
-  g /= 255;
-  b /= 255;
-  
-  // Calculamos valores para HSL
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  let h = 0, s = 0, l = (max + min) / 2;
-
-  if (max !== min) {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    
-    switch (max) {
-      case r:
-        h = (g - b) / d + (g < b ? 6 : 0);
-        break;
-      case g:
-        h = (b - r) / d + 2;
-        break;
-      case b:
-        h = (r - g) / d + 4;
-        break;
-    }
-    
-    h /= 6;
-  }
-  
-  // Convertimos a formato CSS
-  h = Math.round(h * 360);
-  s = Math.round(s * 100);
-  l = Math.round(l * 100);
-  
-  return `${h} ${s}% ${l}%`;
-};
-
-// Función para aplicar CSS personalizado
-const applyCustomCSS = (css: string | null) => {
-  // Eliminar cualquier estilo personalizado anterior
-  const existingStyle = document.getElementById('custom-org-css');
-  if (existingStyle) {
-    existingStyle.remove();
-  }
-  
-  // Si hay CSS personalizado, aplicarlo
-  if (css) {
-    const styleEl = document.createElement('style');
-    styleEl.id = 'custom-org-css';
-    styleEl.textContent = css;
-    document.head.appendChild(styleEl);
-  }
-};
-
-// إضافة المعرف إلى واجهة Window
-declare global {
-  interface Window {
-    _customJsExecutionId?: ReturnType<typeof setTimeout>;
+// دالة تحويل من OrganizationThemeMode إلى Theme
+function convertThemeMode(orgMode: OrganizationThemeMode): Theme {
+  switch (orgMode) {
+    case 'auto':
+      return 'system';
+    case 'light':
+      return 'light';
+    case 'dark':
+      return 'dark';
+    default:
+      return 'light';
   }
 }
-
-// Función para aplicar HTML personalizado en el header
-const applyCustomHeader = (html: string | null) => {
-  // Eliminar cualquier contenido personalizado anterior
-  const existingHeader = document.getElementById('custom-org-header');
-  if (existingHeader) {
-    existingHeader.remove();
-  }
-  
-  // Si hay HTML personalizado, aplicarlo
-  if (html) {
-    const headerEl = document.createElement('div');
-    headerEl.id = 'custom-org-header';
-    headerEl.innerHTML = html;
-    document.head.appendChild(headerEl);
-  }
-};
-
-// Función para aplicar HTML personalizado en el footer
-const applyCustomFooter = (html: string | null) => {
-  // Eliminar cualquier contenido personalizado anterior
-  const existingFooter = document.getElementById('custom-org-footer');
-  if (existingFooter) {
-    existingFooter.remove();
-  }
-  
-  // Si hay HTML personalizado, aplicarlo
-  if (html) {
-    const footerEl = document.createElement('div');
-    footerEl.id = 'custom-org-footer';
-    footerEl.innerHTML = html;
-    document.body.appendChild(footerEl);
-  }
-};
-
-// Función para aplicar la favicon de la organización
-const applyFavicon = (faviconUrl: string | null) => {
-  if (!faviconUrl) return;
-  
-  // Eliminar cualquier favicon existente
-  const existingFavicon = document.querySelector("link[rel='icon']");
-  if (existingFavicon) {
-    existingFavicon.remove();
-  }
-  
-  // Crear y agregar el nuevo favicon
-  const link = document.createElement("link");
-  link.type = "image/x-icon";
-  link.rel = "icon";
-  link.href = faviconUrl;
-  document.head.appendChild(link);
-};
-
-// Función para aplicar el título del sitio
-const applySiteName = (siteName: string | null) => {
-  if (!siteName) return;
-  
-  // Cambiar el título de la página
-  document.title = siteName;
-};
-
-// --- الدوال الوهمية لتهيئة بكسلات التتبع ---
-const initializeFacebookPixel = (pixelId: string) => {
-  
-  // TODO: إضافة كود تهيئة بكسل فيسبوك الفعلي هنا
-};
-
-const initializeTikTokPixel = (pixelId: string) => {
-  
-  // TODO: إضافة كود تهيئة بكسل تيك توك الفعلي هنا
-};
-
-const initializeSnapchatPixel = (pixelId: string) => {
-  
-  // TODO: إضافة كود تهيئة بكسل سناب شات الفعلي هنا
-};
-
-const initializeGooglePixel = (pixelId: string) => {
-  
-  // TODO: إضافة كود تهيئة بكسل جوجل الفعلي هنا
-};
-// --- نهاية الدوال الوهمية ---
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialOrganizationId }) => {
   const [currentOrganizationId, setCurrentOrganizationId] = useState<string | undefined>(initialOrganizationId);
@@ -202,230 +63,133 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
     return 'light';
   });
 
-  // Función para cargar y aplicar los colores de la organización
+  // تطبيق ثيم المؤسسة باستخدام النظام الموحد الجديد
   const applyOrganizationTheme = useCallback(async (orgId?: string) => {
+    const startTime = Date.now();
     const targetOrgId = orgId || currentOrganizationId;
-    if (!targetOrgId) return;
     
+    console.log('🎨 [ThemeContext] بدء تطبيق ثيم المؤسسة:', {
+      targetOrgId,
+      currentOrganizationId,
+      timestamp: new Date().toISOString()
+    });
+    
+    if (!targetOrgId) {
+      console.warn('⚠️ [ThemeContext] معرف المؤسسة مفقود');
+      return;
+    }
+
     try {
+      console.log('📡 [ThemeContext] جلب إعدادات المؤسسة...');
+      const fetchStartTime = Date.now();
       
+      // جلب إعدادات المؤسسة
+      const orgSettings = await getOrganizationSettings(targetOrgId);
       
-      // استخدام دالة getOrganizationTheme بدلاً من getOrganizationSettings للحصول على إعدادات الثيم
-      const themeSettings = await getOrganizationTheme(targetOrgId);
-      
-      // إذا لم نتمكن من الحصول على إعدادات الثيم، نحاول الحصول على إعدادات المؤسسة العامة
-      const orgSettings = themeSettings || await getOrganizationSettings(targetOrgId);
+      const fetchEndTime = Date.now();
+      console.log(`⏱️ [ThemeContext] وقت جلب الإعدادات: ${fetchEndTime - fetchStartTime}ms`);
       
       if (orgSettings) {
-        // تطبيق الألوان الرئيسية والثانوية
-        // اللون الرئيسي
-        let primaryHSL = '';
-        let secondaryHSL = '';
+        console.log('✅ [ThemeContext] تم جلب الإعدادات:', {
+          theme_primary_color: orgSettings.theme_primary_color,
+          theme_secondary_color: orgSettings.theme_secondary_color,
+          theme_mode: orgSettings.theme_mode,
+          custom_css: orgSettings.custom_css ? 'موجود' : 'غير موجود'
+        });
         
-        if (orgSettings.theme_primary_color) {
-          primaryHSL = hexToHSL(orgSettings.theme_primary_color);
-          
-          // تطبيق اللون الرئيسي مع !important لضمان عدم الكتابة عليه
-          document.documentElement.style.setProperty('--primary', primaryHSL, 'important');
-          
-          // إضافة متغيرات إضافية مشتقة من اللون الرئيسي
-          const [h, s, l] = primaryHSL.split(' ');
-          const hue = h.replace('deg', '').trim();
-          const saturation = s.replace('%', '').trim();
-          const lightness = parseInt(l.replace('%', '').trim());
-          
-          // قيم أفتح وأغمق للون الرئيسي
-          document.documentElement.style.setProperty('--primary-foreground', '0 0% 100%', 'important');
-          document.documentElement.style.setProperty('--primary-lighter', `${hue} ${saturation}% ${Math.min(lightness + 20, 85)}%`, 'important');
-          document.documentElement.style.setProperty('--primary-darker', `${hue} ${saturation}% ${Math.max(lightness - 20, 25)}%`, 'important');
-          
-          // تطبيق اللون الرئيسي على متغيرات أخرى ذات صلة
-          document.documentElement.style.setProperty('--ring', primaryHSL, 'important');
-          document.documentElement.style.setProperty('--sidebar-primary', primaryHSL, 'important');
-          document.documentElement.style.setProperty('--sidebar-ring', primaryHSL, 'important');
-          
-          // حفظ اللون الرئيسي في localStorage للتحميل السريع في المرات القادمة
-          try {
-            localStorage.setItem('theme_primary_color', orgSettings.theme_primary_color);
-          } catch (error) {
-            console.error('خطأ في تخزين اللون الرئيسي:', error);
-          }
-        }
+        console.log('🔧 [ThemeContext] تطبيق الثيم على DOM...');
+        const applyStartTime = Date.now();
         
-        // اللون الثانوي
-        if (orgSettings.theme_secondary_color) {
-          secondaryHSL = hexToHSL(orgSettings.theme_secondary_color);
-          document.documentElement.style.setProperty('--secondary', secondaryHSL, 'important');
-          document.documentElement.style.setProperty('--secondary-foreground', '0 0% 100%', 'important');
-          
-          // حفظ اللون الثانوي في localStorage للتحميل السريع في المرات القادمة
-          try {
-            localStorage.setItem('theme_secondary_color', orgSettings.theme_secondary_color);
-          } catch (error) {
-            console.error('خطأ في تخزين اللون الثانوي:', error);
-          }
-        }
+        // استخدام النظام الموحد لتحديث الثيم
+        updateOrganizationTheme(targetOrgId, {
+          theme_primary_color: orgSettings.theme_primary_color,
+          theme_secondary_color: orgSettings.theme_secondary_color,
+          theme_mode: orgSettings.theme_mode,
+          custom_css: orgSettings.custom_css
+        });
         
-        // إضافة تطبيق فوري للألوان بعد تحديد المتغيرات
-        // هذا يضمن أن المتصفح يطبق التغييرات فوراً
-        document.documentElement.style.cssText += `
-          --primary: ${primaryHSL} !important;
-          --ring: ${primaryHSL} !important;
-          --sidebar-primary: ${primaryHSL} !important;
-          --sidebar-ring: ${primaryHSL} !important;
-        `;
-        
-        // فرض إعادة تصيير العناصر عبر تحديث class مؤقت
-        const tempClass = 'theme-update-' + Date.now();
-        document.documentElement.classList.add(tempClass);
-        setTimeout(() => {
-          document.documentElement.classList.remove(tempClass);
-        }, 50);
-        
-        // تخزين الألوان في localStorage للتحميل السريع في المرات القادمة
-        try {
-          localStorage.setItem(`org_theme_${window.location.hostname}`, JSON.stringify({
-            primary: primaryHSL,
-            secondary: secondaryHSL,
-            primaryColor: orgSettings.theme_primary_color,
-            secondaryColor: orgSettings.theme_secondary_color,
-            timestamp: Date.now(),
-            organizationId: targetOrgId
-          }));
-        } catch (error) {
-          console.error('خطأ في تخزين ألوان الثيم:', error);
-        }
+        const applyEndTime = Date.now();
+        console.log(`⏱️ [ThemeContext] وقت تطبيق الثيم: ${applyEndTime - applyStartTime}ms`);
         
         // تطبيق وضع المظهر من إعدادات المؤسسة
         if (orgSettings.theme_mode) {
-          // تحويل "auto" إلى "system" إذا لزم الأمر
-          const themeMode = orgSettings.theme_mode === 'auto' ? 'system' : orgSettings.theme_mode;
+          const themeMode = convertThemeMode(orgSettings.theme_mode);
+          console.log('🌓 [ThemeContext] تحديث وضع المظهر:', {
+            original: orgSettings.theme_mode,
+            converted: themeMode
+          });
           
-          // حفظ في localStorage كتفضيل للمؤسسة
           localStorage.setItem('theme-preference', themeMode);
-          
-          // تطبيق الثيم
-          setTheme(themeMode as Theme);
+          setTheme(themeMode);
         }
         
-        // متغيرات CSS الإضافية للتأكد من ظهور الألوان بشكل صحيح في كل من الوضع الفاتح والمظلم
-        // قيم الخلفية والنص للوضع الفاتح
-        document.documentElement.style.setProperty('--light-background', '0 0% 100%');
-        document.documentElement.style.setProperty('--light-foreground', '240 10% 3.9%');
-        document.documentElement.style.setProperty('--light-card', '0 0% 100%');
-        document.documentElement.style.setProperty('--light-card-foreground', '240 10% 3.9%');
-        document.documentElement.style.setProperty('--light-muted', '240 4.8% 95.9%');
-        document.documentElement.style.setProperty('--light-accent', '240 4.8% 95.9%');
+        // إجبار إعادة تصيير فوري
+        console.log('🔄 [ThemeContext] إجبار إعادة تصيير...');
+        const root = document.documentElement;
+        const forceClass = 'theme-force-update-' + Date.now();
+        root.classList.add(forceClass);
         
-        // قيم الخلفية والنص للوضع المظلم
-        document.documentElement.style.setProperty('--dark-background', '240 10% 3.9%');
-        document.documentElement.style.setProperty('--dark-foreground', '0 0% 98%');
-        document.documentElement.style.setProperty('--dark-card', '240 10% 3.9%');
-        document.documentElement.style.setProperty('--dark-card-foreground', '0 0% 98%');
-        document.documentElement.style.setProperty('--dark-muted', '240 3.7% 15.9%');
-        document.documentElement.style.setProperty('--dark-accent', '240 3.7% 15.9%');
+        // إزالة الفئة بعد فترة قصيرة لإجبار إعادة التصيير
+        setTimeout(() => {
+          root.classList.remove(forceClass);
+          console.log('✨ [ThemeContext] تم إجبار إعادة التصيير');
+        }, 10);
         
-        // Aplicar CSS personalizado si existe
-        if (orgSettings && 'custom_css' in orgSettings && orgSettings.custom_css) {
-          applyCustomCSS(orgSettings.custom_css);
-        }
+        // فرض إعادة حساب الأنماط
+        window.getComputedStyle(root).getPropertyValue('--primary');
         
-        // استعادة وقراءة إعدادات التتبع من custom_js (الذي هو JSON)
-        if (orgSettings && 'custom_js' in orgSettings && orgSettings.custom_js) {
-          try {
-            const trackingSettings = JSON.parse(orgSettings.custom_js);
-            
-
-            // --- منطق استدعاء تهيئة البكسلات ---
-            const pixels = trackingSettings?.trackingPixels;
-            if (pixels) {
-              // فيسبوك
-              if (pixels.facebook?.enabled && pixels.facebook?.pixelId) {
-                initializeFacebookPixel(pixels.facebook.pixelId);
-              }
-              // تيك توك
-              if (pixels.tiktok?.enabled && pixels.tiktok?.pixelId) {
-                initializeTikTokPixel(pixels.tiktok.pixelId);
-              }
-              // سناب شات
-              if (pixels.snapchat?.enabled && pixels.snapchat?.pixelId) {
-                initializeSnapchatPixel(pixels.snapchat.pixelId);
-              }
-              // جوجل
-              if (pixels.google?.enabled && pixels.google?.pixelId) {
-                initializeGooglePixel(pixels.google.pixelId);
-              }
-            }
-            // --- نهاية منطق البكسلات ---
-
-          } catch (parseError) {
-            console.error("*** فشل في تحليل custom_js كـ JSON: ***", parseError);
-            console.warn("--> تأكد من أن قيمة custom_js هي JSON صالح. القيمة المستلمة:", 'custom_js' in orgSettings ? orgSettings.custom_js : 'غير متوفر');
-          }
-        }
-        
-        // Aplicar HTML personalizado en el header si existe
-        if (orgSettings && 'custom_header' in orgSettings && orgSettings.custom_header) {
-          applyCustomHeader(orgSettings.custom_header);
-        }
-        
-        // Aplicar HTML personalizado en el footer si existe
-        if (orgSettings && 'custom_footer' in orgSettings && orgSettings.custom_footer) {
-          applyCustomFooter(orgSettings.custom_footer);
-        }
-        
-        // Aplicar favicon si existe
-        if (orgSettings.favicon_url) {
-          applyFavicon(orgSettings.favicon_url);
-        }
-        
-        // Aplicar nombre del sitio si existe
-        if (orgSettings.site_name) {
-          applySiteName(orgSettings.site_name);
-        }
-        
-        
+        const totalTime = Date.now() - startTime;
+        console.log(`🎉 [ThemeContext] اكتمل تطبيق الثيم في ${totalTime}ms`);
+      } else {
+        console.warn('⚠️ [ThemeContext] لم يتم العثور على إعدادات المؤسسة');
       }
     } catch (error) {
-      console.error('خطأ في تحميل إعدادات المؤسسة:', error);
+      const totalTime = Date.now() - startTime;
+      console.error('💥 [ThemeContext] خطأ في تطبيق ثيم المؤسسة:', {
+        error,
+        message: error instanceof Error ? error.message : 'خطأ غير معروف',
+        totalTime: `${totalTime}ms`
+      });
       
-      // محاولة استخدام القيم المخزنة محليًا في حالة فشل الاتصال بالخادم
+      // محاولة استخدام القيم المخزنة محلياً في حالة فشل الاتصال بالخادم
       try {
+        console.log('🔄 [ThemeContext] محاولة استخدام الثيم المخزن محلياً...');
         const cachedTheme = localStorage.getItem(`org_theme_${window.location.hostname}`);
         if (cachedTheme) {
           const parsedTheme = JSON.parse(cachedTheme);
-          if (parsedTheme.primaryColor) {
-            document.documentElement.style.setProperty('--primary', parsedTheme.primary);
-            
+          if (parsedTheme.organizationId === targetOrgId) {
+            console.log('✅ [ThemeContext] تم العثور على ثيم مخزن محلياً:', parsedTheme);
+            updateOrganizationTheme(targetOrgId, {
+              theme_primary_color: parsedTheme.primaryColor,
+              theme_secondary_color: parsedTheme.secondaryColor,
+              theme_mode: parsedTheme.mode
+            });
           }
-          if (parsedTheme.secondaryColor) {
-            document.documentElement.style.setProperty('--secondary', parsedTheme.secondary);
-            
-          }
+        } else {
+          console.warn('⚠️ [ThemeContext] لم يتم العثور على ثيم مخزن محلياً');
         }
       } catch (localStorageError) {
-        console.error('خطأ في قراءة الألوان المخزنة محليًا:', localStorageError);
+        console.error('💥 [ThemeContext] خطأ في استرجاع الثيم المخزن محلياً:', localStorageError);
       }
     }
   }, [currentOrganizationId, setTheme]);
 
-  // Actualizar organizationId cuando cambia la prop
+  // تحديث organizationId عند تغيير الخاصية
   useEffect(() => {
     if (initialOrganizationId && initialOrganizationId !== currentOrganizationId) {
       setCurrentOrganizationId(initialOrganizationId);
     }
   }, [initialOrganizationId, currentOrganizationId]);
 
-  // Cargar y aplicar los colores inicialmente
+  // تحميل وتطبيق الألوان عند تحديد المؤسسة
   useEffect(() => {
     if (currentOrganizationId) {
       applyOrganizationTheme();
     }
   }, [applyOrganizationTheme, currentOrganizationId]);
 
-  // تحديث وسم HTML عند تغيير الشكل
+  // تحديث وسم HTML عند تغيير الثيم
   useEffect(() => {
-    // تطبيق فئة الثيم على عنصر html
     const root = window.document.documentElement;
     
     // إزالة الفئات القديمة
@@ -435,40 +199,22 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
     if (theme === 'system') {
       const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
       root.classList.add(systemTheme);
-      
-      // تطبيق المتغيرات المناسبة للثيم
-      if (systemTheme === 'light') {
-        applyLightModeVariables(root);
-      } else {
-        applyDarkModeVariables(root);
-      }
+      document.body.style.colorScheme = systemTheme;
     } else {
       root.classList.add(theme);
-      
-      // تطبيق المتغيرات المناسبة للثيم
-      if (theme === 'light') {
-        applyLightModeVariables(root);
-      } else {
-        applyDarkModeVariables(root);
-      }
+      document.body.style.colorScheme = theme;
     }
     
     // تخزين الإعداد في التخزين المحلي
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  // تعريف وظائف مساعدة لتطبيق متغيرات CSS الخاصة بكل وضع
-  const applyLightModeVariables = (root: HTMLElement) => {
-    document.body.style.colorScheme = 'light';
-    // يمكن تطبيق أي متغيرات CSS إضافية هنا إذا لزم الأمر
-  };
-  
-  const applyDarkModeVariables = (root: HTMLElement) => {
-    document.body.style.colorScheme = 'dark';
-    // يمكن تطبيق أي متغيرات CSS إضافية هنا إذا لزم الأمر
-  };
+  // تهيئة مستمع تغييرات النظام
+  useEffect(() => {
+    initializeSystemThemeListener();
+  }, []);
 
-  // الاستماع لتغييرات إعدادات النظام إذا كان الشكل مضبوطًا على "system"
+  // الاستماع لتغييرات إعدادات النظام إذا كان الثيم مضبوطاً على "system"
   useEffect(() => {
     if (theme !== 'system') return;
     
@@ -479,13 +225,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
       root.classList.remove('light', 'dark');
       const systemTheme = mediaQuery.matches ? 'dark' : 'light';
       root.classList.add(systemTheme);
-      
-      // تطبيق متغيرات CSS المناسبة
-      if (systemTheme === 'dark') {
-        applyDarkModeVariables(root);
-      } else {
-        applyLightModeVariables(root);
-      }
+      document.body.style.colorScheme = systemTheme;
     };
     
     mediaQuery.addEventListener('change', handleChange);
@@ -501,16 +241,4 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
       {children}
     </ThemeContext.Provider>
   );
-};
-
-export const useTheme = (): ThemeContextType => {
-  const context = useContext(ThemeContext);
-  
-  if (context === undefined) {
-    throw new Error('useTheme must be used within a ThemeProvider');
-  }
-  
-  return context;
-};
-
-export default ThemeProvider; 
+}; 

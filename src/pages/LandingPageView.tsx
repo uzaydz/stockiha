@@ -293,7 +293,6 @@ const LandingPageView: React.FC = () => {
         }
       }
     } catch (e) {
-      console.error('خطأ في تحميل ألوان الثيم من التخزين المحلي:', e);
     }
     
     return false;
@@ -353,7 +352,6 @@ const LandingPageView: React.FC = () => {
           setIsLoading(false);
         }
       } catch (e) {
-        console.error('خطأ في تحليل البيانات المخزنة مؤقتاً:', e);
       }
     }
   }, [slug]);
@@ -463,7 +461,6 @@ const LandingPageView: React.FC = () => {
           }));
         });
       } catch (error) {
-        console.error('خطأ في جلب صفحة الهبوط:', error);
         applyViewTransition(() => {
         setError('حدث خطأ أثناء تحميل الصفحة');
         });
@@ -634,4 +631,4 @@ const LandingPageComponentRenderer: React.FC<{ component: LandingPageComponent }
   }
 };
 
-export default LandingPageView; 
+export default LandingPageView;

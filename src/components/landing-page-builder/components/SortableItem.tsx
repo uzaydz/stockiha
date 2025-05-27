@@ -79,8 +79,7 @@ const SortableItem = React.forwardRef<HTMLDivElement, SortableItemProps>(({
     onActivate(id);
     
     // سجل تصحيح الأخطاء
-    
-    
+
     // لا نقوم بفتح النافذة المنبثقة لأي مكون
     // setShowEditModal(true); -- تم تعطيل هذا السطر
   };
@@ -300,4 +299,4 @@ const SortableItem = React.forwardRef<HTMLDivElement, SortableItemProps>(({
 // Añadir displayName para ayudar con la depuración y las herramientas de desarrollo
 SortableItem.displayName = 'SortableItem';
 
-export default SortableItem; 
+export default SortableItem;

@@ -175,4 +175,4 @@ const CategoriesFilter = ({
   );
 };
 
-export default CategoriesFilter; 
+export default CategoriesFilter;

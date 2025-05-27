@@ -23,4 +23,4 @@ export interface CustomerStats {
   total: number;
   newLast30Days: number;
   activeLast30Days: number;
-} 
+}

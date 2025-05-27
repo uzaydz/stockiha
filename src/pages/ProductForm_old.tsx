@@ -385,7 +385,6 @@ export default function ProductForm() {
             navigate('/products');
           }
         } catch (error) {
-          console.error('Error fetching product for edit:', error);
           toast.error('حدث خطأ أثناء تحميل بيانات المنتج للتعديل.');
         } finally {
           setIsLoading(false);
@@ -414,7 +413,6 @@ export default function ProductForm() {
         const productCategories = categoriesData.filter(cat => cat.type === 'product');
         setCategories(productCategories);
       } catch (error) {
-        console.error('Error fetching categories:', error);
         toast.error('حدث خطأ أثناء تحميل الفئات');
       }
     };
@@ -430,7 +428,6 @@ export default function ProductForm() {
           const subcategoriesData = await getSubcategories(watchCategoryId);
           setSubcategories(subcategoriesData);
         } catch (error) {
-          console.error('Error fetching subcategories:', error);
           toast.error('حدث خطأ أثناء تحميل الفئات الفرعية');
         }
       };
@@ -470,7 +467,6 @@ export default function ProductForm() {
           navigate('/products');
         }
       } catch (error) {
-        console.error('Error checking permissions:', error);
         
         // Fallback permission check
         const permissions = user.user_metadata?.permissions || {};
@@ -593,7 +589,6 @@ export default function ProductForm() {
         toast.error(isEditMode ? 'فشل تحديث المنتج' : 'فشل إنشاء المنتج');
       }
     } catch (error) {
-      console.error('Error saving product:', error);
       toast.error('حدث خطأ أثناء حفظ المنتج');
     } finally {
       setIsSubmitting(false);
@@ -928,4 +923,4 @@ export default function ProductForm() {
       </div>
     </Layout>
   );
-} 
+}

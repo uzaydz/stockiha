@@ -109,7 +109,6 @@ const CustomizableStoreFooter: React.FC<CustomizableStoreFooterProps> = ({
   const handleNewsletterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // معالجة الاشتراك في النشرة البريدية
-    console.log('Newsletter subscription:', email);
     setEmail('');
   };
 
@@ -387,4 +386,4 @@ const CustomizableStoreFooter: React.FC<CustomizableStoreFooterProps> = ({
   );
 };
 
-export default CustomizableStoreFooter; 
+export default CustomizableStoreFooter;

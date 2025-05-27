@@ -82,10 +82,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     });
   } catch (error) {
-    console.error('خطأ غير متوقع أثناء استعلام إحصائيات النطاقات:', error);
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'حدث خطأ غير متوقع'
     });
   }
-} 
+}

@@ -66,11 +66,9 @@ export const saveCategoriesToLocalStorage = async (categories: Category[]) => {
     for (const category of categories) {
       await categoriesStore.setItem(category.id, category);
     }
-    
-    
+
     return true;
   } catch (error) {
-    console.error('خطأ في حفظ الفئات محليًا:', error);
     return false;
   }
 };
@@ -97,11 +95,9 @@ export const saveSubcategoriesToLocalStorage = async (subcategories: Subcategory
     for (const subcategory of subcategories) {
       await subcategoriesStore.setItem(subcategory.id, subcategory);
     }
-    
-    
+
     return true;
   } catch (error) {
-    console.error('خطأ في حفظ الفئات الفرعية محليًا:', error);
     return false;
   }
 };
@@ -112,7 +108,6 @@ export const getLocalCategories = async (): Promise<Category[]> => {
     const categories = await categoriesStore.getItem<Category[]>('all');
     return categories || [];
   } catch (error) {
-    console.error('خطأ في جلب الفئات من التخزين المحلي:', error);
     return [];
   }
 };
@@ -123,7 +118,6 @@ export const getLocalCategoryById = async (id: string): Promise<Category | null>
     const category = await categoriesStore.getItem<Category>(id);
     return category;
   } catch (error) {
-    console.error(`خطأ في جلب الفئة ${id} من التخزين المحلي:`, error);
     return null;
   }
 };
@@ -134,7 +128,6 @@ export const getAllLocalSubcategories = async (): Promise<Subcategory[]> => {
     const subcategories = await subcategoriesStore.getItem<Subcategory[]>('all');
     return subcategories || [];
   } catch (error) {
-    console.error('خطأ في جلب جميع الفئات الفرعية من التخزين المحلي:', error);
     return [];
   }
 };
@@ -154,7 +147,6 @@ export const getLocalSubcategoriesByCategoryId = async (categoryId: string): Pro
     const allSubcategories = await getAllLocalSubcategories();
     return allSubcategories.filter(sub => sub.category_id === categoryId);
   } catch (error) {
-    console.error(`خطأ في جلب الفئات الفرعية للفئة ${categoryId} من التخزين المحلي:`, error);
     return [];
   }
 };
@@ -179,7 +171,6 @@ export const getCategories = async (organizationId?: string): Promise<Category[]
       const userId = userInfo.data.user?.id;
       
       if (!userId) {
-        console.warn('المستخدم غير مسجل الدخول ولم يتم تحديد المؤسسة - تعذر جلب الفئات');
         return await getLocalCategories(); // استخدام التخزين المحلي كاحتياطي
       }
       
@@ -191,7 +182,6 @@ export const getCategories = async (organizationId?: string): Promise<Category[]
         .single();
         
       if (userError && userError.code !== 'PGRST116') {
-        console.error('Error fetching user organization:', userError);
         return await getLocalCategories(); // استخدام التخزين المحلي في حالة الخطأ
       }
       
@@ -205,14 +195,12 @@ export const getCategories = async (organizationId?: string): Promise<Category[]
     if (orgId) {
       query = query.eq('organization_id', orgId);
     } else {
-      console.warn('لم يتم تحديد معرف المؤسسة، استخدام التخزين المحلي');
       return await getLocalCategories();
     }
     
     const { data, error } = await query.order('name');
 
     if (error) {
-      console.error('Error fetching categories:', error);
       // في حالة الخطأ، استخدم التخزين المحلي
       return await getLocalCategories();
     }
@@ -232,8 +220,7 @@ export const getCategories = async (organizationId?: string): Promise<Category[]
     // حساب عدد المنتجات لكل فئة
     if (orgId && categories.length > 0) {
       try {
-        
-        
+
         // جلب جميع المنتجات مرة واحدة لتحسين الأداء
         const { data: products, error: productsError } = await supabaseClient
           .from('products')
@@ -242,12 +229,10 @@ export const getCategories = async (organizationId?: string): Promise<Category[]
           .eq('is_active', true);
         
         if (!productsError && products && products.length > 0) {
-          
-          
+
           // تأكد من أن المنتجات نشطة
           const activeProducts = products.filter(product => product.is_active === true);
-          
-          
+
           // إنشاء Map لتخزين معرفات المنتجات الفريدة لكل فئة
           const categoryProductsMap = new Map<string, Set<string>>();
           
@@ -284,24 +269,19 @@ export const getCategories = async (organizationId?: string): Promise<Category[]
           categories.forEach(category => {
             const productSet = categoryProductsMap.get(category.id);
             category.product_count = productSet ? productSet.size : 0;
-            
-            
+
           });
         } else {
-          console.warn('لم يتم العثور على منتجات أو حدث خطأ أثناء جلب المنتجات', productsError);
         }
       } catch (countError) {
-        console.error('خطأ أثناء حساب عدد المنتجات للفئات:', countError);
       }
     }
 
     // تخزين البيانات محليًا للاستخدام في وضع عدم الاتصال
     saveCategoriesToLocalStorage(categories);
-    
-    
+
     return categories;
   } catch (error) {
-    console.error('حدث خطأ أثناء جلب الفئات:', error);
     // في حالة حدوث خطأ، استخدم التخزين المحلي
     return await getLocalCategories();
   }
@@ -326,7 +306,6 @@ export const getCategoryById = async (id: string, organizationId?: string): Prom
     const { data, error } = await query.single();
     
     if (error) {
-      console.error(`Error fetching category with ID ${id}:`, error);
       return getLocalCategoryById(id);
     }
     
@@ -344,7 +323,6 @@ export const getCategoryById = async (id: string, organizationId?: string): Prom
       updated_at: data.updated_at!
     } as Category;
   } catch (error) {
-    console.error(`Error in getCategoryById (${id}):`, error);
     return getLocalCategoryById(id);
   }
 };
@@ -364,8 +342,7 @@ export const createCategory = async (categoryData: Partial<Category>, organizati
     
     // التحقق من حالة الاتصال
     if (!isOnline()) {
-      
-      
+
       // إنشاء معرف مؤقت للفئة
       const tempId = `temp_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
       
@@ -393,8 +370,7 @@ export const createCategory = async (categoryData: Partial<Category>, organizati
       
       // إضافة الفئة إلى قائمة المزامنة للمزامنة لاحقًا
       await addCategoryToSyncQueue(newCategory);
-      
-      
+
       return newCategory;
     }
     
@@ -421,7 +397,6 @@ export const createCategory = async (categoryData: Partial<Category>, organizati
       .single();
 
     if (error) {
-      console.error('Error creating category:', error);
       throw error;
     }
 
@@ -443,7 +418,6 @@ export const createCategory = async (categoryData: Partial<Category>, organizati
 
     return resultCategory;
   } catch (error) {
-    console.error('حدث خطأ أثناء إنشاء فئة جديدة:', error);
     throw error;
   }
 };
@@ -459,10 +433,8 @@ export const addCategoryToSyncQueue = async (category: Category): Promise<void> 
     
     // حفظ القائمة المحدثة
     await localforage.setItem('unsynced_categories', unsyncedCategories);
-    
-    
+
   } catch (error) {
-    console.error('خطأ في إضافة الفئة إلى قائمة المزامنة:', error);
   }
 };
 
@@ -479,7 +451,6 @@ export const updateCategory = async (id: string, categoryData: UpdateCategoryDat
         updatePayload.organization_id = organizationId;
     }
 
-
     const { data, error } = await supabaseClient
       .from('product_categories')
       .update(updatePayload)
@@ -488,7 +459,6 @@ export const updateCategory = async (id: string, categoryData: UpdateCategoryDat
       .single();
 
     if (error) {
-      console.error(`Error updating category ${id}:`, error);
       throw error;
     }
 
@@ -514,7 +484,6 @@ export const updateCategory = async (id: string, categoryData: UpdateCategoryDat
 
     return resultCategory;
   } catch (error) {
-    console.error('حدث خطأ أثناء تحديث الفئة:', error);
     throw error;
   }
 };
@@ -528,7 +497,6 @@ export const deleteCategory = async (id: string): Promise<void> => {
       .eq('id', id);
 
     if (error) {
-      console.error(`Error deleting category ${id}:`, error);
       throw error;
     }
 
@@ -540,7 +508,6 @@ export const deleteCategory = async (id: string): Promise<void> => {
     const updatedCategories = categories.filter(cat => cat.id !== id);
     await saveCategoriesToLocalStorage(updatedCategories);
   } catch (error) {
-    console.error('حدث خطأ أثناء حذف الفئة:', error);
     throw error;
   }
 };
@@ -571,7 +538,6 @@ export const getSubcategories = async (categoryId?: string): Promise<Subcategory
     const { data, error } = await query.order('name');
     
     if (error) {
-      console.error('Error fetching subcategories:', error);
       return categoryId 
         ? await getLocalSubcategoriesByCategoryId(categoryId)
         : await getAllLocalSubcategories();
@@ -579,7 +545,6 @@ export const getSubcategories = async (categoryId?: string): Promise<Subcategory
     
     return data;
   } catch (error) {
-    console.error('Error in getSubcategories:', error);
     return categoryId 
       ? await getLocalSubcategoriesByCategoryId(categoryId)
       : await getAllLocalSubcategories();
@@ -602,13 +567,11 @@ export const getSubcategoryById = async (id: string): Promise<Subcategory | null
       .single();
     
     if (error) {
-      console.error(`Error fetching subcategory with ID ${id}:`, error);
       return subcategoriesStore.getItem<Subcategory>(id);
     }
     
     return data;
   } catch (error) {
-    console.error(`Error in getSubcategoryById (${id}):`, error);
     return subcategoriesStore.getItem<Subcategory>(id);
   }
 };
@@ -617,8 +580,7 @@ export const createSubcategory = async (subcategory: { category_id: string; name
   try {
     // التحقق من حالة الاتصال
     if (!isOnline()) {
-      
-      
+
       // إنشاء معرف مؤقت للفئة الفرعية
       const tempId = `temp_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
       
@@ -652,8 +614,7 @@ export const createSubcategory = async (subcategory: { category_id: string; name
       
       // إضافة الفئة الفرعية إلى قائمة المزامنة للمزامنة لاحقًا
       await addSubcategoryToSyncQueue(newSubcategory);
-      
-      
+
       return newSubcategory;
     }
     
@@ -676,7 +637,6 @@ export const createSubcategory = async (subcategory: { category_id: string; name
       .single();
 
     if (error) {
-      console.error('Error creating subcategory:', error);
       throw error;
     }
 
@@ -694,7 +654,6 @@ export const createSubcategory = async (subcategory: { category_id: string; name
 
     return data;
   } catch (error) {
-    console.error('حدث خطأ أثناء إنشاء فئة فرعية جديدة:', error);
     throw error;
   }
 };
@@ -710,10 +669,8 @@ export const addSubcategoryToSyncQueue = async (subcategory: Subcategory): Promi
     
     // حفظ القائمة المحدثة
     await localforage.setItem('unsynced_subcategories', unsyncedSubcategories);
-    
-    
+
   } catch (error) {
-    console.error('خطأ في إضافة الفئة الفرعية إلى قائمة المزامنة:', error);
   }
 };
 
@@ -728,7 +685,6 @@ export const updateSubcategory = async (id: string, updates: UpdateSubcategory):
       .single();
 
     if (error) {
-      console.error(`Error updating subcategory ${id}:`, error);
       throw error;
     }
 
@@ -749,7 +705,6 @@ export const updateSubcategory = async (id: string, updates: UpdateSubcategory):
 
     return data;
   } catch (error) {
-    console.error(`حدث خطأ أثناء تحديث الفئة الفرعية ${id}:`, error);
     throw error;
   }
 };
@@ -763,7 +718,6 @@ export const deleteSubcategory = async (id: string): Promise<void> => {
       .eq('id', id);
 
     if (error) {
-      console.error(`Error deleting subcategory ${id}:`, error);
       throw error;
     }
 
@@ -783,7 +737,6 @@ export const deleteSubcategory = async (id: string): Promise<void> => {
       await saveSubcategoriesToLocalStorage(updatedCategorySubcategories, category.id);
     }
   } catch (error) {
-    console.error(`حدث خطأ أثناء حذف الفئة الفرعية ${id}:`, error);
     throw error;
   }
 };
@@ -807,7 +760,6 @@ export const syncCategoriesDataOnStartup = async (): Promise<boolean> => {
       .order('name');
       
     if (categoriesError) {
-      console.error('خطأ في جلب الفئات للمزامنة:', categoriesError);
       return false;
     }
     
@@ -821,7 +773,6 @@ export const syncCategoriesDataOnStartup = async (): Promise<boolean> => {
       .order('name');
       
     if (subcategoriesError) {
-      console.error('خطأ في جلب الفئات الفرعية للمزامنة:', subcategoriesError);
       return false;
     }
     
@@ -844,15 +795,13 @@ export const syncCategoriesDataOnStartup = async (): Promise<boolean> => {
     for (const categoryId in subcategoriesByCategory) {
       await saveSubcategoriesToLocalStorage(subcategoriesByCategory[categoryId], categoryId);
     }
-    
-    
+
     return true;
   } catch (error) {
-    console.error('خطأ في مزامنة بيانات الفئات والفئات الفرعية:', error);
     return false;
   }
 };
 
 // استدعاء المزامنة عند استيراد الملف (لملء التخزين المحلي عند بدء التطبيق)
 // تأخير المزامنة لمدة ثانيتين للتأكد من أن التطبيق قد تم تحميله بالكامل
-// setTimeout(syncCategoriesDataOnStartup, 2000); 
+// setTimeout(syncCategoriesDataOnStartup, 2000);

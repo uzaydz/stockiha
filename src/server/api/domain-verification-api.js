@@ -90,7 +90,6 @@ router.post('/check-domain', async (req, res) => {
         ]);
       
       if (updateError) {
-        console.error('خطأ في تحديث حالة التحقق:', updateError);
       }
     }
     
@@ -102,7 +101,6 @@ router.post('/check-domain', async (req, res) => {
       results
     });
   } catch (error) {
-    console.error('خطأ أثناء التحقق من النطاق:', error);
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'حدث خطأ غير متوقع'
@@ -153,7 +151,6 @@ router.post('/link-domain', async (req, res) => {
     const data = await response.json();
     
     if (!response.ok) {
-      console.error('خطأ في ربط النطاق مع Vercel:', data);
       return res.status(400).json({
         success: false,
         error: data.error?.message || 'حدث خطأ أثناء ربط النطاق'
@@ -167,7 +164,6 @@ router.post('/link-domain', async (req, res) => {
       .eq('id', organizationId);
 
     if (dbError) {
-      console.error('حدث خطأ أثناء تحديث النطاق في قاعدة البيانات:', dbError);
       return res.status(500).json({
         success: false,
         error: 'حدث خطأ أثناء تحديث النطاق في قاعدة البيانات'
@@ -188,7 +184,6 @@ router.post('/link-domain', async (req, res) => {
       ]);
 
     if (verificationError) {
-      console.error('حدث خطأ أثناء إنشاء سجل التحقق:', verificationError);
     }
 
     // إرجاع النتيجة
@@ -201,7 +196,6 @@ router.post('/link-domain', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('خطأ غير متوقع أثناء ربط النطاق:', error);
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'حدث خطأ غير متوقع'
@@ -269,10 +263,8 @@ router.post('/remove-domain', async (req, res) => {
       
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('خطأ في إزالة النطاق من Vercel:', errorData);
       }
     } catch (error) {
-      console.error('خطأ في إزالة النطاق من Vercel:', error);
       // سنستمر في تنفيذ الحذف من قاعدة البيانات حتى لو فشل الحذف من Vercel
     }
 
@@ -297,7 +289,6 @@ router.post('/remove-domain', async (req, res) => {
       .eq('domain', domain);
 
     if (deleteError) {
-      console.error('خطأ في حذف سجل التحقق:', deleteError);
     }
 
     // إرجاع النتيجة
@@ -306,7 +297,6 @@ router.post('/remove-domain', async (req, res) => {
       message: 'تمت إزالة النطاق بنجاح'
     });
   } catch (error) {
-    console.error('خطأ غير متوقع أثناء إزالة النطاق:', error);
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'حدث خطأ غير متوقع'
@@ -314,4 +304,4 @@ router.post('/remove-domain', async (req, res) => {
   }
 });
 
-export default router; 
+export default router;

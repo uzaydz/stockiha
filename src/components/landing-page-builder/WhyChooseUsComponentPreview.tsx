@@ -413,4 +413,4 @@ const WhyChooseUsComponentPreview: React.FC<WhyChooseUsComponentPreviewProps> = 
   );
 };
 
-export default WhyChooseUsComponentPreview; 
+export default WhyChooseUsComponentPreview;

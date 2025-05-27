@@ -26,6 +26,14 @@ import {
   RefreshCw,
   Trash2,
   X,
+  Package,
+  Clock,
+  CheckCircle,
+  Truck,
+  CheckCircle2,
+  XCircle,
+  Phone,
+  ChevronDown,
 } from "lucide-react";
 import { OrderBulkActionsProps } from "./OrderTableTypes";
 
@@ -43,6 +51,7 @@ const OrderBulkActions = ({
     title: string;
     description: string;
   } | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const updateOrdersStatus = async (status: string) => {
     if (!onUpdateStatus) return;
@@ -52,7 +61,6 @@ const OrderBulkActions = ({
       await onUpdateStatus(selectedOrders, status);
       onReset();
     } catch (error) {
-      console.error("فشل تحديث حالة الطلبات:", error);
     } finally {
       setIsUpdating(false);
       setShowConfirmDialog(false);
@@ -89,105 +97,153 @@ const OrderBulkActions = ({
     }
   };
 
+  const handleBulkStatusUpdate = (status: string) => {
+    handleStatusUpdate(status);
+  };
+
+  const handleBulkCallConfirmationUpdate = (confirmed: boolean) => {
+    // Implement call confirmation update logic here
+  };
+
+  const handleExportSelected = () => {
+    // Implement export logic here
+  };
+
+  const handleDeleteSelected = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = () => {
+    // Implement the delete logic here
+    setShowDeleteConfirm(false);
+  };
+
   return (
     <>
       <div className="flex items-center gap-2">
-        <span className="text-sm font-medium text-muted-foreground">
+        <span className="text-sm font-medium text-foreground bg-primary/10 px-2 py-1 rounded border border-primary/20">
           {selectedOrders.length} طلب محدد
         </span>
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onReset}
-          className="h-8 px-2"
-        >
-          <X className="h-4 w-4 ml-1" />
-          <span>إلغاء</span>
-        </Button>
-
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8">
-              {isUpdating ? (
-                <Loader2 className="h-4 w-4 ml-1 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4 ml-1" />
-              )}
-              <span>تحديث الحالة</span>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="bg-background border-border text-foreground hover:bg-accent"
+            >
+              <Package className="h-4 w-4 ml-1" />
+              تحديث الحالة
+              <ChevronDown className="h-4 w-4 mr-1" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>تحديث حالة الطلبات</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {hasUpdatePermission && (
-              <>
-                <DropdownMenuItem
-                  onClick={() => handleStatusUpdate("processing")}
-                  disabled={isUpdating}
-                >
-                  <PackageCheck className="h-4 w-4 ml-2 text-amber-500" />
-                  <span>قيد المعالجة</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleStatusUpdate("shipped")}
-                  disabled={isUpdating}
-                >
-                  <PackageCheck className="h-4 w-4 ml-2 text-blue-500" />
-                  <span>تم الشحن</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleStatusUpdate("delivered")}
-                  disabled={isUpdating}
-                >
-                  <PackageCheck className="h-4 w-4 ml-2 text-green-500" />
-                  <span>تم التسليم</span>
-                </DropdownMenuItem>
-              </>
-            )}
-            {hasCancelPermission && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => handleStatusUpdate("cancelled")}
-                  disabled={isUpdating}
-                  className="text-red-500 focus:text-red-500"
-                >
-                  <Trash2 className="h-4 w-4 ml-2" />
-                  <span>إلغاء الطلبات</span>
-                </DropdownMenuItem>
-              </>
-            )}
+          <DropdownMenuContent align="start" className="bg-background border-border">
+            <DropdownMenuItem 
+              onClick={() => handleBulkStatusUpdate('pending')}
+              className="text-foreground hover:bg-accent"
+            >
+              <Clock className="h-4 w-4 ml-2 text-amber-500" />
+              قيد الانتظار
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              onClick={() => handleBulkStatusUpdate('confirmed')}
+              className="text-foreground hover:bg-accent"
+            >
+              <CheckCircle className="h-4 w-4 ml-2 text-blue-500" />
+              مؤكد
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              onClick={() => handleBulkStatusUpdate('shipped')}
+              className="text-foreground hover:bg-accent"
+            >
+              <Truck className="h-4 w-4 ml-2 text-purple-500" />
+              تم الشحن
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              onClick={() => handleBulkStatusUpdate('delivered')}
+              className="text-foreground hover:bg-accent"
+            >
+              <CheckCircle2 className="h-4 w-4 ml-2 text-green-500" />
+              تم التسليم
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              onClick={() => handleBulkStatusUpdate('cancelled')}
+              className="text-foreground hover:bg-accent"
+            >
+              <XCircle className="h-4 w-4 ml-2 text-red-500" />
+              ملغي
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <Button variant="outline" size="sm" className="h-8">
-          <Printer className="h-4 w-4 ml-1" />
-          <span>طباعة</span>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="bg-background border-border text-foreground hover:bg-accent"
+            >
+              <Phone className="h-4 w-4 ml-1" />
+              تأكيد الاتصال
+              <ChevronDown className="h-4 w-4 mr-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="bg-background border-border">
+            <DropdownMenuItem 
+              onClick={() => handleBulkCallConfirmationUpdate(true)}
+              className="text-foreground hover:bg-accent"
+            >
+              <CheckCircle className="h-4 w-4 ml-2 text-green-500" />
+              تم التأكيد
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              onClick={() => handleBulkCallConfirmationUpdate(false)}
+              className="text-foreground hover:bg-accent"
+            >
+              <XCircle className="h-4 w-4 ml-2 text-red-500" />
+              لم يتم التأكيد
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={handleExportSelected}
+          className="bg-background border-border text-foreground hover:bg-accent"
+        >
+          <Download className="h-4 w-4 ml-1" />
+          تصدير المحدد
         </Button>
 
-        <Button variant="outline" size="sm" className="h-8">
-          <Download className="h-4 w-4 ml-1" />
-          <span>تصدير</span>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={handleDeleteSelected}
+          className="bg-background border-border text-destructive hover:bg-destructive/10"
+        >
+          <Trash2 className="h-4 w-4 ml-1" />
+          حذف المحدد
         </Button>
       </div>
 
-      {/* مربع حوار تأكيد العملية */}
-      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-        <AlertDialogContent>
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent className="bg-background border-border">
           <AlertDialogHeader>
-            <AlertDialogTitle>{actionToConfirm?.title}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {actionToConfirm?.description}
+            <AlertDialogTitle className="text-foreground">تأكيد الحذف</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground">
+              هل أنت متأكد من أنك تريد حذف {selectedOrders.length} طلب؟ هذا الإجراء لا يمكن التراجع عنه.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>إلغاء</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => actionToConfirm && updateOrdersStatus(actionToConfirm.status)}
-              className={actionToConfirm?.status === "cancelled" ? "bg-red-500 hover:bg-red-600" : ""}
+            <AlertDialogCancel className="bg-background border-border text-foreground hover:bg-accent">
+              إلغاء
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              تأكيد
+              حذف
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -196,4 +252,4 @@ const OrderBulkActions = ({
   );
 };
 
-export default OrderBulkActions; 
+export default OrderBulkActions;

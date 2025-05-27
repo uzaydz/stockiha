@@ -67,4 +67,4 @@ const ProductSizeSelector = ({
   );
 };
 
-export default ProductSizeSelector; 
+export default ProductSizeSelector;

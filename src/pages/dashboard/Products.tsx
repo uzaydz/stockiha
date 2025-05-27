@@ -15,8 +15,7 @@ import SyncProducts from '@/components/product/SyncProducts';
 type CategoryObject = { id: string; name: string; slug: string };
 
 const Products = () => {
-  
-  
+
   const { currentOrganization } = useTenant();
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -74,7 +73,6 @@ const Products = () => {
       setHasNextPage(result.hasNextPage);
       setHasPreviousPage(result.hasPreviousPage);
     } catch (error) {
-      console.error('Error fetching products:', error);
       setLoadError('حدث خطأ أثناء تحميل المنتجات');
       toast.error('حدث خطأ أثناء تحميل المنتجات');
     } finally {
@@ -140,7 +138,6 @@ const Products = () => {
         const allProducts = await getProducts(currentOrganization.id);
         setAllProductsForCategories(allProducts);
       } catch (error) {
-        console.error('Error fetching categories:', error);
       }
     };
     
@@ -283,4 +280,4 @@ const Products = () => {
   );
 };
 
-export default Products; 
+export default Products;

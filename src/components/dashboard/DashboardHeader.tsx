@@ -122,7 +122,7 @@ const DashboardHeader = ({ toggleSidebar, onTimeframeChange, onCustomDateChange 
   };
 
   return (
-    <header className="w-full rounded-lg bg-card text-card-foreground relative overflow-hidden transition-all duration-300 bg-gradient-to-br from-background/95 to-background/90 backdrop-blur-md border border-border/20 shadow-lg hover:shadow-xl before:absolute before:inset-0 before:bg-gradient-to-br before:from-primary/5 before:to-transparent before:pointer-events-none mb-6">
+    <header className="w-full rounded-lg bg-card dark:bg-zinc-900 text-card-foreground dark:text-zinc-200 relative overflow-hidden transition-all duration-300 bg-gradient-to-br from-background/95 to-background/90 dark:from-zinc-900/95 dark:to-zinc-900/90 backdrop-blur-md border border-border/20 dark:border-zinc-800/20 shadow-lg hover:shadow-xl dark:hover:shadow-zinc-900/50 before:absolute before:inset-0 before:bg-gradient-to-br before:from-primary/5 before:to-transparent before:pointer-events-none mb-6">
               {/* شريط أدوات لوحة التحكم */}
         <div className="flex flex-col gap-5 p-6 relative z-10">
         {/* رأس الصفحة مع الأزرار */}
@@ -131,20 +131,20 @@ const DashboardHeader = ({ toggleSidebar, onTimeframeChange, onCustomDateChange 
             <Button 
               variant="ghost" 
               size="icon" 
-              className="md:hidden mr-3" 
+              className="md:hidden mr-3 text-foreground dark:text-zinc-200 hover:bg-accent dark:hover:bg-zinc-800" 
               onClick={toggleSidebar}
             >
               <MenuIcon className="h-5 w-5" />
             </Button>
             
             <div>
-              <h1 className="text-2xl font-bold tracking-tight mb-1 bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">لوحة التحكم</h1>
-              <p className="text-muted-foreground text-sm mb-3 font-medium">
+              <h1 className="text-2xl font-bold tracking-tight mb-1 bg-gradient-to-r from-foreground to-foreground/80 dark:from-zinc-100 dark:to-zinc-300 bg-clip-text text-transparent">لوحة التحكم</h1>
+              <p className="text-muted-foreground dark:text-zinc-400 text-sm mb-3 font-medium">
                 {currentOrganization?.name ? `${currentOrganization.name} - ` : ''}
                 نظرة عامة على متجرك ومبيعاتك
               </p>
               {/* عرض عنوان الفترة الزمنية */}
-              <div className="inline-flex items-center gap-2 bg-gradient-to-br from-primary/10 to-primary/5 py-1.5 px-4 rounded-full text-sm text-primary border border-primary/20 font-medium">
+              <div className="inline-flex items-center gap-2 bg-gradient-to-br from-primary/10 to-primary/5 dark:from-primary/20 dark:to-primary/10 py-1.5 px-4 rounded-full text-sm text-primary dark:text-primary/90 border border-primary/20 dark:border-primary/30 font-medium">
                 <CalendarIcon className="h-4 w-4" />
                 <span>{getTimeframeTitle()}</span>
               </div>
@@ -155,7 +155,7 @@ const DashboardHeader = ({ toggleSidebar, onTimeframeChange, onCustomDateChange 
             <Button
               variant="ghost"
               size="icon"
-              className="text-muted-foreground hover:text-foreground"
+              className="text-muted-foreground dark:text-zinc-400 hover:text-foreground dark:hover:text-zinc-200 hover:bg-accent dark:hover:bg-zinc-800"
               onClick={() => navigate('/dashboard/notifications')}
             >
               <Bell className="h-5 w-5" />
@@ -163,33 +163,42 @@ const DashboardHeader = ({ toggleSidebar, onTimeframeChange, onCustomDateChange 
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-9 w-9 rounded-full">
-                  <Avatar className="h-9 w-9">
+                <Button variant="ghost" className="relative h-9 w-9 rounded-full hover:bg-accent dark:hover:bg-zinc-800">
+                  <Avatar className="h-9 w-9 border border-border dark:border-zinc-700">
                     <AvatarImage src={user?.avatar_url || ""} alt={user?.full_name || "صورة المستخدم"} />
-                    <AvatarFallback>{getNameInitials()}</AvatarFallback>
+                    <AvatarFallback className="bg-primary/10 dark:bg-primary/20 text-primary dark:text-primary/90">{getNameInitials()}</AvatarFallback>
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56" align="end" forceMount>
-                <DropdownMenuLabel className="font-normal">
+              <DropdownMenuContent className="w-56 bg-background dark:bg-zinc-800 border-border dark:border-zinc-700" align="end" forceMount>
+                <DropdownMenuLabel className="font-normal text-foreground dark:text-zinc-200">
                   <div className="flex flex-col space-y-1">
                     <p className="text-sm font-medium leading-none">{user?.full_name}</p>
-                    <p className="text-xs leading-none text-muted-foreground">
+                    <p className="text-xs leading-none text-muted-foreground dark:text-zinc-400">
                       {user?.email}
                     </p>
                   </div>
                 </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => navigate('/dashboard/profile')}>
+                <DropdownMenuSeparator className="bg-border dark:bg-zinc-700" />
+                <DropdownMenuItem 
+                  onClick={() => navigate('/dashboard/profile')}
+                  className="text-foreground dark:text-zinc-200 hover:bg-accent dark:hover:bg-zinc-700"
+                >
                   <User className="ml-2 h-4 w-4" />
                   <span>الملف الشخصي</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate('/dashboard/settings')}>
+                <DropdownMenuItem 
+                  onClick={() => navigate('/dashboard/settings')}
+                  className="text-foreground dark:text-zinc-200 hover:bg-accent dark:hover:bg-zinc-700"
+                >
                   <Settings className="ml-2 h-4 w-4" />
                   <span>الإعدادات</span>
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleSignOut}>
+                <DropdownMenuSeparator className="bg-border dark:bg-zinc-700" />
+                <DropdownMenuItem 
+                  onClick={handleSignOut}
+                  className="text-foreground dark:text-zinc-200 hover:bg-accent dark:hover:bg-zinc-700"
+                >
                   تسجيل الخروج
                 </DropdownMenuItem>
               </DropdownMenuContent>

@@ -29,4 +29,4 @@ const SettingCard: React.FC<SettingCardProps> = ({
   );
 };
 
-export default SettingCard; 
+export default SettingCard;

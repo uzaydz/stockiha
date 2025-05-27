@@ -66,7 +66,6 @@ const OrganizationSetup = () => {
         });
       }
     } catch (error) {
-      console.error('Error creating organization:', error);
       toast({
         title: 'حدث خطأ غير متوقع',
         description: 'يرجى المحاولة مرة أخرى لاحقًا.',
@@ -164,4 +163,4 @@ const OrganizationSetup = () => {
   );
 };
 
-export default OrganizationSetup; 
+export default OrganizationSetup;

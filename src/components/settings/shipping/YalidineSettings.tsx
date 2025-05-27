@@ -94,7 +94,6 @@ export default function YalidineSettings() {
             variant: "default",
           });
         } catch (error) {
-          console.error('Error creating shipping tables:', error);
           setTableError('حدث خطأ أثناء إنشاء جداول إعدادات الشحن. حاول مرة أخرى لاحقًا.');
           
           toast({
@@ -167,7 +166,6 @@ export default function YalidineSettings() {
         }
       }
     } catch (e) {
-      console.error('خطأ في تحليل حالة المزامنة عند التحميل:', e);
     }
     
     // إعداد المراقبة المستمرة لحالة المزامنة إذا كانت المزامنة جارية
@@ -192,7 +190,6 @@ export default function YalidineSettings() {
           }
         }
       } catch (e) {
-        console.error('خطأ في تحليل حالة المزامنة:', e);
       }
     };
     
@@ -274,7 +271,6 @@ export default function YalidineSettings() {
         });
       }
     } catch (error) {
-      console.error('خطأ أثناء مزامنة بيانات ياليدين:', error);
       toast({
         title: "خطأ في المزامنة",
         description: "حدث خطأ أثناء مزامنة بيانات ياليدين: " + ((error as Error)?.message || 'خطأ غير معروف'),
@@ -303,8 +299,7 @@ export default function YalidineSettings() {
     setIsEnabled(checked);
     
     try {
-      
-      
+
       // Always save the new enabled state
       await handleSaveSettings({
         is_enabled: checked,
@@ -326,7 +321,6 @@ export default function YalidineSettings() {
       // Refresh settings data
       refetch();
     } catch (error) {
-      console.error('Error toggling enabled state:', error);
       
       // Revert state on error
       setIsEnabled(!checked);
@@ -347,8 +341,7 @@ export default function YalidineSettings() {
     setTestResult(null);
 
     try {
-      
-      
+
       // Create an instance of the shipping service with Yalidine provider
       // استخدام القيم كما هي بدون عكس
       const shippingService = createShippingService(
@@ -375,7 +368,6 @@ export default function YalidineSettings() {
         });
       }
     } catch (error) {
-      console.error('Error testing connection:', error);
       setTestResult({
         success: false,
         message: 'حدث خطأ أثناء الاتصال بالخدمة: ' + ((error as Error)?.message || 'خطأ غير معروف')
@@ -387,8 +379,7 @@ export default function YalidineSettings() {
 
   // وظيفة لإعادة تعيين كل شيء وإعادة المزامنة من الصفر
   const handleForceReset = () => {
-    
-    
+
     // إظهار رسالة للمستخدم
     toast({
       title: "جاري إعادة التعيين",
@@ -406,7 +397,6 @@ export default function YalidineSettings() {
       
       yalidineKeys.forEach(key => localStorage.removeItem(key));
     } catch (e) {
-      console.error('فشل حذف مفاتيح localStorage:', e);
     }
     
     // إعادة تعيين حالة المزامنة
@@ -424,7 +414,6 @@ export default function YalidineSettings() {
       yalidineRateLimiter.resetStats();
       
     } else {
-      console.warn('فشل الوصول إلى وظيفة resetStats في محدد المعدل');
     }
     
     // إعادة تعيين حالة المعالجة في محدد المعدل يدوياً (يحل مشكلة توقف المعالجة)
@@ -437,10 +426,8 @@ export default function YalidineSettings() {
         yalidineRateLimiter.lastProcessingStartTime = null;
         // @ts-ignore
         yalidineRateLimiter.queue = [];
-        
-        
+
       } catch (error) {
-        console.error('حدث خطأ أثناء تنظيف حالة محدد المعدل:', error);
       }
     }
     
@@ -458,9 +445,7 @@ export default function YalidineSettings() {
         });
         return;
       }
-      
-      
-      
+
       // استخدام handleSyncData بدلاً من تكرار الكود
       // هذا يضمن اتباع نفس المنطق في كل مكان
       handleSyncData();
@@ -539,4 +524,4 @@ export default function YalidineSettings() {
       )}
     </div>
   );
-} 
+}

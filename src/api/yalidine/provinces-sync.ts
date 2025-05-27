@@ -15,8 +15,7 @@ import { getSyncStatus, updateSyncStatus } from './sync-status';
  */
 export async function syncProvinces(organizationId: string, apiClient: AxiosInstance): Promise<boolean> {
   try {
-    
-    
+
     // تحديث حالة التقدم - تأكيد أننا في وضع المزامنة
     const syncStatus = getSyncStatus();
     syncStatus.provinces.status = 'syncing';
@@ -28,7 +27,6 @@ export async function syncProvinces(organizationId: string, apiClient: AxiosInst
       .select('*', { count: 'exact' });
     
     if (globalError || !globalProvincesData || globalProvincesData.length === 0) {
-      console.error('[ERROR] لا توجد بيانات ولايات عالمية، محاولة مزامنة البيانات العالمية أولاً');
       
       // محاولة مزامنة البيانات العالمية
       try {
@@ -37,13 +35,11 @@ export async function syncProvinces(organizationId: string, apiClient: AxiosInst
         const globalSyncSuccess = await syncAllGlobalData();
         
         if (!globalSyncSuccess) {
-          console.error('[ERROR] فشلت مزامنة البيانات العالمية');
           syncStatus.provinces.status = 'failed';
           updateSyncStatus(syncStatus);
           return false;
         }
       } catch (globalSyncError) {
-        console.error('[ERROR] خطأ أثناء محاولة مزامنة البيانات العالمية:', globalSyncError);
         syncStatus.provinces.status = 'failed';
         updateSyncStatus(syncStatus);
         return false;
@@ -55,7 +51,6 @@ export async function syncProvinces(organizationId: string, apiClient: AxiosInst
         .select('*');
       
       if (refreshError || !refreshedProvinces || refreshedProvinces.length === 0) {
-        console.error('[ERROR] لا يمكن جلب البيانات العالمية بعد المزامنة');
         syncStatus.provinces.status = 'failed';
         updateSyncStatus(syncStatus);
         return false;
@@ -64,9 +59,7 @@ export async function syncProvinces(organizationId: string, apiClient: AxiosInst
       // تعيين البيانات المحدثة
       globalProvincesData = refreshedProvinces;
     }
-    
-    
-    
+
     // تحديث حالة التقدم
     syncStatus.provinces.total = globalProvincesData.length;
     syncStatus.provinces.status = 'syncing';
@@ -81,13 +74,11 @@ export async function syncProvinces(organizationId: string, apiClient: AxiosInst
         .eq('organization_id', organizationId);
       
       if (deleteError) {
-        console.error('[ERROR] خطأ أثناء حذف بيانات الولايات القديمة:', deleteError);
         syncStatus.provinces.status = 'failed';
         updateSyncStatus(syncStatus);
         return false;
       }
     } catch (dbError) {
-      console.error('[ERROR] خطأ أثناء حذف بيانات الولايات القديمة:', dbError);
       syncStatus.provinces.status = 'failed';
       updateSyncStatus(syncStatus);
       return false;
@@ -110,15 +101,12 @@ export async function syncProvinces(organizationId: string, apiClient: AxiosInst
         .insert(dataToInsert);
       
       if (insertError) {
-        console.error('[ERROR] خطأ أثناء إدخال بيانات الولايات الجديدة:', insertError);
         syncStatus.provinces.status = 'failed';
         updateSyncStatus(syncStatus);
         return false;
       }
-      
-      
+
     } catch (dbError) {
-      console.error('[ERROR] خطأ أثناء إدخال بيانات الولايات الجديدة:', dbError);
       syncStatus.provinces.status = 'failed';
       updateSyncStatus(syncStatus);
       return false;
@@ -131,11 +119,10 @@ export async function syncProvinces(organizationId: string, apiClient: AxiosInst
     
     return true;
   } catch (error) {
-    console.error('[ERROR] خطأ أثناء مزامنة بيانات الولايات:', error);
     // تحديث حالة الفشل
     const syncStatus = getSyncStatus();
     syncStatus.provinces.status = 'failed';
     updateSyncStatus(syncStatus);
     return false;
   }
-} 
+}

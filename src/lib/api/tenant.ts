@@ -13,4 +13,4 @@ export * from './organization-creation';
 export * from './subdomain';
 
 // تصدير وظائف تسجيل المستأجر
-export * from './tenant-registration'; 
+export * from './tenant-registration';

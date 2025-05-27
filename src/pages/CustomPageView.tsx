@@ -71,7 +71,6 @@ const CustomPageView: React.FC = () => {
           setCategories(categoriesData);
         }
       } catch (error) {
-        console.error('خطأ في جلب الفئات:', error);
       }
     };
 
@@ -92,7 +91,6 @@ const CustomPageView: React.FC = () => {
           setFooterSettings(storeSettings.settings);
         }
       } catch (error) {
-        console.error('خطأ في جلب إعدادات الفوتر:', error);
       }
     };
 
@@ -119,7 +117,6 @@ const CustomPageView: React.FC = () => {
           setError('الصفحة غير موجودة');
         }
       } catch (err) {
-        console.error('خطأ في جلب الصفحة:', err);
         setError('حدث خطأ أثناء تحميل الصفحة');
       } finally {
         setLoading(false);
@@ -400,4 +397,4 @@ const CustomPageView: React.FC = () => {
   );
 };
 
-export default CustomPageView; 
+export default CustomPageView;

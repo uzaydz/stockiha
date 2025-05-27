@@ -99,7 +99,6 @@ const CategorySectionEditor: React.FC<CategorySectionEditorProps> = ({
         
         setCategories(data || []);
       } catch (error) {
-        console.error('خطأ في جلب الفئات:', error);
         toast({
           title: "خطأ",
           description: "فشل في تحميل الفئات، يرجى المحاولة مرة أخرى",
@@ -422,4 +421,4 @@ const CategorySectionEditor: React.FC<CategorySectionEditorProps> = ({
   );
 };
 
-export default CategorySectionEditor; 
+export default CategorySectionEditor;

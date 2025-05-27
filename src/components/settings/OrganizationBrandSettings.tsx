@@ -47,7 +47,6 @@ const OrganizationBrandSettings = () => {
           setDisplayTextWithLogo(settings.display_text_with_logo !== false);
         }
       } catch (error) {
-        console.error('Error al cargar la configuración de la organización:', error);
         toast({
           title: 'خطأ',
           description: 'حدث خطأ أثناء تحميل إعدادات المؤسسة',
@@ -76,7 +75,6 @@ const OrganizationBrandSettings = () => {
       });
     
     if (error) {
-      console.error('Error al subir imagen:', error);
       throw error;
     }
     
@@ -142,20 +140,17 @@ const OrganizationBrandSettings = () => {
       const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
 
       if (sessionError) {
-        console.error('Error getting session:', sessionError);
         toast({ title: 'خطأ في الجلسة', description: 'لا يمكن التحقق من جلسة المستخدم', variant: 'destructive' });
         setIsSaving(false);
         return;
       }
 
       if (!session || !session.user) {
-        console.error('No active session or user found before calling RPC.');
         toast({ title: 'جلسة غير نشطة', description: 'يرجى تسجيل الدخول مرة أخرى', variant: 'destructive' });
         setIsSaving(false);
         return;
       }
 
-      
       if (currentOrganization?.id) {
           
       } else {
@@ -184,7 +179,6 @@ const OrganizationBrandSettings = () => {
         description: 'تم حفظ إعدادات العلامة التجارية بنجاح',
       });
     } catch (error) {
-      console.error('Error al guardar la configuración:', error);
       toast({
         title: 'خطأ',
         description: 'فشل في حفظ إعدادات العلامة التجارية',
@@ -347,4 +341,4 @@ const OrganizationBrandSettings = () => {
   );
 };
 
-export default OrganizationBrandSettings; 
+export default OrganizationBrandSettings;

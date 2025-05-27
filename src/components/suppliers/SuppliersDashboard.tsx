@@ -106,7 +106,6 @@ export function SuppliersDashboard() {
           internationalSuppliers: suppliersData.length - localSuppliers
         });
       } catch (error) {
-        console.error('Error loading suppliers dashboard data:', error);
         toast({
           title: 'خطأ',
           description: 'حدث خطأ أثناء تحميل بيانات لوحة معلومات الموردين',
@@ -396,4 +395,4 @@ export function SuppliersDashboard() {
       </Card>
     </div>
   );
-} 
+}

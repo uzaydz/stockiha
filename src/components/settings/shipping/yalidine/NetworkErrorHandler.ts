@@ -37,7 +37,6 @@ export function handleNetworkError(
   
   // التحقق من تجاوز الحد الأقصى للأخطاء
   if (errorCountRef.current >= maxConsecutiveErrors && !syncAbortedRef.current) {
-    console.error(`[SYNC] تم إلغاء المزامنة بعد ${errorCountRef.current} أخطاء متتالية في الشبكة`);
     syncAbortedRef.current = true;
     onAbort();
     return true;

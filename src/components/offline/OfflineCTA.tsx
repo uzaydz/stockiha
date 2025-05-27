@@ -109,4 +109,4 @@ const OfflineCTA = () => {
   );
 };
 
-export default OfflineCTA; 
+export default OfflineCTA;

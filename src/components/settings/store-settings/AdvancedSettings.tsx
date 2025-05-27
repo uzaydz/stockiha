@@ -133,8 +133,7 @@ const AdvancedSettings = ({ settings, updateSetting }: AdvancedSettingsProps) =>
           placeholder="<!-- أضف شيفرة HTML لنهاية الصفحة (قبل إغلاق وسم body) هنا -->
 
 <script>
-  
-  
+
   // كود مخصص للتتبع أو إضافة ميزات خاصة
   document.addEventListener('DOMContentLoaded', function() {
     // قم بإضافة الكود الخاص بك هنا
@@ -218,4 +217,4 @@ const AdvancedSettings = ({ settings, updateSetting }: AdvancedSettingsProps) =>
   );
 };
 
-export default AdvancedSettings; 
+export default AdvancedSettings;

@@ -161,4 +161,4 @@ const LocalDatabase = () => {
   );
 };
 
-export default LocalDatabase; 
+export default LocalDatabase;

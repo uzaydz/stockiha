@@ -164,4 +164,4 @@ const MarketplaceFeatures = () => {
   );
 };
 
-export default MarketplaceFeatures; 
+export default MarketplaceFeatures;

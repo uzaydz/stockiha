@@ -94,8 +94,6 @@ export function DomainSettingsCard({
           throw new Error(linkResult.error || 'فشل في ربط النطاق');
         }
 
-        
-
         // تحديث حالة النطاق في المكون محلياً
         setDomain(linkResult.data.domain);
         
@@ -128,7 +126,6 @@ export function DomainSettingsCard({
         toast.success(successMessage);
         return linkResult.data.domain;
       } catch (err) {
-        console.error('خطأ في إضافة النطاق:', err);
         const errorMessage = err instanceof Error ? err.message : 'حدث خطأ أثناء إضافة النطاق';
         setError(errorMessage);
         toast.error(errorMessage);
@@ -141,8 +138,7 @@ export function DomainSettingsCard({
 
   // وظيفة مساعدة لمسح التخزين المؤقت
   const clearCaches = (orgId: string) => {
-    
-    
+
     // مسح أي تخزين مؤقت للمؤسسة
     if (orgId) {
       localStorage.removeItem(`organization:${orgId}`);
@@ -189,7 +185,6 @@ export function DomainSettingsCard({
         
         return result.data;
       } catch (err) {
-        console.error('خطأ في التحقق من النطاق:', err);
         const errorMessage = err instanceof Error ? err.message : 'حدث خطأ أثناء التحقق من النطاق';
         toast.error(errorMessage);
         throw err;
@@ -234,7 +229,6 @@ export function DomainSettingsCard({
         toast.success('تم إزالة النطاق بنجاح');
         return true;
       } catch (err) {
-        console.error('خطأ في إزالة النطاق:', err);
         const errorMessage = err instanceof Error ? err.message : 'حدث خطأ أثناء إزالة النطاق';
         toast.error(errorMessage);
         throw err;
@@ -491,4 +485,4 @@ export function DomainSettingsCard({
       </CardContent>
     </Card>
   );
-} 
+}

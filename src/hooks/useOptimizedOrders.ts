@@ -258,7 +258,6 @@ export const useOptimizedOrders = () => {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'خطأ في جلب الطلبيات';
       setError(errorMessage);
-      console.error('خطأ في جلب الطلبيات:', err);
       toast({
         variant: "destructive",
         title: "خطأ في جلب الطلبيات",
@@ -316,7 +315,6 @@ export const useOptimizedOrders = () => {
         });
       }
     } catch (err) {
-      console.error('خطأ في جلب إحصائيات الطلبيات:', err);
     }
   }, [currentOrganization?.id]);
 
@@ -366,7 +364,6 @@ export const useOptimizedOrders = () => {
       });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'خطأ في تحديث حالة تأكيد الإتصال';
-      console.error('خطأ في تحديث حالة تأكيد الإتصال:', err);
       toast({
         variant: "destructive",
         title: "خطأ في التحديث",
@@ -415,7 +412,6 @@ export const useOptimizedOrders = () => {
       fetchStats();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'خطأ في تحديث حالة الطلبيات';
-      console.error('خطأ في تحديث حالة الطلبيات:', err);
       toast({
         variant: "destructive",
         title: "خطأ في التحديث",
@@ -483,4 +479,4 @@ export const useOptimizedOrders = () => {
       fetchStats();
     }
   };
-}; 
+};

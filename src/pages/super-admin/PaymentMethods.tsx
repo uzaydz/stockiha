@@ -76,7 +76,6 @@ export default function SuperAdminPaymentMethods() {
         ]);
       }
     } catch (err: any) {
-      console.error('Error fetching payment methods:', err);
       setError(err.message);
     } finally {
       setIsLoading(false);
@@ -124,7 +123,6 @@ export default function SuperAdminPaymentMethods() {
         description: `تم تحديث طريقة "${updatedMethod.name}" بنجاح.`,
       });
     } catch (err: any) {
-      console.error('Error updating payment method:', err);
       
       // إظهار رسالة خطأ
       toast({
@@ -160,7 +158,6 @@ export default function SuperAdminPaymentMethods() {
         description: `تم إنشاء طريقة "${newMethod.name}" بنجاح.`,
       });
     } catch (err: any) {
-      console.error('Error creating payment method:', err);
       
       // إظهار رسالة خطأ
       toast({
@@ -196,7 +193,6 @@ export default function SuperAdminPaymentMethods() {
         description: `تم ${isActive ? 'تفعيل' : 'إلغاء تفعيل'} طريقة "${method.name}" بنجاح.`,
       });
     } catch (err: any) {
-      console.error('Error toggling payment method active state:', err);
       
       // إظهار رسالة خطأ
       toast({
@@ -232,7 +228,6 @@ export default function SuperAdminPaymentMethods() {
         description: `تم حذف طريقة "${method.name}" بنجاح.`,
       });
     } catch (err: any) {
-      console.error('Error deleting payment method:', err);
       
       // إظهار رسالة خطأ
       toast({
@@ -303,4 +298,4 @@ export default function SuperAdminPaymentMethods() {
       </div>
     </SuperAdminLayout>
   );
-} 
+}

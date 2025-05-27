@@ -28,4 +28,4 @@ export const PersonalInfoFields: React.FC<PersonalInfoFieldsProps> = ({ form }) 
       <p className="text-center text-gray-500">[مكون معلومات شخصية - سيتم ملؤه لاحقًا]</p>
     </div>
   );
-}; 
+};

@@ -177,4 +177,4 @@ const TrackingPixelsSettings = ({ trackingPixels, updateTrackingPixel }: Trackin
   );
 };
 
-export default TrackingPixelsSettings; 
+export default TrackingPixelsSettings;

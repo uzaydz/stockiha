@@ -210,7 +210,6 @@ const TestimonialsComponentEditor: React.FC<TestimonialsComponentEditorProps> = 
       if (error) throw error;
       setDbTestimonials(data || []);
     } catch (err) {
-      console.error('Error fetching testimonials:', err);
       setError('حدث خطأ أثناء جلب التقييمات. يرجى المحاولة مرة أخرى.');
     } finally {
       setIsLoading(false);
@@ -240,7 +239,6 @@ const TestimonialsComponentEditor: React.FC<TestimonialsComponentEditorProps> = 
       await fetchTestimonials();
       return data;
     } catch (err) {
-      console.error('Error saving testimonial:', err);
       throw err;
     }
   };
@@ -351,7 +349,6 @@ const TestimonialsComponentEditor: React.FC<TestimonialsComponentEditorProps> = 
         handleSettingsChange('items', [...settings.items, newItem]);
       }
     } catch (err) {
-      console.error('Failed to add testimonial:', err);
     }
   };
 
@@ -949,4 +946,4 @@ const TestimonialsComponentEditor: React.FC<TestimonialsComponentEditorProps> = 
   );
 };
 
-export default TestimonialsComponentEditor; 
+export default TestimonialsComponentEditor;

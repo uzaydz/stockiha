@@ -201,4 +201,4 @@ const DebtPaymentModal: React.FC<DebtPaymentModalProps> = ({ isOpen, onClose, de
   );
 };
 
-export default DebtPaymentModal; 
+export default DebtPaymentModal;

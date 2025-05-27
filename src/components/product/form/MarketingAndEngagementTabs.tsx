@@ -101,4 +101,4 @@ const MarketingAndEngagementTabs: React.FC<MarketingAndEngagementTabsProps> = ({
   );
 };
 
-export default MarketingAndEngagementTabs; 
+export default MarketingAndEngagementTabs;

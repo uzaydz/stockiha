@@ -28,4 +28,4 @@ const CustomDomainsDocPage: React.FC = () => {
   );
 };
 
-export default CustomDomainsDocPage; 
+export default CustomDomainsDocPage;

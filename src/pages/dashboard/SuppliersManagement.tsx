@@ -126,4 +126,4 @@ export default function SuppliersManagement() {
       </div>
     </Layout>
   );
-} 
+}

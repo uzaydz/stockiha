@@ -165,4 +165,4 @@ const InventoryStatus: React.FC<InventoryStatusProps> = ({ data }) => {
   );
 };
 
-export default InventoryStatus; 
+export default InventoryStatus;

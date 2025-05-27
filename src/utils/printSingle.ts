@@ -56,7 +56,6 @@ export const printSingleBarcode = (
     }
     
   } catch (error) {
-    console.error('خطأ في طباعة الباركود المفرد:', error);
     showPrintError('حدث خطأ غير متوقع في الطباعة');
   }
 };
@@ -275,7 +274,6 @@ export const printSingleBarcodeWithPreview = (
     }
     
   } catch (error) {
-    console.error('خطأ في معاينة الباركود:', error);
     showPrintError('حدث خطأ في إنشاء المعاينة');
   }
 };
@@ -307,7 +305,6 @@ export const quickPrintSingleBarcode = (
     }
     
   } catch (error) {
-    console.error('خطأ في الطباعة السريعة:', error);
     showPrintError('حدث خطأ في الطباعة السريعة');
   }
 };
@@ -395,7 +392,6 @@ export const printCustomSingleBarcode = (options: {
     }
     
   } catch (error) {
-    console.error('خطأ في الطباعة المخصصة:', error);
     showPrintError('حدث خطأ في الطباعة المخصصة');
   }
-}; 
+};

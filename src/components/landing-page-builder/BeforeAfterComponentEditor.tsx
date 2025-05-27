@@ -433,4 +433,4 @@ const BeforeAfterComponentEditor: React.FC<BeforeAfterComponentEditorProps> = ({
   );
 };
 
-export default BeforeAfterComponentEditor; 
+export default BeforeAfterComponentEditor;

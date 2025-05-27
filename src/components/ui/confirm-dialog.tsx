@@ -59,4 +59,4 @@ const ConfirmDialog = ({
   );
 };
 
-export default ConfirmDialog; 
+export default ConfirmDialog;

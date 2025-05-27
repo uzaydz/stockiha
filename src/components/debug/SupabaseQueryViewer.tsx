@@ -327,7 +327,6 @@ const extractComponentInfo = () => {
     };
   } catch (err) {
     // في حالة الخطأ، لا نريد أن يؤثر هذا على الوظائف الأساسية
-    console.error('خطأ في استخراج معلومات المكون:', err);
     return {
       componentName: 'Unknown',
       fileLocation: '',

@@ -11,8 +11,7 @@ export const createOrganizationSimple = async (
   settings: Record<string, any> = {}
 ): Promise<{ success: boolean; error: Error | null; organizationId?: string }> => {
   try {
-    
-    
+
     // استدعاء وظيفة RPC المبسطة
     const { data, error } = await supabaseAdmin.rpc(
       'insert_organization_simple',
@@ -25,7 +24,6 @@ export const createOrganizationSimple = async (
     );
 
     if (error) {
-      console.error('Error in createOrganizationSimple:', error);
       return { success: false, error: error as Error };
     }
 
@@ -36,10 +34,8 @@ export const createOrganizationSimple = async (
       };
     }
 
-    
     return { success: true, error: null, organizationId: data };
   } catch (error) {
-    console.error('Exception in createOrganizationSimple:', error);
     return { success: false, error: error as Error };
   }
 };
@@ -62,8 +58,7 @@ export const createOrganizationDirect = async (
       .maybeSingle();
       
     if (!checkError && existingOrg) {
-      
-      
+
       // محاولة ربط المستخدم بالمنظمة الموجودة
       try {
         const { error: userUpdateError } = await supabaseAdmin
@@ -79,7 +74,6 @@ export const createOrganizationDirect = async (
           
         }
       } catch (connectError) {
-        console.error('خطأ أثناء محاولة ربط المستخدم بالمنظمة الموجودة:', connectError);
       }
       
       return { success: true, error: null, organizationId: existingOrg.id };
@@ -113,12 +107,10 @@ export const createOrganizationDirect = async (
       .insert(orgData);
 
     if (insertError) {
-      
-      
+
       // في حالة وجود خطأ تكرار البيانات أو ON CONFLICT، نبحث عن المؤسسة الموجودة
       if (insertError.code === '23505' || insertError.code === '42P10') {
-        
-        
+
         // البحث مرة أخرى باستخدام النطاق الفرعي بعد محاولة الإدراج
         const { data: subData, error: subError } = await supabaseAdmin
           .from('organizations')
@@ -156,12 +148,10 @@ export const createOrganizationDirect = async (
       .maybeSingle();
       
     if (searchError || !createdOrg) {
-      console.error('خطأ في العثور على المؤسسة بعد إنشائها:', searchError);
       return { success: false, error: searchError || new Error('فشل في العثور على المؤسسة المنشأة حديثًا') };
     }
     
     const organizationId = createdOrg.id;
-    
 
     // 5. إضافة سجل تدقيق
     try {
@@ -179,7 +169,6 @@ export const createOrganizationDirect = async (
           old_value: null
         });
     } catch (auditError) {
-      console.error('Error creating audit log (non-critical):', auditError);
       // لا نعيد فشل العملية إذا فشل إنشاء سجل التدقيق
     }
 
@@ -196,7 +185,6 @@ export const createOrganizationDirect = async (
         .eq('id', userId);
 
       if (userUpdateError) {
-        console.error('Error updating user record:', userUpdateError);
         
         // محاولة الإدراج بدلاً من التحديث
         const { error: userInsertError } = await supabaseAdmin
@@ -209,12 +197,10 @@ export const createOrganizationDirect = async (
           });
           
         if (userInsertError) {
-          console.error('Error inserting user record:', userInsertError);
           // لا نفشل العملية بسبب فشل تحديث المستخدم
         }
       }
     } catch (userError) {
-      console.error('Error updating user (non-critical):', userError);
       // لا نفشل العملية بسبب فشل تحديث المستخدم
     }
 
@@ -224,7 +210,6 @@ export const createOrganizationDirect = async (
       organizationId: organizationId
     };
   } catch (error) {
-    console.error('Error in createOrganizationDirect:', error);
     return { success: false, error: error as Error };
   }
-}; 
+};

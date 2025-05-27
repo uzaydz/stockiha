@@ -74,4 +74,4 @@ const LoadingScreen = ({ isLoading, siteName = 'المتجر' }: LoadingScreenPr
   );
 };
 
-export default LoadingScreen; 
+export default LoadingScreen;

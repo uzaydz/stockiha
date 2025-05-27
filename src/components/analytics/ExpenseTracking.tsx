@@ -22,8 +22,7 @@ const ExpenseTracking: React.FC<ExpenseTrackingProps> = ({ data }) => {
   const { expenses } = data;
   
   // إضافة تتبع للبيانات
-  
-  
+
   // إذا كانت المصروفات فارغة، استخدم بيانات توضيحية
   const expenseCategories = Object.keys(expenses.categories);
   const expenseValues = Object.values(expenses.categories);
@@ -194,4 +193,4 @@ const ExpenseTracking: React.FC<ExpenseTrackingProps> = ({ data }) => {
   );
 };
 
-export default ExpenseTracking; 
+export default ExpenseTracking;

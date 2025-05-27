@@ -125,7 +125,6 @@ export function SupplierDialog({
       
       await onSave(data);
     } catch (error) {
-      console.error('Error submitting supplier form:', error);
       // عرض رسالة خطأ في النموذج نفسه
       toast({
         title: 'خطأ',
@@ -387,4 +386,4 @@ export function SupplierDialog({
       </DialogContent>
     </Dialog>
   );
-} 
+}

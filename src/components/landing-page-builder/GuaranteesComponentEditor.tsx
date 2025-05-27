@@ -69,12 +69,10 @@ const GuaranteesComponentEditor: React.FC<GuaranteesComponentEditorProps> = ({
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
   
   // إضافة سجلات التصحيح
-  
-  
+
   // تحديث الإعدادات
   const handleSettingsChange = (key: string, value: any) => {
-    
-    
+
     onUpdate({
       ...settings,
       [key]: value
@@ -1268,4 +1266,4 @@ const GuaranteesComponentEditor: React.FC<GuaranteesComponentEditorProps> = ({
   );
 };
 
-export default GuaranteesComponentEditor; 
+export default GuaranteesComponentEditor;

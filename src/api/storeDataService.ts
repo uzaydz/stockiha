@@ -135,7 +135,6 @@ async function fetchStoreInitializationDataViaRpc(subdomain: string): Promise<St
     });
 
     if (rpcError) {
-      console.error('[StoreDataService] Error calling get_store_init_data RPC:', rpcError);
       return { 
         error: rpcError.message, 
         organization_details: null, 
@@ -151,7 +150,6 @@ async function fetchStoreInitializationDataViaRpc(subdomain: string): Promise<St
     // data يمكن أن يكون أي Json هنا. نحتاج للتحقق إذا كان يحتوي على خطأ من داخل دالة RPC
     // أو إذا كان هو البيانات المتوقعة.
     if (typeof data === 'object' && data !== null && 'error' in data && typeof data.error === 'string') {
-      console.error('[StoreDataService] Error from get_store_init_data DB function:', data.error);
       // إذا كانت الدالة في قاعدة البيانات تُرجع فقط { error: "..." }
       // نحتاج لضمان أن الكائن المرجع يطابق StoreInitializationData
       return { 
@@ -181,7 +179,6 @@ async function fetchStoreInitializationDataViaRpc(subdomain: string): Promise<St
     }
 
     // إذا وصل الكود إلى هنا، فإن data ليست بالشكل المتوقع (لا خطأ واضح ولا بيانات صالحة)
-    console.error('[StoreDataService] Unexpected data structure returned from RPC:', data);
     return { 
         error: 'Unexpected data structure from RPC.', 
         organization_details: null, 
@@ -194,7 +191,6 @@ async function fetchStoreInitializationDataViaRpc(subdomain: string): Promise<St
       };
 
   } catch (e: any) {
-    console.error('[StoreDataService] Exception in fetchStoreInitializationDataViaRpc:', e);
     return { 
         error: e.message || 'Unknown exception', 
         organization_details: null, 
@@ -207,7 +203,6 @@ async function fetchStoreInitializationDataViaRpc(subdomain: string): Promise<St
       };
   }
 }
-
 
 export async function getStoreDataFast(subdomain: string): Promise<{
   data: StoreInitializationData | null;
@@ -244,14 +239,10 @@ export async function getStoreDataFast(subdomain: string): Promise<{
         return { data: freshData, isLoading: false };
       } else if (freshData && freshData.error) {
         // إذا كان هناك خطأ من الدالة، لا تخزنه ولكن أرجعه
-        console.error('[StoreDataService] Data fetch resulted in an error:', freshData.error);
         return { data: freshData, isLoading: false }; 
       }
-      
-      console.error('[StoreDataService] لم يتم العثور على بيانات للمتجر أو حدث خطأ ولم يتم إرجاع كائن خطأ.');
       return { data: null, isLoading: false };
     } catch (error) {
-      console.error('[StoreDataService] خطأ في جلب بيانات المتجر:', error);
       return { data: { error: (error as Error).message } as StoreInitializationData, isLoading: false };
     } finally {
       isDataLoading = false;
@@ -277,10 +268,8 @@ async function refreshDataInBackground(subdomain: string): Promise<void> {
       const cacheKey = `store_init_data:${subdomain}`;
       await setCacheData(cacheKey, freshData);
     } else if (freshData && freshData.error) {
-      console.warn('[StoreDataService] Background refresh failed with error:', freshData.error);
     }
   } catch (error) {
-    console.error('[StoreDataService] خطأ في تحديث البيانات في الخلفية:', error);
   } finally {
     if(localIsLoadingFlag && lastLoadedSubdomain === subdomain) isDataLoading = false;
   }
@@ -315,14 +304,10 @@ export async function forceReloadStoreData(subdomain: string): Promise<{
       await setCacheData(cacheKey, freshData);
       return { data: freshData, isLoading: false };
     } else if (freshData && freshData.error) {
-      console.error('[StoreDataService] Force reload failed with error:', freshData.error);
       return { data: freshData, isLoading: false };
     }
-    
-    console.error('[StoreDataService] فشل في إعادة تحميل بيانات المتجر أو حدث خطأ ولم يتم إرجاع كائن خطأ.');
     return { data: null, isLoading: false };
   } catch (error) {
-    console.error('[StoreDataService] خطأ في إعادة تحميل بيانات المتجر:', error);
     return { data: { error: (error as Error).message } as StoreInitializationData, isLoading: false };
   } finally {
     isDataLoading = false;
@@ -336,4 +321,4 @@ export default {
   clearStoreCache,
   forceReloadStoreData,
   // getFullStoreData, // إذا أزيلت، يجب إزالتها من هنا أيضًا
-}; 
+};

@@ -170,7 +170,6 @@ export function getStoredTheme(): StoreTheme | null {
     
     return JSON.parse(storedTheme) as StoreTheme;
   } catch (error) {
-    console.error('خطأ في قراءة الثيم من التخزين المحلي:', error);
     return null;
   }
 }
@@ -226,4 +225,4 @@ export default {
   saveTheme,
   getStoredTheme,
   updateTheme
-}; 
+};

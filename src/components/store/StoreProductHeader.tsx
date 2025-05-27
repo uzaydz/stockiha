@@ -125,4 +125,4 @@ const StoreProductHeader = ({
   );
 };
 
-export default StoreProductHeader; 
+export default StoreProductHeader;

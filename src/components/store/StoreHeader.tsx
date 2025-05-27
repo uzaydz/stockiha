@@ -388,4 +388,4 @@ const StoreHeader = ({
   );
 };
 
-export default StoreHeader; 
+export default StoreHeader;

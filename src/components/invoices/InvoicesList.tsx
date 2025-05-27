@@ -348,4 +348,4 @@ const InvoicesList = ({
   );
 };
 
-export default InvoicesList; 
+export default InvoicesList;

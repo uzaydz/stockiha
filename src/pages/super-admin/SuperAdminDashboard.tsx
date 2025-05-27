@@ -218,7 +218,6 @@ export default function SuperAdminDashboard() {
           }
         });
       } catch (error) {
-        console.error('Error fetching dashboard stats:', error);
       } finally {
         setIsLoading(false);
       }
@@ -586,4 +585,4 @@ export default function SuperAdminDashboard() {
       </div>
     </SuperAdminLayout>
   );
-} 
+}

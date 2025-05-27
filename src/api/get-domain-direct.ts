@@ -63,4 +63,4 @@ export async function getDomainInfo(organizationId: string) {
       error: error instanceof Error ? error.message : 'حدث خطأ غير متوقع'
     };
   }
-} 
+}

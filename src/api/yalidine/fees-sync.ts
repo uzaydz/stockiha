@@ -34,8 +34,7 @@ export async function syncFees(
   options?: FeeSyncOptions
 ): Promise<boolean> {
   try {
-    
-    
+
     // تحديث حالة التقدم
     updateFeeSyncStatus(0, 0, 'syncing');
     
@@ -51,18 +50,14 @@ export async function syncFees(
     
     // تحديد ولاية المصدر
     const storeProvinceId = await determineSourceProvince(organizationId, options);
-    
-    
+
     // جلب قائمة الولايات للمعالجة
     let provincesToProcess = await getProvincesToProcess(organizationId, options);
     if (provincesToProcess.length === 0) {
-      console.error('[FEES] لم يتم العثور على أي ولايات للمعالجة');
       updateFeeSyncStatus(0, 0, 'failed');
       return false;
     }
-    
-    
-    
+
     // تحديث حالة التقدم
     updateFeeSyncStatus(provincesToProcess.length, 0, 'syncing');
     
@@ -71,8 +66,7 @@ export async function syncFees(
       
       await deleteOldFeesForSourceWilaya(Number(storeProvinceId), organizationId);
     } else {
-      
-      
+
       // استرجاع حالة المزامنة المؤقتة
       const tempSync = getTempSyncState(organizationId);
       if (tempSync && tempSync.processedProvinceIds && tempSync.processedProvinceIds.length > 0) {
@@ -80,8 +74,7 @@ export async function syncFees(
         provincesToProcess = provincesToProcess.filter(
           p => !tempSync.processedProvinceIds.includes(Number(p.id))
         );
-        
-        
+
         updateFeeSyncStatus(
           tempSync.totalProvinces || provincesToProcess.length, 
           tempSync.processedProvinceIds.length,
@@ -102,8 +95,7 @@ export async function syncFees(
     
     // الخطوة 2: جلب أسعار التوصيل من API ياليدين
     try {
-      
-      
+
       // إعداد العميل للوصول المباشر
       const directApiClient = setupDirectApiClient(clientToUse, options);
       
@@ -117,9 +109,7 @@ export async function syncFees(
       for (let i = 0; i < provincesToProcess.length; i += batchSize) {
         chunks.push(provincesToProcess.slice(i, i + batchSize));
       }
-      
-      
-      
+
       // حفظ عدد الولايات الإجمالي للاستئناف لاحقاً
       saveTempSyncState(organizationId, {
         sourceProvinceId: Number(storeProvinceId),
@@ -130,16 +120,14 @@ export async function syncFees(
       // معالجة المجموعات واحدة تلو الأخرى
       for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
         const chunk = chunks[chunkIndex];
-        
-        
+
         try {
           // تنفيذ طلبات الولايات في هذه المجموعة بالتتابع
           const chunkFees = [];  // نحتفظ بالرسوم المجمعة لهذه المجموعة
           
           for (const fromProvince of chunk) {
             try {
-              
-              
+
               // تنفيذ محاولات متعددة
               let attempts = 0;
               const maxAttempts = 3;
@@ -155,7 +143,6 @@ export async function syncFees(
                   );
                   
                   if (response.status !== 200 || !response.data) {
-                    console.warn(`[FEES] فشل جلب بيانات أسعار التوصيل من ${storeProvinceId} إلى ${fromProvince.id}`);
                     processedProvinces++;
                     updateFeeSyncStatus(provincesToProcess.length, processedProvinces, 'syncing');
                     
@@ -177,16 +164,13 @@ export async function syncFees(
                       to_wilaya_name: fee.from_wilaya_name || 'غير معروف', // تبديل الاتجاه
                       organization_id: organizationId
                     }));
-                    
-                    
-                    
+
                     // إضافة السجلات إلى المصفوفة الكلية
                     chunkFees.push(...processedFees);
                     allFees.push(...processedFees);
                     
                     processedProvinces++;
-                    
-                    
+
                     // تحديث حالة المزامنة
                     updateFeeSyncStatus(getTotalProvinceCount(), processedProvinces, 'syncing');
                     
@@ -196,7 +180,6 @@ export async function syncFees(
                     // تمت العملية بنجاح
                     break;  // الخروج من حلقة المحاولات
                   } else {
-                    console.warn(`[FEES] لم يتم العثور على بيانات أسعار من ${storeProvinceId} إلى ${fromProvince.id}`);
                     processedProvinces++;
                     updateFeeSyncStatus(getTotalProvinceCount(), processedProvinces, 'syncing');
                     
@@ -208,10 +191,7 @@ export async function syncFees(
                   lastError = retryError;
                   attempts++;
                   
-                  console.warn(`[FEES] محاولة ${attempts}/${maxAttempts} فشلت لولاية ${fromProvince.id}: ${retryError.message}`);
-                  
                   if (attempts >= maxAttempts) {
-                    console.error(`[FEES] استنفدت جميع المحاولات لولاية ${fromProvince.id}`);
                     processedProvinces++; 
                     updateFeeSyncStatus(getTotalProvinceCount(), processedProvinces, 'syncing');
                     
@@ -227,7 +207,6 @@ export async function syncFees(
                 }
               }
             } catch (error) {
-              console.error(`[FEES] خطأ أثناء معالجة الولاية ${fromProvince.id}:`, error);
               processedProvinces++;
               updateFeeSyncStatus(getTotalProvinceCount(), processedProvinces, 'syncing');
               
@@ -235,11 +214,7 @@ export async function syncFees(
               addProcessedProvince(organizationId, Number(fromProvince.id));
             }
           }
-          
-          
-          
-          
-          
+
           // حفظ البيانات المجمعة لهذه المجموعة فوراً
           if (chunkFees.length > 0) {
             
@@ -249,7 +224,6 @@ export async function syncFees(
               // تفريغ المصفوفة بعد الحفظ
               chunkFees.length = 0;
             } catch (saveError) {
-              console.error(`[FEES] خطأ أثناء حفظ بيانات المجموعة ${chunkIndex + 1}:`, saveError);
             }
           } else {
             
@@ -262,13 +236,9 @@ export async function syncFees(
             await new Promise(r => setTimeout(r, interChunkDelay));
           }
         } catch (chunkError) {
-          console.error(`[FEES] خطأ أثناء معالجة المجموعة ${chunkIndex + 1}/${chunks.length}:`, chunkError);
         }
       }
-      
-      
-      
-      
+
       // حفظ أي بيانات متبقية (تأكيد إضافي)
       if (allFees.length > 0) {
         
@@ -276,7 +246,6 @@ export async function syncFees(
           await saveFees(allFees, organizationId);
           
         } catch (finalSaveError) {
-          console.error(`[FEES] خطأ أثناء حفظ البيانات المتبقية:`, finalSaveError);
           
           // محاولة حفظ البيانات على دفعات صغيرة في حالة الفشل
           try {
@@ -291,13 +260,10 @@ export async function syncFees(
                 successCount += smallBatch.length;
                 
               } catch (smallBatchError) {
-                console.error(`[FEES] فشل حفظ دفعة صغيرة: ${i / fallbackBatchSize + 1}`, smallBatchError);
               }
             }
-            
-            
+
           } catch (fallbackError) {
-            console.error('[FEES] فشلت جميع محاولات الحفظ:', fallbackError);
           }
         }
       } else {
@@ -311,13 +277,11 @@ export async function syncFees(
         .eq('organization_id', organizationId);
       
       if (error) {
-        console.error('[FEES_VERIFY] خطأ أثناء التحقق من البيانات المحفوظة:', error);
       } else {
         
         if ((count || 0) === 0 && allFees.length > 0) {
           // محاولة أخيرة للحفظ إذا لم يتم حفظ أي بيانات
-          
-          
+
           try {
             const preparedData = allFees.map(fee => ({
               ...fee,
@@ -337,12 +301,10 @@ export async function syncFees(
               .insert(preparedData.slice(0, 100)); // تجربة أول 100 سجل فقط
             
             if (insertError) {
-              console.error('[FEES_EMERGENCY] فشل الإدراج المباشر:', insertError);
             } else {
               
             }
           } catch (emergencyError) {
-            console.error('[FEES_EMERGENCY] فشل إجراء الإنقاذ:', emergencyError);
           }
         }
       }
@@ -354,12 +316,10 @@ export async function syncFees(
       updateFeeSyncStatus(getTotalProvinceCount(), getTotalProvinceCount(), 'success');
       return true;
     } catch (error) {
-      console.error('[FEES] خطأ أثناء مزامنة أسعار التوصيل:', error);
       updateFeeSyncStatus(getTotalProvinceCount(), 0, 'failed');
       return false;
     }
   } catch (error) {
-    console.error('[FEES] خطأ في عملية مزامنة أسعار التوصيل:', error);
     updateFeeSyncStatus(0, 0, 'failed');
     return false;
   }
@@ -376,7 +336,6 @@ function checkForTemporarySync(organizationId: string): boolean {
     const tempSyncData = localStorage.getItem(tempSyncKey);
     return !!tempSyncData;
   } catch (e) {
-    console.error('[FEES] خطأ في التحقق من المزامنة المؤقتة:', e);
     return false;
   }
 }
@@ -394,7 +353,6 @@ function getTempSyncState(organizationId: string): {
     const tempSyncData = localStorage.getItem(tempSyncKey);
     return tempSyncData ? JSON.parse(tempSyncData) : null;
   } catch (e) {
-    console.error('[FEES] خطأ في استرجاع حالة المزامنة المؤقتة:', e);
     return null;
   }
 }
@@ -411,7 +369,6 @@ function saveTempSyncState(organizationId: string, state: {
     const tempSyncKey = `yalidine_temp_sync_${organizationId}`;
     localStorage.setItem(tempSyncKey, JSON.stringify(state));
   } catch (e) {
-    console.error('[FEES] خطأ في حفظ حالة المزامنة المؤقتة:', e);
   }
 }
 
@@ -432,7 +389,6 @@ function addProcessedProvince(organizationId: string, provinceId: number): void 
       saveTempSyncState(organizationId, tempSyncState);
     }
   } catch (e) {
-    console.error('[FEES] خطأ في إضافة ولاية معالجة:', e);
   }
 }
 
@@ -444,7 +400,6 @@ function clearTempSyncState(organizationId: string): void {
     const tempSyncKey = `yalidine_temp_sync_${organizationId}`;
     localStorage.removeItem(tempSyncKey);
   } catch (e) {
-    console.error('[FEES] خطأ في مسح حالة المزامنة المؤقتة:', e);
   }
 }
 
@@ -455,7 +410,6 @@ function getTotalProvinceCount(): number {
   try {
     return 58; // العدد الثابت للولايات في الجزائر
   } catch (e) {
-    console.error('[FEES] خطأ في الحصول على عدد الولايات:', e);
     return 58;
   }
 }
@@ -472,8 +426,7 @@ async function setupApiClient(
   let customClient: AxiosInstance | null = null;
     
     if (options?.apiId && options?.apiToken) {
-      
-      
+
       try {
         const useProxy = options.useProxy === true;
         const baseURL = useProxy 
@@ -488,10 +441,8 @@ async function setupApiClient(
             'Content-Type': 'application/json'
           }
         });
-        
-        
+
       } catch (error) {
-        console.error('[FEES] فشل إنشاء عميل API مخصص:', error);
       }
     }
     
@@ -499,7 +450,6 @@ async function setupApiClient(
   const clientToUse = customClient || apiClient;
     
     if (!clientToUse) {
-      console.error('[FEES] لم يتم توفير عميل API ولم يمكن إنشاء عميل مخصص');
     return null;
   }
   
@@ -536,7 +486,6 @@ async function determineSourceProvince(
           }
         }
       } catch (e) {
-        console.error('[FEES] خطأ أثناء قراءة خيارات المزامنة من localStorage:', e);
       }
       
       if (storeProvinceId === 16) {
@@ -555,7 +504,6 @@ async function determineSourceProvince(
             
           }
         } catch (storeError) {
-          console.error('[FEES] خطأ أثناء محاولة جلب معلومات ولاية المتجر من قاعدة البيانات:', storeError);
         }
       }
     } else {
@@ -576,8 +524,7 @@ async function getProvincesToProcess(
     
   // استخدام الولايات المحددة إذا تم توفيرها
     if (options?.targetProvinceIds && options.targetProvinceIds.length > 0) {
-      
-      
+
       const { data: targetProvinces, error: targetError } = await supabase
         .from('yalidine_provinces_global')
         .select('id, name')
@@ -587,7 +534,6 @@ async function getProvincesToProcess(
         provincesToProcess = targetProvinces;
         
       } else {
-        console.error('[FEES] خطأ أثناء جلب معلومات الولايات المحددة:', targetError);
       }
     }
     
@@ -599,7 +545,6 @@ async function getProvincesToProcess(
         .select('id, name');
       
       if (provincesError || !allProvinces || allProvinces.length === 0) {
-        console.error('[FEES] خطأ أثناء جلب قائمة الولايات العالمية:', provincesError);
       return [];
       }
       
@@ -657,8 +602,7 @@ function setupDirectApiClient(
 
 // تغيير طريقة حذف الأسعار القديمة
 async function deleteOldFeesForSourceWilaya(sourceWilayaId: number, organizationId: string): Promise<void> {
-  
-  
+
   try {
     // استخدام تنفيذ مباشر لضمان عدم تداخل العمليات
     const { error } = await supabase.rpc('delete_yalidine_fees_for_organization', {
@@ -667,7 +611,6 @@ async function deleteOldFeesForSourceWilaya(sourceWilayaId: number, organization
     });
     
     if (error) {
-      console.error(`[FEES] خطأ في حذف بيانات الأسعار القديمة: ${error.message}`);
       
       // محاولة حذف بالطريقة البديلة
       const { error: deleteError } = await supabase
@@ -677,7 +620,6 @@ async function deleteOldFeesForSourceWilaya(sourceWilayaId: number, organization
         .eq('from_wilaya_id', sourceWilayaId);
       
       if (deleteError) {
-        console.error(`[FEES] فشل الحذف البديل أيضاً: ${deleteError.message}`);
       } else {
         
       }
@@ -685,7 +627,6 @@ async function deleteOldFeesForSourceWilaya(sourceWilayaId: number, organization
       
     }
   } catch (e) {
-    console.error(`[FEES] استثناء أثناء حذف الأسعار القديمة:`, e);
   }
 }
 
@@ -695,9 +636,7 @@ async function saveFees(fees: any[], organizationId: string): Promise<void> {
     
     return;
   }
-  
-  
-  
+
   // تجميع السجلات في دفعات للحفظ
   const batchSize = 100;
   const batches = [];
@@ -705,9 +644,7 @@ async function saveFees(fees: any[], organizationId: string): Promise<void> {
   for (let i = 0; i < fees.length; i += batchSize) {
     batches.push(fees.slice(i, i + batchSize));
   }
-  
-  
-  
+
   // معالجة دفعة واحدة في كل مرة
   for (let i = 0; i < batches.length; i++) {
     const batch = batches[i];
@@ -729,10 +666,7 @@ async function saveFees(fees: any[], organizationId: string): Promise<void> {
           express_desk: Number(fee.stop_desk_fee || fee.express_desk || 0)
         };
       });
-      
-      
-      
-      
+
       // طريقة 1: استخدام الوظيفة المباشرة مع تحويل البيانات إلى سلسلة نصية
       const { data, error } = await supabase.rpc('simple_insert_yalidine_fees', {
         p_data: JSON.stringify(preparedBatch),
@@ -742,11 +676,9 @@ async function saveFees(fees: any[], organizationId: string): Promise<void> {
       const rpcInsertedCount = typeof data === 'number' ? data : -1; // Use -1 or another indicator if data isn't a number
 
       if (error || rpcInsertedCount === 0) {
-        console.error(`[FEES] خطأ أو لم يتم إدراج سجلات باستخدام simple_insert_yalidine_fees. الخطأ: ${error ? error.message : 'N/A'}, عدد السجلات المدرجة: ${rpcInsertedCount}`);
         
         // طريقة 2: محاولة الإدخال المباشر
-        
-        
+
         // إدخال السجلات مباشرةً في جدول yalidine_fees
         const { error: insertError } = await supabase
           .from('yalidine_fees')
@@ -756,7 +688,6 @@ async function saveFees(fees: any[], organizationId: string): Promise<void> {
           });
         
         if (insertError) {
-          console.error(`[FEES] فشل أيضًا في الإدخال المباشر:`, insertError);
           
           // طريقة 3: إدخال كل سجل على حدة
           
@@ -774,8 +705,7 @@ async function saveFees(fees: any[], organizationId: string): Promise<void> {
               successCount++;
             }
           }
-          
-          
+
         } else {
           
         }
@@ -784,7 +714,6 @@ async function saveFees(fees: any[], organizationId: string): Promise<void> {
         
       }
     } catch (e) {
-      console.error(`[FEES] استثناء أثناء حفظ الدفعة:`, e);
     }
     
     // إضافة تأخير بين الدفعات إذا كان هناك المزيد من الدفعات
@@ -794,4 +723,4 @@ async function saveFees(fees: any[], organizationId: string): Promise<void> {
       await new Promise(r => setTimeout(r, delay));
     }
   }
-} 
+}

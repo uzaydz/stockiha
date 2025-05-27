@@ -44,7 +44,6 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
         setProducts(formattedProducts);
         setError(null);
       } catch (err) {
-        console.error('خطأ في جلب المنتجات:', err);
         setError('حدث خطأ أثناء جلب المنتجات. يرجى المحاولة مرة أخرى.');
       } finally {
         setLoading(false);
@@ -60,10 +59,12 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
     
     if (isSelected) {
       // إزالة المنتج من القائمة المحددة
-      onChange(selectedProducts.filter(id => id !== productId));
+      const newSelection = selectedProducts.filter(id => id !== productId);
+      onChange(newSelection);
     } else {
       // إضافة المنتج إلى القائمة المحددة
-      onChange([...selectedProducts, productId]);
+      const newSelection = [...selectedProducts, productId];
+      onChange(newSelection);
     }
   };
 
@@ -134,7 +135,6 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
                     alt={product.name} 
                     className="h-full w-full object-cover"
                     onError={(e) => {
-                      console.log(`خطأ في تحميل صورة المنتج: ${product.id}`);
                       // استبدال العنصر بخلفية
                       const target = e.target as HTMLImageElement;
                       target.style.display = 'none';
@@ -193,4 +193,4 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
   );
 };
 
-export default ProductSelector; 
+export default ProductSelector;

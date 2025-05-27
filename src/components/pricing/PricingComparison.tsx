@@ -312,4 +312,4 @@ const PricingComparison = ({ plans }: PricingComparisonProps) => {
   );
 };
 
-export default PricingComparison; 
+export default PricingComparison;

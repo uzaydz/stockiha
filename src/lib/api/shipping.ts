@@ -20,7 +20,6 @@ export async function getActiveShippingProvidersForOrg(
       // أو استخدام دالة RPC مخصصة.
 
     if (error) {
-      console.error('Error fetching active shipping providers:', error.message);
       toast.error('حدث خطأ أثناء تحميل شركات التوصيل المفعلة للمؤسسة.');
       return [];
     }
@@ -35,7 +34,6 @@ export async function getActiveShippingProvidersForOrg(
       })) as ActiveShippingProvider[] || [];
 
   } catch (error) {
-    console.error('Unexpected error fetching active shipping providers:', error);
     toast.error('حدث خطأ غير متوقع أثناء تحميل شركات التوصيل.');
     return [];
   }
@@ -54,13 +52,11 @@ export async function getActiveShippingClonesForOrg(
       .order('name', { ascending: true });
 
     if (error) {
-      console.error('Error fetching shipping clones:', error);
       // Consider how to handle errors in the UI, perhaps a toast notification
       return [];
     }
     return data || [];
   } catch (err) {
-    console.error('Unexpected error fetching shipping clones:', err);
     return [];
   }
-} 
+}

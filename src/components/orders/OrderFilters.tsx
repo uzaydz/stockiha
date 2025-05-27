@@ -125,4 +125,4 @@ const OrderFilters = ({ filterStatus, setFilterStatus, orderCounts }) => {
   );
 };
 
-export default OrderFilters; 
+export default OrderFilters;

@@ -118,6 +118,8 @@ export interface ServiceBooking {
   notes?: string;
   customerId?: string;
   customer_name?: string;
+  customer_phone?: string; // رقم هاتف العميل
+  repair_location_id?: string; // معرف مكان التصليح
   status: ServiceStatus;
   assignedTo?: string;
   completedAt?: Date;
@@ -268,4 +270,31 @@ export interface DashboardStats {
     total: number;
     new: number;
   };
+}
+
+// Repair Location Types
+export interface WorkingHours {
+  [day: string]: {
+    start?: string;
+    end?: string;
+    closed?: boolean;
+  };
+}
+
+export interface RepairLocation {
+  id: string;
+  organization_id: string;
+  name: string;
+  description?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  is_active: boolean;
+  is_default: boolean;
+  capacity: number;
+  working_hours?: WorkingHours;
+  specialties?: string[];
+  manager_name?: string;
+  created_at: Date;
+  updated_at: Date;
 }

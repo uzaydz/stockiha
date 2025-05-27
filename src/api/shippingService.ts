@@ -147,10 +147,7 @@ export class YalidineShippingService extends BaseShippingService {
       '/yalidine-api/',
       credentials
     );
-    
-    
-    
-    
+
     this.apiClient = axios.create({
       baseURL: this.baseUrl,
       headers: {
@@ -167,41 +164,29 @@ export class YalidineShippingService extends BaseShippingService {
    */
   async testCredentials(): Promise<TestCredentialsResult> {
     try {
-      
-      
+
       const response = await this.apiClient.get('wilayas');
-      
-      
-      
+
       // تحقق من نجاح الاتصال بناءً على بنية البيانات الصحيحة من ياليدين
       if (response.status === 200 && 
          (Array.isArray(response.data) || 
           (response.data && response.data.data && Array.isArray(response.data.data)))) {
-        
-        
+
         return {
           success: true,
           message: 'تم الاتصال بنجاح بخدمة ياليدين'
         };
       }
-      
-      
+
       return {
         success: false,
         message: 'الاتصال غير ناجح، تحقق من بيانات الاعتماد'
       };
     } catch (error: any) {
-      console.error('API connection error:', error);
       
       // معلومات تفصيلية عن الخطأ
       if (error.response) {
         // الخادم استجاب برمز حالة خارج نطاق 2xx
-        console.error('API error response:', {
-          status: error.response.status,
-          statusText: error.response.statusText,
-          data: error.response.data,
-          headers: error.response.headers
-        });
         
         // رسالة خطأ أكثر تفصيلاً
         return {
@@ -210,14 +195,12 @@ export class YalidineShippingService extends BaseShippingService {
         };
       } else if (error.request) {
         // تم إجراء الطلب لكن لم يتم استلام استجابة
-        console.error('API no response error:', error.request);
         return {
           success: false,
           message: 'لا توجد استجابة من خدمة ياليدين، تحقق من اتصال الإنترنت'
         };
       } else {
         // حدث خطأ أثناء إعداد الطلب
-        console.error('API request setup error:', error.message);
         return {
           success: false,
           message: `فشل إعداد الطلب: ${error.message}`
@@ -234,7 +217,6 @@ export class YalidineShippingService extends BaseShippingService {
       const response = await this.apiClient.post('parcels', params);
       return response.data;
     } catch (error) {
-      console.error('Error creating Yalidine shipping order:', error);
       throw error;
     }
   }
@@ -251,7 +233,6 @@ export class YalidineShippingService extends BaseShippingService {
         ? response.data 
         : (response.data?.data || []);
     } catch (error) {
-      console.error('Error getting Yalidine tracking info:', error);
       throw error;
     }
   }
@@ -276,7 +257,6 @@ export class YalidineShippingService extends BaseShippingService {
         desk_fee: w.desk_fee?.toString() || '0' // إضافة desk_fee هنا، بافتراض أن API يرجعه
       }));
     } catch (error) {
-      console.error('Error getting Yalidine wilayas:', error);
       throw error;
     }
   }
@@ -293,7 +273,6 @@ export class YalidineShippingService extends BaseShippingService {
         ? response.data 
         : (response.data?.data || []);
     } catch (error) {
-      console.error('Error getting Yalidine communes:', error);
       throw error;
     }
   }
@@ -314,7 +293,6 @@ export class YalidineShippingService extends BaseShippingService {
       // Return the shipping cost as specified in the API (stored in target_tarif)
       return parseFloat(targetWilaya.target_tarif);
     } catch (error) {
-      console.error('Error calculating Yalidine shipping cost:', error);
       throw error;
     }
   }
@@ -332,7 +310,6 @@ export class YalidineShippingService extends BaseShippingService {
       const base64 = Buffer.from(response.data, 'binary').toString('base64');
       return `data:application/pdf;base64,${base64}`;
     } catch (error) {
-      console.error('Error generating Yalidine shipping label:', error);
       throw error;
     }
   }
@@ -382,29 +359,20 @@ export class ZRExpressShippingService extends BaseShippingService {
         message: 'الاتصال غير ناجح، تحقق من بيانات الاعتماد'
       };
     } catch (error: any) {
-      console.error('ZR Express API connection error:', error);
       
       // معلومات تفصيلية عن الخطأ
       if (error.response) {
-        console.error('ZR Express API error response:', {
-          status: error.response.status,
-          statusText: error.response.statusText,
-          data: error.response.data,
-          headers: error.response.headers
-        });
         
         return {
           success: false,
           message: `خطأ ${error.response.status}: ${error.response.data?.message || error.response.statusText}`
         };
       } else if (error.request) {
-        console.error('ZR Express API no response error:', error.request);
         return {
           success: false,
           message: 'لا توجد استجابة من خدمة ZR Express، تحقق من اتصال الإنترنت'
         };
       } else {
-        console.error('ZR Express API request setup error:', error.message);
         return {
           success: false,
           message: `فشل إعداد الطلب: ${error.message}`
@@ -442,7 +410,6 @@ export class ZRExpressShippingService extends BaseShippingService {
       const response = await this.apiClient.post('add_colis', requestBody);
       return response.data;
     } catch (error) {
-      console.error('Error creating ZR Express shipping order:', error);
       throw error;
     }
   }
@@ -459,7 +426,6 @@ export class ZRExpressShippingService extends BaseShippingService {
       const response = await this.apiClient.post('lire', requestBody);
       return response.data;
     } catch (error) {
-      console.error('Error getting ZR Express tracking info:', error);
       throw error;
     }
   }
@@ -480,7 +446,6 @@ export class ZRExpressShippingService extends BaseShippingService {
         desk_fee: item.Stopdesk.toString()
       }));
     } catch (error) {
-      console.error('Error getting ZR Express wilayas:', error);
       throw error;
     }
   }
@@ -494,7 +459,6 @@ export class ZRExpressShippingService extends BaseShippingService {
       // في هذه الحالة، نرجع قائمة فارغة
       return [];
     } catch (error) {
-      console.error('Error getting ZR Express communes:', error);
       throw error;
     }
   }
@@ -514,7 +478,6 @@ export class ZRExpressShippingService extends BaseShippingService {
       // استخدام سعر التوصيل إلى المنزل كسعر افتراضي
       return parseFloat(targetWilaya.target_tarif);
     } catch (error) {
-      console.error('Error calculating ZR Express shipping cost:', error);
       throw error;
     }
   }
@@ -528,7 +491,6 @@ export class ZRExpressShippingService extends BaseShippingService {
       // إرجاع خطأ أو استخدام المنصة مباشرة
       throw new Error('ZR Express API does not support label generation directly');
     } catch (error) {
-      console.error('Error generating ZR Express shipping label:', error);
       throw error;
     }
   }
@@ -541,10 +503,8 @@ export function createShippingService(
 ): IShippingService {
   switch (provider) {
     case ShippingProvider.YALIDINE:
-      console.log('Creating Yalidine shipping service');
       return new YalidineShippingService(credentials);
     case ShippingProvider.ZREXPRESS:
-      console.log('Creating ZR Express shipping service');
       return new ZRExpressShippingService(credentials);
     // Add other providers as they are implemented
     default:
@@ -572,7 +532,6 @@ export async function getOrganizationShippingService(
     // Create a shipping service instance
     return createShippingService(provider, credentials);
   } catch (error) {
-    console.error(`Error getting ${provider} shipping service:`, error);
     return null;
   }
-} 
+}

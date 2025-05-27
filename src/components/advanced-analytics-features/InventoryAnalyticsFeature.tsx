@@ -251,4 +251,4 @@ const InventoryAnalyticsFeature = () => {
   );
 };
 
-export default InventoryAnalyticsFeature; 
+export default InventoryAnalyticsFeature;

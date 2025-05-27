@@ -68,7 +68,6 @@ const EmployeePerformanceDialog = ({
       const data = await getEmployeePerformance(employee.id);
       setPerformanceData(data);
     } catch (error) {
-      console.error('Error loading performance data:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء تحميل بيانات الأداء',
@@ -343,4 +342,4 @@ const EmployeePerformanceDialog = ({
   );
 };
 
-export default EmployeePerformanceDialog; 
+export default EmployeePerformanceDialog;

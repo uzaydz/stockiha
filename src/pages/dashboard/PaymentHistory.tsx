@@ -62,7 +62,6 @@ const PaymentHistory: React.FC = () => {
   // تحميل بيانات السجلات
   useEffect(() => {
     if (!currentOrganization?.id) {
-      console.warn('معرف المؤسسة غير متوفر!', { currentOrganization });
       return;
     }
     
@@ -71,8 +70,7 @@ const PaymentHistory: React.FC = () => {
         setIsLoading(true);
         
         // استعلام مباشر لجميع الطلبات والمدفوعات للمؤسسة (بما في ذلك المدفوعة بالكامل)
-        
-        
+
         const { data: ordersData, error: ordersError } = await supabase
           .from('orders')
           .select(`
@@ -93,12 +91,9 @@ const PaymentHistory: React.FC = () => {
           .limit(100);
           
         if (ordersError) {
-          console.error('خطأ في استعلام الطلبات:', ordersError);
           throw ordersError;
         }
-        
-        
-        
+
         // تحويل بيانات الطلبات إلى سجلات تاريخية
         const allRecords: PaymentRecord[] = [];
         
@@ -146,11 +141,8 @@ const PaymentHistory: React.FC = () => {
             }
           });
         }
-        
-        
-        
+
         if (allRecords.length === 0) {
-          console.warn('لم يتم استخراج أي سجلات من الاستعلام المباشر');
           toast.info('لا توجد سجلات دفع أو ديون متاحة حالياً');
         }
         
@@ -163,7 +155,6 @@ const PaymentHistory: React.FC = () => {
           
         }
       } catch (error) {
-        console.error('خطأ في تحميل سجلات المدفوعات:', error);
         toast.error('حدث خطأ أثناء تحميل سجلات المدفوعات');
         setRecords([]);
       } finally {
@@ -604,4 +595,4 @@ const PaymentHistory: React.FC = () => {
   );
 };
 
-export default PaymentHistory; 
+export default PaymentHistory;

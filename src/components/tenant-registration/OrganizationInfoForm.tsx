@@ -156,4 +156,4 @@ export const OrganizationInfoForm = ({
   );
 };
 
-export default OrganizationInfoForm; 
+export default OrganizationInfoForm;

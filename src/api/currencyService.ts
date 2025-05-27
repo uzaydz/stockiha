@@ -13,11 +13,9 @@ export async function getDigitalCurrencies(): Promise<DigitalCurrency[]> {
     .rpc('get_all_digital_currencies');
     
   if (error) {
-    console.error('Error fetching digital currencies:', error);
     throw new Error('فشل في الحصول على العملات الرقمية');
   }
-  
-  
+
   return data || [];
 }
 
@@ -35,12 +33,9 @@ export async function addDigitalCurrency(currency: Partial<DigitalCurrency>): Pr
     });
     
   if (error) {
-    console.error('Error adding digital currency:', error);
     throw new Error('فشل في إضافة عملة رقمية جديدة');
   }
-  
-  
-  
+
   // إعادة استرجاع البيانات المضافة باستخدام وظيفة RPC
   const { data: newCurrency, error: fetchError } = await supabase
     .rpc('get_digital_currency_by_id', {
@@ -48,7 +43,6 @@ export async function addDigitalCurrency(currency: Partial<DigitalCurrency>): Pr
     });
     
   if (fetchError || !newCurrency || newCurrency.length === 0) {
-    console.error('Error fetching added currency:', fetchError);
     throw new Error('فشل في استرجاع بيانات العملة الرقمية المضافة');
   }
   
@@ -69,7 +63,6 @@ export async function updateDigitalCurrency(id: string, currency: Partial<Digita
     });
     
   if (error) {
-    console.error('Error updating digital currency:', error);
     throw new Error('فشل في تحديث العملة الرقمية');
   }
   
@@ -84,7 +77,6 @@ export async function deleteDigitalCurrency(id: string): Promise<boolean> {
     });
     
   if (error) {
-    console.error('Error deleting digital currency:', error);
     throw new Error('فشل في حذف العملة الرقمية');
   }
   
@@ -98,16 +90,13 @@ export async function getCurrencyBalances(): Promise<CurrencyBalance[]> {
     .rpc('get_all_currency_balances');
     
   if (error) {
-    console.error('Error fetching currency balances:', error);
     throw new Error('فشل في الحصول على أرصدة العملات الرقمية');
   }
   
   // تحسين عرض بيانات الرصيد في لوجات التصحيح
-  
-  
+
   // إذا كانت البيانات فارغة، يتم إرجاع مصفوفة فارغة
   if (!data || data.length === 0) {
-    console.warn('لم يتم العثور على أي أرصدة للعملات الرقمية');
   }
   
   return data || [];
@@ -124,11 +113,9 @@ export async function updateCurrencyBalance(currencyId: string, newBalance: numb
     });
       
   if (error) {
-    console.error('Error updating currency balance:', error);
     throw new Error('فشل في تحديث رصيد العملة الرقمية');
   }
-  
-  
+
 }
 
 // الحصول على مبيعات العملات
@@ -140,7 +127,6 @@ export async function getCurrencySales(limit: number = 10, offset: number = 0): 
     .range(offset, offset + limit - 1);
     
   if (error) {
-    console.error('Error fetching currency sales:', error);
     throw new Error('فشل في الحصول على مبيعات العملات الرقمية');
   }
   
@@ -164,7 +150,6 @@ export async function addCurrencySale(sale: Partial<CurrencySale>): Promise<Curr
       });
       
     if (error) {
-      console.error('Error adding currency sale:', error);
       throw new Error('فشل في إضافة عملية بيع العملة الرقمية');
     }
     
@@ -185,7 +170,6 @@ export async function addCurrencySale(sale: Partial<CurrencySale>): Promise<Curr
     
     return saleData;
   } catch (error) {
-    console.error('Error adding currency sale:', error);
     throw new Error('فشل في إضافة عملية بيع العملة الرقمية');
   }
 }
@@ -254,7 +238,6 @@ export async function getCurrencyStats(): Promise<CurrencyStats[]> {
     .rpc('get_currency_stats');
     
   if (error) {
-    console.error('Error fetching currency stats:', error);
     throw new Error('فشل في الحصول على إحصائيات العملات الرقمية');
   }
   
@@ -269,9 +252,8 @@ export async function deleteCurrencyBalance(id: string): Promise<boolean> {
     });
     
   if (error) {
-    console.error('Error deleting currency balance:', error);
     throw new Error('فشل في حذف رصيد العملة الرقمية');
   }
   
   return data;
-} 
+}

@@ -43,7 +43,6 @@ export default function YalidineFixTrigger() {
         });
       }
     } catch (error) {
-      console.error('خطأ في تشخيص الجداول:', error);
       setDiagnosis({
         tableStats: {
           yalidine_fees: { count: 0 },
@@ -72,7 +71,6 @@ export default function YalidineFixTrigger() {
       // تشخيص الجداول بعد الإصلاح
       await diagnoseTables();
     } catch (error: any) {
-      console.error('خطأ في إصلاح محفز ياليدين:', error);
       setResult({
         success: false,
         message: error.response?.data?.message || 'حدث خطأ أثناء محاولة إصلاح المحفز'
@@ -178,4 +176,4 @@ export default function YalidineFixTrigger() {
       </Card.Section>
     </Card>
   );
-} 
+}

@@ -127,7 +127,6 @@ const BookingDialog = ({
       onOpenChange(false);
       onBookingCreated();
     } catch (error) {
-      console.error('Error creating booking:', error);
       toast.error('حدث خطأ أثناء إنشاء الحجز');
     } finally {
       setIsSubmitting(false);
@@ -325,4 +324,4 @@ const BookingDialog = ({
   );
 };
 
-export default BookingDialog; 
+export default BookingDialog;

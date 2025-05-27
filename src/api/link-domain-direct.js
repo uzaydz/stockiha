@@ -33,8 +33,6 @@ export async function linkDomain(domain, organizationId) {
     const VERCEL_PROJECT_ID = getVercelProjectId();
     const hasConfig = hasVercelConfig();
 
-    
-
     if (!hasConfig) {
       return {
         success: false,
@@ -48,8 +46,6 @@ export async function linkDomain(domain, organizationId) {
       .select('id, name, domain')
       .eq('id', organizationId)
       .single();
-    
-    
 
     // ربط النطاق بمشروع Vercel
     const linkResult = await linkDomainToVercelProject(
@@ -72,8 +68,6 @@ export async function linkDomain(domain, organizationId) {
       .split(':')[0]               // إزالة المنفذ (مثل :3000)
       .split('/')[0];              // إزالة المسارات
 
-    
-
     // تحديث النطاق في قاعدة البيانات
     const { data: updateData, error: dbError } = await supabase
       .from('organizations')
@@ -82,14 +76,11 @@ export async function linkDomain(domain, organizationId) {
       .select('id, name, domain');
 
     if (dbError) {
-      console.error('حدث خطأ أثناء تحديث النطاق في قاعدة البيانات:', dbError);
       return {
         success: false,
         error: 'حدث خطأ أثناء تحديث النطاق في قاعدة البيانات'
       };
     }
-
-    
 
     // التحقق من نجاح تحديث المؤسسة
     const { data: organizationAfter } = await supabase
@@ -97,8 +88,6 @@ export async function linkDomain(domain, organizationId) {
       .select('id, name, domain')
       .eq('id', organizationId)
       .single();
-    
-    
 
     try {
       // التحقق من حالة النطاق (DNS و SSL)
@@ -129,8 +118,7 @@ export async function linkDomain(domain, organizationId) {
           })
           .eq('id', existingRecord.id)
           .select();
-          
-        
+
       } else {
         // إنشاء سجل جديد
         const { data: newVerification, error: verificationInsertError } = await supabase
@@ -144,11 +132,9 @@ export async function linkDomain(domain, organizationId) {
             updated_at: now
           }])
           .select();
-          
-        
+
       }
     } catch (verificationError) {
-      console.error('خطأ في التحقق من النطاق:', verificationError);
       // لا نريد إيقاف العملية بسبب خطأ في التحقق
     }
 
@@ -161,10 +147,9 @@ export async function linkDomain(domain, organizationId) {
       }
     };
   } catch (error) {
-    console.error('خطأ غير متوقع أثناء ربط النطاق:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'حدث خطأ غير متوقع'
     };
   }
-} 
+}

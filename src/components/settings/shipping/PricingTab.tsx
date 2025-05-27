@@ -318,4 +318,4 @@ const PricingTab: React.FC<PricingTabProps> = ({
   );
 };
 
-export default PricingTab; 
+export default PricingTab;

@@ -130,7 +130,6 @@ export async function getProvinces(organizationId?: string): Promise<Province[]>
       .select('id, name, is_deliverable'); // تحديد الحقول المطلوبة، is_deliverable يجب أن يكون boolean في الجدول
     
     if (error) {
-      console.error('خطأ أثناء جلب الولايات من yalidine_provinces_global:', error);
       throw error; // أو التعامل مع الخطأ بطريقة أخرى مثل إرجاع مصفوفة فارغة
     }
     
@@ -141,7 +140,6 @@ export async function getProvinces(organizationId?: string): Promise<Province[]>
     }
     return [];
   } catch (error) {
-    console.error('فشل جلب الولايات:', error);
     return []; // إرجاع مصفوفة فارغة في حالة الخطأ
   }
 }
@@ -174,7 +172,6 @@ export async function getMunicipalities(
       .eq('wilaya_id', parseInt(provinceId, 10));
 
     if (error) {
-      console.error('خطأ أثناء جلب البلديات من yalidine_municipalities_global:', error);
       throw error;
     }
 
@@ -185,7 +182,6 @@ export async function getMunicipalities(
     }
     return [];
   } catch (error) {
-    console.error(`فشل جلب البلديات للولاية ${provinceId}:`, error);
     return [];
   }
 }
@@ -226,11 +222,9 @@ export async function getMunicipalitiesByDeliveryType(
       }
       return false; // Should not happen if deliveryType is correctly 'home' or 'desk'
     }).map(municipality => ({ ...municipality, wilaya_name: toWilayaName })); // تمت إضافة toWilayaName
-    
-    
+
     return filteredMunicipalities;
   } catch (error) {
-    console.error(`فشل جلب البلديات المصفاة للولاية ${provinceId}:`, error);
     return [];
   }
 }
@@ -248,8 +242,7 @@ export async function getCenters(
   try {
     // استخدام بيانات وهمية مباشرة في وضع التطوير
     if (DEV_MODE) {
-      
-      
+
       // إذا كانت هناك بيانات وهمية متاحة لهذه الولاية، استخدمها
       if (MOCK_CENTERS[provinceId]) {
         return MOCK_CENTERS[provinceId];
@@ -285,12 +278,10 @@ export async function getCenters(
     // ترجع البيانات كما هي من API ياليدين
     return centerData;
   } catch (error) {
-    console.error(`خطأ أثناء جلب مراكز الاستلام للولاية ${provinceId} من ياليدين:`, error);
     
     // استخدام بيانات وهمية في وضع التطوير
     if (DEV_MODE && isNetworkError(error)) {
-      
-      
+
       // إذا كانت هناك بيانات وهمية متاحة لهذه الولاية، استخدمها
       if (MOCK_CENTERS[provinceId]) {
         return MOCK_CENTERS[provinceId];
@@ -341,12 +332,10 @@ export async function getCentersByCommune(
     
     return centerData;
   } catch (error) {
-    console.error(`خطأ أثناء جلب مراكز الاستلام للبلدية ${communeId} من ياليدين:`, error);
     
     // استخدام بيانات وهمية في وضع التطوير
     if (DEV_MODE && isNetworkError(error)) {
-      
-      
+
       // في وضع التطوير، نقوم بإنشاء مركز وهمي لهذه البلدية
       const provinceId = communeId.slice(0, 2);
       const provinceName = MOCK_PROVINCES.find(p => p.id.toString() === provinceId)?.name || `ولاية ${provinceId}`;
@@ -406,12 +395,10 @@ export async function calculateDeliveryPrice(
       .single();
     
     if (settingsError) {
-      console.error('خطأ أثناء جلب إعدادات ياليدين للمؤسسة:', settingsError);
       return null;
     }
     
     if (!settingsData || !settingsData.origin_wilaya_id) {
-      console.error(`لم يتم العثور على ولاية المصدر في إعدادات المؤسسة ${organizationId}`);
       
       originWilayaId = parseInt(fromProvinceId, 10);
     } else {
@@ -419,12 +406,9 @@ export async function calculateDeliveryPrice(
       
     }
   } catch (error) {
-    console.error('فشل في جلب ولاية المصدر من إعدادات المؤسسة:', error);
     
     originWilayaId = parseInt(fromProvinceId, 10);
   }
-  
-  
 
   const toWilayaIdNum = parseInt(toProvinceId, 10);
   const toCommuneIdNum = parseInt(toCommuneId, 10);
@@ -446,7 +430,6 @@ export async function calculateDeliveryPrice(
       
     }
     if (!feeData) {
-        console.warn(`لم يتم العثور على بيانات رسوم وهمية لـ from:${originWilayaId}, to:${toWilayaIdNum}, commune:${toCommuneIdNum}`);
         // يمكن إرجاع سعر وهمي افتراضي أو null
         // للتبسيط، سنرجع null إذا لم نجد تطابقاً دقيقاً في الوهمي
         // أو يمكنك إنشاء رسم وهمي عام هنا
@@ -466,48 +449,39 @@ export async function calculateDeliveryPrice(
         .single(); // نتوقع سجل واحد فقط لكل تركيبة فريدة
 
       if (error) {
-        console.error('خطأ أثناء جلب رسوم الشحن من yalidine_fees:', error);
         // إذا كان الخطأ بسبب عدم وجود سجل (PGRST116: "Query result has no rows"), فهذا يعني أن الرسوم غير معرّفة
         if (error.code === 'PGRST116') {
-            console.warn(`لا توجد رسوم شحن محددة للمسار: من ${originWilayaId} إلى ${toProvinceId}, بلدية ${toCommuneId}`);
             return null;
         } 
         throw error; // لأخطاء أخرى
       }
 
       if (!data) {
-        console.warn(`لم يتم العثور على رسوم شحن محددة للمسار: من ${originWilayaId} إلى ${toProvinceId}, بلدية ${toCommuneId}`);
         return null;
       }
       feeData = data as DeliveryFee;
-      
 
     } catch (error) {
-      console.error('فشل حساب سعر التوصيل:', error);
       return null;
     }
   }
 
   if (!feeData) {
-    console.warn(`لا توجد بيانات رسوم متاحة لحساب السعر للمسار المحدد.`);
     return null;
   }
 
   let basePrice = 0;
   if (deliveryType === 'home') {
     if (feeData.express_home === null || feeData.express_home === undefined) {
-        console.warn(`التوصيل للمنزل غير متوفر أو سعره غير محدد لهذه البلدية.`);
         return null;
     }
     basePrice = feeData.express_home;
   } else if (deliveryType === 'desk') {
     if (feeData.express_desk === null || feeData.express_desk === undefined) {
-        console.warn(`التوصيل للمكتب غير متوفر أو سعره غير محدد لهذه البلدية.`);
         return null;
     }
     basePrice = feeData.express_desk;
   } else {
-    console.error(`نوع توصيل غير معروف: ${deliveryType}`);
     return null;
   }
 
@@ -519,7 +493,6 @@ export async function calculateDeliveryPrice(
 
   if (weight > BASE_WEIGHT_LIMIT_KG) {
     if (feeData.oversize_fee === null || feeData.oversize_fee === undefined || feeData.oversize_fee <= 0) {
-        console.warn(`رسوم الوزن الزائد غير محددة أو غير صالحة، لن يتم حساب تكلفة إضافية للوزن.`);
     } else {
         const extraWeight = weight - BASE_WEIGHT_LIMIT_KG;
         oversizeCharge = extraWeight * feeData.oversize_fee;
@@ -541,7 +514,6 @@ async function getDeliveryFees(
   // هذه الدالة أصبحت مهملة وستُزال أو يُعاد تصميمها بالكامل
   // خطأ LINT المشار إليه سابقاً (ID: 855f8b8b-02ff-4ad1-8523-08b9bc6200fe) موجود في البيانات الوهمية لهذه الدالة القديمة.
   // بما أننا سنزيل الاعتماد عليها، سيتم حل الخطأ.
-  console.warn("getDeliveryFees is deprecated and should not be used directly for price calculation.");
 
   // جلب ولاية المصدر من إعدادات المؤسسة
   let originWilayaId: number;
@@ -555,18 +527,15 @@ async function getDeliveryFees(
       .single();
     
     if (settingsError) {
-      console.error('خطأ أثناء جلب إعدادات ياليدين للمؤسسة:', settingsError);
       return null;
     }
     
     if (!settingsData || !settingsData.origin_wilaya_id) {
-      console.error(`لم يتم العثور على ولاية المصدر في إعدادات المؤسسة ${organizationId}`);
       return null;
     }
     
     originWilayaId = settingsData.origin_wilaya_id;
   } catch (error) {
-    console.error('فشل في جلب ولاية المصدر من إعدادات المؤسسة:', error);
     return null;
   }
 
@@ -617,7 +586,6 @@ export async function getZoneOversizeRate(
     const apiClient = await getYalidineApiClient(organizationId); 
     
     if (!apiClient) {
-      console.error(`[getZoneOversizeRate] No API client for org ${organizationId}`);
       return null;
     }
 
@@ -630,11 +598,9 @@ export async function getZoneOversizeRate(
     if (response?.data && typeof response.data.oversize_fee === 'number') {
       return response.data.oversize_fee;
     } else {
-      console.warn('[getZoneOversizeRate] Oversize fee not in API response or invalid:', response.data);
       return null;
     }
   } catch (error: any) {
-    console.error(`[getZoneOversizeRate] Error fetching zone oversize fee:`, error.message || error);
     return null;
   }
 }

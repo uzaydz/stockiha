@@ -69,13 +69,11 @@ export async function trackedRpc(functionName: Parameters<typeof supabase.rpc>[0
     const result = await supabase.rpc(functionName, params);
     logRequestEnd(entry, result.error);
     if (result.error) {
-      console.error(`[DB_TRACKER] RPC Error in ${functionName}:`, result.error);
       throw result.error;
     }
     return result.data;
   } catch (error) {
     logRequestEnd(entry, error);
-    console.error(`[DB_TRACKER] Exception in RPC ${functionName}:`, error);
     throw error;
   }
 }
@@ -91,13 +89,11 @@ export async function trackedFunctionInvoke<T = any>(
     const result = await supabase.functions.invoke<T>(functionName, options as FunctionInvokeOptions);
     logRequestEnd(entry, result.error);
     if (result.error) {
-      console.error(`[DB_TRACKER] Function Invoke Error in ${functionName}:`, result.error);
       throw result.error;
     }
     return result.data;
   } catch (error) {
     logRequestEnd(entry, error);
-    console.error(`[DB_TRACKER] Exception in Function Invoke ${functionName}:`, error);
     throw error;
   }
 }
@@ -125,7 +121,6 @@ export function trackedSupabaseClient() {
           return result;
         }).catch((error: any) => {
           logRequestEnd(entry, error);
-          console.error(`[DB_TRACKER] Exception in SELECT on ${tableName}:`, error);
           throw error;
         });
       };
@@ -138,7 +133,6 @@ export function trackedSupabaseClient() {
           return result;
         }).catch((error: any) => {
           logRequestEnd(entry, error);
-          console.error(`[DB_TRACKER] Exception in INSERT on ${tableName}:`, error);
           throw error;
         });
       };
@@ -151,7 +145,6 @@ export function trackedSupabaseClient() {
           return result;
         }).catch((error: any) => {
           logRequestEnd(entry, error);
-          console.error(`[DB_TRACKER] Exception in UPDATE on ${tableName}:`, error);
           throw error;
         });
       };
@@ -164,7 +157,6 @@ export function trackedSupabaseClient() {
           return result;
         }).catch((error: any) => {
           logRequestEnd(entry, error);
-          console.error(`[DB_TRACKER] Exception in UPSERT on ${tableName}:`, error);
           throw error;
         });
       };
@@ -177,7 +169,6 @@ export function trackedSupabaseClient() {
           return result;
         }).catch((error: any) => {
           logRequestEnd(entry, error);
-          console.error(`[DB_TRACKER] Exception in DELETE on ${tableName}:`, error);
           throw error;
         });
       };
@@ -202,10 +193,7 @@ export function clearDbRequestLog() {
 export function printDbRequestLog() {
   const log = getDbRequestLog();
   if (log.length > 0) {
-    console.log(`---- DB Requests Log (${log.length} entries) ----`);
     // استخدام console.table يتطلب أن تكون جميع الكائنات بنفس البنية، وهو ما نضمنه
-    console.table(log);
   } else {
-    console.log("[DB_TRACKER] No DB requests recorded.");
   }
-} 
+}

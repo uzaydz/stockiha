@@ -292,7 +292,6 @@ export default function Cart({
       
       toast.success("تم إضافة العميل بنجاح");
     } catch (error) {
-      console.error("Error adding customer:", error);
       toast.error("حدث خطأ أثناء إضافة العميل");
     } finally {
       setIsAddingCustomer(false);
@@ -363,7 +362,6 @@ export default function Cart({
       setIsPaymentDialogOpen(false);
       setIsPrintDialogOpen(true);
     } catch (error) {
-      console.error("Error submitting order:", error);
       toast.error("حدث خطأ أثناء إنشاء الطلب");
       setIsProcessing(false);
     }
@@ -595,4 +593,4 @@ export default function Cart({
       />
     </div>
   );
-} 
+}

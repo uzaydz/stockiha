@@ -380,4 +380,4 @@ const POSReportingFeature = () => {
   );
 };
 
-export default POSReportingFeature; 
+export default POSReportingFeature;

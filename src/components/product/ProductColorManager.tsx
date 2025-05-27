@@ -143,12 +143,9 @@ const ProductColorManager = ({
   };
 
   const onManageSizesClick = (colorId: string) => {
-    
-    
-    
+
     const selectedColor = colors.find(c => c.id === colorId);
-    
-    
+
     if (selectedColor && selectedColor.sizes) {
       
     } else {
@@ -179,8 +176,7 @@ const ProductColorManager = ({
           generatedBarcode = `TEMP-${timestamp}-${random}`;
         }
       } else {
-        
-        
+
         // في وضع عدم الاتصال، استخدم الوظيفة المحلية لتوليد باركود للمتغير
         // قد نستخدم الباركود الحالي للمتغير الذي نقوم بتعديله كأساس
         const baseBarcode = editingColor?.barcode || '';
@@ -195,7 +191,6 @@ const ProductColorManager = ({
         toast.error('فشل في توليد الباركود');
       }
     } catch (error) {
-      console.error('Error generating barcode:', error);
       toast.error('حدث خطأ أثناء توليد الباركود');
     } finally {
       setGeneratingBarcode(false);
@@ -321,13 +316,11 @@ const ProductColorManager = ({
       ) {
         // وضع علامة التحميل
         setLoadingSizes(prev => ({ ...prev, [selectedColorId]: true }));
-        
-        
+
         // إجراء عملية التحميل
         getProductSizes(selectedColorId)
           .then(sizes => {
-            
-            
+
             // إضافة معرف اللون إلى قائمة الألوان التي تم تحميلها
             loadedColorIds.current.add(selectedColorId);
             
@@ -348,7 +341,6 @@ const ProductColorManager = ({
             setLoadingSizes(prev => ({ ...prev, [selectedColorId]: false }));
           })
           .catch(error => {
-            console.error('فشل في تحميل المقاسات من الخادم:', error);
             // إعادة تعيين حالة التحميل في حالة الخطأ أيضًا
             setLoadingSizes(prev => ({ ...prev, [selectedColorId]: false }));
             // إضافة معرف اللون إلى قائمة الألوان التي تم تحميلها لتجنب إعادة المحاولة
@@ -846,4 +838,4 @@ const ProductColorManager = ({
   );
 };
 
-export default ProductColorManager; 
+export default ProductColorManager;

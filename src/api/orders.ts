@@ -19,7 +19,6 @@ export interface DisplayOrderInfo extends FullOrderInfo {
 export async function getOrderByOrderNumber(orderNumber: string): Promise<FullOrderInfo | null> {
   const orderNum = parseInt(orderNumber, 10);
   if (isNaN(orderNum)) {
-    console.error('Invalid order number provided:', orderNumber);
     return null;
   }
 
@@ -32,7 +31,6 @@ export async function getOrderByOrderNumber(orderNumber: string): Promise<FullOr
       .single();
 
     if (orderError) {
-      console.error('Error fetching order by number:', orderError);
       // إذا كان الخطأ هو عدم العثور على صف (PGRST116)، فهذا ليس خطأ فعليًا، فقط لم يتم العثور عليه
       if (orderError.code === 'PGRST116') {
         return null;
@@ -51,7 +49,6 @@ export async function getOrderByOrderNumber(orderNumber: string): Promise<FullOr
       .eq('order_id', orderData.id);
 
     if (itemError) {
-      console.error('Error fetching order items:', itemError);
       throw itemError;
     }
 
@@ -67,7 +64,6 @@ export async function getOrderByOrderNumber(orderNumber: string): Promise<FullOr
     return fullOrderInfo;
 
   } catch (error) {
-    console.error('Exception in getOrderByOrderNumber:', error);
     return null;
   }
-} 
+}

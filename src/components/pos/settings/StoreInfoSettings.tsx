@@ -229,4 +229,4 @@ const StoreInfoSettings: React.FC<StoreInfoSettingsProps> = ({ settings, updateS
   );
 };
 
-export default StoreInfoSettings; 
+export default StoreInfoSettings;

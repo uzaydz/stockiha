@@ -175,4 +175,4 @@ const FormSettingsVisualizer: React.FC<FormSettingsVisualizerProps> = ({
   );
 };
 
-export default FormSettingsVisualizer; 
+export default FormSettingsVisualizer;

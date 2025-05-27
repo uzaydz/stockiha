@@ -90,7 +90,6 @@ const OrderHeatmapCard = ({ organizationId }: OrderHeatmapCardProps) => {
         setHeatmapData(processedData);
         setMaxCount(maxOrderCount);
       } catch (err) {
-        console.error('Error fetching heatmap data:', err);
         setError('حدث خطأ أثناء جلب بيانات الطلبات');
       } finally {
         setIsLoading(false);
@@ -288,4 +287,4 @@ const OrderHeatmapCard = ({ organizationId }: OrderHeatmapCardProps) => {
   );
 };
 
-export default OrderHeatmapCard; 
+export default OrderHeatmapCard;

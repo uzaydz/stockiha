@@ -32,7 +32,6 @@ export function OrderSummary({
         const name = await getProductNameById(productId);
         setProductName(name || "المنتج");
       } catch (error) {
-        console.error("Error fetching product name:", error);
         setProductName("المنتج");
       }
     };

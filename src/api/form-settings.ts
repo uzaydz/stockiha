@@ -62,7 +62,6 @@ export async function getFormSettings(organizationId: string) {
       .order('updated_at', { ascending: false });
 
     if (error) {
-      console.error('Error fetching form settings:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء تحميل إعدادات النموذج',
@@ -77,7 +76,6 @@ export async function getFormSettings(organizationId: string) {
       product_ids: item.product_ids as string[]
     }));
   } catch (error) {
-    console.error('Error fetching form settings:', error);
     toast({
       title: 'خطأ',
       description: 'حدث خطأ أثناء تحميل إعدادات النموذج',
@@ -97,7 +95,6 @@ export async function getFormSettingsById(formId: string) {
       .single();
 
     if (error) {
-      console.error('Error fetching form settings:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء تحميل إعدادات النموذج',
@@ -113,7 +110,6 @@ export async function getFormSettingsById(formId: string) {
       settings: data.settings || {}
     };
   } catch (error) {
-    console.error('Error fetching form settings:', error);
     toast({
       title: 'خطأ',
       description: 'حدث خطأ أثناء تحميل إعدادات النموذج',
@@ -133,7 +129,6 @@ export async function getFormSettingsForProduct(organizationId: string, productI
       });
 
     if (error) {
-      console.error('Error fetching form settings for product:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء تحميل إعدادات النموذج للمنتج',
@@ -144,7 +139,6 @@ export async function getFormSettingsForProduct(organizationId: string, productI
 
     return data as FormField[];
   } catch (error) {
-    console.error('Error fetching form settings for product:', error);
     toast({
       title: 'خطأ',
       description: 'حدث خطأ أثناء تحميل إعدادات النموذج للمنتج',
@@ -157,8 +151,7 @@ export async function getFormSettingsForProduct(organizationId: string, productI
 // الحصول على كامل إعدادات النموذج بما في ذلك إعدادات الشحن لمنتج معين
 export async function getFullFormSettingsForProduct(organizationId: string, productId: string): Promise<FormSettings | null> {
   try {
-    
-    
+
     // Enfoque completo: Recuperar todos los form_settings y filtrar manualmente
     // para evitar problemas con la sintaxis de consulta de JSON de Supabase
     const { data, error } = await supabase
@@ -171,7 +164,6 @@ export async function getFullFormSettingsForProduct(organizationId: string, prod
       .order('updated_at', { ascending: false });
 
     if (error) {
-      console.error('Error fetching form settings for product:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء تحميل إعدادات النموذج للمنتج',
@@ -184,15 +176,10 @@ export async function getFullFormSettingsForProduct(organizationId: string, prod
       
       return null;
     }
-    
-    
-    
+
     // البحث عن النموذج المخصص للمنتج باستخدام طباعة تفصيلية
     for (const form of data) {
-      
-      
-      
-      
+
       if (form.product_ids && Array.isArray(form.product_ids)) {
         
         if (form.product_ids.includes(productId)) {
@@ -235,8 +222,6 @@ export async function getFullFormSettingsForProduct(organizationId: string, prod
                           return productIds.length === 0;
                         }) ||
                         data[0];
-    
-    
 
     // تحويل البيانات إلى كائن FormSettings
     return {
@@ -252,7 +237,6 @@ export async function getFullFormSettingsForProduct(organizationId: string, prod
       settings: selectedForm.settings || {}
     };
   } catch (error) {
-    console.error('Error fetching full form settings for product:', error);
     toast({
       title: 'خطأ',
       description: 'حدث خطأ أثناء تحميل إعدادات النموذج للمنتج',
@@ -292,7 +276,6 @@ export async function upsertFormSettings(
       });
 
     if (error) {
-      console.error('Error saving form settings:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء حفظ إعدادات النموذج',
@@ -308,7 +291,6 @@ export async function upsertFormSettings(
 
     return data;
   } catch (error) {
-    console.error('Error saving form settings:', error);
     toast({
       title: 'خطأ',
       description: 'حدث خطأ أثناء حفظ إعدادات النموذج',
@@ -328,7 +310,6 @@ export async function deleteFormSettings(formId: string) {
       .eq('id', formId);
 
     if (error) {
-      console.error('Error deleting form settings:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء حذف إعدادات النموذج',
@@ -344,7 +325,6 @@ export async function deleteFormSettings(formId: string) {
 
     return true;
   } catch (error) {
-    console.error('Error deleting form settings:', error);
     toast({
       title: 'خطأ',
       description: 'حدث خطأ أثناء حذف إعدادات النموذج',
@@ -364,7 +344,6 @@ export async function getProducts(organizationId: string) {
       .eq('is_active', true);
 
     if (error) {
-      console.error('Error fetching products:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء تحميل المنتجات',
@@ -379,7 +358,6 @@ export async function getProducts(organizationId: string) {
       image: product.images && product.images.length > 0 ? product.images[0] : ''
     }));
   } catch (error) {
-    console.error('Error fetching products:', error);
     toast({
       title: 'خطأ',
       description: 'حدث خطأ أثناء تحميل المنتجات',
@@ -387,4 +365,4 @@ export async function getProducts(organizationId: string) {
     });
     return [];
   }
-} 
+}

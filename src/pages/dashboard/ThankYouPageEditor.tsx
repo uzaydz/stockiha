@@ -100,13 +100,10 @@ export default function ThankYouPageEditor() {
       if (error) {
         throw error;
       }
-      
-      
-      
+
       // إذا لم تكن هناك قوالب، قم بإنشاء قالب افتراضي
       if (!templatesData || templatesData.length === 0) {
-        
-        
+
         const defaultTemplate: ThankYouTemplate = {
           name: "القالب الافتراضي",
           organization_id: tenant?.id || "",
@@ -155,7 +152,6 @@ export default function ThankYouPageEditor() {
         setActiveTemplate(defaultTemplate);
       }
     } catch (error) {
-      console.error("Error loading thank you templates:", error);
       toast.error("حدث خطأ أثناء تحميل قوالب صفحات الشكر");
     } finally {
       setIsLoading(false);
@@ -185,9 +181,7 @@ export default function ThankYouPageEditor() {
       if (templateToSave.applies_to === "all_products") {
         templateToSave.product_ids = [];
       }
-      
-      
-      
+
       // قم بحفظ القالب في قاعدة البيانات
       const { data, error } = await supabase
         .from('thank_you_templates')
@@ -209,7 +203,6 @@ export default function ThankYouPageEditor() {
         });
       }
     } catch (error) {
-      console.error("Error saving template:", error);
       toast.error("حدث خطأ أثناء حفظ التغييرات");
     } finally {
       setIsSaving(false);
@@ -332,4 +325,4 @@ export default function ThankYouPageEditor() {
       </div>
     </Layout>
   );
-} 
+}

@@ -29,4 +29,4 @@ const CategoriesHeader = ({ categoryCount, onAddCategory }: CategoriesHeaderProp
   );
 };
 
-export default CategoriesHeader; 
+export default CategoriesHeader;

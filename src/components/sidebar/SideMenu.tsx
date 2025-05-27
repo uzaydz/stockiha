@@ -66,7 +66,6 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
   
   // تسجيل حالة القائمة المنبثقة
   useEffect(() => {
-    console.log("activePopup تم تغييره إلى:", activePopup);
   }, [activePopup]);
   
   // استعادة المجموعة النشطة من التخزين المحلي
@@ -75,7 +74,6 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
       const storedGroup = localStorage.getItem(ACTIVE_GROUP_STORAGE_KEY);
       return storedGroup || 'الرئيسية';
     } catch (e) {
-      console.warn('فشل في استرجاع المجموعة النشطة من التخزين المحلي:', e);
       return 'الرئيسية';
     }
   };
@@ -102,7 +100,6 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
     
     // تخزين الحالة في localStorage
     localStorage.setItem('sidebarCollapsed', String(newState));
-    console.log("SideMenu - تغيير حالة القائمة:", newState ? "مطوية" : "موسعة");
     
     // إغلاق أي قائمة منبثقة مفتوحة عند تغيير حالة الطي
     setActivePopup(null);
@@ -137,13 +134,10 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
 
   // تبديل حالة القائمة المنبثقة مع إغلاق الأخرى
   const togglePopup = (groupName: string) => {
-    console.log("تم النقر على المجموعة:", groupName); // للتأكد من أن الوظيفة تعمل
-    console.log("الحالة الحالية لـ activePopup:", activePopup);
     
     // إذا كانت نفس المجموعة مفتوحة، أغلقها؛ وإلا افتح المجموعة وأغلق الأخرى
     setActivePopup(prev => {
       const newState = prev === groupName ? null : groupName;
-      console.log("الحالة الجديدة لـ activePopup:", newState);
       return newState;
     });
   };
@@ -196,7 +190,6 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
       try {
         localStorage.setItem(ACTIVE_GROUP_STORAGE_KEY, activeGroup);
       } catch (e) {
-        console.warn('فشل في حفظ المجموعة النشطة في التخزين المحلي:', e);
       }
     }
   }, [activeGroup]);
@@ -495,13 +488,6 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
           requiredPermission: 'viewEmployees',
           badge: null
         },
-        {
-          title: 'إدارة الموظفين',
-          icon: Users,
-          href: '/dashboard/manage-employees',
-          requiredPermission: isAdmin ? null : 'manageEmployees',
-          badge: null
-        },
       ]
     },
     {
@@ -626,7 +612,6 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          console.log("تم النقر على الزر للمجموعة:", group.group); // للتأكد من عمل النقر
           togglePopup(group.group);
         }}
         onMouseDown={(e) => {
@@ -667,7 +652,6 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
       if (e.key === 'sidebarCollapsed') {
         const newCollapsedState = e.newValue === 'true';
         setIsCollapsed(newCollapsedState);
-        console.log('SideMenu - تم اكتشاف تغيير من مكون آخر:', newCollapsedState ? 'مطوية' : 'موسعة');
       }
     };
     
@@ -913,8 +897,6 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
 
                   // عرض أزرار المجموعات في حالة الطي
                   if (isCollapsed) {
-                    console.log("عرض زر للمجموعة:", group.group, "- isActive:", isGroupActive, "- hasActiveItem:", hasActiveItem);
-                    console.log("activePopup الحالي:", activePopup, "- يجب عرض popup؟", activePopup === group.group);
                     
                     return (
                       <div key={group.group} className="relative mb-3">
@@ -924,16 +906,8 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
                         <AnimatePresence>
                           {(() => {
                             const shouldShowPopup = activePopup === group.group;
-                            console.log(`القائمة المنبثقة للمجموعة ${group.group}:`, {
-                              activePopup,
-                              groupName: group.group,
-                              shouldShowPopup,
-                              isEqual: activePopup === group.group
-                            });
                             
                             if (shouldShowPopup) {
-                              console.log("سيتم عرض القائمة المنبثقة للمجموعة:", group.group);
-                              console.log("عنصر القائمة المنبثقة سيتم تصيير:", true);
                             }
                             
                             return shouldShowPopup ? (
@@ -1211,4 +1185,4 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
   );
 };
 
-export default SideMenu; 
+export default SideMenu;

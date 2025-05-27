@@ -124,4 +124,4 @@ export const getAllMunicipalities = (): Municipality[] => {
   return allMunicipalities;
 };
 
-export default municipalities; 
+export default municipalities;

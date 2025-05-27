@@ -44,15 +44,7 @@ export const useOfferTimerSettings = (productId: string, organizationId?: string
           .eq('product_id', productId)
           .maybeSingle();
 
-        console.log('🔍 بيانات التسويق الخام من قاعدة البيانات:', {
-          productId,
-          marketingSettings,
-          fetchError,
-          offer_timer_enabled: marketingSettings?.offer_timer_enabled
-        });
-
         if (fetchError) {
-          console.error('خطأ في جلب إعدادات مؤقت العرض:', fetchError);
           setError('فشل في جلب إعدادات مؤقت العرض');
           setSettings(null);
           return;
@@ -88,16 +80,9 @@ export const useOfferTimerSettings = (productId: string, organizationId?: string
             offer_timer_specific_page_urls: marketingSettings.offer_timer_specific_page_urls || []
           };
           
-          console.log('⚙️ الإعدادات المعالجة:', {
-            original_enabled: marketingSettings.offer_timer_enabled,
-            processed_enabled: processedSettings.offer_timer_enabled,
-            processedSettings
-          });
-          
           setSettings(processedSettings);
         }
       } catch (err) {
-        console.error('خطأ غير متوقع:', err);
         setError('حدث خطأ غير متوقع');
         setSettings(null);
       } finally {
@@ -138,7 +123,6 @@ export const useOfferTimerSettings = (productId: string, organizationId?: string
       
       return { success: true };
     } catch (err) {
-      console.error('خطأ في تحديث الإعدادات:', err);
       setError('فشل في تحديث الإعدادات');
       return { success: false, error: err };
     } finally {
@@ -188,13 +172,6 @@ export const useOfferTimerSettings = (productId: string, organizationId?: string
 
   // تسجيل الحالة النهائية للمؤقت
   useEffect(() => {
-    console.log('📊 الحالة النهائية للمؤقت:', {
-      settings,
-      loading,
-      error,
-      isEnabled: settings?.offer_timer_enabled || false,
-      offer_timer_enabled: settings?.offer_timer_enabled
-    });
   }, [settings, loading, error]);
 
   return {
@@ -212,4 +189,4 @@ export const useOfferTimerSettings = (productId: string, organizationId?: string
   };
 };
 
-export default useOfferTimerSettings; 
+export default useOfferTimerSettings;

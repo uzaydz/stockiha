@@ -647,7 +647,4 @@ const ImageComponentEditor: React.FC<ImageComponentEditorProps> = ({ settings, o
   );
 };
 
-export default ImageComponentEditor; 
- 
- 
- 
+export default ImageComponentEditor;

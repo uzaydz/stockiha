@@ -12,7 +12,6 @@ export const getProductCategories = async (): Promise<string[]> => {
     .select('category');
 
   if (error) {
-    console.error('Error fetching product categories:', error);
     throw error;
   }
 
@@ -42,7 +41,6 @@ export const getInventoryProducts = async (page = 1, limit = 50): Promise<{
     .single();
     
   if (userError && userError.code !== 'PGRST116') {
-    console.error('Error fetching user organization:', userError);
     throw userError;
   }
   
@@ -73,14 +71,12 @@ export const getInventoryProducts = async (page = 1, limit = 50): Promise<{
   const { data: productsData, error, count } = await query;
 
   if (error) {
-    console.error('Error fetching inventory products:', error);
     throw error;
   }
   
   // تحضير قائمة المنتجات النهائية باستخدام وظيفة التحويل الموحدة
   const products: Product[] = productsData.map(product => mapProductFromDatabase(product));
-  
-  
+
   return {
     products,
     totalCount: count || products.length
@@ -268,7 +264,6 @@ export const getInventoryLog = async (productId?: string, limit: number = 20): P
     const { data, error } = await query;
     
     if (error) {
-      console.error('Error fetching inventory log:', error);
       throw error;
     }
     
@@ -288,7 +283,6 @@ export const getInventoryLog = async (productId?: string, limit: number = 20): P
       created_at: new Date(entry.created_at)
     }));
   } catch (error) {
-    console.error('Error fetching inventory log:', error);
     throw error;
   }
 };
@@ -313,11 +307,9 @@ export const updateMinimumStockLevel = async (
       .eq('id', productId);
     
     if (error) {
-      console.error('Error updating minimum stock level:', error);
       throw error;
     }
   } catch (error) {
-    console.error('Error updating minimum stock level:', error);
     throw error;
   }
 };
@@ -340,7 +332,6 @@ export const addInventoryLogEntry = async (
       .single();
     
     if (productError) {
-      console.error('Error fetching product stock:', productError);
       throw productError;
     }
     
@@ -366,7 +357,6 @@ export const addInventoryLogEntry = async (
       .eq('id', productId);
     
     if (updateError) {
-      console.error('Error updating product stock:', updateError);
       throw updateError;
     }
     
@@ -391,11 +381,9 @@ export const addInventoryLogEntry = async (
       });
     
     if (logError) {
-      console.error('Error adding inventory log entry:', logError);
       throw logError;
     }
   } catch (error) {
-    console.error('Error in inventory log operation:', error);
     throw error;
   }
 };
@@ -419,7 +407,6 @@ export const getProductsToReorder = async (): Promise<Product[]> => {
       .single();
       
     if (userError && userError.code !== 'PGRST116') {
-      console.error('Error fetching user organization:', userError);
       throw userError;
     }
     
@@ -440,7 +427,6 @@ export const getProductsToReorder = async (): Promise<Product[]> => {
     const { data, error } = await query;
     
     if (error) {
-      console.error('Error fetching products to reorder:', error);
       throw error;
     }
     
@@ -454,11 +440,9 @@ export const getProductsToReorder = async (): Promise<Product[]> => {
       const reorderLevel = product.reorder_level || 10;
       return product.stock_quantity < reorderLevel;
     });
-    
-    
+
     return productsToReorder.map(mapProductFromDatabase);
   } catch (error) {
-    console.error('Error fetching products to reorder:', error);
     throw error;
   }
 };
@@ -473,7 +457,6 @@ export async function getProductStock(productId: string, variantId?: string): Pr
   try {
     // التأكد من وجود معرف منتج صالح
     if (!productId) {
-      console.error('معرف المنتج مطلوب للحصول على المخزون');
       return 0;
     }
     
@@ -492,7 +475,6 @@ export async function getProductStock(productId: string, variantId?: string): Pr
       .single();
     
     if (error) {
-      console.error('خطأ في جلب بيانات المخزون من الخادم:', error);
       // في حالة الخطأ، استخدم التخزين المحلي
       return await inventoryDB.getProductStock(productId, variantId);
     }
@@ -512,7 +494,6 @@ export async function getProductStock(productId: string, variantId?: string): Pr
     // إذا لم يتم العثور على البيانات، أعد 0
     return 0;
   } catch (error) {
-    console.error('خطأ في الحصول على مخزون المنتج:', error);
     // في حالة حدوث خطأ، استخدم التخزين المحلي
     return await inventoryDB.getProductStock(productId, variantId);
   }
@@ -537,7 +518,6 @@ async function checkServerConnection(): Promise<boolean> {
       const userId = userInfo.data.user?.id;
       
       if (!userId) {
-        console.warn('المستخدم غير مسجل الدخول للتحقق من الاتصال');
         return false;
       }
       
@@ -548,18 +528,14 @@ async function checkServerConnection(): Promise<boolean> {
         .limit(1);
         
       if (error) {
-        console.warn('فشل الاتصال بـ Supabase:', error.message);
         return false;
       }
-      
-      
+
       return true;
     } catch (supabaseError) {
-      console.warn('فشل التحقق من الاتصال بـ Supabase:', supabaseError);
       return false;
     }
   } catch (error) {
-    console.warn('فشل التحقق من الاتصال:', error);
     return false;
   }
 }
@@ -579,13 +555,11 @@ async function isSizeId(variantId: string): Promise<boolean> {
       .maybeSingle();
     
     if (error) {
-      console.error('خطأ في التحقق من معرف المقاس:', error);
       return false;
     }
     
     return !!data;
   } catch (error) {
-    console.error('استثناء أثناء التحقق من معرف المقاس:', error);
     return false;
   }
 }
@@ -605,13 +579,11 @@ async function isColorId(variantId: string): Promise<boolean> {
       .maybeSingle();
     
     if (error) {
-      console.error('خطأ في التحقق من معرف اللون:', error);
       return false;
     }
     
     return !!data;
   } catch (error) {
-    console.error('استثناء أثناء التحقق من معرف اللون:', error);
     return false;
   }
 }
@@ -650,7 +622,6 @@ async function getVariantInfo(variantId: string): Promise<{
         productId: data.product_id
       };
     } catch (error) {
-      console.error('خطأ في جلب معلومات المقاس:', error);
       return { type: 'unknown' };
     }
   }
@@ -677,7 +648,6 @@ async function getVariantInfo(variantId: string): Promise<{
         productId: data.product_id
       };
     } catch (error) {
-      console.error('خطأ في جلب معلومات اللون:', error);
       return { type: 'unknown' };
     }
   }
@@ -703,21 +673,18 @@ export async function updateProductStock(data: {
   try {
     // التأكد من وجود معرف منتج صالح
     if (!data.product_id) {
-      console.error('معرف المنتج مطلوب لتحديث المخزون');
       toast.error('حدث خطأ: معرف المنتج غير صالح');
       return false;
     }
     
     // التأكد من أن الكمية هي عدد صحيح
     if (typeof data.quantity !== 'number') {
-      console.error('الكمية يجب أن تكون رقمًا صحيحًا', { quantity: data.quantity });
       toast.error('حدث خطأ: كمية التعديل غير صالحة');
       return false;
     }
 
     // تسجيل المعلومات قبل التحديث
-    
-    
+
     // التأكد من أن variant_id هو null وليس undefined
     const stockUpdateData = {
       ...data,
@@ -733,11 +700,9 @@ export async function updateProductStock(data: {
       // إظهار إشعار بنجاح التحديث
       toast.success('تم تحديث المخزون بنجاح');
     } catch (localError) {
-      console.error('خطأ في تحديث المخزون محليًا:', localError);
       
       // محاولة إصلاح قاعدة البيانات
       try {
-        console.warn('محاولة إعادة تهيئة قاعدة البيانات المحلية...');
         
         // إذا كان الخطأ مرتبطًا بنسخة قاعدة البيانات، دعنا نحاول إنشاء سجل مباشرة
         const directInventoryItem = {
@@ -752,15 +717,13 @@ export async function updateProductStock(data: {
           timestamp: new Date(),
           synced: false
         };
-        
-        
+
         toast.warning('جاري محاولة إصلاح قاعدة البيانات المحلية...');
         
         // إضافة سجل للعمليات بشكل مباشر
         transaction = directInventoryItem;
         
       } catch (recoveryError) {
-        console.error('فشل محاولة استرداد قاعدة البيانات:', recoveryError);
         toast.error('حدث خطأ في قاعدة البيانات المحلية. يرجى تحديث الصفحة');
         return false;
       }
@@ -791,7 +754,6 @@ export async function updateProductStock(data: {
             .single();
           
           if (sizeError) {
-            console.error('خطأ في الحصول على كمية المقاس الحالية:', sizeError);
             throw sizeError;
           }
 
@@ -805,7 +767,6 @@ export async function updateProductStock(data: {
             .eq('id', data.variant_id);
           
           if (updateSizeError) {
-            console.error('خطأ في تحديث كمية المقاس:', updateSizeError);
             throw updateSizeError;
           }
 
@@ -828,7 +789,6 @@ export async function updateProductStock(data: {
             .single();
           
           if (colorError) {
-            console.error('خطأ في الحصول على كمية اللون الحالية:', colorError);
             throw colorError;
           }
 
@@ -842,7 +802,6 @@ export async function updateProductStock(data: {
             .eq('id', data.variant_id);
           
           if (updateColorError) {
-            console.error('خطأ في تحديث كمية اللون:', updateColorError);
             throw updateColorError;
           }
           
@@ -852,7 +811,6 @@ export async function updateProductStock(data: {
           }
         }
       } catch (variantError) {
-        console.error('خطأ في تحديث المتغير:', variantError);
       }
     }
     
@@ -870,7 +828,6 @@ export async function updateProductStock(data: {
           .single();
           
         if (fetchError) {
-          console.warn('لم نتمكن من الحصول على المخزون السابق:', fetchError);
           canUpdateProduct = false; // لا يمكن تحديث المنتج إذا فشل الاستعلام
           // استخدام القيمة المخزنة محليًا إذا كانت متاحة
           previousStock = 0; // قيمة افتراضية آمنة
@@ -878,7 +835,6 @@ export async function updateProductStock(data: {
           previousStock = productData.stock_quantity;
         }
       } catch (stockError) {
-        console.warn('خطأ في الحصول على المخزون السابق:', stockError);
         canUpdateProduct = false;
         previousStock = 0; // قيمة افتراضية آمنة
       }
@@ -900,12 +856,10 @@ export async function updateProductStock(data: {
             .eq('id', data.product_id);
           
           if (updateError) {
-            console.error('خطأ في تحديث كمية المخزون في جدول المنتجات:', updateError);
             // لا نتوقف هنا، نحاول إضافة سجل في inventory_logs على الأقل
             canUpdateProduct = false;
           }
         } catch (updateError) {
-          console.error('استثناء أثناء تحديث المنتج:', updateError);
           canUpdateProduct = false;
         }
       }
@@ -929,7 +883,6 @@ export async function updateProductStock(data: {
           });
         
         if (error) {
-          console.error('خطأ في مزامنة تحديث المخزون مع الخادم:', error);
           // في حالة فشل إضافة السجل، نحاول مرة أخرى في وقت لاحق
           return true;
         }
@@ -939,7 +892,6 @@ export async function updateProductStock(data: {
           try {
             await inventoryDB.inventoryDB.transactions.update(transaction.id, { synced: true });
           } catch (updateError) {
-            console.warn('لم نتمكن من تحديث حالة المزامنة محليًا:', updateError);
           }
         }
         
@@ -952,17 +904,14 @@ export async function updateProductStock(data: {
         
         return true;
       } catch (syncError) {
-        console.error('خطأ في مزامنة تحديث المخزون:', syncError);
         // في حالة الخطأ، سيتم المزامنة لاحقًا
         return true;
       }
     } catch (syncError) {
-      console.error('خطأ في مزامنة تحديث المخزون:', syncError);
       // في حالة الخطأ، سيتم المزامنة لاحقًا
       return true;
     }
   } catch (error) {
-    console.error('خطأ في تحديث المخزون:', error);
     toast.error('حدث خطأ أثناء تحديث المخزون');
     return false;
   }
@@ -1005,7 +954,6 @@ export async function setProductStock(data: {
             .single();
             
           if (sizeError) {
-            console.error('خطأ في الحصول على كمية المقاس الحالية:', sizeError);
             return false;
           }
           
@@ -1018,7 +966,6 @@ export async function setProductStock(data: {
             .eq('id', data.variant_id);
           
           if (updateSizeError) {
-            console.error('خطأ في تحديث كمية المقاس:', updateSizeError);
             return false;
           }
           
@@ -1040,7 +987,6 @@ export async function setProductStock(data: {
             .single();
             
           if (colorError) {
-            console.error('خطأ في الحصول على كمية اللون الحالية:', colorError);
             return false;
           }
           
@@ -1053,7 +999,6 @@ export async function setProductStock(data: {
             .eq('id', data.variant_id);
           
           if (updateColorError) {
-            console.error('خطأ في تحديث كمية اللون:', updateColorError);
             return false;
           }
           
@@ -1071,7 +1016,6 @@ export async function setProductStock(data: {
           .single();
           
         if (productError) {
-          console.error('خطأ في الحصول على كمية المنتج الحالية:', productError);
           return false;
         }
         
@@ -1084,7 +1028,6 @@ export async function setProductStock(data: {
           .eq('id', data.product_id);
         
         if (updateProductError) {
-          console.error('خطأ في تحديث كمية المنتج:', updateProductError);
           return false;
         }
       }
@@ -1104,13 +1047,11 @@ export async function setProductStock(data: {
       
       return success;
     } catch (variantError) {
-      console.error('خطأ في تحديث المتغيرات:', variantError);
       // لا نريد فشل العملية الرئيسية إذا فشل تحديث المتغيرات
     }
     
     return false;
   } catch (error) {
-    console.error('خطأ في ضبط كمية المخزون:', error);
     toast.error('حدث خطأ أثناء ضبط كمية المخزون');
     return false;
   }
@@ -1139,7 +1080,6 @@ async function updateColorStock(colorId: string): Promise<void> {
     
     if (updateError) throw updateError;
   } catch (error) {
-    console.error('خطأ في تحديث كمية اللون:', error);
   }
 }
 
@@ -1166,7 +1106,6 @@ async function updateProductTotalStock(productId: string): Promise<void> {
     
     if (updateError) throw updateError;
   } catch (error) {
-    console.error('خطأ في تحديث كمية المنتج:', error);
   }
 }
 
@@ -1197,7 +1136,6 @@ export async function syncInventoryData(): Promise<number> {
     
     return syncedCount;
   } catch (error) {
-    console.error('خطأ في مزامنة بيانات المخزون:', error);
     toast.error('حدث خطأ أثناء مزامنة بيانات المخزون', { id: 'sync-inventory' });
     return 0;
   }
@@ -1213,7 +1151,6 @@ export async function getProductInventoryHistory(productId: string, variantId?: 
   try {
     // التأكد من وجود معرف منتج صالح
     if (!productId) {
-      console.error('معرف المنتج مطلوب للحصول على سجل المخزون');
       return [];
     }
     
@@ -1258,7 +1195,6 @@ export async function getProductInventoryHistory(productId: string, variantId?: 
         }));
       }
     } catch (serverError) {
-      console.error('خطأ في الاتصال بالخادم للحصول على سجل المخزون:', serverError);
       // استمرار التنفيذ لاستخدام البيانات المحلية
     }
     
@@ -1266,7 +1202,6 @@ export async function getProductInventoryHistory(productId: string, variantId?: 
     
     return await inventoryDB.getProductTransactions(productId, normalizedVariantId);
   } catch (error) {
-    console.error('خطأ في الحصول على سجل المخزون:', error);
     // في حالة حدوث خطأ، استخدم التخزين المحلي
     return await inventoryDB.getProductTransactions(productId, variantId || null);
   }
@@ -1281,7 +1216,6 @@ export async function loadInventoryData(): Promise<boolean> {
   const isConnected = await checkServerConnection();
   
   if (!isConnected) {
-    console.warn('لا يمكن تحميل بيانات المخزون: أنت غير متصل بالخادم');
     return false;
   }
   
@@ -1293,11 +1227,9 @@ export async function loadInventoryData(): Promise<boolean> {
       
       return true;
     } else {
-      console.warn('لم يتم تحميل أي بيانات مخزون من الخادم');
       return false;
     }
   } catch (error) {
-    console.error('خطأ في تحميل بيانات المخزون:', error);
     return false;
   }
 }
@@ -1306,8 +1238,7 @@ export async function loadInventoryData(): Promise<boolean> {
  * تهيئة نظام المخزون
  */
 export function initInventorySystem(): void {
-  
-  
+
   // تعيين مستمع لحالة الاتصال لمزامنة البيانات عند استعادة الاتصال
   if (typeof window !== 'undefined') {
     // دالة مساعدة لمحاولة المزامنة عند استعادة الاتصال
@@ -1320,9 +1251,7 @@ export function initInventorySystem(): void {
           
           return;
         }
-        
-        
-        
+
         // الحصول على عدد العمليات غير المتزامنة
         const unsyncedCount = await inventoryDB.getUnsyncedTransactionsCount();
         
@@ -1335,21 +1264,18 @@ export function initInventorySystem(): void {
               const syncResult = await syncInventoryData();
               
             } catch (syncError) {
-              console.error('فشل في مزامنة البيانات بعد استعادة الاتصال:', syncError);
             }
           }, 2000);
         } else {
           
         }
       } catch (error) {
-        console.error('خطأ أثناء محاولة المزامنة بعد استعادة الاتصال:', error);
       }
     };
     
     // إضافة مستمع لحدث استعادة الاتصال
     window.addEventListener('online', () => {
-      
-      
+
       // محاولة المزامنة بعد تأخير قصير للتأكد من استقرار الاتصال
       setTimeout(attemptSyncOnReconnect, 1000);
     });
@@ -1379,7 +1305,6 @@ export function initInventorySystem(): void {
         
         lastConnectionState = isConnected;
       } catch (error) {
-        console.warn('خطأ أثناء فحص حالة الاتصال:', error);
       }
     };
     
@@ -1393,4 +1318,4 @@ export function initInventorySystem(): void {
 }
 
 // استدعاء دالة التهيئة تلقائيًا عند استيراد الوحدة
-initInventorySystem(); 
+initInventorySystem();

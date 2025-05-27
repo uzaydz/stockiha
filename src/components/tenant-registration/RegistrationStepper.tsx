@@ -73,4 +73,4 @@ export const RegistrationStepper = ({
   );
 };
 
-export default RegistrationStepper; 
+export default RegistrationStepper;

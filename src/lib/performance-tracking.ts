@@ -74,10 +74,8 @@ export const trackPageLoad = async (url: string, organizationId?: string, subdom
     
     // Store metrics in the database
     await supabase.from('performance_metrics').insert(metrics);
-    
-    
+
   } catch (error) {
-    console.error('Error tracking performance metrics:', error);
     // Fail silently - don't affect user experience if tracking fails
   }
 };
@@ -107,7 +105,6 @@ export const trackComponentRender = async (
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error(`Error tracking render time for ${componentName}:`, error);
     // Fail silently
   }
 };
@@ -139,4 +136,4 @@ const performanceTracking = {
   createComponentTracker
 };
 
-export default performanceTracking; 
+export default performanceTracking;

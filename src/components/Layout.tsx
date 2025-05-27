@@ -25,13 +25,11 @@ export default function Layout({ children }: LayoutProps) {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'sidebarCollapsed') {
         setIsSidebarOpen(e.newValue !== 'true');
-        console.log('تغيير من نافذة أخرى:', e.newValue);
       }
     };
     
     const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
     setIsSidebarOpen(!isCollapsed);
-    console.log('الحالة الأولية للقائمة:', isCollapsed ? 'مطوية' : 'موسعة');
 
     window.addEventListener('storage', handleStorageChange);
     
@@ -47,7 +45,6 @@ export default function Layout({ children }: LayoutProps) {
     const handleLocalChange = (e: Event) => {
       if ((e as any).key === 'sidebarCollapsed') {
         setIsSidebarOpen((e as any).newValue !== 'true');
-        console.log('تغيير من نفس النافذة:', (e as any).newValue);
       }
     };
 
@@ -94,7 +91,6 @@ export default function Layout({ children }: LayoutProps) {
       const newState = !isSidebarOpen;
       setIsSidebarOpen(newState);
       localStorage.setItem('sidebarCollapsed', (!newState).toString());
-      console.log("تم تغيير حالة القائمة الجانبية:", newState ? "موسعة" : "مطوية");
       
       const event = new Event('sidebar-toggled');
       window.dispatchEvent(event);

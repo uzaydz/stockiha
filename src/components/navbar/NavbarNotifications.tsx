@@ -396,4 +396,4 @@ export function NavbarNotifications({ className, initialNotifications = [], maxI
 // 
 // .animate-wiggle {
 //   animation: wiggle 0.5s ease-in-out infinite;
-// } 
+// }

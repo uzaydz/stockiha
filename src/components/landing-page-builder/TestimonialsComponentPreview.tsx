@@ -54,4 +54,4 @@ const TestimonialsComponentPreview: React.FC<TestimonialsComponentPreviewProps> 
   );
 };
 
-export default TestimonialsComponentPreview; 
+export default TestimonialsComponentPreview;

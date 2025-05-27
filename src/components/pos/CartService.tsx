@@ -258,4 +258,4 @@ export default function CartService({ service, customers, removeService }: CartS
       </div>
     </motion.div>
   );
-} 
+}

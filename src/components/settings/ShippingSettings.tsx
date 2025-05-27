@@ -103,4 +103,4 @@ export default function ShippingSettings({ onNavigateToClones }: ShippingSetting
       </Card>
     </div>
   );
-} 
+}

@@ -32,7 +32,6 @@ export function formatPrice(price: number | string | null | undefined, currency:
   
   // التحقق من أن القيمة رقم صالح
   if (isNaN(numericPrice)) {
-    console.warn('Invalid price value:', price);
     numericPrice = 0;
   }
   
@@ -49,7 +48,6 @@ export function formatPrice(price: number | string | null | undefined, currency:
     // في الجزائر، يتم وضع رمز العملة بعد الرقم مع مسافة
     return `${formattedPrice} ${symbol}`;
   } catch (error) {
-    console.error('Error formatting price:', error);
     return `${numericPrice.toFixed(2)} ${symbol}`;
   }
 }
@@ -201,7 +199,6 @@ export const safePath = (...paths: string[]): string => {
       const path = window.require('path');
       return path.join(...paths);
     } catch (error) {
-      console.error('Error al usar path.join en Electron:', error);
     }
   }
   
@@ -228,7 +225,6 @@ export const getUserDataPath = (): string => {
         return app.getPath('userData');
       }
     } catch (error) {
-      console.error('خطأ في الحصول على مسار بيانات المستخدم:', error);
     }
   }
   

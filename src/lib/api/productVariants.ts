@@ -12,13 +12,11 @@ export const getProductColors = async (productId: string): Promise<ProductColor[
       .order('is_default', { ascending: false });
     
     if (error) {
-      console.error('Error fetching product colors:', error);
       throw error;
     }
     
     return data || [];
   } catch (error) {
-    console.error('Unexpected error while fetching product colors:', error);
     return [];
   }
 };
@@ -33,13 +31,11 @@ export const getProductImages = async (productId: string): Promise<InsertProduct
       .order('sort_order', { ascending: true });
     
     if (error) {
-      console.error('Error fetching product images:', error);
       throw error;
     }
     
     return data || [];
   } catch (error) {
-    console.error('Unexpected error while fetching product images:', error);
     return [];
   }
 };
@@ -54,13 +50,11 @@ export const createProductColor = async (color: InsertProductColor): Promise<Pro
       .single();
     
     if (error) {
-      console.error('Error creating product color:', error);
       throw error;
     }
     
     return data;
   } catch (error) {
-    console.error('Unexpected error while creating product color:', error);
     throw error;
   }
 };
@@ -76,13 +70,11 @@ export const updateProductColor = async (colorId: string, updates: Partial<Inser
       .single();
     
     if (error) {
-      console.error('Error updating product color:', error);
       throw error;
     }
     
     return data;
   } catch (error) {
-    console.error('Unexpected error while updating product color:', error);
     throw error;
   }
 };
@@ -96,11 +88,9 @@ export const deleteProductColor = async (colorId: string): Promise<void> => {
       .eq('id', colorId);
     
     if (error) {
-      console.error('Error deleting product color:', error);
       throw error;
     }
   } catch (error) {
-    console.error('Unexpected error while deleting product color:', error);
     throw error;
   }
 };
@@ -115,13 +105,11 @@ export const createProductImage = async (image: InsertProductImage): Promise<Ins
       .single();
     
     if (error) {
-      console.error('Error creating product image:', error);
       throw error;
     }
     
     return data;
   } catch (error) {
-    console.error('Unexpected error while creating product image:', error);
     throw error;
   }
 };
@@ -135,11 +123,9 @@ export const deleteProductImage = async (imageId: string): Promise<void> => {
       .eq('id', imageId);
     
     if (error) {
-      console.error('Error deleting product image:', error);
       throw error;
     }
   } catch (error) {
-    console.error('Unexpected error while deleting product image:', error);
     throw error;
   }
 };
@@ -154,13 +140,11 @@ export const generateVariantBarcode = async (productId: string, variantId: strin
       });
     
     if (error) {
-      console.error('Error generating variant barcode:', error);
       throw error;
     }
     
     return data;
   } catch (error) {
-    console.error('Unexpected error while generating variant barcode:', error);
     
     // آلية احتياطية في حالة فشل استدعاء rpc
     const timestamp = Date.now().toString().substr(-6);
@@ -215,7 +199,6 @@ export async function createProductSize(data: InsertProductSize): Promise<string
         .single();
       
       if (error) {
-        console.error('فشل في إنشاء المقاس:', error);
         throw error;
       }
       
@@ -226,11 +209,9 @@ export async function createProductSize(data: InsertProductSize): Promise<string
       return newSize.id;
       
     } catch (innerError) {
-      console.error('Inner error while creating product size:', innerError);
       throw innerError;
     }
   } catch (error) {
-    console.error('Failed to create product size:', error);
     throw error;
   }
 }
@@ -256,7 +237,6 @@ async function updateColorQuantity(colorId: string): Promise<void> {
     
     if (updateError) throw updateError;
   } catch (error) {
-    console.error('Error updating color quantity:', error);
   }
 }
 
@@ -281,7 +261,6 @@ async function updateProductQuantity(productId: string): Promise<void> {
     
     if (updateError) throw updateError;
   } catch (error) {
-    console.error('Error updating product quantity:', error);
   }
 }
 
@@ -290,7 +269,6 @@ export async function updateProductSize(sizeId: string, data: Partial<InsertProd
   try {
     // التحقق من معرف المقاس
     if (!sizeId) {
-      console.error('معرف المقاس مطلوب للتحديث');
       return false;
     }
 
@@ -302,7 +280,6 @@ export async function updateProductSize(sizeId: string, data: Partial<InsertProd
       .single();
 
     if (sizeError) {
-      console.error('خطأ في الحصول على معلومات المقاس:', sizeError);
       throw sizeError;
     }
 
@@ -318,7 +295,6 @@ export async function updateProductSize(sizeId: string, data: Partial<InsertProd
         .neq('id', sizeId);
         
       if (defaultError) {
-        console.error('خطأ في تحديث المقاسات الافتراضية:', defaultError);
       }
     }
 
@@ -336,7 +312,6 @@ export async function updateProductSize(sizeId: string, data: Partial<InsertProd
       .eq('id', sizeId);
 
     if (updateError) {
-      console.error('خطأ في تحديث المقاس:', updateError);
       throw updateError;
     }
 
@@ -348,7 +323,6 @@ export async function updateProductSize(sizeId: string, data: Partial<InsertProd
 
     return true;
   } catch (error) {
-    console.error('Failed to update product size:', error);
     throw error;
   }
 }
@@ -362,14 +336,12 @@ export async function deleteProductSize(sizeId: string): Promise<boolean> {
     });
 
     if (error) {
-      console.error('Error deleting product size:', error);
       toast.error('فشل في حذف المقاس: ' + error.message);
       throw error;
     }
 
     return success;
   } catch (error) {
-    console.error('Failed to delete product size:', error);
     throw error;
   }
 }
@@ -379,7 +351,6 @@ export async function getProductSizes(colorId: string): Promise<ProductSize[]> {
   try {
     // التحقق من أن معرّف اللون صالح كـ UUID قبل الاستدعاء
     if (!colorId || colorId.startsWith('temp-') || !colorId.includes('-')) {
-      console.warn('تم تمرير معرّف لون غير صالح إلى getProductSizes:', colorId);
       return [];
     }
 
@@ -389,13 +360,11 @@ export async function getProductSizes(colorId: string): Promise<ProductSize[]> {
     });
 
     if (error) {
-      console.error('Error fetching product sizes:', error);
       throw error;
     }
 
     return data || [];
   } catch (error) {
-    console.error('Failed to fetch product sizes:', error);
     throw error;
   }
 }
@@ -407,7 +376,6 @@ export async function createProductSizesBatch(sizes: InsertProductSize[]): Promi
       await createProductSize(size);
     }
   } catch (error) {
-    console.error('Failed to create product sizes batch:', error);
     throw error;
   }
-} 
+}

@@ -77,11 +77,7 @@ const TrialStatusCard: React.FC<TrialStatusCardProps> = ({ onSelectPlan }) => {
     setDaysLeft(daysRemaining);
     
     // سجل للتشخيص
-    
-    
-    
-    
-    
+
     // حساب النسبة المئوية المتبقية من الفترة التجريبية
     const progressPercentage = Math.max(0, Math.min(100, ((trialDays - daysRemaining) / trialDays) * 100));
     setProgress(progressPercentage);
@@ -172,4 +168,4 @@ const TrialStatusCard: React.FC<TrialStatusCardProps> = ({ onSelectPlan }) => {
   );
 };
 
-export default TrialStatusCard; 
+export default TrialStatusCard;

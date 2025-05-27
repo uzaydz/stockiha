@@ -148,7 +148,6 @@ export async function getStoreInfoBySubdomain(subdomain: string): Promise<Organi
       theme_mode: settings.theme_mode as ('light' | 'dark') 
     };
   } catch (error) {
-    console.error('Error fetching store info:', error);
     return null;
   }
 }
@@ -157,11 +156,8 @@ export async function getStoreInfoBySubdomain(subdomain: string): Promise<Organi
 export async function getFeaturedProducts(organizationId: string): Promise<Product[]> {
   try {
     if (!organizationId) {
-      console.error('معرف المؤسسة فارغ أو غير محدد في getFeaturedProducts!');
       return [];
     }
-    
-    console.log('جلب المنتجات المميزة للمؤسسة:', organizationId);
     
     // استعلام بسيط جداً للتأكد من عمله - إضافة شرط is_active = true
     const supabaseClient = await getSupabaseClient();
@@ -173,13 +169,10 @@ export async function getFeaturedProducts(organizationId: string): Promise<Produ
       .limit(20);
     
     if (error) {
-      console.error('Error in getFeaturedProducts simple query:', error);
-      console.error('Query details - organization_id:', organizationId);
       return [];
     }
     
     if (!productsRaw || productsRaw.length === 0) {
-      console.log('لا توجد منتجات مميزة للمؤسسة', organizationId);
       
       // لأغراض التصحيح - محاولة استعلام مباشر دون تحديد معرف المؤسسة
       const { data: allProducts, error: allError } = await supabaseClient
@@ -188,18 +181,13 @@ export async function getFeaturedProducts(organizationId: string): Promise<Produ
         .limit(5);
       
       if (allProducts && allProducts.length > 0) {
-        console.log('نماذج المنتجات المتاحة:', allProducts);
       }
       
       if (allError) {
-        console.error('Debug query error:', allError);
       }
       
       return [];
     }
-    
-    console.log('تم العثور على', productsRaw.length, 'منتج مميز');
-    console.log('نماذج البيانات الخام:', productsRaw.slice(0, 2)); // عرض أول عنصرين فقط
     
     // تحويل البيانات الأولية إلى منتجات
     const products = productsRaw.map(product => {
@@ -209,10 +197,8 @@ export async function getFeaturedProducts(organizationId: string): Promise<Produ
       // استخدم thumbnail_url أولاً إذا كان متاحاً، ثم انتقل إلى thumbnail_image
       if (product.thumbnail_url) {
         thumbnailImage = product.thumbnail_url.trim();
-        console.log(`المنتج ${product.id} - يستخدم thumbnail_url:`, thumbnailImage);
       } else if (product.thumbnail_image) {
         thumbnailImage = product.thumbnail_image.trim();
-        console.log(`المنتج ${product.id} - يستخدم thumbnail_image:`, thumbnailImage);
       }
       
       // إضافة بروتوكول إذا كان مفقودًا
@@ -241,16 +227,12 @@ export async function getFeaturedProducts(organizationId: string): Promise<Produ
         try {
           new URL(thumbnailImage);
         } catch (e) {
-          console.warn(`رابط صورة غير صالح في المنتج ${product.id}:`, thumbnailImage);
           // استخدام صورة افتراضية في حالة الرابط غير الصالح
           thumbnailImage = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470';
         }
-        
-        console.log(`المنتج ${product.id} - رابط الصورة المصغرة بعد المعالجة:`, thumbnailImage);
       } else {
         // استخدام صورة افتراضية في حالة عدم وجود صورة مصغرة
         thumbnailImage = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470';
-        console.log(`المنتج ${product.id} - ليس له صورة مصغرة، تم تعيين صورة افتراضية`);
       }
       
       // معالجة مصفوفة الصور الإضافية
@@ -306,11 +288,8 @@ export async function getFeaturedProducts(organizationId: string): Promise<Produ
       };
     });
     
-    console.log('المنتجات بعد التحويل:', products.slice(0, 2)); // عرض أول عنصرين فقط
-    
     return products;
   } catch (error) {
-    console.error('Exception in getFeaturedProducts:', error);
     return [];
   }
 }
@@ -319,7 +298,6 @@ export async function getFeaturedProducts(organizationId: string): Promise<Produ
 export async function getAllProducts(organizationId: string): Promise<Product[]> {
   try {
     if (!organizationId) {
-      console.error('معرف المؤسسة غير محدد في getAllProducts');
       return [];
     }
     
@@ -335,10 +313,8 @@ export async function getAllProducts(organizationId: string): Promise<Product[]>
           });
         
         if (error) {
-          console.error('Error in getAllProducts query:', error);
           
           // خطة بديلة في حالة فشل الاستعلام المخصص
-          console.warn('فشل استخدام الاستعلام المخصص، استخدام الطريقة العادية');
           const { data: productsData, error: productsError } = await supabase
             .from('products')
             .select('*')
@@ -403,7 +379,6 @@ export async function getAllProducts(organizationId: string): Promise<Product[]>
       true // استخدام التخزين المؤقت في الذاكرة
     );
   } catch (error) {
-    console.error('Exception in getAllProducts:', error);
     return [];
   }
 }
@@ -412,7 +387,6 @@ export async function getAllProducts(organizationId: string): Promise<Product[]>
 export async function getProductCategories(organizationId: string): Promise<Category[]> {
   try {
     if (!organizationId) {
-      console.error('معرف المؤسسة غير محدد في getProductCategories');
       return [];
     }
     
@@ -427,7 +401,6 @@ export async function getProductCategories(organizationId: string): Promise<Cate
           .eq('organization_id', organizationId);
         
         if (error) {
-          console.error('Error in getProductCategories query:', error);
           throw error;
         }
         
@@ -461,7 +434,6 @@ export async function getProductCategories(organizationId: string): Promise<Cate
             });
           } else {
             // خطة بديلة في حالة فشل الاستعلام المخصص
-            console.warn('فشل استخدام الاستعلام المخصص، استخدام الطريقة البديلة');
             
             // أولاً: جلب جميع المنتجات مرة واحدة لتحسين الأداء
             const { data: allProducts, error: productsError } = await supabase
@@ -488,7 +460,6 @@ export async function getProductCategories(organizationId: string): Promise<Cate
             }
           }
         } catch (countError) {
-          console.error('خطأ أثناء حساب عدد المنتجات:', countError);
         }
         
         return categories;
@@ -497,7 +468,6 @@ export async function getProductCategories(organizationId: string): Promise<Cate
       true // استخدام التخزين المؤقت في الذاكرة
     );
   } catch (error) {
-    console.error('Exception in getProductCategories:', error);
     return [];
   }
 }
@@ -513,12 +483,9 @@ export async function getServices(organizationId: string): Promise<Service[]> {
       .eq('organization_id', organizationId);
     
     if (error) {
-      console.error('Error in getServices query:', error);
       throw error;
     }
-    
-    
-    
+
     if (!data || data.length === 0) {
       
       // إرجاع مصفوفة فارغة بدلاً من الخدمة الافتراضية
@@ -544,7 +511,6 @@ export async function getServices(organizationId: string): Promise<Service[]> {
     
     return services;
   } catch (error) {
-    console.error('Error fetching services:', error);
     // إرجاع مصفوفة فارغة في حالة حدوث خطأ
     return [];
   }
@@ -566,18 +532,15 @@ export async function getFullStoreData(subdomain: string): Promise<StoreData | n
       .single();
     
     if (orgError || !organization) {
-      console.error('Error fetching organization by subdomain:', orgError);
       return null;
     }
-    
-    
+
     const organizationId = organization.id;
     
     // التحقق مما إذا كان المستخدم مسجل دخول
     const { data: sessionData } = await supabaseClient.auth.getSession();
     const isLoggedIn = !!sessionData.session?.user;
-    
-    
+
     // 2. جلب إعدادات المؤسسة (التلوين والمظهر)
     let settings;
     
@@ -589,7 +552,6 @@ export async function getFullStoreData(subdomain: string): Promise<StoreData | n
         .single();
       
       if (settingsError) {
-        console.error('Error fetching organization settings:', settingsError);
       } else {
         settings = orgSettings;
       }
@@ -602,7 +564,6 @@ export async function getFullStoreData(subdomain: string): Promise<StoreData | n
         .single();
       
       if (settingsError) {
-        console.error('Error fetching organization settings for public access:', settingsError);
       } else {
         settings = orgSettings;
       }
@@ -619,7 +580,6 @@ export async function getFullStoreData(subdomain: string): Promise<StoreData | n
         });
       
       if (componentsError) {
-        console.error('Error fetching store components:', componentsError);
       } else if (componentsData) {
         storeComponents = componentsData.map(item => ({
           id: item.id,
@@ -639,7 +599,6 @@ export async function getFullStoreData(subdomain: string): Promise<StoreData | n
         });
       
       if (componentsError) {
-        console.error('Error fetching store components for public access:', componentsError);
       } else if (componentsData) {
         storeComponents = componentsData.map(item => ({
           id: item.id,
@@ -650,15 +609,12 @@ export async function getFullStoreData(subdomain: string): Promise<StoreData | n
         }));
       }
     }
-    
-    
-    
+
     // 4. جلب الفئات 
     let categories: Category[] = [];
     
     try {
-      
-      
+
       // استخدام استعلام مباشر بدلاً من وظيفة getProductCategories لتحديد أين المشكلة
       const { data: categoriesData, error: categoriesError } = await supabaseClient
         .from('product_categories')
@@ -666,7 +622,6 @@ export async function getFullStoreData(subdomain: string): Promise<StoreData | n
         .eq('organization_id', organizationId);
         
       if (categoriesError) {
-        console.error('Error in direct categories query:', categoriesError);
       } else if (categoriesData && categoriesData.length > 0) {
         
         // تحويل البيانات إلى الشكل المطلوب
@@ -690,12 +645,10 @@ export async function getFullStoreData(subdomain: string): Promise<StoreData | n
         }
       }
     } catch (catError) {
-      console.error('Error fetching categories:', catError);
       // محاولة أخيرة
       try {
         categories = await getProductCategories(organizationId);
       } catch (e) {
-        console.error('Final attempt to fetch categories failed:', e);
       }
     }
     
@@ -714,11 +667,9 @@ export async function getFullStoreData(subdomain: string): Promise<StoreData | n
     };
     
     const endTime = Date.now();
-    
-    
+
     return storeData;
   } catch (err) {
-    console.error('Error fetching full store data:', err);
     return null;
   }
 }
@@ -726,8 +677,7 @@ export async function getFullStoreData(subdomain: string): Promise<StoreData | n
 // جلب منتج محدد بواسطة الـslug
 export async function getProductBySlug(organizationId: string, slug: string): Promise<Product | null> {
   try {
-    
-    
+
     // تحقق مما إذا كان الـ slug يمثل UUID (يحتوي على شرطات)
     const isUuid = slug.includes('-');
     
@@ -752,7 +702,6 @@ export async function getProductBySlug(organizationId: string, slug: string): Pr
         
       }
     } catch (slugSearchError) {
-      console.warn('Product not found by slug search');
     }
     
     // البحث 2: إذا فشل البحث الأول وكان الـ slug يبدو كـ UUID، جرب البحث باستخدام id
@@ -772,7 +721,6 @@ export async function getProductBySlug(organizationId: string, slug: string): Pr
           
         }
       } catch (idSearchError) {
-        console.warn('Product not found by ID search');
       }
     }
     
@@ -783,8 +731,7 @@ export async function getProductBySlug(organizationId: string, slug: string): Pr
         const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         
         if (supabaseUrl && supabaseAnonKey) {
-          
-          
+
           const response = await fetch(
             `${supabaseUrl}/rest/v1/products?select=*&organization_id=eq.${organizationId}&id=eq.${slug}&is_active=eq.true&limit=1`,
             {
@@ -805,17 +752,14 @@ export async function getProductBySlug(organizationId: string, slug: string): Pr
               
             }
           } else {
-            console.warn('HTTP request failed with status:', response.status);
           }
         }
       } catch (fetchError) {
-        console.warn('Error with direct HTTP request:', fetchError);
       }
     }
     
     // إذا لم يتم العثور على المنتج بعد كل المحاولات
     if (!data) {
-      console.warn('Product not found for slug/id after all attempts:', slug);
       return null;
     }
     
@@ -882,7 +826,6 @@ export async function getProductBySlug(organizationId: string, slug: string): Pr
       quality_guarantee_text: data.quality_guarantee_text || 'ضمان جودة المنتج'
     };
   } catch (error) {
-    console.error('Error fetching product by slug:', error);
     return null;
   }
 }
@@ -891,7 +834,6 @@ export async function getProductBySlug(organizationId: string, slug: string): Pr
 export async function getProductNameById(productId: string): Promise<string> {
   try {
     if (!productId) {
-      console.error('معرف المنتج فارغ أو غير محدد في getProductNameById!');
       return '';
     }
     
@@ -903,13 +845,11 @@ export async function getProductNameById(productId: string): Promise<string> {
       .single();
     
     if (error) {
-      console.error('Error fetching product name:', error);
       return '';
     }
     
     return data?.name || '';
   } catch (error) {
-    console.error('Error in getProductNameById:', error);
     return '';
   }
 }
@@ -941,12 +881,9 @@ export async function processOrder(
     stop_desk_id?: string | null; // إضافة معرف مكتب الاستلام
   }
 ) {
-  
-  
 
   // التحقق من وجود معرف المؤسسة
   if (!organizationId) {
-    console.error("API: معرف المؤسسة مفقود. لا يمكن متابعة الطلب.");
     return { error: "معرف المؤسسة مفقود" };
   }
   
@@ -974,8 +911,6 @@ export async function processOrder(
     stop_desk_id
   } = orderData;
 
-  console.log(`[processOrder] type=${deliveryOption}, stop_desk_id=${stop_desk_id}`);
-  
   try {
     const supabaseClient = await getSupabaseClient();
     
@@ -1004,22 +939,15 @@ export async function processOrder(
       p_metadata: metadata || null,
       p_stop_desk_id: stop_desk_id || null
     };
-    
-    
-    
+
     // استخدام "as any" لتجاوز تدقيق النوع في TypeScript
     const { data, error } = await supabaseClient.rpc('process_online_order_new', params as any);
 
     if (error) {
-      console.error('Error processing order:', error);
-      console.error('Error code:', error.code);
-      console.error('Error message:', error.message);
-      console.error('Error details:', error.details);
       
       // تحقق مما إذا كانت المشكلة هي عدم وجود الدالة الجديدة
       if (error.code === 'PGRST202') {
-        
-        
+
         // إعادة صياغة المعاملات حسب الدالة القديمة
         const fallbackParams = {
           p_full_name: fullName,
@@ -1037,21 +965,16 @@ export async function processOrder(
           p_delivery_fee: deliveryFee,
           p_organization_id: organizationId
         };
-        
-        
-        
+
         try {
           const fallbackResult = await supabaseClient.rpc('process_online_order', fallbackParams as any);
           
           if (fallbackResult.error) {
-            console.error('فشل أيضاً استدعاء process_online_order:', fallbackResult.error);
             throw new Error(`فشل استدعاء الدالتين. الخطأ: ${fallbackResult.error.message}`);
           }
-          
-          
+
           return fallbackResult.data;
         } catch (fallbackError) {
-          console.error('خطأ في استدعاء الدالة الاحتياطية:', fallbackError);
           throw fallbackError;
         }
       }
@@ -1062,19 +985,14 @@ export async function processOrder(
       // Check for common database errors
       if (error.message.includes("slug")) {
         detailedError = "مشكلة في حقل slug، يرجى الاتصال بالمسؤول.";
-        console.error('مشكلة في حقل slug المحدد');
       } else if (error.message.includes("violates foreign key constraint")) {
         detailedError = "مشكلة في العلاقات بين الجداول، يرجى التحقق من المعرفات.";
-        console.error('مشكلة في العلاقات الأجنبية بين الجداول');
       } else if (error.code === '20000') {
         detailedError = "حدث خطأ عند معالجة الطلب في قاعدة البيانات. يرجى التحقق من البيانات المدخلة وإعادة المحاولة.";
-        console.error('خطأ عام في الوظيفة المخزنة');
       } else if (error.code === '42703') {
         detailedError = "مشكلة في تعريف الحقول. يرجى الاتصال بالمسؤول.";
-        console.error('مشكلة في تعريف الحقول في قاعدة البيانات');
       } else if (error.code === '22P02') {
         detailedError = "خطأ في نوع البيانات المرسلة. يرجى التحقق من صحة البيانات المدخلة.";
-        console.error('خطأ في نوع البيانات المرسلة');
       }
       
       throw new Error(detailedError);
@@ -1084,33 +1002,25 @@ export async function processOrder(
     const responseData = data as any;
 
     if (!responseData) {
-      console.error('تم استلام استجابة فارغة من الخادم');
       throw new Error('لم يتم استلام أي بيانات من الخادم. يرجى المحاولة مرة أخرى.');
     }
 
     // Log success for debugging
-    
-    
+
     // إنشاء رقم طلب افتراضي إذا لم يكن موجودًا في الاستجابة
     if (!responseData.order_number) {
-      console.warn("لم يتم تلقي رقم طلب من الخادم، سيتم استخدام قيمة افتراضية");
       responseData.order_number = Math.floor(Math.random() * 10000);
     }
     
     // Handle case where the stored procedure returned an error object
     if (responseData && responseData.status === 'error') {
-      console.error('Function returned error:', responseData);
       throw new Error(`Error from database: ${responseData.error}`);
     }
 
     return responseData; // Return the casted data
   } catch (error) {
-    console.error('Error calling process_online_order_new:', error);
     if (error instanceof Error) {
-      console.error('Error name:', error.name);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
     }
     throw error;
   }
-} 
+}

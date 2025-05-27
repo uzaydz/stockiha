@@ -19,9 +19,9 @@ const ShippingProviderBadge = ({
 
   if (!hasYalidine && !hasZRExpress) {
     return (
-      <Badge variant="outline" className={`text-gray-500 ${className}`}>
+      <Badge variant="outline" className={`text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/30 ${className}`}>
         <Package className="w-3 h-3 ml-1" />
-        لم يتم الشحن
+        <span className="text-foreground dark:text-zinc-200">لم يتم الشحن</span>
       </Badge>
     );
   }
@@ -31,13 +31,13 @@ const ShippingProviderBadge = ({
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Badge variant="default" className={`bg-green-100 text-green-800 border-green-300 hover:bg-green-200 ${className}`}>
+            <Badge variant="default" className={`bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 border-green-300 dark:border-green-700/30 hover:bg-green-200 dark:hover:bg-green-900/50 ${className}`}>
               <Truck className="w-3 h-3 ml-1" />
-              ياليدين
+              <span>ياليدين</span>
             </Badge>
           </TooltipTrigger>
-          <TooltipContent>
-            <p className="text-xs">رقم التتبع: {yalidineTrackingId}</p>
+          <TooltipContent className="bg-background dark:bg-zinc-800 border-border dark:border-zinc-700">
+            <p className="text-xs text-foreground dark:text-zinc-200">رقم التتبع: {yalidineTrackingId}</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
@@ -49,13 +49,13 @@ const ShippingProviderBadge = ({
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Badge variant="default" className={`bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200 ${className}`}>
+            <Badge variant="default" className={`bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 border-blue-300 dark:border-blue-700/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 ${className}`}>
               <Truck className="w-3 h-3 ml-1" />
-              ZR Express
+              <span>ZR Express</span>
             </Badge>
           </TooltipTrigger>
-          <TooltipContent>
-            <p className="text-xs">رقم التتبع: {zrexpressTrackingId}</p>
+          <TooltipContent className="bg-background dark:bg-zinc-800 border-border dark:border-zinc-700">
+            <p className="text-xs text-foreground dark:text-zinc-200">رقم التتبع: {zrexpressTrackingId}</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
@@ -65,4 +65,4 @@ const ShippingProviderBadge = ({
   return null;
 };
 
-export default ShippingProviderBadge; 
+export default ShippingProviderBadge;

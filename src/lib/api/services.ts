@@ -57,12 +57,9 @@ interface UpdateServiceData {
 export async function getServices(organizationId?: string) {
   try {
     if (!organizationId) {
-      console.error("لم يتم تمرير معرف المؤسسة إلى وظيفة getServices");
       return [];
     }
-    
-    
-    
+
     // إضافة تأخير بسيط لمنع مشاكل التزامن
     await new Promise(resolve => setTimeout(resolve, 300));
     
@@ -73,7 +70,6 @@ export async function getServices(organizationId?: string) {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('خطأ في جلب الخدمات:', error);
       throw new Error(error.message);
     }
 
@@ -81,15 +77,13 @@ export async function getServices(organizationId?: string) {
     if (!data || data.length === 0) {
       
     } else {
-      
-      
+
     }
     
     // التحقق من البيانات قبل إرجاعها
     return Array.isArray(data) ? data as Service[] : [];
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'خطأ غير معروف';
-    console.error('خطأ غير متوقع أثناء جلب الخدمات:', errorMessage);
     
     // تسجيل محاولة إعادة الاتصال
     try {
@@ -98,10 +92,8 @@ export async function getServices(organizationId?: string) {
         .from('services')
         .select('count')
         .eq('organization_id', organizationId);
-        
-      
+
     } catch (retryError) {
-      console.error('فشلت محاولة إعادة الاتصال:', retryError);
     }
     
     return [];
@@ -117,7 +109,6 @@ export async function getServiceById(id: string) {
     .single();
 
   if (error) {
-    console.error('Error fetching service:', error);
     throw new Error(error.message);
   }
 
@@ -156,7 +147,6 @@ export async function createService(serviceData: CreateServiceData) {
 
     return data as Service;
   } catch (error) {
-    console.error('Error creating service:', error);
     throw error;
   }
 }
@@ -174,7 +164,6 @@ export async function updateService(id: string, serviceData: UpdateServiceData) 
     .single();
 
   if (error) {
-    console.error('Error updating service:', error);
     throw new Error(error.message);
   }
 
@@ -189,7 +178,6 @@ export async function deleteService(id: string) {
     .eq('id', id);
 
   if (error) {
-    console.error('Error deleting service:', error);
     throw new Error(error.message);
   }
 
@@ -211,7 +199,6 @@ export async function getServiceBookings(serviceId: string) {
     .order('booking_time', { ascending: true });
 
   if (error) {
-    console.error('Error fetching service bookings:', error);
     throw new Error(error.message);
   }
 
@@ -230,7 +217,6 @@ export async function getAllBookings() {
     .order('booking_time', { ascending: true });
 
   if (error) {
-    console.error('Error fetching all bookings:', error);
     throw new Error(error.message);
   }
 
@@ -250,7 +236,6 @@ export async function createBooking(bookingData: Omit<ServiceBooking, 'id' | 'cr
     .single();
 
   if (error) {
-    console.error('Error creating booking:', error);
     throw new Error(error.message);
   }
 
@@ -271,7 +256,6 @@ export async function updateBookingStatus(id: string, status: ServiceBooking['st
       .single();
 
     if (bookingError) {
-      console.error('Error fetching booking details:', bookingError);
       throw new Error(bookingError.message);
     }
 
@@ -288,7 +272,6 @@ export async function updateBookingStatus(id: string, status: ServiceBooking['st
       .single();
 
     if (error) {
-      console.error('Error updating booking status:', error);
       throw new Error(error.message);
     }
 
@@ -360,10 +343,8 @@ export async function updateBookingStatus(id: string, status: ServiceBooking['st
                 message_content: message,
                 status: 'sent'
               });
-              
-              
+
             } catch (msgError) {
-              console.error('Error sending WhatsApp message:', msgError);
               
               // سجل فشل الإرسال في قاعدة البيانات
               await supabase.from('whatsapp_messages').insert({
@@ -379,13 +360,11 @@ export async function updateBookingStatus(id: string, status: ServiceBooking['st
         }
       } catch (notificationError) {
         // تسجيل الخطأ فقط، لكن لا تمنع إكمال العملية بنجاح
-        console.error('Error sending booking completion notification:', notificationError);
       }
     }
 
     return data as ServiceBooking;
   } catch (error) {
-    console.error('Error in updateBookingStatus:', error);
     throw error;
   }
 }
@@ -398,7 +377,6 @@ export async function deleteBooking(id: string) {
     .eq('id', id);
 
   if (error) {
-    console.error('Error deleting booking:', error);
     throw new Error(error.message);
   }
 
@@ -414,7 +392,6 @@ export async function getServiceCategories(): Promise<string[]> {
     .order('category');
 
   if (error) {
-    console.error('Error fetching service categories:', error);
     throw new Error(error.message);
   }
 
@@ -429,12 +406,9 @@ export async function getServiceCategories(): Promise<string[]> {
 export async function getServiceRequests(organizationId: string) {
   try {
     if (!organizationId) {
-      console.error("لم يتم تمرير معرف المؤسسة إلى وظيفة getServiceRequests");
       return [];
     }
-    
-    
-    
+
     // طباعة قائمة معرفات المؤسسات التي تمتلك خدمات
     const { data: orgData, error: orgError } = await supabase
       .from('service_bookings')
@@ -443,8 +417,7 @@ export async function getServiceRequests(organizationId: string) {
     
     if (!orgError && orgData) {
       const uniqueOrgs = [...new Set(orgData.map(item => item.organization_id))];
-      
-      
+
     }
     
     // استعلام الحصول على الخدمات مع تفاصيل التقدم
@@ -458,21 +431,18 @@ export async function getServiceRequests(organizationId: string) {
       .order('id', { ascending: false });
 
     if (error) {
-      console.error('خطأ في جلب طلبات الخدمات:', error);
       throw new Error(error.message);
     }
 
     // طباعة البيانات المفصلة للتصحيح
     if (!data || data.length === 0) {
-      
-      
+
       // محاولة البحث عن الخدمات باستخدام أي معرف مؤسسة إذا لم تجد الخدمات بالمعرف الحالي
       if (orgData && orgData.length > 0) {
         const uniqueOrgs = [...new Set(orgData.map(item => item.organization_id))];
         if (uniqueOrgs.length > 0) {
           const alternativeOrgId = uniqueOrgs[0];
-          
-          
+
           const { data: altData, error: altError } = await supabase
             .from('service_bookings')
             .select(`
@@ -494,7 +464,6 @@ export async function getServiceRequests(organizationId: string) {
     // التحقق من البيانات قبل إرجاعها
     return Array.isArray(data) ? data : [];
   } catch (error) {
-    console.error("خطأ في استرجاع طلبات الخدمات:", error);
     throw error;
   }
-} 
+}

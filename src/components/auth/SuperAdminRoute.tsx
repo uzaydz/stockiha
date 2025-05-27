@@ -30,18 +30,15 @@ export default function SuperAdminRoute() {
           .single();
         
         if (error) {
-          console.error('Error checking super admin status:', error);
           setIsSuperAdmin(false);
         } else {
           // تحقق من is_super_admin flag
           setIsSuperAdmin(data?.is_super_admin === true);
           
           if (data?.is_super_admin !== true) {
-            console.warn('User tried to access super admin area but is not a super admin:', user.email);
           }
         }
       } catch (error) {
-        console.error('Error checking super admin status:', error);
         setIsSuperAdmin(false);
       } finally {
         setIsLoading(false);
@@ -74,4 +71,4 @@ export default function SuperAdminRoute() {
 
   // If super admin, render the protected routes
   return <Outlet />;
-} 
+}

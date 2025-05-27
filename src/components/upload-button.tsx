@@ -64,4 +64,4 @@ export const UploadButton: React.FC<UploadButtonProps> = ({
       </Button>
     </div>
   );
-}; 
+};

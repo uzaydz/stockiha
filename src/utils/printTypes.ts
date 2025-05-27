@@ -91,4 +91,4 @@ export interface PrinterCapabilities {
   minFontSize: number;
   maxFontSize: number;
   dpi: number;
-} 
+}

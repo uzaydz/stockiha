@@ -7,6 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { checkUserRequires2FA } from '@/lib/api/security';
+import TwoFactorLoginForm from './TwoFactorLoginForm';
 
 const LoginForm = () => {
   const { signIn, currentSubdomain } = useAuth();
@@ -16,6 +18,18 @@ const LoginForm = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [redirectPath, setRedirectPath] = useState<string | null>(null);
   const [isElectron, setIsElectron] = useState(false);
+  
+  // حالات المصادقة الثنائية
+  const [show2FA, setShow2FA] = useState(false);
+  const [twoFactorData, setTwoFactorData] = useState<{
+    userId: string;
+    userName: string;
+    email: string;
+  } | null>(null);
+  const [pendingCredentials, setPendingCredentials] = useState<{
+    email: string;
+    password: string;
+  } | null>(null);
 
   // التحقق إذا كنا في بيئة Electron
   useEffect(() => {
@@ -34,8 +48,6 @@ const LoginForm = () => {
     checkElectron();
   }, []);
 
-  
-  
   // Get redirect path on component mount
   useEffect(() => {
     const savedRedirectPath = sessionStorage.getItem('redirectAfterLogin');
@@ -48,220 +60,301 @@ const LoginForm = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
-    
+
     // Clear any previous error states or redirect counts
     sessionStorage.removeItem('lastLoginRedirect');
     sessionStorage.setItem('loginRedirectCount', '0');
 
     try {
+      // الحصول على معلومات المؤسسة الحالية
+      const hostname = window.location.hostname;
+      let domain: string | undefined;
+      let subdomain: string | undefined;
+      let organizationId: string | undefined;
+
+      // تحديد النطاق والنطاق الفرعي
+      if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+        // للنطاقات المخصصة
+        const publicDomains = ['ktobi.online', 'stockiha.com', 'bazaar.com', 'bazaar.dev'];
+        const isPublicDomain = publicDomains.some(pd => hostname === pd || hostname === `www.${pd}`);
+        
+        if (!isPublicDomain) {
+          // قد يكون نطاق مخصص أو نطاق فرعي
+          const parts = hostname.split('.');
+          if (parts.length > 2 && parts[0] !== 'www') {
+            // نطاق فرعي (مثل: company.bazaar.com)
+            subdomain = parts[0];
+          } else {
+            // نطاق مخصص (مثل: company.com)
+            domain = hostname;
+          }
+        } else if (currentSubdomain) {
+          // نطاق فرعي في النطاقات العامة
+          subdomain = currentSubdomain;
+        }
+      } else if (currentSubdomain) {
+        // localhost مع نطاق فرعي
+        subdomain = currentSubdomain;
+      }
+
+      // الحصول على معرف المؤسسة من التخزين المحلي إذا كان متوفراً
+      organizationId = localStorage.getItem('bazaar_organization_id') || undefined;
+
+      // أولاً، التحقق إذا كان المستخدم يحتاج للمصادقة الثنائية
+      const twoFactorCheck = await checkUserRequires2FA(email, organizationId, domain, subdomain);
       
-      const { success, error } = await signIn(email, password);
-      
-      
+      if (!twoFactorCheck.userExists) {
+        toast.error('المستخدم غير موجود');
+        setIsLoading(false);
+        return;
+      }
+
+      if (twoFactorCheck.requires2FA) {
+        // المستخدم يحتاج للمصادقة الثنائية
+        setTwoFactorData({
+          userId: twoFactorCheck.userId!,
+          userName: twoFactorCheck.userName || 'المستخدم',
+          email: email
+        });
+        setPendingCredentials({ email, password });
+        setShow2FA(true);
+        setIsLoading(false);
+        return;
+      }
+
+      // إذا لم يكن يحتاج للمصادقة الثنائية، متابعة تسجيل الدخول العادي
+      await proceedWithLogin(email, password);
+    } catch (error) {
+      toast.error('حدث خطأ أثناء التحقق من متطلبات تسجيل الدخول');
+      setIsLoading(false);
+    }
+  };
+
+  const proceedWithLogin = async (loginEmail: string, loginPassword: string) => {
+    try {
+      const { success, error } = await signIn(loginEmail, loginPassword);
+
       if (success) {
         // Add an even longer delay to ensure authentication state is properly updated in context
-        
         await new Promise(resolve => setTimeout(resolve, 2000));
         
         // بعد تسجيل الدخول، نتحقق إذا كان المستخدم مسؤول متعدد النطاقات
-        
-        const { data } = await supabase.auth.getUser();
-        const user = data.user;
-        
-        
-        // Double check session is valid
-        const { data: sessionData } = await supabase.auth.getSession();
-        
-        
-        if (!user) {
-          console.error('User logged in but user object is missing');
-          toast.error('حدث خطأ أثناء تسجيل الدخول - لم يتم العثور على بيانات المستخدم');
-          setIsLoading(false);
-          return;
-        }
-        
-        if (user && user.user_metadata.isTenant) {
-          
-          // الحصول على المؤسسة المرتبطة بالمستخدم
-          const { data: userData, error: userError } = await supabase
-            .from('users')
-            .select('organization_id')
-            .eq('id', user.id)
-            .single();
-          
-          
-          
-          if (!userError && userData?.organization_id) {
-            // الحصول على النطاق الفرعي للمؤسسة
-            
-            const { data: orgData, error: orgError } = await supabase
-              .from('organizations')
-              .select('subdomain')
-              .eq('id', userData.organization_id)
-              .single();
-              
-            
-              
-            if (!orgError && orgData?.subdomain) {
-              // إعادة توجيه المستخدم إلى النطاق الفرعي الخاص به
-              const hostname = window.location.hostname;
-              
-              
-              // Check if we are already on the correct subdomain
-              let currentSubdomain = null;
-              
-              // Detect subdomain in any format (works for both example.localhost and example.domain.com)
-              if (hostname.includes('.')) {
-                const parts = hostname.split('.');
-                // For localhost (example.localhost)
-                if (parts.length > 1 && parts[parts.length-1] === 'localhost') {
-                  currentSubdomain = parts[0];
-                }
-                // For production (example.domain.com)
-                else if (parts.length > 2) {
-                  currentSubdomain = parts[0];
-                }
-              }
-              
-              
-              
-              // If already on the correct subdomain, just navigate to dashboard
-              if (currentSubdomain === orgData.subdomain) {
-                
-                toast.success('تم تسجيل الدخول بنجاح');
-                
-                // Explicitly check the dashboard path to avoid typos
-                let dashboardPath = '/dashboard';
-                if (redirectPath) {
-                  // Fix any typos in the path
-                  if (redirectPath.includes('/dashbord')) {
-                    dashboardPath = redirectPath.replace('/dashbord', '/dashboard');
-                    
-                  } else {
-                    dashboardPath = redirectPath;
-                  }
-                }
-                
-                // Clear the redirect path from storage to prevent future issues
-                try {
-                  if (typeof sessionStorage !== 'undefined') {
-                    sessionStorage.removeItem('redirectAfterLogin');
-                  }
-                } catch (error) {
-                  console.error('Error accessing sessionStorage:', error);
-                }
-                
-                
-                setTimeout(() => {
-                  setIsLoading(false);
-                  navigate(dashboardPath);
-                }, 500);
-                return;
-              }
-              
-              // للتعامل مع عناوين محلية (localhost أو IP مثل 127.0.0.1)
-              if (hostname === 'localhost' && orgData.subdomain) {
-                
-                
-                // التوجيه إلى النطاق الفرعي مع localhost
-                setTimeout(() => {
-                  setIsLoading(false);
-                  window.location.replace(`${window.location.protocol}//${orgData.subdomain}.localhost:${window.location.port}/dashboard`);
-                }, 500);
-              } else if (hostname.match(/^127\.\d+\.\d+\.\d+$/) || hostname.match(/^\d+\.\d+\.\d+\.\d+$/)) {
-                
-                
-                // استخدام localhost بدلاً من IP للتوجيه إلى النطاق الفرعي
-                setTimeout(() => {
-                  setIsLoading(false);
-                  window.location.replace(`${window.location.protocol}//${orgData.subdomain}.localhost:${window.location.port}/dashboard`);
-                }, 500);
-              } else {
-                // للعناوين الأخرى، التحقق من النطاقات المدعومة للنطاقات الفرعية
-                const supportedDomainsForSubdomains = ['ktobi.online', 'stockiha.com', 'bazaar.com', 'bazaar.dev'];
-                let shouldRedirectToSubdomain = false;
-                let baseDomain = '';
-                
-                // تحديد النطاق الأساسي
-                for (const domain of supportedDomainsForSubdomains) {
-                  if (hostname === domain || hostname === `www.${domain}`) {
-                    shouldRedirectToSubdomain = true;
-                    baseDomain = domain;
-                    break;
-                  }
-                }
-                
-                if (shouldRedirectToSubdomain && orgData.subdomain && baseDomain) {
-                  
-                  
-                  // التوجيه إلى النطاق الفرعي
-                  setTimeout(() => {
-                    setIsLoading(false);
-                    window.location.replace(`${window.location.protocol}//${orgData.subdomain}.${baseDomain}/dashboard`);
-                  }, 500);
-                } else {
-                  // للعناوين الأخرى، نوجه المستخدم مباشرة إلى لوحة التحكم في نفس العنوان
-                  
-                  
-                  // التوجيه مباشرة إلى لوحة التحكم في نفس العنوان
-                  setTimeout(() => {
-                    setIsLoading(false);
-                    navigate('/dashboard');
-                  }, 500);
-                }
-              }
-              return;
-            }
-          }
-        }
-        
-        // إذا وصلنا إلى هنا، فإننا نتعامل مع مستخدم عادي، أو أننا بالفعل في النطاق الفرعي الصحيح
-        
-        toast.success('تم تسجيل الدخول بنجاح');
-        
-        // Clear any stored data before redirecting
-        sessionStorage.removeItem('redirectAfterLogin');
-        localStorage.removeItem('loginRedirectCount');
-        
-        // Check if we have a saved redirect path
-        if (redirectPath) {
-          
-          
-          // Fix any typos in the path
-          let finalPath = redirectPath;
-          if (redirectPath.includes('/dashbord')) {
-            finalPath = redirectPath.replace('/dashbord', '/dashboard');
-            
-          }
-          
-          // Double check that we're redirecting to a safe path
-          if (!finalPath.startsWith('/dashboard') && !finalPath.startsWith('/profile')) {
-            finalPath = '/dashboard';
-            
-          }
-          
-          setTimeout(() => {
-            setIsLoading(false);
-            navigate(finalPath);
-          }, 500);
-        } else {
-          setTimeout(() => {
-            setIsLoading(false);
-            navigate('/dashboard');
-          }, 500);
-        }
+        await handleSuccessfulLogin();
       } else {
-        console.error('Login failed:', error?.message);
         toast.error(`فشل تسجيل الدخول: ${error?.message || 'يرجى التحقق من بيانات الاعتماد الخاصة بك'}`);
         setIsLoading(false);
       }
     } catch (error) {
-      console.error('Login error:', error);
       toast.error('حدث خطأ أثناء تسجيل الدخول');
       setIsLoading(false);
     }
   };
+
+  const handleSuccessfulLogin = async () => {
+    const { data } = await supabase.auth.getUser();
+    const user = data.user;
+
+    // Double check session is valid
+    const { data: sessionData } = await supabase.auth.getSession();
+
+    if (!user) {
+      toast.error('حدث خطأ أثناء تسجيل الدخول - لم يتم العثور على بيانات المستخدم');
+      setIsLoading(false);
+      return;
+    }
+    
+    if (user && user.user_metadata.isTenant) {
+      
+      // الحصول على المؤسسة المرتبطة بالمستخدم
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('organization_id')
+        .eq('id', user.id)
+        .single();
+
+      if (!userError && userData?.organization_id) {
+        // الحصول على النطاق الفرعي للمؤسسة
+        
+        const { data: orgData, error: orgError } = await supabase
+          .from('organizations')
+          .select('subdomain')
+          .eq('id', userData.organization_id)
+          .single();
+
+        if (!orgError && orgData?.subdomain) {
+          // إعادة توجيه المستخدم إلى النطاق الفرعي الخاص به
+          const hostname = window.location.hostname;
+
+          // Check if we are already on the correct subdomain
+          let currentSubdomain = null;
+          
+          // Detect subdomain in any format (works for both example.localhost and example.domain.com)
+          if (hostname.includes('.')) {
+            const parts = hostname.split('.');
+            // For localhost (example.localhost)
+            if (parts.length > 1 && parts[parts.length-1] === 'localhost') {
+              currentSubdomain = parts[0];
+            }
+            // For production (example.domain.com)
+            else if (parts.length > 2) {
+              currentSubdomain = parts[0];
+            }
+          }
+
+          // If already on the correct subdomain, just navigate to dashboard
+          if (currentSubdomain === orgData.subdomain) {
+            
+            toast.success('تم تسجيل الدخول بنجاح');
+            
+            // Explicitly check the dashboard path to avoid typos
+            let dashboardPath = '/dashboard';
+            if (redirectPath) {
+              // Fix any typos in the path
+              if (redirectPath.includes('/dashbord')) {
+                dashboardPath = redirectPath.replace('/dashbord', '/dashboard');
+                
+              } else {
+                dashboardPath = redirectPath;
+              }
+            }
+            
+            // Clear the redirect path from storage to prevent future issues
+            try {
+              if (typeof sessionStorage !== 'undefined') {
+                sessionStorage.removeItem('redirectAfterLogin');
+              }
+            } catch (error) {
+            }
+
+            setTimeout(() => {
+              setIsLoading(false);
+              navigate(dashboardPath);
+            }, 500);
+            return;
+          }
+          
+          // للتعامل مع عناوين محلية (localhost أو IP مثل 127.0.0.1)
+          if (hostname === 'localhost' && orgData.subdomain) {
+
+            // التوجيه إلى النطاق الفرعي مع localhost
+            setTimeout(() => {
+              setIsLoading(false);
+              window.location.replace(`${window.location.protocol}//${orgData.subdomain}.localhost:${window.location.port}/dashboard`);
+            }, 500);
+          } else if (hostname.match(/^127\.\d+\.\d+\.\d+$/) || hostname.match(/^\d+\.\d+\.\d+\.\d+$/)) {
+
+            // استخدام localhost بدلاً من IP للتوجيه إلى النطاق الفرعي
+            setTimeout(() => {
+              setIsLoading(false);
+              window.location.replace(`${window.location.protocol}//${orgData.subdomain}.localhost:${window.location.port}/dashboard`);
+            }, 500);
+          } else {
+            // للعناوين الأخرى، التحقق من النطاقات المدعومة للنطاقات الفرعية
+            const supportedDomainsForSubdomains = ['ktobi.online', 'stockiha.com', 'bazaar.com', 'bazaar.dev'];
+            let shouldRedirectToSubdomain = false;
+            let baseDomain = '';
+            
+            // تحديد النطاق الأساسي
+            for (const domain of supportedDomainsForSubdomains) {
+              if (hostname === domain || hostname === `www.${domain}`) {
+                shouldRedirectToSubdomain = true;
+                baseDomain = domain;
+                break;
+              }
+            }
+            
+            if (shouldRedirectToSubdomain && orgData.subdomain && baseDomain) {
+
+              // التوجيه إلى النطاق الفرعي
+              setTimeout(() => {
+                setIsLoading(false);
+                window.location.replace(`${window.location.protocol}//${orgData.subdomain}.${baseDomain}/dashboard`);
+              }, 500);
+            } else {
+              // للعناوين الأخرى، نوجه المستخدم مباشرة إلى لوحة التحكم في نفس العنوان
+
+              // التوجيه مباشرة إلى لوحة التحكم في نفس العنوان
+              setTimeout(() => {
+                setIsLoading(false);
+                navigate('/dashboard');
+              }, 500);
+            }
+          }
+          return;
+        }
+      }
+    }
+    
+    // إذا وصلنا إلى هنا، فإننا نتعامل مع مستخدم عادي، أو أننا بالفعل في النطاق الفرعي الصحيح
+    
+    toast.success('تم تسجيل الدخول بنجاح');
+    
+    // Clear any stored data before redirecting
+    sessionStorage.removeItem('redirectAfterLogin');
+    localStorage.removeItem('loginRedirectCount');
+    
+    // Check if we have a saved redirect path
+    if (redirectPath) {
+
+      // Fix any typos in the path
+      let finalPath = redirectPath;
+      if (redirectPath.includes('/dashbord')) {
+        finalPath = redirectPath.replace('/dashbord', '/dashboard');
+        
+      }
+      
+      // Double check that we're redirecting to a safe path
+      if (!finalPath.startsWith('/dashboard') && !finalPath.startsWith('/profile')) {
+        finalPath = '/dashboard';
+        
+      }
+      
+      setTimeout(() => {
+        setIsLoading(false);
+        navigate(finalPath);
+      }, 500);
+    } else {
+      setTimeout(() => {
+        setIsLoading(false);
+        navigate('/dashboard');
+      }, 500);
+    }
+  };
+
+  // دوال التعامل مع المصادقة الثنائية
+  const handle2FASuccess = async () => {
+    if (!pendingCredentials) return;
+    
+    setShow2FA(false);
+    setIsLoading(true);
+    
+    // متابعة تسجيل الدخول بعد نجاح المصادقة الثنائية
+    await proceedWithLogin(pendingCredentials.email, pendingCredentials.password);
+    
+    // تنظيف البيانات المؤقتة
+    setPendingCredentials(null);
+    setTwoFactorData(null);
+  };
+
+  const handle2FABack = () => {
+    setShow2FA(false);
+    setTwoFactorData(null);
+    setPendingCredentials(null);
+    setIsLoading(false);
+  };
+
+  // إذا كنا في وضع المصادقة الثنائية، عرض نموذج المصادقة الثنائية
+  if (show2FA && twoFactorData) {
+    return (
+      <TwoFactorLoginForm
+        userId={twoFactorData.userId}
+        userName={twoFactorData.userName}
+        email={twoFactorData.email}
+        onSuccess={handle2FASuccess}
+        onBack={handle2FABack}
+      />
+    );
+  }
 
   return (
     <Card className="w-full max-w-md mx-auto">

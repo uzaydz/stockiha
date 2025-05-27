@@ -135,7 +135,6 @@ const BulkBarcodePrinter = ({
           setSavedSettings(settings);
         }
       } catch (e) {
-        console.error('Error loading saved barcode settings:', e);
       }
     };
     
@@ -164,7 +163,6 @@ const BulkBarcodePrinter = ({
         ...colorsByProduct
       }));
     } catch (error) {
-      console.error('Error loading product colors:', error);
       toast.error('حدث خطأ أثناء تحميل ألوان المنتجات');
     } finally {
       setLoadingColors(false);
@@ -187,7 +185,6 @@ const BulkBarcodePrinter = ({
         [cacheKey]: sizes
       }));
     } catch (error) {
-      console.error('Error loading color sizes:', error);
       toast.error('حدث خطأ أثناء تحميل مقاسات اللون');
     } finally {
       setLoadingSizes(false);
@@ -316,32 +313,11 @@ const BulkBarcodePrinter = ({
   const handlePrint = () => {
     try {
       // طباعة إعدادات التناسق للتشخيص
-      console.log('🖨️ إعدادات الطباعة الحالية:', {
-        columns: settings.columns,
-        spacingX: settings.spacingX,
-        spacingY: settings.spacingY,
-        marginTop: settings.marginTop,
-        marginRight: settings.marginRight,
-        marginBottom: settings.marginBottom,
-        marginLeft: settings.marginLeft,
-        alignment: settings.alignment,
-        fontSize: settings.fontSize,
-        fontFamily: settings.fontFamily,
-        paperSize: settings.paperSize,
-        orientation: settings.orientation,
-        labelTextAlign: settings.labelTextAlign,
-        showBorder: settings.showBorder,
-        copiesPerProduct: settings.copiesPerProduct,
-        separatePages: settings.separatePages
-      });
       
       // تجميع المنتجات المختارة مع إضافة الألوان والمقاسات المطلوبة
       const selectedProductsIds = selectedProducts;
       const selectedProductsData = products.filter(p => selectedProductsIds.includes(p.id));
-      
-      console.log('📦 المنتجات المختارة للطباعة:', selectedProductsData.length);
-      
-      
+
       // إعداد مصفوفة لجميع العناصر التي سيتم طباعتها
       const itemsToPrint: {
         productId: string;
@@ -355,8 +331,7 @@ const BulkBarcodePrinter = ({
       
       // إضافة المنتجات العادية غير المتغيرة
       const regularProducts = selectedProductsData.filter(p => !p.has_variants);
-      
-      
+
       regularProducts.forEach(product => {
         // عدد النسخ لكل منتج
         for (let i = 0; i < settings.copiesPerProduct; i++) {
@@ -373,13 +348,10 @@ const BulkBarcodePrinter = ({
       
       // إضافة المنتجات ذات الألوان والمقاسات
       const variantProducts = selectedProductsData.filter(p => p.has_variants);
-      
-      
+
       variantProducts.forEach(product => {
         // طباعة معلومات المنتج للتشخيص
-        
-        
-        
+
         const productColorsArr = productColorsState[product.id] || [];
         
         // تحديد الألوان المطلوب طباعتها حسب الإعدادات
@@ -414,13 +386,11 @@ const BulkBarcodePrinter = ({
         
         // معالجة كل لون
         colorsToPrint.forEach(color => {
-          
-          
+
           // إذا كان المنتج يستخدم المقاسات واللون يدعم المقاسات
           if (product.use_sizes && color.has_sizes) {
             const colorSizes = productSizesState[color.id] || [];
-            
-            
+
             // تحديد المقاسات المطلوب طباعتها حسب الإعدادات
             let sizesToPrint: ProductSize[] = [];
             
@@ -471,7 +441,6 @@ const BulkBarcodePrinter = ({
                       sizeName: size.size_name
                     });
                   } else {
-                    console.warn(`لا يوجد باركود صالح للمقاس ${size.size_name} للون ${color.name}`);
                   }
                 }
               });
@@ -492,7 +461,6 @@ const BulkBarcodePrinter = ({
                   colorCode: color.color_code
                 });
               } else {
-                console.warn(`لا يوجد باركود صالح للون ${color.name}`);
               }
             }
           }
@@ -500,8 +468,7 @@ const BulkBarcodePrinter = ({
       });
       
       // طباعة العناصر النهائية للتصحيح
-      
-      
+
       // التحقق من وجود عناصر للطباعة
       if (itemsToPrint.length === 0) {
         toast.error("لم يتم العثور على عناصر صالحة للطباعة. يرجى التأكد من وجود باركود صالح للمنتجات المختارة.");
@@ -510,7 +477,6 @@ const BulkBarcodePrinter = ({
       
       // إذا كان خيار "كل ملصق منفصل" مُفعل، استخدم دالة الطباعة المنفصلة
       if (settings.separatePages) {
-        console.log('🏷️ تم تفعيل الطباعة المنفصلة - كل ملصق في صفحة منفصلة');
         
         // تحضير البيانات للطباعة المنفصلة
         const separateItems = itemsToPrint.map(item => {
@@ -610,7 +576,6 @@ const BulkBarcodePrinter = ({
         
         // تخطي العناصر التي ليس لديها باركود صالح
         if (!barcodeValue) {
-          console.warn('عنصر بدون باركود صالح:', item.productName);
           return;
         }
         
@@ -633,7 +598,6 @@ const BulkBarcodePrinter = ({
         
         // إذا لم يتم إنشاء URL باركود صالح، تخطى هذا العنصر
         if (!barcodeImageUrl) {
-          console.warn('فشل في إنشاء باركود للعنصر:', item.productName);
           return;
         }
         
@@ -681,9 +645,6 @@ const BulkBarcodePrinter = ({
                        settings.paperSize === 'A5' ? 'A5' : 
                        settings.paperSize === 'label50x90' ? '90mm 50mm' : 
                        `${settings.customWidth}mm ${settings.customHeight}mm`;
-      
-      console.log('📄 حجم الصفحة المطبق:', pageSize);
-      console.log('🎛️ إعدادات الصفحة:', settings.paperSize);
       
       const printContent = `
         <div class="print-container" style="
@@ -852,7 +813,6 @@ const BulkBarcodePrinter = ({
       // عرض رسالة نجاح
       toast.success(`تم إنشاء ${selectedProducts.length * settings.copiesPerProduct} باركود جاهز للطباعة`);
     } catch (error) {
-      console.error('Error generating barcodes:', error);
       toast.error('حدث خطأ أثناء إنشاء الباركود');
     }
   };
@@ -886,7 +846,6 @@ const BulkBarcodePrinter = ({
       
       toast.success(`تم حفظ الإعدادات "${name}" بنجاح`);
     } catch (e) {
-      console.error('Error saving barcode settings:', e);
       toast.error("حدث خطأ أثناء حفظ الإعدادات");
     }
   };
@@ -1307,4 +1266,4 @@ const BulkBarcodePrinter = ({
   );
 };
 
-export default BulkBarcodePrinter; 
+export default BulkBarcodePrinter;

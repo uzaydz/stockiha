@@ -211,4 +211,4 @@ const ProductPerformance: React.FC<ProductPerformanceProps> = ({ data }) => {
   );
 };
 
-export default ProductPerformance; 
+export default ProductPerformance;

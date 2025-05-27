@@ -24,4 +24,4 @@ export {
 export * from './types';
 
 // تصدير وظائف حالة المزامنة
-export { getSyncStatus, updateSyncStatus, createInitialSyncStatus } from './sync-status'; 
+export { getSyncStatus, updateSyncStatus, createInitialSyncStatus } from './sync-status';

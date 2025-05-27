@@ -102,7 +102,6 @@ export default function FlexiAnalytics() {
         title: 'حدث خطأ',
         description: 'لم نتمكن من تحميل بيانات تحليل الفليكسي'
       });
-      console.error(error);
     } finally {
       setLoadingFlexi(false);
     }
@@ -135,7 +134,6 @@ export default function FlexiAnalytics() {
         title: 'حدث خطأ',
         description: 'لم نتمكن من تحميل بيانات تحليل العملات'
       });
-      console.error(error);
     } finally {
       setLoadingCurrency(false);
     }
@@ -610,4 +608,4 @@ export default function FlexiAnalytics() {
       </div>
     </Layout>
   );
-} 
+}

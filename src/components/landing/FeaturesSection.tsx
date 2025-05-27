@@ -164,4 +164,4 @@ const FeaturesSection = () => {
   );
 };
 
-export default FeaturesSection; 
+export default FeaturesSection;

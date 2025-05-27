@@ -77,7 +77,6 @@ export const useFormInitialization = ({
         }
         setExtendedFields([...newExtendedFields]);
       } catch (error) {
-        console.error("Error loading provinces:", error);
         for (const field of provinceFields) {
           field.isLoading = false;
         }
@@ -93,4 +92,4 @@ export const useFormInitialization = ({
       }
     }
   }, [formFields, currentOrganization, productId, setExtendedFields]);
-}; 
+};

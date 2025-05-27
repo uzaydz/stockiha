@@ -94,7 +94,6 @@ const EditCustomerDialog = ({ customer, open, onClose }: EditCustomerDialogProps
       
       onClose();
     } catch (error) {
-      console.error('Error updating customer:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء تحديث بيانات العميل. الرجاء المحاولة مرة أخرى.',
@@ -181,4 +180,4 @@ const EditCustomerDialog = ({ customer, open, onClose }: EditCustomerDialogProps
   );
 };
 
-export default EditCustomerDialog; 
+export default EditCustomerDialog;

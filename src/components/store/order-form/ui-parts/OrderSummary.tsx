@@ -70,4 +70,4 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
       {shippingProviderSettings?.name && <p className='text-sm text-gray-600'>شركة التوصيل: {shippingProviderSettings.name}</p>}
     </div>
   );
-}; 
+};

@@ -8,4 +8,4 @@ export type TenantRegistrationData = {
   phone?: string;
   organizationName: string;
   subdomain: string;
-}; 
+};

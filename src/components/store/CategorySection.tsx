@@ -269,7 +269,6 @@ const CategorySection = ({
         
         setCategories(filteredCategories);
       } catch (error) {
-        console.error('خطأ في جلب بيانات الفئات:', error);
         setCategories([]);
       } finally {
         setIsLoading(false);
@@ -370,4 +369,4 @@ const CategorySection = ({
   );
 };
 
-export default CategorySection; 
+export default CategorySection;

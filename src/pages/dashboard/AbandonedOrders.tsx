@@ -111,7 +111,6 @@ const AbandonedOrders = () => {
         const canManage = await checkUserPermissions(user, 'updateOrderStatus' as any);
         setHasManagePermission(canManage);
       } catch (error) {
-        console.error('خطأ في التحقق من الصلاحيات:', error);
         toast({
           variant: "destructive",
           title: "خطأ في التحقق من الصلاحيات",
@@ -178,7 +177,6 @@ const AbandonedOrders = () => {
         setProvinces(provincesMap);
         setMunicipalities(municipalitiesMap);
       } catch (error) {
-        console.error('خطأ في استرجاع بيانات المواقع:', error);
       }
     };
     
@@ -336,7 +334,6 @@ const AbandonedOrders = () => {
         setFilteredOrders([]);
       }
     } catch (error) {
-      console.error('خطأ في استرجاع الطلبات المتروكة:', error);
       toast({
         variant: "destructive",
         title: "خطأ في استرجاع البيانات",
@@ -461,7 +458,6 @@ const AbandonedOrders = () => {
       
       setStats(statsData);
     } catch (error) {
-      console.error('خطأ في استرجاع إحصائيات الطلبات المتروكة:', error);
     } finally {
       setStatsLoading(false);
     }
@@ -615,7 +611,6 @@ const AbandonedOrders = () => {
       fetchAbandonedOrders();
       
     } catch (error) {
-      console.error('خطأ في إرسال التذكيرات:', error);
       toast({
         variant: "destructive",
         title: "خطأ في إرسال التذكيرات",
@@ -641,7 +636,6 @@ const AbandonedOrders = () => {
       fetchAbandonedOrders();
       
     } catch (error) {
-      console.error('خطأ في استرجاع الطلبات:', error);
       toast({
         variant: "destructive",
         title: "خطأ في استرجاع الطلبات",
@@ -675,7 +669,6 @@ const AbandonedOrders = () => {
       setSelectedOrders([]);
       
     } catch (error) {
-      console.error('خطأ في حذف الطلبات:', error);
       toast({
         variant: "destructive",
         title: "خطأ في حذف الطلبات",
@@ -696,7 +689,6 @@ const AbandonedOrders = () => {
       });
       
     } catch (error) {
-      console.error('خطأ في تصدير الطلبات:', error);
       toast({
         variant: "destructive",
         title: "خطأ في تصدير الطلبات",
@@ -826,4 +818,4 @@ const AbandonedOrders = () => {
   );
 };
 
-export default AbandonedOrders; 
+export default AbandonedOrders;

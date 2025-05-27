@@ -93,7 +93,6 @@ const ProvinceOrdersCard = ({ organizationId, limit = 5 }: ProvinceOrdersCardPro
         
         setProvinceData(processedData);
       } catch (err) {
-        console.error('Error fetching province data:', err);
         setError('حدث خطأ أثناء جلب بيانات الولايات');
       } finally {
         setIsLoading(false);
@@ -178,4 +177,4 @@ const ProvinceOrdersCard = ({ organizationId, limit = 5 }: ProvinceOrdersCardPro
   );
 };
 
-export default ProvinceOrdersCard; 
+export default ProvinceOrdersCard;

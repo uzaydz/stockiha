@@ -71,4 +71,4 @@ const EmployeeMetrics = ({ stats }: EmployeeMetricsProps) => {
   );
 };
 
-export default EmployeeMetrics; 
+export default EmployeeMetrics;

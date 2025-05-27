@@ -24,4 +24,4 @@ export class BazaarDB extends Dexie {
 }
 
 // إنشاء نسخة واحدة من قاعدة البيانات
-export const db = new BazaarDB(); 
+export const db = new BazaarDB();

@@ -22,7 +22,6 @@ export function useLandingPage(landingPageId?: string, slug?: string) {
         setLandingPageDetails(parsedData);
         setIsLoading(false);
       } catch (e) {
-        console.error('Error al analizar los datos en caché:', e);
       }
     }
   }, [cachedLandingPageKey]);
@@ -69,7 +68,6 @@ export function useLandingPage(landingPageId?: string, slug?: string) {
         localStorage.setItem(cachedLandingPageKey, JSON.stringify(result));
       }
     } catch (error) {
-      console.error('Error al obtener detalles de la página de aterrizaje:', error);
     } finally {
       setIsLoading(false);
     }
@@ -80,4 +78,4 @@ export function useLandingPage(landingPageId?: string, slug?: string) {
     isLoading,
     fetchLandingPageDetails
   };
-} 
+}

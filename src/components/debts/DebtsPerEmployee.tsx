@@ -56,4 +56,4 @@ const DebtsPerEmployee: React.FC<DebtsPerEmployeeProps> = ({ data }) => {
   );
 };
 
-export default DebtsPerEmployee; 
+export default DebtsPerEmployee;

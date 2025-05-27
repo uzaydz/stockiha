@@ -415,4 +415,4 @@ const PrintReceipt: React.FC<PrintReceiptProps> = ({
   );
 };
 
-export default PrintReceipt; 
+export default PrintReceipt;

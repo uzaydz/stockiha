@@ -97,7 +97,6 @@ export function SupplierPurchasesList() {
         setPurchases(purchasesData);
         setFilteredPurchases(purchasesData);
       } catch (error) {
-        console.error('Error loading data:', error);
         toast({
           title: 'خطأ',
           description: 'حدث خطأ أثناء تحميل البيانات',
@@ -186,7 +185,6 @@ export function SupplierPurchasesList() {
         description: 'تم تحديث حالة المشتريات بنجاح',
       });
     } catch (error) {
-      console.error('Error updating purchase status:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء تحديث حالة المشتريات',
@@ -247,7 +245,6 @@ export function SupplierPurchasesList() {
                 }, 100);
               }
             } catch (error) {
-              console.error("Error navigating:", error);
               // النقطة النهائية - تغيير المسار مباشرة
               window.location.href = '/dashboard/suppliers/purchases/new';
             }
@@ -408,4 +405,4 @@ export function SupplierPurchasesList() {
       </CardContent>
     </Card>
   );
-} 
+}

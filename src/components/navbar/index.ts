@@ -7,4 +7,4 @@ export * from './NavbarThemeToggle';
 export * from './NavbarMobileMenu';
 export * from './QuickNavLinks';
 export * from './NavbarMain';
-export { default as Navbar } from '../Navbar'; 
+export { default as Navbar } from '../Navbar';

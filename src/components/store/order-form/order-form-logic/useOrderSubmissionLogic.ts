@@ -240,7 +240,6 @@ export const useOrderSubmissionLogic = (
         onSubmitEnd: () => setIsSubmitting(false),
       });
     } catch (e: any) {
-      console.error("خطأ في إرسال النموذج:", e);
       setError(e.message || "حدث خطأ أثناء إرسال الطلب. يرجى المحاولة مرة أخرى.");
       setIsSubmitting(false);
     }
@@ -267,7 +266,6 @@ export const useOrderSubmissionLogic = (
           try {
             productName = await getProductNameById(productId);
           } catch (error) {
-            console.error("خطأ أثناء جلب معلومات المنتج:", error);
           }
         }
         const totalPrice = basePrice * quantity - discountAmount + (hasFreeShipping ? 0 : currentDeliveryFee);
@@ -287,4 +285,4 @@ export const useOrderSubmissionLogic = (
     getFieldLabel, // May not be needed by UI if errors are directly set with labels
     debugAddStopDeskIdIfMissing, // May not be needed directly by UI
   };
-}; 
+};

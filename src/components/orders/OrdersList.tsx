@@ -204,4 +204,4 @@ const OrdersList = ({ orders, loading, selectedOrderId, onSelectOrder }) => {
   );
 };
 
-export default OrdersList; 
+export default OrdersList;

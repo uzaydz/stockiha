@@ -264,4 +264,4 @@ const InventorySync = () => {
   );
 };
 
-export default InventorySync; 
+export default InventorySync;

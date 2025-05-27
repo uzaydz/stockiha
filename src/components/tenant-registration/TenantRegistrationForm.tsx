@@ -136,7 +136,6 @@ const TenantRegistrationForm = () => {
         toast.error(`فشل التسجيل: ${error?.message || 'حدث خطأ'}`);
       }
     } catch (error) {
-      console.error('Error during tenant registration:', error);
       toast.error('حدث خطأ أثناء التسجيل');
     } finally {
       setIsLoading(false);
@@ -174,4 +173,4 @@ const TenantRegistrationForm = () => {
   );
 };
 
-export default TenantRegistrationForm; 
+export default TenantRegistrationForm;

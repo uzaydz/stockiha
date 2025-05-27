@@ -114,13 +114,11 @@ const DomainSettings: React.FC = () => {
     setIsLoading(true);
     
     try {
-      
-      
+
       const result = await getDomainInfo(organization.id);
       
       if (result.success && result.data) {
-        
-        
+
         if (result.data.domain) {
           setActualDomain(result.data.domain);
           setDomain(result.data.domain);
@@ -139,7 +137,6 @@ const DomainSettings: React.FC = () => {
           setDomainStatus('unconfigured');
         }
       } else {
-        console.error('فشل في جلب معلومات النطاق:', result.error);
         toast({
           title: "خطأ",
           description: result.error || "حدث خطأ أثناء جلب معلومات النطاق",
@@ -147,7 +144,6 @@ const DomainSettings: React.FC = () => {
         });
       }
     } catch (error) {
-      console.error('خطأ أثناء جلب معلومات النطاق:', error);
     } finally {
       setIsLoading(false);
     }
@@ -167,7 +163,6 @@ const DomainSettings: React.FC = () => {
         .maybeSingle();
         
       if (error) {
-        console.error('خطأ في استعلام معلومات التحقق من النطاق:', error);
         return;
       }
       
@@ -178,7 +173,6 @@ const DomainSettings: React.FC = () => {
         setLastChecked(domainVerification.updated_at || '');
       }
     } catch (error) {
-      console.error('خطأ في جلب معلومات التحقق من النطاق:', error);
     }
   };
   
@@ -225,7 +219,6 @@ const DomainSettings: React.FC = () => {
         
         return result.data;
       } catch (error) {
-        console.error('خطأ في التحقق من حالة النطاق:', error);
         setDomainStatus('error');
         setStatusMessage('حدث خطأ أثناء التحقق من حالة النطاق');
         throw error;
@@ -274,7 +267,6 @@ const DomainSettings: React.FC = () => {
         });
       }
     } catch (error) {
-      console.error('خطأ أثناء التحقق من توفر النطاق:', error);
       setIsAvailable(false);
     } finally {
       setIsCheckingAvailability(false);
@@ -323,7 +315,6 @@ const DomainSettings: React.FC = () => {
         
         return newDomain;
       } catch (error) {
-        console.error('خطأ في إضافة النطاق:', error);
         toast({
           title: "فشل تحديث النطاق",
           description: error instanceof Error ? error.message : 'حدث خطأ أثناء تحديث النطاق',
@@ -371,7 +362,6 @@ const DomainSettings: React.FC = () => {
         
         return true;
       } catch (error) {
-        console.error('خطأ في إزالة النطاق:', error);
         toast({
           title: "فشل إزالة النطاق",
           description: error instanceof Error ? error.message : 'حدث خطأ أثناء إزالة النطاق',
@@ -662,4 +652,4 @@ const DomainSettings: React.FC = () => {
   );
 };
 
-export default DomainSettings; 
+export default DomainSettings;

@@ -60,11 +60,9 @@ const getOrganizationIdFromMultipleSources = async (user: any, organization: any
         return userData.organization_id;
       }
     } catch (err) {
-      console.error("Error al obtener organization ID de la tabla de usuarios:", err);
     }
   }
 
-  console.error("No se pudo encontrar un organization ID válido");
   return null;
 };
 
@@ -130,7 +128,6 @@ export default function ActivateSubscriptionPage() {
         form.setError('activation_code', { message: result.message });
       }
     } catch (error: any) {
-      console.error('Error verifying activation code:', error);
       toast({
         title: "خطأ في التحقق من الكود",
         description: error.message || "حدث خطأ أثناء التحقق من كود التفعيل",
@@ -194,7 +191,6 @@ export default function ActivateSubscriptionPage() {
         });
       }
     } catch (error: any) {
-      console.error('Error activating subscription:', error);
       toast({
         title: "خطأ في تفعيل الاشتراك",
         description: error.message || "حدث خطأ أثناء تفعيل الاشتراك",
@@ -431,4 +427,4 @@ export default function ActivateSubscriptionPage() {
       </div>
     </ClientLayout>
   );
-} 
+}

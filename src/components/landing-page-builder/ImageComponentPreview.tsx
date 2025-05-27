@@ -226,6 +226,4 @@ const ImageComponentPreview: React.FC<ImageComponentPreviewProps> = ({ settings,
   );
 };
 
-export default ImageComponentPreview; 
- 
- 
+export default ImageComponentPreview;

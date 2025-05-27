@@ -122,4 +122,4 @@ export const MunicipalityField = ({ field, updateField, allFields }: Municipalit
   );
 };
 
-export default MunicipalityField; 
+export default MunicipalityField;

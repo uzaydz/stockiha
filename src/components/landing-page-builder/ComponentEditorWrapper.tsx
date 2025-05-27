@@ -96,4 +96,4 @@ const ComponentEditorWrapper: React.FC<ComponentEditorWrapperProps> = ({
   );
 };
 
-export default ComponentEditorWrapper; 
+export default ComponentEditorWrapper;

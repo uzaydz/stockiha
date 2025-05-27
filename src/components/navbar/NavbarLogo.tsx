@@ -156,4 +156,4 @@ export function NavbarLogo({
 // إضافة هذه القواعد إلى ملف index.css أو بشكل مضمن في المكون
 // .text-gradient-fancy {
 //   @apply bg-clip-text bg-gradient-to-r from-primary to-primary/70 text-transparent;
-// } 
+// }

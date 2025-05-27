@@ -30,4 +30,4 @@ const OfflineFeatures = () => {
   );
 };
 
-export default OfflineFeatures; 
+export default OfflineFeatures;

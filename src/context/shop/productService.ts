@@ -18,13 +18,11 @@ export const addProduct = async (product: Omit<Product, 'id' | 'createdAt' | 'up
       .single();
       
     if (error) {
-      console.error('Error adding product:', error);
       throw error;
     }
     
     return mapSupabaseProductToProduct(data);
   } catch (error) {
-    console.error('Error adding product:', error);
     throw error;
   }
 };
@@ -46,7 +44,6 @@ export const updateProduct = async (product: Product) => {
       .eq('id', product.id);
       
     if (error) {
-      console.error('Error updating product:', error);
       throw error;
     }
     
@@ -60,7 +57,6 @@ export const updateProduct = async (product: Product) => {
     
     return updatedProduct;
   } catch (error) {
-    console.error('Error updating product:', error);
     throw error;
   }
 };
@@ -74,25 +70,21 @@ export const deleteProduct = async (productId: string) => {
       .eq('id', productId);
       
     if (error) {
-      console.error('Error deleting product:', error);
       throw error;
     }
     
     return true;
   } catch (error) {
-    console.error('Error deleting product:', error);
     throw error;
   }
 };
 
 // وظيفة لتحديث مخزون المنتجات بعد البيع
 export const updateProductsInventory = async (orderItems: any[], currentOrganizationId: string | undefined) => {
-  
-  
+
   // استخراج معرفات المنتجات الفريدة
   const productIds = [...new Set(orderItems.map(item => item.productId))];
-  
-  
+
   for (const productId of productIds) {
     // حساب إجمالي الكمية المطلوبة لهذا المنتج
     const quantity = orderItems
@@ -100,9 +92,7 @@ export const updateProductsInventory = async (orderItems: any[], currentOrganiza
       .reduce((sum, item) => sum + item.quantity, 0);
       
     const productName = orderItems.find(item => item.productId === productId)?.productName || 'Unknown Product';
-    
-    
-    
+
     try {
       // الحصول على معلومات المخزون الحالية
       const { data: productData, error: productError } = await supabase
@@ -112,21 +102,16 @@ export const updateProductsInventory = async (orderItems: any[], currentOrganiza
         .single();
         
       if (productError) {
-        console.error(`Error getting product info for ${productName}:`, productError);
         continue;
       }
       
       if (!productData) {
-        console.error(`Product not found: ${productName} (${productId})`);
         continue;
       }
-      
-      
-      
+
       // حساب المخزون الجديد
       const newStock = ((productData as any).stock_quantity || 0) - quantity;
-      
-      
+
       try {
         // إضافة سجل في جدول inventory_log
         const inventoryLogEntry = {
@@ -144,7 +129,6 @@ export const updateProductsInventory = async (orderItems: any[], currentOrganiza
           .insert(inventoryLogEntry);
           
         if (logError) {
-          console.error(`Error adding inventory log for ${productName}:`, logError);
         }
         
         // تحديث المخزون في جدول المنتجات
@@ -158,17 +142,13 @@ export const updateProductsInventory = async (orderItems: any[], currentOrganiza
           .eq('organization_id', currentOrganizationId);
           
         if (updateError) {
-          console.error(`Error updating inventory for product ${productId}:`, updateError);
         } else {
           
         }
       } catch (error) {
-        console.error(`Error in inventory update process for ${productName}:`, error);
       }
     } catch (error) {
-      console.error(`Error processing inventory update for ${productName}:`, error);
     }
   }
-  
-  
-}; 
+
+};

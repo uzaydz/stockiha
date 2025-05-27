@@ -16,7 +16,7 @@ import SEOSettings from '@/components/settings/store-settings/SEOSettings';
 // هوك إعدادات المؤسسة
 import { useOrganizationSettings } from '@/hooks/useOrganizationSettings';
 // استيراد هوك الثيم
-import { useTheme } from '@/context/ThemeContext';
+import { useTheme } from '@/context/ThemeContext.tsx';
 
 const StoreSettings = () => {
   const { toast } = useToast();
@@ -41,18 +41,46 @@ const StoreSettings = () => {
 
   // حفظ الإعدادات وإغلاق الديالوج
   const handleSaveSettings = async () => {
-    await saveSettings();
-    
-    // تحديث الثيم في كل التطبيق باستخدام الهوك
-    if (currentOrganization?.id) {
-      await reloadOrganizationTheme(currentOrganization.id);
-    }
-    
-    if (!isSaving && !isLoading) {
-      // إغلاق النافذة المنبثقة بعد الحفظ بنجاح بعد تأخير قصير
-      setTimeout(() => {
-        setIsDialogOpen(false);
-      }, 500);
+    const startTime = Date.now();
+    console.log('🚀 [StoreSettings] بدء عملية حفظ الإعدادات من واجهة المستخدم:', {
+      currentOrganization: currentOrganization?.id,
+      activeTab,
+      isSaving,
+      isLoading,
+      timestamp: new Date().toISOString()
+    });
+
+    try {
+      console.log('📤 [StoreSettings] استدعاء saveSettings من الهوك...');
+      const saveStartTime = Date.now();
+      
+      await saveSettings();
+      
+      const saveEndTime = Date.now();
+      console.log(`⏱️ [StoreSettings] وقت تنفيذ saveSettings: ${saveEndTime - saveStartTime}ms`);
+      
+      // لا حاجة لإعادة تحميل الثيم لأنه يطبق مباشرة في useOrganizationSettings
+      console.log('ℹ️ [StoreSettings] الثيم يطبق مباشرة، لا حاجة لإعادة التحميل');
+      
+      if (!isSaving && !isLoading) {
+        console.log('✅ [StoreSettings] الحفظ مكتمل، إغلاق النافذة بعد 1000ms...');
+        // إغلاق النافذة المنبثقة بعد الحفظ بنجاح
+        setTimeout(() => {
+          setIsDialogOpen(false);
+          console.log('🔒 [StoreSettings] تم إغلاق نافذة الإعدادات');
+        }, 1000); // تقليل التأخير لأن الثيم يطبق مباشرة
+      }
+      
+      const totalTime = Date.now() - startTime;
+      console.log(`🎉 [StoreSettings] اكتملت عملية الحفظ الكاملة في ${totalTime}ms`);
+      
+    } catch (error) {
+      const totalTime = Date.now() - startTime;
+      console.error('💥 [StoreSettings] خطأ في عملية الحفظ:', {
+        error,
+        message: error instanceof Error ? error.message : 'خطأ غير معروف',
+        totalTime: `${totalTime}ms`
+      });
     }
   };
 
@@ -165,4 +193,4 @@ const StoreSettings = () => {
   );
 };
 
-export default StoreSettings; 
+export default StoreSettings;

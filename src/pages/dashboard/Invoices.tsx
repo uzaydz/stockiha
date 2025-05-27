@@ -36,7 +36,6 @@ const Invoices = () => {
           const invoicesData = await getInvoices(currentOrganization.id);
           setInvoices(invoicesData);
         } catch (error) {
-          console.error('خطأ في استدعاء getInvoices:', error);
           // إذا فشل API، استخدم بيانات وهمية مؤقتة
           const mockInvoices: Invoice[] = Array.from({ length: 10 }, (_, index) => ({
             id: `invoice-${index + 1}`,
@@ -115,7 +114,6 @@ const Invoices = () => {
         }
         
       } catch (error) {
-        console.error('Error fetching invoices:', error);
         toast.error('حدث خطأ أثناء تحميل الفواتير');
       } finally {
         setIsLoading(false);
@@ -233,4 +231,4 @@ const Invoices = () => {
   );
 };
 
-export default Invoices; 
+export default Invoices;

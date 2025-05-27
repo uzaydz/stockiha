@@ -32,7 +32,6 @@ export const createCleanPrintWindow = (
   const printWindow = window.open('', '_blank', windowFeatures);
   
   if (!printWindow) {
-    console.error('فشل في فتح نافذة الطباعة');
     return null;
   }
 
@@ -50,7 +49,6 @@ export const createCleanPrintWindow = (
     return printWindow;
     
   } catch (error) {
-    console.error('خطأ في إنشاء نافذة الطباعة:', error);
     printWindow.close();
     return null;
   }
@@ -184,7 +182,6 @@ const setupWindowEventHandlers = (printWindow: Window): void => {
   try {
     // معالج خطأ التحميل
     printWindow.addEventListener('error', (event) => {
-      console.error('خطأ في نافذة الطباعة:', event.error);
     });
 
     // معالج اكتمال التحميل
@@ -211,7 +208,6 @@ const setupWindowEventHandlers = (printWindow: Window): void => {
     });
 
   } catch (error) {
-    console.warn('تعذر إعداد معالجات أحداث النافذة:', error);
   }
 };
 
@@ -310,7 +306,6 @@ export const createPreviewPrintWindow = (
     
     printWindow.document.body.insertAdjacentHTML('beforeend', previewControls);
   } catch (error) {
-    console.warn('تعذر إضافة أزرار المعاينة:', error);
   }
 
   return printWindow;
@@ -404,4 +399,4 @@ export const showPrintError = (error: string): void => {
       errorElement.remove();
     }
   }, 5000);
-}; 
+};

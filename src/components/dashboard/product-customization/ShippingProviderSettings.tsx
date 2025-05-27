@@ -84,7 +84,6 @@ export default function ShippingProviderSettings({
       setClones(clonesData);
       setProvinces(provincesData);
     } catch (err) {
-      console.error('خطأ في تحميل بيانات التوصيل:', err);
       setError('حدث خطأ أثناء تحميل خيارات التوصيل المتاحة');
     } finally {
       setLoading(false);
@@ -102,7 +101,6 @@ export default function ShippingProviderSettings({
         setSelectedProvince(defaultProvince?.province_id || pricesData[0].province_id);
       }
     } catch (err) {
-      console.error('خطأ في تحميل أسعار التوصيل:', err);
     }
   };
 

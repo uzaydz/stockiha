@@ -163,4 +163,4 @@ const BusinessManagement = () => {
   );
 };
 
-export default BusinessManagement; 
+export default BusinessManagement;

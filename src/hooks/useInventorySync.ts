@@ -35,7 +35,6 @@ export function useInventorySync() {
       setUnsyncedCount(count);
       return count;
     } catch (error) {
-      console.error('خطأ في جلب عدد العناصر غير المتزامنة:', error);
       return 0;
     }
   }, []);
@@ -88,7 +87,6 @@ export function useInventorySync() {
       
       return result;
     } catch (error) {
-      console.error('خطأ في مزامنة بيانات المخزون:', error);
       
       // زيادة عدد مرات الفشل واستخدام استراتيجية الارتداد الأسي
       const newFailureCount = syncFailures + 1;
@@ -156,4 +154,4 @@ export function useInventorySync() {
   };
 }
 
-export default useInventorySync; 
+export default useInventorySync;

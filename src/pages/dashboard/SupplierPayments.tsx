@@ -86,7 +86,6 @@ export default function SupplierPayments() {
           setPurchases(purchasesData);
         }
       } catch (error) {
-        console.error('Error loading initial data:', error);
         toast({
           title: 'خطأ',
           description: 'حدث خطأ أثناء تحميل البيانات',
@@ -104,9 +103,7 @@ export default function SupplierPayments() {
   useEffect(() => {
     
     const isNewPayment = location.pathname.endsWith('/new');
-    
-    
-    
+
     if (isNewPayment) {
       
       setSelectedPayment(null);
@@ -135,7 +132,6 @@ export default function SupplierPayments() {
         const purchasesData = await getSupplierPurchases(organizationId, selectedSupplierId);
         setPurchases(purchasesData);
       } catch (error) {
-        console.error('Error refreshing purchases:', error);
       }
     }
   };
@@ -164,9 +160,7 @@ export default function SupplierPayments() {
         notes: restData.notes || undefined,
         is_full_payment: is_full_payment || false
       };
-      
-      
-      
+
       // تنفيذ تسجيل المدفوعات
       let result;
       
@@ -217,7 +211,6 @@ export default function SupplierPayments() {
         });
       }
     } catch (error) {
-      console.error('Error saving payment:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء تسجيل المدفوعات',
@@ -282,4 +275,4 @@ export default function SupplierPayments() {
       </div>
     </Layout>
   );
-} 
+}

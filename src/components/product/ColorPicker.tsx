@@ -45,4 +45,4 @@ const ColorPicker = forwardRef<HTMLDivElement, ColorPickerProps>(
 // إضافة اسم للعرض (displayName) للمساعدة في التصحيح
 ColorPicker.displayName = "ColorPicker";
 
-export default ColorPicker; 
+export default ColorPicker;

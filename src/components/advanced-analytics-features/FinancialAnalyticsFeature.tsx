@@ -294,4 +294,4 @@ const FinancialAnalyticsFeature = () => {
   );
 };
 
-export default FinancialAnalyticsFeature; 
+export default FinancialAnalyticsFeature;

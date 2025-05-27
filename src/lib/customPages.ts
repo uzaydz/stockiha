@@ -35,7 +35,6 @@ export const getCustomPages = async (organizationId?: string): Promise<CustomPag
     const { data: storeSettings, error } = await query;
 
     if (error) {
-      console.error('Error fetching custom pages:', error);
       return [];
     }
 
@@ -53,7 +52,6 @@ export const getCustomPages = async (organizationId?: string): Promise<CustomPag
 
     return allPages;
   } catch (error) {
-    console.error('Error in getCustomPages:', error);
     return [];
   }
 };
@@ -71,7 +69,6 @@ export const getCustomPageBySlug = async (slug: string): Promise<CustomPage | nu
       .eq('is_active', true);
 
     if (error) {
-      console.error('Error fetching custom page by slug:', error);
       return null;
     }
 
@@ -90,7 +87,6 @@ export const getCustomPageBySlug = async (slug: string): Promise<CustomPage | nu
 
     return null;
   } catch (error) {
-    console.error('Error in getCustomPageBySlug:', error);
     return null;
   }
 };
@@ -173,7 +169,6 @@ export const updateFooterSettings = async (organizationId: string, updatedSettin
 
     return true;
   } catch (error) {
-    console.error('Error in updateFooterSettings:', error);
     return false;
   }
 };
@@ -213,7 +208,6 @@ export const saveCustomPage = async (organizationId: string, page: Omit<CustomPa
     const success = await updateFooterSettings(organizationId, updatedFooterSettings);
     return success ? newPage : null;
   } catch (error) {
-    console.error('Error in saveCustomPage:', error);
     return null;
   }
 };
@@ -245,7 +239,6 @@ export const deleteCustomPage = async (organizationId: string, pageId: string): 
 
     return await updateFooterSettings(organizationId, updatedFooterSettings);
   } catch (error) {
-    console.error('Error in deleteCustomPage:', error);
     return false;
   }
 };
@@ -288,7 +281,6 @@ export const updateCustomPage = async (organizationId: string, pageId: string, u
 
     return await updateFooterSettings(organizationId, updatedFooterSettings);
   } catch (error) {
-    console.error('Error in updateCustomPage:', error);
     return false;
   }
-}; 
+};

@@ -101,7 +101,6 @@ export async function setCacheData<T>(key: string, data: T, useMemoryCache = fal
     await storeCache.setItem(key, cacheItem);
     cacheStats.stored++;
   } catch (error) {
-    console.error('[Cache] خطأ في تخزين البيانات مؤقتًا:', error);
   }
 }
 
@@ -182,7 +181,6 @@ export async function getCacheData<T>(
     cacheStats.hits++;
     return cachedItem.data;
   } catch (error) {
-    console.error('[Cache] خطأ في جلب البيانات المخزنة مؤقتًا:', error);
     cacheStats.misses++;
     return null;
   }
@@ -199,7 +197,6 @@ export async function clearCacheItem(key: string): Promise<void> {
     await storeCache.removeItem(key);
     cacheStats.deleted++;
   } catch (error) {
-    console.error('[Cache] خطأ في مسح البيانات المخزنة مؤقتًا:', error);
   }
 }
 
@@ -214,7 +211,6 @@ export async function clearAllCache(): Promise<void> {
     await storeCache.clear();
     cacheStats.deleted += 100; // قيمة تقريبية
   } catch (error) {
-    console.error('[Cache] خطأ في مسح جميع البيانات المخزنة مؤقتًا:', error);
   }
 }
 
@@ -243,7 +239,6 @@ export async function withCache<T>(
       return await pendingQueries[key];
     } catch (error) {
       // في حالة فشل الاستعلام الحالي، نسمح بإنشاء استعلام جديد
-      console.error(`[Cache] فشل الاستعلام المعلق لـ ${key}:`, error);
       delete pendingQueries[key];
     }
   }
@@ -265,11 +260,9 @@ export async function withCache<T>(
         // تجربة تخزين البيانات
         await setCacheData(key, newData, useMemoryCache);
       } catch (error) {
-        console.error(`[Cache] خطأ في تخزين البيانات لـ ${key}:`, error);
         // استمر بإرجاع البيانات حتى لو فشل التخزين المؤقت
       }
     } else {
-      console.warn(`[Cache] تم تخطي تخزين بيانات غير صالحة لـ ${key}`);
     }
     
     return newData;
@@ -313,7 +306,6 @@ export async function getSubdomainFromOrganizationId(organizationId: string): Pr
         
         return data.subdomain;
       } catch (error) {
-        console.error('[Cache] خطأ غير متوقع أثناء جلب النطاق الفرعي:', error);
         return null;
       }
     },
@@ -376,7 +368,6 @@ export function setupCacheCleanup(): void {
           cleanupCount++;
         }
       } catch (error) {
-        console.error(`[Cache] خطأ أثناء تنظيف المفتاح ${key}:`, error);
       }
     }
     
@@ -397,4 +388,4 @@ export {
   SHORT_CACHE_TTL
 };
 
-export default storeCache; 
+export default storeCache;

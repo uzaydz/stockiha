@@ -35,4 +35,4 @@ export const PageSubTitle: React.FC<PageSubTitleProps> = ({ subtitle, className 
       {subtitle}
     </p>
   );
-}; 
+};

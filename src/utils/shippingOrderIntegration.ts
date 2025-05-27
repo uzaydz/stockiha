@@ -95,13 +95,11 @@ async function createShippingOrderRecord(
       .single();
     
     if (error) {
-      console.error('Error creating shipping order record:', error);
       throw error;
     }
     
     return result.id;
   } catch (error) {
-    console.error('Failed to create shipping order record:', error);
     throw error;
   }
 }
@@ -135,7 +133,6 @@ export async function createYalidineShippingOrder(
       .single();
     
     if (providerError || !providerData) {
-      console.error('Error fetching Yalidine provider ID:', providerError);
       return {
         success: false,
         message: 'خطأ في العثور على مزود الشحن ياليدين'
@@ -195,7 +192,6 @@ export async function createYalidineShippingOrder(
       try {
         labelUrl = await shippingService.generateShippingLabel(trackingNumber);
       } catch (error) {
-        console.error('Failed to generate shipping label:', error);
       }
       
       return {
@@ -212,7 +208,6 @@ export async function createYalidineShippingOrder(
       message: 'فشل في إنشاء طلب الشحن'
     };
   } catch (error) {
-    console.error('Error creating Yalidine shipping order:', error);
     return {
       success: false,
       message: 'حدث خطأ أثناء إنشاء طلب الشحن: ' + (error instanceof Error ? error.message : String(error))
@@ -253,7 +248,6 @@ export async function createShippingOrderForOrder(
       .single();
     
     if (orderError || !order) {
-      console.error('Error fetching order:', orderError);
       return {
         success: false,
         message: 'لم يتم العثور على الطلب'
@@ -287,7 +281,6 @@ export async function createShippingOrderForOrder(
       .eq('auto_shipping', true);
     
     if (providersError) {
-      console.error('Error fetching enabled shipping providers:', providersError);
       return {
         success: false,
         message: 'خطأ في جلب مزودي خدمة الشحن المفعلين'
@@ -329,10 +322,9 @@ export async function createShippingOrderForOrder(
       message: `مزود الشحن ${providerCode} غير مدعوم حالياً للشحن التلقائي`
     };
   } catch (error) {
-    console.error('Error creating shipping order for order:', error);
     return {
       success: false,
       message: 'حدث خطأ أثناء إنشاء طلب الشحن: ' + (error instanceof Error ? error.message : String(error))
     };
   }
-} 
+}

@@ -16,6 +16,7 @@ interface ComponentsPanelProps {
   onAddComponent: (type: ComponentType) => void;
   onUpdateSettings: (id: string, settings: any) => void;
   onDragEnd: (event: DragEndEvent) => void;
+  onSave?: () => Promise<void>;
 }
 
 const ComponentsPanel: React.FC<ComponentsPanelProps> = ({
@@ -26,7 +27,8 @@ const ComponentsPanel: React.FC<ComponentsPanelProps> = ({
   onRemoveComponent,
   onAddComponent,
   onUpdateSettings,
-  onDragEnd
+  onDragEnd,
+  onSave
 }) => {
   const [editorModalOpen, setEditorModalOpen] = useState(false);
   const [selectedComponent, setSelectedComponent] = useState<StoreComponent | null>(null);
@@ -114,10 +116,11 @@ const ComponentsPanel: React.FC<ComponentsPanelProps> = ({
           onUpdate={handleUpdateSettings}
           onToggleActive={onToggleComponentActive}
           onDelete={onRemoveComponent}
+          onSave={onSave}
         />
       )}
     </div>
   );
 };
 
-export default ComponentsPanel; 
+export default ComponentsPanel;

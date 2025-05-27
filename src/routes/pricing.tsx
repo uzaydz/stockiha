@@ -19,7 +19,6 @@ export default function Pricing() {
         const data = await getSubscriptionPlans();
         setPlans(data);
       } catch (err) {
-        console.error('Error loading plans:', err);
         setError('حدث خطأ أثناء تحميل خطط الاشتراك. يرجى المحاولة مرة أخرى لاحقاً.');
       } finally {
         setIsLoading(false);
@@ -79,4 +78,4 @@ export default function Pricing() {
       </div>
     </>
   );
-} 
+}

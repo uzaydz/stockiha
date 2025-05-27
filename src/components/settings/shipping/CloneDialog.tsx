@@ -103,4 +103,4 @@ const CloneDialog: React.FC<CloneDialogProps> = ({
   );
 };
 
-export default CloneDialog; 
+export default CloneDialog;

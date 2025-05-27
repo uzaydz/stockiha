@@ -27,8 +27,7 @@ export async function syncYalidineData(
   skipValidation: boolean = false
 ): Promise<boolean> {
   try {
-    
-    
+
     // إعادة تعيين إحصائيات محدد المعدل
     if (typeof yalidineRateLimiter.resetStats === 'function') {
       
@@ -62,7 +61,6 @@ export async function syncYalidineData(
     try {
       apiClient = await getYalidineApiClient(organizationId);
     } catch (apiClientError) {
-      console.error('[SYNC ERROR] فشل إنشاء عميل API ياليدين:', apiClientError);
       syncStatus.provinces.status = 'failed';
       syncStatus.municipalities.status = 'failed';
       syncStatus.centers.status = 'failed';
@@ -72,7 +70,6 @@ export async function syncYalidineData(
     }
     
     if (!apiClient) {
-      console.error('[SYNC ERROR] فشل إنشاء عميل API ياليدين: القيمة المرجعة هي null');
       syncStatus.provinces.status = 'failed';
       syncStatus.municipalities.status = 'failed';
       syncStatus.centers.status = 'failed';
@@ -97,14 +94,11 @@ export async function syncYalidineData(
     // التحقق من صلاحية بيانات الاعتماد (يمكن تجاوزه)
     let isCredentialsValid = true;
     if (!skipValidation) {
-      
-      
+
       // استخدام وظيفة التحقق المحسنة
       isCredentialsValid = await validateYalidineCredentials(organizationId);
       
       if (!isCredentialsValid) {
-        console.error('[SYNC ERROR] فشل التحقق من صلاحية بيانات الاعتماد');
-        console.warn('[SYNC] سيتم محاولة المزامنة على أي حال، ولكن قد تواجه مشاكل...');
       } else {
         
       }
@@ -113,13 +107,11 @@ export async function syncYalidineData(
     }
     
     // تخطي فحص البيانات العالمية تمامًا
-    
-    
+
     try {
       // إنشاء وعد للمهلة الزمنية
       const timeoutPromise = new Promise<boolean>((_, reject) => {
         syncTimeout = setTimeout(() => {
-          console.error('[SYNC] تم تجاوز الحد الأقصى للوقت المسموح به للمزامنة');
           
           // تحديث حالة المزامنة في حالة تجاوز الوقت
           const currentStatus = getSyncStatus();
@@ -148,22 +140,19 @@ export async function syncYalidineData(
         try {
           feesSuccess = await syncFees(organizationId, apiClient);
         } catch (feesError) {
-          console.error('[SYNC ERROR] استثناء أثناء مزامنة أسعار التوصيل:', feesError);
           syncStatus.fees.status = 'failed';
           updateSyncStatus(syncStatus);
         }
         
         syncStatus.fees.status = feesSuccess ? 'success' : 'failed';
         updateSyncStatus(syncStatus);
-        
-        
+
         // اعتبار المزامنة ناجحة إذا نجحت عملية أسعار التوصيل
         const success = feesSuccess;
         
         if (success) {
           
         } else {
-          console.warn(`[SYNC] فشلت مزامنة بيانات ياليدين للمنظمة ${organizationId}`);
         }
         
         return success;
@@ -177,7 +166,6 @@ export async function syncYalidineData(
       
       return result;
     } catch (error) {
-      console.error('[SYNC ERROR] خطأ أثناء عملية المزامنة:', error);
       
       // تحديث حالة المزامنة عند حدوث خطأ
       const currentStatus = getSyncStatus();
@@ -196,7 +184,6 @@ export async function syncYalidineData(
       if (syncTimeout) clearTimeout(syncTimeout);
     }
   } catch (error) {
-    console.error('[SYNC ERROR] خطأ أثناء مزامنة بيانات ياليدين:', error);
     
     // تحديث حالة المزامنة عند حدوث خطأ
     const syncStatus = createInitialSyncStatus();
@@ -208,4 +195,4 @@ export async function syncYalidineData(
     
     return false;
   }
-} 
+}

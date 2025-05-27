@@ -141,4 +141,4 @@ const ServiceDetailsDialog = ({
   );
 };
 
-export default ServiceDetailsDialog; 
+export default ServiceDetailsDialog;

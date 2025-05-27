@@ -9,4 +9,4 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export function createClient() {
   return createSupabaseClient(supabaseUrl, supabaseAnonKey)
-} 
+}

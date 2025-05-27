@@ -472,4 +472,4 @@ const ProductBenefitItemEditor: React.FC<ProductBenefitItemEditorProps> = ({
   );
 };
 
-export default ProductBenefitItemEditor; 
+export default ProductBenefitItemEditor;

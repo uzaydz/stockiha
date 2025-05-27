@@ -38,4 +38,4 @@ export const checkPermission = (
   
   // التحقق من أي من الصلاحيات البديلة
   return mappedPermissions.some(mappedPerm => permissions[mappedPerm] === true);
-}; 
+};

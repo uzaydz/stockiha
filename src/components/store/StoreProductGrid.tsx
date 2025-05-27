@@ -405,4 +405,4 @@ const ProductCard = ({ product, view, index }: ProductCardProps) => {
   );
 };
 
-export default StoreProductGrid; 
+export default StoreProductGrid;

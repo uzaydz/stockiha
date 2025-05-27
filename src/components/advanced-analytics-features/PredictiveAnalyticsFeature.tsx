@@ -348,4 +348,4 @@ const PredictiveAnalyticsFeature = () => {
   );
 };
 
-export default PredictiveAnalyticsFeature; 
+export default PredictiveAnalyticsFeature;

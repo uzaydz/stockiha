@@ -17,4 +17,4 @@ const ComponentPreviewWrapper = ({ component }: ComponentPreviewWrapperProps) =>
   return <ComponentPreview component={component} />;
 };
 
-export default ComponentPreviewWrapper; 
+export default ComponentPreviewWrapper;

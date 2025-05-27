@@ -271,6 +271,5 @@ export async function hydrateLocalDB() {
       
     }
   } catch (error) {
-    console.error('Error hydrating local DB:', error);
   }
-} 
+}

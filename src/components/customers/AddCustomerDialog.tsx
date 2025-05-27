@@ -49,7 +49,6 @@ const AddCustomerDialog = ({ onCustomerAdded }: AddCustomerDialogProps) => {
         const canManageCustomers = await checkUserPermissions(user, 'manageCustomers' as any);
         setHasPermission(canManageCustomers);
       } catch (error) {
-        console.error('Error checking customer permissions:', error);
         setHasPermission(false);
       } finally {
         setPermissionChecked(true);
@@ -136,7 +135,6 @@ const AddCustomerDialog = ({ onCustomerAdded }: AddCustomerDialogProps) => {
       setOpen(false);
       resetForm();
     } catch (error) {
-      console.error('Error adding customer:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء إضافة العميل. الرجاء المحاولة مرة أخرى.',
@@ -242,4 +240,4 @@ const AddCustomerDialog = ({ onCustomerAdded }: AddCustomerDialogProps) => {
   );
 };
 
-export default AddCustomerDialog; 
+export default AddCustomerDialog;

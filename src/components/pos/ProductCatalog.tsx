@@ -43,7 +43,6 @@ export default function ProductCatalog({ products, onAddToCart }: ProductCatalog
         const fetchedCategories = await getCategories(currentOrganization.id);
         setCategories(fetchedCategories);
       } catch (error) {
-        console.error('خطأ في جلب الفئات:', error);
         setCategories([]);
       } finally {
         setIsLoadingCategories(false);
@@ -649,4 +648,4 @@ export default function ProductCatalog({ products, onAddToCart }: ProductCatalog
       </ScrollArea>
     </div>
   );
-} 
+}

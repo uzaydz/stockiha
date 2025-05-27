@@ -360,4 +360,4 @@ export default function CartItem({
       </div>
     </motion.div>
   );
-} 
+}

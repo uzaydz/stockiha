@@ -90,11 +90,9 @@ const getDefaultSEOSettings = (settings: OrganizationSettings): SEOSettings => {
             return customData.seoSettings;
           }
         } catch (innerError) {
-          console.error('خطأ في تحليل JSON في getDefaultSEOSettings:', innerError);
         }
       }
     } catch (error) {
-      console.error('فشل تحليل إعدادات SEO', error);
       // استمر باستخدام القيم الافتراضية
     }
   }
@@ -148,7 +146,6 @@ const SEOSettings = ({ settings, updateSetting }: SEOSettingsProps) => {
     try {
       return getDefaultSEOSettings(settings);
     } catch (error) {
-      console.error('خطأ في تهيئة إعدادات SEO:', error);
       // العودة إلى القيم الافتراضية في حالة الخطأ
       return {
         title: settings.site_name || '',
@@ -206,7 +203,6 @@ const SEOSettings = ({ settings, updateSetting }: SEOSettingsProps) => {
           }
         }
       } catch (error) {
-        console.error('خطأ في تحليل custom_js:', error);
       }
       
       customJs.seoSettings = updated;
@@ -257,7 +253,6 @@ const SEOSettings = ({ settings, updateSetting }: SEOSettingsProps) => {
         });
       
       if (error) {
-        console.error('خطأ في رفع الملف:', error);
         throw new Error(error.message || 'فشل في رفع الملف');
       }
       
@@ -274,7 +269,6 @@ const SEOSettings = ({ settings, updateSetting }: SEOSettingsProps) => {
         description: "تم تحميل الصورة وتعيينها كصورة افتراضية للمشاركات",
       });
     } catch (error: any) {
-      console.error("خطأ في تحميل الصورة:", error);
       
       // تحديد رسالة خطأ مناسبة بناءً على نوع الخطأ
       let errorMessage = 'حدث خطأ أثناء تحميل الصورة';
@@ -927,4 +921,4 @@ const SEOSettings = ({ settings, updateSetting }: SEOSettingsProps) => {
   );
 };
 
-export default SEOSettings; 
+export default SEOSettings;

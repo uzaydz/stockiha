@@ -45,7 +45,6 @@ export default function DatabaseMigrationTool() {
         toast.error('حدث خطأ أثناء ترحيل الصور الإضافية');
       }
     } catch (error) {
-      console.error('خطأ أثناء ترحيل الصور الإضافية:', error);
       
       setResults({
         success: false,
@@ -115,4 +114,4 @@ export default function DatabaseMigrationTool() {
       </div>
     </div>
   );
-} 
+}

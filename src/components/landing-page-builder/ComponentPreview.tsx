@@ -76,6 +76,4 @@ const ComponentPreview: React.FC<ComponentPreviewProps> = ({ component }) => {
   }
 };
 
-export default ComponentPreview; 
- 
- 
+export default ComponentPreview;

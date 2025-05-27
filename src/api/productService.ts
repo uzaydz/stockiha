@@ -32,8 +32,7 @@ export interface Product {
  */
 export const getProducts = async (organizationId: string): Promise<Product[]> => {
   try {
-    
-    
+
     const { data, error } = await supabase
       .from('products')
       .select('*')
@@ -41,13 +40,11 @@ export const getProducts = async (organizationId: string): Promise<Product[]> =>
       .order('created_at', { ascending: false });
     
     if (error) {
-      console.error('Error fetching products:', error);
       throw error;
     }
     
     return data || [];
   } catch (error) {
-    console.error('Error in getProducts:', error);
     return [];
   }
 };
@@ -65,13 +62,11 @@ export const getProductById = async (organizationId: string, productId: string):
       .single();
     
     if (error) {
-      console.error(`Error fetching product ${productId}:`, error);
       throw error;
     }
     
     return data;
   } catch (error) {
-    console.error('Error in getProductById:', error);
     return null;
   }
 };
@@ -91,13 +86,11 @@ export const createProduct = async (organizationId: string, product: Omit<Produc
       .single();
     
     if (error) {
-      console.error('Error creating product:', error);
       throw error;
     }
     
     return data;
   } catch (error) {
-    console.error('Error in createProduct:', error);
     return null;
   }
 };
@@ -115,7 +108,6 @@ export const updateProduct = async (organizationId: string, productId: string, u
       .eq('id', productId);
     
     if (updateError) {
-      console.error(`Error updating product ${productId}:`, updateError);
       throw updateError;
     }
     
@@ -128,13 +120,11 @@ export const updateProduct = async (organizationId: string, productId: string, u
       .single();
       
     if (selectError) {
-      console.error(`Error fetching updated product ${productId}:`, selectError);
       throw selectError;
     }
     
     return data;
   } catch (error) {
-    console.error('Error in updateProduct:', error);
     return null;
   }
 };
@@ -151,13 +141,11 @@ export const deleteProduct = async (organizationId: string, productId: string): 
       .eq('id', productId);
     
     if (error) {
-      console.error(`Error deleting product ${productId}:`, error);
       throw error;
     }
     
     return true;
   } catch (error) {
-    console.error('Error in deleteProduct:', error);
     return false;
   }
 };
@@ -175,13 +163,11 @@ export const getWholesaleTiers = async (organizationId: string, productId: strin
       .order('min_quantity', { ascending: true });
     
     if (error) {
-      console.error(`Error fetching wholesale tiers for product ${productId}:`, error);
       throw error;
     }
     
     return data || [];
   } catch (error) {
-    console.error('Error in getWholesaleTiers:', error);
     return [];
   }
 };
@@ -205,13 +191,11 @@ export const addWholesaleTier = async (organizationId: string, tier: {
       .single();
     
     if (error) {
-      console.error('Error adding wholesale tier:', error);
       throw error;
     }
     
     return data;
   } catch (error) {
-    console.error('Error in addWholesaleTier:', error);
     return null;
   }
 };
@@ -233,13 +217,11 @@ export const updateWholesaleTier = async (organizationId: string, tierId: string
       .single();
     
     if (error) {
-      console.error(`Error updating wholesale tier ${tierId}:`, error);
       throw error;
     }
     
     return data;
   } catch (error) {
-    console.error('Error in updateWholesaleTier:', error);
     return null;
   }
 };
@@ -256,13 +238,11 @@ export const deleteWholesaleTier = async (organizationId: string, tierId: string
       .eq('id', tierId);
     
     if (error) {
-      console.error(`Error deleting wholesale tier ${tierId}:`, error);
       throw error;
     }
     
     return true;
   } catch (error) {
-    console.error('Error in deleteWholesaleTier:', error);
     return false;
   }
 };
@@ -279,7 +259,6 @@ export const getProductPriceForQuantity = async (productId: string, quantity: nu
       });
 
     if (error) {
-      console.error('Error in getProductPriceForQuantity:', error);
       // في حالة حدوث خطأ في الوظيفة البعيدة، نقوم بتنفيذ حساب محلي
       // للحصول على السعر المناسب
       const { data: product } = await supabase
@@ -309,7 +288,6 @@ export const getProductPriceForQuantity = async (productId: string, quantity: nu
 
     return data;
   } catch (error) {
-    console.error('Error getting product price for quantity:', error);
     return null;
   }
-}; 
+};

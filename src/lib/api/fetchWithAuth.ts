@@ -18,8 +18,6 @@ export async function fetchWithAuth(url: string, options: FetchOptions = {}): Pr
       if (url.startsWith('/api/local') || url.includes('localhost')) {
         return await fetch(url, options);
       }
-      
-      console.warn(`طلب HTTP معطل في وضع عدم الاتصال: ${url}`);
       throw new Error('NETWORK_OFFLINE');
     }
 
@@ -90,7 +88,6 @@ export async function fetchWithAuth(url: string, options: FetchOptions = {}): Pr
     if (!response.ok) {
       // معالجة خاصة لأخطاء 406
       if (response.status === 406) {
-        console.error('خطأ 406 - المحتوى غير مقبول. تأكد من رؤوس الطلب.');
         
         // محاولة إعادة الطلب مع رؤوس مختلفة
         const retryHeaders = new Headers(headers);
@@ -118,7 +115,6 @@ export async function fetchWithAuth(url: string, options: FetchOptions = {}): Pr
     // معالجة الأخطاء المختلفة
     if (error instanceof Error) {
       if (error.message === 'NETWORK_OFFLINE') {
-        console.error('الطلب فشل: المستخدم غير متصل بالإنترنت');
         
         // إنشاء استجابة وهمية لحالة عدم الاتصال
         return new Response(
@@ -134,7 +130,6 @@ export async function fetchWithAuth(url: string, options: FetchOptions = {}): Pr
       }
       
       if (error.message === 'REQUEST_TIMEOUT') {
-        console.error(`الطلب انتهت مهلته: ${url}`);
         
         // إنشاء استجابة لحالة انتهاء المهلة
         return new Response(
@@ -150,9 +145,7 @@ export async function fetchWithAuth(url: string, options: FetchOptions = {}): Pr
       }
     }
     
-    console.error('خطأ غير متوقع في الطلب:', error);
-    
     // إعادة رمي الخطأ الأصلي للمعالجة المخصصة لاحقاً
     throw error;
   }
-} 
+}

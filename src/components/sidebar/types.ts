@@ -54,4 +54,4 @@ export interface NavigationGroupProps {
   currentPath: string;
   toggleGroup: (group: string) => void;
   isCollapsed: boolean;
-} 
+}

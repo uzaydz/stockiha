@@ -162,4 +162,4 @@ const StoreProductFilters = ({
   );
 };
 
-export default StoreProductFilters; 
+export default StoreProductFilters;

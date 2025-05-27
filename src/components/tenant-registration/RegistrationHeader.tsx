@@ -52,4 +52,4 @@ export const RegistrationHeader = ({
   );
 };
 
-export default RegistrationHeader; 
+export default RegistrationHeader;

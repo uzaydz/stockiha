@@ -17,7 +17,6 @@ export const ensureEmployeeTables = async (): Promise<void> => {
     await supabase.rpc('create_employee_activities_if_not_exists');
     
   } catch (error) {
-    console.error('Error ensuring employee tables:', error);
   }
 };
 
@@ -29,14 +28,11 @@ export const getEmployees = async (): Promise<Employee[]> => {
     
     // تحديث الموظفين الذين ليس لديهم معرف مؤسسة
     await updateEmployeesWithMissingOrganizationId();
-    
-    
-    
+
     // الحصول على بيانات المستخدم الحالي
     const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
-      console.error('No authenticated user found');
       return [];
     }
     
@@ -50,7 +46,6 @@ export const getEmployees = async (): Promise<Employee[]> => {
       .single();
       
     if (userError) {
-      console.error('Error fetching current user organization:', userError);
     }
     
     if (userData && userData.organization_id) {
@@ -63,14 +58,10 @@ export const getEmployees = async (): Promise<Employee[]> => {
         organizationId = localOrgId;
         
       } else {
-        console.error('No organization ID found for user or in localStorage');
         return [];
       }
     }
-    
-    
-    
-    
+
     // استخدام الاستعلام المباشر
     const { data, error } = await supabase
       .from('users')
@@ -80,14 +71,11 @@ export const getEmployees = async (): Promise<Employee[]> => {
       .order('created_at', { ascending: false });
     
     if (error) {
-      console.error('Error fetching employees:', error);
       return [];
     }
-    
-    
+
     return data || [];
   } catch (err) {
-    console.error('Unexpected error in getEmployees:', err);
     return [];
   }
 };
@@ -102,7 +90,6 @@ export const getEmployeeById = async (id: string): Promise<Employee | null> => {
     .single();
     
   if (error) {
-    console.error('Error fetching employee:', error);
     throw new Error(error.message);
   }
   
@@ -115,7 +102,6 @@ export const createEmployee = async (
   password: string,
   userData: Omit<Employee, 'id' | 'created_at' | 'updated_at'>
 ): Promise<Employee> => { 
-  
 
   // 1. Get Admin's Org ID (same logic as before)
   const { data: { user: adminUser } } = await supabase.auth.getUser();
@@ -137,15 +123,12 @@ export const createEmployee = async (
   }
   if (!organizationId) throw new Error('No organization ID found to associate employee with.');
 
-  
-
   let createdUserRecord: Employee | null = null;
   let authUserId: string | null = null;
 
   // 2. Try to create the auth user first
   try {
-    
-    
+
     // Try direct signup method first
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: email,
@@ -159,7 +142,6 @@ export const createEmployee = async (
     });
     
     if (authError) {
-      console.error('Error creating auth user:', authError);
       // We'll continue and try to create just the database record
     } else if (authData?.user) {
       
@@ -175,11 +157,9 @@ export const createEmployee = async (
       });
       
       if (signInError) {
-        console.error('Error signing back in as admin:', signInError);
       }
     }
   } catch (error) {
-    console.error('Error in auth user creation:', error);
     // Continue with just the database record
   }
 
@@ -200,12 +180,10 @@ export const createEmployee = async (
     );
 
     if (rpcError) {
-      console.error('Error calling create_employee_securely (insert only) RPC:', rpcError);
       
       // Handle 404 errors (function not found) by using direct insert as a fallback
       if (rpcError.code === '42883' || rpcError.code === '404') {
-        
-        
+
         // Use auth user ID if available, otherwise generate a new one
         const userId = authUserId || crypto.randomUUID();
         
@@ -227,7 +205,6 @@ export const createEmployee = async (
           .single();
           
         if (insertError) {
-          console.error('Error inserting employee directly:', insertError);
           throw new Error(insertError.message || 'Failed to create employee record directly');
         }
         
@@ -236,7 +213,6 @@ export const createEmployee = async (
         if (rpcError.message.includes('is active')) {
           throw new Error('البريد الإلكتروني مستخدم بالفعل لموظف نشط.');
         } else {
-          console.warn('User likely exists but was inactive. RPC might have updated the record.');
           const { data: existingRecord, error: fetchError } = await supabase
             .from('users')
             .select('*')
@@ -253,14 +229,11 @@ export const createEmployee = async (
     }
 
     if (!rpcResult || typeof rpcResult !== 'object') { 
-      console.error('RPC create_employee_securely (insert only) did not return a valid record.', rpcResult);
       throw new Error('لم يتم إرجاع بيانات سجل الموظف بعد الإنشاء.');
     }
     createdUserRecord = rpcResult as Employee; 
-    
 
   } catch (error) { 
-    console.error('Error during employee record creation/update:', error);
     throw error; 
   }
 
@@ -271,8 +244,7 @@ export const createEmployee = async (
   // 4. Try to invite the user if we couldn't create them directly
   if (!authUserId) {
     try {
-      
-      
+
       try {
         // Try the admin invite method first
         const { data: inviteData, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
@@ -286,13 +258,11 @@ export const createEmployee = async (
         );
 
         if (inviteError) {
-          console.warn('Admin invite method failed, will create temporary password:', inviteError);
           // Just log but continue - we'll return the user record anyway
         } else {
           
         }
       } catch (inviteErr) {
-        console.warn('Admin invite method not available:', inviteErr);
         // Try one more method - direct sign up
         try {
           const { data: signupData, error: signupError } = await supabase.auth.signUp({
@@ -307,10 +277,8 @@ export const createEmployee = async (
           });
           
           if (signupError) {
-            console.error('Failed to create auth account via signup:', signupError);
           } else {
-            
-            
+
             // Sign out immediately after creating the user
             await supabase.auth.signOut();
             
@@ -321,17 +289,13 @@ export const createEmployee = async (
             });
             
             if (signInError) {
-              console.error('Error signing back in as admin:', signInError);
             }
           }
         } catch (signupErr) {
-          console.error('Error in final signup attempt:', signupErr);
         }
       }
 
     } catch (error) {
-      console.error('Error during employee invite process:', error);
-      console.warn(`Employee record was created with ID ${createdUserRecord.id} but invitation failed.`);
     }
   }
 
@@ -356,7 +320,6 @@ export const updateEmployee = async (
     .single();
     
   if (error) {
-    console.error('Error updating employee:', error);
     throw new Error(error.message);
   }
   
@@ -371,7 +334,6 @@ export const resetEmployeePassword = async (id: string, newPassword: string): Pr
   );
   
   if (error) {
-    console.error('Error resetting employee password:', error);
     throw new Error(error.message);
   }
 };
@@ -390,7 +352,6 @@ export const toggleEmployeeStatus = async (id: string, isActive: boolean): Promi
     .single();
     
   if (error) {
-    console.error('Error toggling employee status:', error);
     throw new Error(error.message);
   }
   
@@ -407,7 +368,6 @@ export const deleteEmployee = async (id: string): Promise<void> => {
     .eq('role', 'employee');
     
   if (userError) {
-    console.error('Error deleting employee from users table:', userError);
     throw new Error(userError.message);
   }
   
@@ -415,7 +375,6 @@ export const deleteEmployee = async (id: string): Promise<void> => {
   const { error: authError } = await supabase.auth.admin.deleteUser(id);
   
   if (authError) {
-    console.error('Error deleting employee auth account:', authError);
     throw new Error(authError.message);
   }
 };
@@ -454,7 +413,6 @@ export const addEmployeeSalary = async (
     if (error) throw error;
     return newSalary;
   } catch (error) {
-    console.error('Error adding employee salary:', error);
     throw error;
   }
 };
@@ -468,7 +426,6 @@ export const getEmployeeSalaries = async (employeeId: string): Promise<EmployeeS
     .order('created_at', { ascending: false });
     
   if (error) {
-    console.error('Error fetching employee salaries:', error);
     throw new Error(error.message);
   }
   
@@ -481,7 +438,6 @@ export const addEmployeeActivity = async (activity: Omit<EmployeeActivity, 'id' 
   try {
     await supabase.rpc('create_employee_activities_if_not_exists');
   } catch (error) {
-    console.error('Error ensuring employee_activities table:', error);
   }
   
   const { data, error } = await supabase
@@ -498,7 +454,6 @@ export const addEmployeeActivity = async (activity: Omit<EmployeeActivity, 'id' 
     .single();
     
   if (error) {
-    console.error('Error adding employee activity:', error);
     throw new Error(error.message);
   }
   
@@ -515,7 +470,6 @@ export const getEmployeeActivities = async (employeeId: string, limit = 20): Pro
     .limit(limit);
     
   if (error) {
-    console.error('Error fetching employee activities:', error);
     throw new Error(error.message);
   }
   
@@ -529,13 +483,11 @@ export const getEmployeeStats = async (): Promise<{
   inactive: number;
 }> => {
   try {
-    
-    
+
     // Obtener información del usuario actual
     const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
-      console.error('No authenticated user found');
       return { total: 0, active: 0, inactive: 0 };
     }
     
@@ -549,7 +501,6 @@ export const getEmployeeStats = async (): Promise<{
       .single();
       
     if (userError) {
-      console.error('Error fetching current user organization:', userError);
     }
     
     if (userData && userData.organization_id) {
@@ -562,14 +513,10 @@ export const getEmployeeStats = async (): Promise<{
         organizationId = localOrgId;
         
       } else {
-        console.error('No organization ID found for user or in localStorage');
         return { total: 0, active: 0, inactive: 0 };
       }
     }
-    
-    
-    
-    
+
     // Consulta directa para estadísticas
     // إجمالي عدد الموظفين
     const { count: total, error: totalError } = await supabase
@@ -579,7 +526,6 @@ export const getEmployeeStats = async (): Promise<{
       .eq('organization_id', organizationId);
       
     if (totalError) {
-      console.error('Error fetching total employees count:', totalError);
       return { total: 0, active: 0, inactive: 0 };
     }
     
@@ -592,7 +538,6 @@ export const getEmployeeStats = async (): Promise<{
       .eq('is_active', true);
       
     if (activeError) {
-      console.error('Error fetching active employees count:', activeError);
       return { total: 0, active: 0, inactive: 0 };
     }
     
@@ -605,7 +550,6 @@ export const getEmployeeStats = async (): Promise<{
       .eq('is_active', false);
       
     if (inactiveError) {
-      console.error('Error fetching inactive employees count:', inactiveError);
       return { total: 0, active: 0, inactive: 0 };
     }
     
@@ -614,11 +558,9 @@ export const getEmployeeStats = async (): Promise<{
       active: active || 0,
       inactive: inactive || 0
     };
-    
-    
+
     return stats;
   } catch (error) {
-    console.error('Error fetching employee stats:', error);
     return {
       total: 0,
       active: 0,
@@ -641,7 +583,6 @@ export const getEmployeePerformance = async (employeeId: string): Promise<{
       .eq('employee_id', employeeId);
       
     if (ordersError) {
-      console.error('Error fetching employee orders count:', ordersError);
       throw ordersError;
     }
     
@@ -652,7 +593,6 @@ export const getEmployeePerformance = async (employeeId: string): Promise<{
       .eq('employee_id', employeeId);
       
     if (salesError) {
-      console.error('Error fetching employee sales total:', salesError);
       throw salesError;
     }
     
@@ -667,7 +607,6 @@ export const getEmployeePerformance = async (employeeId: string): Promise<{
       .eq('assigned_to', employeeId);
       
     if (servicesError) {
-      console.error('Error fetching employee services count:', servicesError);
       throw servicesError;
     }
     
@@ -677,7 +616,6 @@ export const getEmployeePerformance = async (employeeId: string): Promise<{
       servicesCount: servicesCount || 0
     };
   } catch (error) {
-    console.error('Error fetching employee performance:', error);
     return {
       ordersCount: 0,
       salesTotal: 0,
@@ -691,7 +629,6 @@ export const checkCurrentUserStatus = async (): Promise<any> => {
   try {
     const { data: { user }, error } = await supabase.auth.getUser();
     if (error) {
-      console.error('Error getting current user:', error);
       return { error };
     }
     
@@ -699,9 +636,7 @@ export const checkCurrentUserStatus = async (): Promise<any> => {
       
       return { status: 'no-user' };
     }
-    
-    
-    
+
     return {
       status: 'authenticated',
       user: {
@@ -711,7 +646,6 @@ export const checkCurrentUserStatus = async (): Promise<any> => {
       }
     };
   } catch (err) {
-    console.error('Unexpected error checking user status:', err);
     return { error: err };
   }
 };
@@ -723,7 +657,6 @@ export const updateEmployeesWithMissingOrganizationId = async (): Promise<void> 
     const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
-      console.error('No authenticated user found when updating employees');
       return;
     }
     
@@ -737,7 +670,6 @@ export const updateEmployeesWithMissingOrganizationId = async (): Promise<void> 
       .single();
       
     if (userError) {
-      console.error('Error fetching current user organization:', userError);
       return;
     }
     
@@ -751,7 +683,6 @@ export const updateEmployeesWithMissingOrganizationId = async (): Promise<void> 
         organizationId = localOrgId;
         
       } else {
-        console.error('No organization ID found for user or in localStorage');
         return;
       }
     }
@@ -764,7 +695,6 @@ export const updateEmployeesWithMissingOrganizationId = async (): Promise<void> 
       .is('organization_id', null);
     
     if (findError) {
-      console.error('Error finding employees without organization ID:', findError);
       return;
     }
     
@@ -772,27 +702,21 @@ export const updateEmployeesWithMissingOrganizationId = async (): Promise<void> 
       
       return;
     }
-    
-    
-    
+
     // تحديث كل موظف ليتبع المؤسسة الحالية
     for (const employee of employeesWithoutOrg) {
-      
-      
+
       const { error: updateError } = await supabase
         .from('users')
         .update({ organization_id: organizationId })
         .eq('id', employee.id);
       
       if (updateError) {
-        console.error(`Error updating organization ID for employee ${employee.id}:`, updateError);
       } else {
         
       }
     }
-    
-    
+
   } catch (error) {
-    console.error('Error in updateEmployeesWithMissingOrganizationId:', error);
   }
-}; 
+};

@@ -86,7 +86,6 @@ export const addProductLocally = async (productData: InsertProduct): Promise<Loc
     await productsStore.setItem(tempId, newLocalProduct);
     return newLocalProduct;
   } catch (error) {
-    console.error('خطأ في إضافة المنتج محلياً:', error);
     return null;
   }
 };
@@ -107,7 +106,6 @@ export const updateProductLocally = async (productId: string, updates: UpdatePro
           return await saveProductLocally(updatedProduct);
         }
       } catch (error) {
-        console.warn('فشل تحديث المنتج عبر الإنترنت:', error);
       }
     }
     
@@ -123,7 +121,6 @@ export const updateProductLocally = async (productId: string, updates: UpdatePro
     await productsStore.setItem(productId, updatedLocalProduct);
     return updatedLocalProduct;
   } catch (error) {
-    console.error('خطأ في تحديث المنتج محلياً:', error);
     return null;
   }
 };
@@ -138,7 +135,6 @@ export const deleteProductLocally = async (productId: string): Promise<boolean> 
         await productsStore.removeItem(productId);
         return true;
       } catch (error) {
-        console.warn('فشل حذف المنتج عبر الإنترنت:', error);
       }
     }
     
@@ -146,7 +142,6 @@ export const deleteProductLocally = async (productId: string): Promise<boolean> 
     await productsStore.removeItem(productId);
     return true;
   } catch (error) {
-    console.error('خطأ في حذف المنتج محلياً:', error);
     return false;
   }
 };
@@ -201,7 +196,6 @@ export const syncLocalProducts = async (): Promise<{ success: number; failed: nu
         }
       }
     } catch (error) {
-      console.error(`فشل مزامنة المنتج ${product.id}:`, error);
       failed++;
     }
   }
@@ -229,7 +223,6 @@ export const getProducts = async (organizationId?: string, includeInactive: bool
         
         return onlineProducts;
       } catch (error) {
-        console.warn('فشل جلب المنتجات عبر الإنترنت:', error);
       }
     }
     
@@ -248,7 +241,6 @@ export const getProducts = async (organizationId?: string, includeInactive: bool
     
     return localProducts;
   } catch (error) {
-    console.error('خطأ في جلب المنتجات:', error);
     return [];
   }
 };
@@ -269,14 +261,12 @@ export const getProductById = async (id: string): Promise<Product | null> => {
           return onlineProduct;
         }
       } catch (error) {
-        console.warn(`فشل جلب المنتج ${id} عبر الإنترنت:`, error);
       }
     }
     
     // جلب المنتج محلياً
     return await productsStore.getItem<LocalProduct>(id);
   } catch (error) {
-    console.error(`خطأ في جلب المنتج ${id}:`, error);
     return null;
   }
 };
@@ -297,14 +287,12 @@ export const createProduct = async (productData: InsertProduct): Promise<Product
           return newProduct;
         }
       } catch (error) {
-        console.warn('فشل إنشاء المنتج عبر الإنترنت:', error);
       }
     }
     
     // إنشاء المنتج محلياً إذا لم يكن متصلاً أو فشلت العملية عبر الإنترنت
     return await addProductLocally(productData);
   } catch (error) {
-    console.error('خطأ في إنشاء المنتج:', error);
     return null;
   }
 };
@@ -316,7 +304,6 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
   try {
     return await updateProductLocally(id, updates);
   } catch (error) {
-    console.error(`خطأ في تحديث المنتج ${id}:`, error);
     return null;
   }
 };
@@ -328,7 +315,6 @@ export const deleteProduct = async (id: string): Promise<void> => {
   try {
     await deleteProductLocally(id);
   } catch (error) {
-    console.error(`خطأ في حذف المنتج ${id}:`, error);
   }
 };
 
@@ -343,7 +329,6 @@ export const syncProducts = async (): Promise<{ success: number; failed: number 
   try {
     return await syncLocalProducts();
   } catch (error) {
-    console.error('خطأ في مزامنة المنتجات:', error);
     return { success: 0, failed: 0 };
   }
-}; 
+};

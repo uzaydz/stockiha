@@ -63,7 +63,6 @@ export const checkDomainStatus = async (organizationId: string, domain: string):
       .single();
       
     if (orgError || !orgData) {
-      console.error('خطأ في التحقق من حالة النطاق:', orgError);
       return { 
         status: 'error', 
         message: 'خطأ في التحقق من حالة النطاق',
@@ -107,7 +106,6 @@ export const checkDomainStatus = async (organizationId: string, domain: string):
     }
     
   } catch (error) {
-    console.error('خطأ في التحقق من حالة النطاق:', error);
     return { 
       status: 'error', 
       message: 'حدث خطأ غير متوقع أثناء التحقق من النطاق',
@@ -155,7 +153,6 @@ export const updateOrganizationDomain = async (organizationId: string, domain: s
           };
         }
       } catch (apiError) {
-        console.error('خطأ في API ربط النطاق:', apiError);
         // نستمر رغم الخطأ لتحديث قاعدة البيانات على الأقل
       }
     }
@@ -223,7 +220,6 @@ export const checkDomainAvailability = async (domain: string, currentOrganizatio
     const { data, error } = await query.maybeSingle();
     
     if (error) {
-      console.error('خطأ أثناء التحقق من توفر النطاق:', error);
       return { available: false, message: 'حدث خطأ أثناء التحقق من توفر النطاق' };
     }
     
@@ -235,7 +231,6 @@ export const checkDomainAvailability = async (domain: string, currentOrganizatio
     return { available: true };
     
   } catch (error) {
-    console.error('خطأ أثناء التحقق من توفر النطاق:', error);
     return { available: false, message: 'حدث خطأ غير متوقع أثناء التحقق من توفر النطاق' };
   }
-}; 
+};

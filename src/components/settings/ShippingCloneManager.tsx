@@ -6,4 +6,4 @@ interface ShippingCloneManagerProps {
 
 export default function ShippingCloneManager({ organizationId }: ShippingCloneManagerProps) {
   return <ShippingCloneManagerView organizationId={organizationId} />;
-} 
+}

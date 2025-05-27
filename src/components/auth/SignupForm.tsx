@@ -42,7 +42,6 @@ const SignupForm = () => {
       }
     } catch (error) {
       toast.error('حدث خطأ أثناء إنشاء الحساب');
-      console.error(error);
     } finally {
       setIsLoading(false);
     }
@@ -133,4 +132,4 @@ const SignupForm = () => {
   );
 };
 
-export default SignupForm; 
+export default SignupForm;

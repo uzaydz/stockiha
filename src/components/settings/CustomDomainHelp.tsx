@@ -150,4 +150,4 @@ const CustomDomainHelp: React.FC<CustomDomainHelpProps> = ({ domain }) => {
   );
 };
 
-export default CustomDomainHelp; 
+export default CustomDomainHelp;

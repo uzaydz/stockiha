@@ -94,7 +94,6 @@ export function SuppliersList() {
       setSuppliers(data);
       setFilteredSuppliers(data);
     } catch (error) {
-      console.error('Error loading suppliers:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء تحميل قائمة الموردين',
@@ -144,7 +143,6 @@ export function SuppliersList() {
   // إضافة أو تعديل مورد
   const handleSaveSupplier = async (data: Omit<Supplier, 'id' | 'created_at' | 'updated_at' | 'rating'>) => {
     if (!organizationId) {
-      console.error('No organization ID available');
       toast({
         title: 'خطأ',
         description: 'معرف المؤسسة غير متوفر، يرجى تسجيل الدخول مرة أخرى',
@@ -154,14 +152,11 @@ export function SuppliersList() {
     }
     
     try {
-      
-      
-      
+
       if (selectedSupplier) {
         // تحديث مورد موجود
         const updatedSupplier = await updateSupplier(organizationId, selectedSupplier.id, data);
-        
-        
+
         if (!updatedSupplier) {
           throw new Error('فشل تحديث المورد');
         }
@@ -173,8 +168,7 @@ export function SuppliersList() {
       } else {
         // إضافة مورد جديد
         const newSupplier = await createSupplier(organizationId, { ...data, rating: 0 });
-        
-        
+
         if (!newSupplier) {
           throw new Error('فشل إضافة المورد');
         }
@@ -189,11 +183,9 @@ export function SuppliersList() {
       setDialogOpen(false);
       setSelectedSupplier(null);
     } catch (error) {
-      console.error('Error saving supplier:', error);
       let errorMessage = 'حدث خطأ أثناء حفظ بيانات المورد';
       
       if (error instanceof Error) {
-        console.error('Error details:', error.message);
         errorMessage = `${errorMessage}: ${error.message}`;
       }
       
@@ -232,7 +224,6 @@ export function SuppliersList() {
       setConfirmDialogOpen(false);
       setSelectedSupplier(null);
     } catch (error) {
-      console.error('Error deleting supplier:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء حذف المورد',
@@ -436,4 +427,4 @@ export function SuppliersList() {
       </Dialog>
     </Card>
   );
-} 
+}

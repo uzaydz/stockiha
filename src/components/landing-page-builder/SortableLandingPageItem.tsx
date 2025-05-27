@@ -177,4 +177,4 @@ const SortableLandingPageItem: React.FC<SortableLandingPageItemProps> = ({
   );
 };
 
-export default SortableLandingPageItem; 
+export default SortableLandingPageItem;

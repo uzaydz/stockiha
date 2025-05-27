@@ -280,4 +280,4 @@ export function NavbarThemeToggle({
 // 
 // .animate-ripple {
 //   animation: ripple 1s ease-out forwards;
-// } 
+// }

@@ -169,4 +169,4 @@ const ComponentsPanel: React.FC<ComponentsPanelProps> = ({ onAddComponent }) => 
   );
 };
 
-export default ComponentsPanel; 
+export default ComponentsPanel;

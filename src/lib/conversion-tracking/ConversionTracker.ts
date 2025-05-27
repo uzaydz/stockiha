@@ -72,8 +72,6 @@ class ConversionTracker {
         return;
       }
 
-      console.log('🔍 [ConversionTracker] جلب إعدادات التتبع للمنتج:', this.productId);
-
       // محاولة جلب الإعدادات من Edge Function أولاً (نفس طريقة ProductTrackingWrapper)
       const SUPABASE_URL = 'https://wrnssatuvmumsczyldth.supabase.co';
       const CONVERSION_SETTINGS_URL = `${SUPABASE_URL}/functions/v1/conversion-settings`;
@@ -87,7 +85,6 @@ class ConversionTracker {
       });
 
       if (!response.ok) {
-        console.warn('فشل في Edge Function، محاولة API route المحلي...');
         // fallback إلى API route المحلي
         response = await fetch(`/api/conversion-settings/${this.productId}`, {
           headers: { 'Cache-Control': 'max-age=300' } // 5 دقائق
@@ -96,14 +93,11 @@ class ConversionTracker {
       
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ [ConversionTracker] تم جلب إعدادات التحويل:', data);
         this.settings = data.settings;
         this.cacheSettings(data.settings);
       } else {
-        console.error('❌ [ConversionTracker] فشل في جلب إعدادات التتبع من جميع المصادر');
       }
     } catch (error) {
-      console.warn('❌ [ConversionTracker] فشل في تحميل إعدادات التتبع:', error);
     }
   }
 
@@ -116,7 +110,6 @@ class ConversionTracker {
     }
 
     if (!this.settings) {
-      console.warn('إعدادات التتبع غير متوفرة');
       return;
     }
 
@@ -174,13 +167,9 @@ class ConversionTracker {
     // تسجيل الحدث في قاعدة البيانات (بشكل غير متزامن)
     try {
       await this.logEventToDatabase(event);
-      console.log('✅ تم تسجيل الحدث في قاعدة البيانات بنجاح');
     } catch (dbError) {
-      console.error('❌ فشل في تسجيل الحدث في قاعدة البيانات:', dbError);
       // لا نوقف العملية، tracking الأساسي يكفي
     }
-    
-    console.log('✅ تم إرسال الحدث بنجاح إلى جميع المنصات المفعلة');
   }
 
   /**
@@ -211,34 +200,22 @@ class ConversionTracker {
         }
 
         window.fbq('track', this.mapEventType(event.event_type), eventData, fbqOptions);
-        console.log('✅ تم إرسال الحدث إلى Facebook Pixel (Client-side):', {
-          event_type: this.mapEventType(event.event_type),
-          event_id: eventId,
-          data: eventData,
-          options: fbqOptions
-        });
       }
 
       // Facebook Conversion API (Server-side)
       if (this.settings?.facebook.conversion_api_enabled && this.settings.facebook.access_token) {
-        console.log('🔄 محاولة إرسال إلى Facebook Conversion API...');
         try {
           await this.sendToFacebookConversionAPI(event, eventId);
-          console.log('✅ تم إرسال الحدث إلى Facebook Conversion API بنجاح');
         } catch (conversionApiError) {
-          console.warn('⚠️ فشل في إرسال إلى Facebook Conversion API:', conversionApiError);
           // لا نوقف العملية، Client-side pixel يكفي
           // فقط نسجل تحذير بدلاً من خطأ
         }
       } else {
         if (!this.settings?.facebook.access_token) {
-          console.log('🔕 Facebook Conversion API معطل - access token مفقود');
         } else {
-          console.log('🔕 Facebook Conversion API معطل في الإعدادات');
         }
       }
     } catch (error) {
-      console.error('خطأ في إرسال إلى Facebook:', error);
     }
   }
 
@@ -334,21 +311,6 @@ class ConversionTracker {
       test_event_code: this.settings?.test_mode ? this.settings?.facebook?.test_event_code : undefined
     };
 
-    console.log('🔵 إرسال payload محسن لـ Event Match Quality:', {
-      pixel_id: this.settings?.facebook.pixel_id,
-      event_name: payload.data[0].event_name,
-      event_id: eventId,
-      external_id: externalId,
-      has_phone: !!event.user_data?.phone,
-      has_fbp: !!fbp,
-      has_fbc: !!fbc,
-      test_event_code: payload.test_event_code,
-      value: payload.data[0].custom_data.value,
-      currency: payload.data[0].custom_data.currency,
-      user_agent_length: userAgent.length,
-      timezone: timezone
-    });
-
     // محاولة إرسال إلى Facebook Conversion API مع handling أفضل للأخطاء
     let apiUrl = '/api/facebook-conversion-api';
     
@@ -359,8 +321,6 @@ class ConversionTracker {
         apiUrl = `${origin}/api/facebook-conversion-api`;
       }
     }
-
-    console.log('📡 إرسال إلى Facebook Conversion API:', apiUrl);
 
     const response = await fetch(apiUrl, {
       method: 'POST',
@@ -383,57 +343,20 @@ class ConversionTracker {
         errorText = await response.text();
         errorData = JSON.parse(errorText);
       } catch (parseError) {
-        console.error('❌ فشل في parsing خطأ Facebook API:', parseError);
         errorData = { message: errorText || 'خطأ غير معروف' };
       }
       
-      console.error('❌ فشل Facebook Conversion API:', {
-        status: response.status,
-        statusText: response.statusText,
-        url: apiUrl,
-        error: errorData,
-        request_info: {
-          pixel_id: this.settings?.facebook.pixel_id,
-          test_mode: this.settings?.test_mode,
-          has_access_token: !!this.settings?.facebook.access_token,
-          event_count: payload.data?.length
-        }
-      });
-      
       // في حالة خطأ 400، أظهر تفاصيل أكثر
       if (response.status === 400) {
-        console.error('🔍 تشخيص خطأ 400 - فحص البيانات المُرسلة:', {
-          payload_sample: {
-            event_name: payload.data?.[0]?.event_name,
-            user_data_keys: Object.keys(payload.data?.[0]?.user_data || {}),
-            custom_data_keys: Object.keys(payload.data?.[0]?.custom_data || {}),
-            has_test_event_code: !!payload.test_event_code
-          }
-        });
       }
       
       throw new Error(`Facebook Conversion API فشل: ${response.status} - ${errorData.error || errorData.message || 'خطأ غير معروف'}`);
     }
 
     const responseData = await response.json();
-    console.log('✅ استجابة Facebook Conversion API:', {
-      success: responseData.success,
-      events_received: responseData.events_received,
-      fbtrace_id: responseData.fbtrace_id,
-      messages: responseData.messages
-    });
 
     // طباعة تفاصيل إضافية في وضع الاختبار
     if (this.settings?.test_mode) {
-      console.log('🧪 وضع الاختبار - تفاصيل Event Match Quality:', {
-        event_id: eventId,
-        external_id: externalId,
-        fbp_status: fbp ? 'موجود' : 'مفقود',
-        fbc_status: fbc ? 'موجود' : 'مفقود',
-        user_agent_valid: userAgent.length > 10,
-        timezone: timezone,
-        response: responseData
-      });
     }
   }
 
@@ -446,7 +369,6 @@ class ConversionTracker {
       for (const cookie of cookies) {
         const [name, value] = cookie.trim().split('=');
         if (name === '_fbp' && value) {
-          console.log('✅ تم جلب Facebook Browser ID من cookie:', value);
           return value;
         }
       }
@@ -460,20 +382,15 @@ class ConversionTracker {
         const expirationDate = new Date();
         expirationDate.setTime(expirationDate.getTime() + (90 * 24 * 60 * 60 * 1000)); // 90 يوم
         document.cookie = `_fbp=${generatedFbp}; expires=${expirationDate.toUTCString()}; path=/; domain=${window.location.hostname}`;
-        
-        console.log('✅ تم إنشاء Facebook Browser ID جديد:', generatedFbp);
         return generatedFbp;
       } catch (cookieError) {
-        console.warn('⚠️ فشل في إنشاء cookie _fbp، استخدام قيمة مؤقتة:', generatedFbp);
         return generatedFbp;
       }
       
     } catch (error) {
-      console.error('❌ خطأ في جلب Facebook Browser ID:', error);
       
       // إنشاء قيمة احتياطية
       const fallbackFbp = `fb.1.${Date.now()}.fallback`;
-      console.log('🆘 استخدام Facebook Browser ID احتياطي:', fallbackFbp);
       return fallbackFbp;
     }
   }
@@ -498,8 +415,6 @@ class ConversionTracker {
         } catch {
           // تجاهل أخطاء localStorage
         }
-        
-        console.log('✅ تم جلب Facebook Click ID من URL:', fbc);
         return fbc;
       }
       
@@ -513,7 +428,6 @@ class ConversionTracker {
           const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 أيام
           
           if (age < maxAge) {
-            console.log('✅ تم جلب Facebook Click ID من localStorage:', storedFbc);
             return storedFbc;
           } else {
             // انتهت صلاحية fbc، احذفه
@@ -533,7 +447,6 @@ class ConversionTracker {
           
           if (referrerFbclid) {
             const fbc = `fb.1.${Date.now()}.${referrerFbclid}`;
-            console.log('✅ تم جلب Facebook Click ID من referrer:', fbc);
             
             // حفظ في localStorage
             try {
@@ -556,19 +469,15 @@ class ConversionTracker {
         for (const cookie of cookies) {
           const [name, value] = cookie.trim().split('=');
           if (name === '_fbc' && value) {
-            console.log('✅ تم جلب Facebook Click ID من cookie:', value);
             return value;
           }
         }
       } catch {
         // تجاهل أخطاء parsing cookies
       }
-      
-      console.log('⚠️ لم يتم العثور على Facebook Click ID');
       return undefined;
       
     } catch (error) {
-      console.error('❌ خطأ في جلب Facebook Click ID:', error);
       return undefined;
     }
   }
@@ -590,7 +499,6 @@ class ConversionTracker {
         window.gtag('event', 'conversion', conversionData);
       }
     } catch (error) {
-      console.error('خطأ في إرسال إلى Google:', error);
     }
   }
 
@@ -612,7 +520,6 @@ class ConversionTracker {
         window.ttq.track(this.mapEventTypeForTikTok(event.event_type), eventData);
       }
     } catch (error) {
-      console.error('خطأ في إرسال إلى TikTok:', error);
     }
   }
 
@@ -630,12 +537,6 @@ class ConversionTracker {
         custom_data: event.custom_data,
         event_id: this.generateEventId(event)
       };
-
-      console.log('📊 تسجيل حدث في قاعدة البيانات:', {
-        product_id: event.product_id,
-        event_type: event.event_type,
-        event_id: eventData.event_id
-      });
 
       // إضافة timeout للطلب
       const controller = new AbortController();
@@ -656,27 +557,22 @@ class ConversionTracker {
 
         if (!response.ok) {
           const errorData = await response.text();
-          console.warn(`⚠️ فشل تسجيل الحدث في قاعدة البيانات (${response.status}): ${errorData}`);
           // لا نرمي خطأ، فقط نسجل التحذير
           return;
         }
 
         const responseData = await response.json();
-        console.log('✅ تم تسجيل الحدث في قاعدة البيانات:', responseData);
         
       } catch (fetchError) {
         clearTimeout(timeoutId);
         
         if (fetchError.name === 'AbortError') {
-          console.warn('⚠️ انتهت مهلة تسجيل الحدث في قاعدة البيانات (timeout)');
         } else {
-          console.warn('⚠️ خطأ في الشبكة أثناء تسجيل الحدث:', fetchError.message);
         }
         // لا نرمي خطأ، فقط نسجل التحذير
       }
       
     } catch (error) {
-      console.warn('⚠️ خطأ عام في تسجيل الحدث في قاعدة البيانات:', error);
       // لا نرمي خطأ، فقط نسجل التحذير - نريد أن يستمر tracking الأساسي
     }
   }
@@ -720,7 +616,6 @@ class ConversionTracker {
     
     // تحويل إلى string موجب وإضافة timestamp مختصر
     const uniqueId = `${Math.abs(hash).toString(36)}_${timestamp.toString(36)}`;
-    console.log(`🔑 تم إنشاء Event ID فريد: ${uniqueId}`);
     
     return uniqueId;
   }
@@ -766,4 +661,4 @@ export function getConversionTracker(productId: string): ConversionTracker {
 }
 
 export { ConversionTracker };
-export type { ConversionEvent, ConversionSettings }; 
+export type { ConversionEvent, ConversionSettings };

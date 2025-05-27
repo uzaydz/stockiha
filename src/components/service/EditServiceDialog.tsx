@@ -120,7 +120,6 @@ const EditServiceDialog = ({
       onOpenChange(false);
       onServiceUpdated();
     } catch (error) {
-      console.error('Error updating service:', error);
       toast.error('حدث خطأ أثناء تحديث الخدمة');
     } finally {
       setIsSubmitting(false);
@@ -382,4 +381,4 @@ const EditServiceDialog = ({
   );
 };
 
-export default EditServiceDialog; 
+export default EditServiceDialog;

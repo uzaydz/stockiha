@@ -181,4 +181,4 @@ const MarketplaceSection = () => {
   );
 };
 
-export default MarketplaceSection; 
+export default MarketplaceSection;

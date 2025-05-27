@@ -92,4 +92,4 @@ export interface CurrencyStats {
   total_sales_dinar: number;
   total_transactions: number;
   latest_transaction: string | null;
-} 
+}

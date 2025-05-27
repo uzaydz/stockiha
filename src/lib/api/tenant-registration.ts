@@ -39,11 +39,9 @@ export const continueWithOrganization = async (
           });
 
         if (subError) {
-          console.error('Error creating trial subscription:', subError);
           // لا نريد فشل عملية التسجيل بالكامل إذا فشل إنشاء الاشتراك التجريبي
         }
       } catch (subCreateError) {
-        console.error('Exception in subscription creation:', subCreateError);
       }
     }
 
@@ -70,22 +68,13 @@ export const continueWithOrganization = async (
       organization_id: organizationId,
       is_org_admin: true
     };
-    
-    
 
     const { error: userError } = await supabaseAdmin
       .from('users')
       .insert(userData);
 
     if (userError) {
-      console.error('Error creating tenant user record:', userError);
       // تفاصيل أكثر عن الخطأ
-      console.error('User creation error details:', {
-        message: userError.message,
-        code: userError.code,
-        details: userError.details,
-        hint: userError.hint
-      });
       return { success: false, error: userError };
     }
 
@@ -96,7 +85,6 @@ export const continueWithOrganization = async (
       organizationId: organizationId
     };
   } catch (error) {
-    console.error('Error continuing organization setup:', error);
     return { success: false, error: error as Error };
   }
 };
@@ -119,7 +107,6 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
       .maybeSingle();
 
     if (subdomainError) {
-      console.error('Error checking subdomain availability:', subdomainError);
       return { success: false, error: subdomainError };
     }
 
@@ -144,7 +131,6 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
     });
 
     if (authError) {
-      console.error('Error creating tenant auth account:', authError);
       // Check if error is because user already exists
       if (authError.message.includes('User already registered')) {
         return { 
@@ -171,7 +157,6 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
         .single();
 
       if (trialPlanError) {
-        console.error('Error fetching trial plan:', trialPlanError);
         // في حالة عدم وجود خطة تجريبية، نستخدم الخطة الأساسية
         
       }
@@ -193,9 +178,7 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
           trial_end_date: trialEndDate.toISOString() // تخزين تاريخ انتهاء الفترة التجريبية
         }
       };
-      
-      
-      
+
       // استخدام الوظيفة البسيطة لإنشاء المؤسسة بدلاً من الوظائف الأخرى
       const result = await createOrganizationSimple(
         data.organizationName,
@@ -213,8 +196,6 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
           trialEndDate
         );
       } 
-      
-      console.warn('Simple creation failed, trying legacy approaches...');
       
       // إذا فشلت الطريقة البسيطة، نحاول استخدام الوظيفة المباشرة
       const directResult = await createOrganizationDirect(
@@ -234,8 +215,6 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
         );
       }
       
-      console.warn('Direct creation failed, trying legacy approaches...');
-      
       // إذا فشل الإنشاء المباشر، نحاول استدعاء وظيفة RPC
       try {
         const { data: transactionData, error: transactionError } = await supabaseAdmin.rpc(
@@ -247,7 +226,6 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
         );
 
         if (transactionError) {
-          console.error('Error in create_organization_with_audit:', transactionError);
         } else if (transactionData) {
           return await continueWithOrganization(
             transactionData,
@@ -258,7 +236,6 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
           );
         }
       } catch (rpcError) {
-        console.error('Exception during RPC call:', rpcError);
       }
       
       // محاولة أخيرة - إنشاء المؤسسة مباشرة
@@ -301,10 +278,7 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
               trialEndDate
             );
           }
-          
-          console.error('Error in create_organization_simple:', simpleError);
         } catch (simpleError) {
-          console.error('Exception during create_organization_simple:', simpleError);
         }
         
         // إذا لم تكن المنظمة موجودة، حاول إنشاءها مع تجنب علامة ON CONFLICT
@@ -335,7 +309,6 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
             }
             
             // في حالة فشل الحلول البديلة
-            console.error('Error inserting organization:', insertError);
             return { success: false, error: insertError };
           }
           
@@ -363,7 +336,6 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
           );
         } catch (createError) {
           // في حالة أي استثناء، نحاول طريقة أخرى
-          console.error('Exception during organization creation:', createError);
           
           // محاولة أخيرة باستخدام insert & select
           const { data: orgData, error: orgError } = await supabaseAdmin
@@ -373,7 +345,6 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
             .single();
             
           if (orgError) {
-            console.error('Error in final creation attempt:', orgError);
             return { success: false, error: orgError };
           }
           
@@ -394,15 +365,12 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
           );
         }
       } catch (finalError) {
-        console.error('Error in final creation attempt:', finalError);
         return { success: false, error: finalError as Error };
       }
     } catch (innerError) {
-      console.error('Inner error in organization creation process:', innerError);
       return { success: false, error: innerError as Error };
     }
   } catch (error) {
-    console.error('Error registering tenant:', error);
     return { success: false, error: error as Error };
   }
-}; 
+};

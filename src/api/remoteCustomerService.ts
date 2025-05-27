@@ -38,7 +38,6 @@ export async function fetchCustomers(options: {
       pagination: response.data.pagination
     };
   } catch (error) {
-    console.error('خطأ في جلب العملاء:', error);
     throw error;
   }
 }
@@ -71,7 +70,6 @@ export async function createRemoteCustomer(customer: LocalCustomer) {
     
     return response.data;
   } catch (error) {
-    console.error('خطأ في إنشاء العميل على الخادم البعيد:', error);
     
     // تحديث حالة المزامنة إلى خطأ
     const errorCustomer: LocalCustomer = {
@@ -116,7 +114,6 @@ export async function updateRemoteCustomer(customer: LocalCustomer) {
     
     return response.data;
   } catch (error) {
-    console.error('خطأ في تحديث العميل على الخادم البعيد:', error);
     
     // تحديث حالة المزامنة إلى خطأ
     const errorCustomer: LocalCustomer = {
@@ -145,7 +142,6 @@ export async function deleteRemoteCustomer(customerId: string) {
     
     return { success: true };
   } catch (error) {
-    console.error('خطأ في حذف العميل من الخادم البعيد:', error);
     
     // تحديث حالة المزامنة إلى خطأ للعميل المحلي إذا كان لا يزال موجودًا
     const customer = await customersStore.getItem<LocalCustomer>(customerId);
@@ -173,7 +169,6 @@ export async function fetchCustomerById(customerId: string) {
     const response = await apiClient.get(`/customers/${customerId}`);
     return response.data;
   } catch (error) {
-    console.error(`خطأ في جلب العميل بالمعرف ${customerId}:`, error);
     throw error;
   }
 }
@@ -212,7 +207,6 @@ export async function createRemoteAddress(address: LocalAddress) {
     
     return response.data;
   } catch (error) {
-    console.error('خطأ في إنشاء العنوان على الخادم البعيد:', error);
     
     // تحديث حالة المزامنة إلى خطأ
     const errorAddress: LocalAddress = {
@@ -237,7 +231,6 @@ export async function fetchCustomerAddresses(customerId: string) {
     const response = await apiClient.get(`/customers/${customerId}/addresses`);
     return response.data;
   } catch (error) {
-    console.error(`خطأ في جلب عناوين العميل ${customerId}:`, error);
     throw error;
   }
 }
@@ -275,7 +268,6 @@ export async function updateRemoteAddress(address: LocalAddress) {
     
     return response.data;
   } catch (error) {
-    console.error('خطأ في تحديث العنوان على الخادم البعيد:', error);
     
     // تحديث حالة المزامنة إلى خطأ
     const errorAddress: LocalAddress = {
@@ -304,7 +296,6 @@ export async function deleteRemoteAddress(addressId: string) {
     
     return { success: true };
   } catch (error) {
-    console.error('خطأ في حذف العنوان من الخادم البعيد:', error);
     
     // تحديث حالة المزامنة إلى خطأ للعنوان المحلي إذا كان لا يزال موجودًا
     const address = await addressesStore.getItem<LocalAddress>(addressId);
@@ -322,4 +313,4 @@ export async function deleteRemoteAddress(addressId: string) {
     
     throw error;
   }
-} 
+}

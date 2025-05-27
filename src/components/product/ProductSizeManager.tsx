@@ -121,7 +121,6 @@ const ProductSizeManager = ({
       form.setValue('barcode', generatedBarcode);
       toast.success('تم توليد الباركود بنجاح');
     } catch (error) {
-      console.error('Error generating barcode:', error);
       toast.error('حدث خطأ أثناء توليد الباركود');
     } finally {
       setGeneratingBarcode(false);
@@ -447,4 +446,4 @@ const ProductSizeManager = ({
   );
 };
 
-export default ProductSizeManager; 
+export default ProductSizeManager;

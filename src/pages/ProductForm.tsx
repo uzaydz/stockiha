@@ -25,11 +25,9 @@ import { Category, Subcategory } from '@/lib/api/categories';
 
 export default function ProductForm() {
   const { id: productId } = useParams<{ id: string }>();
-  console.log('ProductForm - productId:', productId, 'isEditMode should be:', !!productId);
   const navigate = useNavigate();
   const { currentOrganization } = useTenant();
   const organizationIdFromTenant = currentOrganization?.id;
-  console.log('[ProductForm] Initial organizationIdFromTenant from useTenant:', organizationIdFromTenant);
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
@@ -119,11 +117,9 @@ export default function ProductForm() {
   const watchThumbnailImage = form.watch('thumbnail_image');
 
   const onSubmit = async (data: ProductFormValues) => {
-    console.log('[ProductForm onSubmit] Original form data:', data);
     setIsSubmitting(true);
 
     if (!organizationIdFromTenant && !data.organization_id) {
-      console.error("[ProductForm onSubmit] Organization ID is missing from both tenant and form data.");
       toast.error("خطأ حرج: معرّف المؤسسة مفقود. لا يمكن إنشاء/تحديد المنتج.");
       setIsSubmitting(false);
       return;
@@ -131,7 +127,6 @@ export default function ProductForm() {
 
     const currentOrganizationId = data.organization_id || organizationIdFromTenant;
     if (!currentOrganizationId) { // Double check, should be caught by above
-        console.error("[ProductForm onSubmit] Critical: Organization ID resolved to undefined.");
         toast.error("خطأ: لم يتم تحديد معرّف المؤسسة.");
         setIsSubmitting(false);
         return;
@@ -212,24 +207,16 @@ export default function ProductForm() {
       // No longer need to delete advancedSettings based on mode as it's always passed as camelCase
 
       // DEBUGGING ADVANCED SETTINGS & MARKETING SETTINGS
-      console.log('[ProductForm onSubmit] data.advancedSettings from form values:', JSON.stringify(data.advancedSettings, null, 2));
-      console.log('[ProductForm onSubmit] data.marketingSettings from form values:', JSON.stringify(data.marketingSettings, null, 2));
-      console.log('[ProductForm onSubmit] finalSubmissionData.advancedSettings (to be sent to API):', JSON.stringify(finalSubmissionData.advancedSettings, null, 2));
-      console.log('[ProductForm onSubmit] finalSubmissionData.marketingSettings (to be sent to API):', JSON.stringify(finalSubmissionData.marketingSettings, null, 2));
       // END DEBUGGING
 
       let result;
       try {
         if (isEditMode && productId) {
-          console.log('[ProductForm onSubmit] Updating product logic reached. ID:', productId, 'Data:', finalSubmissionData);
           result = await updateProduct(productId, finalSubmissionData as UpdateProduct);
         } else {
-          console.log('[ProductForm onSubmit] Creating new product logic reached. Data:', finalSubmissionData);
           result = await createProduct(finalSubmissionData as InsertProduct);
         }
-        console.log('[ProductForm onSubmit] API call result:', result);
       } catch (apiError: any) {
-        console.error('[ProductForm onSubmit] API call error inside try-catch:', apiError.message, apiError.details, apiError.hint, apiError);
         const message = apiError.message || 'فشل الاتصال بالخادم.';
         toast.error(`فشل ${isEditMode ? 'تحديث' : 'إنشاء'} المنتج: ${message}`);
         throw apiError; 
@@ -248,18 +235,14 @@ export default function ProductForm() {
       }
     } catch (error: any) {
       // Catch errors from API call or other logic
-      console.error('[ProductForm onSubmit] Error saving product in outer catch block:', error);
     } finally {
       setIsSubmitting(false);
-      console.log('[ProductForm onSubmit] isSubmitting set to false in finally block');
     }
   };
 
   const onInvalid = (errors: any) => {
-    console.error('[ProductForm onInvalid] Form validation errors:', errors);
     // Log organization_id specific error if present
     if (errors.organization_id) {
-        console.error('[ProductForm onInvalid] Validation error for organization_id:', errors.organization_id);
     }
     toast.error('يرجى التحقق من الحقول المطلوبة أو إصلاح الأخطاء في النموذج.');
   };
@@ -321,7 +304,6 @@ export default function ProductForm() {
     );
   }
 
-
   if (!hasPermission && !isCheckingPermission) {
     return (
       <Layout>
@@ -342,15 +324,12 @@ export default function ProductForm() {
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          console.log('[ProductForm native form onSubmit] Triggered.');
           const currentOrgIdInFormState = form.getValues('organization_id');
-          console.log('[ProductForm native form onSubmit] organization_id in form state AT SUBMIT CLICK:', currentOrgIdInFormState);
           
           // If organization_id is somehow not set in form state by this point,
           // but we have it from tenant, try to set it one last time.
           // This is a fallback, ideally it should be set by useProductFormInitialization.
           if (!currentOrgIdInFormState && organizationIdFromTenant) {
-              console.warn('[ProductForm native form onSubmit] organization_id was undefined in form state, but available from tenant. Attempting to set it now before handleSubmit.');
               form.setValue('organization_id', organizationIdFromTenant, { shouldValidate: false, shouldDirty: false });
           }
           form.handleSubmit(onSubmit, onInvalid)(e);

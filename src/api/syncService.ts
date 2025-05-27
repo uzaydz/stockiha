@@ -16,7 +16,6 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 export const syncProduct = async (product: LocalProduct): Promise<boolean> => {
   try {
     if (!product || !product.id) {
-      console.error('منتج غير صالح للمزامنة');
       return false;
     }
     
@@ -37,7 +36,6 @@ export const syncProduct = async (product: LocalProduct): Promise<boolean> => {
             });
           
           if (error) {
-            console.error('خطأ في إنشاء المنتج باستخدام الوظيفة المخزنة:', error);
             
             // محاولة الإنشاء العادية
             const { data: insertData, error: insertError } = await supabase
@@ -47,14 +45,12 @@ export const syncProduct = async (product: LocalProduct): Promise<boolean> => {
             
             if (insertError) {
               // محاولة بطريقة بديلة بدون RETURNING
-              console.error('خطأ في إنشاء المنتج على الخادم:', insertError);
               
               const insertResult = await supabase
                 .from('products')
                 .insert(serverProduct);
               
               if (insertResult.error) {
-                console.error('فشل في إنشاء المنتج بالطريقة البديلة:', insertResult.error);
                 return false;
               }
               
@@ -93,7 +89,6 @@ export const syncProduct = async (product: LocalProduct): Promise<boolean> => {
             success = true;
           }
         } catch (err) {
-          console.error('استثناء في إنشاء المنتج على الخادم:', err);
           
           // محاولة بديلة بدون توقع أي بيانات معادة
           try {
@@ -105,7 +100,6 @@ export const syncProduct = async (product: LocalProduct): Promise<boolean> => {
             await markProductAsSynced(product.id);
             success = true;
           } catch (finalErr) {
-            console.error('فشل نهائي في إنشاء المنتج:', finalErr);
             return false;
           }
         }
@@ -130,8 +124,7 @@ export const syncProduct = async (product: LocalProduct): Promise<boolean> => {
             if (remoteUpdatedAt > localUpdatedAt && !product.conflictResolution) {
               // استراتيجية تلقائية لحل التضارب: محلي أو بعيد أو دمج
               // هنا نستخدم "محلي" للمخزون و"بعيد" للبقية
-              
-              
+
               try {
                 // جلب بيانات المنتج الكاملة من الخادم
                 const { data: fullRemoteProduct, error: fetchError } = await supabase
@@ -140,13 +133,11 @@ export const syncProduct = async (product: LocalProduct): Promise<boolean> => {
                   });
                 
                 if (fetchError) {
-                  console.error('خطأ في جلب بيانات المنتج الكاملة:', fetchError);
                   // استمر في محاولة التحديث دون تطبيق استراتيجية التضارب
                 } else {
                   const remoteProduct = Array.isArray(fullRemoteProduct) ? fullRemoteProduct[0] : fullRemoteProduct;
                   
                   if (!remoteProduct) {
-                    console.error('لم يتم العثور على بيانات المنتج البعيدة');
                     // استمر في محاولة التحديث
                   } else {
                     // تطبيق استراتيجية حل التضارب
@@ -169,13 +160,11 @@ export const syncProduct = async (product: LocalProduct): Promise<boolean> => {
                   }
                 }
               } catch (fetchErr) {
-                console.error('استثناء في جلب حالة المنتج:', fetchErr);
                 // نستمر في محاولة التحديث حتى لو فشل التحقق من التضارب
               }
             }
           }
         } catch (getErr) {
-          console.error('استثناء في التحقق من التضارب:', getErr);
           // نستمر في محاولة التحديث حتى لو فشل التحقق من التضارب
         }
         
@@ -191,13 +180,11 @@ export const syncProduct = async (product: LocalProduct): Promise<boolean> => {
             });
           
           if (error) {
-            console.error('خطأ في تحديث المنتج باستخدام الوظيفة المخزنة:', error);
             
             // محاولة الطريقة المباشرة باستخدام REST API إذا فشلت الدالة المخزنة
             try {
               // استخدام عنوان Supabase الصحيح
               if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-                console.error('عناوين Supabase غير محددة بشكل صحيح');
                 throw new Error('قيم البيئة غير صالحة');
               }
               
@@ -214,22 +201,18 @@ export const syncProduct = async (product: LocalProduct): Promise<boolean> => {
               
               if (!response.ok) {
                 const responseText = await response.text();
-                console.error('خطأ في تحديث المنتج باستخدام طلب REST مباشر:', responseText);
                 
                 // محاولة أخيرة: تحديث المنتج محلياً فقط كملاذ أخير
                 await markProductAsSynced(product.id);
-                console.warn('تم وضع علامة على المنتج كمتزامن محلياً فقط بعد فشل جميع المحاولات');
                 return true; // نعتبره نجاحاً محلياً
               }
               
               await markProductAsSynced(product.id);
               success = true;
             } catch (finalErr) {
-              console.error('فشل في كل محاولات تحديث المنتج:', finalErr);
               
               // محاولة أخيرة: تحديث المنتج محلياً فقط كملاذ أخير
               await markProductAsSynced(product.id);
-              console.warn('تم وضع علامة على المنتج كمتزامن محلياً فقط بعد فشل جميع المحاولات');
               return true; // نعتبره نجاحاً محلياً
             }
           } else {
@@ -243,11 +226,9 @@ export const syncProduct = async (product: LocalProduct): Promise<boolean> => {
             success = true;
           }
         } catch (rpcErr) {
-          console.error('استثناء في استدعاء الوظيفة المخزنة:', rpcErr);
           
           // محاولة أخيرة: تحديث المنتج محلياً فقط كملاذ أخير
           await markProductAsSynced(product.id);
-          console.warn('تم وضع علامة على المنتج كمتزامن محلياً فقط بعد فشل استدعاء الوظيفة المخزنة');
           return true; // نعتبره نجاحاً محلياً
         }
         break;
@@ -260,7 +241,6 @@ export const syncProduct = async (product: LocalProduct): Promise<boolean> => {
           .eq('id', product.id);
         
         if (error) {
-          console.error('خطأ في حذف المنتج من الخادم:', error);
           return false;
         }
         
@@ -278,7 +258,6 @@ export const syncProduct = async (product: LocalProduct): Promise<boolean> => {
     
     return success;
   } catch (error) {
-    console.error('خطأ غير متوقع في مزامنة المنتج:', error);
     return false;
   }
 };
@@ -303,7 +282,6 @@ export const syncUnsyncedProducts = async (): Promise<{ success: number; failed:
     
     return { success, failed };
   } catch (error) {
-    console.error('خطأ في مزامنة المنتجات غير المتزامنة:', error);
     return { success: 0, failed: 0 };
   }
 };
@@ -319,7 +297,6 @@ export const processSyncQueue = async (): Promise<{ processed: number; failed: n
         queue.push(item);
       });
     } catch (error) {
-      console.error('خطأ في قراءة قائمة المزامنة:', error);
       return { processed: 0, failed: 0 };
     }
     
@@ -375,7 +352,6 @@ export const processSyncQueue = async (): Promise<{ processed: number; failed: n
               });
               success = status === 200 || status === 204;
             } catch (error) {
-              console.error(`خطأ في حذف العميل ${item.objectId} من الخادم:`, error);
               success = false;
             }
           }
@@ -395,7 +371,6 @@ export const processSyncQueue = async (): Promise<{ processed: number; failed: n
               });
               success = status === 200 || status === 204;
             } catch (error) {
-              console.error(`خطأ في حذف العنوان ${item.objectId} من الخادم:`, error);
               success = false;
             }
           }
@@ -406,7 +381,6 @@ export const processSyncQueue = async (): Promise<{ processed: number; failed: n
             await syncQueueStore.removeItem(item.id);
             processed++;
           } catch (removeError) {
-            console.warn(`لم نتمكن من حذف عنصر قائمة المزامنة ${item.id}:`, removeError);
             // نعتبره معالج حتى لو لم نتمكن من حذفه من القائمة
             processed++;
           }
@@ -423,28 +397,24 @@ export const processSyncQueue = async (): Promise<{ processed: number; failed: n
             try {
               await syncQueueStore.removeItem(item.id);
             } catch (removeError) {
-              console.warn(`لم نتمكن من حذف عنصر قائمة المزامنة ${item.id} بعد تجاوز عدد المحاولات:`, removeError);
             }
           } else {
             // حفظ العنصر المُحدث
             try {
               await syncQueueStore.setItem(item.id, updatedItem);
             } catch (setError) {
-              console.warn(`لم نتمكن من تحديث عنصر قائمة المزامنة ${item.id}:`, setError);
             }
           }
           
           failed++;
         }
       } catch (error) {
-        console.error(`خطأ في معالجة عنصر المزامنة ${item.id}:`, error);
         failed++;
       }
     }
     
     return { processed, failed };
   } catch (error) {
-    console.error('خطأ في معالجة قائمة المزامنة:', error);
     return { processed: 0, failed: 0 };
   }
 };
@@ -491,7 +461,6 @@ export const syncCustomer = async (customer: LocalCustomer): Promise<boolean> =>
             success = true;
           }
         } catch (error) {
-          console.error('خطأ في إنشاء العميل على الخادم:', error);
         }
         break;
       }
@@ -539,7 +508,6 @@ export const syncCustomer = async (customer: LocalCustomer): Promise<boolean> =>
               pendingOperation: 'create'
             });
           }
-          console.error('خطأ في تحديث العميل على الخادم:', error);
         }
         break;
       }
@@ -559,7 +527,6 @@ export const syncCustomer = async (customer: LocalCustomer): Promise<boolean> =>
             success = true;
           }
         } catch (error) {
-          console.error('خطأ في حذف العميل من الخادم:', error);
         }
         break;
       }
@@ -572,7 +539,6 @@ export const syncCustomer = async (customer: LocalCustomer): Promise<boolean> =>
     
     return success;
   } catch (error) {
-    console.error('خطأ غير متوقع في مزامنة العميل:', error);
     return false;
   }
 };
@@ -597,7 +563,6 @@ export const syncUnsyncedCustomers = async (): Promise<{ success: number; failed
     
     return { success, failed };
   } catch (error) {
-    console.error('خطأ في مزامنة العملاء غير المتزامنة:', error);
     return { success: 0, failed: 0 };
   }
 };
@@ -650,7 +615,6 @@ export const syncAddress = async (address: LocalAddress): Promise<boolean> => {
             success = true;
           }
         } catch (error) {
-          console.error('خطأ في إنشاء العنوان على الخادم:', error);
         }
         break;
       }
@@ -703,7 +667,6 @@ export const syncAddress = async (address: LocalAddress): Promise<boolean> => {
               pendingOperation: 'create'
             });
           }
-          console.error('خطأ في تحديث العنوان على الخادم:', error);
         }
         break;
       }
@@ -723,7 +686,6 @@ export const syncAddress = async (address: LocalAddress): Promise<boolean> => {
             success = true;
           }
         } catch (error) {
-          console.error('خطأ في حذف العنوان من الخادم:', error);
         }
         break;
       }
@@ -736,7 +698,6 @@ export const syncAddress = async (address: LocalAddress): Promise<boolean> => {
     
     return success;
   } catch (error) {
-    console.error('خطأ غير متوقع في مزامنة العنوان:', error);
     return false;
   }
 };
@@ -768,7 +729,6 @@ export const syncUnsyncedAddresses = async (): Promise<{ success: number; failed
     
     return { success, failed };
   } catch (error) {
-    console.error('خطأ في مزامنة العناوين غير المتزامنة:', error);
     return { success: 0, failed: 0 };
   }
 };
@@ -787,13 +747,9 @@ export const synchronizeWithServer = async (): Promise<boolean> => {
     
     // ثم معالجة قائمة المزامنة
     const queueResult = await processSyncQueue();
-    
-    
-    
-    
+
     return true;
   } catch (error) {
-    console.error('خطأ في مزامنة البيانات مع الخادم:', error);
     return false;
   }
-}; 
+};

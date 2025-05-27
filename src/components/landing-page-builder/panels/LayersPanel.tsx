@@ -149,4 +149,4 @@ const LayersPanel: React.FC<LayersPanelProps> = ({
   );
 };
 
-export default LayersPanel; 
+export default LayersPanel;

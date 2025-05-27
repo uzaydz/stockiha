@@ -41,4 +41,4 @@ export default function MapLocation() {
       </CardContent>
     </Card>
   );
-} 
+}

@@ -210,4 +210,4 @@ const ProductGallery = ({ mainImage, additionalImages = [], productName }: Produ
   );
 };
 
-export default ProductGallery; 
+export default ProductGallery;

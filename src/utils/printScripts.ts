@@ -117,7 +117,6 @@ export const getCleanPrintScript = (autoTrigger: boolean = true, thermalSettings
           }, PRINT_CONFIG.printDelay);
           
         } catch (error) {
-          console.error('خطأ في الطباعة:', error);
           
           // محاولة إعادة المحاولة
           if (printAttempts < PRINT_CONFIG.retryAttempts) {
@@ -151,7 +150,6 @@ export const getCleanPrintScript = (autoTrigger: boolean = true, thermalSettings
           
           // إعداد timeout للتأكد من عدم التعليق
           const timeout = setTimeout(() => {
-            console.warn('انتهت مهلة تحميل الصور، سيتم المتابعة');
             imagesLoaded = true;
             resolve(true);
           }, PRINT_CONFIG.imageLoadTimeout);
@@ -165,7 +163,6 @@ export const getCleanPrintScript = (autoTrigger: boolean = true, thermalSettings
                 checkComplete();
               };
               img.onerror = () => {
-                console.warn('فشل تحميل صورة:', img.src);
                 clearTimeout(timeout);
                 checkComplete();
               };
@@ -204,7 +201,6 @@ export const getCleanPrintScript = (autoTrigger: boolean = true, thermalSettings
           }
           
         } catch (error) {
-          console.error('خطأ في إعداد الطباعة:', error);
           if (PRINT_CONFIG.autoTrigger) {
             // محاولة الطباعة حتى لو حدث خطأ
             setTimeout(performPrint, 1000);
@@ -235,13 +231,6 @@ export const getCleanPrintScript = (autoTrigger: boolean = true, thermalSettings
       
       // معالجة أخطاء JavaScript
       window.onerror = function(msg, url, lineNo, columnNo, error) {
-        console.error('خطأ JavaScript:', {
-          message: msg,
-          source: url,
-          line: lineNo,
-          column: columnNo,
-          error: error
-        });
         return false;
       };
       
@@ -287,7 +276,6 @@ export const getInteractivePrintScript = (): string => {
           window.focus();
           window.print();
         } catch (error) {
-          console.error('خطأ في الطباعة:', error);
           alert('حدث خطأ في الطباعة');
         } finally {
           setTimeout(() => {
@@ -300,7 +288,6 @@ export const getInteractivePrintScript = (): string => {
         try {
           window.close();
         } catch (error) {
-          console.warn('لا يمكن إغلاق النافذة تلقائياً');
         }
       }
       
@@ -334,4 +321,4 @@ export const getInteractivePrintScript = (): string => {
       };
     </script>
   `;
-}; 
+};

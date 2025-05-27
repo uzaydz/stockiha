@@ -72,7 +72,6 @@ export async function getShippingProvidersWithClones(
       .order('id');
     
     if (providersError) {
-      console.error('خطأ في جلب مزودي التوصيل:', providersError);
       return [];
     }
     
@@ -84,7 +83,6 @@ export async function getShippingProvidersWithClones(
       .order('name');
     
     if (clonesError) {
-      console.error('خطأ في جلب نسخ مزودي التوصيل:', clonesError);
       return [];
     }
     
@@ -102,7 +100,6 @@ export async function getShippingProvidersWithClones(
     
     return result as ShippingProviderWithClones[];
   } catch (error) {
-    console.error('خطأ أثناء جلب مزودي التوصيل ونسخهم:', error);
     return [];
   }
 }
@@ -127,13 +124,11 @@ export async function getShippingClones(
       .order('name');
     
     if (error) {
-      console.error('خطأ في جلب نسخ مزودي التوصيل:', error);
       return [];
     }
     
     return data as ShippingProviderClone[];
   } catch (error) {
-    console.error('خطأ أثناء جلب نسخ مزودي التوصيل:', error);
     return [];
   }
 }
@@ -165,13 +160,11 @@ export async function cloneShippingProvider(
     });
     
     if (error) {
-      console.error('خطأ في استنساخ مزود التوصيل:', error);
       return null;
     }
     
     return data as number;
   } catch (error) {
-    console.error('خطأ أثناء استنساخ مزود التوصيل:', error);
     return null;
   }
 }
@@ -190,8 +183,6 @@ export async function getShippingProviderClone(
       return null;
     }
 
-    
-    
     const { data, error } = await supabase
       .from('shipping_provider_clones')
       .select(`
@@ -202,14 +193,11 @@ export async function getShippingProviderClone(
       .single();
     
     if (error) {
-      console.error('خطأ في جلب إعدادات مزود الشحن المستنسخ:', error);
       return null;
     }
-    
-    
+
     return data as ShippingProviderClone;
   } catch (error) {
-    console.error('خطأ أثناء جلب إعدادات مزود الشحن المستنسخ:', error);
     return null;
   }
 }
@@ -233,13 +221,11 @@ export async function getShippingClonePrices(
       .order('province_name');
     
     if (error) {
-      console.error('خطأ في جلب أسعار التوصيل:', error);
       return [];
     }
     
     return data as ShippingClonePrice[];
   } catch (error) {
-    console.error('خطأ أثناء جلب أسعار التوصيل:', error);
     return [];
   }
 }
@@ -274,13 +260,11 @@ export async function updateShippingCloneSettings(
       .eq('id', cloneId);
     
     if (error) {
-      console.error('خطأ في تحديث إعدادات نسخة مزود التوصيل:', error);
       return false;
     }
     
     return true;
   } catch (error) {
-    console.error('خطأ أثناء تحديث إعدادات نسخة مزود التوصيل:', error);
     return false;
   }
 }
@@ -312,14 +296,12 @@ export async function updateShippingClonePrices(
         .eq('province_id', price.province_id);
       
       if (error) {
-        console.error('خطأ في تحديث سعر التوصيل:', error);
         return false;
       }
     }
     
     return true;
   } catch (error) {
-    console.error('خطأ أثناء تحديث أسعار التوصيل:', error);
     return false;
   }
 }
@@ -345,13 +327,11 @@ export async function updateShippingClonePricesBatch(
     });
     
     if (error) {
-      console.error('خطأ في تحديث أسعار التوصيل بشكل جماعي:', error);
       return false;
     }
     
     return data as boolean;
   } catch (error) {
-    console.error('خطأ أثناء تحديث أسعار التوصيل بشكل جماعي:', error);
     return false;
   }
 }
@@ -393,13 +373,11 @@ export async function updateShippingCloneWithPrices(
     });
     
     if (error) {
-      console.error('خطأ في تحديث النسخة مع الأسعار:', error);
       return null;
     }
     
     return data;
   } catch (error) {
-    console.error('خطأ أثناء تحديث النسخة مع الأسعار:', error);
     return null;
   }
 }
@@ -417,13 +395,11 @@ export async function getProvinces(): Promise<Province[]> {
       .order('name');
     
     if (error) {
-      console.error('خطأ في جلب الولايات:', error);
       return [];
     }
     
     return data as Province[];
   } catch (error) {
-    console.error('خطأ أثناء جلب الولايات:', error);
     return [];
   }
 }
@@ -445,13 +421,11 @@ export async function linkProductToShippingClone(
       .eq('id', productId);
     
     if (error) {
-      console.error('خطأ في ربط المنتج بنسخة مزود التوصيل:', error);
       return false;
     }
     
     return true;
   } catch (error) {
-    console.error('خطأ أثناء ربط المنتج بنسخة مزود التوصيل:', error);
     return false;
   }
 }
@@ -473,13 +447,11 @@ export async function getProductShippingOptions(
     });
     
     if (error) {
-      console.error('خطأ في جلب خيارات التوصيل للمنتج:', error);
       return { success: false, message: error.message };
     }
     
     return data;
   } catch (error) {
-    console.error('خطأ أثناء جلب خيارات التوصيل للمنتج:', error);
     return { success: false, message: 'حدث خطأ في النظام' };
   }
-} 
+}

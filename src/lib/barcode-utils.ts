@@ -267,7 +267,6 @@ export const getBarcodeImageUrl = (
 
   // تحقق نهائي من وجود قيمة صالحة للباركود
   if (!barcodeValue || barcodeValue.length === 0) {
-    console.warn('تم محاولة إنشاء باركود بقيمة فارغة:', value);
     return '';
   }
 
@@ -287,4 +286,4 @@ export const formatBarcodeText = (text: string, maxLength: number = 20): string 
   }
   
   return text;
-}; 
+};

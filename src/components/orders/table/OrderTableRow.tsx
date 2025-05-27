@@ -72,12 +72,12 @@ const OrdersTableRow = ({
     <>
       <TableRow 
         className={`
-          ${selected ? "bg-muted/30" : ""}
-          hover:bg-muted/20 
+          ${selected ? "bg-muted/30 dark:bg-zinc-800/30" : ""}
+          hover:bg-muted/20 dark:hover:bg-zinc-800/20
           transition-colors 
           cursor-pointer
           group
-          border-t border-b border-transparent hover:border-muted
+          border-t border-b border-transparent hover:border-muted dark:hover:border-zinc-700
         `}
         onClick={() => onToggleExpand?.()}
       >
@@ -98,7 +98,7 @@ const OrdersTableRow = ({
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6 transition-opacity opacity-70 group-hover:opacity-100"
+              className="h-6 w-6 transition-opacity opacity-70 group-hover:opacity-100 text-foreground dark:text-zinc-200 hover:bg-accent dark:hover:bg-zinc-700"
               onClick={(e) => {
                 e.stopPropagation();
                 onToggleExpand?.();
@@ -113,14 +113,14 @@ const OrdersTableRow = ({
         {/* رقم الطلب */}
         {visibleColumns.includes("id") && (
           <TableCell>
-            <div className="font-medium">{formattedOrderNumber}</div>
+            <div className="font-medium text-foreground dark:text-zinc-200">{formattedOrderNumber}</div>
           </TableCell>
         )}
         
         {/* اسم العميل */}
         {visibleColumns.includes("customer_name") && (
           <TableCell>
-            <div className="font-medium">{customerName}</div>
+            <div className="font-medium text-foreground dark:text-zinc-200">{customerName}</div>
           </TableCell>
         )}
         
@@ -131,18 +131,18 @@ const OrdersTableRow = ({
               <div className="flex items-center gap-1.5">
                 {customerContact.includes('@') ? (
                   <>
-                    <User className="h-3.5 w-3.5 text-blue-500" />
-                    <span className="text-sm">{customerContact}</span>
+                    <User className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" />
+                    <span className="text-sm text-foreground dark:text-zinc-200">{customerContact}</span>
                   </>
                 ) : (
                   <>
-                    <Phone className="h-3.5 w-3.5 text-green-500" />
-                    <span className="text-sm" dir="ltr">{customerContact}</span>
+                    <Phone className="h-3.5 w-3.5 text-green-500 dark:text-green-400" />
+                    <span className="text-sm text-foreground dark:text-zinc-200" dir="ltr">{customerContact}</span>
                   </>
                 )}
               </div>
             ) : (
-              <span className="text-xs text-muted-foreground">لا توجد بيانات اتصال</span>
+              <span className="text-xs text-muted-foreground dark:text-zinc-400">لا توجد بيانات اتصال</span>
             )}
           </TableCell>
         )}
@@ -151,14 +151,14 @@ const OrdersTableRow = ({
         {visibleColumns.includes("total") && (
           <TableCell>
             <div className="flex items-center gap-2">
-              <span className="font-medium text-emerald-600">{formatPrice(total)}</span>
+              <span className="font-medium text-emerald-600 dark:text-emerald-400">{formatPrice(total)}</span>
               {/* <-- START: Added log for offer condition --> */}
               {(() => {
                 const hasOffer = order.metadata && typeof order.metadata === 'object' && 'applied_quantity_offer' in order.metadata;
                 
                 if (hasOffer) {
                   return (
-                     <Badge variant="outline" className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-800 border-blue-300">
+                     <Badge variant="outline" className="text-xs px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 border-blue-300 dark:border-blue-700/30">
                        عرض
                      </Badge>
                   );
@@ -168,7 +168,7 @@ const OrdersTableRow = ({
               {/* <-- END: Added log for offer condition --> */}
             </div>
             {order_items?.length > 0 && (
-              <div className="text-xs text-muted-foreground">
+              <div className="text-xs text-muted-foreground dark:text-zinc-400">
                 {(total / (order_items?.length || 1)).toFixed(2)} لكل منتج
               </div>
             )}
@@ -178,7 +178,9 @@ const OrdersTableRow = ({
         {/* عدد العناصر */}
         {visibleColumns.includes("items") && (
           <TableCell>
-            {order_items?.length || 0} {order_items?.length === 1 ? 'منتج' : 'منتجات'}
+            <span className="text-foreground dark:text-zinc-200">
+              {order_items?.length || 0} {order_items?.length === 1 ? 'منتج' : 'منتجات'}
+            </span>
           </TableCell>
         )}
         
@@ -214,7 +216,7 @@ const OrdersTableRow = ({
               ) : order.call_confirmation_status ? (
                 <CallConfirmationBadge status={order.call_confirmation_status} />
               ) : (
-                <span className="text-xs text-muted-foreground">لم يتم تحديد</span>
+                <span className="text-xs text-muted-foreground dark:text-zinc-400">لم يتم تحديد</span>
               )}
             </div>
           </TableCell>
@@ -267,4 +269,4 @@ const OrdersTableRow = ({
   );
 };
 
-export default OrdersTableRow; 
+export default OrdersTableRow;

@@ -11,12 +11,9 @@ export type InsertOrderItem = Database['public']['Tables']['order_items']['Inser
 export const getOrders = async (organizationId?: string): Promise<Order[]> => {
   try {
     if (!organizationId) {
-      console.error("لم يتم تمرير معرف المؤسسة إلى وظيفة getOrders");
       return [];
     }
-    
-    
-    
+
     const { data, error } = await supabase
       .from('orders')
       .select('*')
@@ -24,14 +21,11 @@ export const getOrders = async (organizationId?: string): Promise<Order[]> => {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('خطأ في جلب الطلبات:', error);
       throw error;
     }
 
-    
     return data || [];
   } catch (error) {
-    console.error('خطأ غير متوقع أثناء جلب الطلبات:', error);
     return [];
   }
 };
@@ -44,7 +38,6 @@ export const getOrdersByCustomerId = async (customerId: string): Promise<Order[]
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error(`Error fetching orders for customer ${customerId}:`, error);
     throw error;
   }
 
@@ -59,7 +52,6 @@ export const getOrderById = async (id: string): Promise<Order | null> => {
     .single();
 
   if (error) {
-    console.error(`Error fetching order ${id}:`, error);
     throw error;
   }
 
@@ -73,7 +65,6 @@ export const getOrderItems = async (orderId: string): Promise<OrderItem[]> => {
     .eq('order_id', orderId);
 
   if (error) {
-    console.error(`Error fetching items for order ${orderId}:`, error);
     throw error;
   }
 
@@ -92,7 +83,6 @@ export const createOrder = async (
     .single();
 
   if (orderError) {
-    console.error('Error creating order:', orderError);
     throw orderError;
   }
 
@@ -108,7 +98,6 @@ export const createOrder = async (
     .select();
 
   if (itemsError) {
-    console.error('Error adding order items:', itemsError);
     throw itemsError;
   }
 
@@ -122,7 +111,6 @@ export const updateOrderStatus = async (orderId: string, status: string): Promis
     .eq('id', orderId);
 
   if (error) {
-    console.error('Error updating order status:', error);
     throw error;
   }
 };
@@ -136,7 +124,6 @@ export const deleteOrder = async (id: string): Promise<void> => {
     .eq('id', id);
 
   if (error) {
-    console.error(`Error deleting order ${id}:`, error);
     throw error;
   }
-}; 
+};

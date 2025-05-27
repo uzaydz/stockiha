@@ -40,7 +40,6 @@ export function ZRExpressShippingCalculator({ wilayaId, isHomeDelivery, onPriceC
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'حدث خطأ أثناء الاتصال بخدمة الشحن';
         setError(errorMessage);
-        console.error('Error in ZRExpressShippingCalculator:', err);
         // استخدام السعر الافتراضي في حالة الخطأ
         onPriceCalculated(isHomeDelivery ? 800 : 300);
       } finally {
@@ -60,4 +59,4 @@ export function ZRExpressShippingCalculator({ wilayaId, isHomeDelivery, onPriceC
   }
 
   return null;
-} 
+}

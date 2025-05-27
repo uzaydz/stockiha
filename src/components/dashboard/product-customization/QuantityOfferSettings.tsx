@@ -594,4 +594,4 @@ const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('ar-DZ', { style: 'currency', currency: 'DZD' }).format(amount);
 };
 
-export default QuantityOfferSettings; 
+export default QuantityOfferSettings;

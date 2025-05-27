@@ -127,4 +127,4 @@ export interface UserSettingsContextType {
   error: Error | null;
   updateSettings: (settings: UpdateSettingsPayload) => Promise<void>;
   reload: () => Promise<void>;
-} 
+}

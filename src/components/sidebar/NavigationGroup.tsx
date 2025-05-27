@@ -296,4 +296,4 @@ const NavigationGroup = ({
   );
 };
 
-export default NavigationGroup; 
+export default NavigationGroup;

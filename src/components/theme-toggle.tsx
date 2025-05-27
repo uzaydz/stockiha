@@ -27,4 +27,4 @@ export function ThemeToggle() {
       <span className="sr-only">تبديل الوضع</span>
     </Button>
   );
-} 
+}

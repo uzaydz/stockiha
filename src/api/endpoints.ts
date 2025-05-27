@@ -16,7 +16,6 @@ export const handleGetProductName = async (req, res) => {
     const productName = await getProductNameById(productId);
     return res.status(200).json({ name: productName });
   } catch (error) {
-    console.error("خطأ في معالج الحصول على اسم المنتج:", error);
     return res.status(500).json({ error: "حدث خطأ أثناء الحصول على اسم المنتج" });
   }
-} 
+}

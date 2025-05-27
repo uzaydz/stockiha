@@ -54,7 +54,6 @@ export const getOnlineOrderById = async (orderId: string) => {
     .single();
 
   if (error) {
-    console.error(`Error fetching online order ${orderId}:`, error);
     throw error;
   }
 
@@ -69,7 +68,6 @@ export const getOnlineOrderItems = async (orderId: string) => {
     .eq('order_id', orderId);
 
   if (error) {
-    console.error(`Error fetching items for online order ${orderId}:`, error);
     throw error;
   }
 
@@ -88,7 +86,6 @@ export const getServiceBooking = async (bookingId: string) => {
     .single();
 
   if (error) {
-    console.error(`Error fetching service booking ${bookingId}:`, error);
     throw error;
   }
 
@@ -107,7 +104,6 @@ export const getCustomerByIdWithAddress = async (customerId: string): Promise<Cu
     if (error) throw error;
     return data as CustomerWithAddress;
   } catch (error) {
-    console.error(`Error fetching customer ${customerId}:`, error);
     return null;
   }
 };
@@ -213,7 +209,6 @@ export const createInvoiceFromPosOrder = async (orderId: string): Promise<Invoic
   try {
     const order = await getOrderById(orderId) as unknown as OrderWithOrg;
     if (!order) {
-      console.error(`Order not found: ${orderId}`);
       return null;
     }
     
@@ -311,7 +306,6 @@ export const createInvoiceFromPosOrder = async (orderId: string): Promise<Invoic
       .single();
       
     if (error) {
-      console.error('Error creating invoice:', error);
       throw error;
     }
     
@@ -326,7 +320,6 @@ export const createInvoiceFromPosOrder = async (orderId: string): Promise<Invoic
       .insert(itemsWithInvoiceId);
       
     if (itemsError) {
-      console.error('Error creating invoice items:', itemsError);
       throw itemsError;
     }
     
@@ -362,7 +355,6 @@ export const createInvoiceFromPosOrder = async (orderId: string): Promise<Invoic
       updatedAt: invoice.updated_at
     };
   } catch (error) {
-    console.error('Error in createInvoiceFromPosOrder:', error);
     return null;
   }
 };
@@ -373,7 +365,6 @@ export const createInvoiceFromOnlineOrder = async (orderId: string): Promise<Inv
   try {
     const order = await getOnlineOrderById(orderId);
     if (!order) {
-      console.error(`Online order not found: ${orderId}`);
       return null;
     }
     
@@ -386,7 +377,6 @@ export const createInvoiceFromOnlineOrder = async (orderId: string): Promise<Inv
     // For brevity, returning null in this example
     return null;
   } catch (error) {
-    console.error('Error in createInvoiceFromOnlineOrder:', error);
     return null;
   }
 };
@@ -397,7 +387,6 @@ export const createInvoiceFromServiceBooking = async (bookingId: string): Promis
   try {
     const booking = await getServiceBooking(bookingId);
     if (!booking) {
-      console.error(`Service booking not found: ${bookingId}`);
       return null;
     }
     
@@ -407,7 +396,6 @@ export const createInvoiceFromServiceBooking = async (bookingId: string): Promis
     // For brevity, returning null in this example
     return null;
   } catch (error) {
-    console.error('Error in createInvoiceFromServiceBooking:', error);
     return null;
   }
 };
@@ -432,7 +420,6 @@ export const getInvoices = async (organizationId: string): Promise<Invoice[]> =>
     .order('created_at', { ascending: false });
     
   if (error) {
-    console.error('Error fetching invoices:', error);
     throw error;
   }
   
@@ -496,7 +483,6 @@ export const getInvoiceById = async (invoiceId: string): Promise<Invoice | null>
     .single();
     
   if (error) {
-    console.error(`Error fetching invoice ${invoiceId}:`, error);
     throw error;
   }
   
@@ -562,7 +548,6 @@ export const updateInvoice = async (invoiceId: string, data: Partial<Invoice>): 
     .single();
     
   if (error) {
-    console.error(`Error updating invoice ${invoiceId}:`, error);
     throw error;
   }
   
@@ -578,7 +563,6 @@ export const deleteInvoice = async (invoiceId: string): Promise<void> => {
     .eq('invoice_id', invoiceId);
     
   if (itemsError) {
-    console.error(`Error deleting items for invoice ${invoiceId}:`, itemsError);
     throw itemsError;
   }
   
@@ -589,7 +573,6 @@ export const deleteInvoice = async (invoiceId: string): Promise<void> => {
     .eq('id', invoiceId);
     
   if (error) {
-    console.error(`Error deleting invoice ${invoiceId}:`, error);
     throw error;
   }
-}; 
+};

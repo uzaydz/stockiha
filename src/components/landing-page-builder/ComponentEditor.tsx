@@ -373,6 +373,4 @@ const ComponentEditor: React.FC<ComponentEditorProps> = ({
   );
 };
 
-export default ComponentEditor; 
- 
- 
+export default ComponentEditor;

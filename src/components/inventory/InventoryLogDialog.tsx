@@ -290,7 +290,6 @@ const InventoryLogDialog = ({ product, open, onOpenChange, onInventoryUpdated }:
           setCurrentPage(1); // إعادة تعيين الصفحة عند تحميل بيانات جديدة
         }
       } catch (error) {
-        console.error('Error fetching inventory logs:', error);
         if (isMounted) {
           toast.error('حدث خطأ أثناء جلب سجل المخزون');
         }
@@ -378,7 +377,6 @@ const InventoryLogDialog = ({ product, open, onOpenChange, onInventoryUpdated }:
         toast.error('فشل في إضافة حركة المخزون، حاول مرة أخرى');
       }
     } catch (error) {
-      console.error('Error adding inventory log:', error);
       toast.error('حدث خطأ أثناء إضافة سجل المخزون');
     } finally {
       setIsSubmitting(false);
@@ -818,4 +816,4 @@ const InventoryLogDialog = ({ product, open, onOpenChange, onInventoryUpdated }:
   );
 };
 
-export default InventoryLogDialog; 
+export default InventoryLogDialog;

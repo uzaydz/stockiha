@@ -162,4 +162,4 @@ const LayersSlidePanel: React.FC<LayersSlidePanelProps> = ({
   );
 };
 
-export default LayersSlidePanel; 
+export default LayersSlidePanel;

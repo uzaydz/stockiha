@@ -24,4 +24,4 @@ export default function OrderConfirmation({
       <p className="text-muted-foreground text-lg">{subtitle}</p>
     </div>
   );
-} 
+}

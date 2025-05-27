@@ -117,7 +117,7 @@ const OrderSourceBadge = ({
   const deliveryInfo = deliveryConfig[deliveryTypeForDisplay as keyof typeof deliveryConfig] || {
     label: "توصيل",
     icon: Truck,
-    className: "text-muted-foreground",
+    className: "text-muted-foreground dark:text-zinc-400",
     bgClassName: "bg-gray-50 dark:bg-gray-800/30"
   };
 
@@ -161,7 +161,7 @@ const OrderSourceBadge = ({
           className={`flex items-center space-x-1 rtl:space-x-reverse px-2 py-0.5 text-xs font-medium rounded-full border-transparent ${sourceInfo.bgClassName}`}
         >
           <SourceIcon className={`h-3 w-3 ml-1 ${sourceInfo.className}`} />
-          <span>{sourceInfo.label}</span>
+          <span className="text-foreground font-medium">{sourceInfo.label}</span>
         </Badge>
         
         <Badge 
@@ -169,14 +169,14 @@ const OrderSourceBadge = ({
           className={`flex items-center space-x-1 rtl:space-x-reverse px-2 py-0.5 text-xs font-medium rounded-full border-transparent ${deliveryInfo.bgClassName}`}
         >
           <DeliveryIcon className={`h-3 w-3 ml-1 ${deliveryInfo.className}`} />
-          <span>{deliveryInfo.label}</span>
+          <span className="text-foreground font-medium">{deliveryInfo.label}</span>
         </Badge>
       </div>
       
       {created_at && (
-        <div className="flex items-center text-xs text-muted-foreground">
-          <Clock className="h-3 w-3 ml-1" />
-          <span>
+        <div className="flex items-center text-xs text-muted-foreground dark:text-zinc-300">
+          <Clock className="h-3 w-3 ml-1 text-muted-foreground dark:text-zinc-400" />
+          <span className="font-medium">
             {formatArabicDate(created_at)} - {formatArabicTime(created_at)}
           </span>
         </div>
@@ -185,4 +185,4 @@ const OrderSourceBadge = ({
   );
 };
 
-export default OrderSourceBadge; 
+export default OrderSourceBadge;

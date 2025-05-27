@@ -37,7 +37,6 @@ const OrderDetailsPanel = ({ order }: OrderDetailsPanelProps) => {
           
           // إذا كان لدينا معلومات البلدية، استخدمها مباشرة
           if (shippingDetails && shippingDetails.municipality_name) {
-            console.log("[OrderDetailsPanel] استخدام معلومات البلدية من metadata:", shippingDetails.municipality_name);
             setStopDeskDetails({
               name: `مكتب في ${shippingDetails.municipality_name}`,
               commune_name: shippingDetails.municipality_name
@@ -46,42 +45,11 @@ const OrderDetailsPanel = ({ order }: OrderDetailsPanelProps) => {
           }
         }
         
-        // البلدية قد تكون موجودة في form_data أو في municipality_id
-        const municipalityId = order.form_data?.municipality || order.municipality_id;
-        
-        if (municipalityId) {
-          try {
-            console.log("[OrderDetailsPanel] جاري البحث عن البلدية:", municipalityId);
-            
-            // البحث عن معلومات البلدية
-            const { data, error } = await supabase
-              .from('municipalities')
-              .select('id, name, wilaya_id')
-              .eq('id', municipalityId)
-              .single();
-              
-            if (!error && data) {
-              console.log("[OrderDetailsPanel] تم العثور على بيانات البلدية:", data);
-              setStopDeskDetails({
-                name: `مكتب في ${data.name}`,
-                commune_name: data.name
-              });
-              return;
-            } else {
-              console.log("[OrderDetailsPanel] لم يتم العثور على بيانات البلدية:", error);
-            }
-          } catch (error) {
-            console.error("[OrderDetailsPanel] خطأ في البحث عن معلومات البلدية:", error);
-          }
-        }
-        
-        // إذا وصلنا إلى هنا، فإما لدينا stop_desk_id أو لم نتمكن من العثور على معلومات البلدية
-        // نجرب البحث في جدول yalidine_centers_global
+        // إذا وصلنا إلى هنا، نجرب البحث في جدول yalidine_centers_global
         const stopDeskId = order.stop_desk_id || order.form_data?.stopDeskId;
         
         if (stopDeskId) {
           try {
-            console.log("[OrderDetailsPanel] جاري البحث عن معرف المكتب:", stopDeskId);
             
             const { data, error } = await supabase
               .from('yalidine_centers_global')
@@ -90,16 +58,13 @@ const OrderDetailsPanel = ({ order }: OrderDetailsPanelProps) => {
               .single();
 
             if (!error && data) {
-              console.log("[OrderDetailsPanel] تم العثور على بيانات المكتب:", data);
               setStopDeskDetails({
                 name: data.name,
                 commune_name: data.commune_name
               });
             } else {
-              console.error("[OrderDetailsPanel] لم يتم العثور على بيانات المكتب:", error);
             }
           } catch (error) {
-            console.error("[OrderDetailsPanel] خطأ في البحث عن معلومات المكتب:", error);
           }
         }
       }
@@ -109,12 +74,7 @@ const OrderDetailsPanel = ({ order }: OrderDetailsPanelProps) => {
   }, [order]);
 
   // Debug logs to check the order structure
-  
-  
-  
-  
-  
-  
+
   const hasItems = order.order_items && order.order_items.length > 0;
   const hasCustomer = !!order.customer;
   // Check if there's a shipping_address_id even if shipping_address object is null
@@ -122,55 +82,61 @@ const OrderDetailsPanel = ({ order }: OrderDetailsPanelProps) => {
   const hasCallConfirmation = !!order.call_confirmation_status;
 
   return (
-    <div className="p-4 bg-muted/20">
+    <div className="p-4 bg-muted/20 dark:bg-zinc-800/20">
       <Tabs defaultValue="items" className="w-full">
-        <TabsList className="mb-4">
-          <TabsTrigger value="items">المنتجات</TabsTrigger>
-          <TabsTrigger value="customer">العميل</TabsTrigger>
-          <TabsTrigger value="shipping">الشحن والتوصيل</TabsTrigger>
-          <TabsTrigger value="call">تأكيد الإتصال</TabsTrigger>
-          <TabsTrigger value="payment">الدفع</TabsTrigger>
-          <TabsTrigger value="notes">ملاحظات</TabsTrigger>
+        <TabsList className="mb-4 bg-background dark:bg-zinc-800 border-border dark:border-zinc-700">
+          <TabsTrigger value="items" className="text-foreground dark:text-zinc-200 data-[state=active]:bg-background dark:data-[state=active]:bg-zinc-700">المنتجات</TabsTrigger>
+          <TabsTrigger value="customer" className="text-foreground dark:text-zinc-200 data-[state=active]:bg-background dark:data-[state=active]:bg-zinc-700">العميل</TabsTrigger>
+          <TabsTrigger value="shipping" className="text-foreground dark:text-zinc-200 data-[state=active]:bg-background dark:data-[state=active]:bg-zinc-700">الشحن والتوصيل</TabsTrigger>
+          <TabsTrigger value="call" className="text-foreground dark:text-zinc-200 data-[state=active]:bg-background dark:data-[state=active]:bg-zinc-700">تأكيد الإتصال</TabsTrigger>
+          <TabsTrigger value="payment" className="text-foreground dark:text-zinc-200 data-[state=active]:bg-background dark:data-[state=active]:bg-zinc-700">الدفع</TabsTrigger>
+          <TabsTrigger value="notes" className="text-foreground dark:text-zinc-200 data-[state=active]:bg-background dark:data-[state=active]:bg-zinc-700">ملاحظات</TabsTrigger>
         </TabsList>
 
         {/* تفاصيل المنتجات */}
         <TabsContent value="items" className="mt-0">
           {hasItems ? (
-            <div className="rounded-md border overflow-hidden">
+            <div className="rounded-md border border-border dark:border-zinc-700 overflow-hidden">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead>المنتج</TableHead>
-                    <TableHead>الكمية</TableHead>
-                    <TableHead>السعر</TableHead>
-                    <TableHead>اللون</TableHead>
-                    <TableHead>المقاس</TableHead>
-                    <TableHead className="text-left">الإجمالي</TableHead>
+                  <TableRow className="bg-muted/50 dark:bg-zinc-800/50 border-b border-border dark:border-zinc-700">
+                    <TableHead className="text-foreground dark:text-zinc-200">المنتج</TableHead>
+                    <TableHead className="text-foreground dark:text-zinc-200">الكمية</TableHead>
+                    <TableHead className="text-foreground dark:text-zinc-200">السعر</TableHead>
+                    <TableHead className="text-foreground dark:text-zinc-200">اللون</TableHead>
+                    <TableHead className="text-foreground dark:text-zinc-200">المقاس</TableHead>
+                    <TableHead className="text-left text-foreground dark:text-zinc-200">الإجمالي</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {order.order_items?.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell className="font-medium">{item.product_name}</TableCell>
-                      <TableCell>{item.quantity}</TableCell>
-                      <TableCell>{formatCurrency(item.unit_price)}</TableCell>
+                    <TableRow key={item.id} className="border-b border-border dark:border-zinc-700">
+                      <TableCell className="font-medium text-foreground dark:text-zinc-200">{item.product_name}</TableCell>
+                      <TableCell className="text-foreground dark:text-zinc-200">{item.quantity}</TableCell>
+                      <TableCell className="text-foreground dark:text-zinc-200">{formatCurrency(item.unit_price)}</TableCell>
                       <TableCell>
                         {item.color_name ? (
                           <div className="flex items-center">
                             {item.color_code && (
                               <div
-                                className="w-4 h-4 rounded-full ml-2"
+                                className="w-4 h-4 rounded-full ml-2 border border-border dark:border-zinc-600"
                                 style={{ backgroundColor: item.color_code }}
                               />
                             )}
-                            <span>{item.color_name}</span>
+                            <span className="text-foreground dark:text-zinc-200">{item.color_name}</span>
                           </div>
                         ) : (
-                          "-"
+                          <span className="text-muted-foreground dark:text-zinc-400">-</span>
                         )}
                       </TableCell>
-                      <TableCell>{item.size_name || "-"}</TableCell>
-                      <TableCell className="font-medium">
+                      <TableCell>
+                        {item.size_name ? (
+                          <span className="text-foreground dark:text-zinc-200">{item.size_name}</span>
+                        ) : (
+                          <span className="text-muted-foreground dark:text-zinc-400">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="font-medium text-foreground dark:text-zinc-200">
                         {formatCurrency(item.total_price)}
                       </TableCell>
                     </TableRow>
@@ -179,7 +145,7 @@ const OrderDetailsPanel = ({ order }: OrderDetailsPanelProps) => {
               </Table>
             </div>
           ) : (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="text-center py-8 text-muted-foreground dark:text-zinc-400">
               لا توجد منتجات في هذا الطلب
             </div>
           )}
@@ -213,43 +179,43 @@ const OrderDetailsPanel = ({ order }: OrderDetailsPanelProps) => {
               return (
                 <div className="w-80 space-y-1 grid grid-cols-2 gap-x-4 gap-y-1">
                     {/* Row 1: Subtotal */}
-                    <span className="text-muted-foreground text-right">المجموع الفرعي:</span>
-                    <span className="text-left">{formatCurrency(order.subtotal)}</span>
+                    <span className="text-muted-foreground dark:text-zinc-400 text-right">المجموع الفرعي:</span>
+                    <span className="text-left text-foreground dark:text-zinc-200">{formatCurrency(order.subtotal)}</span>
 
                     {/* Row 2: Offer Description */}
                     {offerDescription && (
                       <>
-                        <span className="text-sm font-medium text-blue-600 text-right">العرض المطبق:</span>
-                        <span className="text-sm text-blue-600 text-left">{offerDescription}</span>
+                        <span className="text-sm font-medium text-blue-600 dark:text-blue-400 text-right">العرض المطبق:</span>
+                        <span className="text-sm text-blue-600 dark:text-blue-400 text-left">{offerDescription}</span>
                       </>
                     )}
 
                     {/* Row 3: Offer Discount */}
                     {offerDiscount > 0 && (
                       <>
-                        <span className="text-muted-foreground text-right">خصم العرض:</span>
-                        <span className="text-green-600 text-left">- {formatCurrency(offerDiscount)}</span>
+                        <span className="text-muted-foreground dark:text-zinc-400 text-right">خصم العرض:</span>
+                        <span className="text-green-600 dark:text-green-400 text-left">- {formatCurrency(offerDiscount)}</span>
                       </>
                     )}
 
                     {/* Row 4: Shipping */}
-                    <span className="text-muted-foreground text-right">رسوم الشحن:</span>
+                    <span className="text-muted-foreground dark:text-zinc-400 text-right">رسوم الشحن:</span>
                     {offerFreeShipping ? (
-                      <span className="text-green-600 text-left">مجاني (عرض)</span>
+                      <span className="text-green-600 dark:text-green-400 text-left">مجاني (عرض)</span>
                     ) : order.shipping_cost && order.shipping_cost > 0 ? (
-                      <span className="text-left">{formatCurrency(order.shipping_cost)}</span>
+                      <span className="text-left text-foreground dark:text-zinc-200">{formatCurrency(order.shipping_cost)}</span>
                     ) : (
-                      <span className="text-left">{formatCurrency(0)}</span>
+                      <span className="text-left text-foreground dark:text-zinc-200">{formatCurrency(0)}</span>
                     )}
                     
                     {/* Separator Row */}
                     <div className="col-span-2">
-                       <Separator className="my-2" />
+                       <Separator className="my-2 bg-border dark:bg-zinc-700" />
                     </div>
 
                     {/* Row 5: Total */}
-                    <span className="font-medium text-lg text-right">الإجمالي:</span>
-                    <span className="font-medium text-lg text-left">{formatCurrency(order.total)}</span>
+                    <span className="font-medium text-lg text-right text-foreground dark:text-zinc-100">الإجمالي:</span>
+                    <span className="font-medium text-lg text-left text-foreground dark:text-zinc-100">{formatCurrency(order.total)}</span>
                   </div>
               );
             })()}
@@ -261,60 +227,46 @@ const OrderDetailsPanel = ({ order }: OrderDetailsPanelProps) => {
           {hasCustomer ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
-                <h3 className="text-lg font-medium flex items-center">
-                  <User className="ml-2 h-5 w-5" />
+                <h3 className="text-lg font-medium flex items-center text-foreground">
+                  <User className="ml-2 h-5 w-5 text-muted-foreground" />
                   معلومات العميل
                 </h3>
                 <div className="space-y-2">
                   <div className="flex items-start">
-                    <span className="font-medium w-24">الاسم:</span>
-                    <span>{order.customer.name}</span>
+                    <span className="font-medium w-24 text-muted-foreground">الاسم:</span>
+                    <span className="text-foreground">{order.customer.name}</span>
                   </div>
                   {order.customer.phone && (
                     <div className="flex items-start">
-                      <span className="font-medium w-24">الهاتف:</span>
-                      <span dir="ltr" className="text-left">
-                        <a
-                          href={`tel:${order.customer.phone}`}
-                          className="hover:text-primary"
-                        >
-                          {order.customer.phone}
-                        </a>
-                      </span>
+                      <span className="font-medium w-24 text-muted-foreground">الهاتف:</span>
+                      <span className="text-foreground">{order.customer.phone}</span>
                     </div>
                   )}
                   {order.customer.email && (
                     <div className="flex items-start">
-                      <span className="font-medium w-24">البريد:</span>
-                      <span>
-                        <a
-                          href={`mailto:${order.customer.email}`}
-                          className="hover:text-primary"
-                        >
-                          {order.customer.email}
-                        </a>
-                      </span>
+                      <span className="font-medium w-24 text-muted-foreground">البريد:</span>
+                      <span className="text-foreground">{order.customer.email}</span>
                     </div>
                   )}
                 </div>
               </div>
               <div className="space-y-4">
-                <h3 className="text-lg font-medium flex items-center">
-                  <Clock className="ml-2 h-5 w-5" />
+                <h3 className="text-lg font-medium flex items-center text-foreground dark:text-zinc-100">
+                  <Clock className="ml-2 h-5 w-5 text-muted-foreground dark:text-zinc-400" />
                   معلومات الطلب
                 </h3>
                 <div className="space-y-2">
                   <div className="flex items-start">
-                    <span className="font-medium w-24">رقم الطلب:</span>
-                    <span>{order.customer_order_number || "-"}</span>
+                    <span className="font-medium w-24 text-muted-foreground dark:text-zinc-400">رقم الطلب:</span>
+                    <span className="text-foreground dark:text-zinc-200">{order.customer_order_number || "-"}</span>
                   </div>
                   <div className="flex items-start">
-                    <span className="font-medium w-24">التاريخ:</span>
-                    <span>{formatDate(order.created_at)}</span>
+                    <span className="font-medium w-24 text-muted-foreground dark:text-zinc-400">التاريخ:</span>
+                    <span className="text-foreground dark:text-zinc-200">{formatDate(order.created_at)}</span>
                   </div>
                   <div className="flex items-start">
-                    <span className="font-medium w-24">المصدر:</span>
-                    <span>
+                    <span className="font-medium w-24 text-muted-foreground dark:text-zinc-400">المصدر:</span>
+                    <span className="text-foreground dark:text-zinc-200">
                       {order.created_from === "store"
                         ? "المتجر"
                         : order.created_from === "app"
@@ -326,8 +278,8 @@ const OrderDetailsPanel = ({ order }: OrderDetailsPanelProps) => {
                   </div>
                   {order.shipping_option && (
                     <div className="flex items-start">
-                      <span className="font-medium w-24">طريقة التوصيل:</span>
-                      <span className="font-semibold">
+                      <span className="font-medium w-24 text-muted-foreground dark:text-zinc-400">طريقة التوصيل:</span>
+                      <span className="font-semibold text-foreground dark:text-zinc-200">
                         {order.shipping_option === "desk" 
                           ? "استلام من المكتب" 
                           : order.shipping_option === "home" 
@@ -340,7 +292,7 @@ const OrderDetailsPanel = ({ order }: OrderDetailsPanelProps) => {
               </div>
             </div>
           ) : (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="text-center py-8 text-muted-foreground dark:text-zinc-400">
               لا توجد معلومات عن العميل
             </div>
           )}
@@ -440,14 +392,14 @@ const OrderDetailsPanel = ({ order }: OrderDetailsPanelProps) => {
                   </div>
                 </div>
                 <div className="space-y-4">
-                  <h3 className="text-lg font-medium flex items-center">
-                    <MapPin className="ml-2 h-5 w-5" />
+                  <h3 className="text-lg font-medium flex items-center text-foreground dark:text-zinc-100">
+                    <MapPin className="ml-2 h-5 w-5 text-muted-foreground dark:text-zinc-400" />
                     تفاصيل الشحن
                   </h3>
                   <div className="space-y-2">
                     <div className="flex items-start">
-                      <span className="font-medium w-24">طريقة الشحن:</span>
-                      <span>
+                      <span className="font-medium w-24 text-muted-foreground dark:text-zinc-300">طريقة الشحن:</span>
+                      <span className="text-foreground dark:text-zinc-100">
                         {order.shipping_method === "1" 
                           ? "ياليدين" 
                           : order.shipping_method === "2" 
@@ -459,8 +411,8 @@ const OrderDetailsPanel = ({ order }: OrderDetailsPanelProps) => {
                     </div>
                     {order.shipping_option && (
                       <div className="flex items-start">
-                        <span className="font-medium w-24">خيار التوصيل:</span>
-                        <span className="font-semibold">
+                        <span className="font-medium w-24 text-muted-foreground dark:text-zinc-300">خيار التوصيل:</span>
+                        <span className="font-semibold text-foreground dark:text-zinc-100">
                           {order.shipping_option === "desk" 
                             ? "استلام من المكتب" 
                             : order.shipping_option === "home" 
@@ -471,8 +423,8 @@ const OrderDetailsPanel = ({ order }: OrderDetailsPanelProps) => {
                     )}
                     {order.shipping_cost !== null && order.shipping_cost !== undefined && (
                       <div className="flex items-start">
-                        <span className="font-medium w-24">تكلفة الشحن:</span>
-                        <span>{formatCurrency(order.shipping_cost)}</span>
+                        <span className="font-medium w-24 text-muted-foreground dark:text-zinc-300">تكلفة الشحن:</span>
+                        <span className="text-foreground dark:text-zinc-100">{formatCurrency(order.shipping_cost)}</span>
                       </div>
                     )}
                     
@@ -686,4 +638,4 @@ const OrderDetailsPanel = ({ order }: OrderDetailsPanelProps) => {
   );
 };
 
-export default OrderDetailsPanel; 
+export default OrderDetailsPanel;

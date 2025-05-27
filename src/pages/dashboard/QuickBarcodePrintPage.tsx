@@ -153,7 +153,6 @@ const QuickBarcodePrintPage = () => {
       }
       
       // Log the raw data received from the RPC call for debugging
-      console.log("Raw data from get_products_for_barcode_printing:", data);
 
       if (Array.isArray(data)) {
         const selectableProducts: SelectedProduct[] = data.map(
@@ -166,11 +165,9 @@ const QuickBarcodePrintPage = () => {
         );
         setProducts(selectableProducts);
       } else {
-        console.warn("Data received from RPC is not an array:", data);
         setProducts([]);
       }
     } catch (err: any) {
-      console.error("Error fetching products for barcode:", err);
       setError(
         `حدث خطأ أثناء جلب المنتجات: ${err.message}. تأكد من أن الدالة get_products_for_barcode_printing معرفة في قاعدة البيانات.`
       );
@@ -507,7 +504,6 @@ const QuickBarcodePrintPage = () => {
               try {
                 JsBarcode(targetBarcodeSvgElement, valueToEncodeForBarcode, barcodeOptions);
               } catch (e: any) {
-                console.error(`JsBarcode error for ${barcodeSvgId}:`, e);
                 if (targetBarcodeSvgElement) targetBarcodeSvgElement.innerHTML = '<text x="10" y="20" fill="red" font-size="10">Error</text>';
               }
             }
@@ -639,18 +635,15 @@ const QuickBarcodePrintPage = () => {
                 (pWindow.document.fonts.ready as Promise<FontFaceSet>).then(() => { // Explicitly cast to Promise<FontFaceSet>
                     pWindow.print();
                 }).catch(error => {
-                    console.error("Error waiting for fonts to load, printing immediately:", error);
                     pWindow.print(); 
                 });
             } else {
-                console.warn("document.fonts.ready API not available, using fallback timeout for printing.");
                 setTimeout(() => {
                     pWindow.print();
                 }, 1500);
             }
         } else {
              // Fallback if printWindow or printWindow.document is somehow null, though unlikely after previous checks
-            console.error("Print window or its document not available for printing.");
             toast.error("فشل تهيئة نافذة الطباعة بشكل كامل.");
         }
       }, renderDelay);
@@ -884,4 +877,4 @@ const QuickBarcodePrintPage = () => {
   );
 };
 
-export default QuickBarcodePrintPage; 
+export default QuickBarcodePrintPage;

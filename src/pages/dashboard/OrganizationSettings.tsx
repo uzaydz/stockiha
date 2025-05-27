@@ -89,7 +89,6 @@ const OrganizationSettings = () => {
 
       setUsers(data || []);
     } catch (error) {
-      console.error('Error loading organization users:', error);
       toast({
         title: 'خطأ في تحميل المستخدمين',
         description: 'فشل في تحميل بيانات المستخدمين. يرجى المحاولة مرة أخرى.',
@@ -129,7 +128,6 @@ const OrganizationSettings = () => {
         variant: 'default',
       });
     } catch (error) {
-      console.error('Error updating organization:', error);
       toast({
         title: 'خطأ في تحديث المؤسسة',
         description: 'فشل في حفظ التغييرات. يرجى المحاولة مرة أخرى.',
@@ -168,7 +166,6 @@ const OrganizationSettings = () => {
         });
       }
     } catch (error) {
-      console.error('Error inviting user:', error);
       toast({
         title: 'خطأ غير متوقع',
         description: 'حدث خطأ أثناء محاولة دعوة المستخدم. يرجى المحاولة مرة أخرى.',
@@ -569,4 +566,4 @@ const OrganizationSettings = () => {
   );
 };
 
-export default OrganizationSettings; 
+export default OrganizationSettings;

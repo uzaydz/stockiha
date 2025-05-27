@@ -68,7 +68,6 @@ const SalesTable = () => {
       setLoadError(null);
       await refreshData();
     } catch (error) {
-      console.error('Error refreshing data:', error);
       setLoadError('حدث خطأ أثناء تحديث البيانات. يرجى المحاولة مرة أخرى لاحقًا.');
     } finally {
       setIsRefreshing(false);
@@ -453,4 +452,4 @@ const SalesTable = () => {
   );
 };
 
-export default SalesTable; 
+export default SalesTable;

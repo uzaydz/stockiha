@@ -12,14 +12,11 @@ export const checkDatabaseConnection = async (): Promise<boolean> => {
       .limit(1);
       
     if (error) {
-      console.error("خطأ أثناء التحقق من الاتصال:", error);
       return false;
     }
-    
-    
+
     return true;
   } catch (error) {
-    console.error("استثناء أثناء التحقق من الاتصال:", error);
     return false;
   }
-}; 
+};

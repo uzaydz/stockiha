@@ -108,7 +108,6 @@ export default function ProductAssignment({
         setFilteredProducts([]);
       }
     } catch (error) {
-      console.error("Error loading products:", error);
       toast.error("حدث خطأ أثناء تحميل المنتجات");
     } finally {
       setIsLoading(false);
@@ -140,7 +139,6 @@ export default function ProductAssignment({
         setCategories([]);
       }
     } catch (error) {
-      console.error("Error loading categories:", error);
       toast.error("حدث خطأ أثناء تحميل الفئات");
     }
   };
@@ -191,9 +189,7 @@ export default function ProductAssignment({
     }
     
     setSelectedProducts(newSelectedProducts);
-    
-    
-    
+
     const updatedTemplate = {
       ...template,
       product_ids: newSelectedProducts,
@@ -219,9 +215,7 @@ export default function ProductAssignment({
   const handleSelectAll = () => {
     const allProductIds = filteredProducts.map(product => product.id);
     setSelectedProducts(allProductIds);
-    
-    
-    
+
     const updatedTemplate = {
       ...template,
       product_ids: allProductIds,
@@ -451,4 +445,4 @@ export default function ProductAssignment({
       )}
     </div>
   );
-} 
+}

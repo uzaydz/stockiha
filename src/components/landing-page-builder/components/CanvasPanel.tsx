@@ -192,4 +192,4 @@ const CanvasPanel: React.FC<CanvasPanelProps> = ({
   );
 };
 
-export default CanvasPanel; 
+export default CanvasPanel;

@@ -4,8 +4,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { persistQueryClient } from '@tanstack/react-query-persist-client';
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
-import { Routes, Route, useLocation } from "react-router-dom";
-import { useEffect } from 'react';
+import { Routes, Route, useLocation, useParams, Navigate } from "react-router-dom";
+import { useEffect, useState } from 'react';
 import { syncCategoriesDataOnStartup } from '@/lib/api/categories';
 import { ShopProvider } from "./context/ShopContext";
 import { HelmetProvider } from "react-helmet-async";
@@ -96,13 +96,15 @@ import SyncManager from './components/SyncManager';
 import PermissionGuard from './components/auth/PermissionGuard';
 import useTabFocusEffect from './hooks/useTabFocusEffect';
 import useReactQueryState from './hooks/useReactQueryState';
+import { useSessionTracking } from './hooks/useSessionTracking';
 import { isElectron } from '@/lib/isElectron';
+import { useTenant } from '@/context/TenantContext';
+import { getCategoryById, getCategories } from '@/lib/api/categories';
 
 // تحقق ما إذا كان التطبيق يعمل في بيئة Electron
 const isRunningInElectron = isElectron();
 
 // تسجيل بيئة التطبيق بوضوح
-
 
 // وضع علامة عالمية على نوع البيئة
 if (typeof window !== 'undefined') {
@@ -194,8 +196,7 @@ if (typeof window !== 'undefined') {
     if (document.visibilityState === 'visible') {
       // في Electron فقط، نقوم بإلغاء صلاحية الاستعلامات الحالية للحصول على أحدث البيانات
       if (isRunningInElectron) {
-        
-        
+
         // استئناف الـ mutations قيد التنفيذ
         queryClient.resumePausedMutations();
         
@@ -242,6 +243,9 @@ const SyncManagerWrapper = () => {
 
 // مكون لمعالجة تبديل علامات التبويب
 const TabFocusHandler = ({ children }: { children: React.ReactNode }) => {
+  // تتبع الجلسات تلقائياً
+  useSessionTracking();
+  
   useTabFocusEffect({
     onFocus: () => {
       
@@ -264,6 +268,68 @@ const TabFocusHandler = ({ children }: { children: React.ReactNode }) => {
   useReactQueryState();
   
   return <>{children}</>;
+};
+
+// مكون إعادة التوجيه للفئات المحسن
+const CategoryRedirect = () => {
+  const { categoryId } = useParams<{ categoryId: string }>();
+  const { currentOrganization } = useTenant();
+  const [actualCategoryId, setActualCategoryId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  useEffect(() => {
+    const findCategory = async () => {
+      if (!categoryId || !currentOrganization) {
+        setIsLoading(false);
+        return;
+      }
+      
+      try {
+        // أولاً: محاولة البحث بالـ ID مباشرة
+        let category = await getCategoryById(categoryId, currentOrganization.id);
+        
+        if (category) {
+          setActualCategoryId(category.id);
+          setIsLoading(false);
+          return;
+        }
+        
+        // ثانياً: البحث بالـ slug في جميع الفئات
+        const allCategories = await getCategories(currentOrganization.id);
+        const categoryBySlug = allCategories.find(cat => 
+          cat.slug === categoryId || 
+          cat.slug?.includes(categoryId) ||
+          cat.name.toLowerCase().replace(/\s+/g, '-') === categoryId
+        );
+        
+        if (categoryBySlug) {
+          setActualCategoryId(categoryBySlug.id);
+        }
+        
+      } catch (error) {
+        console.error('Error finding category:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    findCategory();
+  }, [categoryId, currentOrganization]);
+  
+  if (isLoading) {
+    return <div>جاري التحميل...</div>;
+  }
+  
+  if (!categoryId) {
+    return <Navigate to="/products" replace />;
+  }
+  
+  if (actualCategoryId) {
+    return <Navigate to={`/products?category=${actualCategoryId}`} replace />;
+  }
+  
+  // إذا لم نجد الفئة، نوجه إلى صفحة المنتجات العامة
+  return <Navigate to="/products" replace />;
 };
 
 const App = () => {
@@ -316,6 +382,9 @@ const App = () => {
                   {/* صفحات عامة للزوار بدون تسجيل دخول */}
                   {/* صفحة جميع المنتجات */}
                   <Route path="/products" element={<StoreProducts />} />
+                  
+                  {/* مسار الفئات - يوجه إلى صفحة المنتجات مع فلتر الفئة */}
+                  <Route path="/category/:categoryId" element={<CategoryRedirect />} />
                   
                   {/* صفحة تفاصيل المنتج */}
                   <Route path="/products/details/:productId" element={<ProductDetails />} />

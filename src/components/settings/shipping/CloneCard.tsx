@@ -187,4 +187,4 @@ const CloneCard: React.FC<CloneCardProps> = ({
   );
 };
 
-export default CloneCard; 
+export default CloneCard;

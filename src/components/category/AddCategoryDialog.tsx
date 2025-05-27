@@ -89,7 +89,6 @@ const AddCategoryDialog = ({ open, onOpenChange, onCategoryAdded }: AddCategoryD
       onOpenChange(false);
       onCategoryAdded();
     } catch (error) {
-      console.error('Error creating category:', error);
       // Check for duplicate category name error
       if (error instanceof Error && error.message.includes('duplicate key value violates unique constraint')) {
         toast.error('هذا الاسم موجود بالفعل في فئات مؤسستك، يرجى اختيار اسم آخر للفئة');
@@ -259,4 +258,4 @@ const AddCategoryDialog = ({ open, onOpenChange, onCategoryAdded }: AddCategoryD
   );
 };
 
-export default AddCategoryDialog; 
+export default AddCategoryDialog;

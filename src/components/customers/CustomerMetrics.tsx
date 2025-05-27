@@ -70,4 +70,4 @@ const CustomerMetrics = ({ stats }: CustomerMetricsProps) => {
   );
 };
 
-export default CustomerMetrics; 
+export default CustomerMetrics;

@@ -84,17 +84,13 @@ const ServiceRequests = () => {
         setIsLoading(false);
         return;
       }
-      
-      
-      
+
       // جلب طلبات الخدمات من قاعدة البيانات
       const data = await getServiceRequests(currentOrganization.id);
-      
-      
+
       setServiceRequests(data);
       setFilteredRequests(data);
     } catch (error) {
-      console.error('Error fetching service requests:', error);
       const errMsg = error instanceof Error ? error.message : 'حدث خطأ أثناء جلب طلبات الخدمات';
       
       toast({
@@ -335,4 +331,4 @@ const ServiceRequests = () => {
   );
 };
 
-export default ServiceRequests; 
+export default ServiceRequests;

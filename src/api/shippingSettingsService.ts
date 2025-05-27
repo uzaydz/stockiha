@@ -48,8 +48,7 @@ export class ShippingSettingsService {
 
       // If table doesn't exist, create tables and insert default providers
       if (checkError && checkError.code === '42P01') { // 42P01 is PostgreSQL's error code for "table does not exist"
-        
-        
+
         // Create shipping_providers table
         await supabase.rpc('create_shipping_tables');
         
@@ -64,7 +63,6 @@ export class ShippingSettingsService {
 
       this.tableInitialized = true;
     } catch (error) {
-      console.error('Error initializing shipping tables:', error);
     }
   }
 
@@ -86,7 +84,6 @@ export class ShippingSettingsService {
             .order('id');
           
           if (error) {
-            console.error('Error fetching shipping providers (inside cache function):', error);
             // لا تقم بإعادة المحاولة هنا بشكل مباشر إذا كان initShippingTables قد فشل
             // يجب أن يتعامل initShippingTables مع فشله الخاص أو يُلقي خطأً يتم التقاطه بالخارج
             throw error; // إعادة إلقاء الخطأ ليتم التعامل معه بواسطة withCache أو المستدعي
@@ -99,7 +96,6 @@ export class ShippingSettingsService {
       return providers;
     } catch (error) {
       // معالجة الأخطاء التي قد تحدث من initShippingTables أو إذا فشل withCache بشكل غير متوقع
-      console.error('Failed to get shipping providers (outer catch):', error);
       return []; 
     }
   }
@@ -122,7 +118,6 @@ export class ShippingSettingsService {
         .single();
       
       if (providerError) {
-        console.error('Error fetching provider by code:', providerError);
         
         // If table doesn't exist, initialize it
         if (providerError.code === '42P01') {
@@ -140,7 +135,6 @@ export class ShippingSettingsService {
       }
       
       if (!providerData) {
-        console.error('Provider not found by code:', providerCode);
         return null;
       }
       
@@ -164,8 +158,6 @@ export class ShippingSettingsService {
           await this.initShippingTables();
           return this.getProviderSettings(organizationId, providerCode); // Retry
         }
-        
-        console.error('Error fetching shipping provider settings:', error);
         throw error;
       }
       
@@ -174,14 +166,12 @@ export class ShippingSettingsService {
         try {
           data.settings = JSON.parse(data.settings);
         } catch (e) {
-          console.error('Error parsing settings JSON:', e);
           // Handle malformed JSON, perhaps by returning default or null
           data.settings = {}; // Default to empty object on parse error
         }
       }
       return data as ShippingProviderSettings;
     } catch (error) {
-      console.error('Failed to get shipping provider settings:', error);
       // Return default settings instead of throwing
       return {
         provider_id: 1, // Default provider ID (should be Yalidine)
@@ -244,13 +234,11 @@ export class ShippingSettingsService {
         .single();
       
       if (error) {
-        console.error('Error creating provider:', error);
         throw error;
       }
       
       return data.id;
     } catch (error) {
-      console.error('Failed to ensure provider exists:', error);
       throw error;
     }
   }
@@ -287,7 +275,6 @@ export class ShippingSettingsService {
           providerId = data.id;
         }
       } catch (error) {
-        console.error('Error getting provider ID:', error);
         throw new Error(`Failed to get provider ID for ${providerCode}`);
       }
       
@@ -316,7 +303,6 @@ export class ShippingSettingsService {
           .single();
         
         if (error) {
-          console.error('Error updating shipping provider settings:', error);
           throw error;
         }
         
@@ -339,14 +325,12 @@ export class ShippingSettingsService {
           .single();
         
         if (error) {
-          console.error('Error creating shipping provider settings:', error);
           throw error;
         }
         
         return data as ShippingProviderSettings;
       }
     } catch (error) {
-      console.error('Failed to save shipping provider settings:', error);
       throw error;
     }
   }
@@ -363,13 +347,11 @@ export class ShippingSettingsService {
         .single();
       
       if (error) {
-        console.error('Error fetching provider code:', error);
         return null;
       }
       
       return data.code as ShippingProvider;
     } catch (error) {
-      console.error('Failed to get provider code:', error);
       return null;
     }
   }
@@ -393,10 +375,9 @@ export class ShippingSettingsService {
         key: settings.api_key
       };
     } catch (error) {
-      console.error('Failed to get provider credentials:', error);
       return {};
     }
   }
 }
 
-export const shippingSettingsService = new ShippingSettingsService(); 
+export const shippingSettingsService = new ShippingSettingsService();

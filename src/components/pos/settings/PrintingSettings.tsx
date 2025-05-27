@@ -37,7 +37,6 @@ const PrintingSettings: React.FC<PrintingSettingsProps> = ({ settings, updateSet
   // دالة اختبار الطباعة
   const handleTestPrint = () => {
     // هنا يمكن إضافة منطق اختبار الطباعة
-    console.log('اختبار طباعة بالإعدادات:', settings);
     // يمكن فتح نافذة طباعة أو إرسال أمر للطابعة
     window.print();
   };
@@ -316,4 +315,4 @@ const PrintingSettings: React.FC<PrintingSettingsProps> = ({ settings, updateSet
   );
 };
 
-export default PrintingSettings; 
+export default PrintingSettings;

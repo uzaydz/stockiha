@@ -35,7 +35,6 @@ const StoreTracking: React.FC = () => {
               setTrackingPixels(parsedData.trackingPixels);
             }
           } catch (error) {
-            console.error('فشل في تحليل بيانات التتبع', error);
           }
         }
         
@@ -48,7 +47,6 @@ const StoreTracking: React.FC = () => {
           setCustomFooter(orgSettings.custom_footer);
         }
       } catch (error) {
-        console.error('فشل في جلب إعدادات التتبع', error);
       }
     };
 
@@ -158,7 +156,6 @@ const StoreTracking: React.FC = () => {
         document.body.appendChild(footerElement);
       }
     } catch (error) {
-      console.error('فشل في إضافة رموز التتبع للصفحة', error);
     }
 
     // تنظيف عند إلغاء تحميل المكون
@@ -171,4 +168,4 @@ const StoreTracking: React.FC = () => {
   return null;
 };
 
-export default StoreTracking; 
+export default StoreTracking;

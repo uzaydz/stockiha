@@ -28,7 +28,6 @@ const checkInternetConnection = async (): Promise<boolean> => {
     clearTimeout(timeoutId);
     return response.ok;
   } catch (error) {
-    console.warn('فشل فحص الاتصال بالخادم:', error);
     return false;
   }
 };
@@ -82,7 +81,6 @@ export const useOfflineStatus = (): OfflineStatus => {
         }
         setIsOnline(true);
       } else {
-        console.warn('تم الإبلاغ عن حالة الاتصال بالإنترنت كمتصل، ولكن فشل فحص الاتصال');
         setIsOnline(false);
       }
     };
@@ -115,4 +113,4 @@ export const useOfflineStatus = (): OfflineStatus => {
     wasOffline,
     resetWasOffline
   };
-}; 
+};

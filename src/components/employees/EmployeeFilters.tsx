@@ -69,4 +69,4 @@ const EmployeeFilters = ({ filter, onFilterChange }: EmployeeFiltersProps) => {
   );
 };
 
-export default EmployeeFilters; 
+export default EmployeeFilters;

@@ -331,4 +331,4 @@ export const optimizeForHighQuality = (dimensions: PageDimensions): PageDimensio
     priceMargin: '1mm',
     containerPadding: '2mm'
   };
-}; 
+};

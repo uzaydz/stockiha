@@ -32,8 +32,6 @@ const ProtectedRoute = ({
   const [authCheckAttempts, setAuthCheckAttempts] = useState(0);
   const [permissionsCached, setPermissionsCached] = useState(false);
 
-  
-
   useEffect(() => {
     // عند تغيير المسار، تحقق من وجود تخزين مؤقت للتحقق السابق
     if (hasCachedPermissions()) {
@@ -77,8 +75,7 @@ const ProtectedRoute = ({
         
         return;
       }
-      
-      
+
       if (user) {
         setCheckingPermissions(true);
         try {
@@ -104,7 +101,6 @@ const ProtectedRoute = ({
           }
           
         } catch (error) {
-          console.error('Error checking user permissions:', error);
           setIsAdmin(false);
         } finally {
           setCheckingPermissions(false);
@@ -167,7 +163,6 @@ const ProtectedRoute = ({
             
           }
         } catch (error) {
-          console.error("Error verifying auth state:", error);
         }
       }
     };
@@ -195,8 +190,7 @@ const ProtectedRoute = ({
 
   // Double check both user and session to confirm authentication
   if (!user || !session) {
-    
-    
+
     // Don't redirect if we're already on the login page to prevent loops
     if (location.pathname === '/login') {
       
@@ -272,4 +266,4 @@ const ProtectedRoute = ({
   return children ? <>{children}</> : <Outlet />;
 };
 
-export default ProtectedRoute; 
+export default ProtectedRoute;

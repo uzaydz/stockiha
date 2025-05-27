@@ -44,7 +44,6 @@ export default function ExpensesPage() {
       if (!data.session) {
         const { error } = await supabase.auth.refreshSession();
         if (error) {
-          console.error("خطأ في تحديث الجلسة:", error);
         }
       } else if (data.session) {
         // قم بتخزين معرف المنظمة للمستخدم الحالي في localStorage
@@ -56,16 +55,14 @@ export default function ExpensesPage() {
         
         if (userData && userData.organization_id) {
           localStorage.setItem('currentOrganizationId', userData.organization_id);
-          
-          
+
           // بعد الحصول على معرف المنظمة، تحقق من وجود فئات المصروفات
           await ensureExpenseCategories(userData.organization_id);
         } else if (!userData && !userError) {
           // إذا لم يكن هناك معرف منظمة للمستخدم، قم بتخزين القيمة الافتراضية
           const defaultOrgId = '11111111-1111-1111-1111-111111111111';
           localStorage.setItem('currentOrganizationId', defaultOrgId);
-          
-          
+
           // استخدم معرف المنظمة الافتراضي لإنشاء فئات المصروفات
           await ensureExpenseCategories(defaultOrgId);
         }
@@ -83,8 +80,7 @@ export default function ExpensesPage() {
           
         // إذا لم تكن هناك فئات، قم بإنشاء الفئات الافتراضية
         if (!existingCategories || existingCategories.length === 0) {
-          
-          
+
           const defaultCategories = [
             { name: 'الرواتب', organization_id: organizationId },
             { name: 'إيجار', organization_id: organizationId },
@@ -100,7 +96,6 @@ export default function ExpensesPage() {
             .insert(defaultCategories);
             
           if (error) {
-            console.error('خطأ في إنشاء فئات المصروفات الافتراضية:', error);
           } else {
             
           }
@@ -108,7 +103,6 @@ export default function ExpensesPage() {
           
         }
       } catch (error) {
-        console.error('خطأ في التحقق من فئات المصروفات:', error);
       }
     };
     
@@ -128,7 +122,6 @@ export default function ExpensesPage() {
       toast.success("تم إضافة المصروف بنجاح");
       setIsFormOpen(false);
     } catch (error) {
-      console.error("Error creating expense:", error);
       toast.error("فشل في إضافة المصروف. يرجى المحاولة مرة أخرى.");
     } finally {
       setIsSubmitting(false);
@@ -202,4 +195,4 @@ export default function ExpensesPage() {
       </div>
     </Layout>
   );
-} 
+}

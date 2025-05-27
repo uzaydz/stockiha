@@ -122,7 +122,6 @@ const AddServiceDialog = ({
         const categoriesData = await getServiceCategories();
         setCategories(categoriesData);
       } catch (error) {
-        console.error('Error fetching service categories:', error);
         toast.error('حدث خطأ أثناء تحميل فئات الخدمات');
       }
     };
@@ -222,7 +221,6 @@ const AddServiceDialog = ({
         onServiceAdded();
       }, 300);
     } catch (error) {
-      console.error('Error creating service:', error);
       toast.error('حدث خطأ أثناء إضافة الخدمة');
     } finally {
       setIsSubmitting(false);
@@ -506,4 +504,4 @@ const AddServiceDialog = ({
   );
 };
 
-export default AddServiceDialog; 
+export default AddServiceDialog;

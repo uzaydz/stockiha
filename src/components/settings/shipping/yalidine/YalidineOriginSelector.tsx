@@ -67,8 +67,7 @@ export default function YalidineOriginSelector({
         const uniqueWilayas = Array.from(
           new Map(allWilayas.map(wilaya => [wilaya.id, wilaya])).values()
         );
-        
-        
+
         setWilayas(uniqueWilayas);
         
         // استرجاع ولاية المصدر من localStorage إذا لم تكن محددة
@@ -80,11 +79,9 @@ export default function YalidineOriginSelector({
               setOriginWilayaId(parseInt(syncOptions.sourceProvinceId));
             }
           } catch (e) {
-            console.error('خطأ في قراءة خيارات المزامنة من localStorage:', e);
           }
         }
       } catch (error) {
-        console.error('Error fetching wilayas:', error);
         toast({
           title: "خطأ في تحميل الولايات",
           description: "حدث خطأ أثناء تحميل قائمة الولايات. " + ((error as Error)?.message || 'حاول مرة أخرى لاحقًا.'),
@@ -128,7 +125,6 @@ export default function YalidineOriginSelector({
         localStorage.setItem('yalidine_sync_options', JSON.stringify(syncOptions));
         
       } catch (e) {
-        console.error('خطأ في حفظ خيارات المزامنة:', e);
       }
       
       toast({
@@ -137,7 +133,6 @@ export default function YalidineOriginSelector({
         variant: "default",
       });
     } catch (error) {
-      console.error('Error saving origin wilaya:', error);
       toast({
         title: "خطأ في الحفظ",
         description: "حدث خطأ أثناء حفظ ولاية المصدر: " + ((error as Error)?.message || 'خطأ غير معروف'),
@@ -184,7 +179,6 @@ export default function YalidineOriginSelector({
                       syncOptions.sourceProvinceId = provinceId;
                       localStorage.setItem('yalidine_sync_options', JSON.stringify(syncOptions));
                     } catch (e) {
-                      console.error('خطأ في حفظ خيارات المزامنة:', e);
                     }
                   }
                 }}
@@ -223,4 +217,4 @@ export default function YalidineOriginSelector({
       </CardContent>
     </Card>
   );
-} 
+}

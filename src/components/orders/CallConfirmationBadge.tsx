@@ -65,4 +65,4 @@ const CallConfirmationBadge = ({
   return badge;
 };
 
-export default CallConfirmationBadge; 
+export default CallConfirmationBadge;

@@ -42,8 +42,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const VERCEL_TOKEN = process.env.VERCEL_TOKEN || process.env.VERCEL_API_TOKEN;
     const VERCEL_PROJECT_ID = process.env.VERCEL_PROJECT_ID;
 
-    
-
     if (!VERCEL_TOKEN || !VERCEL_PROJECT_ID) {
       return res.status(500).json({
         success: false,
@@ -71,10 +69,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       );
 
       if (dbError) {
-        console.error('خطأ في تحديث سجل النطاق:', dbError);
       }
     } catch (dbError) {
-      console.error('خطأ في تحديث سجل النطاق:', dbError);
       // نواصل بغض النظر عن خطأ تحديث قاعدة البيانات
     }
 
@@ -90,10 +86,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     });
   } catch (error) {
-    console.error('خطأ غير متوقع أثناء التحقق من حالة النطاق:', error);
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'حدث خطأ غير متوقع'
     });
   }
-} 
+}

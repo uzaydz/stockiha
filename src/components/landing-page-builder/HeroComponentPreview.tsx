@@ -62,6 +62,4 @@ const HeroComponentPreview: React.FC<HeroComponentPreviewProps> = ({ settings })
   );
 };
 
-export default HeroComponentPreview; 
- 
- 
+export default HeroComponentPreview;

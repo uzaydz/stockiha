@@ -155,4 +155,4 @@ const ProductEditTabs: React.FC<ProductEditTabsProps> = ({
   );
 };
 
-export default ProductEditTabs; 
+export default ProductEditTabs;

@@ -252,7 +252,6 @@ const EditEmployeeDialog = ({
       onEmployeeUpdated(updatedEmployee);
       onOpenChange(false);
     } catch (error) {
-      console.error('Error updating employee:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء تحديث بيانات الموظف. الرجاء المحاولة مرة أخرى.',
@@ -378,4 +377,4 @@ const EditEmployeeDialog = ({
   );
 };
 
-export default EditEmployeeDialog; 
+export default EditEmployeeDialog;

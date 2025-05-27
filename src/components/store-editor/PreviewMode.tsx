@@ -27,4 +27,4 @@ const PreviewMode: React.FC<PreviewModeProps> = ({ components }) => {
   );
 };
 
-export default PreviewMode; 
+export default PreviewMode;

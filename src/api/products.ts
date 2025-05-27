@@ -14,13 +14,11 @@ export const getProductNameById = async (productId: string): Promise<string> => 
       .single();
     
     if (error) {
-      console.error("خطأ في الحصول على اسم المنتج:", error);
       return "";
     }
     
     return data?.name || "";
   } catch (error) {
-    console.error("خطأ غير متوقع أثناء الحصول على اسم المنتج:", error);
     return "";
   }
-} 
+}

@@ -104,4 +104,4 @@ export type CalculateDeliveryPriceFunction = (
   deliveryType: any,
   weight?: number,
   shippingProviderCloneId?: number | string | null
-) => Promise<number>; 
+) => Promise<number>;

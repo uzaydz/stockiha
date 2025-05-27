@@ -240,4 +240,4 @@ export function useBeforeAfterImages(images: string[]) {
     getFallbackImage,
     preloadNextImages
   };
-} 
+}

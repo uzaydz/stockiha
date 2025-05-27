@@ -127,4 +127,4 @@ const OfflineFAQ = () => {
   );
 };
 
-export default OfflineFAQ; 
+export default OfflineFAQ;

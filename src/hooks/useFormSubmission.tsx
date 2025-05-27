@@ -95,7 +95,6 @@ export function useFormSubmission(): UseFormSubmissionReturn {
       
       return { success: true, data };
     } catch (err: any) {
-      console.error('Form submission error:', err);
       
       // Format error message for user
       let errorMessage = 'حدث خطأ أثناء إرسال النموذج. يرجى المحاولة مرة أخرى.';
@@ -116,4 +115,4 @@ export function useFormSubmission(): UseFormSubmissionReturn {
   }, [supabase]);
   
   return { submitForm, isSubmitting, error };
-} 
+}

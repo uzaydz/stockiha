@@ -728,4 +728,4 @@ const ProblemSolutionComponentEditor: React.FC<ProblemSolutionComponentEditorPro
   );
 };
 
-export default ProblemSolutionComponentEditor; 
+export default ProblemSolutionComponentEditor;

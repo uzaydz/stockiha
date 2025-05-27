@@ -15,7 +15,6 @@ export const login = async (email: string, password: string): Promise<{ success:
     });
     
     if (error) {
-      console.error('Login error:', error);
       return { success: false, user: null };
     }
     
@@ -28,7 +27,6 @@ export const login = async (email: string, password: string): Promise<{ success:
         .single();
         
       if (userError) {
-        console.error('Error fetching user data:', userError);
         return { success: true, user: null };
       } else if (userData) {
         return { success: true, user: mapSupabaseUserToUser(userData) };
@@ -37,7 +35,6 @@ export const login = async (email: string, password: string): Promise<{ success:
     
     return { success: false, user: null };
   } catch (error) {
-    console.error('Login error:', error);
     return { success: false, user: null };
   }
 };
@@ -47,12 +44,10 @@ export const logout = async (): Promise<boolean> => {
   try {
     const { error } = await supabase.auth.signOut();
     if (error) {
-      console.error('Logout error:', error);
       return false;
     }
     return true;
   } catch (error) {
-    console.error('Logout error:', error);
     return false;
   }
 };
@@ -60,8 +55,7 @@ export const logout = async (): Promise<boolean> => {
 // وظيفة إنشاء عميل جديد
 export const createCustomer = async (customerData: { name: string; email?: string; phone?: string }): Promise<User | null> => {
   try {
-    
-    
+
     // إنشاء معرف فريد للعميل
     const customerId = uuidv4();
     
@@ -72,7 +66,6 @@ export const createCustomer = async (customerData: { name: string; email?: strin
     const organizationId = await getOrganizationId();
     
     if (!organizationId) {
-      console.error('لا يمكن إنشاء العميل: لم يتم العثور على معرف المؤسسة');
       throw new Error('لم يتم العثور على المؤسسة');
     }
     
@@ -80,8 +73,7 @@ export const createCustomer = async (customerData: { name: string; email?: strin
     const isOnline = window.navigator.onLine;
     
     if (!isOnline) {
-      
-      
+
       // استخدام createLocalCustomer بدلاً من الإضافة المباشرة
       try {
         const localCustomer = await createLocalCustomer({
@@ -106,7 +98,6 @@ export const createCustomer = async (customerData: { name: string; email?: strin
         
         return newLocalUser;
       } catch (error) {
-        console.error("خطأ في إنشاء العميل محلياً:", error);
         throw error;
       }
     }
@@ -128,11 +119,9 @@ export const createCustomer = async (customerData: { name: string; email?: strin
         .single();
         
       if (customerError) {
-        console.error('فشل إضافة العميل إلى جدول customers:', customerError);
         
         // إذا فشلت الإضافة، نضيف العميل محلياً ونضيفه إلى طابور المزامنة
-        
-        
+
         const localCustomer = await createLocalCustomer({
           name: customerData.name,
           email: customerEmail,
@@ -175,15 +164,12 @@ export const createCustomer = async (customerData: { name: string; email?: strin
         ...storedUsers.filter((u: any) => u.id !== newCustomerFromCustomersTable.id),
         newCustomerFromCustomersTable
       ]));
-      
-      
+
       return newCustomerFromCustomersTable;
     } catch (error) {
-      console.error('خطأ في عملية إنشاء العميل:', error);
       throw new Error('فشل في إنشاء حساب العميل');
     }
   } catch (error) {
-    console.error('خطأ عام في إنشاء العميل:', error);
     throw error;
   }
-}; 
+};

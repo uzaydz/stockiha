@@ -24,16 +24,9 @@ export default function OrderSuccessTracking() {
   // التحقق من وجود البيانات المطلوبة
   useEffect(() => {
     if (!productId || !orderNumber) {
-      console.warn('⚠️ بيانات الطلب غير مكتملة في URL');
       return;
     }
 
-    console.log('🎉 تتبع طلب مكتمل:', {
-      orderNumber,
-      productId,
-      totalPrice,
-      productName
-    });
   }, [orderNumber, productId, totalPrice, productName]);
 
   // إذا لم تكن البيانات متوفرة، لا نعرض شيئاً
@@ -100,10 +93,8 @@ export function useOrderSuccessTracking() {
       });
 
       if (response.ok) {
-        console.log('✅ تم تسجيل حدث الشراء بنجاح');
       }
     } catch (error) {
-      console.error('خطأ في تسجيل حدث الشراء:', error);
     }
   };
 
@@ -119,4 +110,4 @@ export function useOrderSuccessTracking() {
     isValid,
     trackPurchase
   };
-} 
+}

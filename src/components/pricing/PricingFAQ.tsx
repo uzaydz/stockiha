@@ -166,4 +166,4 @@ const PricingFAQ = () => {
   );
 };
 
-export default PricingFAQ; 
+export default PricingFAQ;

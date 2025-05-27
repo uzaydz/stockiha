@@ -122,16 +122,12 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
           is_super_admin: userData?.is_super_admin || user.user_metadata?.is_super_admin,
           role: userData?.role || user.user_metadata?.role,
         };
-        
-        
 
         // استخدام نفس دالة فحص الصلاحيات المستخدمة في ProductsList
         // انتظار حل الوعد (Promise) لاستلام نتيجة التحقق
         const canEditPromise = checkUserPermissions(mergedUserData, 'editProducts');
         const canEdit = await canEditPromise;
-        
-        
-        
+
         // تحديث حالة الصلاحية
         setHasPermission(canEdit);
         
@@ -140,7 +136,6 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
           setShowPermissionAlert(true);
         }
       } catch (error) {
-        console.error('EditProductDialog: خطأ في التحقق من الصلاحيات:', error);
         
         // في حالة الخطأ، تحقق مباشرة من البيانات الخام كما في ProductsList
         const permissions = user.user_metadata?.permissions || {};
@@ -214,7 +209,6 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
         );
         setCategories(productCategories);
       } catch (error) {
-        console.error('Error fetching categories:', error);
         toast.error('حدث خطأ أثناء تحميل الفئات');
       }
     };
@@ -241,18 +235,10 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
           const productUseSizes = Boolean((product as any)?.use_sizes);
           setUseSizes(productUseSizes);
           form.setValue('use_sizes', productUseSizes);
-          
-          
-          
-          
-          
-          
-          
-          
+
           // فحص المقاسات لكل لون
           if (productUseSizes) {
-            
-            
+
             // نستخدم مصفوفة من الوعود لتحميل مقاسات جميع الألوان في نفس الوقت
             const loadPromises = colors.map(async (color) => {
               try {
@@ -270,7 +256,6 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
                   }
                 }
               } catch (error) {
-                console.error(`خطأ في تحميل مقاسات اللون:`, error);
               }
               return { colorId: color.id, sizes: [], found: false };
             });
@@ -352,12 +337,10 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
             
             setWholesaleTiers(tiersData);
           } catch (tierError) {
-            console.error('خطأ في تحميل مراحل أسعار الجملة:', tierError);
             toast.error('حدث خطأ أثناء تحميل مراحل أسعار الجملة');
           }
           
         } catch (error) {
-          console.error('Error loading product details:', error);
           toast.error('حدث خطأ أثناء تحميل تفاصيل المنتج');
         }
       };
@@ -381,7 +364,6 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
           const subcategoriesData = await getSubcategories(watchCategoryId);
           setSubcategories(subcategoriesData || []);
         } catch (error) {
-          console.error('Error fetching subcategories:', error);
           toast.error('حدث خطأ أثناء تحميل الفئات الفرعية');
           // في حالة الخطأ، تأكد من أن subcategories هي مصفوفة فارغة على الأقل
           setSubcategories([]);
@@ -421,22 +403,19 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
     
     // تأكد من أن urls ليست فارغة وهي مصفوفة
     if (!Array.isArray(urls)) {
-      console.error('EditProductDialog: تم استلام قيمة غير صالحة للصور الإضافية:', urls);
       return;
     }
     
     // تأكد من عدم وجود قيم فارغة
     const filteredUrls = urls.filter(url => url && url.trim() !== '');
-    
-    
+
     setAdditionalImages(filteredUrls);
     // تحديث الصور في النموذج أيضاً
     form.setValue('additional_images', filteredUrls);
   };
 
   const handleProductColorsChange = (colors: ProductColor[]) => {
-    
-    
+
     // تأكد من حفظ مقاسات كل لون إذا كان له مقاسات
     const updatedColors = colors.map(color => {
       // إذا كان اللون موجوداً سابقاً ولديه مقاسات، احتفظ بها
@@ -516,7 +495,6 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
       
       setOrganizationId(product.organization_id);
     } else {
-      console.warn('No organization_id found in product:', product);
       // Try to get organization ID from environment variable
       const defaultOrgId = process.env.NEXT_PUBLIC_DEFAULT_ORGANIZATION_ID;
       if (defaultOrgId) {
@@ -528,10 +506,7 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
 
   const onSubmit = async (values: ProductFormValues) => {
     setIsSubmitting(true);
-    
-    
-    
-    
+
     try {
       // التحقق من الصلاحيات
       if (!hasPermission) {
@@ -590,10 +565,7 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
         use_sizes: values.use_sizes,
         updated_at: new Date().toISOString(),
       };
-      
-      
-      
-      
+
       // إذا تم تغيير SKU، تحقق من عدم وجود تكرار
       if (values.sku !== product.sku) {
         
@@ -615,13 +587,10 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
           sku: values.sku
         };
 
-        
-        
         // التحقق من حالة الاتصال
         if (!navigator.onLine) {
           // استخدام وظيفة التخزين المحلي في حالة عدم الاتصال
-          
-          
+
           // استخدام وظيفة تحديث المنتج من واجهة Offline-First
           const updatedProduct = await updateOfflineProduct(product.id, updateDataWithSku);
           
@@ -640,14 +609,12 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
           const updatedProduct = await updateOnlineProduct(product.id, updateDataWithSku);
           
           if (updatedProduct) {
-            
-            
+
             toast.success('تم تحديث المنتج بنجاح');
             onProductUpdated();
             onOpenChange(false);
           }
         } catch (error) {
-          console.error('Error updating product:', error);
           
           // في حالة فشل التحديث عبر الإنترنت، نستخدم التخزين المحلي كاحتياطي
           
@@ -663,13 +630,11 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
         }
       } else {
         // تحديث بدون تغيير SKU
-        
-        
+
         // التحقق من حالة الاتصال
         if (!navigator.onLine) {
           // استخدام وظيفة التخزين المحلي في حالة عدم الاتصال
-          
-          
+
           // استخدام وظيفة تحديث المنتج من واجهة Offline-First
           const updatedProduct = await updateOfflineProduct(product.id, updateData);
           
@@ -688,14 +653,12 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
           const updatedProduct = await updateOnlineProduct(product.id, updateData);
           
           if (updatedProduct) {
-            
-            
+
             toast.success('تم تحديث المنتج بنجاح');
             onProductUpdated();
             onOpenChange(false);
           }
         } catch (error) {
-          console.error('Error updating product:', error);
           
           // في حالة فشل التحديث عبر الإنترنت، نستخدم التخزين المحلي كاحتياطي
           
@@ -811,7 +774,6 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
       try {
         // أولاً: احصل على الصور الحالية
         const existingImages = await getProductImages(product.id);
-        
 
         // ثانياً: احذف الصور التي لم تعد موجودة
         let deletionErrors = 0;
@@ -822,12 +784,10 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
             try {
               const deletePromise = deleteProductImage(img.id)
                 .catch(error => {
-                  console.error('EditProductDialog: خطأ في حذف الصورة:', error);
                   deletionErrors++;
                 });
               deletionPromises.push(deletePromise);
             } catch (error) {
-              console.error('EditProductDialog: خطأ في حذف الصورة:', error);
               deletionErrors++;
             }
           }
@@ -858,13 +818,11 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
                   
                 })
                 .catch(error => {
-                  console.error(`EditProductDialog: خطأ في إضافة الصورة ${i+1}:`, error);
                   additionErrors++;
                 });
                 
                 additionPromises.push(addPromise);
               } catch (error) {
-                console.error(`EditProductDialog: خطأ في إضافة الصورة ${i+1}:`, error);
                 additionErrors++;
               }
             } else {
@@ -876,7 +834,6 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
           await Promise.allSettled(additionPromises);
         }
       } catch (error) {
-        console.error('Error updating product images:', error);
         toast.error('حدث خطأ أثناء تحديث الصور');
       }
 
@@ -884,7 +841,6 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
       onProductUpdated();
       onOpenChange(false);
     } catch (error) {
-      console.error('Error updating product:', error);
       toast.error('حدث خطأ أثناء تحديث المنتج');
       setIsSubmitting(false);
     }

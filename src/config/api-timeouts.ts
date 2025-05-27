@@ -70,11 +70,10 @@ export const withRetry = async <T>(
       
       // exponential backoff
       const delay = baseDelay * Math.pow(RETRY_CONFIG.BACKOFF_MULTIPLIER, attempt);
-      console.warn(`المحاولة ${attempt + 1}/${maxRetries + 1} فشلت، إعادة المحاولة خلال ${delay}ms...`);
       
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
   
   throw lastError!;
-}; 
+};

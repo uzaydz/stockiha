@@ -116,8 +116,7 @@ const mapRealCategoriesToExtended = (categories: CategoryType[]): ExtendedCatego
       // استخراج عدد المنتجات من الفئة المستلمة من API
       // @ts-ignore - نتجاهل خطأ TypeScript لأن واجهة Category قد تختلف بين الملفات
       const productsCount = category.product_count || 0;
-      
-      
+
       return {
         id: category.id,
         name: category.name,
@@ -172,7 +171,6 @@ const ProductCategories = ({
           const mappedCategories = mapRealCategoriesToExtended(fetchedCategories);
           setRealCategories(mappedCategories);
         } catch (error) {
-          console.error('خطأ في جلب بيانات الفئات:', error);
           setRealCategories([]);
         } finally {
           setIsLoading(false);
@@ -332,4 +330,4 @@ const ProductCategories = ({
   );
 };
 
-export default ProductCategories; 
+export default ProductCategories;

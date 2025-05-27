@@ -143,6 +143,4 @@ const ImageComponent: React.FC<ImageComponentProps> = ({ settings, className = '
   );
 };
 
-export default ImageComponent; 
- 
- 
+export default ImageComponent;

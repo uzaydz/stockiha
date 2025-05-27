@@ -29,7 +29,6 @@ export const getProducts = async (organizationId: string): Promise<LocalProduct[
       try {
         await synchronizeWithServer();
       } catch (error) {
-        console.warn('فشلت محاولة المزامنة التلقائية:', error);
       }
     }
 
@@ -40,7 +39,6 @@ export const getProducts = async (organizationId: string): Promise<LocalProduct[
     return products.filter(product => product.organization_id === organizationId);
     
   } catch (error) {
-    console.error('خطأ في جلب المنتجات:', error);
     throw error;
   }
 };
@@ -51,7 +49,6 @@ export const getProductById = async (organizationId: string, productId: string):
     const products = await fetchLocalProducts();
     return products.find(p => p.id === productId && p.organization_id === organizationId) || null;
   } catch (error) {
-    console.error(`خطأ في جلب المنتج ${productId}:`, error);
     throw error;
   }
 };
@@ -73,13 +70,11 @@ export const createProduct = async (
       try {
         await synchronizeWithServer();
       } catch (error) {
-        console.warn('فشلت محاولة المزامنة بعد إنشاء المنتج:', error);
       }
     }
     
     return newProduct;
   } catch (error) {
-    console.error('خطأ في إنشاء المنتج:', error);
     throw error;
   }
 };
@@ -103,13 +98,11 @@ export const updateProduct = async (
       try {
         await synchronizeWithServer();
       } catch (error) {
-        console.warn('فشلت محاولة المزامنة بعد تحديث المنتج:', error);
       }
     }
     
     return updatedProduct;
   } catch (error) {
-    console.error(`خطأ في تحديث المنتج ${productId}:`, error);
     throw error;
   }
 };
@@ -132,13 +125,11 @@ export const deleteProduct = async (organizationId: string, productId: string): 
       try {
         await synchronizeWithServer();
       } catch (error) {
-        console.warn('فشلت محاولة المزامنة بعد حذف المنتج:', error);
       }
     }
     
     return result;
   } catch (error) {
-    console.error(`خطأ في حذف المنتج ${productId}:`, error);
     throw error;
   }
 };
@@ -176,13 +167,11 @@ export const updateProductStock = async (
       try {
         await synchronizeWithServer();
       } catch (error) {
-        console.warn('فشلت محاولة المزامنة بعد تحديث المخزون:', error);
       }
     }
     
     return updatedProduct;
   } catch (error) {
-    console.error(`خطأ في تحديث مخزون المنتج ${productId}:`, error);
     throw error;
   }
 };
@@ -196,7 +185,6 @@ export const forceSynchronization = async (): Promise<boolean> => {
     
     return await synchronizeWithServer();
   } catch (error) {
-    console.error('خطأ في المزامنة اليدوية:', error);
     throw error;
   }
-}; 
+};

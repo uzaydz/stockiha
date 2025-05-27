@@ -65,4 +65,4 @@ const PersonalInfoFields = ({ form }: PersonalInfoFieldsProps) => {
   );
 };
 
-export default PersonalInfoFields; 
+export default PersonalInfoFields;

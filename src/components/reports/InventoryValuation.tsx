@@ -449,4 +449,4 @@ const InventoryValuation = ({ data, isLoading }: InventoryValuationProps) => {
   );
 };
 
-export default InventoryValuation; 
+export default InventoryValuation;

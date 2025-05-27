@@ -76,4 +76,4 @@ const ContactHero = () => {
   );
 };
 
-export default ContactHero; 
+export default ContactHero;

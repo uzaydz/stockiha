@@ -92,4 +92,4 @@ export interface ShopContextType {
   // Loading state
   isLoading: boolean;
   refreshData: () => Promise<void>;
-} 
+}

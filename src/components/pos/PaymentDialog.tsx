@@ -110,7 +110,6 @@ export default function PaymentDialog({
         setQuickCalcValue('');
       }
     } catch (error) {
-      console.error("حدث خطأ في حساب المبلغ:", error);
     }
   };
 
@@ -438,4 +437,4 @@ export default function PaymentDialog({
       </DialogContent>
     </Dialog>
   );
-} 
+}

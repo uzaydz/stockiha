@@ -3,4 +3,4 @@ import OrdersTable from "./table/OrdersTable";
 import { Order } from "./table/OrderTableTypes";
 
 export type { Order };
-export default OrdersTable; 
+export default OrdersTable;

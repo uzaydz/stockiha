@@ -58,7 +58,6 @@ const DomainVerificationDetails: React.FC<DomainVerificationDetailsProps> = ({
         variant: results.success ? 'default' : 'destructive',
       });
     } catch (error) {
-      console.error('خطأ أثناء التحقق من DNS:', error);
       setVerificationMessage('حدث خطأ أثناء التحقق من سجلات DNS');
       toast({
         title: 'خطأ',
@@ -91,7 +90,6 @@ const DomainVerificationDetails: React.FC<DomainVerificationDetailsProps> = ({
         onVerificationComplete(result.status);
       }
     } catch (error) {
-      console.error('خطأ أثناء التحقق الكامل من النطاق:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء التحقق الكامل من النطاق',
@@ -280,4 +278,4 @@ const DomainVerificationDetails: React.FC<DomainVerificationDetailsProps> = ({
   );
 };
 
-export default DomainVerificationDetails; 
+export default DomainVerificationDetails;

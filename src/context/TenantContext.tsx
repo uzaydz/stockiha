@@ -51,7 +51,6 @@ const updateLocalStorageOrgId = (organizationId: string | null) => {
       
     }
   } catch (error) {
-    console.error("خطأ في تحديث معرف المؤسسة في التخزين المحلي:", error);
   }
 };
 
@@ -62,8 +61,7 @@ const isMainDomain = (hostname: string): boolean => {
 
 // استخراج النطاق الفرعي من اسم المضيف
 const extractSubdomain = async (hostname: string): Promise<string | null> => {
-  
-  
+
   // التحقق من النطاق المخصص أولاً
   const checkCustomDomain = async (): Promise<string | null> => {
     try {
@@ -78,7 +76,6 @@ const extractSubdomain = async (hostname: string): Promise<string | null> => {
         return orgData.subdomain;
       }
     } catch (error) {
-      console.error('TenantContext - خطأ في التحقق من النطاق المخصص:', error);
     }
     return null;
   };
@@ -123,8 +120,7 @@ const extractSubdomain = async (hostname: string): Promise<string | null> => {
       
       return 'main';
     }
-    
-    
+
     return subdomain;
   }
   
@@ -161,7 +157,6 @@ export const getOrganizationFromCustomDomain = async (hostname: string): Promise
       };
     }
   } catch (error) {
-    console.error('خطأ في البحث عن المؤسسة بالنطاق المخصص:', error);
   }
   
   return null;
@@ -274,8 +269,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // مزامنة بيانات المؤسسة من AuthContext إلى TenantContext - محسنة
   useEffect(() => {
     if (authOrganization && !organization && !loadingOrganization.current) {
-      
-      
+
       // تحويل بيانات المؤسسة من AuthContext إلى النموذج المطلوب لـ TenantContext
       setOrganization(updateOrganizationFromData(authOrganization));
       
@@ -305,7 +299,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // إذا لم نعثر على المؤسسة بالنطاق الرئيسي، نستخدم النطاق الفرعي
       return await getOrganizationBySubdomain(subdomain);
     } catch (error) {
-      console.error(`خطأ أثناء جلب المؤسسة بالنطاق الفرعي: ${subdomain}`, error);
       return null;
     }
   }, []);
@@ -338,14 +331,12 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
       
       loadingTimeout.current = setTimeout(() => {
-        console.warn('انتهت مهلة تحميل بيانات المؤسسة - إيقاف التحميل');
         loadingOrganization.current = false;
         setIsLoading(false);
         
         // إعادة المحاولة إذا لم نصل للحد الأقصى
         if (retryCount.current < maxRetries) {
           retryCount.current += 1;
-          console.warn(`إعادة محاولة تحميل بيانات المؤسسة (المحاولة ${retryCount.current}/${maxRetries})`);
                      setTimeout(() => {
              initialized.current = false;
              loadTenantData();
@@ -358,12 +349,10 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       try {
         // استخدام النطاق الفرعي الحالي أو استخراجه من اسم المضيف
         const subdomain = currentSubdomain || await extractSubdomain(window.location.hostname);
-        
-        
+
         // أولاً نحاول العثور على المؤسسة بواسطة النطاق الرئيسي (الحالي)
         const currentHostname = window.location.hostname;
-        
-        
+
         // إلغاء التخزين المؤقت للتأكد من استدعاء البيانات المحدثة من قاعدة البيانات
         localStorage.removeItem(`tenant:domain:${currentHostname}`);
         
@@ -406,8 +395,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               setIsOrgAdmin(true);
             }
           } else {
-            
-            
+
             // محاولة استخدام المعرف المخزن محلياً كاحتياطي
             await tryLoadFromLocalStorage();
           }
@@ -426,11 +414,9 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
         
       } catch (error) {
-        console.error('خطأ في تحميل بيانات المؤسسة:', error);
         
         // في حالة timeout، لا نعتبرها خطأ نهائي
         if (error instanceof Error && error.message.includes('timeout')) {
-          console.warn('تايم أوت في تحميل البيانات، سيتم إعادة المحاولة...');
           // لا نقوم بتعيين error state في هذه الحالة
         } else {
           setOrganization(null);
@@ -451,8 +437,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // وظيفة مساعدة لتحميل المؤسسة من التخزين المحلي
     const tryLoadFromLocalStorage = async () => {
       const storedOrgId = localStorage.getItem('bazaar_organization_id');
-      
-      
+
       if (storedOrgId) {
         const orgById = await getOrganizationById(storedOrgId);
         if (orgById) {
@@ -485,7 +470,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     try {
       return await getOrganizationBySubdomain(subdomain);
     } catch (error) {
-      console.error('خطأ في جلب المؤسسة بواسطة النطاق الفرعي:', error);
       return null;
     }
   }, [getOrganizationBySubdomain]);
@@ -524,7 +508,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       return { success: true, organizationId: data };
     } catch (err) {
-      console.error('Error creating organization:', err);
       return { success: false, error: err as Error };
     }
   }, [user]);
@@ -559,7 +542,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       return { success: true };
     } catch (err) {
-      console.error('Error inviting user to organization:', err);
       return { success: false, error: err as Error };
     }
   }, [user, organization, isOrgAdmin]);
@@ -576,15 +558,13 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     
     // إعداد timeout للحماية من التعليق
     const refreshTimeout = setTimeout(() => {
-      console.warn('انتهت مهلة تحديث بيانات المؤسسة');
       loadingOrganization.current = false;
       setIsLoading(false);
       setError(new Error('انتهت مهلة تحديث بيانات المؤسسة'));
     }, 20000);
 
     try {
-      
-      
+
       // مسح كل التخزين المؤقت المتعلق بالمؤسسة
       const orgId = localStorage.getItem('bazaar_organization_id');
       if (orgId) {
@@ -618,14 +598,11 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           .single();
         
         if (orgError) {
-          console.error('خطأ في جلب بيانات المؤسسة:', orgError);
           throw orgError;
         }
         
         if (orgData) {
-          
-          
-          
+
           setOrganization(updateOrganizationFromData(orgData));
           localStorage.setItem('bazaar_organization_id', orgData.id);
           
@@ -654,7 +631,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setOrganization(null);
       }
     } catch (error) {
-      console.error('خطأ في تحديث بيانات المؤسسة:', error);
       setError(error as Error);
     } finally {
       clearTimeout(refreshTimeout);
@@ -718,4 +694,4 @@ const updateOrganizationFromData = (orgData: any): Organization => {
     updated_at: orgData.updated_at,
     owner_id: orgData.owner_id
   };
-}; 
+};

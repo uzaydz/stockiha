@@ -255,4 +255,4 @@ const AllInOneSection = () => {
 // ملاحظة: إذا تم نقل svg إلى public/images استخدم المسار /images/products-inventory-animated.svg
 // إذا كنت تستخدم صورًا أخرى في public/images، تأكد أن المسار يبدأ بـ /images وليس /public/images
 
-export default AllInOneSection; 
+export default AllInOneSection;

@@ -50,7 +50,6 @@ export class DomainSyncService {
         .not('domain', 'is', null);
 
       if (error) {
-        console.error('خطأ في استعلام المنظمات:', error);
         return {
           success: false,
           processed: 0,
@@ -83,7 +82,6 @@ export class DomainSyncService {
             .eq('domain', org.domain);
 
           if (updateError) {
-            console.error(`خطأ في تحديث حالة النطاق ${org.domain}:`, updateError);
             errors++;
           } else {
             updated++;
@@ -94,7 +92,6 @@ export class DomainSyncService {
             await this.reconnectDomain(org.domain, org.id);
           }
         } catch (err) {
-          console.error(`خطأ في مزامنة النطاق ${org.domain}:`, err);
           errors++;
         }
       }
@@ -106,7 +103,6 @@ export class DomainSyncService {
         errors
       };
     } catch (error) {
-      console.error('خطأ في عملية المزامنة:', error);
       return {
         success: false,
         processed,
@@ -142,13 +138,11 @@ export class DomainSyncService {
           .eq('domain', domain);
 
         if (error) {
-          console.error(`خطأ في تحديث بيانات إعادة ربط النطاق ${domain}:`, error);
         }
       }
 
       return result.success;
     } catch (error) {
-      console.error(`خطأ في إعادة ربط النطاق ${domain}:`, error);
       return false;
     }
   }
@@ -162,9 +156,8 @@ export const createDomainSyncService = (): DomainSyncService | null => {
   const vercelProjectId = process.env.VERCEL_PROJECT_ID;
 
   if (!vercelToken || !vercelProjectId) {
-    console.error('لم يتم تكوين متغيرات البيئة اللازمة لخدمة مزامنة النطاقات');
     return null;
   }
 
   return new DomainSyncService(vercelToken, vercelProjectId);
-}; 
+};

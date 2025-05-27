@@ -17,4 +17,4 @@ export default async function handler(req: any, res: any) {
     success: false,
     error: 'هذه الواجهة البرمجية لم تعد مستخدمة بعد التحول إلى Vite. استخدم تنفيذ Express API بدلاً من ذلك.'
   });
-} 
+}

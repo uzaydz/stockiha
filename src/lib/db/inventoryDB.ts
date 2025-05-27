@@ -56,7 +56,6 @@ try {
   
   Dexie.delete('inventoryDB');
 } catch (deleteError) {
-  console.warn('لم نتمكن من حذف قاعدة البيانات القديمة:', deleteError);
 }
 
 // إنشاء نسخة فردية من قاعدة البيانات
@@ -77,9 +76,7 @@ export async function getProductStock(productId: string, variantId?: string): Pr
     
     const normalizedVariantId = variantId ?? null;
     const itemId = createInventoryItemId(productId, normalizedVariantId);
-    
-    
-    
+
     // البحث عن عنصر المخزون باستخدام المعرف
     const item = await inventoryDB.inventory
       .where('id')
@@ -97,16 +94,13 @@ export async function getProductStock(productId: string, variantId?: string): Pr
       .equals(productId)
       .filter(item => item.variant_id === normalizedVariantId)
       .toArray();
-    
-    
-    
+
     if (items.length > 0) {
       return items[0].stock_quantity;
     }
     
     return 0;
   } catch (error) {
-    console.error('خطأ في استرجاع مخزون المنتج:', error);
     return 0;
   }
 }
@@ -144,8 +138,7 @@ export async function updateProductStock(data: {
   };
   
   try {
-    
-    
+
     // بدء معاملة قاعدة البيانات
     await inventoryDB.transaction('rw', [inventoryDB.inventory, inventoryDB.transactions], async () => {
       try {
@@ -167,15 +160,11 @@ export async function updateProductStock(data: {
             item = items[0];
           }
         }
-        
-        
-        
+
         if (item) {
           // حساب الكمية الجديدة (لا تسمح بقيم سالبة)
           const newQuantity = Math.max(0, item.stock_quantity + data.quantity);
-          
-          
-          
+
           // تحديث العنصر الموجود
           await inventoryDB.inventory.put({
             id: itemId,
@@ -186,8 +175,7 @@ export async function updateProductStock(data: {
             synced: false
           });
         } else {
-          
-          
+
           // إنشاء عنصر جديد
           await inventoryDB.inventory.add({
             id: itemId,
@@ -203,15 +191,12 @@ export async function updateProductStock(data: {
         await inventoryDB.transactions.add(transaction);
         
       } catch (innerError) {
-        console.error('خطأ داخلي في تحديث المخزون:', innerError);
         throw innerError;
       }
     });
-    
-    
+
     return transaction;
   } catch (error) {
-    console.error('خطأ في تحديث المخزون محليًا:', error);
     throw error;
   }
 }
@@ -224,7 +209,6 @@ export async function syncInventoryData(): Promise<number> {
   try {
     // التحقق من حالة الاتصال
     if (!navigator.onLine) {
-      console.warn('غير متصل بالإنترنت. لا يمكن مزامنة بيانات المخزون');
       return 0;
     }
     
@@ -252,11 +236,9 @@ export async function syncInventoryData(): Promise<number> {
         .limit(1);
         
       if (pingError) {
-        console.error('غير قادر على الاتصال بـ Supabase:', pingError);
         throw new Error('فشل الاتصال بـ Supabase');
       }
     } catch (pingError) {
-      console.error('فشل التحقق من اتصال Supabase:', pingError);
       throw new Error('فشل التحقق من اتصال Supabase');
     }
     
@@ -274,7 +256,6 @@ export async function syncInventoryData(): Promise<number> {
             .single();
             
           if (fetchError) {
-            console.warn('لم نتمكن من الحصول على المخزون السابق:', fetchError);
             continue; // ننتقل للعملية التالية
           }
             
@@ -282,7 +263,6 @@ export async function syncInventoryData(): Promise<number> {
             previousStock = productData.stock_quantity;
           }
         } catch (stockError) {
-          console.warn('لم نتمكن من الحصول على المخزون السابق:', stockError);
           continue; // ننتقل للعملية التالية
         }
         
@@ -300,7 +280,6 @@ export async function syncInventoryData(): Promise<number> {
           .eq('id', transaction.product_id);
         
         if (updateError) {
-          console.error('خطأ في تحديث كمية المخزون في جدول المنتجات:', updateError);
           continue; // الانتقال إلى العملية التالية
         }
         
@@ -321,7 +300,6 @@ export async function syncInventoryData(): Promise<number> {
           });
         
         if (error) {
-          console.error('فشل في مزامنة العملية:', transaction.id, error);
         } else {
           // تحديث حالة المزامنة للعملية
           await inventoryDB.transactions.update(transaction.id, {
@@ -332,7 +310,6 @@ export async function syncInventoryData(): Promise<number> {
           syncedCount++;
         }
       } catch (error) {
-        console.error('خطأ في مزامنة العملية:', transaction.id, error);
       }
     }
     
@@ -340,11 +317,9 @@ export async function syncInventoryData(): Promise<number> {
     await inventoryDB.inventory
       .filter(item => item.synced === false)
       .modify({ synced: true });
-    
-    
+
     return syncedCount;
   } catch (error) {
-    console.error('خطأ في مزامنة بيانات المخزون:', error);
     return 0;
   }
 }
@@ -359,7 +334,6 @@ export async function getUnsyncedTransactionsCount(): Promise<number> {
       .filter(item => item.synced === false)
       .count();
   } catch (error) {
-    console.error('خطأ في حساب عدد العمليات غير المتزامنة:', error);
     return 0;
   }
 }
@@ -387,7 +361,6 @@ export async function getProductTransactions(productId: string, variantId?: stri
     return await query
       .sortBy('timestamp');
   } catch (error) {
-    console.error('خطأ في استرجاع عمليات المنتج:', error);
     return [];
   }
 }
@@ -400,7 +373,6 @@ export async function loadInventoryDataFromServer(): Promise<number> {
   try {
     // التحقق من حالة الاتصال
     if (!navigator.onLine) {
-      console.warn('غير متصل بالإنترنت. لا يمكن تحميل بيانات المخزون');
       return 0;
     }
     
@@ -446,11 +418,9 @@ export async function loadInventoryDataFromServer(): Promise<number> {
         });
       }
     });
-    
-    
+
     return inventoryData.length;
   } catch (error) {
-    console.error('خطأ في تحميل بيانات المخزون من الخادم:', error);
     return 0;
   }
-} 
+}

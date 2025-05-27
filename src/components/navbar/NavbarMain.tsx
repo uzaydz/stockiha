@@ -100,7 +100,6 @@ export function NavbarMain({
         setDisplayTextWithLogo(data.display_text_with_logo !== false);
       }
     } catch (error) {
-      console.log('No cached org settings found');
     }
   };
 
@@ -124,7 +123,6 @@ export function NavbarMain({
         localStorage.setItem(cacheKey.current, JSON.stringify(orgData));
       }
     } catch (error) {
-      console.error('Error loading organization settings:', error);
     }
   };
 
@@ -153,7 +151,6 @@ export function NavbarMain({
           setStoreCategories(categoriesFromDB);
         }
       } catch (error) {
-        console.error('Error fetching store categories:', error);
       } finally {
         setIsLoadingCategories(false);
       }
@@ -162,7 +159,6 @@ export function NavbarMain({
   }, [currentOrganization?.id, propCategories]);
 
   const handleSearch = (query: string) => {
-    console.log('Search query:', query);
   };
   
   // Enhanced notification sample data
@@ -389,4 +385,4 @@ export function NavbarMain({
       </div>
     </header>
   );
-} 
+}

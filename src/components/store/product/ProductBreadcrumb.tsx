@@ -51,4 +51,4 @@ const ProductBreadcrumb = ({
   );
 };
 
-export default ProductBreadcrumb; 
+export default ProductBreadcrumb;

@@ -49,6 +49,7 @@ const POS = () => {
     notes?: string; 
     customerId?: string;
     public_tracking_code?: string;
+    repair_location_id?: string;
   })[]>([]);
   const [activeView, setActiveView] = useState<'products' | 'services'>('products');
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
@@ -106,13 +107,11 @@ const POS = () => {
       if (event.key === 'Enter') {
         event.preventDefault();
         if (barcodeBuffer.length > 0) {
-          console.log('قارئ الباركود: تم قراءة الباركود مباشرة -', barcodeBuffer);
           // استدعاء مباشر لتجنب مشكلة التبعية
                      const barcode = barcodeBuffer.replace(/[^\w\d-]/g, '').trim();
            if (barcode) {
              const product = shopProducts.find(p => p.barcode === barcode || p.sku === barcode);
              if (product) {
-               console.log('تم العثور على المنتج الأساسي:', product.name);
                
                // التحقق من المخزون والإضافة للسلة
                if (product.stock_quantity <= 0) {
@@ -149,7 +148,6 @@ const POS = () => {
                  if (prod.colors && prod.colors.length > 0) {
                    const color = prod.colors.find(c => c.barcode === barcode);
                    if (color) {
-                     console.log('تم العثور على اللون:', color.name, 'للمنتج:', prod.name);
                      // إضافة المتغير للسلة
                      setCartItems(prevCart => [...prevCart, {
                        product: prod,
@@ -244,8 +242,7 @@ const POS = () => {
     }
     
     // طباعة تشخيصية لبيانات المنتج
-    
-    
+
     // تحقق محسن من متغيرات المنتج
     if ((product.has_variants || product.use_sizes) || (product.colors && product.colors.length > 0)) {
       
@@ -373,7 +370,6 @@ const POS = () => {
 
   // تنظيف البيانات الواردة من قارئ الباركود
   const cleanBarcodeInput = (input: string): string => {
-    console.log('النص الأصلي من قارئ الباركود:', input);
     
     // إزالة الأحرف العربية والرموز الخاصة، والاحتفاظ بالأرقام والحروف الانجليزية فقط
     let cleaned = input.replace(/[^\w\d-]/g, '');
@@ -385,8 +381,6 @@ const POS = () => {
     
     // إزالة المسافات الإضافية
     cleaned = cleaned.trim();
-    
-    console.log('النص بعد التنظيف:', cleaned);
     return cleaned;
   };
 
@@ -400,12 +394,10 @@ const POS = () => {
       toast.error('الباركود المُدخل غير صالح. تأكد من إعدادات قارئ الباركود.');
       return;
     }
-    console.log('البحث عن الباركود:', barcode);
     
     // البحث في المنتجات الأساسية (barcode أو sku)
     const product = products.find(p => p.barcode === barcode || p.sku === barcode);
     if (product) {
-      console.log('تم العثور على المنتج الأساسي:', product.name);
       addItemToCart(product);
       return;
     }
@@ -418,7 +410,6 @@ const POS = () => {
       if (product.colors && product.colors.length > 0) {
         const color = product.colors.find(c => c.barcode === barcode);
         if (color) {
-          console.log('تم العثور على اللون:', color.name, 'للمنتج:', product.name);
           addVariantToCart(
             product,
             color.id,
@@ -439,7 +430,6 @@ const POS = () => {
             if (color.sizes && color.sizes.length > 0) {
               const size = color.sizes.find(s => s.barcode === barcode);
               if (size) {
-                console.log('تم العثور على المقاس:', size.name, 'للون:', color.name, 'للمنتج:', product.name);
                                   addVariantToCart(
                     product,
                     color.id,
@@ -461,7 +451,6 @@ const POS = () => {
     }
     
     if (!foundVariant) {
-      console.log('لم يتم العثور على منتج بالباركود:', barcode);
       toast.error(`لم يتم العثور على منتج بالباركود: ${barcode}`);
     }
   };
@@ -519,7 +508,7 @@ const POS = () => {
   };
 
   // Añadir servicio
-  const handleAddService = (service: Service & { customerId?: string }, scheduledDate?: Date, notes?: string) => {
+  const handleAddService = (service: Service & { customerId?: string }, scheduledDate?: Date, notes?: string, repairLocationId?: string) => {
     // Verificar si el servicio ya está en la lista
     const existingServiceIndex = selectedServices.findIndex(s => s.id === service.id);
     
@@ -530,7 +519,8 @@ const POS = () => {
         ...service,
         scheduledDate,
         notes,
-        customerId: service.customerId // الحفاظ على معرف العميل المختار
+        customerId: service.customerId, // الحفاظ على معرف العميل المختار
+        repair_location_id: repairLocationId // إضافة معرف مكان التصليح
       };
       setSelectedServices(updatedServices);
     } else {
@@ -539,7 +529,8 @@ const POS = () => {
         ...service, 
         scheduledDate, 
         notes,
-        customerId: service.customerId // الحفاظ على معرف العميل المختار
+        customerId: service.customerId, // الحفاظ على معرف العميل المختار
+        repair_location_id: repairLocationId // إضافة معرف مكان التصليح
       }]);
     }
     
@@ -683,7 +674,8 @@ const POS = () => {
                 : "زائر"),
           status: 'pending',
           assignedTo: user?.id || "",
-          public_tracking_code: publicTrackingCode // إضافة كود التتبع العام
+          public_tracking_code: publicTrackingCode, // إضافة كود التتبع العام
+          repair_location_id: service.repair_location_id // إضافة معرف مكان التصليح
         };
       });
       
@@ -744,7 +736,6 @@ const POS = () => {
       // يتم فتح نافذة الطباعة في مكون Cart.tsx فقط
       
     } catch (error) {
-      console.error("Error creating order:", error);
       toast.error("حدث خطأ أثناء إنشاء الطلب");
     }
   };
@@ -855,6 +846,7 @@ const POS = () => {
                       services={services}
                       customers={users.filter(u => u.role === 'customer')}
                       onAddService={handleAddService}
+                      organizationId={user?.user_metadata?.organization_id || localStorage.getItem('bazaar_organization_id') || ''}
                     />
                   )}
                 </TabsContent>

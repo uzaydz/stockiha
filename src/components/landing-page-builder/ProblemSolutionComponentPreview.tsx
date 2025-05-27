@@ -410,4 +410,4 @@ const ProblemSolutionComponentPreview: React.FC<ProblemSolutionComponentPreviewP
   );
 };
 
-export default ProblemSolutionComponentPreview; 
+export default ProblemSolutionComponentPreview;

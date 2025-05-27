@@ -41,7 +41,6 @@ const CustomerDebtsList: React.FC<CustomerDebtsListProps> = ({
           setHasPaymentPermission(canRecordPayments);
         }
       } catch (err) {
-        console.error('خطأ في التحقق من الصلاحيات:', err);
         setHasPaymentPermission(false);
       }
     };
@@ -174,4 +173,4 @@ const CustomerDebtsList: React.FC<CustomerDebtsListProps> = ({
   );
 };
 
-export default CustomerDebtsList; 
+export default CustomerDebtsList;

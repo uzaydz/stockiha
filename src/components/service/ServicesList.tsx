@@ -98,7 +98,6 @@ const ServicesList = ({ services, onRefreshServices }: ServicesListProps) => {
             canTrack
           });
         } catch (error) {
-          console.error('Error checking permissions:', error);
         }
       }
     };
@@ -150,7 +149,6 @@ const ServicesList = ({ services, onRefreshServices }: ServicesListProps) => {
       await onRefreshServices();
       toast.success(service.is_available ? 'تم تعطيل الخدمة بنجاح' : 'تم تفعيل الخدمة بنجاح');
     } catch (error) {
-      console.error('Error toggling service status:', error);
       toast.error('حدث خطأ أثناء تحديث حالة الخدمة');
     } finally {
       setIsLoading(false);
@@ -167,7 +165,6 @@ const ServicesList = ({ services, onRefreshServices }: ServicesListProps) => {
       setIsDeleteOpen(false);
       onRefreshServices();
     } catch (error) {
-      console.error('Error deleting service:', error);
       toast.error('حدث خطأ أثناء حذف الخدمة');
     } finally {
       setIsLoading(false);
@@ -503,4 +500,4 @@ const ServicesList = ({ services, onRefreshServices }: ServicesListProps) => {
   );
 };
 
-export default ServicesList; 
+export default ServicesList;

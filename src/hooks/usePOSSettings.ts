@@ -90,14 +90,12 @@ export function usePOSSettings({ organizationId }: UsePOSSettingsProps): UsePOSS
           // لا توجد إعدادات، إنشاء إعدادات افتراضية
           await initializeSettings();
         } else {
-          console.error('Error fetching POS settings:', error);
           // بدلاً من إظهار رسالة خطأ، استخدم الإعدادات الافتراضية
           const defaultSettings = {
             ...defaultPOSSettings,
             organization_id: organizationId
           };
           setSettings(defaultSettings);
-          console.log('استخدام الإعدادات الافتراضية بسبب:', error.message);
         }
         return;
       }
@@ -109,14 +107,12 @@ export function usePOSSettings({ organizationId }: UsePOSSettingsProps): UsePOSS
         await initializeSettings();
       }
     } catch (err: any) {
-      console.error('Error in fetchSettings:', err);
       // في حالة أي خطأ، استخدم الإعدادات الافتراضية
       const defaultSettings = {
         ...defaultPOSSettings,
         organization_id: organizationId
       };
       setSettings(defaultSettings);
-      console.log('استخدام الإعدادات الافتراضية كخطة احتياطية');
     } finally {
       setIsLoading(false);
     }
@@ -149,14 +145,12 @@ export function usePOSSettings({ organizationId }: UsePOSSettingsProps): UsePOSS
         .single();
 
       if (error) {
-        console.error('Error initializing POS settings:', error);
         // في حالة فشل الإنشاء، استخدم الإعدادات الافتراضية محلياً
         setSettings(newSettings);
       } else {
         setSettings(data);
       }
     } catch (err: any) {
-      console.error('Error in initializeSettings:', err);
       // استخدام الإعدادات الافتراضية كخطة احتياطية
       setSettings({
         ...defaultPOSSettings,
@@ -236,7 +230,6 @@ export function usePOSSettings({ organizationId }: UsePOSSettingsProps): UsePOSS
         .single();
 
       if (error) {
-        console.error('Error saving POS settings:', error);
         
         // حتى لو فشل الحفظ، احتفظ بالإعدادات محلياً
         setSaveSuccess(true);
@@ -260,7 +253,6 @@ export function usePOSSettings({ organizationId }: UsePOSSettingsProps): UsePOSS
       });
 
     } catch (err: any) {
-      console.error('Error in saveSettings:', err);
       
       // حتى في حالة الخطأ، نجعل الحفظ ينجح محلياً
       setSaveSuccess(true);
@@ -324,4 +316,4 @@ export function usePOSSettings({ organizationId }: UsePOSSettingsProps): UsePOSS
     resetToDefaults,
     refreshSettings,
   };
-} 
+}

@@ -50,4 +50,4 @@ export const SuperAdminSidebarLinks: SidebarLink[] = [
     href: "/super-admin/settings",
     icon: <Settings className="h-5 w-5" />,
   }
-]; 
+];

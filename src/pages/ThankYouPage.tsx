@@ -54,7 +54,6 @@ export default function ThankYouPage() {
     const orderNumberParam = searchParams.get("orderNumber");
 
     if (!orderNumberParam) {
-      console.error("Order number not found in URL params.");
       navigate("/"); // أو توجيه لصفحة خطأ
       return;
     }
@@ -87,11 +86,9 @@ export default function ThankYouPage() {
             // productName: fetchedProductName // إذا تم جلبه
           });
         } else {
-          console.error(`Order with number ${orderNumberParam} not found.`);
           setErrorLoadingOrder("لم يتم العثور على الطلب المحدد.");
         }
       } catch (error) {
-        console.error("Error fetching order data:", error);
         setErrorLoadingOrder("حدث خطأ أثناء جلب بيانات الطلب.");
       } finally {
         setIsLoadingOrder(false);
@@ -108,8 +105,7 @@ export default function ThankYouPage() {
   const handleTemplateLoad = (loadedTemplate: ThankYouTemplate | null) => {
     if (templateLoadedRef.current) return;
     templateLoadedRef.current = true;
-    
-    
+
     setTemplate(loadedTemplate);
     setIsTemplateLoading(false);
   };
@@ -228,4 +224,4 @@ export default function ThankYouPage() {
       <OrderSuccessTracking />
     </>
   );
-} 
+}

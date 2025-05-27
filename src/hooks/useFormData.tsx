@@ -54,7 +54,6 @@ export function useFormData(organizationId?: string, formId?: string): FormDataR
         if (error) throw error;
         return data || [];
       } catch (error) {
-        console.error('خطأ في جلب النماذج:', error);
         setError(error);
         return [];
       }
@@ -81,7 +80,6 @@ export function useFormData(organizationId?: string, formId?: string): FormDataR
         if (error) throw error;
         return data || [];
       } catch (error) {
-        console.error('خطأ في جلب المنتجات:', error);
         setError(error);
         return [];
       }
@@ -118,7 +116,6 @@ export function useFormData(organizationId?: string, formId?: string): FormDataR
         if (error) throw error;
         return data || [];
       } catch (error) {
-        console.error('خطأ في جلب حقول النموذج:', error);
         setError(error);
         return [];
       }
@@ -149,7 +146,6 @@ export function useFormData(organizationId?: string, formId?: string): FormDataR
       if (error) throw error;
       return data || [];
     } catch (error) {
-      console.error('خطأ في جلب حقول النموذج:', error);
       setError(error);
       return [];
     }
@@ -170,7 +166,6 @@ export function useFormData(organizationId?: string, formId?: string): FormDataR
       mutateForm(data);
       return data || [];
     } catch (error) {
-      console.error('خطأ في جلب النماذج:', error);
       setError(error);
       return [];
     }
@@ -187,7 +182,6 @@ export function useFormData(organizationId?: string, formId?: string): FormDataR
       if (error) throw error;
       return data || [];
     } catch (error) {
-      console.error('خطأ في جلب المنتجات:', error);
       setError(error);
       return [];
     }
@@ -205,4 +199,4 @@ export function useFormData(organizationId?: string, formId?: string): FormDataR
     fetchProducts,
     error
   };
-} 
+}

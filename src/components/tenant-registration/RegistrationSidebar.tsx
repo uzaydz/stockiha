@@ -116,4 +116,4 @@ export const RegistrationSidebar = () => {
   );
 };
 
-export default RegistrationSidebar; 
+export default RegistrationSidebar;

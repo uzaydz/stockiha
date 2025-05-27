@@ -19,7 +19,6 @@ export const checkDatabaseConnection = async (): Promise<{
       const { data: usersData, error: usersError } = await supabase.from('users').select('id').limit(1);
       
       if (usersError) {
-        console.error('Database connection error (fallback check):', usersError);
         return {
           success: false,
           error: usersError.message,
@@ -34,7 +33,6 @@ export const checkDatabaseConnection = async (): Promise<{
     }
     
     if (error) {
-      console.error('Database connection error:', error);
       return {
         success: false,
         error: error.message,
@@ -47,7 +45,6 @@ export const checkDatabaseConnection = async (): Promise<{
       details: { message: 'Database connection successful', timestamp: new Date() }
     };
   } catch (error) {
-    console.error('Unexpected error checking database connection:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -76,7 +73,6 @@ export const checkOrganizationAccess = async (
       .single();
     
     if (orgError) {
-      console.error('Error fetching organization:', orgError);
       return {
         success: false,
         hasAccess: false,
@@ -102,7 +98,6 @@ export const checkOrganizationAccess = async (
       .single();
     
     if (userError) {
-      console.error('Error fetching user:', userError);
       return {
         success: false,
         hasAccess: false,
@@ -113,8 +108,7 @@ export const checkOrganizationAccess = async (
     
     // التحقق من تطابق معرف المؤسسة
     const hasAccess = userData.organization_id === organizationId;
-    
-    
+
     // تسجيل محاولة الوصول في جدول السجلات
     try {
       await supabaseAdmin.rpc('log_dashboard_access', {
@@ -127,7 +121,6 @@ export const checkOrganizationAccess = async (
         }
       });
     } catch (logError) {
-      console.error('Error logging access attempt:', logError);
       // استمر حتى في حالة فشل التسجيل
     }
     
@@ -140,7 +133,6 @@ export const checkOrganizationAccess = async (
       }
     };
   } catch (error) {
-    console.error('Unexpected error checking organization access:', error);
     return {
       success: false,
       hasAccess: false,
@@ -177,7 +169,6 @@ export const testUserData = async (userId: string): Promise<{
       .single();
       
     if (userError) {
-      console.error('Error fetching user data:', userError);
       return {
         success: false,
         error: userError.message
@@ -197,10 +188,9 @@ export const testUserData = async (userId: string): Promise<{
       userData
     };
   } catch (error) {
-    console.error('Unexpected error testing user data:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'
     };
   }
-}; 
+};

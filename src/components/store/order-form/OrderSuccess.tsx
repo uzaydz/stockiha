@@ -95,4 +95,4 @@ const OrderSuccess = ({
   );
 };
 
-export default OrderSuccess; 
+export default OrderSuccess;

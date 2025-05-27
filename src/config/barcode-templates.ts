@@ -418,4 +418,4 @@ export const barcodeTemplates: BarcodeTemplate[] = [
     },
   },
   // يمكن إضافة المزيد من القوالب هنا
-]; 
+];

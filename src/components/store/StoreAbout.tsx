@@ -155,4 +155,4 @@ const StoreAbout = ({
   );
 };
 
-export default StoreAbout; 
+export default StoreAbout;

@@ -111,7 +111,6 @@ const ProductsList = ({ products, onRefreshProducts }: ProductsListProps) => {
         setCanEditProducts(canEdit);
         setCanDeleteProducts(canDelete);
       } catch (error) {
-        console.error('Error checking permissions:', error);
         // في حالة الخطأ، تحقق مباشرة من البيانات الخام
         const permissions = user.user_metadata?.permissions || {};
         const isAdmin = 
@@ -171,7 +170,6 @@ const ProductsList = ({ products, onRefreshProducts }: ProductsListProps) => {
       setIsFeaturesOpen(false);
     } catch (error) {
       toast.error('حدث خطأ أثناء تحديث المنتج');
-      console.error('Error updating product features:', error);
     } finally {
       setIsUpdatingFeatures(false);
     }
@@ -510,4 +508,4 @@ const ProductsList = ({ products, onRefreshProducts }: ProductsListProps) => {
   );
 };
 
-export default ProductsList; 
+export default ProductsList;

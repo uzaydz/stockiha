@@ -30,4 +30,4 @@ const ProductEditActions: React.FC<ProductEditActionsProps> = ({
   );
 };
 
-export default ProductEditActions; 
+export default ProductEditActions;

@@ -127,4 +127,4 @@ const StoreHero = () => {
   );
 };
 
-export default StoreHero; 
+export default StoreHero;

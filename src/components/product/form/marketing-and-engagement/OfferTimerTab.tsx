@@ -341,4 +341,4 @@ const ProductOfferTimerTab: React.FC<ProductOfferTimerTabProps> = ({ form, organ
   );
 };
 
-export default ProductOfferTimerTab; 
+export default ProductOfferTimerTab;

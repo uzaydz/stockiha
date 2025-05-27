@@ -59,7 +59,6 @@ export default async function handler(
       const { data, error } = await supabase.rpc('execute_sql', { sql_command: command + ';' });
       
       if (error) {
-        console.error('خطأ في تنفيذ SQL:', error);
         results.push({ success: false, command, error: error.message });
       } else {
         results.push({ success: true, command });
@@ -84,7 +83,6 @@ export default async function handler(
     });
     
   } catch (error: any) {
-    console.error('خطأ في إعداد الجداول العالمية:', error);
     
     return res.status(500).json({
       success: false,
@@ -92,4 +90,4 @@ export default async function handler(
       error: error.message
     });
   }
-} 
+}

@@ -41,14 +41,12 @@ export function DeliveryInfoFields({
   // إضافة مراقبة للتغييرات في إعدادات مزود الشحن
   useEffect(() => {
     if (shippingProviderSettings?.provider_code === 'zrexpress') {
-      console.log('تم اكتشاف ZRExpress في DeliveryInfoFields:', shippingProviderSettings);
       
       // تحديث البيانات إذا كان على وضع الاستلام من المكتب
       const currentDeliveryOption = form.getValues('deliveryOption');
       const currentProvinceValue = form.getValues('province');
       
       if (currentDeliveryOption === 'desk' && currentProvinceValue && onWilayaChange) {
-        console.log('إعادة تحميل البلديات بعد اكتشاف ZRExpress');
         setTimeout(() => {
           onWilayaChange(currentProvinceValue);
         }, 100);
@@ -82,7 +80,6 @@ export function DeliveryInfoFields({
   // +++ Log Watched Values before return +++
   const watchedDeliveryOptionForRender = form.watch('deliveryOption');
   const watchedProvinceForRender = form.watch('province');
-  
 
   // حقول معلومات التوصيل
   return (
@@ -105,24 +102,17 @@ export function DeliveryInfoFields({
                     field.onChange(value);
                     const currentDeliveryOption = value as 'home' | 'desk';
                     const currentProvinceValue = form.watch('province');
-                    console.log('تغيير خيار التوصيل:', {
-                      value: currentDeliveryOption,
-                      province: currentProvinceValue,
-                      isZRExpress: shippingProviderSettings?.provider_code === 'zrexpress'
-                    });
 
                     // إذا كان العنصر الحالي هو ZRExpress ويحاول المستخدم التغيير إلى "desk"،
                     // تأكد من تجهيز القائمة المناسبة (البلديات)
                     if (currentDeliveryOption === 'desk' && 
                         shippingProviderSettings?.provider_code === 'zrexpress' && 
                         currentProvinceValue) {
-                      console.log('يجب عرض البلديات لـ ZRExpress مع اختيار الاستلام من المكتب');
                       // إعادة تعيين حقل stopDeskId حيث لا يتم استخدامه مع ZRExpress
                       form.setValue('stopDeskId', '', { shouldValidate: false }); 
                     } else if (currentDeliveryOption === 'desk' && 
                                shippingProviderSettings?.provider_code !== 'zrexpress' && 
                                currentProvinceValue) {
-                      console.log('يجب عرض مكاتب ياليدين للشركات الأخرى مع اختيار الاستلام من المكتب');
                       // إعادة تعيين حقل municipality حيث يتم استخدام stopDeskId بدلاً منه
                       form.setValue('municipality', '', { shouldValidate: false }); 
                     }
@@ -312,16 +302,8 @@ export function DeliveryInfoFields({
       {(() => {
         const currentDeliveryOption = form.watch('deliveryOption');
         
-        console.log('DeliveryInfoFields - حالة الشاشة:', { 
-          currentDeliveryOption, 
-          hasShippingIntegration, 
-          provider_code: shippingProviderSettings?.provider_code,
-          municipalities: municipalities?.length || 0
-        });
-        
         // دائمًا عرض حقل البلدية في حالة الاستلام من المكتب بغض النظر عن شركة التوصيل
         if (currentDeliveryOption === 'desk') {
-          console.log('عرض البلديات للاستلام منها - لجميع شركات الشحن');
           return (
             <FormField
               control={form.control}
@@ -430,7 +412,6 @@ export function DeliveryInfoFields({
               onValueChange={(value) => {
                 field.onChange(value);
                 // اضافة سجل للتأكد أن تغيير شركة التوصيل يعمل
-                console.log('تم تغيير شركة التوصيل إلى:', value);
                 // استدعاء دالة تغيير شركة التوصيل إذا كانت متوفرة
                 if (onDeliveryCompanyChange) {
                   onDeliveryCompanyChange(value);
@@ -518,4 +499,4 @@ export function DeliveryInfoFields({
 }
 
 // Add default export
-export default DeliveryInfoFields; 
+export default DeliveryInfoFields;

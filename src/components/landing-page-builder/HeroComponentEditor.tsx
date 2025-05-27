@@ -185,6 +185,4 @@ const HeroComponentEditor: React.FC<HeroComponentEditorProps> = ({ settings, onU
   );
 };
 
-export default HeroComponentEditor; 
- 
- 
+export default HeroComponentEditor;

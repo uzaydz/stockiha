@@ -56,7 +56,6 @@ export default function ActivationCodesPage() {
       setBatches(result.batches);
       setBatchesTotal(result.total);
     } catch (error: any) {
-      console.error('Error fetching activation code batches:', error);
       toast({
         title: "خطأ في جلب دفعات الأكواد",
         description: error.message || "حدث خطأ أثناء جلب دفعات أكواد التفعيل",
@@ -82,7 +81,6 @@ export default function ActivationCodesPage() {
       setCodes(result.codes);
       setCodesTotal(result.total);
     } catch (error: any) {
-      console.error('Error fetching activation codes:', error);
       toast({
         title: "خطأ في جلب الأكواد",
         description: error.message || "حدث خطأ أثناء جلب أكواد التفعيل",
@@ -357,4 +355,4 @@ export default function ActivationCodesPage() {
       </div>
     </SuperAdminLayout>
   );
-} 
+}

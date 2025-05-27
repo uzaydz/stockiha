@@ -482,6 +482,4 @@ const ComponentSelector: React.FC<ComponentSelectorProps> = ({ onAddComponent })
   );
 };
 
-export default ComponentSelector; 
- 
- 
+export default ComponentSelector;

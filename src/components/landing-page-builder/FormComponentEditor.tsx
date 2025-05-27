@@ -61,8 +61,7 @@ const FormComponentEditor: React.FC<FormComponentEditorProps> = ({
 
   // تتبع التغييرات في الإعدادات المتقدمة للتصحيح
   useEffect(() => {
-    
-    
+
     if (settings.advancedSettings) {
       
     }
@@ -114,9 +113,7 @@ const FormComponentEditor: React.FC<FormComponentEditorProps> = ({
 
   // معالج خاص لتحديثات الإعدادات المتقدمة
   const handleAdvancedSettingsChange = useCallback((newSettings: Record<string, any>) => {
-    
-    
-    
+
     // عمل نسخة عميقة من الإعدادات المتقدمة لضمان إنشاء كائن جديد
     const updatedSettings = {
       ...localSettings,
@@ -125,8 +122,7 @@ const FormComponentEditor: React.FC<FormComponentEditorProps> = ({
         JSON.parse(JSON.stringify(newSettings.advancedSettings)) : 
         localSettings.advancedSettings
     };
-    
-    
+
     onUpdate(updatedSettings);
   }, [localSettings, onUpdate]);
   
@@ -390,4 +386,4 @@ const FormComponentEditor: React.FC<FormComponentEditorProps> = ({
   );
 };
 
-export default FormComponentEditor; 
+export default FormComponentEditor;

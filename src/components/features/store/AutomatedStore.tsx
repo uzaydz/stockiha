@@ -139,4 +139,4 @@ const AutomatedStore = () => {
   );
 };
 
-export default AutomatedStore; 
+export default AutomatedStore;

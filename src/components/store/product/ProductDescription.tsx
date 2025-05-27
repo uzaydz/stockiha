@@ -33,4 +33,4 @@ const ProductDescription = ({ description }: ProductDescriptionProps) => {
   );
 };
 
-export default ProductDescription; 
+export default ProductDescription;

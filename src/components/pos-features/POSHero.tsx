@@ -221,4 +221,4 @@ const POSHero = () => {
   );
 };
 
-export default POSHero; 
+export default POSHero;

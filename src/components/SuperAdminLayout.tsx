@@ -153,4 +153,4 @@ export default function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
       </div>
     </div>
   );
-} 
+}

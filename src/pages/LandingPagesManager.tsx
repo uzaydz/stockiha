@@ -95,7 +95,6 @@ const LandingPagesManager: React.FC = () => {
       
       setPages(formattedPages || []);
     } catch (error) {
-      console.error('خطأ في جلب صفحات الهبوط:', error);
       toast.error(t('حدث خطأ أثناء جلب صفحات الهبوط'));
     } finally {
       setIsLoading(false);
@@ -164,7 +163,6 @@ const LandingPagesManager: React.FC = () => {
       
       navigate(`/landing-page-builder/${data.id}?${params.toString()}`);
     } catch (error) {
-      console.error('خطأ في إنشاء صفحة الهبوط:', error);
       toast.error(t('حدث خطأ أثناء إنشاء صفحة الهبوط'));
     }
   };
@@ -190,7 +188,6 @@ const LandingPagesManager: React.FC = () => {
           : t('تم إلغاء نشر الصفحة')
       );
     } catch (error) {
-      console.error('خطأ في تغيير حالة النشر:', error);
       toast.error(t('حدث خطأ أثناء تغيير حالة النشر'));
     }
   };
@@ -212,7 +209,6 @@ const LandingPagesManager: React.FC = () => {
       // إزالة الصفحة من القائمة المحلية
       setPages(pages.filter(page => page.id !== pageToDelete));
     } catch (error) {
-      console.error('خطأ في حذف الصفحة:', error);
       toast.error(t('حدث خطأ أثناء حذف الصفحة'));
     } finally {
       setIsDeleting(false);
@@ -467,4 +463,4 @@ const LandingPagesManager: React.FC = () => {
   );
 };
 
-export default LandingPagesManager; 
+export default LandingPagesManager;

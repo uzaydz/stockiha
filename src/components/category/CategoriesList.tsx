@@ -85,7 +85,6 @@ const CategoriesList = ({ categories, onRefreshCategories }: CategoriesListProps
       setDeleteConfirmCategory(category);
       setIsDeleteOpen(true);
     } catch (error) {
-      console.error('Error checking subcategories:', error);
       toast.error('حدث خطأ أثناء التحقق من الفئات الفرعية');
     }
   };
@@ -98,7 +97,6 @@ const CategoriesList = ({ categories, onRefreshCategories }: CategoriesListProps
       toast.success(`تم ${category.is_active ? 'إلغاء تنشيط' : 'تنشيط'} الفئة بنجاح`);
       onRefreshCategories();
     } catch (error) {
-      console.error('Error toggling category status:', error);
       toast.error('حدث خطأ أثناء تغيير حالة الفئة');
     }
   };
@@ -119,7 +117,6 @@ const CategoriesList = ({ categories, onRefreshCategories }: CategoriesListProps
       setIsDeleteOpen(false);
       onRefreshCategories();
     } catch (error) {
-      console.error('Error deleting category:', error);
       toast.error('حدث خطأ أثناء حذف الفئة');
     } finally {
       setIsLoading(false);
@@ -462,4 +459,4 @@ const CategoriesList = ({ categories, onRefreshCategories }: CategoriesListProps
   );
 };
 
-export default CategoriesList; 
+export default CategoriesList;

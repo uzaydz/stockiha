@@ -47,10 +47,9 @@ export default async function handler(req, res) {
     // إرجاع البيانات المجمعة
     return res.status(200).json(products);
   } catch (error) {
-    console.error('خطأ في استرجاع بيانات المنتجات المحلية:', error);
     return res.status(500).json({ 
       error: 'حدث خطأ في استرجاع البيانات المحلية',
       message: error.message 
     });
   }
-} 
+}

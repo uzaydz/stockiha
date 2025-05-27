@@ -115,7 +115,6 @@ export async function getSuppliers(organizationId: string): Promise<Supplier[]> 
     
     return data || [];
   } catch (error) {
-    console.error('Error fetching suppliers:', error);
     return [];
   }
 }
@@ -134,7 +133,6 @@ export async function getSupplierById(organizationId: string, supplierId: string
     
     return data;
   } catch (error) {
-    console.error('Error fetching supplier:', error);
     return null;
   }
 }
@@ -142,8 +140,7 @@ export async function getSupplierById(organizationId: string, supplierId: string
 // Create a new supplier
 export async function createSupplier(organizationId: string, supplier: Omit<Supplier, 'id' | 'created_at' | 'updated_at'>): Promise<Supplier | null> {
   try {
-    
-    
+
     const { data, error } = await supabase
       .from('suppliers')
       .insert({
@@ -154,17 +151,12 @@ export async function createSupplier(organizationId: string, supplier: Omit<Supp
       .single();
     
     if (error) {
-      console.error('Supabase error creating supplier:', error);
       throw error;
     }
-    
-    
+
     return data;
   } catch (error) {
-    console.error('Error creating supplier:', error);
     if (error instanceof Error) {
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
     }
     return null;
   }
@@ -188,7 +180,6 @@ export async function updateSupplier(organizationId: string, supplierId: string,
     
     return data;
   } catch (error) {
-    console.error('Error updating supplier:', error);
     return null;
   }
 }
@@ -206,7 +197,6 @@ export async function deleteSupplier(organizationId: string, supplierId: string)
     
     return true;
   } catch (error) {
-    console.error('Error deleting supplier:', error);
     return false;
   }
 }
@@ -224,7 +214,6 @@ export async function getSupplierContacts(supplierId: string): Promise<SupplierC
     
     return data || [];
   } catch (error) {
-    console.error('Error fetching supplier contacts:', error);
     return [];
   }
 }
@@ -242,7 +231,6 @@ export async function createSupplierContact(contact: Omit<SupplierContact, 'id'>
     
     return data;
   } catch (error) {
-    console.error('Error creating supplier contact:', error);
     return null;
   }
 }
@@ -265,7 +253,6 @@ export async function getSupplierPurchases(organizationId: string, supplierId?: 
     
     return data || [];
   } catch (error) {
-    console.error('Error fetching supplier purchases:', error);
     return [];
   }
 }
@@ -296,7 +283,6 @@ export async function getPurchaseById(organizationId: string, purchaseId: string
       items: items || []
     };
   } catch (error) {
-    console.error('Error fetching purchase details:', error);
     return null;
   }
 }
@@ -308,19 +294,15 @@ export async function createPurchase(
   items: Omit<SupplierPurchaseItem, 'id' | 'purchase_id' | 'total_price' | 'tax_amount'>[]
 ): Promise<SupplierPurchase | null> {
   try {
-    
-    
-    
+
     // تحقق من صحة البيانات
     if (!items || items.length === 0) {
-      console.error("No items provided for the purchase");
       throw new Error("لا يمكن إنشاء مشتريات بدون عناصر");
     }
     
     // تحقق من بيانات العناصر لضمان وجود وصف لكل عنصر
     for (const item of items) {
       if (!item.description) {
-        console.error("Item missing description:", item);
         throw new Error("يجب إضافة وصف لكل عنصر من عناصر المشتريات");
       }
     }
@@ -347,15 +329,13 @@ export async function createPurchase(
     while (attempt < maxRetries && !purchaseResult) {
       attempt++;
       try {
-        
-        
+
         // Use a simpler query without .select() initially to reduce stack depth
         const { error } = await supabase
           .from('supplier_purchases')
           .insert(purchaseData);
         
         if (error) {
-          console.error(`Error on attempt ${attempt}:`, error);
           
           // Handle stack depth error with longer exponential backoff
           if (error.code === '54001' || error.code === '428C9') {
@@ -377,14 +357,12 @@ export async function createPurchase(
           .single();
         
         if (fetchError) {
-          console.error(`Error fetching created purchase:`, fetchError);
           throw fetchError;
         }
         
         purchaseResult = data;
         
       } catch (retryError) {
-        console.error(`Error on attempt ${attempt}:`, retryError);
         if (attempt === maxRetries) throw retryError;
         await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
       }
@@ -396,8 +374,7 @@ export async function createPurchase(
     
     // Handle items insertion only if purchase was created successfully
     if (items.length > 0 && purchaseResult) {
-      
-      
+
       // Process items in small batches with sufficient delays between batches
       const BATCH_SIZE = 3;
       const batches = [];
@@ -407,16 +384,13 @@ export async function createPurchase(
       }
       
       for (const [batchIndex, batch] of batches.entries()) {
-        
-        
+
         // Calculate tax_amount and total_price for each item
         const formattedItems = batch.map(item => {
           const quantity = Number(item.quantity) || 0;
           const unit_price = Number(item.unit_price) || 0;
           const tax_rate = Number(item.tax_rate) || 0;
-          
-          
-          
+
           // Don't include tax_amount and total_price as they are generated columns
           return {
             purchase_id: purchaseResult.id,
@@ -435,15 +409,13 @@ export async function createPurchase(
         while (itemAttempt < maxRetries && !itemsInserted) {
           itemAttempt++;
           try {
-            
-            
+
             // Simple insert without .select() to reduce stack depth
             const { error: itemsError } = await supabase
               .from('supplier_purchase_items')
               .insert(formattedItems);
             
             if (itemsError) {
-              console.error(`Error on batch ${batchIndex + 1}, attempt ${itemAttempt}:`, itemsError);
               if (itemsError.code === '54001' || itemsError.code === '428C9') {
                 await new Promise(resolve => setTimeout(resolve, 2000 * itemAttempt));
                 continue;
@@ -455,14 +427,12 @@ export async function createPurchase(
             itemsInserted = true;
             
           } catch (itemRetryError) {
-            console.error(`Error on batch ${batchIndex + 1}, attempt ${itemAttempt}:`, itemRetryError);
             if (itemAttempt === maxRetries) throw itemRetryError;
             await new Promise(resolve => setTimeout(resolve, 2000 * itemAttempt));
           }
         }
         
         if (!itemsInserted) {
-          console.error(`Failed to insert batch ${batchIndex + 1} after multiple attempts`);
           // Continue with next batch instead of failing everything
           continue;
         }
@@ -472,13 +442,11 @@ export async function createPurchase(
           await new Promise(resolve => setTimeout(resolve, 1500));
         }
       }
-      
-      
+
     }
     
     return purchaseResult;
   } catch (error) {
-    console.error('Error creating purchase:', error);
     throw error; // Rethrow the error to be handled by the caller
   }
 }
@@ -490,8 +458,7 @@ export async function updatePurchaseStatus(
   status: SupplierPurchase['status']
 ): Promise<boolean> {
   try {
-    
-    
+
     // First, get the current status to check if we're changing to 'confirmed'
     const { data: currentPurchase, error: fetchError } = await supabase
       .from('supplier_purchases')
@@ -500,15 +467,11 @@ export async function updatePurchaseStatus(
       .single();
     
     if (fetchError) {
-      console.error('Error fetching current purchase status:', fetchError);
       throw fetchError;
     }
-    
-    
-    
+
     // Prevent double confirmation - if already confirmed, don't confirm again
     if (status === 'confirmed' && currentPurchase.status === 'confirmed') {
-      console.warn(`Purchase ${purchaseId} is already confirmed. Preventing duplicate confirmation.`);
       return true; // Return true as if it succeeded since it's already in the desired state
     }
     
@@ -518,7 +481,6 @@ export async function updatePurchaseStatus(
       const { data } = await supabase.auth.getUser();
       userId = data.user?.id;
     } catch (authError) {
-      console.warn('Could not get current user:', authError);
     }
     
     // Update the purchase status
@@ -534,16 +496,12 @@ export async function updatePurchaseStatus(
       .eq('id', purchaseId);
     
     if (error) {
-      console.error('Error updating purchase status:', error);
       throw error;
     }
-    
-    
-    
+
     // If we changed to 'confirmed', verify inventory update happened
     if (status === 'confirmed' && currentPurchase.status !== 'confirmed') {
-      
-      
+
       // Wait a moment for trigger to execute
       await new Promise(resolve => setTimeout(resolve, 1000));
       
@@ -555,13 +513,10 @@ export async function updatePurchaseStatus(
         .eq('reference_type', 'supplier_purchase');
       
       if (logError) {
-        console.error('Error checking inventory logs:', logError);
       } else {
-        
-        
+
         // If no log entries found, try to manually update inventory
         if (!logEntries || logEntries.length === 0) {
-          console.warn('⚠️ No inventory log entries found! Trigger may not have executed. Trying manual update...');
           
           // Get purchase items
           const { data: purchaseItems, error: itemsError } = await supabase
@@ -570,10 +525,8 @@ export async function updatePurchaseStatus(
             .eq('purchase_id', purchaseId);
             
           if (itemsError) {
-            console.error('Error fetching purchase items:', itemsError);
           } else if (purchaseItems && purchaseItems.length > 0) {
-            
-            
+
             // Process each item to update inventory
             for (const item of purchaseItems) {
               if (!item.product_id) continue;
@@ -586,7 +539,6 @@ export async function updatePurchaseStatus(
                 .single();
                 
               if (productError) {
-                console.error(`Error fetching product ${item.product_id}:`, productError);
                 continue;
               }
               
@@ -603,7 +555,6 @@ export async function updatePurchaseStatus(
                 .eq('id', item.product_id);
                 
               if (updateError) {
-                console.error(`Error updating stock for product ${item.product_id}:`, updateError);
                 continue;
               }
               
@@ -625,15 +576,13 @@ export async function updatePurchaseStatus(
                 });
                 
               if (logError) {
-                console.error(`Error logging inventory change for product ${item.product_id}:`, logError);
               } else {
                 
               }
             }
           }
         } else {
-          
-          
+
           // Verify that product stock was actually updated
           for (const entry of logEntries) {
             const { data: product, error: productError } = await supabase
@@ -643,15 +592,11 @@ export async function updatePurchaseStatus(
               .single();
               
             if (productError) {
-              console.error(`Error verifying stock for product ${entry.product_id}:`, productError);
               continue;
             }
-            
-            
-            
+
             // If stock doesn't match the expected value, update it
             if (product.stock_quantity !== entry.new_stock) {
-              console.warn(`⚠️ Stock mismatch for product ${entry.product_id}. Fixing...`);
               
               const { error: updateError } = await supabase
                 .from('products')
@@ -662,7 +607,6 @@ export async function updatePurchaseStatus(
                 .eq('id', entry.product_id);
                 
               if (updateError) {
-                console.error(`Error fixing stock for product ${entry.product_id}:`, updateError);
               } else {
                 
               }
@@ -674,7 +618,6 @@ export async function updatePurchaseStatus(
     
     return true;
   } catch (error) {
-    console.error('Error updating purchase status:', error);
     return false;
   }
 }
@@ -712,9 +655,7 @@ export async function recordPayment(
       const specifiedAmount = Number(payment.amount);
       
       // تسجيل معلومات التصحيح
-      
-      
-      
+
       // إنشاء سجل الدفع باستخدام المبلغ المتبقي بالضبط
       const { data: paymentData, error: paymentError } = await supabase
         .from('supplier_payments')
@@ -792,7 +733,6 @@ export async function recordPayment(
             .eq('id', payment.purchase_id);
             
           if (fixPrecisionError) {
-            console.error("خطأ في تصحيح الدقة:", fixPrecisionError);
           }
         } else if (newPaidAmount === 0) {
           paymentStatus = 'unpaid';
@@ -809,10 +749,7 @@ export async function recordPayment(
         updateData.status = purchaseStatus;
         
         // تسجيل المعلومات للتصحيح
-        
-        
-        
-        
+
         const { error: purchaseUpdateError } = await supabase
           .from('supplier_purchases')
           .update(updateData)
@@ -824,7 +761,6 @@ export async function recordPayment(
       return paymentData;
     }
   } catch (error) {
-    console.error('Error recording payment:', error);
     return null;
   }
 }
@@ -843,7 +779,6 @@ export async function getSupplierPayments(organizationId: string, supplierId: st
     
     return data || [];
   } catch (error) {
-    console.error('Error fetching supplier payments:', error);
     return [];
   }
 }
@@ -865,7 +800,6 @@ export async function rateSupplier(
     
     return true;
   } catch (error) {
-    console.error('Error rating supplier:', error);
     return false;
   }
 }
@@ -882,7 +816,6 @@ export async function getSupplierPerformance(organizationId: string): Promise<Su
     
     return data || [];
   } catch (error) {
-    console.error('Error fetching supplier performance:', error);
     return [];
   }
 }
@@ -899,7 +832,6 @@ export async function getSupplierPaymentSummaries(organizationId: string): Promi
     
     return data || [];
   } catch (error) {
-    console.error('Error fetching supplier payment summaries:', error);
     return [];
   }
 }
@@ -922,7 +854,6 @@ export async function getOverduePurchases(organizationId: string): Promise<Suppl
     
     return data || [];
   } catch (error) {
-    console.error('Error fetching overdue purchases:', error);
     return [];
   }
 }
@@ -940,7 +871,6 @@ export async function getAllSupplierPayments(organizationId: string): Promise<Su
     
     return data || [];
   } catch (error) {
-    console.error('Error fetching all supplier payments:', error);
     return [];
   }
-} 
+}

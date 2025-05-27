@@ -39,10 +39,8 @@ export const continueWithOrganization = async (
           });
 
         if (subError) {
-          console.error('خطأ غير حرج في إنشاء الاشتراك التجريبي:', subError);
         }
       } catch (subCreateError) {
-        console.error('استثناء غير حرج في إنشاء الاشتراك:', subCreateError);
       }
     }
 
@@ -69,8 +67,6 @@ export const continueWithOrganization = async (
       organization_id: organizationId,
       is_org_admin: true
     };
-    
-    
 
     // استخدام upsert بدلاً من insert لتجنب الأخطاء
     const { error: userError } = await supabaseAdmin
@@ -78,7 +74,6 @@ export const continueWithOrganization = async (
       .upsert(userData, { onConflict: 'id' });
 
     if (userError) {
-      console.error('خطأ في إنشاء/تحديث سجل المستخدم المستأجر:', userError);
       return { success: false, error: userError };
     }
 
@@ -89,7 +84,6 @@ export const continueWithOrganization = async (
       organizationId: organizationId
     };
   } catch (error) {
-    console.error('خطأ في استكمال إعداد المنظمة:', error);
     return { success: false, error: error as Error };
   }
 };
@@ -112,7 +106,6 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
       .maybeSingle();
 
     if (subdomainError) {
-      console.error('خطأ في التحقق من توفر النطاق الفرعي:', subdomainError);
       return { success: false, error: subdomainError };
     }
 
@@ -137,7 +130,6 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
     });
 
     if (authError) {
-      console.error('خطأ في إنشاء حساب المصادقة للمستأجر:', authError);
       if (authError.message.includes('User already registered')) {
         return { 
           success: false, 
@@ -163,7 +155,6 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
         .single();
 
       if (trialPlanError) {
-        console.error('خطأ غير حرج في الحصول على خطة تجريبية:', trialPlanError);
       }
 
       const trialEndDate = new Date();
@@ -176,9 +167,7 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
         primary_color: '#2563eb',
         trial_end_date: trialEndDate.toISOString()
       };
-      
-      
-      
+
       const result = await createOrganizationSafe(
         data.organizationName,
         data.subdomain,
@@ -202,11 +191,9 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
         trialEndDate
       );
     } catch (error) {
-      console.error('خطأ أثناء تسجيل المستأجر:', error);
       return { success: false, error: error as Error };
     }
   } catch (error) {
-    console.error('استثناء في تسجيل المستأجر:', error);
     return { success: false, error: error as Error };
   }
-}; 
+};

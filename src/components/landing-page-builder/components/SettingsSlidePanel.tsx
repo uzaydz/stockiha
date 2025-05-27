@@ -59,4 +59,4 @@ const SettingsSlidePanel: React.FC<SettingsSlidePanelProps> = ({
   );
 };
 
-export default SettingsSlidePanel; 
+export default SettingsSlidePanel;

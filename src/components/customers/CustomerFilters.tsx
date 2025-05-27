@@ -58,4 +58,4 @@ const CustomerFilters = ({ filter, onFilterChange }: CustomerFiltersProps) => {
   );
 };
 
-export default CustomerFilters; 
+export default CustomerFilters;

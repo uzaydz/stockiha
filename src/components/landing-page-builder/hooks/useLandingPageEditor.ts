@@ -188,4 +188,4 @@ export const useLandingPageEditor = (
     toggleComponentActive,
     updateComponentSettings,
   };
-}; 
+};

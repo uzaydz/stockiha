@@ -23,4 +23,4 @@ export const LazyLoad = ({ children }: { children: React.ReactNode }) => (
   <Suspense fallback={<StoreComponentLoader />}>
     {children}
   </Suspense>
-); 
+);

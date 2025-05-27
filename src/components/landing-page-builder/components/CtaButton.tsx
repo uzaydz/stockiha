@@ -183,8 +183,7 @@ export const CtaButton = React.forwardRef<HTMLButtonElement, CtaButtonProps>(
       // Handle scroll to element
       if (scrollToId) {
         e.preventDefault();
-        
-        
+
         // محاولة العثور على العنصر بعدة طرق
         let element = document.getElementById(scrollToId);
         
@@ -202,7 +201,6 @@ export const CtaButton = React.forwardRef<HTMLButtonElement, CtaButtonProps>(
                 
               }
             } catch (err) {
-              console.error("خطأ أثناء البحث باستخدام محدد البيانات:", err);
             }
             
             // محاولة البحث بواسطة الفئة
@@ -290,7 +288,6 @@ export const CtaButton = React.forwardRef<HTMLButtonElement, CtaButtonProps>(
               smoothScrollWithEffect(offsetPosition, scrollDuration);
               
             } catch (err) {
-              console.error("خطأ أثناء التمرير:", err);
               // استعادة الأنماط الأصلية في حالة حدوث خطأ
               element.style.transition = originalTransition;
               element.style.boxShadow = originalBoxShadow;
@@ -299,7 +296,6 @@ export const CtaButton = React.forwardRef<HTMLButtonElement, CtaButtonProps>(
             }
           }, 50);
         } else {
-          console.warn(`لم يتم العثور على العنصر: #${scrollToId}`);
         }
       }
 
@@ -402,4 +398,4 @@ export const CtaButton = React.forwardRef<HTMLButtonElement, CtaButtonProps>(
   }
 );
 
-CtaButton.displayName = "CtaButton"; 
+CtaButton.displayName = "CtaButton";

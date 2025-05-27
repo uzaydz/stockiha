@@ -201,4 +201,4 @@ const MainCanvas: React.FC<MainCanvasProps> = ({
   );
 };
 
-export default MainCanvas; 
+export default MainCanvas;

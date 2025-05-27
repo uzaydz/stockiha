@@ -95,9 +95,7 @@ const SubscriptionPage = () => {
   // دالة لجلب الاشتراك النشط مباشرة من قاعدة البيانات
   const fetchActiveSubscription = async (orgId: string) => {
     if (!orgId) return;
-    
-    
-    
+
     try {
       // استخدام نهج أبسط للاستعلام لمعالجة خطأ 406
       const { data, error } = await supabase
@@ -105,7 +103,6 @@ const SubscriptionPage = () => {
         .select('*');
         
       if (error) {
-        console.error('خطأ في جلب اشتراكات المؤسسة:', error);
         setLoading(false);
         return;
       }
@@ -118,8 +115,7 @@ const SubscriptionPage = () => {
       const subscriptionData = activeSubscriptions.length > 0 ? activeSubscriptions[0] : null;
         
       if (subscriptionData) {
-        
-        
+
         // تحديث بيانات المؤسسة بمعرف الاشتراك المكتشف
         const { error: updateError } = await supabase
           .from('organizations')
@@ -131,7 +127,6 @@ const SubscriptionPage = () => {
           .eq('id', orgId);
           
         if (updateError) {
-          console.error('خطأ في تحديث معرف الاشتراك في بيانات المؤسسة:', updateError);
         } else {
           
           await refreshOrganizationData();
@@ -144,7 +139,6 @@ const SubscriptionPage = () => {
         setLoading(false);
       }
     } catch (error) {
-      console.error('خطأ في التحقق من وجود اشتراك نشط:', error);
       setLoading(false);
     }
   };
@@ -173,7 +167,6 @@ const SubscriptionPage = () => {
         if (error) throw error;
         setPlans(data || []);
       } catch (error) {
-        console.error('Error fetching subscription plans:', error);
       } finally {
         setLoading(false);
       }
@@ -185,16 +178,14 @@ const SubscriptionPage = () => {
   // جلب الاشتراك الحالي
   useEffect(() => {
     const fetchCurrentSubscription = async () => {
-      
-      
+
       if (!organization) {
         
         return;
       }
       
       if (!organization.subscription_id) {
-        
-        
+
         // التحقق من وجود اشتراك نشط في جدول الاشتراكات للمؤسسة
         try {
           // استخدام نهج أبسط للاستعلام لمعالجة خطأ 406
@@ -203,7 +194,6 @@ const SubscriptionPage = () => {
             .select('*');
             
           if (error) {
-            console.error('خطأ في جلب اشتراكات المؤسسة:', error);
             setLoading(false);
             return;
           }
@@ -216,8 +206,7 @@ const SubscriptionPage = () => {
           const subscriptionData = activeSubscriptions.length > 0 ? activeSubscriptions[0] : null;
             
           if (subscriptionData) {
-            
-            
+
             // تحديث بيانات المؤسسة بمعرف الاشتراك المكتشف
             const { error: updateError } = await supabase
               .from('organizations')
@@ -229,7 +218,6 @@ const SubscriptionPage = () => {
               .eq('id', organization.id);
               
             if (updateError) {
-              console.error('خطأ في تحديث معرف الاشتراك في بيانات المؤسسة:', updateError);
             } else {
               
               await refreshOrganizationData();
@@ -242,7 +230,6 @@ const SubscriptionPage = () => {
             setLoading(false);
           }
         } catch (error) {
-          console.error('خطأ في التحقق من وجود اشتراك نشط:', error);
           setLoading(false);
         }
         
@@ -260,8 +247,7 @@ const SubscriptionPage = () => {
   // دالة جلب تفاصيل الاشتراك - منفصلة لإعادة الاستخدام
   const fetchSubscriptionDetails = async (subscriptionId: string) => {
     try {
-      
-      
+
       const { data, error } = await supabase
         .from('organization_subscriptions')
         .select(`
@@ -276,13 +262,10 @@ const SubscriptionPage = () => {
         .single();
 
       if (error) {
-        console.error('خطأ في جلب تفاصيل الاشتراك:', error);
         setLoading(false);
         return;
       }
-      
-      
-      
+
       // تأكد من اختيار الدورة الفوترية الصحيحة بناءً على الاشتراك
       if (data.billing_cycle) {
         setSelectedBillingCycle(data.billing_cycle as 'monthly' | 'yearly');
@@ -301,7 +284,6 @@ const SubscriptionPage = () => {
       
       setLoading(false);
     } catch (error) {
-      console.error('Error fetching subscription details:', error);
       setLoading(false);
     }
   };
@@ -599,4 +581,4 @@ const SubscriptionPage = () => {
   );
 };
 
-export default SubscriptionPage; 
+export default SubscriptionPage;

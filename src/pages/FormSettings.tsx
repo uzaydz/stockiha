@@ -34,7 +34,6 @@ export default function FormSettingsPage() {
       const settings = await getFormSettings(currentOrganization.id);
       setFormSettings(settings);
     } catch (error) {
-      console.error('Error fetching form settings:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء تحميل إعدادات النماذج',
@@ -70,7 +69,6 @@ export default function FormSettingsPage() {
         setFormToDelete(null);
       }
     } catch (error) {
-      console.error('Error deleting form:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء حذف النموذج',
@@ -226,4 +224,4 @@ export default function FormSettingsPage() {
       {pageContent}
     </Layout>
   );
-} 
+}

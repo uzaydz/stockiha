@@ -497,4 +497,4 @@ const ProductBenefitsComponentEditor: React.FC<ProductBenefitsComponentEditorPro
   );
 };
 
-export default ProductBenefitsComponentEditor; 
+export default ProductBenefitsComponentEditor;

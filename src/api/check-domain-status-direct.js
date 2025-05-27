@@ -33,8 +33,6 @@ export async function checkDomainStatus(domain, organizationId) {
     const VERCEL_PROJECT_ID = getVercelProjectId();
     const hasConfig = hasVercelConfig();
 
-    
-
     if (!hasConfig) {
       return {
         success: false,
@@ -87,7 +85,6 @@ export async function checkDomainStatus(domain, organizationId) {
           }]);
       }
     } catch (dbError) {
-      console.error('خطأ في تحديث سجل النطاق:', dbError);
       // نواصل بغض النظر عن خطأ تحديث قاعدة البيانات
     }
 
@@ -103,10 +100,9 @@ export async function checkDomainStatus(domain, organizationId) {
       }
     };
   } catch (error) {
-    console.error('خطأ غير متوقع أثناء التحقق من حالة النطاق:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'حدث خطأ غير متوقع'
     };
   }
-} 
+}

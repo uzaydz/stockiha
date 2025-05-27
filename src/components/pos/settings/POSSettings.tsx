@@ -309,4 +309,4 @@ const POSSettings: React.FC<POSSettingsProps> = ({ isOpen, onOpenChange }) => {
   );
 };
 
-export default POSSettings; 
+export default POSSettings;

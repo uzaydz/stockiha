@@ -56,7 +56,6 @@ export default function Services() {
           setHasViewPermission(viewAccess);
           setHasAddPermission(addAccess);
         } catch (error) {
-          console.error('Error checking permissions:', error);
           setHasViewPermission(false);
           setHasAddPermission(false);
         } finally {
@@ -76,7 +75,6 @@ export default function Services() {
     
     try {
       if (!currentOrganization) {
-        console.error('No organization found');
         const errMsg = 'لم يتم العثور على بيانات المؤسسة';
         
         toast({
@@ -87,17 +85,13 @@ export default function Services() {
         setIsLoading(false);
         return;
       }
-      
-      
-      
+
       // احصل على الخدمات من قاعدة البيانات
       const data = await getServices(currentOrganization.id);
-      
-      
+
       setServices(data);
       setFilteredServices(data);
     } catch (error) {
-      console.error('Error fetching services:', error);
       const errMsg = error instanceof Error ? error.message : 'حدث خطأ أثناء جلب الخدمات';
       
       toast({
@@ -112,8 +106,7 @@ export default function Services() {
 
   // التأثير الأولي لجلب الخدمات
   useEffect(() => {
-    
-    
+
     if (currentOrganization && hasViewPermission) {
       // إضافة تأخير بسيط للتأكد من أن حالة المنظمة تم تحديثها بشكل كامل
       const timer = setTimeout(() => {
@@ -304,4 +297,4 @@ export default function Services() {
       </div>
     </Layout>
   );
-} 
+}

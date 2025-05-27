@@ -43,4 +43,4 @@ const SyncProducts = ({ count, onSync, isSyncing }: SyncProductsProps) => {
   );
 };
 
-export default SyncProducts; 
+export default SyncProducts;

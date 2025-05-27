@@ -25,8 +25,6 @@ export async function getDomainInfo(organizationId) {
       };
     }
 
-    
-
     // 1. جلب معلومات المؤسسة من قاعدة البيانات
     const { data: orgData, error: orgError } = await supabase
       .from('organizations')
@@ -35,7 +33,6 @@ export async function getDomainInfo(organizationId) {
       .single();
 
     if (orgError) {
-      console.error('خطأ في استعلام معلومات المؤسسة:', orgError);
       return {
         success: false,
         error: orgError.message || 'فشل في جلب معلومات المؤسسة'
@@ -49,8 +46,6 @@ export async function getDomainInfo(organizationId) {
       };
     }
 
-    
-
     // 2. جلب حالة التحقق من النطاق إذا كان النطاق موجودًا
     let verificationData = null;
     
@@ -63,7 +58,6 @@ export async function getDomainInfo(organizationId) {
         .maybeSingle();
 
       if (verificationError) {
-        console.error('خطأ في استعلام معلومات التحقق من النطاق:', verificationError);
       } else {
         verificationData = verificationInfo;
         
@@ -78,10 +72,9 @@ export async function getDomainInfo(organizationId) {
       }
     };
   } catch (error) {
-    console.error('خطأ غير متوقع أثناء جلب معلومات النطاق:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'حدث خطأ غير متوقع'
     };
   }
-} 
+}

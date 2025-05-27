@@ -98,4 +98,4 @@ const ComponentsSlidePanel: React.FC<ComponentsSlidePanelProps> = ({
   );
 };
 
-export default ComponentsSlidePanel; 
+export default ComponentsSlidePanel;

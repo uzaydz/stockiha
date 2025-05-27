@@ -102,4 +102,4 @@ const ProductFeatures = ({
   );
 };
 
-export default ProductFeatures; 
+export default ProductFeatures;

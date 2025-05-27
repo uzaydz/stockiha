@@ -224,4 +224,4 @@ const EmployeeDetailsDialog = ({
   );
 };
 
-export default EmployeeDetailsDialog; 
+export default EmployeeDetailsDialog;

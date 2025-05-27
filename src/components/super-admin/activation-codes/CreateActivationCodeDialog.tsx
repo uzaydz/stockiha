@@ -81,7 +81,6 @@ export default function CreateActivationCodeDialog({ onSuccess }: Props) {
         
         setPlans(data as SubscriptionPlan[]);
       } catch (error) {
-        console.error('Error fetching subscription plans:', error);
         toast({
           variant: "destructive",
           title: "خطأ في جلب خطط الاشتراك",
@@ -173,7 +172,6 @@ export default function CreateActivationCodeDialog({ onSuccess }: Props) {
         onSuccess(result.batchId, result.codesCount);
       }
     } catch (error: any) {
-      console.error('Error creating activation codes:', error);
       toast({
         variant: "destructive",
         title: "خطأ في إنشاء أكواد التفعيل",
@@ -358,4 +356,4 @@ export default function CreateActivationCodeDialog({ onSuccess }: Props) {
       </DialogContent>
     </Dialog>
   );
-} 
+}

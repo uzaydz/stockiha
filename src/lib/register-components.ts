@@ -32,9 +32,7 @@ export function registerComponent(component: {
   
   // تسجيل المكون في المستودع
   componentsRegistry[type] = component;
-  
-  
-  
+
   return component;
 }
 
@@ -154,4 +152,4 @@ registerComponent({
   
   // مكون العرض في الواجهة الأمامية - يتم تحميله بشكل كسول
   component: lazy(() => import('@/components/store/CountdownOffersSection'))
-}); 
+});

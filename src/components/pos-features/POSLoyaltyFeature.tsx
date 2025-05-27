@@ -473,4 +473,4 @@ const POSLoyaltyFeature = () => {
   );
 };
 
-export default POSLoyaltyFeature; 
+export default POSLoyaltyFeature;

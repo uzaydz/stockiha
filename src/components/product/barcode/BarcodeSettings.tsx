@@ -703,4 +703,4 @@ const BarcodeSettings = ({ settings, onChange }: BarcodeSettingsProps) => {
   );
 };
 
-export default BarcodeSettings; 
+export default BarcodeSettings;

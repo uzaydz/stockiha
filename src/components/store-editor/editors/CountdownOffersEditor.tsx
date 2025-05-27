@@ -118,23 +118,19 @@ const CountdownOffersEditor: React.FC<CountdownOffersEditorProps> = ({
       try {
         // الحصول على معرف المؤسسة الحالي من السياق أو التخزين المحلي كاحتياطي
         const organizationId = currentOrganization?.id || localStorage.getItem('currentOrganizationId');
-        
-        
+
         if (!organizationId) {
           throw new Error('لم يتم العثور على معرف المؤسسة');
         }
         
         const fetchedProducts = await getProducts(organizationId);
-        
-        
+
         if (fetchedProducts.length === 0) {
-          console.warn("لم يتم العثور على منتجات للمؤسسة");
         }
         
         setProducts(fetchedProducts);
         setFilteredProducts(fetchedProducts);
       } catch (error) {
-        console.error('خطأ في جلب المنتجات:', error);
       } finally {
         setLoading(false);
       }
@@ -173,11 +169,9 @@ const CountdownOffersEditor: React.FC<CountdownOffersEditorProps> = ({
 
   // اختيار منتج للعرض
   const selectProduct = (product: Product) => {
-    
-    
+
     // التأكد من وجود المنتج وبياناته الأساسية
     if (!product.id || !product.name || !product.thumbnail_image) {
-      console.error("بيانات المنتج المحدد غير مكتملة:", product);
       return;
     }
     
@@ -189,9 +183,7 @@ const CountdownOffersEditor: React.FC<CountdownOffersEditorProps> = ({
     const discountPercentage = product.compare_at_price 
       ? calculateDiscountPercentage(product.compare_at_price, product.price) 
       : 0;
-    
-    
-    
+
     setOfferToAdd({
       productId: product.id,
       productName: product.name,
@@ -215,15 +207,12 @@ const CountdownOffersEditor: React.FC<CountdownOffersEditorProps> = ({
 
   // إضافة عرض جديد
   const addOffer = () => {
-    
-    
+
     if (!selectedProduct) {
-      console.error("لم يتم تحديد منتج");
       return;
     }
     
     if (!offerToAdd.productId || !offerToAdd.productName || !offerToAdd.productImage) {
-      console.error("بيانات العرض غير مكتملة:", offerToAdd);
       return;
     }
     
@@ -239,9 +228,7 @@ const CountdownOffersEditor: React.FC<CountdownOffersEditorProps> = ({
       discountPercentage: offerToAdd.discountPercentage!,
       endDate: offerToAdd.endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
     };
-    
-    
-    
+
     if (editingIndex !== null) {
       // تحديث عرض موجود
       updateArrayItem('offers', editingIndex, newOffer);
@@ -269,7 +256,6 @@ const CountdownOffersEditor: React.FC<CountdownOffersEditorProps> = ({
     
     const offer = settings.offers?.[index];
     if (!offer) {
-      console.error("لم يتم العثور على العرض المطلوب تعديله");
       return;
     }
     
@@ -310,7 +296,6 @@ const CountdownOffersEditor: React.FC<CountdownOffersEditorProps> = ({
       
       setSelectedEndDate(date);
     } catch (error) {
-      console.error("خطأ في تعيين تاريخ انتهاء العرض:", error);
       setSelectedEndDate(undefined);
     }
     
@@ -323,7 +308,6 @@ const CountdownOffersEditor: React.FC<CountdownOffersEditorProps> = ({
       if (editOfferTab instanceof HTMLElement) {
         editOfferTab.click();
       } else {
-        console.error("لم يتم العثور على تبويب تعديل العرض");
       }
     }, 100);
   };
@@ -743,4 +727,4 @@ const CountdownOffersEditor: React.FC<CountdownOffersEditorProps> = ({
   );
 };
 
-export default CountdownOffersEditor; 
+export default CountdownOffersEditor;

@@ -59,8 +59,7 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
       
       // التحقق مما إذا كان المستخدم مسجل دخول
       const isLoggedIn = await isUserLoggedIn();
-      
-      
+
       let data, error;
       
       if (isLoggedIn) {
@@ -83,7 +82,6 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
       }
 
       if (error) {
-        console.error('Error fetching store components:', error);
         
         toast({
           title: 'خطأ في جلب مكونات المتجر',
@@ -141,7 +139,6 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
         }
       }
     } catch (error) {
-      console.error('Error in fetching store components:', error);
       toast({
         title: 'خطأ في جلب مكونات المتجر',
         description: 'حدث خطأ أثناء جلب بيانات المتجر',
@@ -216,7 +213,6 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
         }
       }
     } catch (error: any) {
-      console.error('Error initializing store components:', error);
       // إضافة مكون هيرو افتراضي محلياً إذا فشلت التهيئة
       addComponent('hero');
     }
@@ -262,7 +258,6 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
         description: `تم إضافة مكون ${type} محلياً. اضغط على "حفظ التغييرات" للحفظ النهائي.`,
       });
     } catch (error: any) {
-      console.error('Error adding component locally:', error);
       toast({
         title: 'خطأ في إضافة المكون',
         description: error.message || 'حدث خطأ أثناء إضافة المكون محلياً',
@@ -291,7 +286,6 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
         description: 'تم حذف المكون محلياً. اضغط على "حفظ التغييرات" للحفظ النهائي.'
       });
     } catch (error: any) {
-      console.error('Error removing component locally:', error);
       toast({
         title: 'خطأ في حذف المكون',
         description: error.message || 'حدث خطأ أثناء حذف المكون محلياً',
@@ -305,6 +299,7 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
     if (!organizationId) return;
 
     try {
+      
       // تحديث الإعدادات محلياً فقط
       setComponents(prev => 
         prev.map(comp => 
@@ -334,13 +329,14 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
 
         // مسح التخزين المؤقت لتحديث المتجر
         await clearStoreCache(organizationId);
-        
-        console.log('تم حفظ الصفحات المُنشأة تلقائياً في قاعدة البيانات');
+      }
+
+      // إضافة logging خاص لمكون المنتجات المميزة
+      if (componentToUpdate?.type === 'featured_products') {
       }
 
       setHasUnsavedChanges(true);
     } catch (error: any) {
-      console.error('Error updating component settings locally:', error);
       toast({
         title: 'خطأ في تحديث الإعدادات',
         description: error.message || 'حدث خطأ أثناء تحديث إعدادات المكون محلياً',
@@ -384,7 +380,6 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
       const overIndex = components.findIndex(comp => comp.id === overId);
 
       if (activeIndex === -1 || overIndex === -1) {
-        console.error('Component not found:', { activeId, overId, activeIndex, overIndex });
         return;
       }
 
@@ -409,7 +404,6 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
 
       setHasUnsavedChanges(true);
     } catch (error: any) {
-      console.error('Error updating components order locally:', error);
       toast({
         title: 'خطأ في تحديث الترتيب',
         description: error.message || 'حدث خطأ أثناء تحديث ترتيب المكونات محلياً',
@@ -474,6 +468,10 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
           componentTypeForSave = 'categories';
         }
         
+        // إضافة logging خاص لمكون المنتجات المميزة
+        if (comp.type === 'featured_products') {
+        }
+        
         if (isNewComponent) {
           // إضافة مكون جديد
           const { data, error } = await supabase
@@ -515,6 +513,10 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
             .eq('organization_id', organizationId);
             
           if (error) throw new Error(error.message);
+          
+          // إضافة logging للتأكد من نجاح الحفظ
+          if (comp.type === 'featured_products') {
+          }
         }
       }
       
@@ -546,7 +548,6 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
         description: 'تم حفظ التغييرات بنجاح في قاعدة البيانات',
       });
     } catch (error: any) {
-      console.error('Error saving changes to database:', error);
       toast({
         title: 'خطأ في حفظ التغييرات',
         description: error.message || 'حدث خطأ أثناء حفظ التغييرات في قاعدة البيانات',
@@ -567,13 +568,11 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
         .single();
 
       if (error || !data) {
-        console.error('Error fetching organization subdomain:', error);
         return null;
       }
 
       return data.subdomain;
     } catch (error) {
-      console.error('Unexpected error getting organization subdomain:', error);
       return null;
     }
   };
@@ -585,7 +584,6 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
       await clearStoreCacheByOrganizationId(orgId);
       
     } catch (error) {
-      console.error('Error clearing store cache:', error);
     }
   };
 

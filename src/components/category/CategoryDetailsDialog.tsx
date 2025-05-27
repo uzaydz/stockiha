@@ -122,4 +122,4 @@ const CategoryDetailsDialog = ({
   );
 };
 
-export default CategoryDetailsDialog; 
+export default CategoryDetailsDialog;

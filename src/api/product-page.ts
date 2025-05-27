@@ -110,11 +110,9 @@ export const getProductPageData = async (organizationId: string, slug: string): 
     cacheKey,
     async () => {
       try {
-        console.log('[getProductPageData] Starting request for:', { organizationId, slug, cacheKey });
         
         // التحقق من صحة المعاملات
         if (!organizationId || !slug) {
-          console.error('[getProductPageData] Invalid parameters:', { organizationId, slug });
           throw new Error('معاملات غير صحيحة: معرف المؤسسة أو slug مفقود');
         }
 
@@ -125,41 +123,25 @@ export const getProductPageData = async (organizationId: string, slug: string): 
           }
         );
 
-        console.log('[getProductPageData] Response received:', {
-          cacheKey,
-          hasError: !!functionError,
-          hasData: !!responseData,
-          errorDetails: functionError ? {
-            message: functionError.message,
-            status: (functionError as any)?.status,
-            code: (functionError as any)?.code
-          } : null
-        });
-
         if (functionError) {
-          console.error('[getProductPageData] Edge Function error:', functionError);
           
           // معالجة أنواع مختلفة من الأخطاء
           const errorStatus = (functionError as any)?.status;
           const errorMessage = functionError.message || '';
           
           if (errorStatus === 404 || errorMessage.includes('404') || errorMessage.includes('Product not found')) {
-            console.log('[getProductPageData] Product not found (404)');
             return null; // المنتج غير موجود
           }
           
           if (errorStatus === 500 || errorMessage.includes('500')) {
-            console.error('[getProductPageData] Server error (500)');
             throw new Error('خطأ في الخادم. يرجى المحاولة مرة أخرى.');
           }
           
           if (errorStatus === 403 || errorMessage.includes('403')) {
-            console.error('[getProductPageData] Access forbidden (403)');
             throw new Error('ليس لديك صلاحية للوصول إلى هذا المنتج.');
           }
           
           if (errorMessage.includes('timeout') || errorMessage.includes('network')) {
-            console.error('[getProductPageData] Network/timeout error');
             throw new Error('انتهت مهلة الاتصال. يرجى التحقق من اتصال الإنترنت والمحاولة مرة أخرى.');
           }
           
@@ -169,48 +151,25 @@ export const getProductPageData = async (organizationId: string, slug: string): 
 
         // التحقق من صحة البيانات المُرجعة
         if (!responseData || typeof responseData !== 'object') {
-          console.error('[getProductPageData] Invalid response format:', responseData);
           throw new Error('تنسيق استجابة غير صحيح من الخادم');
         }
         
         if (!('product' in responseData)) {
-          console.error('[getProductPageData] Missing product field in response:', responseData);
           throw new Error('بيانات المنتج مفقودة في الاستجابة');
         }
         
         // إذا كان المنتج null، فهذا يعني أن المنتج غير موجود
         if (responseData.product === null) {
-          console.log('[getProductPageData] Product is null in response - product not found');
           return null;
         }
 
         // التحقق من صحة بيانات المنتج
         if (!responseData.product.id) {
-          console.error('[getProductPageData] Product missing required fields:', responseData.product);
           throw new Error('بيانات المنتج غير مكتملة');
         }
 
-        console.log('[getProductPageData] Success:', {
-          cacheKey,
-          productId: responseData.product.id,
-          productName: responseData.product.name,
-          colorsCount: responseData.colors?.length || 0,
-          sizesCount: responseData.sizes?.length || 0,
-          hasFormSettings: !!responseData.form_settings,
-          hasMarketingSettings: !!responseData.marketing_settings,
-          reviewsCount: responseData.reviews?.length || 0
-        });
-
         return responseData;
       } catch (error) {
-        console.error('[getProductPageData] Exception caught:', {
-          cacheKey,
-          error: error instanceof Error ? {
-            name: error.name,
-            message: error.message,
-            stack: error.stack
-          } : error
-        });
         
         // إعادة رمي الخطأ مع معلومات إضافية إذا لزم الأمر
         if (error instanceof Error) {
@@ -244,13 +203,11 @@ export async function getShippingProvinces(organizationId: string): Promise<Prov
         );
         
         if (error) {
-          console.error('خطأ في جلب بيانات الولايات:', error);
           return [];
         }
         
         return (Array.isArray(data) ? data : []) as Province[];
       } catch (error) {
-        console.error('خطأ غير متوقع في جلب بيانات الولايات:', error);
         return [];
       }
     },
@@ -279,13 +236,11 @@ export async function getShippingMunicipalities(wilayaId: number, organizationId
         );
         
         if (error) {
-          console.error('خطأ في جلب بيانات البلديات:', error);
           return [];
         }
         
         return (Array.isArray(data) ? data : []) as Municipality[];
       } catch (error) {
-        console.error('خطأ غير متوقع في جلب بيانات البلديات:', error);
         return [];
       }
     },
@@ -338,7 +293,6 @@ export async function calculateShippingFee(
 
             // إذا تم العثور على الإعدادات وكان استخدام الأسعار الموحدة مفعلاً
             if (cloneData && !cloneError && cloneData.use_unified_price === true) {
-              
 
               // استخدام سعر موحد حسب نوع التوصيل
               if (deliveryType === 'home' && typeof cloneData.unified_home_price === 'number') {
@@ -362,7 +316,6 @@ export async function calculateShippingFee(
               }
             }
           } catch (cloneError) {
-            console.error("خطأ في الحصول على إعدادات مزود الشحن المستنسخ:", cloneError);
             // استمر في المعالجة العادية في حالة حدوث خطأ
           }
         }
@@ -380,13 +333,11 @@ export async function calculateShippingFee(
         );
         
         if (error) {
-          console.error('خطأ في حساب سعر التوصيل:', error);
           return 0;
         }
         
         return typeof data === 'number' ? data : 0;
       } catch (error) {
-        console.error('خطأ غير متوقع في حساب سعر التوصيل:', error);
         return 0;
       }
     },
@@ -409,4 +360,4 @@ export const refreshProductPageData = async (organizationId: string, slug: strin
   // إعادة تحميل البيانات الجديدة وتخزينها مؤقتاً
   // await getProductPageData(organizationId, slug); // لا حاجة لتتبع هذا الاستدعاء بشكل منفصل هنا لأنه يُتبع داخل getProductPageData
   await getProductPageData(organizationId, slug);
-}; 
+};

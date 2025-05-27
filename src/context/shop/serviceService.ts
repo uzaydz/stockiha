@@ -17,14 +17,12 @@ export const addService = async (service: Omit<Service, 'id' | 'createdAt' | 'up
       .single();
 
     if (error) {
-      console.error('Error adding service:', error);
       throw error;
     }
 
     const mappedService = mapSupabaseServiceToService(data);
     return mappedService;
   } catch (error) {
-    console.error('Error adding service:', error);
     throw error;
   }
 };
@@ -49,14 +47,12 @@ export const updateService = async (service: Service) => {
       .single();
 
     if (error) {
-      console.error('Error updating service:', error);
       throw error;
     }
 
     const mappedService = mapSupabaseServiceToService(data);
     return mappedService;
   } catch (error) {
-    console.error('Error updating service:', error);
     throw error;
   }
 };
@@ -70,13 +66,11 @@ export const deleteService = async (serviceId: string) => {
       .eq('id', serviceId);
 
     if (error) {
-      console.error('Error deleting service:', error);
       throw error;
     }
 
     return true;
   } catch (error) {
-    console.error('Error deleting service:', error);
     throw error;
   }
 };
@@ -100,7 +94,6 @@ export const updateServiceBookingStatus = async (
       .eq('order_id', orderId);
     
     if (updateError) {
-      console.error('Error updating service booking status:', updateError);
       throw new Error('فشل في تحديث حالة الخدمة');
     }
     
@@ -134,16 +127,13 @@ export const updateServiceBookingStatus = async (
       created_by: createdBy,
       slug: `progress-${new Date().getTime()}-${Math.floor(Math.random() * 1000)}`
     };
-    
-    
-    
+
     const { data: insertedProgress, error: progressError } = await supabase
       .from('service_progress')
       .insert(progressData)
       .select();
     
     if (progressError) {
-      console.error('Error adding service progress:', progressError);
     } else {
       
     }
@@ -158,11 +148,9 @@ export const updateServiceBookingStatus = async (
         .eq('id', serviceBookingId);
       
       if (completedError) {
-        console.error('Error updating completion time:', completedError);
       }
     }
   } catch (error) {
-    console.error('Error updating service booking:', error);
     throw error;
   }
 };
@@ -184,11 +172,9 @@ export const assignServiceBooking = async (
       .eq('order_id', orderId);
     
     if (error) {
-      console.error('Error assigning service booking:', error);
       throw new Error('فشل في تعيين العامل للخدمة');
     }
   } catch (error) {
-    console.error('Error assigning service booking:', error);
     throw error;
   }
 };
@@ -201,12 +187,9 @@ export const getServiceBookings = async (organizationId: string | undefined): Pr
 }[]> => {
   try {
     if (!organizationId) {
-      console.error('لم يتم العثور على معرف منظمة صالح');
       throw new Error('لم يتم العثور على معرف منظمة صالح');
     }
-    
-    
-    
+
     // الحصول على جميع حجوزات الخدمات مع تفاصيل الطلب
     const { data, error } = await supabase
       .from('service_bookings')
@@ -217,12 +200,9 @@ export const getServiceBookings = async (organizationId: string | undefined): Pr
       .eq('organization_id', organizationId);
     
     if (error) {
-      console.error('Error fetching service bookings:', error);
       throw new Error('فشل في جلب حجوزات الخدمات');
     }
-    
-    
-    
+
     // تحويل البيانات إلى النموذج المناسب
     const result = await Promise.all((data || []).map(async (booking) => {
       // جلب تقدم الخدمة
@@ -233,7 +213,6 @@ export const getServiceBookings = async (organizationId: string | undefined): Pr
         .order('timestamp', { ascending: false });
       
       if (progressError) {
-        console.error('Error fetching service progress for booking', booking.id, ':', progressError);
       }
       
       return {
@@ -266,7 +245,6 @@ export const getServiceBookings = async (organizationId: string | undefined): Pr
     
     return result;
   } catch (error) {
-    console.error('Error getting service bookings:', error);
     throw error;
   }
-}; 
+};

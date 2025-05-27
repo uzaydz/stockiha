@@ -117,4 +117,4 @@ export const subscribeToplan = async (planId: string, billingPeriod: 'monthly' |
       });
     }, 1000);
   });
-}; 
+};

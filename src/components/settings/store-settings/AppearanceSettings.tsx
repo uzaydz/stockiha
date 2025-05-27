@@ -201,4 +201,4 @@ const AppearanceSettings = ({ settings, updateSetting }: AppearanceSettingsProps
   );
 };
 
-export default AppearanceSettings; 
+export default AppearanceSettings;

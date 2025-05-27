@@ -241,4 +241,4 @@ export function EditPlanDialog({ open, onOpenChange, plan, onSave }: EditPlanDia
       </DialogContent>
     </Dialog>
   );
-} 
+}

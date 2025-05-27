@@ -440,4 +440,4 @@ export function ExpenseForm({ expense, onSubmit, isSubmitting = false, onSuccess
       </form>
     </Form>
   );
-} 
+}

@@ -62,4 +62,4 @@ if (!window.Readable) {
 window.__dirname = '/';
 window.__filename = '/index.js';
 
-// تلميح: هذا الملف يجب استيراده في بداية الملف الرئيسي (main.tsx) 
+// تلميح: هذا الملف يجب استيراده في بداية الملف الرئيسي (main.tsx)

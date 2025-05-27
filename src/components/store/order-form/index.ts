@@ -31,11 +31,8 @@ export async function checkDatabaseConnection() {
     if (response.ok) {
       return true;
     }
-    
-    console.error('فشل الاتصال بقاعدة البيانات:', response.statusText);
     return false;
   } catch (error) {
-    console.error('خطأ أثناء التحقق من اتصال قاعدة البيانات:', error);
     return false;
   }
 }
@@ -44,7 +41,6 @@ export async function checkDatabaseConnection() {
 export function collectCustomFormData(form: HTMLFormElement, fields: any[]) {
   try {
     if (!form) {
-      console.error('لم يتم العثور على النموذج');
       return null;
     }
     
@@ -74,7 +70,6 @@ export function collectCustomFormData(form: HTMLFormElement, fields: any[]) {
     
     return data;
   } catch (error) {
-    console.error('خطأ في جمع بيانات النموذج المخصص:', error);
     return null;
   }
 }
@@ -139,7 +134,6 @@ export function validateCustomForm(form: HTMLFormElement, fields: any[]) {
     
     return { isValid, errorMessages };
   } catch (error) {
-    console.error('خطأ في التحقق من صحة النموذج المخصص:', error);
     return { isValid: false, errorMessages: ['حدث خطأ أثناء التحقق من النموذج'] };
   }
 }
@@ -156,7 +150,6 @@ export function transferCustomFormData(customFormData: any, baseForm: any) {
     
     return baseForm;
   } catch (error) {
-    console.error('خطأ في نقل بيانات النموذج المخصص:', error);
     return baseForm;
   }
-} 
+}

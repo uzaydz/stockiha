@@ -111,7 +111,6 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({ settings, land
           setProductDetails(data);
         }
       } catch (error) {
-        console.error('خطأ في جلب تفاصيل المنتج:', error);
       } finally {
         setIsLoadingProduct(false);
       }
@@ -216,7 +215,6 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({ settings, land
       }
       
     } catch (error: any) {
-      console.error('خطأ في إرسال النموذج:', error);
       
       // عرض رسالة خطأ مناسبة
       if (error.code === '42501') {
@@ -489,4 +487,4 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({ settings, land
   );
 });
 
-export default FormComponent; 
+export default FormComponent;

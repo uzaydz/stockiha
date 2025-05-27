@@ -243,4 +243,4 @@ export const defaultComponentSettings = {
       { id: 'legal-3', text: 'خريطة الموقع', url: '/sitemap', isExternal: false }
     ]
   }
-}; 
+};

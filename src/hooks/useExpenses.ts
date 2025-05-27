@@ -121,7 +121,6 @@ export const useExpenses = () => {
         count: count || 0 
       };
     } catch (error) {
-      console.error('Error fetching expenses:', error);
       throw error;
     }
   };
@@ -142,7 +141,6 @@ export const useExpenses = () => {
       
       return data as ExpenseWithRecurring;
     } catch (error) {
-      console.error(`Error fetching expense with ID ${id}:`, error);
       throw error;
     }
   };
@@ -200,7 +198,6 @@ export const useExpenses = () => {
       
       return expense as Expense;
     } catch (error) {
-      console.error('Error creating expense:', error);
       throw error;
     }
   };
@@ -295,7 +292,6 @@ export const useExpenses = () => {
       
       return expense as Expense;
     } catch (error) {
-      console.error(`Error updating expense with ID ${id}:`, error);
       throw error;
     }
   };
@@ -317,7 +313,6 @@ export const useExpenses = () => {
       
       if (error) throw error;
     } catch (error) {
-      console.error(`Error deleting expense with ID ${id}:`, error);
       throw error;
     }
   };
@@ -346,7 +341,6 @@ export const useExpenses = () => {
       
       return uniqueCategories as ExpenseCategory[];
     } catch (error) {
-      console.error('Error fetching expense categories:', error);
       throw error;
     }
   };
@@ -375,7 +369,6 @@ export const useExpenses = () => {
       
       return data as ExpenseCategory;
     } catch (error) {
-      console.error('Error creating expense category:', error);
       throw error;
     }
   };
@@ -407,7 +400,6 @@ export const useExpenses = () => {
       
       return data as ExpenseCategory;
     } catch (error) {
-      console.error(`Error updating expense category with ID ${id}:`, error);
       throw error;
     }
   };
@@ -422,7 +414,6 @@ export const useExpenses = () => {
       
       if (error) throw error;
     } catch (error) {
-      console.error(`Error deleting expense category with ID ${id}:`, error);
       throw error;
     }
   };
@@ -659,7 +650,6 @@ export const useExpenses = () => {
         upcoming_expenses: upcomingExpenses,
       };
     } catch (error) {
-      console.error('Error fetching expense summary:', error);
       throw error;
     }
   };
@@ -802,4 +792,4 @@ function calculateNextDueDate(baseDate: Date, frequency: RecurringFrequency): st
   }
   
   return nextDate.toISOString().split('T')[0];
-} 
+}

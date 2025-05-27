@@ -29,7 +29,6 @@ export default function ZRExpressSettings() {
   const [isTesting, setIsTesting] = useState(false); // For future "Test Connection"
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
-
   useEffect(() => {
     if (settings) {
       setIsEnabled(settings.is_enabled || false);
@@ -55,7 +54,6 @@ export default function ZRExpressSettings() {
         variant: "default",
       });
     } catch (error) {
-      console.error("Error saving ZR Express settings:", error);
       toast({
         title: "خطأ",
         description: "حدث خطأ أثناء حفظ إعدادات ZR Express.",
@@ -67,19 +65,14 @@ export default function ZRExpressSettings() {
   };
 
   const handleTestConnection = async () => {
-    console.log('[ZRExpressSettings] handleTestConnection: Starting test...');
     setIsTesting(true);
     setTestResult(null);
 
     const token = apiToken.trim();
     const key = apiKey.trim();
-    
-    console.log('[ZRExpressSettings] Using API Token:', token);
-    console.log('[ZRExpressSettings] Using API Key:', key);
 
     // استخدام نقطة نهاية tarification بدلاً من token
     const tarificationUrl = 'https://procolis.com/api_v1/tarification';
-    console.log('[ZRExpressSettings] Target URL:', tarificationUrl);
 
     // إنشاء أمر curl للتنفيذ في الخلفية
     const curlCommand = `curl -s -X POST "${tarificationUrl}" \
@@ -87,8 +80,6 @@ export default function ZRExpressSettings() {
       -H "key: ${key}" \
       -H "Content-Type: application/json" \
       -d '{"IDWilaya": "16"}'`;
-    
-    console.log('[ZRExpressSettings] Running test command in background...');
     
     // تنفيذ امر curl مباشرة من المتصفح
     // هذا يتطلب إنشاء كائن XMLHttpRequest
@@ -179,8 +170,6 @@ export default function ZRExpressSettings() {
         
         if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
         
-        console.log('[ZRExpressSettings] Test result:', result);
-        
         // تحليل النتيجة
         if (result && Array.isArray(result)) {
           const algerData = result.find(item => item.IDWilaya === 16);
@@ -230,19 +219,8 @@ export default function ZRExpressSettings() {
       });
       
       // إظهار تعليمات الاختبار في وحدة التحكم
-      console.log(`[ZRExpressSettings] لاختبار الاتصال بـ ZR Express يدويًا، قم بتنفيذ:
-      
-      curl -X POST "${tarificationUrl}" \\
-        -H "token: ${token}" \\
-        -H "key: ${key}" \\
-        -H "Content-Type: application/json" \\
-        -d '{"IDWilaya": "16"}'
-      
-      إذا ظهرت بيانات عن الولاية 16 (الجزائر العاصمة)، فهذا يعني أن اتصالك ناجح!
-      `);
       
     } catch (error: any) {
-      console.error('[ZRExpressSettings] Error during test connection:', error);
       setTestResult({
         success: false,
         message: `حدث خطأ أثناء محاولة الاختبار: ${error.message}`
@@ -253,7 +231,6 @@ export default function ZRExpressSettings() {
           setIsTesting(false);
         }
       }, 5000);
-      console.log('[ZRExpressSettings] handleTestConnection: Test finished.');
     }
   };
 
@@ -312,7 +289,6 @@ export default function ZRExpressSettings() {
               id="is-enabled-zr"
               checked={isEnabled}
               onCheckedChange={(newCheckedState) => {
-                console.log('Switch new state:', newCheckedState);
                 setIsEnabled(newCheckedState);
               }}
               disabled={isSaving}
@@ -387,4 +363,4 @@ export default function ZRExpressSettings() {
 //   YALIDINE = 'yalidine',
 //   ZREXPRESS = 'zrexpress',
 //   // ... other providers
-// } 
+// }

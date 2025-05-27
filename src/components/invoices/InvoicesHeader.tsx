@@ -110,4 +110,4 @@ const InvoicesHeader = ({
   );
 };
 
-export default InvoicesHeader; 
+export default InvoicesHeader;

@@ -379,4 +379,4 @@ export default function ThankYouPagePreview({
       </Card>
     </div>
   );
-} 
+}

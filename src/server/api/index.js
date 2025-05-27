@@ -27,4 +27,4 @@ app.get('/api/status', (req, res) => {
 });
 
 // تصدير التطبيق
-export default app; 
+export default app;

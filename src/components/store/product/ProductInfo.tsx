@@ -44,7 +44,6 @@ interface ProductInfoProps {
 
 const ProductInfo = ({ product, currentPrice }: ProductInfoProps) => {
   // Log received product prop safely
-  console.log('[ProductInfo] Received product prop:', product ? JSON.parse(JSON.stringify(product)) : product);
 
   const {
     name,
@@ -81,13 +80,6 @@ const ProductInfo = ({ product, currentPrice }: ProductInfoProps) => {
   // If !useFakeRatings and no real reviews, finalRating and finalRatingCount remain 0.
 
   // Log derived values safely
-  console.log('[ProductInfo] marketingSettings (destructured):', marketingSettings ? JSON.parse(JSON.stringify(marketingSettings)) : marketingSettings);
-  console.log('[ProductInfo] reviews (destructured):', reviews ? JSON.parse(JSON.stringify(reviews)) : reviews);
-  console.log('[ProductInfo] reviewsEnabled:', reviewsEnabled);
-  console.log('[ProductInfo] useFakeRatings:', useFakeRatings);
-  console.log('[ProductInfo] finalRating:', finalRating);
-  console.log('[ProductInfo] finalRatingCount:', finalRatingCount);
-  console.log('[ProductInfo] Condition to show ratings section (reviewsEnabled || useFakeRatings):', (reviewsEnabled || useFakeRatings));
 
   return (
     <div className="space-y-6">
@@ -229,4 +221,4 @@ const ProductInfo = ({ product, currentPrice }: ProductInfoProps) => {
   );
 };
 
-export default ProductInfo; 
+export default ProductInfo;

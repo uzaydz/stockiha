@@ -18,8 +18,7 @@ export function initEnvPolyfill() {
     // Asignar process al objeto window para que env.mjs pueda acceder a él
     window.process = window.process || { env: {} };
     globalThis.process = globalThis.process || window.process;
-    
-    
+
   }
 }
 
@@ -27,4 +26,4 @@ export function initEnvPolyfill() {
 initEnvPolyfill();
 
 // Exportar para uso en otros módulos
-export default { initEnvPolyfill }; 
+export default { initEnvPolyfill };

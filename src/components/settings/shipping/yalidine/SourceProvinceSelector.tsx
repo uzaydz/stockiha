@@ -41,7 +41,6 @@ export const SourceProvinceSelector: React.FC<SourceProvinceSelectorProps> = ({
           .order('id', { ascending: true });
         
         if (error) {
-          console.error('خطأ في جلب الولايات:', error);
           return;
         }
         
@@ -56,7 +55,6 @@ export const SourceProvinceSelector: React.FC<SourceProvinceSelectorProps> = ({
           }
         }
       } catch (error) {
-        console.error('خطأ غير متوقع:', error);
       } finally {
         setIsLoading(false);
       }

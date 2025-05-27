@@ -66,4 +66,4 @@ export default function OrderNotification({
       <AlertDescription>{content.description}</AlertDescription>
     </Alert>
   );
-} 
+}

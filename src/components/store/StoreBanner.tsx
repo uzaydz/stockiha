@@ -230,4 +230,4 @@ const StoreBanner = ({ heroData = defaultHeroData }: { heroData?: HeroData }) =>
   );
 };
 
-export default StoreBanner; 
+export default StoreBanner;

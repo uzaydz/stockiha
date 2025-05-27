@@ -332,4 +332,4 @@ const POSInventoryFeature = () => {
   );
 };
 
-export default POSInventoryFeature; 
+export default POSInventoryFeature;

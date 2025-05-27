@@ -86,4 +86,4 @@ export interface DomainVerificationData {
   verificationData?: any;
   verifiedAt?: string;
   errorMessage?: string;
-} 
+}

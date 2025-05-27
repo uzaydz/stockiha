@@ -636,4 +636,4 @@ const ProductHeroComponentPreview: React.FC<ProductHeroComponentPreviewProps> = 
   );
 };
 
-export default ProductHeroComponentPreview; 
+export default ProductHeroComponentPreview;

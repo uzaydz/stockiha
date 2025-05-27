@@ -155,6 +155,4 @@ const getComponentPreview = (component: LandingPageComponent): string => {
 };
 
 export default LandingPageComponentItem;
-export { getComponentTypeLabel, getComponentPreview, getComponentIcon }; 
- 
- 
+export { getComponentTypeLabel, getComponentPreview, getComponentIcon };

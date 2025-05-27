@@ -152,4 +152,4 @@ const SalesOverTime: React.FC<SalesOverTimeProps> = ({ data, period }) => {
   );
 };
 
-export default SalesOverTime; 
+export default SalesOverTime;

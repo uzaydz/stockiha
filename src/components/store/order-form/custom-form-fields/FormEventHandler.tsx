@@ -35,18 +35,15 @@ export const useFormEventHandlers = ({
   // دالة مساعدة لتحديث قيمة الحقل وإرسالها إلى النموذج الأساسي
   const updateFieldValue = (fieldName: string, value: string) => {
     if (fieldName === 'deliveryOption' || fieldName === 'stopDeskId') {
-      console.log(`[CustomFormFields] تحديث حقل ${fieldName} بالقيمة: ${value}`);
     }
     
     if (fieldName === 'deliveryOption') {
       const currentField = extendedFields.find(f => f.name === fieldName);
       if (currentField && currentField.value === value) {
-        console.log(`[CustomFormFields] تجاهل تحديث متكرر لـ ${fieldName} بالقيمة: ${value}`);
         return;
       }
 
       if (deliveryTypeUpdateRef.current && deliveryTypeUpdateRef.current.lastValue === value) {
-        console.log(`[CustomFormFields] تجاهل تحديث متكرر لـ ${fieldName} بالقيمة: ${value}`);
         return;
       }
 
@@ -71,7 +68,6 @@ export const useFormEventHandlers = ({
       } else {
         onFieldChange(fieldName, value);
         if (fieldName === 'stopDeskId') {
-          console.log(`[CustomFormFields] تم استدعاء onFieldChange لحقل stopDeskId بالقيمة: ${value}`);
         }
       }
     }
@@ -165,7 +161,6 @@ export const useFormEventHandlers = ({
         }, 0);
       }
     } catch (error) {
-        console.error("[handleProvinceChange] Error:", error);
       const updatedFields = [...extendedFields];
       let municipalityField: ExtendedFormField | undefined;
       
@@ -198,7 +193,6 @@ export const useFormEventHandlers = ({
       setExtendedFields(updatedFields);
       
       if (selectedDeliveryType === 'desk' && onFieldChange) {
-        console.log(`[handleMunicipalityChange] استخدام البلدية ${municipalityId} مباشرة كقيمة للاستلام منها`);
         
         // تعيين stopDeskId وضمان تمرير قيمة deliveryOption صحيحة
         onFieldChange('stopDeskId', municipalityId);
@@ -212,9 +206,8 @@ export const useFormEventHandlers = ({
       
       recalculateAndSetDeliveryPrice(selectedDeliveryType, provinceId, municipalityId);
     } catch (error) {
-      console.error('[handleMunicipalityChange] خطأ:', error);
     }
   };
 
   return { updateFieldValue, handleProvinceChange, handleMunicipalityChange };
-}; 
+};

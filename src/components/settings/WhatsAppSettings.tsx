@@ -134,7 +134,6 @@ export default function WhatsAppSettings() {
           serviceCompletedTemplate: templateData?.template_content || form.getValues('serviceCompletedTemplate')
         });
       } catch (error) {
-        console.error('Error loading WhatsApp settings:', error);
         toast({
           title: 'خطأ',
           description: 'لم نتمكن من تحميل إعدادات واتساب',
@@ -164,7 +163,6 @@ export default function WhatsAppSettings() {
       const messagesData = await getWhatsappMessages(currentOrganization.id);
       setMessages(messagesData);
     } catch (error) {
-      console.error('Error fetching WhatsApp messages:', error);
       toast({
         title: 'خطأ',
         description: 'لم نتمكن من تحميل سجل الرسائل',
@@ -202,7 +200,6 @@ export default function WhatsAppSettings() {
         description: 'تم حفظ إعدادات واتساب بنجاح',
       });
     } catch (error) {
-      console.error('Error saving WhatsApp settings:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء حفظ الإعدادات',
@@ -246,7 +243,6 @@ export default function WhatsAppSettings() {
       }
       
     } catch (error) {
-      console.error('Error sending test message:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء إرسال رسالة الاختبار',
@@ -353,4 +349,4 @@ export default function WhatsAppSettings() {
       </Card>
     </div>
   );
-} 
+}

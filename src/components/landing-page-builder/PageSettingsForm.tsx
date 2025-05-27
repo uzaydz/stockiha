@@ -87,6 +87,4 @@ const PageSettingsForm: React.FC<PageSettingsFormProps> = ({ settings, onUpdate 
   );
 };
 
-export default PageSettingsForm; 
- 
- 
+export default PageSettingsForm;

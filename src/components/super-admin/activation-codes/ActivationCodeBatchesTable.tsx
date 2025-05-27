@@ -134,7 +134,6 @@ export default function ActivationCodeBatchesTable({
         description: `تم تنزيل ${data.length} كود بنجاح`
       });
     } catch (error: any) {
-      console.error('Error downloading batch codes:', error);
       toast({
         title: "خطأ في تنزيل الأكواد",
         description: error.message || "حدث خطأ أثناء تنزيل أكواد التفعيل",
@@ -305,4 +304,4 @@ export default function ActivationCodeBatchesTable({
       </CardContent>
     </Card>
   );
-} 
+}

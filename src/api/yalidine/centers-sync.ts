@@ -15,8 +15,7 @@ import { getSyncStatus, updateSyncStatus } from './sync-status';
  */
 export async function syncCenters(organizationId: string, apiClient: AxiosInstance): Promise<boolean> {
   try {
-    
-    
+
     // تحديث حالة التقدم
     const syncStatus = getSyncStatus();
     syncStatus.centers.status = 'syncing';
@@ -28,16 +27,13 @@ export async function syncCenters(organizationId: string, apiClient: AxiosInstan
       .select('*', { count: 'exact' });
     
     if (globalError || !globalCenters || globalCenters.length === 0) {
-      console.error('[ERROR] لا توجد بيانات مكاتب توصيل عالمية، محاولة مزامنة البيانات العالمية أولاً');
       
       // تحديث حالة الفشل
       syncStatus.centers.status = 'failed';
       updateSyncStatus(syncStatus);
       return false;
     }
-    
-    
-    
+
     // تحديث حالة التقدم
     syncStatus.centers.total = globalCenters.length;
     updateSyncStatus(syncStatus);
@@ -50,7 +46,6 @@ export async function syncCenters(organizationId: string, apiClient: AxiosInstan
       .eq('organization_id', organizationId);
     
     if (deleteError) {
-      console.error('[ERROR] خطأ أثناء حذف بيانات مكاتب التوصيل القديمة:', deleteError);
       syncStatus.centers.status = 'failed';
       updateSyncStatus(syncStatus);
       return false;
@@ -63,16 +58,13 @@ export async function syncCenters(organizationId: string, apiClient: AxiosInstan
     for (let i = 0; i < globalCenters.length; i += chunkSize) {
       centerChunks.push(globalCenters.slice(i, i + chunkSize));
     }
-    
-    
-    
+
     // إدخال البيانات على دفعات
     let insertedCount = 0;
     for (let chunkIndex = 0; chunkIndex < centerChunks.length; chunkIndex++) {
       const chunk = centerChunks[chunkIndex];
       try {
-        
-        
+
         const dataToInsert = chunk.map((center) => ({
           center_id: center.center_id,
           organization_id: organizationId,
@@ -91,7 +83,6 @@ export async function syncCenters(organizationId: string, apiClient: AxiosInstan
           .insert(dataToInsert);
         
         if (insertError) {
-          console.error('[ERROR] خطأ أثناء إدخال دفعة من بيانات مكاتب التوصيل:', insertError);
         } else {
           insertedCount += dataToInsert.length;
           // تحديث عدد العناصر المدخلة
@@ -103,7 +94,6 @@ export async function syncCenters(organizationId: string, apiClient: AxiosInstan
         // انتظار قصير بين عمليات الإدخال
         await new Promise(resolve => setTimeout(resolve, 50));
       } catch (insertError) {
-        console.error('[ERROR] استثناء أثناء إدخال دفعة من بيانات مكاتب التوصيل:', insertError);
       }
     }
     
@@ -111,11 +101,9 @@ export async function syncCenters(organizationId: string, apiClient: AxiosInstan
     syncStatus.centers.total = globalCenters.length;
     syncStatus.centers.status = 'success';
     updateSyncStatus(syncStatus);
-    
-    
+
     return true;
   } catch (error) {
-    console.error('[ERROR] خطأ أثناء مزامنة بيانات مكاتب التوصيل:', error);
     
     // تحديث حالة المزامنة في حالة الخطأ
     const syncStatus = getSyncStatus();
@@ -124,4 +112,4 @@ export async function syncCenters(organizationId: string, apiClient: AxiosInstan
     
     return false;
   }
-} 
+}

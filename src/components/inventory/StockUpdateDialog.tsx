@@ -81,8 +81,7 @@ export function StockUpdateDialog({
   
   // تسجيل حالة الفتح للتأكد من أن المكون يستجيب للتغييرات
   useEffect(() => {
-    
-    
+
     // إذا تم فتح الحوار، تحقق من حالة الاتصال مرة أخرى
     if (open) {
       // إجراء فحص فوري للاتصال عند فتح الحوار
@@ -93,11 +92,9 @@ export function StockUpdateDialog({
             cache: 'no-store',
             headers: { 'Cache-Control': 'no-cache' }
           });
-          
-          
+
           // لا نحتاج إلى تغيير الحالة لأن useOfflineStatus سيقوم بذلك
         } catch (error) {
-          console.warn('فشل فحص الاتصال عند فتح الحوار:', error);
         }
       };
       
@@ -183,9 +180,7 @@ export function StockUpdateDialog({
   // تحديث المنتج محلياً
   const updateProductLocally = (newQuantity: number) => {
     if (!product) return;
-    
-    
-    
+
     if (selectedSize && selectedColor) {
       // تحديث كمية المقاس المحدد والألوان والمنتج
 
@@ -279,7 +274,6 @@ export function StockUpdateDialog({
       await Promise.resolve(onStockUpdated());
       
     } catch (successError) {
-      console.error('خطأ في تنفيذ دالة onStockUpdated:', successError);
     }
   };
 
@@ -320,12 +314,10 @@ export function StockUpdateDialog({
     if (!product) return;
     
     setIsSubmitting(true);
-    
-    
+
     try {
       const userId = await getCurrentUserId();
-      
-      
+
       // تحديد معرف المتغير (إذا كان هناك لون أو مقاس محدد)
       const variantId = values.size_id !== "all-sizes" ? values.size_id : 
                         values.color_id !== "all" ? values.color_id : 
@@ -340,9 +332,7 @@ export function StockUpdateDialog({
         notes: values.note || 'تعديل يدوي للمخزون',
         created_by: userId
       });
-      
-      
-      
+
       if (success) {
         const variantName = selectedSize 
           ? `مقاس ${selectedSize.name} من ${selectedColor?.name}` 
@@ -356,7 +346,6 @@ export function StockUpdateDialog({
         toast.error('فشل في تحديث المخزون، حاول مرة أخرى');
       }
     } catch (error) {
-      console.error('خطأ في تحديث المخزون:', error);
       toast.error('حدث خطأ أثناء تحديث المخزون');
     } finally {
       setIsSubmitting(false);
@@ -368,37 +357,32 @@ export function StockUpdateDialog({
     if (!product) return;
     
     setIsSubmitting(true);
-    
-    
+
     try {
       // تأكد من أن قيمة التعديل هي عدد صحيح
       const adjustment = parseInt(String(values.adjustment), 10);
       
       // فحص إضافي للتأكد من صلاحية القيمة
       if (isNaN(adjustment)) {
-        console.error('قيمة التعديل غير صالحة:', values.adjustment);
         toast.error('قيمة التعديل غير صالحة');
         setIsSubmitting(false);
         return;
       }
 
       if (adjustment === 0) {
-        console.warn('لا يمكن تعديل المخزون بقيمة صفر');
         toast.warning('لا يمكن تعديل المخزون بقيمة صفر');
         setIsSubmitting(false);
         return;
       }
       
       // تسجيل التعديل قبل المعالجة
-      
-      
+
       // إضافة معالجة الأخطاء للحصول على معرف المستخدم
       let userId;
       try {
         userId = await getCurrentUserId();
         
       } catch (userError) {
-        console.error('فشل في الحصول على معرف المستخدم:', userError);
         userId = 'unknown'; // استخدام قيمة افتراضية في حالة الفشل
       }
       
@@ -417,14 +401,11 @@ export function StockUpdateDialog({
           notes: values.note || `تعديل يدوي للمخزون ${adjustment > 0 ? 'إضافة' : 'خصم'} ${Math.abs(adjustment)} وحدة`,
           created_by: userId
         });
-        
-        
-        
+
         if (success) {
           // حساب الكمية الجديدة
           const newQuantity = Math.max(0, currentQuantity + adjustment);
-          
-          
+
           // إظهار إشعار النجاح
           const action = adjustment > 0 ? 'إضافة' : 'خصم';
           const amount = Math.abs(adjustment);
@@ -441,11 +422,9 @@ export function StockUpdateDialog({
           toast.error('فشل في تعديل المخزون، حاول مرة أخرى');
         }
       } catch (stockUpdateError) {
-        console.error('خطأ استثنائي في تعديل المخزون:', stockUpdateError);
         toast.error('حدث خطأ غير متوقع أثناء تعديل المخزون، يرجى المحاولة مرة أخرى');
       }
     } catch (error) {
-      console.error('خطأ في تعديل المخزون:', error);
       toast.error('حدث خطأ أثناء تعديل المخزون');
     } finally {
       setIsSubmitting(false);
@@ -454,9 +433,7 @@ export function StockUpdateDialog({
 
   const onSubmit = async (values: StockUpdateValues) => {
     if (!product) return;
-    
-    
-    
+
     if (activeTab === 'set') {
       await handleSetStock(values);
     } else {
@@ -754,4 +731,4 @@ export function StockUpdateDialog({
   );
 }
 
-export default StockUpdateDialog; 
+export default StockUpdateDialog;

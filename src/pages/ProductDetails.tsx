@@ -76,7 +76,6 @@ const ProductDetails = () => {
           }
         }
       } catch (error) {
-        console.error('Error loading product details:', error);
         toast.error('حدث خطأ أثناء تحميل تفاصيل المنتج');
       } finally {
         setIsLoading(false);
@@ -119,7 +118,6 @@ const ProductDetails = () => {
       toast.success('تم تحديث مميزات المنتج بنجاح');
       setIsFeatureDialogOpen(false);
     } catch (error) {
-      console.error('Error reloading product:', error);
       toast.error('حدث خطأ أثناء تحديث المنتج');
     }
   };
@@ -436,4 +434,4 @@ const ProductDetails = () => {
   );
 };
 
-export default ProductDetails; 
+export default ProductDetails;

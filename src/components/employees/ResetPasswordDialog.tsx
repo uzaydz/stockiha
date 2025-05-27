@@ -67,7 +67,6 @@ const ResetPasswordDialog = ({
       resetForm();
       onOpenChange(false);
     } catch (error) {
-      console.error('Error resetting password:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء إعادة تعيين كلمة المرور. الرجاء المحاولة مرة أخرى.',
@@ -173,4 +172,4 @@ const ResetPasswordDialog = ({
   );
 };
 
-export default ResetPasswordDialog; 
+export default ResetPasswordDialog;

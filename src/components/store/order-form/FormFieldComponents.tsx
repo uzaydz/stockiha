@@ -348,9 +348,7 @@ export const RadioField = ({
   
   // إذا كان الحقل هو نوع التوصيل الثابت ولدينا إعدادات مزود الشحن، تحقق من الخيارات المتاحة
   if (isDeliveryTypeField && shippingProviderSettings) {
-    
-    
-    
+
     const isHomeDeliveryEnabled = shippingProviderSettings.is_home_delivery_enabled !== false;
     const isDeskDeliveryEnabled = shippingProviderSettings.is_desk_delivery_enabled !== false;
     
@@ -359,9 +357,7 @@ export const RadioField = ({
     const deskPrice = shippingProviderSettings.unified_desk_price || 0;
     const isFreeHomeDelivery = shippingProviderSettings.is_free_delivery_home === true;
     const isFreeDeskDelivery = shippingProviderSettings.is_free_delivery_desk === true;
-    
-    
-    
+
     // تعديل الخيارات المتاحة بناءً على إعدادات مزود الشحن
     let availableOptions = field.options || [];
     
@@ -702,4 +698,4 @@ export const getFieldIcon = (fieldType: string) => {
     default:
       return null;
   }
-}; 
+};

@@ -255,4 +255,4 @@ const CustomerSegments = ({ customers }: CustomerSegmentsProps) => {
   );
 };
 
-export default CustomerSegments; 
+export default CustomerSegments;

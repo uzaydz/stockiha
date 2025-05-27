@@ -309,4 +309,4 @@ const PricingCards = ({ plans, isLoading, error }: PricingCardsProps) => {
   );
 };
 
-export default PricingCards; 
+export default PricingCards;

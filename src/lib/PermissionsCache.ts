@@ -23,7 +23,6 @@ export const cachePermissions = (permissions: any) => {
     
     return true;
   } catch (error) {
-    console.error('خطأ في تخزين الصلاحيات:', error);
     return false;
   }
 };
@@ -48,7 +47,6 @@ export const getCachedPermissions = () => {
     
     return JSON.parse(cachedData);
   } catch (error) {
-    console.error('خطأ في استرجاع بيانات الصلاحيات المخزنة:', error);
     return null;
   }
 };
@@ -68,7 +66,6 @@ export const cacheSubscriptionStatus = (subscriptionData: any) => {
     
     return true;
   } catch (error) {
-    console.error('خطأ في تخزين حالة الاشتراك:', error);
     return false;
   }
 };
@@ -92,7 +89,6 @@ export const getCachedSubscriptionStatus = () => {
     
     return JSON.parse(cachedData);
   } catch (error) {
-    console.error('خطأ في استرجاع حالة الاشتراك المخزنة:', error);
     return null;
   }
 };
@@ -106,7 +102,6 @@ export const refreshCache = () => {
     localStorage.setItem(CACHE_EXPIRY_KEY, expiryTime.toString());
     return true;
   } catch (error) {
-    console.error('خطأ في تحديث وقت انتهاء الصلاحية:', error);
     return false;
   }
 };
@@ -121,7 +116,6 @@ export const clearPermissionsCache = () => {
     localStorage.removeItem(CACHE_EXPIRY_KEY);
     return true;
   } catch (error) {
-    console.error('خطأ في حذف بيانات التخزين المؤقت:', error);
     return false;
   }
 };
@@ -138,4 +132,4 @@ export const hasCachedPermissions = () => {
  */
 export const hasCachedSubscription = () => {
   return !!getCachedSubscriptionStatus();
-}; 
+};

@@ -235,4 +235,4 @@ const ComponentEditorModal: React.FC<ComponentEditorModalProps> = ({
   );
 };
 
-export default ComponentEditorModal; 
+export default ComponentEditorModal;

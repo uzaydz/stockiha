@@ -280,4 +280,4 @@ export interface OrderSummaryProps {
   productSize?: string | null;
   deliveryType?: 'home' | 'desk';
   shippingProviderSettings?: ShippingProviderSettings;
-} 
+}

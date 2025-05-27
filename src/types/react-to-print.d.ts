@@ -56,4 +56,4 @@ declare module 'html2canvas' {
 
   function html2canvas(element: HTMLElement, options?: Options): Promise<HTMLCanvasElement>;
   export default html2canvas;
-} 
+}

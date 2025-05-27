@@ -73,4 +73,4 @@ export type DeliveryType = 'home' | 'desk';
 export interface YalidineCredentials {
   api_id: string;
   api_token: string;
-} 
+}

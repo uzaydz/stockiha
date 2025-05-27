@@ -175,4 +175,4 @@ export function SubscriptionAnalytics({ analytics }: SubscriptionAnalyticsProps)
       </Card>
     </div>
   );
-} 
+}

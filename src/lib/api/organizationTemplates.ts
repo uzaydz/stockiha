@@ -28,13 +28,11 @@ export async function getOrganizationTemplates(
     const { data, error } = await query;
 
     if (error) {
-      console.error('Error fetching organization templates:', error);
       toast.error('حدث خطأ أثناء تحميل نماذج المؤسسة.');
       return [];
     }
     return data || [];
   } catch (error) {
-    console.error('Unexpected error fetching organization templates:', error);
     toast.error('حدث خطأ غير متوقع أثناء تحميل نماذج المؤسسة.');
     return [];
   }
@@ -59,13 +57,11 @@ export async function getDefaultOrganizationTemplate(
       if (error.code === 'PGRST116') { // No rows found, not an actual error for this use case
         return null;
       }
-      console.error('Error fetching default organization template:', error);
       toast.error('حدث خطأ أثناء تحميل النموذج الافتراضي للمؤسسة.');
       return null;
     }
     return data;
   } catch (error) {
-    console.error('Unexpected error fetching default organization template:', error);
     toast.error('حدث خطأ غير متوقع أثناء تحميل النموذج الافتراضي للمؤسسة.');
     return null;
   }
@@ -86,7 +82,6 @@ export async function getFormSettingTemplatesForProductPage(
       .order('name', { ascending: true }); // Then by name
 
     if (error) {
-      console.error('Error fetching form_settings templates:', error);
       toast.error('حدث خطأ أثناء تحميل نماذج عرض الصفحة من form_settings.');
       return [];
     }
@@ -102,8 +97,7 @@ export async function getFormSettingTemplatesForProductPage(
     })) as OrganizationTemplate[];
 
   } catch (error) {
-    console.error('Unexpected error fetching form_settings templates:', error);
     toast.error('حدث خطأ غير متوقع أثناء تحميل نماذج عرض الصفحة من form_settings.');
     return [];
   }
-} 
+}

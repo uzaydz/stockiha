@@ -172,7 +172,6 @@ export default function SuperAdminSubscriptions() {
         ]);
       }
     } catch (err: any) {
-      console.error('Error fetching subscription plans:', err);
       setError(err.message);
     } finally {
       setIsLoading(false);
@@ -223,7 +222,6 @@ export default function SuperAdminSubscriptions() {
         description: `تم تحديث خطة "${updatedPlan.name}" بنجاح.`,
       });
     } catch (err: any) {
-      console.error('Error updating subscription plan:', err);
       
       // إظهار رسالة خطأ
       toast({
@@ -259,7 +257,6 @@ export default function SuperAdminSubscriptions() {
         description: `تم إنشاء خطة "${newPlan.name}" بنجاح.`,
       });
     } catch (err: any) {
-      console.error('Error creating subscription plan:', err);
       
       // إظهار رسالة خطأ
       toast({
@@ -295,7 +292,6 @@ export default function SuperAdminSubscriptions() {
         description: `تم ${isActive ? 'تفعيل' : 'إلغاء تفعيل'} خطة "${plan.name}" بنجاح.`,
       });
     } catch (err: any) {
-      console.error('Error toggling plan active state:', err);
       
       // إظهار رسالة خطأ
       toast({
@@ -331,7 +327,6 @@ export default function SuperAdminSubscriptions() {
         description: `تم حذف خطة "${plan.name}" بنجاح.`,
       });
     } catch (err: any) {
-      console.error('Error deleting subscription plan:', err);
       
       // إظهار رسالة خطأ
       toast({
@@ -402,4 +397,4 @@ export default function SuperAdminSubscriptions() {
       </div>
     </SuperAdminLayout>
   );
-} 
+}

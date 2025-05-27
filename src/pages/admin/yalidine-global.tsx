@@ -45,7 +45,6 @@ export default function YalidineGlobalPage() {
         }
       }
     } catch (error) {
-      console.error('خطأ أثناء فحص حالة البيانات العالمية:', error);
       setIsDataUpToDate(false);
     }
   };
@@ -74,7 +73,6 @@ export default function YalidineGlobalPage() {
         centers: centersCount || 0,
       });
     } catch (error) {
-      console.error('خطأ أثناء جلب إحصائيات البيانات العالمية:', error);
     }
   };
 
@@ -116,7 +114,6 @@ export default function YalidineGlobalPage() {
         });
       }
     } catch (error) {
-      console.error('خطأ أثناء تحديث البيانات العالمية:', error);
       notifications.update({
         id: 'sync-global',
         title: 'فشلت المزامنة',
@@ -217,4 +214,4 @@ export default function YalidineGlobalPage() {
       </Container>
     </Layout>
   );
-} 
+}

@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { FormControl, FormField, FormItem, FormMessage, FormLabel } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -15,14 +16,17 @@ import {
   ShoppingCart,
   Package,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  Info,
+  HelpCircle
 } from 'lucide-react';
 import { useFieldArray } from "react-hook-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { cn } from '@/lib/utils';
 
 interface ProductPricingProps {
   form: UseFormReturn<ProductFormValues>;
@@ -76,462 +80,385 @@ export default function ProductPricing({ form }: ProductPricingProps) {
   const analysisStatus = getAnalysisStatus();
 
   return (
-    <div className="space-y-6">
-      {/* Basic Pricing Section */}
-      <Card className="border-border/50">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-lg font-semibold flex items-center gap-2">
-            <div className="bg-primary/10 p-2 rounded-full">
-              <DollarSign className="h-4 w-4 text-primary" />
-            </div>
-            التسعير الأساسي
-            <Badge variant="outline" className="mr-auto">
-              الدينار الجزائري
-            </Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Price Input Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Purchase Price */}
-            <div className="space-y-2">
-              <FormField
-                control={form.control}
-                name="purchase_price"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center gap-2 text-sm font-medium">
-                      <ShoppingCart className="w-4 h-4 text-blue-600" />
-                      سعر الشراء (التكلفة)
-                      <span className="text-red-500">*</span>
-                    </FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <Input
-                          type="number"
-                          min="0"
-                          step="1"
-                          placeholder="0"
-                          className="pr-12 h-12 text-lg font-medium border-blue-200 focus:border-blue-400"
-                          {...field}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            field.onChange(val === '' ? null : parseFloat(val));
-                          }}
-                        />
-                        <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground font-medium">
-                          د.ج
-                        </div>
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                    <p className="text-xs text-muted-foreground">
-                      التكلفة الفعلية لشراء أو إنتاج المنتج
-                    </p>
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            {/* Selling Price */}
-            <div className="space-y-2">
+    <TooltipProvider>
+      <div className="space-y-6">
+        {/* Basic Pricing Section */}
+        <Card className="border-border/50 shadow-lg dark:shadow-2xl dark:shadow-black/20 bg-card/50 backdrop-blur-sm">
+          <CardHeader className="pb-4 bg-gradient-to-r from-primary/5 via-primary/3 to-transparent dark:from-primary/10 dark:via-primary/5 dark:to-transparent rounded-t-lg border-b border-border/30">
+            <CardTitle className="text-base font-semibold flex items-center gap-3">
+              <div className="bg-gradient-to-br from-primary/20 to-primary/10 dark:from-primary/30 dark:to-primary/15 p-2.5 rounded-xl shadow-sm">
+                <DollarSign className="h-4 w-4 text-primary dark:text-primary-foreground" />
+              </div>
+              <div className="flex-1">
+                <span className="text-foreground text-sm">الأسعار الأساسية</span>
+                <Badge variant="destructive" className="text-xs mr-2 shadow-sm">مطلوب</Badge>
+              </div>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6 space-y-5 bg-gradient-to-b from-background/50 to-background">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <FormField
                 control={form.control}
                 name="price"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center gap-2 text-sm font-medium">
-                      <Package className="w-4 h-4 text-green-600" />
+                  <FormItem className="space-y-2">
+                    <FormLabel className="text-sm font-medium text-foreground flex items-center gap-2">
                       سعر البيع
-                      <span className="text-red-500">*</span>
+                      <span className="text-destructive">*</span>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            className="inline-flex items-center justify-center"
+                            onClick={(e) => e.preventDefault()}
+                          >
+                            <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent 
+                          className="max-w-xs z-50 bg-popover border border-border shadow-lg"
+                          side="top"
+                          sideOffset={5}
+                        >
+                          <p className="text-xs">السعر الذي سيدفعه العميل لشراء المنتج. هذا هو السعر الظاهر في المتجر.</p>
+                        </TooltipContent>
+                      </Tooltip>
                     </FormLabel>
                     <FormControl>
-                      <div className="relative">
+                      <div className="relative group">
                         <Input
                           type="number"
                           min="0"
                           step="1"
                           placeholder="0"
-                          className="pr-12 h-12 text-lg font-medium border-green-200 focus:border-green-400"
+                          className="h-10 text-sm bg-background/80 dark:bg-background/60 border-border/60 hover:border-primary/60 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-300 shadow-sm hover:shadow-md focus:shadow-lg backdrop-blur-sm pr-10"
                           {...field}
-                          onChange={(e) => {
-                            field.onChange(parseFloat(e.target.value));
-                          }}
+                          onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
                         />
-                        <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground font-medium">
-                          د.ج
+                        <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-xs text-muted-foreground bg-background/80 dark:bg-background/60 px-1 rounded">
+                          دج
                         </div>
+                        <div className="absolute inset-0 rounded-md bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-focus-within:opacity-100 transition-opacity duration-300 pointer-events-none" />
                       </div>
                     </FormControl>
-                    <FormMessage />
-                    <p className="text-xs text-muted-foreground">
-                      السعر الذي سيدفعه العميل
-                    </p>
+                    <FormMessage className="text-xs" />
                   </FormItem>
                 )}
               />
-            </div>
-          </div>
 
-          {/* Visual Price Comparison */}
-          {purchasePrice && price && (
-            <div className="bg-muted/30 rounded-lg p-4 border border-border/50">
-              <h4 className="font-medium mb-3 flex items-center gap-2">
-                <Calculator className="w-4 h-4 text-primary" />
-                مقارنة الأسعار
-              </h4>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="text-center">
-                    <div className="text-xs text-muted-foreground mb-1">سعر الشراء</div>
-                    <div className="text-lg font-bold text-blue-600">{formatDZD(purchasePrice)}</div>
-                  </div>
-                  <ArrowRight className="w-6 h-6 text-muted-foreground" />
-                  <div className="text-center">
-                    <div className="text-xs text-muted-foreground mb-1">سعر البيع</div>
-                    <div className="text-lg font-bold text-green-600">{formatDZD(price)}</div>
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-xs text-muted-foreground mb-1">الفرق</div>
-                  <div className={`text-lg font-bold ${
-                    profitMargin && profitMargin > 0 ? 'text-green-600' : 
-                    profitMargin === 0 ? 'text-yellow-600' : 'text-red-600'
-                  }`}>
-                    {formatDZD(profitMargin)}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Compare At Price */}
-          <div className="space-y-2">
-            <FormField
-              control={form.control}
-              name="compare_at_price"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="flex items-center gap-2 text-sm font-medium">
-                    <Percent className="w-4 h-4 text-orange-600" />
-                    سعر المقارنة (السعر القديم)
-                    <Badge variant="secondary" className="text-xs">اختياري</Badge>
-                  </FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <Input
-                        type="number"
-                        min="0"
-                        step="1"
-                        placeholder="0"
-                        className="pr-12 h-11"
-                        value={field.value || ''}
-                        onChange={(e) => {
-                          const value = e.target.value === '' ? undefined : parseFloat(e.target.value);
-                          field.onChange(value);
-                        }}
-                      />
-                      <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground">
-                        د.ج
+              <FormField
+                control={form.control}
+                name="purchase_price"
+                render={({ field }) => (
+                  <FormItem className="space-y-2">
+                    <FormLabel className="text-sm font-medium text-foreground flex items-center gap-2">
+                      سعر الشراء
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            className="inline-flex items-center justify-center"
+                            onClick={(e) => e.preventDefault()}
+                          >
+                            <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent 
+                          className="max-w-xs z-50 bg-popover border border-border shadow-lg"
+                          side="top"
+                          sideOffset={5}
+                        >
+                          <p className="text-xs">التكلفة التي دفعتها لشراء المنتج. يساعد في حساب الربح وإدارة المخزون.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </FormLabel>
+                    <FormControl>
+                      <div className="relative group">
+                        <Input
+                          type="number"
+                          min="0"
+                          step="1"
+                          placeholder="0"
+                          className="h-10 text-sm bg-background/80 dark:bg-background/60 border-border/60 hover:border-primary/60 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-300 shadow-sm hover:shadow-md focus:shadow-lg backdrop-blur-sm pr-10"
+                          {...field}
+                          onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                        />
+                        <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-xs text-muted-foreground bg-background/80 dark:bg-background/60 px-1 rounded">
+                          دج
+                        </div>
+                        <div className="absolute inset-0 rounded-md bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-focus-within:opacity-100 transition-opacity duration-300 pointer-events-none" />
                       </div>
+                    </FormControl>
+                    <FormMessage className="text-xs" />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="compare_at_price"
+                render={({ field }) => (
+                  <FormItem className="space-y-2">
+                    <FormLabel className="text-sm font-medium text-foreground flex items-center gap-2">
+                      السعر المقارن
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            className="inline-flex items-center justify-center"
+                            onClick={(e) => e.preventDefault()}
+                          >
+                            <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent 
+                          className="max-w-xs z-50 bg-popover border border-border shadow-lg"
+                          side="top"
+                          sideOffset={5}
+                        >
+                          <p className="text-xs">السعر الأصلي قبل التخفيض. يظهر مشطوباً بجانب السعر الحالي لإظهار قيمة التوفير.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </FormLabel>
+                    <FormControl>
+                      <div className="relative group">
+                        <Input
+                          type="number"
+                          min="0"
+                          step="1"
+                          placeholder="0"
+                          className="h-10 text-sm bg-background/80 dark:bg-background/60 border-border/60 hover:border-primary/60 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-300 shadow-sm hover:shadow-md focus:shadow-lg backdrop-blur-sm pr-10"
+                          {...field}
+                          onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                        />
+                        <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-xs text-muted-foreground bg-background/80 dark:bg-background/60 px-1 rounded">
+                          دج
+                        </div>
+                        <div className="absolute inset-0 rounded-md bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-focus-within:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                      </div>
+                    </FormControl>
+                    <FormMessage className="text-xs" />
+                  </FormItem>
+                )}
+              />
+
+              {discountFromOriginal && discountFromOriginal > 0 && (
+                <div className="flex items-center justify-center p-4 bg-gradient-to-r from-green-50/60 to-emerald-50/40 dark:from-green-950/30 dark:to-emerald-950/20 rounded-xl border border-green-200/50 dark:border-green-800/30 backdrop-blur-sm">
+                  <div className="text-center">
+                    <div className="text-xs text-green-600 dark:text-green-400 font-medium mb-1">نسبة التوفير</div>
+                    <div className="text-lg font-bold text-green-700 dark:text-green-300">
+                      {discountFromOriginal.toFixed(1)}%
                     </div>
-                  </FormControl>
-                  <FormMessage />
-                  {discountFromOriginal && (
-                    <p className="text-xs text-green-600">
-                      خصم {discountFromOriginal.toFixed(1)}% من السعر الأصلي
-                    </p>
-                  )}
-                </FormItem>
+                  </div>
+                </div>
               )}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Advanced Profit Analysis Section */}
-      {(typeof price === 'number' || typeof purchasePrice === 'number') && (
-        <Card className="border-border/50">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-lg font-semibold flex items-center gap-2">
-              <div className={`p-2 rounded-full ${
-                analysisStatus === 'profitable' ? 'bg-green-100' :
-                analysisStatus === 'break-even' ? 'bg-yellow-100' :
-                analysisStatus === 'loss' ? 'bg-red-100' : 'bg-gray-100'
-              }`}>
-                <TrendingUp className={`h-4 w-4 ${
-                  analysisStatus === 'profitable' ? 'text-green-600' :
-                  analysisStatus === 'break-even' ? 'text-yellow-600' :
-                  analysisStatus === 'loss' ? 'text-red-600' : 'text-gray-600'
-                }`} />
-              </div>
-              تحليل الربحية المتقدم
-              <Badge variant={
-                analysisStatus === 'profitable' ? 'default' :
-                analysisStatus === 'break-even' ? 'secondary' :
-                analysisStatus === 'loss' ? 'destructive' : 'outline'
-              }>
-                {analysisStatus === 'profitable' ? 'مربح' :
-                 analysisStatus === 'break-even' ? 'نقطة التعادل' :
-                 analysisStatus === 'loss' ? 'خسارة' : 'غير مكتمل'}
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Status Alert */}
-            {analysisStatus !== 'incomplete' && (
-              <Alert className={
-                analysisStatus === 'profitable' ? 'border-green-200 bg-green-50' :
-                analysisStatus === 'break-even' ? 'border-yellow-200 bg-yellow-50' :
-                'border-red-200 bg-red-50'
-              }>
-                {analysisStatus === 'profitable' ? <CheckCircle className="h-4 w-4 text-green-600" /> :
-                 analysisStatus === 'break-even' ? <AlertCircle className="h-4 w-4 text-yellow-600" /> :
-                 <AlertCircle className="h-4 w-4 text-red-600" />}
-                <AlertDescription className={
-                  analysisStatus === 'profitable' ? 'text-green-800' :
-                  analysisStatus === 'break-even' ? 'text-yellow-800' :
-                  'text-red-800'
-                }>
-                  {analysisStatus === 'profitable' ? 
-                    `هذا المنتج مربح! ستحصل على ${formatDZD(profitMargin)} لكل وحدة مباعة.` :
-                   analysisStatus === 'break-even' ?
-                    'هذا المنتج في نقطة التعادل - لا ربح ولا خسارة.' :
-                    `هذا المنتج يحقق خسارة قدرها ${formatDZD(Math.abs(profitMargin || 0))} لكل وحدة.`}
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {/* Profit Metrics Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Profit Margin */}
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="bg-blue-100 p-1.5 rounded-full">
-                      <DollarSign className="h-3 w-3 text-blue-600" />
-                    </div>
-                    <span className="text-sm font-medium text-blue-900">هامش الربح</span>
-                  </div>
-                  <Tooltip>
-                    <TooltipTrigger>
-                      <AlertCircle className="h-3 w-3 text-blue-600" />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>الفرق بين سعر البيع وسعر الشراء</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-                <div className="text-lg font-bold text-blue-900">
-                  {formatDZD(profitMargin)}
-                </div>
-              </div>
-
-              {/* Profit Percentage */}
-              <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 p-4 rounded-lg border border-emerald-200">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="bg-emerald-100 p-1.5 rounded-full">
-                      <TrendingUp className="h-3 w-3 text-emerald-600" />
-                    </div>
-                    <span className="text-sm font-medium text-emerald-900">نسبة الربح</span>
-                  </div>
-                  <Tooltip>
-                    <TooltipTrigger>
-                      <AlertCircle className="h-3 w-3 text-emerald-600" />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>نسبة الربح من تكلفة الشراء</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-                <div className="text-lg font-bold text-emerald-900">
-                  {profitPercentage !== null ? `${profitPercentage.toFixed(1)}%` : 'غير محدد'}
-                </div>
-              </div>
-
-              {/* Margin Percentage */}
-              <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-lg border border-purple-200">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="bg-purple-100 p-1.5 rounded-full">
-                      <Percent className="h-3 w-3 text-purple-600" />
-                    </div>
-                    <span className="text-sm font-medium text-purple-900">هامش المبيعات</span>
-                  </div>
-                  <Tooltip>
-                    <TooltipTrigger>
-                      <AlertCircle className="h-3 w-3 text-purple-600" />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>نسبة الربح من سعر البيع</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-                <div className="text-lg font-bold text-purple-900">
-                  {marginPercentage !== null ? `${marginPercentage.toFixed(1)}%` : 'غير محدد'}
-                </div>
-              </div>
-
-              {/* ROI */}
-              <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-4 rounded-lg border border-orange-200">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="bg-orange-100 p-1.5 rounded-full">
-                      <Calculator className="h-3 w-3 text-orange-600" />
-                    </div>
-                    <span className="text-sm font-medium text-orange-900">عائد الاستثمار</span>
-                  </div>
-                  <Tooltip>
-                    <TooltipTrigger>
-                      <AlertCircle className="h-3 w-3 text-orange-600" />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>نسبة العائد على الاستثمار (ROI)</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-                <div className="text-lg font-bold text-orange-900">
-                  {profitPercentage !== null ? `${profitPercentage.toFixed(1)}%` : 'غير محدد'}
-                </div>
-              </div>
             </div>
+          </CardContent>
+        </Card>
 
-            {/* Price Breakdown Chart */}
-            {price && purchasePrice && (
-              <div className="bg-muted/30 rounded-lg p-4 border border-border/50">
-                <h4 className="font-medium mb-3">تحليل مكونات السعر</h4>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">تكلفة المنتج</span>
-                    <div className="flex items-center gap-2">
-                      <div className="w-24 h-2 bg-blue-200 rounded-full">
-                        <div 
-                          className="h-2 bg-blue-600 rounded-full" 
-                          style={{ width: `${(purchasePrice / price) * 100}%` }}
-                        ></div>
+        {/* Advanced Profit Analysis Section */}
+        {(typeof price === 'number' || typeof purchasePrice === 'number') && (
+          <Card className="border-border/50 shadow-lg dark:shadow-2xl dark:shadow-black/20 bg-card/50 backdrop-blur-sm">
+            <CardHeader className="pb-4 bg-gradient-to-r from-emerald-50/60 via-green-50/40 to-transparent dark:from-emerald-950/30 dark:via-green-950/20 dark:to-transparent rounded-t-lg border-b border-border/30">
+              <CardTitle className="text-base font-semibold flex items-center gap-3">
+                <div className={`p-2.5 rounded-xl shadow-sm ${
+                  analysisStatus === 'profitable' ? 'bg-emerald-100' :
+                  analysisStatus === 'break-even' ? 'bg-yellow-100' :
+                  analysisStatus === 'loss' ? 'bg-red-100' : 'bg-gray-100'
+                }`}>
+                  <TrendingUp className={`h-4 w-4 ${
+                    analysisStatus === 'profitable' ? 'text-emerald-600' :
+                    analysisStatus === 'break-even' ? 'text-yellow-600' :
+                    analysisStatus === 'loss' ? 'text-red-600' : 'text-gray-600'
+                  }`} />
+                </div>
+                <span className="text-foreground text-sm">تحليل الربحية</span>
+                <Badge 
+                  variant={
+                    analysisStatus === 'profitable' ? 'default' :
+                    analysisStatus === 'break-even' ? 'secondary' :
+                    analysisStatus === 'loss' ? 'destructive' : 'outline'
+                  }
+                  className="text-xs shadow-sm"
+                >
+                  {analysisStatus === 'profitable' ? 'مربح' :
+                   analysisStatus === 'break-even' ? 'نقطة التعادل' :
+                   analysisStatus === 'loss' ? 'خسارة' : 'غير مكتمل'}
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 bg-gradient-to-b from-background/50 to-background">
+              {/* Status Alert */}
+              {analysisStatus !== 'incomplete' && (
+                <Alert className={
+                  analysisStatus === 'profitable' ? 'border-green-200 bg-green-50' :
+                  analysisStatus === 'break-even' ? 'border-yellow-200 bg-yellow-50' :
+                  'border-red-200 bg-red-50'
+                }>
+                  {analysisStatus === 'profitable' ? <CheckCircle className="h-4 w-4 text-green-600" /> :
+                   analysisStatus === 'break-even' ? <AlertCircle className="h-4 w-4 text-yellow-600" /> :
+                   <AlertCircle className="h-4 w-4 text-red-600" />}
+                  <AlertDescription className={
+                    analysisStatus === 'profitable' ? 'text-green-800' :
+                    analysisStatus === 'break-even' ? 'text-yellow-800' :
+                    'text-red-800'
+                  }>
+                    {analysisStatus === 'profitable' && 
+                      `هذا المنتج مربح! ستحقق ربحاً قدره ${formatDZD(profitMargin)} لكل وحدة مباعة.`}
+                    {analysisStatus === 'break-even' && 
+                      'هذا المنتج في نقطة التعادل. لن تحقق ربحاً أو خسارة.'}
+                    {analysisStatus === 'loss' && 
+                      `هذا المنتج يحقق خسارة قدرها ${formatDZD(Math.abs(profitMargin || 0))} لكل وحدة مباعة.`}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/* Profit Metrics Grid */}
+              {analysisStatus !== 'incomplete' && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                  <div className="p-4 bg-gradient-to-br from-blue-50/60 to-indigo-50/40 dark:from-blue-950/30 dark:to-indigo-950/20 rounded-xl border border-blue-200/50 dark:border-blue-800/30 backdrop-blur-sm">
+                    <div className="text-center">
+                      <div className="text-xs text-blue-600 dark:text-blue-400 font-medium mb-1">هامش الربح</div>
+                      <div className="text-lg font-bold text-blue-700 dark:text-blue-300">
+                        {formatDZD(profitMargin)}
                       </div>
-                      <span className="text-sm font-medium">{((purchasePrice / price) * 100).toFixed(1)}%</span>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">هامش الربح</span>
-                    <div className="flex items-center gap-2">
-                      <div className="w-24 h-2 bg-green-200 rounded-full">
-                        <div 
-                          className="h-2 bg-green-600 rounded-full" 
-                          style={{ width: `${((profitMargin || 0) / price) * 100}%` }}
-                        ></div>
+                  
+                  <div className="p-4 bg-gradient-to-br from-purple-50/60 to-violet-50/40 dark:from-purple-950/30 dark:to-violet-950/20 rounded-xl border border-purple-200/50 dark:border-purple-800/30 backdrop-blur-sm">
+                    <div className="text-center">
+                      <div className="text-xs text-purple-600 dark:text-purple-400 font-medium mb-1">نسبة الربح</div>
+                      <div className="text-lg font-bold text-purple-700 dark:text-purple-300">
+                        {profitPercentage ? `${profitPercentage.toFixed(1)}%` : 'غير محدد'}
                       </div>
-                      <span className="text-sm font-medium">{marginPercentage !== null ? `${marginPercentage.toFixed(1)}%` : '0%'}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="p-4 bg-gradient-to-br from-amber-50/60 to-orange-50/40 dark:from-amber-950/30 dark:to-orange-950/20 rounded-xl border border-amber-200/50 dark:border-amber-800/30 backdrop-blur-sm">
+                    <div className="text-center">
+                      <div className="text-xs text-amber-600 dark:text-amber-400 font-medium mb-1">هامش الربح %</div>
+                      <div className="text-lg font-bold text-amber-700 dark:text-amber-300">
+                        {marginPercentage ? `${marginPercentage.toFixed(1)}%` : 'غير محدد'}
+                      </div>
                     </div>
                   </div>
                 </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Wholesale Tiers Section */}
+        <Card className="border-border/50 shadow-lg dark:shadow-2xl dark:shadow-black/20 bg-card/50 backdrop-blur-sm">
+          <CardHeader className="pb-4 bg-gradient-to-r from-amber-50/60 via-orange-50/40 to-transparent dark:from-amber-950/30 dark:via-orange-950/20 dark:to-transparent rounded-t-lg border-b border-border/30">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base font-semibold flex items-center gap-3">
+                <div className="bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/60 dark:to-orange-900/60 p-2.5 rounded-xl shadow-sm">
+                  <ShoppingBag className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div className="flex-1">
+                  <span className="text-foreground text-sm">أسعار الجملة</span>
+                  <Badge variant="outline" className="text-xs mr-2 shadow-sm">اختياري</Badge>
+                </div>
+              </CardTitle>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => append({ min_quantity: undefined, price_per_unit: undefined })}
+                className="h-9 gap-1.5 px-3 text-sm border-border/60 hover:bg-gradient-to-r hover:from-amber-50/50 hover:to-orange-50/30 dark:hover:from-amber-950/20 dark:hover:to-orange-950/10 hover:border-amber-300/50 dark:hover:border-amber-600/30 transition-all duration-300 shadow-sm hover:shadow-md"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                إضافة سعر
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6 bg-gradient-to-b from-background/50 to-background">
+            {fields.length === 0 ? (
+              <div className="text-center py-8 bg-gradient-to-br from-muted/30 to-muted/10 dark:from-muted/20 dark:to-muted/5 rounded-xl border border-dashed border-border/60 backdrop-blur-sm">
+                <div className="relative">
+                  <ShoppingBag className="w-12 h-12 mx-auto mb-3 text-muted-foreground/40 dark:text-muted-foreground/30" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-8 h-8 bg-gradient-to-br from-muted/20 to-muted/10 rounded-full" />
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground font-medium mb-1">لا توجد أسعار جملة</p>
+                <p className="text-xs text-muted-foreground/70">انقر "إضافة سعر" لإنشاء مستويات تسعير للكميات الكبيرة</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {fields.map((item, index) => (
+                  <div key={item.id} className="flex gap-3 p-4 border border-border/60 rounded-xl bg-gradient-to-r from-muted/20 to-muted/10 dark:from-muted/15 dark:to-muted/5 backdrop-blur-sm shadow-sm hover:shadow-md transition-all duration-300">
+                    <FormField
+                      control={form.control}
+                      name={`wholesale_tiers.${index}.min_quantity`}
+                      render={({ field }) => (
+                        <FormItem className="flex-1">
+                          <FormControl>
+                            <div className="relative group">
+                              <Input
+                                type="number"
+                                min="1"
+                                placeholder="الحد الأدنى للكمية"
+                                className="h-10 text-sm bg-background/80 dark:bg-background/60 border-border/60 hover:border-amber-500/60 focus:border-amber-600 focus:ring-2 focus:ring-amber-500/20 transition-all duration-300 shadow-sm hover:shadow-md focus:shadow-lg backdrop-blur-sm"
+                                {...field}
+                                onChange={(e) => {
+                                  field.onChange(parseInt(e.target.value));
+                                }}
+                              />
+                              <div className="absolute inset-0 rounded-md bg-gradient-to-r from-amber-500/5 to-transparent opacity-0 group-focus-within:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                            </div>
+                          </FormControl>
+                          <FormMessage className="text-xs" />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name={`wholesale_tiers.${index}.price_per_unit`}
+                      render={({ field }) => (
+                        <FormItem className="flex-1">
+                          <FormControl>
+                            <div className="relative group">
+                              <Input
+                                type="number"
+                                min="0"
+                                step="1"
+                                placeholder="السعر للوحدة"
+                                className="h-10 text-sm bg-background/80 dark:bg-background/60 border-border/60 hover:border-amber-500/60 focus:border-amber-600 focus:ring-2 focus:ring-amber-500/20 transition-all duration-300 shadow-sm hover:shadow-md focus:shadow-lg backdrop-blur-sm pr-10"
+                                {...field}
+                                onChange={(e) => {
+                                  field.onChange(parseFloat(e.target.value));
+                                }}
+                              />
+                              <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-xs text-muted-foreground bg-background/80 dark:bg-background/60 px-1 rounded">
+                                دج
+                              </div>
+                              <div className="absolute inset-0 rounded-md bg-gradient-to-r from-amber-500/5 to-transparent opacity-0 group-focus-within:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                            </div>
+                          </FormControl>
+                          <FormMessage className="text-xs" />
+                        </FormItem>
+                      )}
+                    />
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => remove(index)}
+                      className="h-10 w-10 p-0 border-border/60 hover:bg-destructive/10 hover:border-destructive/50 hover:text-destructive transition-all duration-300 shadow-sm hover:shadow-md"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>
         </Card>
-      )}
-
-      {/* Wholesale Tiers Section */}
-      <Card className="border-border/50">
-        <CardHeader className="pb-4">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg font-semibold flex items-center gap-2">
-              <div className="bg-primary/10 p-2 rounded-full">
-                <ShoppingBag className="h-4 w-4 text-primary" />
-              </div>
-              أسعار الجملة
-              <Badge variant="secondary" className="text-xs">اختياري</Badge>
-            </CardTitle>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => append({ min_quantity: undefined, price_per_unit: undefined })}
-              className="gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              إضافة سعر
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {fields.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <ShoppingBag className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p className="text-sm">لا توجد أسعار جملة</p>
-              <p className="text-xs">انقر "إضافة سعر" لإنشاء مستويات تسعير للكميات الكبيرة</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {fields.map((item, index) => (
-                <div key={item.id} className="flex gap-3 p-4 border border-border rounded-lg bg-muted/20">
-                  <FormField
-                    control={form.control}
-                    name={`wholesale_tiers.${index}.min_quantity`}
-                    render={({ field }) => (
-                      <FormItem className="flex-1">
-                        <FormControl>
-                          <Input
-                            type="number"
-                            min="1"
-                            placeholder="الحد الأدنى للكمية"
-                            className="h-10"
-                            {...field}
-                            onChange={(e) => {
-                              field.onChange(parseInt(e.target.value));
-                            }}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name={`wholesale_tiers.${index}.price_per_unit`}
-                    render={({ field }) => (
-                      <FormItem className="flex-1">
-                        <FormControl>
-                          <div className="relative">
-                            <Input
-                              type="number"
-                              min="0"
-                              step="1"
-                              placeholder="السعر للوحدة"
-                              className="h-10 pr-10"
-                              {...field}
-                              onChange={(e) => {
-                                field.onChange(parseFloat(e.target.value));
-                              }}
-                            />
-                            <div className="absolute left-2 top-1/2 transform -translate-y-1/2 text-xs text-muted-foreground">
-                              د.ج
-                            </div>
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => remove(index)}
-                    className="px-3 hover:bg-red-50 hover:border-red-200"
-                  >
-                    <Trash2 className="w-4 h-4 text-red-500" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+      </div>
+    </TooltipProvider>
   );
-} 
+}

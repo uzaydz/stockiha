@@ -288,4 +288,4 @@ const EasyUse = () => {
   );
 };
 
-export default EasyUse; 
+export default EasyUse;

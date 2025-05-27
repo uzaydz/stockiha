@@ -8,8 +8,7 @@ import { supabase } from './supabase';
  */
 export async function ensureCustomerExists(customerId: string | null | undefined, organizationId: string | null | undefined): Promise<string> {
   try {
-    
-    
+
     // إذا كان المعرف فارغًا، استخدام معرف العميل الزائر
     if (!customerId || customerId === 'guest' || customerId === 'walk-in') {
       const guestId = '00000000-0000-0000-0000-000000000000';
@@ -26,7 +25,6 @@ export async function ensureCustomerExists(customerId: string | null | undefined
       .maybeSingle();
       
     if (customerError) {
-      console.error("خطأ في التحقق من وجود العميل:", customerError);
     }
     
     // إذا كان العميل موجودًا، استخدام المعرف الأصلي
@@ -43,13 +41,11 @@ export async function ensureCustomerExists(customerId: string | null | undefined
       .maybeSingle();
       
     if (userError) {
-      console.error("خطأ في التحقق من وجود العميل في جدول المستخدمين:", userError);
     }
     
     // إذا كان العميل موجودًا في جدول المستخدمين، إنشاء سجل له في جدول العملاء
     if (userData) {
-      
-      
+
       const { error: insertError } = await supabase
         .from('customers')
         .insert({
@@ -63,7 +59,6 @@ export async function ensureCustomerExists(customerId: string | null | undefined
         });
         
       if (insertError) {
-        console.error("خطأ في إنشاء سجل العميل في جدول العملاء:", insertError);
         const guestId = '00000000-0000-0000-0000-000000000000';
         await ensureGuestCustomerExists(organizationId);
         return guestId;
@@ -79,7 +74,6 @@ export async function ensureCustomerExists(customerId: string | null | undefined
     return guestId;
     
   } catch (error) {
-    console.error("خطأ عام في التحقق من وجود العميل:", error);
     const guestId = '00000000-0000-0000-0000-000000000000';
     await ensureGuestCustomerExists(organizationId);
     return guestId;
@@ -93,8 +87,7 @@ export async function ensureCustomerExists(customerId: string | null | undefined
  */
 export async function ensureGuestCustomerExists(organizationId: string | null | undefined): Promise<void> {
   try {
-    
-    
+
     // إذا لم يكن هناك معرف مؤسسة، محاولة الحصول على المعرف الافتراضي
     if (!organizationId) {
       const { data: orgData, error: orgError } = await supabase
@@ -104,7 +97,6 @@ export async function ensureGuestCustomerExists(organizationId: string | null | 
         .single();
         
       if (orgError) {
-        console.error("خطأ في الحصول على معرف المؤسسة الافتراضي:", orgError);
         return;
       }
       
@@ -119,13 +111,11 @@ export async function ensureGuestCustomerExists(organizationId: string | null | 
       .maybeSingle();
       
     if (guestCheckError) {
-      console.error("خطأ في التحقق من وجود العميل الزائر:", guestCheckError);
     }
     
     // إذا لم يكن العميل الزائر موجودًا، إنشاء سجل له
     if (!guestData) {
-      
-      
+
       const { error: insertError } = await supabase
         .from('customers')
         .insert({
@@ -138,10 +128,8 @@ export async function ensureGuestCustomerExists(organizationId: string | null | 
         });
         
       if (insertError) {
-        console.error("خطأ في إنشاء سجل العميل الزائر:", insertError);
       }
     }
   } catch (error) {
-    console.error("خطأ عام في التأكد من وجود العميل الزائر:", error);
   }
-} 
+}

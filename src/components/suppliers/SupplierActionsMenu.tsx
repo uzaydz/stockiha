@@ -57,4 +57,4 @@ export function SupplierActionsMenu({ supplier, onEdit, onDelete, onViewPurchase
       </DropdownMenuContent>
     </DropdownMenu>
   );
-} 
+}

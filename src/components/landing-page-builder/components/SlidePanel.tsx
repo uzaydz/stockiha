@@ -123,4 +123,4 @@ const SlidePanel: React.FC<SlidePanelProps> = ({
   );
 };
 
-export default SlidePanel; 
+export default SlidePanel;

@@ -64,7 +64,6 @@ export function useShippingSettings(providerCode: ShippingProvider) {
       queryClient.invalidateQueries({ queryKey: ['shipping-settings', organizationId, providerCode] });
     },
     onError: (error) => {
-      console.error('Error saving shipping settings:', error);
       toast({
         title: 'خطأ في حفظ الإعدادات',
         description: 'حدث خطأ أثناء حفظ إعدادات خدمة التوصيل',
@@ -79,7 +78,6 @@ export function useShippingSettings(providerCode: ShippingProvider) {
   // Effect to handle errors
   useEffect(() => {
     if (settingsError) {
-      console.error('Error fetching shipping settings:', settingsError);
       toast({
         title: 'خطأ في جلب الإعدادات',
         description: 'حدث خطأ أثناء جلب إعدادات خدمة التوصيل',
@@ -95,4 +93,4 @@ export function useShippingSettings(providerCode: ShippingProvider) {
     saveSettings,
     refetch
   };
-} 
+}

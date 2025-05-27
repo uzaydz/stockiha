@@ -65,7 +65,6 @@ const InvoicePrintView = ({ invoice, onBack }: InvoicePrintViewProps) => {
       toast.dismiss();
       toast.success('تم تنزيل الفاتورة بنجاح');
     } catch (error) {
-      console.error('Error generating PDF:', error);
       toast.dismiss();
       toast.error('حدث خطأ أثناء إنشاء ملف PDF');
     }
@@ -102,7 +101,6 @@ const InvoicePrintView = ({ invoice, onBack }: InvoicePrintViewProps) => {
             toast.dismiss();
             toast.success('تمت مشاركة الفاتورة بنجاح');
           } catch (error) {
-            console.error('Error sharing invoice:', error);
             toast.dismiss();
             toast.error('حدث خطأ أثناء مشاركة الفاتورة');
           }
@@ -438,4 +436,4 @@ const InvoicePrintView = ({ invoice, onBack }: InvoicePrintViewProps) => {
   );
 };
 
-export default InvoicePrintView; 
+export default InvoicePrintView;

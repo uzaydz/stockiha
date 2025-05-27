@@ -23,7 +23,6 @@ export async function checkYalidineFees(organizationId: string): Promise<{
       .eq('organization_id', organizationId);
     
     if (error) {
-      console.error('[FEES_FIX] خطأ في التحقق من سجلات الرسوم:', error);
       return { count: 0, hasProblem: true, fixes: ['خطأ في قراءة البيانات من قاعدة البيانات'] };
     }
     
@@ -35,7 +34,6 @@ export async function checkYalidineFees(organizationId: string): Promise<{
       .rpc('get_table_info', { table_name: 'yalidine_fees' });
     
     if (tableError) {
-      console.error('[FEES_FIX] خطأ في التحقق من هيكل الجدول:', tableError);
       fixes.push('خطأ في التحقق من هيكل جدول البيانات');
     } else {
       // التحقق من وجود الأعمدة المطلوبة
@@ -62,7 +60,6 @@ export async function checkYalidineFees(organizationId: string): Promise<{
     
     return { count: count || 0, hasProblem, fixes };
   } catch (error) {
-    console.error('[FEES_FIX] خطأ في التحقق من بيانات الرسوم:', error);
     return { count: 0, hasProblem: true, fixes: ['خطأ غير متوقع أثناء التحقق من البيانات'] };
   }
 }
@@ -77,7 +74,6 @@ export async function fixYalidineFeeTable(): Promise<boolean> {
       .rpc('table_exists', { table_name: 'yalidine_fees' });
     
     if (tableError || !tableExists) {
-      console.error('[FEES_FIX] الجدول غير موجود:', tableError);
       return false;
     }
     
@@ -105,7 +101,6 @@ export async function fixYalidineFeeTable(): Promise<boolean> {
       );
       
       if (error) {
-        console.error(`[FEES_FIX] خطأ في إضافة العمود ${column.name}:`, error);
       } else {
         
       }
@@ -124,14 +119,11 @@ export async function fixYalidineFeeTable(): Promise<boolean> {
     );
     
     if (triggerError) {
-      console.error('[FEES_FIX] خطأ في إنشاء trigger لمزامنة الأعمدة:', triggerError);
       return false;
     }
-    
-    
+
     return true;
   } catch (error) {
-    console.error('[FEES_FIX] خطأ في إصلاح جدول الرسوم:', error);
     return false;
   }
 }
@@ -145,8 +137,7 @@ export async function saveFeesBatch(fees: any[], organizationId: string): Promis
   }
   
   try {
-    
-    
+
     // معالجة البيانات قبل الحفظ للتأكد من تطابق أسماء الحقول
     const formattedFees = fees.map(fee => ({
       organization_id: organizationId,
@@ -179,13 +170,11 @@ export async function saveFeesBatch(fees: any[], organizationId: string): Promis
       });
     
     if (error) {
-      console.error('[FEES_FIX] خطأ في حفظ الرسوم:', error);
       return { success: false, message: `خطأ في حفظ البيانات: ${error.message}` };
     }
     
     return { success: true, message: `تم حفظ ${formattedFees.length} سجل بنجاح` };
   } catch (error: any) {
-    console.error('[FEES_FIX] خطأ في حفظ الرسوم:', error);
     return { success: false, message: `خطأ غير متوقع: ${error.message}` };
   }
 }
@@ -202,9 +191,7 @@ export async function retryFailedSync(fees: any[], organizationId: string): Prom
     for (let i = 0; i < fees.length; i += batchSize) {
       batches.push(fees.slice(i, i + batchSize));
     }
-    
-    
-    
+
     let successCount = 0;
     let failCount = 0;
     
@@ -217,14 +204,11 @@ export async function retryFailedSync(fees: any[], organizationId: string): Prom
       } else {
         failCount += batches[i].length;
       }
-      
-      
+
     }
-    
-    
+
     return successCount > 0;
   } catch (error) {
-    console.error('[FEES_FIX] خطأ في إعادة محاولة المزامنة:', error);
     return false;
   }
 }
@@ -280,7 +264,6 @@ export async function checkShippingDirection(): Promise<{
       message: 'بيانات الأسعار غير متناسقة، لا يمكن تحديد الاتجاه'
     };
   } catch (error) {
-    console.error('[FEES_FIX] خطأ في التحقق من اتجاه الشحن:', error);
     return {
       configured: false,
       direction: 'unknown',
@@ -303,15 +286,13 @@ export async function checkYalidineTriggersStatus(): Promise<{
   message: string;
 }> {
   try {
-    
-    
+
     // 1. التحقق من عدد السجلات في جدول yalidine_fees
     const { count: feesCount, error: feesError } = await supabase
       .from('yalidine_fees')
       .select('*', { count: 'exact', head: true });
       
     if (feesError) {
-      console.error('[FEES_FIX] خطأ في التحقق من جدول yalidine_fees:', feesError);
     }
     
     // 2. التحقق من وجود جدول yalidine_fees_new وعدد سجلاته
@@ -354,7 +335,6 @@ export async function checkYalidineTriggersStatus(): Promise<{
       message: 'تم التحقق من حالة محفزات ياليدين بنجاح'
     };
   } catch (error) {
-    console.error('[FEES_FIX] خطأ غير متوقع أثناء التحقق من حالة المحفزات:', error);
     return {
       tableStats: {
         yalidine_fees: { count: 0 },
@@ -375,15 +355,13 @@ export async function applyYalidineTriggerFix(): Promise<{
   message: string;
 }> {
   try {
-    
-    
+
     const { data, error } = await supabase.rpc(
       'fix_yalidine_redirect_trigger',
       {}
     );
     
     if (error) {
-      console.error('[FEES_FIX] خطأ في تنفيذ إصلاح المحفز:', error);
       return {
         success: false,
         message: `فشل الإصلاح: ${error.message}`
@@ -395,7 +373,6 @@ export async function applyYalidineTriggerFix(): Promise<{
       message: data || 'تم تعطيل المحفز بنجاح'
     };
   } catch (error) {
-    console.error('[FEES_FIX] خطأ غير متوقع أثناء تنفيذ الإصلاح:', error);
     return {
       success: false,
       message: `خطأ غير متوقع: ${error instanceof Error ? error.message : String(error)}`
@@ -418,8 +395,7 @@ export async function saveFeesBatch(
   }
   
   try {
-    
-    
+
     // 1. تعديل البيانات للتأكد من توافقها مع هيكل الجدول
     const processedFees = fees.map(fee => ({
       organization_id: organizationId,
@@ -454,12 +430,10 @@ export async function saveFeesBatch(
       });
     
     if (error) {
-      console.error('[FEES_FIX] خطأ في حفظ البيانات بالطريقة البديلة:', error);
       
       // محاولة الحفظ بطريقة أخرى - بدفعات أصغر
       if (fees.length > 20) {
-        
-        
+
         const batchSize = 20;
         let successCount = 0;
         
@@ -479,10 +453,8 @@ export async function saveFeesBatch(
               successCount += batch.length;
               
             } else {
-              console.error(`[FEES_FIX] خطأ في حفظ الدفعة ${i/batchSize + 1}:`, batchError);
             }
           } catch (batchError) {
-            console.error(`[FEES_FIX] خطأ غير متوقع في دفعة ${i/batchSize + 1}:`, batchError);
           }
           
           // انتظار لتخفيف الضغط على قاعدة البيانات
@@ -515,7 +487,6 @@ export async function saveFeesBatch(
       count: fees.length
     };
   } catch (error) {
-    console.error('[FEES_FIX] خطأ غير متوقع أثناء حفظ البيانات:', error);
     return {
       success: false,
       message: `خطأ غير متوقع: ${error instanceof Error ? error.message : String(error)}`,
@@ -531,8 +502,7 @@ export async function migrateFeesFromNewTable(
   organizationId: string
 ): Promise<{ success: boolean; message: string; count: number }> {
   try {
-    
-    
+
     // التحقق من وجود بيانات في الجدول الجديد
     const { count, error: countError } = await supabase
       .from('yalidine_fees_new')
@@ -554,7 +524,6 @@ export async function migrateFeesFromNewTable(
     );
     
     if (error) {
-      console.error('[FEES_FIX] خطأ في نقل البيانات:', error);
       return {
         success: false,
         message: `فشل نقل البيانات: ${error.message}`,
@@ -568,11 +537,10 @@ export async function migrateFeesFromNewTable(
       count: data || count
     };
   } catch (error) {
-    console.error('[FEES_FIX] خطأ غير متوقع أثناء نقل البيانات:', error);
     return {
       success: false,
       message: `خطأ غير متوقع: ${error instanceof Error ? error.message : String(error)}`,
       count: 0
     };
   }
-} 
+}

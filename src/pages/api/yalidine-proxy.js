@@ -60,7 +60,6 @@ export default async function handler(req, res) {
     // إرسال الاستجابة إلى العميل
     return res.status(response.status).json(response.data);
   } catch (error) {
-    console.error('[YALIDINE-PROXY] خطأ في وسيط API ياليدين:', error);
     
     // التحقق من نوع الخطأ والاستجابة بشكل مناسب
     if (error.response) {
@@ -86,4 +85,4 @@ export default async function handler(req, res) {
       });
     }
   }
-} 
+}

@@ -54,4 +54,4 @@ export interface YalidineWilaya {
   name: string;
   zone: number;
   is_deliverable: boolean;
-} 
+}

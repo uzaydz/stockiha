@@ -70,7 +70,6 @@ export function useShippingCloneManager(organizationId: string) {
         setSelectedProvider(data[0]);
       }
     } catch (error) {
-      console.error('خطأ في تحميل مزودي التوصيل:', error);
       toast({
         variant: 'destructive',
         title: 'خطأ',
@@ -87,7 +86,6 @@ export function useShippingCloneManager(organizationId: string) {
       const data = await getProvinces();
       setProvinces(data);
     } catch (error) {
-      console.error('خطأ في تحميل الولايات:', error);
       toast({
         variant: 'destructive',
         title: 'خطأ',
@@ -125,7 +123,6 @@ export function useShippingCloneManager(organizationId: string) {
         setModifiedPrices({});
       }
     } catch (error) {
-      console.error('خطأ في تحميل تفاصيل النسخة:', error);
       toast({
         variant: 'destructive',
         title: 'خطأ',
@@ -175,7 +172,6 @@ export function useShippingCloneManager(organizationId: string) {
         });
       }
     } catch (error) {
-      console.error('خطأ في استنساخ مزود التوصيل:', error);
       toast({
         variant: 'destructive',
         title: 'خطأ',
@@ -326,7 +322,6 @@ export function useShippingCloneManager(organizationId: string) {
         });
       }
     } catch (error) {
-      console.error('خطأ في تحديث إعدادات مزود التوصيل:', error);
       toast({
         variant: 'destructive',
         title: 'خطأ',
@@ -380,4 +375,4 @@ export function useShippingCloneManager(organizationId: string) {
   };
 }
 
-export default useShippingCloneManager; 
+export default useShippingCloneManager;

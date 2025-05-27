@@ -32,7 +32,6 @@ const CategorySelector: React.FC<CategorySelectorProps> = ({ selectedCategories 
         setCategories(activeCategories);
         setError(null);
       } catch (err) {
-        console.error('خطأ في جلب الفئات:', err);
         setError('حدث خطأ أثناء جلب الفئات. يرجى المحاولة مرة أخرى.');
       } finally {
         setLoading(false);
@@ -136,4 +135,4 @@ const CategorySelector: React.FC<CategorySelectorProps> = ({ selectedCategories 
   );
 };
 
-export default CategorySelector; 
+export default CategorySelector;

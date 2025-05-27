@@ -60,4 +60,4 @@ const POSFeaturesPage = () => {
   );
 };
 
-export default POSFeaturesPage; 
+export default POSFeaturesPage;

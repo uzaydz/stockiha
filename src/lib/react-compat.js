@@ -73,4 +73,4 @@ if (typeof window !== 'undefined') {
 }
 
 // تصدير React الذي تم إصلاحه
-export default React; 
+export default React;

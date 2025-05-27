@@ -128,4 +128,4 @@ export default function OrderSummary({ orderInfo }: OrderSummaryProps) {
       </CardContent>
     </Card>
   );
-} 
+}

@@ -162,4 +162,4 @@ export const PersonalInfoForm = ({
   );
 };
 
-export default PersonalInfoForm; 
+export default PersonalInfoForm;

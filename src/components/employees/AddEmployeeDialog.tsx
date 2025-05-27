@@ -282,9 +282,7 @@ const AddEmployeeDialog = ({ onEmployeeAdded }: AddEmployeeDialogProps) => {
           localStorage.removeItem('adminPassword');
         }, 5 * 60 * 1000); // 5 minutes
       }
-      
-      
-      
+
       const newEmployee = await createEmployee(
         formData.email,
         formData.password,
@@ -297,9 +295,7 @@ const AddEmployeeDialog = ({ onEmployeeAdded }: AddEmployeeDialogProps) => {
           is_active: true
         }
       );
-      
-      
-      
+
       toast({
         title: 'تمت العملية بنجاح',
         description: `تم إضافة الموظف ${formData.name} بنجاح. يمكنك الآن مشاركة بيانات الدخول معه.`,
@@ -309,7 +305,6 @@ const AddEmployeeDialog = ({ onEmployeeAdded }: AddEmployeeDialogProps) => {
       setOpen(false);
       resetForm();
     } catch (error: any) {
-      console.error('Error adding employee:', error);
       
       let errorMessage = 'حدث خطأ أثناء إضافة الموظف. الرجاء المحاولة مرة أخرى.';
       
@@ -513,4 +508,4 @@ const AddEmployeeDialog = ({ onEmployeeAdded }: AddEmployeeDialogProps) => {
   );
 };
 
-export default AddEmployeeDialog; 
+export default AddEmployeeDialog;

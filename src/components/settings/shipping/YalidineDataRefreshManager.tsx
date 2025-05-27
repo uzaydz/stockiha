@@ -73,7 +73,6 @@ export default function YalidineDataRefreshManager({ organizationId }: YalidineD
         setRefreshFrequency(data.refresh_frequency_hours);
       }
     } catch (err: any) {
-      console.error('Error fetching refresh status:', err);
       setError(err.message || 'Error al obtener el estado de actualización');
     } finally {
       setIsLoading(false);
@@ -99,7 +98,6 @@ export default function YalidineDataRefreshManager({ organizationId }: YalidineD
       // Actualizar el estado después de la actualización
       await fetchRefreshStatus();
     } catch (err: any) {
-      console.error('Error refreshing data:', err);
       setError(err.message || 'Error al actualizar los datos');
     } finally {
       setIsRefreshing(false);
@@ -122,7 +120,6 @@ export default function YalidineDataRefreshManager({ organizationId }: YalidineD
 
       setRefreshStatus(data);
     } catch (err: any) {
-      console.error('Error saving configuration:', err);
       setError(err.message || 'Error al guardar la configuración');
     } finally {
       setIsLoading(false);
@@ -331,4 +328,4 @@ export default function YalidineDataRefreshManager({ organizationId }: YalidineD
       </CardContent>
     </Card>
   );
-} 
+}

@@ -24,4 +24,4 @@ const PermissionsAlert: React.FC<PermissionsAlertProps> = ({
   );
 };
 
-export default PermissionsAlert; 
+export default PermissionsAlert;

@@ -50,8 +50,7 @@ export interface DebtsData {
  */
 export const getDebtsData = async (organizationId: string): Promise<DebtsData> => {
   try {
-    
-    
+
     if (!organizationId) {
       throw new Error("معرف المؤسسة مطلوب");
     }
@@ -65,7 +64,6 @@ export const getDebtsData = async (organizationId: string): Promise<DebtsData> =
     );
 
     if (summaryError) {
-      console.error('خطأ في استعلام ملخص الديون:', summaryError);
       throw summaryError;
     }
 
@@ -81,8 +79,6 @@ export const getDebtsData = async (organizationId: string): Promise<DebtsData> =
         }
       : { total_debts: 0, total_partial_payments: 0 };
 
-    
-
     // استعلام للديون حسب العميل (نستخدم الوظيفة الجديدة get_debts_by_customer)
     const { data: customerDebtsData, error: customerDebtsError } = await supabase.rpc(
       'get_debts_by_customer',
@@ -92,7 +88,6 @@ export const getDebtsData = async (organizationId: string): Promise<DebtsData> =
     );
 
     if (customerDebtsError) {
-      console.error('خطأ في استعلام الديون حسب العميل:', customerDebtsError);
       throw customerDebtsError;
     }
 
@@ -119,7 +114,6 @@ export const getDebtsData = async (organizationId: string): Promise<DebtsData> =
     );
 
     if (customerError) {
-      console.error('خطأ في استعلام ديون العملاء:', customerError);
       throw customerError;
     }
 
@@ -183,11 +177,9 @@ export const getDebtsData = async (organizationId: string): Promise<DebtsData> =
       debtsByCustomer,
       customerDebts
     };
-    
-    
+
     return result;
   } catch (error) {
-    console.error('خطأ في الحصول على بيانات الديون:', error);
     throw error;
   }
 };
@@ -204,8 +196,7 @@ export const recordDebtPayment = async (
   isFullPayment: boolean
 ): Promise<any> => {
   try {
-    
-    
+
     if (!orderId) {
       throw new Error("معرف الطلب مطلوب");
     }
@@ -218,7 +209,6 @@ export const recordDebtPayment = async (
       .single();
 
     if (orderError) {
-      console.error('خطأ في استعلام بيانات الطلب:', orderError);
       throw orderError;
     }
 
@@ -254,14 +244,11 @@ export const recordDebtPayment = async (
     );
 
     if (transactionError) {
-      console.error('خطأ في تسجيل معاملة الدفع:', transactionError);
       throw transactionError;
     }
 
-    
     return { success: true, transactionId: transactionData };
   } catch (error) {
-    console.error('خطأ في تسجيل دفع الدين:', error);
     throw error;
   }
-}; 
+};

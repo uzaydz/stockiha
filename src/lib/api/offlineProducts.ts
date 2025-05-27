@@ -44,7 +44,6 @@ const convertLocalProductsToProducts = (localProducts: LocalProduct[]): Product[
  */
 export const getProducts = async (organizationId?: string, includeInactive: boolean = false): Promise<Product[]> => {
   if (!organizationId) {
-    console.error("لم يتم تمرير معرف المؤسسة إلى وظيفة getProducts");
     return [];
   }
 
@@ -54,7 +53,6 @@ export const getProducts = async (organizationId?: string, includeInactive: bool
       try {
         await forceSynchronization();
       } catch (error) {
-        console.warn('فشلت محاولة المزامنة التلقائية عند جلب المنتجات:', error);
       }
 
       // استرجاع البيانات من نظام التخزين المحلي
@@ -79,20 +77,17 @@ export const getProducts = async (organizationId?: string, includeInactive: bool
       // تمييز المنتجات غير المتزامنة في وحدة التحكم للتصحيح
       const unsyncedCount = filteredProducts.filter(p => !p.synced).length;
       if (unsyncedCount > 0) {
-        console.info(`هناك ${unsyncedCount} منتج غير متزامن من إجمالي ${filteredProducts.length}`);
       }
       
       return convertLocalProductsToProducts(filteredProducts);
     }
   } catch (error) {
-    console.error('خطأ في جلب المنتجات:', error);
     
     // محاولة استرجاع البيانات من Supabase كحل احتياطي إذا كان متصلاً
     if (isOnline()) {
       try {
         return await fetchOnlineProducts(organizationId, includeInactive);
       } catch (onlineError) {
-        console.error('فشل الحل الاحتياطي لجلب المنتجات من الخادم:', onlineError);
         return [];
       }
     }
@@ -111,7 +106,6 @@ export const getProductById = async (productId: string, organizationId?: string)
       try {
         await forceSynchronization();
       } catch (error) {
-        console.warn('فشلت محاولة المزامنة التلقائية عند جلب المنتج:', error);
       }
     }
 
@@ -137,14 +131,12 @@ export const getProductById = async (productId: string, organizationId?: string)
     
     return null;
   } catch (error) {
-    console.error(`خطأ في جلب المنتج ${productId}:`, error);
     
     // محاولة استرجاع البيانات من Supabase كحل احتياطي إذا كان متصلاً
     if (isOnline()) {
       try {
         return await fetchOnlineProductById(productId);
       } catch (onlineError) {
-        console.error('فشل الحل الاحتياطي لجلب المنتج من الخادم:', onlineError);
         return null;
       }
     }
@@ -170,21 +162,18 @@ export const createProduct = async (productData: InsertProduct): Promise<Product
       try {
         await forceSynchronization();
       } catch (error) {
-        console.warn('فشلت محاولة المزامنة بعد إنشاء المنتج:', error);
       }
     }
     
     // إرجاع نسخة متوافقة مع الواجهة البرمجية القديمة
     return convertLocalProductToProduct(newLocalProduct);
   } catch (error) {
-    console.error('خطأ في إنشاء المنتج:', error);
     
     // إذا كان متصلاً، حاول إنشاء المنتج مباشرة في Supabase كإجراء احتياطي
     if (isOnline()) {
       try {
         return await createOnlineProduct(productData);
       } catch (onlineError) {
-        console.error('فشل الحل الاحتياطي لإنشاء المنتج على الخادم:', onlineError);
         return null;
       }
     }
@@ -214,7 +203,6 @@ export const updateProduct = async (productId: string, updates: UpdateProduct): 
       try {
         await forceSynchronization();
       } catch (error) {
-        console.warn('فشلت محاولة المزامنة بعد تحديث المنتج:', error);
       }
     }
     
@@ -229,14 +217,12 @@ export const updateProduct = async (productId: string, updates: UpdateProduct): 
     
     return null;
   } catch (error) {
-    console.error(`خطأ في تحديث المنتج ${productId}:`, error);
     
     // إذا كان متصلاً، حاول تحديث المنتج مباشرة في Supabase كإجراء احتياطي
     if (isOnline()) {
       try {
         return await updateOnlineProduct(productId, updates);
       } catch (onlineError) {
-        console.error('فشل الحل الاحتياطي لتحديث المنتج على الخادم:', onlineError);
         return null;
       }
     }
@@ -266,13 +252,11 @@ export const deleteProduct = async (productId: string): Promise<boolean> => {
       try {
         await forceSynchronization();
       } catch (error) {
-        console.warn('فشلت محاولة المزامنة بعد حذف المنتج:', error);
       }
     }
     
     return result;
   } catch (error) {
-    console.error(`خطأ في حذف المنتج ${productId}:`, error);
     
     // إذا كان متصلاً، حاول حذف المنتج مباشرة من Supabase كإجراء احتياطي
     if (isOnline()) {
@@ -280,7 +264,6 @@ export const deleteProduct = async (productId: string): Promise<boolean> => {
         await deleteOnlineProduct(productId);
         return true;
       } catch (onlineError) {
-        console.error('فشل الحل الاحتياطي لحذف المنتج من الخادم:', onlineError);
         return false;
       }
     }
@@ -324,7 +307,6 @@ export const updateProductStock = async (
       try {
         await forceSynchronization();
       } catch (error) {
-        console.warn('فشلت محاولة المزامنة بعد تحديث المخزون:', error);
       }
     }
     
@@ -334,7 +316,6 @@ export const updateProductStock = async (
     
     return null;
   } catch (error) {
-    console.error(`خطأ في تحديث مخزون المنتج ${productId}:`, error);
     
     // في حالة الاتصال، حاول تحديث الكمية مباشرة في Supabase
     if (isOnline()) {
@@ -351,10 +332,9 @@ export const updateProductStock = async (
           });
         }
       } catch (onlineError) {
-        console.error('فشل الحل الاحتياطي لتحديث المخزون على الخادم:', onlineError);
       }
     }
     
     return null;
   }
-}; 
+};

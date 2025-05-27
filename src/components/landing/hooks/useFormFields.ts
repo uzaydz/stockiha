@@ -23,7 +23,6 @@ export function useFormFields(formId?: string) {
           setFormFields(parsedData);
           setIsFieldsLoading(false);
         } catch (e) {
-          console.error('Error al analizar los datos en caché:', e);
         }
       }
     }
@@ -82,7 +81,6 @@ export function useFormFields(formId?: string) {
       }
       
     } catch (error) {
-      console.error('Error al obtener los campos del formulario:', error);
     } finally {
       setIsFieldsLoading(false);
     }
@@ -93,4 +91,4 @@ export function useFormFields(formId?: string) {
     isFieldsLoading,
     fetchFormFields
   };
-} 
+}

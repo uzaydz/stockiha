@@ -113,7 +113,6 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
       const storedGroup = localStorage.getItem(ACTIVE_GROUP_STORAGE_KEY);
       return storedGroup || 'الرئيسية';
     } catch (e) {
-      console.warn('فشل في استرجاع المجموعة النشطة من التخزين المحلي:', e);
       return 'الرئيسية';
     }
   };
@@ -171,7 +170,6 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
       try {
         localStorage.setItem(ACTIVE_GROUP_STORAGE_KEY, activeGroup);
       } catch (e) {
-        console.warn('فشل في حفظ المجموعة النشطة في التخزين المحلي:', e);
       }
     }
   }, [activeGroup]);
@@ -213,8 +211,7 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        
-        
+
         // إعادة تأكيد رؤية القائمة الجانبية
         const sidebarElement = document.getElementById('sidebar-container');
         if (sidebarElement && window.getComputedStyle(sidebarElement).display === 'none') {

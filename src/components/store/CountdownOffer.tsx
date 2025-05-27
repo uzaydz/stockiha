@@ -185,4 +185,4 @@ const CountdownOffer: React.FC<CountdownOfferProps> = ({
   );
 };
 
-export default CountdownOffer; 
+export default CountdownOffer;

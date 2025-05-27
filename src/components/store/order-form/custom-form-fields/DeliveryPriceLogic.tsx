@@ -14,7 +14,6 @@ export async function getDeliveryPriceCalculator(
 ): Promise<CalculateDeliveryPriceFunction> {
   // التحقق من مزود الشحن المستخدم
   if (!organizationId || !shippingProviderSettings) {
-    console.log("[getDeliveryPriceCalculator] لا توجد معلومات كافية، استخدام حاسبة سعر ياليدين");
     return calculateYalidineDeliveryPrice;
   }
 
@@ -34,7 +33,6 @@ export async function getDeliveryPriceCalculator(
       if (!productError && productData) {
         // إذا كان المنتج يستخدم مزود شحن محدد
         if (productData.shipping_provider_id) {
-          console.log(`[getDeliveryPriceCalculator] المنتج يستخدم مزود الشحن: ${productData.shipping_provider_id}`);
           // استخدام مزود الشحن المحدد للمنتج
           const { data: providerData } = await supabase
             .from('shipping_providers')
@@ -44,13 +42,10 @@ export async function getDeliveryPriceCalculator(
             
           if (providerData) {
             providerCode = providerData.code;
-            console.log(`[getDeliveryPriceCalculator] تم تحديد رمز المزود من المنتج: ${providerCode}`);
           }
         }
       }
     }
-
-    console.log(`[getDeliveryPriceCalculator] معلومات المزود الأولية: originalProviderId=${originalProviderId}, providerCode=${providerCode}, id=${shippingProviderSettings.id || 'افتراضي'}`);
 
     // إذا لم يتم تحديد رمز المزود، نبحث عنه أولاً من خلال original_provider_id 
     if (!providerCode && originalProviderId) {
@@ -62,7 +57,6 @@ export async function getDeliveryPriceCalculator(
 
       if (!error && data) {
         providerCode = data.code;
-        console.log(`[getDeliveryPriceCalculator] تم العثور على رمز المزود من خلال original_provider_id: ${providerCode} (${data.name})`);
         // تحديث القيمة في الإعدادات
         shippingProviderSettings.provider_code = providerCode;
       }
@@ -80,7 +74,6 @@ export async function getDeliveryPriceCalculator(
 
       if (!error && data && data.length > 0) {
         originalProviderId = data[0].provider_id;
-        console.log(`[getDeliveryPriceCalculator] تم العثور على معرف المزود الافتراضي: ${originalProviderId}`);
         
         // تحديث originalProviderId في الإعدادات
         shippingProviderSettings.original_provider_id = originalProviderId;
@@ -95,7 +88,6 @@ export async function getDeliveryPriceCalculator(
             
           if (!providerError && providerData) {
             providerCode = providerData.code;
-            console.log(`[getDeliveryPriceCalculator] تم العثور على رمز المزود الافتراضي: ${providerCode} (${providerData.name})`);
             // تحديث القيمة في الإعدادات
             shippingProviderSettings.provider_code = providerCode;
           }
@@ -103,11 +95,8 @@ export async function getDeliveryPriceCalculator(
       }
     }
 
-    console.log(`[getDeliveryPriceCalculator] رمز المزود النهائي: ${providerCode || "غير محدد"}`);
-
     // تحديد الدالة المناسبة بناءً على رمز المزود
     if (providerCode === 'zrexpress') {
-      console.log("[getDeliveryPriceCalculator] استخدام حاسبة سعر ZR Express");
       return async (
         organizationId: string,
         fromWilayaId: string,
@@ -121,7 +110,6 @@ export async function getDeliveryPriceCalculator(
           try {
             // التحقق من صحة المعاملات
             if (!toWilayaId) {
-              console.error("[ZRExpressCalculator] معرف الولاية مطلوب");
               reject(new Error("معرف الولاية مطلوب"));
               return;
             }
@@ -130,25 +118,21 @@ export async function getDeliveryPriceCalculator(
             if (shippingProviderSettings.use_unified_price) {
               if (deliveryType === 'home') {
                 if (shippingProviderSettings.is_free_delivery_home) {
-                  console.log("[ZRExpressCalculator] استخدام التوصيل المجاني للمنزل");
                   resolve(0);
                   return;
                 }
                 const unifiedPrice = shippingProviderSettings.unified_home_price;
                 if (typeof unifiedPrice === 'number') {
-                  console.log(`[ZRExpressCalculator] استخدام السعر الموحد للمنزل: ${unifiedPrice}`);
                   resolve(unifiedPrice);
                   return;
                 }
               } else {
                 if (shippingProviderSettings.is_free_delivery_desk) {
-                  console.log("[ZRExpressCalculator] استخدام التوصيل المجاني للمكتب");
                   resolve(0);
                   return;
                 }
                 const unifiedPrice = shippingProviderSettings.unified_desk_price;
                 if (typeof unifiedPrice === 'number') {
-                  console.log(`[ZRExpressCalculator] استخدام السعر الموحد للمكتب: ${unifiedPrice}`);
                   resolve(unifiedPrice);
                   return;
                 }
@@ -156,7 +140,6 @@ export async function getDeliveryPriceCalculator(
             }
 
             const handlePriceCalculated = (price: number) => {
-              console.log(`[ZRExpressCalculator] تم حساب السعر: ${price}`);
               resolve(price);
             };
 
@@ -170,20 +153,16 @@ export async function getDeliveryPriceCalculator(
             );
 
             // تشغيل المكون وبدء عملية الحساب
-            console.log(`[ZRExpressCalculator] بدء حساب السعر للولاية ${toWilayaId} (${deliveryType})`);
             calculator.props.onPriceCalculated(0); // سيتم تحديث السعر لاحقاً من خلال المكون نفسه
           } catch (error) {
-            console.error("[ZRExpressCalculator] خطأ في حساب السعر:", error);
             reject(error);
           }
         });
       };
     } else {
-      console.log("[getDeliveryPriceCalculator] استخدام حاسبة سعر ياليدين");
       return calculateYalidineDeliveryPrice;
     }
   } catch (error) {
-    console.error("[getDeliveryPriceCalculator] خطأ في تحديد وظيفة الحساب:", error);
     // في حالة الخطأ، نستخدم ياليدين كخيار افتراضي
     return calculateYalidineDeliveryPrice;
   }
@@ -246,11 +225,9 @@ export const useDeliveryPrice = (
         
         // إذا كان هناك وعد للإعدادات الافتراضية، انتظر النتيجة ثم أعد تحديث الإعدادات
         if (defaultSettings._promise) {
-          console.log("[updateDeliveryPrice] انتظار نتيجة جلب الإعدادات الافتراضية...");
           
           defaultSettings._promise.then(async fetchedSettings => {
             if (fetchedSettings) {
-              console.log("[updateDeliveryPrice] تم الحصول على الإعدادات الافتراضية:", fetchedSettings.provider_code);
               setTimeout(async () => {
                 // Pass fetchedSettings to the recursive call to ensure it uses the latest data
                 await updateDeliveryPriceWithSettings(deliveryType, provinceId, municipalityId, fetchedSettings);
@@ -279,7 +256,6 @@ export const useDeliveryPrice = (
       await updateDeliveryPriceWithSettings(deliveryType, provinceId, municipalityId, shippingProviderSettings);
 
     } catch (error) {
-      console.error(">> خطأ في حساب سعر التوصيل:", error);
       updateDeliveryPriceState(0);
     }
   };
@@ -292,7 +268,6 @@ export const useDeliveryPrice = (
     currentShippingSettings: any
   ) => {
       // استخدام إعدادات مزود التوصيل المحملة
-      console.log(`[updateDeliveryPrice] استخدام إعدادات المزود: code=${currentShippingSettings.provider_code}, id=${currentShippingSettings.id || 'المزود الافتراضي'}`);
       
       // التحقق من توفر خيارات التوصيل
       const isHomeEnabled = currentShippingSettings.is_home_delivery_enabled === true;
@@ -319,17 +294,14 @@ export const useDeliveryPrice = (
         if (onFieldChange) {
           onFieldChange('deliveryOption', finalDeliveryType);
           if (finalDeliveryType === 'desk' && provinceId) {
-            console.warn("[updateDeliveryPriceWithSettings] findStopDeskForMunicipality is not available in this hook.");
           }
         }
       }
       
       let calculatePriceFunction = await getDeliveryPriceCalculator(currentOrganization.id, currentShippingSettings, productId);
-      console.log(`[updateDeliveryPrice] استخدام دالة حساب السعر لمزود: ${currentShippingSettings.provider_code || 'افتراضي'}`);
       
       if (!currentShippingSettings.provider_code && currentShippingSettings.original_provider_id) {
         try {
-          console.log(`[updateDeliveryPrice] البحث عن رمز المزود قبل حساب السعر (originalProviderId=${currentShippingSettings.original_provider_id})`);
           
           const { data: providerData, error: providerError } = await supabase
             .from('shipping_providers')
@@ -338,19 +310,16 @@ export const useDeliveryPrice = (
             .single();
             
           if (!providerError && providerData) {
-            console.log(`[updateDeliveryPrice] تم العثور على رمز المزود من originalProviderId: ${providerData.code} (${providerData.name})`);
             
             currentShippingSettings.provider_code = providerData.code;
             
             const updatedCalculatePrice = await getDeliveryPriceCalculator(currentOrganization.id, currentShippingSettings, productId);
-            console.log(`[updateDeliveryPrice] تحديث دالة حساب السعر بعد إيجاد رمز المزود: ${currentShippingSettings.provider_code}`);
             
             if (updatedCalculatePrice) {
               calculatePriceFunction = updatedCalculatePrice;
             }
           }
         } catch (providerError) {
-          console.error(`[updateDeliveryPrice] خطأ في البحث عن رمز المزود:`, providerError);
         }
       }
       
@@ -456,7 +425,6 @@ export const useDeliveryPrice = (
       if (onFieldChange) {
         onFieldChange('deliveryOption', finalDeliveryType);
         if (finalDeliveryType === 'desk' && provinceIdToUse) {
-          console.warn("[recalculateAndSetDeliveryPriceWithSettings] findStopDeskForMunicipality is not available in this hook.");
         }
       }
     }
@@ -469,4 +437,4 @@ export const useDeliveryPrice = (
   }
 
   return { deliveryPrice, updateDeliveryPrice, recalculateAndSetDeliveryPrice, updateDeliveryPriceState };
-}; 
+};

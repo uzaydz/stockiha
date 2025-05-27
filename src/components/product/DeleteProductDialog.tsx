@@ -71,16 +71,13 @@ const DeleteProductDialog = ({ product, open, onOpenChange, onProductDeleted }: 
         };
         
         // طباعة بيانات التصحيح
-        
-        
+
         // التحقق من الصلاحيات - يجب انتظار حل الوعد (Promise)
         const canDeletePromise = checkUserPermissions(mergedUserData, 'deleteProducts');
         
         // انتظار نتيجة الوعد
         const canDelete = await canDeletePromise;
-        
-        
-        
+
         if (isMounted) {
           setHasPermission(canDelete);
           
@@ -94,7 +91,6 @@ const DeleteProductDialog = ({ product, open, onOpenChange, onProductDeleted }: 
           }
         }
       } catch (error) {
-        console.error('خطأ في التحقق من صلاحيات الحذف:', error);
         
         // في حالة الخطأ، تحقق مباشرة من البيانات الخام
         const permissions = user.user_metadata?.permissions || {};
@@ -157,7 +153,6 @@ const DeleteProductDialog = ({ product, open, onOpenChange, onProductDeleted }: 
       onOpenChange(false);
       await onProductDeleted();
     } catch (error: any) {
-      console.error('Error deleting product:', error);
       
       if (error.code === 'PRODUCT_IN_USE') {
         setShowDisableOption(true);
@@ -192,7 +187,6 @@ const DeleteProductDialog = ({ product, open, onOpenChange, onProductDeleted }: 
       onOpenChange(false);
       await onProductDeleted();
     } catch (error) {
-      console.error('Error disabling product:', error);
       toast.error('حدث خطأ أثناء تعطيل المنتج');
     } finally {
       setIsDisabling(false);
@@ -295,4 +289,4 @@ const DeleteProductDialog = ({ product, open, onOpenChange, onProductDeleted }: 
   );
 };
 
-export default DeleteProductDialog; 
+export default DeleteProductDialog;

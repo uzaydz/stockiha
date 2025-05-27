@@ -212,4 +212,4 @@ const ProfitAnalysis: React.FC<ProfitAnalysisProps> = ({ data }) => {
   );
 };
 
-export default ProfitAnalysis; 
+export default ProfitAnalysis;

@@ -44,12 +44,6 @@ export const NavbarMobileMenu: React.FC<NavbarMobileMenuProps> = ({
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
   
-  // إضافة منتجات متميزة للعرض
-  const featuredProducts = [
-    { id: 'prod1', name: 'PlayStation 5', image: 'https://placehold.co/50x50' },
-    { id: 'prod2', name: 'سماعات ألعاب لاسلكية', image: 'https://placehold.co/50x50' },
-  ];
-  
   // محاكاة الانتقالات عند إغلاق القائمة
   const handleClose = () => {
     setClosing(true);
@@ -271,38 +265,6 @@ export const NavbarMobileMenu: React.FC<NavbarMobileMenuProps> = ({
                 </Link>
               </div>
               
-              {/* منتجات متميزة */}
-              <div className="space-y-2 mt-4 pt-4 border-t border-border/20">
-                <div className="flex items-center text-sm font-semibold text-muted-foreground px-2 mb-1.5">
-                  <Sparkles className="h-4 w-4 mr-1.5 text-amber-500" />
-                  منتجات متميزة
-                </div>
-                <div className="space-y-1.5">
-                  {featuredProducts.map((product, index) => (
-                    <Link
-                      key={index}
-                      to={`/product/${product.id}`}
-                      className="flex items-center gap-3 p-2 rounded-xl hover:bg-amber-50/50 dark:hover:bg-amber-900/10 transition-colors group"
-                      onClick={handleClose}
-                    >
-                      <div className="w-10 h-10 rounded-md overflow-hidden">
-                        <img 
-                          src={product.image} 
-                          alt={product.name} 
-                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" 
-                        />
-                      </div>
-                      <div className="flex-1">
-                        <span className="text-sm font-medium">{product.name}</span>
-                      </div>
-                      <Badge variant="outline" className="scale-75 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/50">
-                        جديد
-                      </Badge>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-              
               {/* محتوى مخصص في القائمة (مثل وصلات التنقل السريع) */}
               {children && (
                 <div className="mt-4 pt-4 border-t border-border/20">
@@ -358,4 +320,4 @@ export const NavbarMobileMenu: React.FC<NavbarMobileMenuProps> = ({
       </SheetContent>
     </Sheet>
   );
-}; 
+};

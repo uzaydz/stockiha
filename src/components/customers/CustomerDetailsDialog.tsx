@@ -46,7 +46,6 @@ const CustomerDetailsDialog = ({ customer, open, onClose }: CustomerDetailsDialo
         setOrdersCount(countData);
         setTotalSpent(totalData);
       } catch (error) {
-        console.error('Error fetching customer stats:', error);
       } finally {
         setIsLoading(false);
       }
@@ -138,4 +137,4 @@ const CustomerDetailsDialog = ({ customer, open, onClose }: CustomerDetailsDialo
   );
 };
 
-export default CustomerDetailsDialog; 
+export default CustomerDetailsDialog;

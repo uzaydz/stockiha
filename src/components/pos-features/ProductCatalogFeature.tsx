@@ -213,4 +213,4 @@ const ProductCatalogFeature = () => {
   );
 };
 
-export default ProductCatalogFeature; 
+export default ProductCatalogFeature;

@@ -63,7 +63,6 @@ const Navbar = () => {
           setIsLoaded(true);
         });
       } catch (e) {
-        console.error('خطأ في تحليل البيانات المخزنة مؤقتًا:', e);
       }
     }
 
@@ -79,16 +78,14 @@ const Navbar = () => {
         if (hostname.split('.').length > 2) {
           // سابدومين مثل: mystore.example.com
           const currentSubdomain = hostname.split('.')[0];
-          
-          
+
           // استخدام دالة get_organization_info_by_subdomain للبحث بواسطة النطاق الفرعي
           query = supabase.rpc('get_organization_info_by_subdomain', {
             p_subdomain: currentSubdomain
           });
         } else {
           // نطاق مخصص مثل: example.com
-          
-          
+
           // استخدام دالة get_organization_info_by_domain للبحث بواسطة النطاق المخصص
           query = supabase.rpc('get_organization_info_by_domain', {
             p_domain: hostname
@@ -112,7 +109,6 @@ const Navbar = () => {
           });
         }
       } catch (err) {
-        console.error('خطأ في تحميل بيانات المؤسسة:', err);
       } finally {
         setIsLoaded(true);
       }
@@ -400,4 +396,4 @@ const Navbar = () => {
   );
 };
 
-export default Navbar; 
+export default Navbar;

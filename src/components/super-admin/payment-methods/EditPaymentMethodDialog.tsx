@@ -283,4 +283,4 @@ export function EditPaymentMethodDialog({ open, onOpenChange, method, onSave }: 
       </DialogContent>
     </Dialog>
   );
-} 
+}

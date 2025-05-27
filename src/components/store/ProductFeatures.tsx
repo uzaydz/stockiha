@@ -92,7 +92,6 @@ export function ProductFeatures({ productId, initialFeatures, onFeaturesUpdated 
       });
       
       if (error) {
-        console.error('Error updating product features:', error);
         toast.error('حدث خطأ أثناء تحديث مميزات المنتج');
         return;
       }
@@ -102,7 +101,6 @@ export function ProductFeatures({ productId, initialFeatures, onFeaturesUpdated 
         onFeaturesUpdated();
       }
     } catch (err) {
-      console.error('Error:', err);
       toast.error('حدث خطأ غير متوقع');
     } finally {
       setIsLoading(false);
@@ -159,4 +157,4 @@ export function ProductFeatures({ productId, initialFeatures, onFeaturesUpdated 
       </CardFooter>
     </Card>
   );
-} 
+}

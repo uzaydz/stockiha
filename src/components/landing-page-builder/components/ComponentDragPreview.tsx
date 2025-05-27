@@ -58,4 +58,4 @@ const ComponentDragPreview: React.FC<ComponentDragPreviewProps> = ({ component }
   );
 };
 
-export default ComponentDragPreview; 
+export default ComponentDragPreview;

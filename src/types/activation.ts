@@ -92,4 +92,4 @@ export interface ActivateSubscriptionDto {
   activation_code: string;
   organizationId?: string;
   activationCode?: string;
-} 
+}

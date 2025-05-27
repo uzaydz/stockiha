@@ -96,7 +96,6 @@ const EditCategoryDialog = ({
       onOpenChange(false);
       onCategoryUpdated();
     } catch (error) {
-      console.error('Error updating category:', error);
       // التحقق من خطأ تكرار اسم الفئة
       if (error instanceof Error && error.message.includes('duplicate key value violates unique constraint')) {
         toast.error('هذا الاسم موجود بالفعل في فئات مؤسستك، يرجى اختيار اسم آخر للفئة');
@@ -249,4 +248,4 @@ const EditCategoryDialog = ({
   );
 };
 
-export default EditCategoryDialog; 
+export default EditCategoryDialog;

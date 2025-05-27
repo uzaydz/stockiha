@@ -42,7 +42,43 @@ file_size_limit = "50MiB"
 # in emails.
 site_url = "http://localhost:5173"
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://localhost:5173"]
+additional_redirect_urls = [
+  # Local development URLs
+  "https://localhost:5173",
+  "http://localhost:5173/auth/callback",
+  "https://localhost:5173/auth/callback",
+  "http://127.0.0.1:5173",
+  "https://127.0.0.1:5173",
+  
+  # Production domains
+  "https://stockiha.com",
+  "https://www.stockiha.com",
+  "https://stockiha.com/auth/callback",
+  "https://www.stockiha.com/auth/callback",
+  
+  # Subdomain patterns for multi-tenant support
+  "https://*.stockiha.com",
+  "https://*.stockiha.com/auth/callback",
+  
+  # Other supported domains
+  "https://ktobi.online",
+  "https://www.ktobi.online", 
+  "https://*.ktobi.online",
+  "https://ktobi.online/auth/callback",
+  "https://*.ktobi.online/auth/callback",
+  
+  "https://bazaar.com",
+  "https://www.bazaar.com",
+  "https://*.bazaar.com", 
+  "https://bazaar.com/auth/callback",
+  "https://*.bazaar.com/auth/callback",
+  
+  "https://bazaar.dev",
+  "https://www.bazaar.dev",
+  "https://*.bazaar.dev",
+  "https://bazaar.dev/auth/callback", 
+  "https://*.bazaar.dev/auth/callback"
+]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 seconds (one
 # week).
 jwt_expiry = 3600
@@ -61,6 +97,15 @@ enable_confirmations = false
 # Use an external OAuth provider. The full list of providers are: `apple`, `azure`, `bitbucket`,
 # `discord`, `facebook`, `github`, `gitlab`, `google`, `keycloak`, `linkedin`, `notion`, `twitch`,
 # `twitter`, `slack`, `spotify`, `workos`, `zoom`.
+[auth.external.google]
+enabled = true
+client_id = "env(GOOGLE_CLIENT_ID)"
+secret = "env(GOOGLE_CLIENT_SECRET)"
+# Overrides the default auth redirectUrl.
+redirect_uri = "http://localhost:54321/auth/v1/callback"
+# Additional scopes to request from Google
+# scope = "openid email profile"
+
 [auth.external.apple]
 enabled = false
 client_id = ""
@@ -70,6 +115,15 @@ redirect_uri = ""
 # Overrides the default auth provider URL. Used to support self-hosted gitlab, single-tenant Azure,
 # or any other third-party OIDC providers.
 url = ""
+
+# Security settings for enhanced protection
+[auth.security]
+# Enable captcha for signup and signin
+captcha_enabled = false
+# Refresh token rotation
+refresh_token_rotation_enabled = true
+# Session timeout in seconds (8 hours)
+session_timeout = 28800
 
 [analytics]
 enabled = false

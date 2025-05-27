@@ -36,7 +36,6 @@ const StoreLayout: React.FC<StoreLayoutProps> = ({ children }) => {
           setCategories(categoriesData);
         }
       } catch (error) {
-        console.error('خطأ في جلب الفئات:', error);
       }
     };
 
@@ -57,7 +56,6 @@ const StoreLayout: React.FC<StoreLayoutProps> = ({ children }) => {
           setFooterSettings(storeSettings.settings);
         }
       } catch (error) {
-        console.error('خطأ في جلب إعدادات الفوتر:', error);
       }
     };
 
@@ -189,4 +187,4 @@ const StoreLayout: React.FC<StoreLayoutProps> = ({ children }) => {
   );
 };
 
-export default StoreLayout; 
+export default StoreLayout;

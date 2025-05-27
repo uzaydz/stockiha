@@ -128,4 +128,4 @@ const CountdownOffersSection: React.FC<CountdownOffersSectionProps> = ({
   );
 };
 
-export default CountdownOffersSection; 
+export default CountdownOffersSection;

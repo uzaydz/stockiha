@@ -243,4 +243,4 @@ const BeforeAfterComponentPreview: React.FC<BeforeAfterComponentPreviewProps> = 
   );
 };
 
-export default BeforeAfterComponentPreview; 
+export default BeforeAfterComponentPreview;

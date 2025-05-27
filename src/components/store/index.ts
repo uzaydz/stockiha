@@ -6,4 +6,4 @@ export { default as StoreServices } from './StoreServices';
 export { default as StoreAbout } from './StoreAbout';
 export { default as StoreContact } from './StoreContact';
 export { default as StoreFooter } from './StoreFooter';
-export { default as StorePage } from './oldStorePage'; 
+export { default as StorePage } from './oldStorePage';

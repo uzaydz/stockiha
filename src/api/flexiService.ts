@@ -28,51 +28,40 @@ export async function getFlexiNetworks(forceOrganizationId?: string): Promise<Fl
               user.app_metadata?.organization_id;
           }
         } catch (e) {
-          console.warn('فشل في استرجاع جلسة المستخدم:', e);
         }
       }
       
       // محاولة 3: المعرف الافتراضي
       if (!organizationId) {
         organizationId = "7519afc0-d068-4235-a0f2-f92935772e0c"; 
-        console.warn('استخدام معرف المنظمة الافتراضي في getFlexiNetworks:', organizationId);
       }
     }
-    
-    
-    
+
     // استخدام وظيفة get_all_flexi_networks الموجودة بالفعل
     const { data, error } = await supabase
       .rpc('get_all_flexi_networks');
       
     if (error) {
-      console.error('Error fetching flexi networks:', error);
       throw new Error('فشل في الحصول على شبكات الفليكسي');
     }
     
     if (!data || data.length === 0) {
-      console.warn('لم يتم استلام أي شبكات من get_all_flexi_networks');
       return [];
     }
     
     // تجميع جميع معرفات المنظمات الموجودة في البيانات
     const availableOrganizations = new Set(data.map(n => n.organization_id));
-    
-    
+
     // فلترة البيانات بمعرف المنظمة
     let filteredData = data.filter(network => network.organization_id === organizationId);
     
     // إذا لم نجد أي شبكات للمنظمة المحددة، نعرض جميع الشبكات
     if (filteredData.length === 0) {
-      console.warn(`لم يتم العثور على أي شبكات للمنظمة [${organizationId}]. عرض جميع الشبكات بدلاً من ذلك.`);
       filteredData = data; // استخدام جميع البيانات بدلاً من الفلترة
     }
-    
-    
-    
+
     return filteredData;
   } catch (error) {
-    console.error('خطأ في استرجاع شبكات الفليكسي:', error);
     throw error;
   }
 }
@@ -91,7 +80,6 @@ export async function addFlexiNetwork(network: Partial<FlexiNetwork>): Promise<F
       });
       
     if (error) {
-      console.error('Error adding flexi network:', error);
       throw new Error('فشل في إضافة شبكة فليكسي جديدة');
     }
     
@@ -109,7 +97,6 @@ export async function addFlexiNetwork(network: Partial<FlexiNetwork>): Promise<F
     
     return networkData;
   } catch (error) {
-    console.error('Error adding flexi network:', error);
     throw new Error('فشل في إضافة شبكة فليكسي جديدة');
   }
 }
@@ -126,7 +113,6 @@ export async function updateFlexiNetwork(id: string, network: Partial<FlexiNetwo
     });
     
   if (error) {
-    console.error('Error updating flexi network:', error);
     throw new Error('فشل في تحديث شبكة الفليكسي');
   }
   
@@ -141,7 +127,6 @@ export async function deleteFlexiNetwork(id: string): Promise<boolean> {
     });
     
   if (error) {
-    console.error('Error deleting flexi network:', error);
     throw new Error('فشل في حذف شبكة الفليكسي');
   }
   
@@ -156,17 +141,13 @@ export async function getFlexiBalances(forceOrganizationId?: string): Promise<Fl
       .rpc('get_all_flexi_balances');
       
     if (error) {
-      console.error('Error fetching flexi balances:', error);
       throw new Error('فشل في الحصول على أرصدة الفليكسي');
     }
     
     if (!data || data.length === 0) {
-      console.warn('لم يتم استلام أي بيانات من وظيفة get_all_flexi_balances');
       return [];
     }
-    
-    
-    
+
     // محاولة الحصول على معرف المنظمة بعدة طرق
     let organizationId = forceOrganizationId;
     
@@ -186,29 +167,23 @@ export async function getFlexiBalances(forceOrganizationId?: string): Promise<Fl
               user.app_metadata?.organization_id;
           }
         } catch (e) {
-          console.warn('فشل في استرجاع جلسة المستخدم:', e);
         }
       }
       
       // محاولة 3: المعرف الافتراضي
       if (!organizationId) {
         organizationId = "7519afc0-d068-4235-a0f2-f92935772e0c"; 
-        console.warn('استخدام معرف المنظمة الافتراضي:', organizationId);
       }
     }
-    
-    
-    
+
     // تجميع جميع معرفات المنظمات الموجودة في البيانات
     const availableOrganizations = new Set(data.map(b => b.organization_id));
-    
-    
+
     // 1. فلترة الأرصدة بحسب المنظمة
     let orgBalances = data.filter(b => b.organization_id === organizationId);
     
     // إذا لم نجد أي أرصدة للمنظمة المحددة، نظهر جميع الأرصدة بدلاً من إرجاع مصفوفة فارغة
     if (orgBalances.length === 0) {
-      console.warn(`لم يتم العثور على أي أرصدة للمنظمة [${organizationId}]. عرض جميع الأرصدة بدلاً من ذلك.`);
       orgBalances = data; // استخدام جميع البيانات بدلاً من الفلترة
     }
     
@@ -228,8 +203,7 @@ export async function getFlexiBalances(forceOrganizationId?: string): Promise<Fl
     }
     
     const result = Array.from(latestBalances.values());
-    
-    
+
     // طباعة الأرصدة للتحقق
     if (result.length > 0) {
       const networks = result.map(b => `${b.network_id}: ${b.balance}`).join(', ');
@@ -238,7 +212,6 @@ export async function getFlexiBalances(forceOrganizationId?: string): Promise<Fl
     
     return result;
   } catch (error) {
-    console.error('Error in getFlexiBalances:', error);
     throw error;
   }
 }
@@ -254,11 +227,9 @@ export async function updateFlexiBalance(networkId: string, newBalance: number, 
     });
       
   if (error) {
-    console.error('Error updating flexi balance:', error);
     throw new Error('فشل في تحديث رصيد الفليكسي');
   }
-  
-  
+
 }
 
 // الحصول على مبيعات الفليكسي
@@ -270,7 +241,6 @@ export async function getFlexiSales(limit: number = 10, offset: number = 0): Pro
     .range(offset, offset + limit - 1);
     
   if (error) {
-    console.error('Error fetching flexi sales:', error);
     throw new Error('فشل في الحصول على مبيعات الفليكسي');
   }
   
@@ -293,7 +263,6 @@ export async function addFlexiSale(sale: Partial<FlexiSale>): Promise<FlexiSale>
       });
       
     if (error) {
-      console.error('Error adding flexi sale:', error);
       throw new Error('فشل في إضافة عملية بيع الفليكسي');
     }
     
@@ -313,7 +282,6 @@ export async function addFlexiSale(sale: Partial<FlexiSale>): Promise<FlexiSale>
     
     return saleData;
   } catch (error) {
-    console.error('Error adding flexi sale:', error);
     throw new Error('فشل في إضافة عملية بيع الفليكسي');
   }
 }
@@ -382,7 +350,6 @@ export async function getFlexiStats(): Promise<any[]> {
     .rpc('get_flexi_stats');
     
   if (error) {
-    console.error('Error fetching flexi stats:', error);
     throw new Error('فشل في الحصول على إحصائيات الفليكسي');
   }
   
@@ -397,9 +364,8 @@ export async function deleteFlexiBalance(id: string): Promise<boolean> {
     });
     
   if (error) {
-    console.error('Error deleting flexi balance:', error);
     throw new Error('فشل في حذف رصيد الفليكسي');
   }
   
   return data;
-} 
+}

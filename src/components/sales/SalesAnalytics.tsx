@@ -404,4 +404,4 @@ const SalesAnalytics = () => {
   );
 };
 
-export default SalesAnalytics; 
+export default SalesAnalytics;

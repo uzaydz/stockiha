@@ -91,7 +91,6 @@ export function SupplierPaymentsList({ onRefresh }: { onRefresh?: () => void }) 
         const suppliers = await getSuppliers(organizationId);
         setSuppliers(suppliers);
       } catch (error) {
-        console.error('Error loading suppliers:', error);
         toast({
           title: 'خطأ',
           description: 'حدث خطأ أثناء تحميل بيانات الموردين',
@@ -123,7 +122,6 @@ export function SupplierPaymentsList({ onRefresh }: { onRefresh?: () => void }) 
       setPayments(allPayments);
       setFilteredPayments(allPayments);
     } catch (error) {
-      console.error('Error loading payments:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء تحميل بيانات المدفوعات',
@@ -388,4 +386,4 @@ export function SupplierPaymentsList({ onRefresh }: { onRefresh?: () => void }) 
       </CardContent>
     </Card>
   );
-} 
+}

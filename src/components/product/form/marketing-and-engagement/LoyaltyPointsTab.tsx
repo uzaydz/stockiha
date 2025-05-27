@@ -90,4 +90,4 @@ const LoyaltyPointsTab: React.FC<LoyaltyPointsTabProps> = ({ form, organizationI
   );
 };
 
-export default LoyaltyPointsTab; 
+export default LoyaltyPointsTab;

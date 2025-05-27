@@ -64,4 +64,4 @@ export const setExtraContext = (key: string, value: any) => {
 // تصدير وظيفة لتسجيل العلامات
 export const setTag = (key: string, value: string) => {
   Sentry.setTag(key, value);
-}; 
+};

@@ -697,4 +697,4 @@ const GuaranteeItemEditor: React.FC<GuaranteeItemEditorProps> = ({
   );
 };
 
-export default GuaranteeItemEditor; 
+export default GuaranteeItemEditor;

@@ -65,7 +65,6 @@ export function useReactQueryState() {
           queryClient.invalidateQueries();
         }
       } catch (error) {
-        console.error('[QueryState] خطأ في استعادة حالة التطبيق:', error);
       }
     };
     
@@ -83,9 +82,7 @@ export function useReactQueryState() {
         const lastStateTime = parseInt(window.localStorage.getItem('BAZAAR_APP_STATE_TIMESTAMP') || '0');
         const now = Date.now();
         const fastReturnThreshold = 1 * 60 * 1000; // 1 دقيقة
-        
-        
-        
+
         // استئناف العمليات المتوقفة
         queryClient.resumePausedMutations();
         
@@ -120,4 +117,4 @@ export function useReactQueryState() {
   return null;
 }
 
-export default useReactQueryState; 
+export default useReactQueryState;

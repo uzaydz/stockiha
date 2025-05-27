@@ -28,7 +28,6 @@ export const checkSubdomainAvailability = async (subdomain: string): Promise<{
 
     return { available: !data };
   } catch (error) {
-    console.error('Error checking subdomain availability:', error);
     return { available: false, error: error as Error };
   }
 };
@@ -67,14 +66,12 @@ export const getOrganizationBySubdomain = async (subdomain: string): Promise<Org
         if (error) {
           // Don't log verbose errors for not found, as single() will error
           if (error.code !== 'PGRST116') { // PGRST116: "The result contains 0 rows"
-             console.error(`خطأ أثناء البحث عن المؤسسة بالنطاق الفرعي ${subdomain}:`, error);
           }
           return null;
         }
         
         return data as Organization || null;
       } catch (error) {
-        console.error(`خطأ أثناء جلب المؤسسة بالنطاق الفرعي ${subdomain} (catch block):`, error);
         return null;
       }
     },
@@ -117,7 +114,6 @@ export const getOrganizationByDomain = async (domain: string): Promise<Organizat
           .maybeSingle();
 
         if (directMatchError && directMatchError.code !== 'PGRST116') {
-          console.error(`خطأ أثناء البحث عن المؤسسة بالنطاق الرئيسي ${cleanDomain} (direct match):`, directMatchError);
           // Do not return null immediately, try other methods if applicable
         }
         if (directMatchData) {
@@ -146,7 +142,6 @@ export const getOrganizationByDomain = async (domain: string): Promise<Organizat
         return null; // No organization found after trying primary methods
 
       } catch (error) {
-        console.error(`خطأ أثناء جلب المؤسسة بالنطاق الرئيسي ${cleanDomain} (catch block):`, error);
         return null;
       }
     },
@@ -176,13 +171,11 @@ export const getOrganizationById = async (organizationId: string): Promise<Organ
 
         if (error) {
           if (error.code !== 'PGRST116') { // PGRST116: "The result contains 0 rows"
-            console.error(`Error fetching organization by ID ${organizationId}:`, error);
           }
           return null;
         }
         return data as Organization || null;
       } catch (error) {
-        console.error(`Error fetching organization by ID ${organizationId} (catch block):`, error);
         return null;
       }
     },
@@ -199,7 +192,6 @@ export const extractSubdomainFromUrl = (url: string) => {
     const hostname = new URL(url).hostname;
     return extractSubdomainFromHostname(hostname);
   } catch (error) {
-    console.error('خطأ في استخراج النطاق الفرعي من URL:', error);
     return null;
   }
 };
@@ -240,4 +232,4 @@ export const extractSubdomainFromHostname = (hostname: string) => {
   
   // إذا لم يكن النطاق من نطاقاتنا الأساسية، فقد يكون نطاقًا مخصصًا ولا نحتاج لاستخراج نطاق فرعي منه
   return null;
-}; 
+};

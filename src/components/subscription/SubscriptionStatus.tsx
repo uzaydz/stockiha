@@ -166,4 +166,4 @@ const SubscriptionStatus: React.FC<SubscriptionStatusProps> = ({ organization, s
   );
 };
 
-export default SubscriptionStatus; 
+export default SubscriptionStatus;

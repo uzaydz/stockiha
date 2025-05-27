@@ -49,4 +49,4 @@ const DebtsSummary: React.FC<DebtsSummaryProps> = ({ data }) => {
   );
 };
 
-export default DebtsSummary; 
+export default DebtsSummary;

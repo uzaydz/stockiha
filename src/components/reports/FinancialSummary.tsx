@@ -499,4 +499,4 @@ const FinancialSummary = ({ data, dateRange, isLoading }: FinancialSummaryProps)
   );
 };
 
-export default FinancialSummary; 
+export default FinancialSummary;

@@ -143,7 +143,6 @@ const CreateInvoiceDialog = ({
           setOrders(filteredOrders);
         }
       } catch (error) {
-        console.error("Error fetching data:", error);
         toast.error("حدث خطأ أثناء جلب البيانات");
       }
     };
@@ -312,7 +311,6 @@ const CreateInvoiceDialog = ({
           .insert(invoiceItems);
           
         if (itemsError) {
-          console.error('Error adding invoice items:', itemsError);
           toast.error(`تم إنشاء الفاتورة لكن حدث خطأ في إضافة بعض العناصر: ${itemsError.message}`);
         }
       }
@@ -363,7 +361,6 @@ const CreateInvoiceDialog = ({
       onInvoiceCreated(createdInvoice);
       handleClose();
     } catch (error) {
-      console.error("Error creating invoice:", error);
       toast.error(`حدث خطأ أثناء إنشاء الفاتورة: ${(error as any).message || 'خطأ غير معروف'}`);
     } finally {
       setLoading(false);
@@ -629,7 +626,6 @@ const CreateInvoiceDialog = ({
                                             toast.warning("لم يتم العثور على عناصر للطلب");
                                           }
                                         } catch (error) {
-                                          console.error("Error fetching order items:", error);
                                           toast.error("حدث خطأ أثناء جلب عناصر الطلب");
                                         }
                                       };
@@ -993,4 +989,4 @@ const CreateInvoiceDialog = ({
   );
 };
 
-export default CreateInvoiceDialog; 
+export default CreateInvoiceDialog;

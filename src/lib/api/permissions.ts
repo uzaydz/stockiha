@@ -30,7 +30,6 @@ export const refreshUserData = async (userId: string) => {
       .single();
       
     if (error) {
-      console.error('خطأ في تحديث بيانات المستخدم:', error);
       return null;
     }
     
@@ -41,7 +40,6 @@ export const refreshUserData = async (userId: string) => {
     
     return data;
   } catch (error) {
-    console.error('خطأ غير متوقع في تحديث بيانات المستخدم:', error);
     return null;
   }
 };
@@ -56,13 +54,11 @@ export const canEditProduct = async (productId: string): Promise<boolean> => {
       .rpc('can_edit_product', { product_id: productId });
 
     if (error) {
-      console.error('خطأ في التحقق من صلاحية تعديل المنتج:', error);
       return false;
     }
 
     return data === true;
   } catch (error) {
-    console.error('خطأ غير متوقع في التحقق من صلاحية تعديل المنتج:', error);
     return false;
   }
 };
@@ -77,13 +73,11 @@ export const canDeleteProduct = async (productId: string): Promise<boolean> => {
       .rpc('can_delete_product', { product_id: productId });
 
     if (error) {
-      console.error('خطأ في التحقق من صلاحية حذف المنتج:', error);
       return false;
     }
 
     return data === true;
   } catch (error) {
-    console.error('خطأ غير متوقع في التحقق من صلاحية حذف المنتج:', error);
     return false;
   }
 };
@@ -105,8 +99,7 @@ export const checkUserPermissions = async (
   const cachedPermissions = getCachedPermissions();
   if (cachedPermissions) {
     // منطق التحقق نفسه ولكن باستخدام البيانات المخزنة مؤقتاً
-    
-    
+
     // تفقد البيانات المخزنة على أنها تحتوي على كل المعلومات الضرورية
     const isActive = 
       cachedPermissions.is_active !== false && 
@@ -170,8 +163,7 @@ export const checkUserPermissions = async (
       
       return true;
     }
-    
-    
+
     return false;
   }
   
@@ -180,7 +172,6 @@ export const checkUserPermissions = async (
   const userToCheck = updatedUser || user;
   
   // طباعة معلومات المستخدم للتصحيح
-  
 
   // البحث عن الصلاحيات في مكانين محتملين اعتمادًا على هيكل بيانات المستخدم
   let permissions = {};
@@ -200,9 +191,7 @@ export const checkUserPermissions = async (
     permissions = userToCheck.permissions;
     
   }
-  
-  
-  
+
   // البحث عن الأدوار والصلاحيات الخاصة في مكانين محتملين
   const isActive = 
     userToCheck.is_active !== false && 
@@ -225,9 +214,7 @@ export const checkUserPermissions = async (
     userToCheck.user_metadata?.role || 
     userToCheck.app_metadata?.role || 
     '';
-  
-  
-  
+
   // تخزين معلومات الصلاحيات في التخزين المؤقت للمرات القادمة
   cachePermissions(userToCheck);
   
@@ -286,8 +273,7 @@ export const checkUserPermissions = async (
       
       return true;
     }
-    
-    
+
     return false;
   }
   
@@ -320,8 +306,7 @@ export const checkUserPermissions = async (
       
       return true;
     }
-    
-    
+
     return false;
   }
   
@@ -330,8 +315,7 @@ export const checkUserPermissions = async (
     const canEdit = 
       Boolean(permissions['editProducts']) || 
       Boolean(permissions['manageProducts']);
-      
-    
+
     return canEdit;
   }
   
@@ -339,14 +323,12 @@ export const checkUserPermissions = async (
     const canDelete = 
       Boolean(permissions['deleteProducts']) || 
       Boolean(permissions['manageProducts']);
-      
-    
+
     return canDelete;
   }
   
   // التحقق من الصلاحية المباشرة
   const hasPermission = Boolean(permissions[requiredPermission as keyof typeof permissions]);
-  
-  
+
   return hasPermission;
-}; 
+};

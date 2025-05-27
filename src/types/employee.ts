@@ -139,4 +139,4 @@ export interface EmployeeStats {
   total: number;
   active: number;
   inactive: number;
-} 
+}

@@ -364,4 +364,4 @@ const SalesTrends = ({ data, dateRange, isLoading }: SalesTrendsProps) => {
   );
 };
 
-export default SalesTrends; 
+export default SalesTrends;

@@ -36,8 +36,7 @@ const SyncManager: React.FC<SyncManagerProps> = ({
   
   // طباعة تشخيصية عند بدء تشغيل المكون
   React.useEffect(() => {
-    
-    
+
     // تعيين علامة عالمية لمنع المزامنة في المتصفح
     if (typeof window !== 'undefined' && !isRunningInElectron) {
       
@@ -62,7 +61,6 @@ const SyncManager: React.FC<SyncManagerProps> = ({
       setPendingSyncCount(totalCount);
       return totalCount;
     } catch (error) {
-      console.error('خطأ في جلب عدد العناصر غير المتزامنة:', error);
       return 0;
     }
   };
@@ -88,7 +86,6 @@ const SyncManager: React.FC<SyncManagerProps> = ({
       setSyncError(null);
       onSyncStatusChange?.(true);
 
-      
       const success = await synchronizeWithServer();
 
       if (success) {
@@ -101,7 +98,6 @@ const SyncManager: React.FC<SyncManagerProps> = ({
 
       await updatePendingCount();
     } catch (error) {
-      console.error('خطأ في تنفيذ المزامنة:', error);
       setSyncError('حدث خطأ أثناء المزامنة: ' + (error instanceof Error ? error.message : String(error)));
     } finally {
       setIsSyncing(false);
@@ -135,8 +131,6 @@ const SyncManager: React.FC<SyncManagerProps> = ({
         if (syncTimeoutRef.current !== null) {
           window.clearTimeout(syncTimeoutRef.current);
         }
-
-        
 
         // تنفيذ المزامنة بعد 3 ثوانٍ للتأكد من استقرار التطبيق
         syncTimeoutRef.current = window.setTimeout(() => {
@@ -260,4 +254,4 @@ const SyncManager: React.FC<SyncManagerProps> = ({
   );
 };
 
-export default SyncManager; 
+export default SyncManager;

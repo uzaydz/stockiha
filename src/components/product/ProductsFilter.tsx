@@ -186,4 +186,4 @@ const ProductsFilter = ({
   );
 };
 
-export default ProductsFilter; 
+export default ProductsFilter;

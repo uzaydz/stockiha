@@ -89,7 +89,6 @@ const CustomerDebtDetails: React.FC = () => {
         setHasRecordPaymentPermission(canRecordPayments);
         setPermissionsChecked(true);
       } catch (err) {
-        console.error('خطأ في التحقق من الصلاحيات:', err);
         setHasRecordPaymentPermission(false);
       }
     };
@@ -117,7 +116,6 @@ const CustomerDebtDetails: React.FC = () => {
           navigate('/dashboard/customer-debts');
         }
       } catch (error) {
-        console.error('خطأ في تحميل بيانات العميل:', error);
         toast.error('حدث خطأ أثناء تحميل بيانات العميل');
       } finally {
         setIsLoading(false);
@@ -260,7 +258,6 @@ const CustomerDebtDetails: React.FC = () => {
       }
       
     } catch (error) {
-      console.error('خطأ في تسجيل الدفع الشامل:', error);
       setPaymentError('حدث خطأ أثناء تسجيل الدفع');
     } finally {
       setIsProcessingPayment(false);
@@ -306,7 +303,6 @@ const CustomerDebtDetails: React.FC = () => {
       
       setPaymentHistory(prev => [newRecord, ...prev]);
     } catch (error) {
-      console.error('خطأ في تسجيل الدفع للطلب:', error);
       toast.error('حدث خطأ أثناء تسجيل الدفع');
     } finally {
       setSelectedOrderId(null);
@@ -620,4 +616,4 @@ const CustomerDebtDetails: React.FC = () => {
   );
 };
 
-export default CustomerDebtDetails; 
+export default CustomerDebtDetails;

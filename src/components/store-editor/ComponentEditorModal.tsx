@@ -53,6 +53,7 @@ interface ComponentEditorModalProps {
   onUpdate: (settings: any) => void;
   onToggleActive?: (id: string) => void;
   onDelete?: (id: string) => void;
+  onSave?: () => Promise<void>;
 }
 
 const ComponentEditorModal: React.FC<ComponentEditorModalProps> = ({
@@ -61,7 +62,8 @@ const ComponentEditorModal: React.FC<ComponentEditorModalProps> = ({
   onClose,
   onUpdate,
   onToggleActive,
-  onDelete
+  onDelete,
+  onSave
 }) => {
   const [activeTab, setActiveTab] = useState('settings');
   const [previewDevice, setPreviewDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
@@ -198,6 +200,7 @@ const ComponentEditorModal: React.FC<ComponentEditorModalProps> = ({
                     <ComponentEditor
                       component={component}
                       onUpdate={onUpdate}
+                      onSave={onSave}
                     />
                   </div>
                 </ScrollArea>
@@ -238,16 +241,16 @@ const ComponentEditorModal: React.FC<ComponentEditorModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Preview Area */}
-                  <ScrollArea className="flex-1 bg-muted/5">
+                  {/* Preview Content */}
+                  <ScrollArea className="flex-1">
                     <div className="p-6">
                       <div className={cn(
-                        "transition-all duration-300 border rounded-lg bg-background min-h-[400px] overflow-hidden",
+                        "transition-all duration-300 border rounded-lg overflow-hidden bg-background shadow-sm",
                         deviceClasses[previewDevice]
                       )}>
-                        <ComponentPreview 
-                          type={component.type} 
-                          settings={component.settings} 
+                        <ComponentPreview
+                          type={component.type}
+                          settings={component.settings}
                         />
                       </div>
                     </div>
@@ -262,4 +265,4 @@ const ComponentEditorModal: React.FC<ComponentEditorModalProps> = ({
   );
 };
 
-export default ComponentEditorModal; 
+export default ComponentEditorModal;

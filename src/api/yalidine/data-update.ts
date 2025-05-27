@@ -39,7 +39,6 @@ export async function getLastUpdate(organizationId: string, dataType: string): P
       .limit(1);
     
     if (error) {
-      console.error(`خطأ أثناء فحص آخر تحديث لـ ${dataType}:`, error);
       return null;
     }
     
@@ -49,7 +48,6 @@ export async function getLastUpdate(organizationId: string, dataType: string): P
     
     return new Date(data[0].last_updated_at);
   } catch (error) {
-    console.error(`خطأ أثناء فحص آخر تحديث لـ ${dataType}:`, error);
     return null;
   }
 }
@@ -96,7 +94,6 @@ export async function checkAndUpdateData(
       return true;
     }
   } catch (error) {
-    console.error(`خطأ أثناء فحص وتحديث بيانات ${dataType}:`, error);
     return false;
   }
-} 
+}

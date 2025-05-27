@@ -448,4 +448,4 @@ const ReceiptAppearanceSettings: React.FC<ReceiptAppearanceSettingsProps> = ({
   );
 };
 
-export default ReceiptAppearanceSettings; 
+export default ReceiptAppearanceSettings;

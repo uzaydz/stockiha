@@ -72,7 +72,6 @@ const SubcategoriesList = ({ category }: SubcategoriesListProps) => {
       const data = await getSubcategories(category.id);
       setSubcategories(data);
     } catch (error) {
-      console.error('Error fetching subcategories:', error);
       toast.error('حدث خطأ أثناء تحميل الفئات الفرعية');
     } finally {
       setIsLoading(false);
@@ -95,7 +94,6 @@ const SubcategoriesList = ({ category }: SubcategoriesListProps) => {
       toast.success('تم حذف الفئة الفرعية بنجاح');
       fetchSubcategories();
     } catch (error) {
-      console.error('Error deleting subcategory:', error);
       toast.error('حدث خطأ أثناء حذف الفئة الفرعية');
     } finally {
       setIsDeleting(false);
@@ -244,4 +242,4 @@ const SubcategoriesList = ({ category }: SubcategoriesListProps) => {
   );
 };
 
-export default SubcategoriesList; 
+export default SubcategoriesList;

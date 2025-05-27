@@ -13,4 +13,4 @@ export * from './organization-creation-fixed';
 export * from './subdomain';
 
 // تصدير وظائف تسجيل المستأجر المحسنة
-export * from './tenant-registration-fixed'; 
+export * from './tenant-registration-fixed';

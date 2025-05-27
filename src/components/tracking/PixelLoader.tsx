@@ -37,8 +37,6 @@ export default function PixelLoader({ settings, onLoad }: PixelLoaderProps) {
   }, [settings, onLoad]);
 
   useEffect(() => {
-    console.log('🚀 بدء تحميل البكسلات:', settings);
-    
     // تحميل Facebook Pixel
     if (settings.facebook.enabled && settings.facebook.pixel_id) {
       loadFacebookPixel(
@@ -46,8 +44,6 @@ export default function PixelLoader({ settings, onLoad }: PixelLoaderProps) {
         settings.test_mode, 
         settings.facebook.test_event_code
       );
-    } else {
-      console.log('❌ Facebook Pixel غير مفعل أو معرف البكسل مفقود');
     }
 
     // تحميل Google Analytics/Ads
@@ -74,11 +70,8 @@ function loadFacebookPixel(pixelId: string, testMode: boolean, testEventCode?: s
 
   // تجنب التحميل المتكرر
   if ((window as any).fbq) {
-    console.log('📱 Facebook Pixel محمل مسبقاً');
     return;
   }
-
-  console.log(`🔵 تحميل Facebook Pixel: ${pixelId}${testMode ? ` (وضع الاختبار: ${testEventCode || 'TEST35620'})` : ''}`);
 
   const script = document.createElement('script');
   script.innerHTML = `
@@ -93,9 +86,8 @@ function loadFacebookPixel(pixelId: string, testMode: boolean, testEventCode?: s
     
     fbq('init', '${pixelId}');
     ${testMode && testEventCode ? 
-      `fbq('track', 'PageView', {}, {testEventCode: '${testEventCode}'});
-       console.log('🧪 Facebook Pixel في وضع الاختبار مع Test Event Code: ${testEventCode}');` : 
-      "fbq('track', 'PageView');"
+      `fbq('track', 'PageView', {}, {testEventCode: '${testEventCode}'});` :
+      `fbq('track', 'PageView');`
     }
   `;
   
@@ -105,8 +97,6 @@ function loadFacebookPixel(pixelId: string, testMode: boolean, testEventCode?: s
   const noscript = document.createElement('noscript');
   noscript.innerHTML = `<img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=${pixelId}&ev=PageView&noscript=1${testMode && testEventCode ? `&test_event_code=${testEventCode}` : ''}"/>`;
   document.body.appendChild(noscript);
-
-  console.log(`✅ Facebook Pixel محمل بنجاح: ${pixelId}${testMode ? ` (${testEventCode || 'TEST35620'})` : ''}`);
 }
 
 // دالة تحميل Google Analytics
@@ -115,11 +105,8 @@ function loadGoogleAnalytics(gtagId: string, testMode: boolean) {
 
   // تجنب التحميل المتكرر
   if ((window as any).gtag) {
-    console.log('📊 Google Analytics محمل مسبقاً');
     return;
   }
-
-  console.log(`🔴 تحميل Google Analytics: ${gtagId}${testMode ? ' (وضع الاختبار)' : ''}`);
 
   // تحميل gtag script
   const script = document.createElement('script');
@@ -136,8 +123,6 @@ function loadGoogleAnalytics(gtagId: string, testMode: boolean) {
     gtag('config', '${gtagId}'${testMode ? ', { debug_mode: true }' : ''});
   `;
   document.head.appendChild(configScript);
-
-  console.log(`✅ Google Analytics محمل بنجاح: ${gtagId}${testMode ? ' (وضع الاختبار)' : ''}`);
 }
 
 // دالة تحميل TikTok Pixel
@@ -146,11 +131,8 @@ function loadTikTokPixel(pixelId: string, testMode: boolean, testEventCode?: str
 
   // تجنب التحميل المتكرر
   if ((window as any).ttq) {
-    console.log('🎵 TikTok Pixel محمل مسبقاً');
     return;
   }
-
-  console.log(`⚫ تحميل TikTok Pixel: ${pixelId}${testMode ? ` (وضع الاختبار: ${testEventCode || 'TEST'})` : ''}`);
 
   const script = document.createElement('script');
   script.innerHTML = `
@@ -159,11 +141,8 @@ function loadTikTokPixel(pixelId: string, testMode: boolean, testEventCode?: str
       ttq.load('${pixelId}');
       ttq.page();
     }(window, document, 'ttq');
-    ${testMode ? `console.log('TikTok Pixel في وضع الاختبار: ${testEventCode || 'TEST'}');` : ""}
   `;
   document.head.appendChild(script);
-
-  console.log(`✅ TikTok Pixel محمل بنجاح: ${pixelId}${testMode ? ` (${testEventCode || 'TEST'})` : ''}`);
 }
 
 // مكون للتحميل الشرطي للبكسلات حسب الصفحة
@@ -205,11 +184,11 @@ export function usePixelLoader(productId: string) {
           return data.settings;
         }
       } catch (error) {
-        console.error('خطأ في تحميل إعدادات البكسل:', error);
+        // تم التعامل مع الخطأ
       }
       return null;
     };
 
     loadPixelSettings();
   }, [productId]);
-} 
+}

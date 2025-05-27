@@ -71,7 +71,6 @@ const MinimumStockDialog = ({ product, open, onOpenChange, onSettingsUpdated }: 
       onOpenChange(false);
       await onSettingsUpdated();
     } catch (error) {
-      console.error('Error updating minimum stock settings:', error);
       toast.error('حدث خطأ أثناء تحديث إعدادات المخزون');
     } finally {
       setIsSubmitting(false);
@@ -197,4 +196,4 @@ const MinimumStockDialog = ({ product, open, onOpenChange, onSettingsUpdated }: 
   );
 };
 
-export default MinimumStockDialog; 
+export default MinimumStockDialog;

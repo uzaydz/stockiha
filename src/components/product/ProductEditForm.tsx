@@ -284,7 +284,6 @@ const ProductEditForm: React.FC<ProductEditFormProps> = ({
             onOpenChange(false);
           }
         } catch (error) {
-          console.error('Error updating product:', error);
           
           // في حالة فشل التحديث عبر الإنترنت، نستخدم التخزين المحلي كاحتياطي
           const updatedProduct = await updateOfflineProduct(product.id, updateData);
@@ -300,7 +299,6 @@ const ProductEditForm: React.FC<ProductEditFormProps> = ({
         }
       }
     } catch (error) {
-      console.error('Error in onSubmit:', error);
       toast.error('حدث خطأ أثناء حفظ المنتج');
     } finally {
       setIsSubmitting(false);
@@ -435,10 +433,8 @@ const ProductEditForm: React.FC<ProductEditFormProps> = ({
           }
         }
       } catch (error) {
-        console.error('خطأ في تحديث الصور:', error);
       }
     } catch (error) {
-      console.error('Error updating product variants:', error);
       throw error;
     }
   };
@@ -475,4 +471,4 @@ const ProductEditForm: React.FC<ProductEditFormProps> = ({
   );
 };
 
-export default ProductEditForm; 
+export default ProductEditForm;

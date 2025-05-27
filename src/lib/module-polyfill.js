@@ -27,7 +27,6 @@ if (typeof window !== 'undefined' && typeof exports === 'undefined') {
 if (typeof window !== 'undefined' && typeof require === 'undefined') {
   
   window.require = function(moduleName) {
-    console.warn(`[ModulePolyfill] محاولة طلب وحدة ${moduleName} في المتصفح (وظيفة وهمية)`);
     
     // محاولة التعرف على الوحدات الشائعة
     if (moduleName === 'buffer' || moduleName === 'Buffer') {
@@ -64,4 +63,4 @@ export const modulePolyfill = {
   require: typeof window !== 'undefined' ? window.require : undefined
 };
 
-export default modulePolyfill; 
+export default modulePolyfill;

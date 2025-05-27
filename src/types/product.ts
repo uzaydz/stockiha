@@ -193,7 +193,7 @@ export const productSchema = z.object({
   allow_wholesale: z.boolean().default(false),
   allow_partial_wholesale: z.boolean().default(false),
   sku: z.string().min(1, { message: "رمز المنتج (SKU) مطلوب" }),
-  barcode: z.string().optional(),
+  barcode: z.string().min(1, { message: "الباركود مطلوب" }),
   category_id: z.string().min(1, { message: "يجب اختيار فئة للمنتج" }),
   subcategory_id: z.string().optional().nullable(),
   brand: z.string().optional(),
@@ -328,4 +328,4 @@ export interface ProductWithVariants {
   slug?: string;
   advancedSettings?: z.infer<typeof productAdvancedSettingsSchema>;
   marketingSettings?: z.infer<typeof productMarketingSettingsSchema>;
-} 
+}

@@ -230,4 +230,4 @@ export const StickyButton = ({ onClick }: { onClick: () => void }) => (
       </button>
     </div>
   </motion.div>
-); 
+);

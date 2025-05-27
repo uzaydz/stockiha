@@ -204,4 +204,4 @@ const FeaturedCustomersSection = ({
   );
 };
 
-export default FeaturedCustomersSection; 
+export default FeaturedCustomersSection;

@@ -26,14 +26,11 @@ export const getUserSettings = async (userId: string): Promise<UserSettings | nu
         
         return getDefaultUserSettings(userId);
       }
-      
-      console.error('حدث خطأ أثناء جلب إعدادات المستخدم:', error);
       return getDefaultUserSettings(userId);
     }
 
     return data;
   } catch (error) {
-    console.error('حدث خطأ غير متوقع أثناء جلب إعدادات المستخدم:', error);
     return getDefaultUserSettings(userId);
   }
 };
@@ -71,13 +68,11 @@ export const createDefaultUserSettings = async (userId: string): Promise<UserSet
       .single();
 
     if (error) {
-      console.error('حدث خطأ أثناء إنشاء إعدادات افتراضية للمستخدم:', error);
       return defaultSettings; // نرجع الإعدادات الافتراضية حتى لو فشل الإدخال
     }
 
     return data;
   } catch (error) {
-    console.error('حدث خطأ غير متوقع أثناء إنشاء إعدادات افتراضية للمستخدم:', error);
     // نرجع إعدادات افتراضية حتى في حالة حدوث خطأ
     return {
       user_id: userId,
@@ -165,14 +160,11 @@ export const updateUserSettings = async (
           .single();
 
         if (insertError) {
-          console.error('حدث خطأ أثناء إنشاء إعدادات جديدة للمستخدم:', insertError);
           return newSettings; // نرجع الإعدادات المطلوبة حتى لو فشل الإدخال
         }
 
         return insertData;
       }
-      
-      console.error('حدث خطأ أثناء التحقق من وجود إعدادات المستخدم:', checkError);
       return null;
     }
 
@@ -197,13 +189,11 @@ export const updateUserSettings = async (
       .select();
 
     if (updateError) {
-      console.error('حدث خطأ أثناء تحديث إعدادات المستخدم:', updateError);
       return null;
     }
 
     return updateData[0] || null;
   } catch (error) {
-    console.error('حدث خطأ غير متوقع أثناء تحديث إعدادات المستخدم:', error);
     return null;
   }
 };
@@ -216,7 +206,6 @@ export const updateUserSettings = async (
 export const getOrganizationSettings = async (organizationId: string): Promise<OrganizationSettings | null> => {
   try {
     if (!organizationId) {
-      console.error('No organization ID provided');
       return getDefaultOrganizationSettings('default-org');
     }
     
@@ -224,8 +213,7 @@ export const getOrganizationSettings = async (organizationId: string): Promise<O
     return withCache<OrganizationSettings | null>(
       `organization_settings:${organizationId}`,
       async () => {
-        
-        
+
         const supabase = getSupabaseClient();
         
         // استخدام الدالة get_organization_theme أولاً للحصول على إعدادات الثيم بما في ذلك القيم الافتراضية
@@ -258,8 +246,6 @@ export const getOrganizationSettings = async (organizationId: string): Promise<O
             
             return defaultSettings;
           }
-          
-          console.error('Error fetching organization settings:', error);
           return getDefaultOrganizationSettings(organizationId);
         }
         
@@ -282,7 +268,6 @@ export const getOrganizationSettings = async (organizationId: string): Promise<O
       true // استخدام ذاكرة التطبيق للوصول السريع
     );
   } catch (error) {
-    console.error('Unexpected error in getOrganizationSettings:', error);
     return getDefaultOrganizationSettings(organizationId);
   }
 };
@@ -304,13 +289,11 @@ export const getOrganizationTheme = async (organizationId: string) => {
     });
     
     if (error) {
-      console.error('Error fetching organization theme:', error);
       return null;
     }
     
     return data.length > 0 ? data[0] : null;
   } catch (error) {
-    console.error('Unexpected error while fetching organization theme:', error);
     return null;
   }
 };
@@ -348,13 +331,11 @@ export const createDefaultOrganizationSettings = async (organizationId: string):
       .single();
 
     if (error) {
-      console.error('حدث خطأ أثناء إنشاء إعدادات افتراضية للمؤسسة:', error);
       return defaultSettings; // نرجع الإعدادات الافتراضية حتى لو فشل الإدخال
     }
 
     return data;
   } catch (error) {
-    console.error('حدث خطأ غير متوقع أثناء إنشاء إعدادات افتراضية للمؤسسة:', error);
     // نرجع إعدادات افتراضية حتى في حالة حدوث خطأ
     return {
       organization_id: organizationId,
@@ -412,19 +393,24 @@ export const updateOrganizationSettings = async (
   organizationId: string,
   payload: UpdateSettingsPayload
 ): Promise<OrganizationSettings | null> => {
+  const startTime = Date.now();
+  console.log('🚀 [updateOrganizationSettings] بدء عملية حفظ الإعدادات:', {
+    organizationId,
+    payload,
+    timestamp: new Date().toISOString()
+  });
+
   try {
-    
-    
     if (!organizationId) {
-      console.error('No organization ID provided for settings update');
+      console.error('❌ [updateOrganizationSettings] معرف المؤسسة مفقود');
       return null;
     }
     
+    console.log('⏱️ [updateOrganizationSettings] الحصول على عميل Supabase...');
     const supabase = getSupabaseClient();
     
-    // استخدام RPC لتحديث الإعدادات بدلاً من التحديث المباشر
-    // وهذا يتجنب مشكلة المشغل (trigger) الذي يتوقع وجود حقل component_type
-    const { data, error } = await supabase.rpc('update_organization_settings', {
+    // تحضير البيانات للإرسال
+    const rpcPayload = {
       org_id: organizationId,
       p_theme_primary_color: payload.theme_primary_color,
       p_theme_secondary_color: payload.theme_secondary_color,
@@ -442,16 +428,45 @@ export const updateOrganizationSettings = async (
       p_enable_registration: payload.enable_registration,
       p_enable_public_site: payload.enable_public_site,
       p_display_text_with_logo: payload.display_text_with_logo
-    });
+    };
+    
+    console.log('📤 [updateOrganizationSettings] إرسال البيانات إلى قاعدة البيانات:', rpcPayload);
+    
+    // استخدام RPC لتحديث الإعدادات بدلاً من التحديث المباشر
+    const rpcStartTime = Date.now();
+    const { data, error } = await supabase.rpc('update_organization_settings', rpcPayload);
+    const rpcEndTime = Date.now();
+    
+    console.log(`⏱️ [updateOrganizationSettings] وقت استجابة قاعدة البيانات: ${rpcEndTime - rpcStartTime}ms`);
 
     if (error) {
-      console.error('حدث خطأ أثناء تحديث إعدادات المؤسسة:', error);
+      console.error('❌ [updateOrganizationSettings] خطأ من قاعدة البيانات:', {
+        error,
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint
+      });
       return null;
     }
 
+    console.log('✅ [updateOrganizationSettings] تم الحفظ بنجاح في قاعدة البيانات:', {
+      data,
+      responseTime: `${rpcEndTime - rpcStartTime}ms`
+    });
+
+    const totalTime = Date.now() - startTime;
+    console.log(`🎉 [updateOrganizationSettings] اكتملت العملية بنجاح في ${totalTime}ms`);
+
     return data;
   } catch (error) {
-    console.error('حدث خطأ غير متوقع أثناء تحديث إعدادات المؤسسة:', error);
+    const totalTime = Date.now() - startTime;
+    console.error('💥 [updateOrganizationSettings] خطأ غير متوقع:', {
+      error,
+      message: error instanceof Error ? error.message : 'خطأ غير معروف',
+      stack: error instanceof Error ? error.stack : undefined,
+      totalTime: `${totalTime}ms`
+    });
     return null;
   }
 };
@@ -479,13 +494,11 @@ export const getOrganizationTemplates = async (
     const { data, error } = await query.order('created_at', { ascending: false });
       
     if (error) {
-      console.error('Error fetching organization templates:', error);
       return [];
     }
     
     return data || [];
   } catch (error) {
-    console.error('Unexpected error in getOrganizationTemplates:', error);
     return [];
   }
 };
@@ -511,7 +524,6 @@ export const createOrganizationTemplate = async (
       .single();
       
     if (error) {
-      console.error('Error creating organization template:', error);
       return null;
     }
     
@@ -527,7 +539,6 @@ export const createOrganizationTemplate = async (
     
     return data;
   } catch (error) {
-    console.error('Unexpected error in createOrganizationTemplate:', error);
     return null;
   }
 };
@@ -550,7 +561,6 @@ export const updateOrganizationTemplate = async (
       .single();
       
     if (fetchError) {
-      console.error('Error fetching template:', fetchError);
       return null;
     }
     
@@ -565,7 +575,6 @@ export const updateOrganizationTemplate = async (
       .single();
       
     if (error) {
-      console.error('Error updating organization template:', error);
       return null;
     }
     
@@ -581,7 +590,6 @@ export const updateOrganizationTemplate = async (
     
     return data;
   } catch (error) {
-    console.error('Unexpected error in updateOrganizationTemplate:', error);
     return null;
   }
 };
@@ -598,13 +606,11 @@ export const deleteOrganizationTemplate = async (templateId: string): Promise<bo
       .eq('id', templateId);
       
     if (error) {
-      console.error('Error deleting organization template:', error);
       return false;
     }
     
     return true;
   } catch (error) {
-    console.error('Unexpected error in deleteOrganizationTemplate:', error);
     return false;
   }
 };
@@ -628,7 +634,6 @@ export const logSettingChange = async (
     
     // Skip audit logging if the user ID is not provided or invalid
     if (!userId) {
-      console.warn('Cannot log settings change: Invalid user ID');
       return;
     }
 
@@ -650,13 +655,11 @@ export const logSettingChange = async (
     
     if (error) {
       // Just log the error without throwing
-      console.warn('Failed to log setting change:', error.message || error);
     } else {
       
     }
   } catch (error: any) {
     // Just log the error without throwing
-    console.warn('Error in logSettingChange:', error?.message || error);
   }
 };
 
@@ -685,13 +688,11 @@ export const getSettingsAuditLog = async (
       .limit(limit);
       
     if (error) {
-      console.error('Error fetching settings audit log:', error);
       return [];
     }
     
     return data || [];
   } catch (error) {
-    console.error('Unexpected error in getSettingsAuditLog:', error);
     return [];
   }
 };
@@ -721,7 +722,6 @@ export const uploadStorageFile = async (
       });
     
     if (error) {
-      console.error('فشل في رفع الملف إلى التخزين:', error);
       return null;
     }
     
@@ -732,7 +732,6 @@ export const uploadStorageFile = async (
     
     return { url: publicUrl.publicUrl };
   } catch (error) {
-    console.error('حدث خطأ غير متوقع أثناء رفع الملف:', error);
     return null;
   }
-}; 
+};
