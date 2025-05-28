@@ -435,13 +435,6 @@ export class POSOrdersService {
   }
 
   /**
-   * مسح كامل للكاش
-   */
-  clearCache(): void {
-    this.cache.clear();
-  }
-
-  /**
    * جلب ملخص المبيعات اليومية
    */
   async getDailySalesSummary(
