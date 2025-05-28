@@ -631,7 +631,9 @@ const FeaturedProducts = ({
                     
                     <CardContent className="p-4">
                       <Link to={`/products/${product.slug}`} className="block mb-1 text-sm text-muted-foreground hover:text-primary transition-colors">
-                        {product.category}
+                        {typeof product.category === 'object' && product.category !== null
+                          ? (product.category as { name: string }).name
+                          : product.category}
                       </Link>
                       <Link to={`/products/${product.slug}`} className="block font-semibold mb-3 hover:text-primary transition-colors line-clamp-2">
                         {product.name}
@@ -749,7 +751,9 @@ const FeaturedProducts = ({
                     <div className="flex-1 p-4 flex flex-col justify-between">
                       <div>
                         <Link to={`/products/${product.slug}`} className="block text-sm text-muted-foreground hover:text-primary transition-colors">
-                          {product.category}
+                          {typeof product.category === 'object' && product.category !== null
+                            ? (product.category as { name: string }).name
+                            : product.category}
                         </Link>
                         <Link to={`/products/${product.slug}`} className="block font-semibold mb-2 hover:text-primary transition-colors">
                           {product.name}

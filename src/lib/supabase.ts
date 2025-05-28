@@ -51,103 +51,114 @@ const options = {
     flowType: 'pkce' as const,
     // تجاوز الطلبات عند عدم الاتصال
     fetch: async (url: RequestInfo | URL, options?: RequestInit) => {
-      // تحقق من حالة الاتصال قبل إجراء الطلب
-      if (!navigator.onLine) {
-        // عند محاولة تحديث رمز الوصول في وضع عدم الاتصال
-        const urlStr = typeof url === 'string' ? url : url.toString();
-        if (urlStr.includes('token?grant_type=refresh_token')) {
-          // إعادة استجابة وهمية بدلاً من الفشل
-          return Promise.resolve(new Response(
-            JSON.stringify({ error: 'offline_mode', message: 'Application is offline' }), 
-            { status: 200, headers: { 'Content-Type': 'application/json' } }
-          ));
-        }
-        
-        // التحقق من نوع الطلب الآخر
-        return Promise.reject(new Error('ERR_INTERNET_DISCONNECTED'));
-      }
+      const maxRetries = 3;
+      let attempt = 0;
       
-      // إذا كان المستخدم متصلاً بالإنترنت، قم بإجراء الطلب العادي
-      // إضافة رؤوس إضافية للتأكد من قبول الطلب
-      const headers = options?.headers || {};
-      const newHeaders = new Headers(headers);
-      
-      // تعيين رؤوس محسنة لتجنب أخطاء 406
-      if (!newHeaders.has('Accept')) {
-        newHeaders.set('Accept', 'application/json, text/plain, */*');
-      }
-      
-      // إضافة رؤوس إضافية لتحسين التوافق
-      newHeaders.set('Accept-Language', 'ar,en;q=0.9');
-      newHeaders.set('Accept-Encoding', 'gzip, deflate, br');
-      newHeaders.set('User-Agent', 'bazaar-console-connect/1.0.0');
-      
-      const urlStr = typeof url === 'string' ? url : url.toString();
-      if (!newHeaders.has('Content-Type') && !urlStr.includes('storage')) {
-        newHeaders.set('Content-Type', 'application/json');
-      }
-      
-      // إضافة رأس Prefer للتحكم في إرجاع البيانات من Postgrest
-      if (urlStr.includes('/rest/v1/') && !newHeaders.has('Prefer')) {
-        newHeaders.set('Prefer', 'return=representation');
-      }
-      
-      // إضافة رؤوس Origin و Referer للطلبات المتقاطعة
-      if (!newHeaders.has('Origin')) {
-        newHeaders.set('Origin', window.location.origin);
-      }
-      
-      const newOptions = {
-        ...options,
-        headers: newHeaders,
-        credentials: 'include' as RequestCredentials,
-        mode: 'cors' as RequestMode
-      };
-      
-      try {
-        const response = await fetch(url, newOptions);
-        
-        // معالجة خاصة لأخطاء 406
-        if (response.status === 406) {
-          console.warn('خطأ 406 في Supabase - محاولة إعادة الطلب');
+      while (attempt < maxRetries) {
+        try {
+          let headers: HeadersInit;
           
-          // محاولة إعادة الطلب مع رؤوس مبسطة
-          const retryHeaders = new Headers();
-          retryHeaders.set('Accept', '*/*');
-          retryHeaders.set('Content-Type', 'application/json');
-          
-          // نسخ الرؤوس المهمة فقط
-          if (newHeaders.has('Authorization')) {
-            retryHeaders.set('Authorization', newHeaders.get('Authorization')!);
+          // استراتيجية الرؤوس حسب المحاولة
+          switch (attempt) {
+            case 0:
+              // المحاولة الأولى: رؤوس كاملة محسنة
+              headers = {
+                'Accept': 'application/json, application/vnd.pgrst.object+json, text/plain, */*',
+                'Accept-Language': 'ar,en;q=0.9,*;q=0.8',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Prefer': 'return=representation',
+                ...(options?.headers as Record<string, string> || {}),
+              };
+              break;
+              
+            case 1:
+              // المحاولة الثانية: رؤوس مبسطة
+              const baseHeaders = {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                ...(options?.headers as Record<string, string> || {}),
+              };
+              // إزالة رؤوس قد تسبب مشاكل
+              delete baseHeaders['Prefer'];
+              delete baseHeaders['Accept-Language'];
+              delete baseHeaders['Accept-Encoding'];
+              headers = baseHeaders;
+              break;
+              
+            default:
+              // المحاولة الأخيرة: الحد الأدنى من الرؤوس
+              const originalHeaders = options?.headers as Record<string, string> || {};
+              const minimalHeaders: Record<string, string> = {
+                'Accept': '*/*',
+              };
+              
+              // الاحتفاظ برؤوس المصادقة فقط
+              const authHeaders = ['Authorization', 'apikey', 'X-Client-Info'];
+              authHeaders.forEach(key => {
+                if (originalHeaders[key]) {
+                  minimalHeaders[key] = originalHeaders[key];
+                }
+              });
+              
+              headers = minimalHeaders;
+              break;
           }
-          if (newHeaders.has('ApiKey')) {
-            retryHeaders.set('ApiKey', newHeaders.get('ApiKey')!);
-          }
-          
-          const retryResponse = await fetch(url, {
+
+          const response = await fetch(url, {
             ...options,
-            headers: retryHeaders,
-            credentials: 'include',
-            mode: 'cors'
+            headers,
           });
-          
-          if (retryResponse.ok) {
-            console.log('نجحت المحاولة الثانية لطلب Supabase');
-            return retryResponse;
+
+          // إذا نجح الطلب، أرجع الاستجابة
+          if (response.ok) {
+            if (attempt > 0) {
+              console.log(`✅ نجح طلب Supabase في المحاولة ${attempt + 1}`);
+            }
+            return response;
           }
+
+          // معالجة خطأ 406 Not Acceptable
+          if (response.status === 406) {
+            console.warn(`🚨 خطأ 406 في المحاولة ${attempt + 1}/${maxRetries} - ${url}`);
+            
+            // إذا لم تكن هذه المحاولة الأخيرة، جرب مرة أخرى
+            if (attempt < maxRetries - 1) {
+              attempt++;
+              // تأخير تدريجي
+              await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+              continue;
+            }
+          }
+
+          // إذا لم يكن خطأ 406 أو كانت المحاولة الأخيرة، أرجع الاستجابة
+          return response;
+
+        } catch (error) {
+          console.error(`❌ خطأ في طلب Supabase (المحاولة ${attempt + 1}):`, error);
+          
+          // إذا كان خطأ شبكة وليست المحاولة الأخيرة، جرب مرة أخرى
+          if (attempt < maxRetries - 1 && error instanceof TypeError) {
+            attempt++;
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+            continue;
+          }
+          
+          throw error;
         }
-        
-        return response;
-      } catch (error) {
-        console.error('خطأ في طلب Supabase:', error);
-        throw error;
       }
+      
+      // هذا لن يحدث أبداً، لكن TypeScript يحتاجه
+      throw new Error('فشلت جميع محاولات الطلب');
     }
   },
   global: {
     headers: {
       'X-Client-Info': 'bazaar-console-connect',
-      'Accept': 'application/json',
+      'Accept': 'application/json, application/vnd.pgrst.object+json',
+      'Content-Type': 'application/json',
       'Prefer': 'return=representation'
     }
   },

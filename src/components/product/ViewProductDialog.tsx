@@ -185,7 +185,11 @@ const ViewProductDialog = ({ product, open, onOpenChange }: ViewProductDialogPro
                             <Tag className="h-4 w-4 ml-2" />
                             <span>الفئة</span>
                           </div>
-                          <div className="text-right font-medium">{product.category}</div>
+                          <div className="text-right font-medium">
+                            {typeof product.category === 'object' && product.category !== null
+                              ? (product.category as { name: string }).name
+                              : product.category}
+                          </div>
                         </div>
                         
                         {product.subcategory && (

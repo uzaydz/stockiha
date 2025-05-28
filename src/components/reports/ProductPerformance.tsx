@@ -71,16 +71,23 @@ const ProductPerformance = ({ products, dateRange, isLoading }: ProductPerforman
   const [filterCategory, setFilterCategory] = useState<string>('all');
   
   // Obtener categorías únicas de los productos
-  const categories = ['all', ...Array.from(new Set(products.map(product => product.category)))];
+  const categories = ['all', ...Array.from(new Set(products.map(product => 
+    typeof product.category === 'object' && product.category !== null
+      ? (product.category as { name: string }).name
+      : product.category
+  )))];
   
   // Filtrar productos por búsqueda y categoría
   const filteredProducts = products
     .filter(product => {
-      const matchesSearch = searchTerm === '' || 
-        product.product_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.category.toLowerCase().includes(searchTerm.toLowerCase());
-        
-      const matchesCategory = filterCategory === 'all' || product.category === filterCategory;
+      const matchesSearch = product.product_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (typeof product.category === 'object' && product.category !== null
+          ? (product.category as { name: string }).name.toLowerCase().includes(searchTerm.toLowerCase())
+          : product.category?.toLowerCase().includes(searchTerm.toLowerCase()));
+      const categoryName = typeof product.category === 'object' && product.category !== null
+        ? (product.category as { name: string }).name
+        : product.category;
+      const matchesCategory = filterCategory === 'all' || categoryName === filterCategory;
       
       return matchesSearch && matchesCategory;
     })
@@ -386,7 +393,9 @@ const ProductPerformance = ({ products, dateRange, isLoading }: ProductPerforman
                           </TableCell>
                           <TableCell className="text-center">
                             <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
-                              {product.category}
+                              {typeof product.category === 'object' && product.category !== null
+                                ? (product.category as { name: string }).name
+                                : product.category}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-center font-medium">

@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase-client';
+import { useTenant } from '@/context/TenantContext';
 
 // نوع بيانات الطلب الأونلاين
 interface OnlineOrder {
@@ -40,6 +41,7 @@ interface OnlineOrder {
   shipping_cost?: number;
   notes?: string;
   created_at: string;
+  organization_id: string;
   items?: OnlineOrderItem[];
   metadata?: any;
 }
@@ -340,6 +342,7 @@ const RecentOnlineOrdersCard = React.memo(({ limit = 5 }: RecentOnlineOrdersCard
   const [orders, setOrders] = React.useState<OnlineOrder[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const { currentOrganization } = useTenant();
 
   // جلب الطلبات الأونلاين الحديثة
   React.useEffect(() => {
@@ -347,13 +350,20 @@ const RecentOnlineOrdersCard = React.memo(({ limit = 5 }: RecentOnlineOrdersCard
       try {
         setLoading(true);
         
-        // جلب الطلبات الأونلاين مع العناصر
+        // التأكد من وجود معرف المؤسسة
+        if (!currentOrganization?.id) {
+          setError('معرف المؤسسة غير متوفر');
+          return;
+        }
+        
+        // جلب الطلبات الأونلاين مع العناصر مفلترة حسب المؤسسة
         const { data: ordersData, error: ordersError } = await supabase
           .from('online_orders')
           .select(`
             *,
             items:online_order_items(*)
           `)
+          .eq('organization_id', currentOrganization.id)
           .order('created_at', { ascending: false })
           .limit(limit);
 
@@ -371,7 +381,7 @@ const RecentOnlineOrdersCard = React.memo(({ limit = 5 }: RecentOnlineOrdersCard
     };
 
     fetchRecentOnlineOrders();
-  }, [limit]);
+  }, [limit, currentOrganization?.id]);
 
   if (loading) {
     return (

@@ -14,6 +14,7 @@ import SuperAdminRoute from "./components/auth/SuperAdminRoute";
 import SubscriptionCheck from "./components/subscription/SubscriptionCheck";
 import { SupabaseProvider } from "./context/SupabaseContext";
 import SessionMonitor from "./components/SessionMonitor";
+import ErrorMonitor from "./components/ErrorMonitor";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import POS from "./pages/POS";
@@ -344,7 +345,8 @@ const App = () => {
       <TooltipProvider>
         <TabFocusHandler>
           <SupabaseProvider>
-            <SessionMonitor showLoadingMessage={true} />
+            <SessionMonitor />
+            <ErrorMonitor />
             <ShopProvider>
               <HelmetProvider>
                 <Toaster />

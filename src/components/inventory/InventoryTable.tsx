@@ -315,7 +315,11 @@ const TableRow = ({
       
       {/* الصنف */}
       <div className="col-span-2 truncate text-foreground dark:text-zinc-200">
-        {product.category}
+        <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
+          {typeof product.category === 'object' && product.category !== null
+            ? (product.category as { name: string }).name
+            : product.category}
+        </Badge>
       </div>
       
       {/* SKU */}
@@ -396,7 +400,11 @@ const CardRow = ({
             <div>
               <CardTitle className="text-base text-foreground dark:text-zinc-100">{product.name}</CardTitle>
               <CardDescription className="text-muted-foreground dark:text-zinc-400">
-                {product.category} • {product.sku}
+                <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
+                  {typeof product.category === 'object' && product.category !== null
+                    ? (product.category as { name: string }).name
+                    : product.category}
+                </Badge> • {product.sku}
               </CardDescription>
               <VariantBadges product={product} />
             </div>

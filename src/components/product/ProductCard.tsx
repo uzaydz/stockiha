@@ -76,9 +76,11 @@ const ProductCard = ({ product }: ProductCardProps) => {
           <h3 className="font-medium text-base line-clamp-2 text-right mb-2 group-hover:text-primary transition-colors">
             {product.name}
           </h3>
-          <div className="text-sm text-muted-foreground line-clamp-1 text-right mb-3">
-            {product.category}
-          </div>
+          <p className="text-sm text-muted-foreground mb-2">
+            {typeof product.category === 'object' && product.category !== null
+              ? (product.category as { name: string }).name
+              : product.category}
+          </p>
         </CardContent>
         
         <CardFooter className="border-t p-4 flex flex-col space-y-3">

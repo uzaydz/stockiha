@@ -65,17 +65,23 @@ const extractSubdomain = async (hostname: string): Promise<string | null> => {
   // التحقق من النطاق المخصص أولاً
   const checkCustomDomain = async (): Promise<string | null> => {
     try {
-      const { data: orgData } = await getSupabaseClient()
+      const { data: orgData, error } = await getSupabaseClient()
         .from('organizations')
         .select('subdomain')
         .eq('domain', hostname)
-        .single();
+        .maybeSingle();
+      
+      if (error) {
+        console.warn('خطأ في البحث عن النطاق المخصص:', error);
+        return null;
+      }
       
       if (orgData?.subdomain) {
         
         return orgData.subdomain;
       }
     } catch (error) {
+      console.warn('خطأ في checkCustomDomain:', error);
     }
     return null;
   };
@@ -145,11 +151,16 @@ export const getOrganizationFromCustomDomain = async (hostname: string): Promise
     // البحث عن المؤسسة باستخدام النطاق المخصص
     const { data: orgData, error } = await supabase
       .from('organizations')
-      .select('id, name, subdomain')
+      .select('id,name,subdomain')
       .eq('domain', hostname)
       .maybeSingle();
       
-    if (!error && orgData && orgData.id && orgData.subdomain) {
+    if (error) {
+      console.warn('خطأ في البحث عن المؤسسة بالنطاق المخصص:', error);
+      return null;
+    }
+      
+    if (orgData && orgData.id && orgData.subdomain) {
       
       return {
         id: orgData.id,
@@ -157,6 +168,7 @@ export const getOrganizationFromCustomDomain = async (hostname: string): Promise
       };
     }
   } catch (error) {
+    console.warn('خطأ في getOrganizationFromCustomDomain:', error);
   }
   
   return null;

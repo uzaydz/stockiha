@@ -5,7 +5,7 @@ import './lib/module-polyfill';
 import './sentry';
 
 // تهيئة معالج أخطاء 406
-import { initHttp406Handler } from './lib/http406Handler';
+import { initializeHttp406Handler } from './lib/http406Handler';
 
 // تطبيق النظام الموحد للثيمات فوراً قبل تحميل React
 import { applyInstantTheme } from './lib/themeManager';
@@ -15,7 +15,8 @@ applyInstantTheme();
 
 // تهيئة معالج أخطاء 406 فوراً
 if (typeof window !== 'undefined') {
-  initHttp406Handler();
+  initializeHttp406Handler();
+  console.log('🚀 تم تهيئة معالج أخطاء HTTP 406 المحسن');
 }
 
 // إصلاح createContext وأخرى: تأكد من تحميل React APIs قبل أي شيء آخر

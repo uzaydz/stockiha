@@ -217,7 +217,11 @@ const LowStockCard = ({ products, organizationId, limit = 5 }: LowStockCardProps
                           {product.category && (
                             <>
                               <span>•</span>
-                              <span className="font-medium capitalize">{product.category}</span>
+                              <span className="font-medium capitalize">
+                                {typeof product.category === 'object' && product.category !== null
+                                  ? (product.category as { name: string }).name
+                                  : product.category}
+                              </span>
                             </>
                           )}
                         </div>

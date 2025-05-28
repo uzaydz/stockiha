@@ -1,176 +1,317 @@
 /**
- * معالج شامل لأخطاء 406 في التطبيق
+ * معالج شامل لأخطاء HTTP 406 (Not Acceptable)
+ * يقوم بإعتراض جميع طلبات fetch ومعالجة أخطاء 406 تلقائياً
  */
 
-// تتبع الطلبات التي فشلت بخطأ 406
-const failed406Requests = new Set<string>();
-const retryAttempts = new Map<string, number>();
+interface RetryConfig {
+  maxRetries: number;
+  retryDelay: number;
+  backoffMultiplier: number;
+}
+
+interface RequestStats {
+  total: number;
+  failed: number;
+  retried: number;
+  success: number;
+}
+
+// إحصائيات الطلبات
+let requestStats: RequestStats = {
+  total: 0,
+  failed: 0,
+  retried: 0,
+  success: 0
+};
+
+// إعدادات إعادة المحاولة
+const defaultRetryConfig: RetryConfig = {
+  maxRetries: 3,
+  retryDelay: 1000,
+  backoffMultiplier: 1.5
+};
+
+// قائمة الطلبات الفاشلة للمراجعة
+const failedRequests: Array<{
+  url: string;
+  init?: RequestInit;
+  timestamp: number;
+  error: string;
+}> = [];
 
 /**
- * تهيئة معالج أخطاء 406 العام
+ * إنشاء رؤوس محسنة للطلبات
  */
-export const initHttp406Handler = () => {
-  // اعتراض جميع طلبات fetch
-  const originalFetch = window.fetch;
+function createOptimizedHeaders(originalHeaders?: HeadersInit): Headers {
+  const headers = new Headers(originalHeaders);
   
-  window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const url = typeof input === 'string' ? input : input.toString();
-    const requestKey = `${init?.method || 'GET'}_${url}`;
+  // رؤوس أساسية محسنة
+  headers.set('Accept', 'application/json, application/vnd.pgrst.object+json, text/plain, */*');
+  headers.set('Accept-Language', 'ar,en;q=0.9,*;q=0.8');
+  headers.set('Accept-Encoding', 'gzip, deflate, br');
+  headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  headers.set('Pragma', 'no-cache');
+  headers.set('Expires', '0');
+  
+  // رؤوس خاصة بـ Supabase
+  if (!headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+  
+  // إضافة رؤوس CORS
+  headers.set('Access-Control-Allow-Origin', '*');
+  headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Accept-Language, Accept-Encoding');
+  
+  return headers;
+}
+
+/**
+ * إنشاء رؤوس مبسطة للمحاولة الثانية
+ */
+function createSimplifiedHeaders(originalHeaders?: HeadersInit): Headers {
+  const headers = new Headers();
+  
+  // نسخ الرؤوس المهمة فقط
+  if (originalHeaders) {
+    const original = new Headers(originalHeaders);
     
+    // رؤوس المصادقة
+    if (original.has('Authorization')) {
+      headers.set('Authorization', original.get('Authorization')!);
+    }
+    if (original.has('apikey')) {
+      headers.set('apikey', original.get('apikey')!);
+    }
+  }
+  
+  // رؤوس أساسية مبسطة
+  headers.set('Accept', '*/*');
+  headers.set('Content-Type', 'application/json');
+  
+  return headers;
+}
+
+/**
+ * إنشاء رؤوس الحد الأدنى للمحاولة الأخيرة
+ */
+function createMinimalHeaders(originalHeaders?: HeadersInit): Headers {
+  const headers = new Headers();
+  
+  // نسخ رؤوس المصادقة فقط
+  if (originalHeaders) {
+    const original = new Headers(originalHeaders);
+    
+    if (original.has('Authorization')) {
+      headers.set('Authorization', original.get('Authorization')!);
+    }
+    if (original.has('apikey')) {
+      headers.set('apikey', original.get('apikey')!);
+    }
+  }
+  
+  return headers;
+}
+
+/**
+ * تأخير لفترة محددة
+ */
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * إعادة المحاولة مع استراتيجية تدريجية
+ */
+async function retryWithStrategy(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+  config: RetryConfig = defaultRetryConfig
+): Promise<Response> {
+  const originalFetch = window.fetch;
+  let lastError: Error | null = null;
+  
+  for (let attempt = 1; attempt <= config.maxRetries; attempt++) {
     try {
-      const response = await originalFetch(input, init);
+      let headers: Headers;
+      let retryInit: RequestInit = { ...init };
       
-      // إذا نجح الطلب، احذف من قائمة الفشل
+      // اختيار استراتيجية الرؤوس حسب المحاولة
+      switch (attempt) {
+        case 1:
+          headers = createOptimizedHeaders(init?.headers);
+          break;
+        case 2:
+          headers = createSimplifiedHeaders(init?.headers);
+          break;
+        default:
+          headers = createMinimalHeaders(init?.headers);
+          break;
+      }
+      
+      retryInit.headers = headers;
+      
+      console.log(`🔄 محاولة ${attempt}/${config.maxRetries} للطلب:`, input);
+      
+      const response = await originalFetch(input, retryInit);
+      
+      if (response.status === 406) {
+        throw new Error(`HTTP 406 في المحاولة ${attempt}`);
+      }
+      
       if (response.ok) {
-        failed406Requests.delete(requestKey);
-        retryAttempts.delete(requestKey);
+        requestStats.retried++;
+        requestStats.success++;
+        console.log(`✅ نجح الطلب في المحاولة ${attempt}`);
         return response;
       }
       
-      // معالجة خطأ 406
-      if (response.status === 406) {
-        console.warn(`خطأ 406 في الطلب: ${url}`);
-        
-        const currentAttempts = retryAttempts.get(requestKey) || 0;
-        
-        // إذا لم نحاول إعادة الطلب بعد، أو حاولنا أقل من 3 مرات
-        if (currentAttempts < 3) {
-          retryAttempts.set(requestKey, currentAttempts + 1);
-          
-          // إعادة الطلب مع رؤوس مبسطة
-          const retryInit = {
-            ...init,
-            headers: {
-              'Accept': '*/*',
-              'Content-Type': 'application/json',
-              // نسخ الرؤوس المهمة فقط
-              ...(init?.headers && typeof init.headers === 'object' ? 
-                Object.fromEntries(
-                  Object.entries(init.headers).filter(([key]) => 
-                    ['Authorization', 'ApiKey', 'X-Client-Info'].includes(key)
-                  )
-                ) : {}
-              )
-            }
-          };
-          
-          console.log(`إعادة محاولة الطلب (${currentAttempts + 1}/3): ${url}`);
-          
-          // تأخير قصير قبل إعادة المحاولة
-          await new Promise(resolve => setTimeout(resolve, 500 * (currentAttempts + 1)));
-          
-          return window.fetch(input, retryInit);
-        } else {
-          // إذا فشلت جميع المحاولات
-          failed406Requests.add(requestKey);
-          console.error(`فشل الطلب نهائياً بعد 3 محاولات: ${url}`);
-        }
-      }
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       
-      return response;
     } catch (error) {
-      console.error(`خطأ في الطلب: ${url}`, error);
-      throw error;
-    }
-  };
-  
-  // مراقبة أخطاء الشبكة غير المعالجة
-  window.addEventListener('unhandledrejection', (event) => {
-    const error = event.reason;
-    if (error && error.toString().includes('406')) {
-      console.warn('خطأ 406 غير معالج:', error);
+      lastError = error instanceof Error ? error : new Error(String(error));
+      console.warn(`❌ فشلت المحاولة ${attempt}:`, lastError.message);
       
-      // إظهار رسالة للمستخدم
-      showUser406Message();
+      // تأخير قبل المحاولة التالية
+      if (attempt < config.maxRetries) {
+        const delayTime = config.retryDelay * Math.pow(config.backoffMultiplier, attempt - 1);
+        await delay(delayTime);
+      }
     }
+  }
+  
+  // إذا فشلت جميع المحاولات
+  requestStats.failed++;
+  
+  // حفظ الطلب الفاشل للمراجعة
+  failedRequests.push({
+    url: input.toString(),
+    init,
+    timestamp: Date.now(),
+    error: lastError?.message || 'خطأ غير معروف'
   });
   
-  // مراقبة أخطاء وحدة التحكم
-  const originalConsoleError = console.error;
-  console.error = (...args) => {
-    const message = args.join(' ');
-    if (message.includes('406') || message.includes('Not Acceptable')) {
-      showUser406Message();
-    }
-    originalConsoleError.apply(console, args);
-  };
-  
-  console.log('تم تهيئة معالج أخطاء 406');
-};
+  throw lastError || new Error('فشلت جميع محاولات إعادة الطلب');
+}
 
 /**
- * إظهار رسالة للمستخدم عند حدوث خطأ 406
+ * معالج الطلبات المحسن
  */
-let user406MessageShown = false;
-const showUser406Message = () => {
-  if (user406MessageShown) return;
+async function enhancedFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<Response> {
+  requestStats.total++;
   
-  user406MessageShown = true;
-  
-  // إنشاء عنصر تنبيه
-  const alertDiv = document.createElement('div');
-  alertDiv.className = 'fixed top-4 right-4 z-50 bg-orange-100 border border-orange-300 text-orange-800 px-4 py-3 rounded shadow-lg max-w-md';
-  alertDiv.innerHTML = `
-    <div class="flex items-center">
-      <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
-      </svg>
-      <div>
-        <div class="font-medium">مشكلة مؤقتة في التحميل</div>
-        <div class="text-sm">يتم حل المشكلة تلقائياً. إذا استمرت، يرجى تحديث الصفحة.</div>
-      </div>
-      <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-orange-600 hover:text-orange-800">
-        ×
-      </button>
-    </div>
-  `;
-  
-  document.body.appendChild(alertDiv);
-  
-  // إزالة الرسالة تلقائياً بعد 10 ثوانٍ
-  setTimeout(() => {
-    if (alertDiv.parentElement) {
-      alertDiv.remove();
-    }
-    user406MessageShown = false;
-  }, 10000);
-};
-
-/**
- * الحصول على إحصائيات أخطاء 406
- */
-export const get406Stats = () => {
-  return {
-    failedRequests: Array.from(failed406Requests),
-    retryAttempts: Object.fromEntries(retryAttempts),
-    totalFailed: failed406Requests.size
-  };
-};
-
-/**
- * إعادة تعيين إحصائيات أخطاء 406
- */
-export const reset406Stats = () => {
-  failed406Requests.clear();
-  retryAttempts.clear();
-  user406MessageShown = false;
-};
-
-/**
- * فحص ما إذا كان هناك طلبات فاشلة بخطأ 406
- */
-export const hasFailed406Requests = () => {
-  return failed406Requests.size > 0;
-};
-
-/**
- * إعادة محاولة جميع الطلبات الفاشلة
- */
-export const retryFailed406Requests = () => {
-  if (failed406Requests.size > 0) {
-    console.log(`إعادة محاولة ${failed406Requests.size} طلب فاشل`);
+  try {
+    // المحاولة الأولى مع الرؤوس الأصلية
+    const response = await window.fetch(input, init);
     
-    // إعادة تحميل الصفحة كحل أخير
-    window.location.reload();
+    if (response.status === 406) {
+      console.warn('🚨 تم اكتشاف خطأ 406، بدء إعادة المحاولة...');
+      return await retryWithStrategy(input, init);
+    }
+    
+    if (response.ok) {
+      requestStats.success++;
+    }
+    
+    return response;
+    
+  } catch (error) {
+    console.error('❌ خطأ في الطلب:', error);
+    
+    // إذا كان خطأ شبكة، جرب إعادة المحاولة
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      console.warn('🔄 خطأ شبكة، محاولة إعادة الطلب...');
+      return await retryWithStrategy(input, init);
+    }
+    
+    throw error;
   }
-}; 
+}
+
+/**
+ * تهيئة معالج أخطاء 406
+ */
+export function initializeHttp406Handler(): void {
+  // حفظ fetch الأصلي
+  const originalFetch = window.fetch;
+  
+  // استبدال fetch بالمعالج المحسن
+  window.fetch = enhancedFetch;
+  
+  console.log('✅ تم تهيئة معالج أخطاء HTTP 406');
+  
+  // إضافة دوال مساعدة للنافذة العامة للتطوير
+  (window as any).get406Stats = () => {
+    console.table(requestStats);
+    return requestStats;
+  };
+  
+  (window as any).getFailedRequests = () => {
+    console.table(failedRequests);
+    return failedRequests;
+  };
+  
+  (window as any).retryFailed406Requests = async () => {
+    console.log('🔄 إعادة محاولة الطلبات الفاشلة...');
+    
+    const failedCopy = [...failedRequests];
+    failedRequests.length = 0; // مسح القائمة
+    
+    for (const request of failedCopy) {
+      try {
+        await retryWithStrategy(request.url, request.init);
+        console.log(`✅ نجحت إعادة محاولة: ${request.url}`);
+      } catch (error) {
+        console.error(`❌ فشلت إعادة محاولة: ${request.url}`, error);
+      }
+    }
+  };
+  
+  (window as any).reset406Stats = () => {
+    requestStats = { total: 0, failed: 0, retried: 0, success: 0 };
+    failedRequests.length = 0;
+    console.log('🔄 تم إعادة تعيين إحصائيات 406');
+  };
+}
+
+/**
+ * إزالة معالج أخطاء 406
+ */
+export function removeHttp406Handler(): void {
+  // استعادة fetch الأصلي
+  delete (window as any).fetch;
+  console.log('🗑️ تم إزالة معالج أخطاء HTTP 406');
+}
+
+/**
+ * الحصول على إحصائيات الطلبات
+ */
+export function getRequestStats(): RequestStats {
+  return { ...requestStats };
+}
+
+/**
+ * الحصول على الطلبات الفاشلة
+ */
+export function getFailedRequests() {
+  return [...failedRequests];
+}
+
+/**
+ * مسح إحصائيات الطلبات
+ */
+export function clearStats(): void {
+  requestStats = { total: 0, failed: 0, retried: 0, success: 0 };
+  failedRequests.length = 0;
+}
+
+/**
+ * تحديث إعدادات إعادة المحاولة
+ */
+export function updateRetryConfig(config: Partial<RetryConfig>): void {
+  Object.assign(defaultRetryConfig, config);
+  console.log('⚙️ تم تحديث إعدادات إعادة المحاولة:', defaultRetryConfig);
+} 

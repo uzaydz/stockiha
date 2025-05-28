@@ -478,7 +478,11 @@ const FinancialReports = () => {
                               </div>
                               <div>
                                 <p className="font-medium">{product.product_name}</p>
-                                <p className="text-sm text-muted-foreground">{product.category}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {typeof product.category === 'object' && product.category !== null
+                                    ? (product.category as { name: string }).name
+                                    : product.category}
+                                </p>
                               </div>
                             </div>
                             <div className="text-right">
