@@ -50,7 +50,7 @@ const options = {
     },
     flowType: 'pkce' as const,
     // تجاوز الطلبات عند عدم الاتصال
-    fetch: (url: RequestInfo | URL, options?: RequestInit) => {
+    fetch: async (url: RequestInfo | URL, options?: RequestInit) => {
       // تحقق من حالة الاتصال قبل إجراء الطلب
       if (!navigator.onLine) {
         // عند محاولة تحديث رمز الوصول في وضع عدم الاتصال
@@ -72,10 +72,15 @@ const options = {
       const headers = options?.headers || {};
       const newHeaders = new Headers(headers);
       
-      // تعيين رؤوس مخصصة لتجنب أخطاء 406
+      // تعيين رؤوس محسنة لتجنب أخطاء 406
       if (!newHeaders.has('Accept')) {
         newHeaders.set('Accept', 'application/json, text/plain, */*');
       }
+      
+      // إضافة رؤوس إضافية لتحسين التوافق
+      newHeaders.set('Accept-Language', 'ar,en;q=0.9');
+      newHeaders.set('Accept-Encoding', 'gzip, deflate, br');
+      newHeaders.set('User-Agent', 'bazaar-console-connect/1.0.0');
       
       const urlStr = typeof url === 'string' ? url : url.toString();
       if (!newHeaders.has('Content-Type') && !urlStr.includes('storage')) {
@@ -87,12 +92,56 @@ const options = {
         newHeaders.set('Prefer', 'return=representation');
       }
       
+      // إضافة رؤوس Origin و Referer للطلبات المتقاطعة
+      if (!newHeaders.has('Origin')) {
+        newHeaders.set('Origin', window.location.origin);
+      }
+      
       const newOptions = {
         ...options,
-        headers: newHeaders
+        headers: newHeaders,
+        credentials: 'include' as RequestCredentials,
+        mode: 'cors' as RequestMode
       };
       
-      return fetch(url, newOptions);
+      try {
+        const response = await fetch(url, newOptions);
+        
+        // معالجة خاصة لأخطاء 406
+        if (response.status === 406) {
+          console.warn('خطأ 406 في Supabase - محاولة إعادة الطلب');
+          
+          // محاولة إعادة الطلب مع رؤوس مبسطة
+          const retryHeaders = new Headers();
+          retryHeaders.set('Accept', '*/*');
+          retryHeaders.set('Content-Type', 'application/json');
+          
+          // نسخ الرؤوس المهمة فقط
+          if (newHeaders.has('Authorization')) {
+            retryHeaders.set('Authorization', newHeaders.get('Authorization')!);
+          }
+          if (newHeaders.has('ApiKey')) {
+            retryHeaders.set('ApiKey', newHeaders.get('ApiKey')!);
+          }
+          
+          const retryResponse = await fetch(url, {
+            ...options,
+            headers: retryHeaders,
+            credentials: 'include',
+            mode: 'cors'
+          });
+          
+          if (retryResponse.ok) {
+            console.log('نجحت المحاولة الثانية لطلب Supabase');
+            return retryResponse;
+          }
+        }
+        
+        return response;
+      } catch (error) {
+        console.error('خطأ في طلب Supabase:', error);
+        throw error;
+      }
     }
   },
   global: {

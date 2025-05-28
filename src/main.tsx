@@ -4,11 +4,19 @@ import './lib/module-polyfill';
 // تهيئة Sentry
 import './sentry';
 
+// تهيئة معالج أخطاء 406
+import { initHttp406Handler } from './lib/http406Handler';
+
 // تطبيق النظام الموحد للثيمات فوراً قبل تحميل React
 import { applyInstantTheme } from './lib/themeManager';
 
 // تطبيق الثيم الفوري لمنع الوميض
 applyInstantTheme();
+
+// تهيئة معالج أخطاء 406 فوراً
+if (typeof window !== 'undefined') {
+  initHttp406Handler();
+}
 
 // إصلاح createContext وأخرى: تأكد من تحميل React APIs قبل أي شيء آخر
 // (window as any).React = (window as any).React || {}; // إزالة أو تعليق هذا

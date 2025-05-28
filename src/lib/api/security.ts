@@ -1110,7 +1110,7 @@ export async function checkUserRequires2FA(
       };
     }
 
-    return {
+    const result = {
       userExists: data.user_exists,
       userId: data.user_id,
       userName: data.user_name,
@@ -1118,6 +1118,8 @@ export async function checkUserRequires2FA(
       organizationId: data.organization_id,
       error: data.error
     };
+
+    return result;
   } catch (error) {
     console.error('خطأ في التحقق من متطلبات المصادقة الثنائية:', error);
     return {

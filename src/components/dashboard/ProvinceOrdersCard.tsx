@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Package, Crown, Award, Medal } from 'lucide-react';
+import { Package, Crown, Award, Medal, MapPin, TrendingUp } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { cn } from '@/lib/utils';
 
 interface ProvinceData {
   province_name: string;
@@ -114,64 +115,126 @@ const ProvinceOrdersCard = ({ organizationId, limit = 5 }: ProvinceOrdersCardPro
     if (index === 2) return <Medal className="h-4 w-4 text-amber-600" />;
     return <span className="text-sm font-medium text-muted-foreground">{index + 1}</span>;
   };
+
+  // الحصول على لون الترتيب
+  const getRankColor = (index: number) => {
+    if (index === 0) return 'from-yellow-100 to-yellow-50 dark:from-yellow-900/20 dark:to-yellow-800/10 text-yellow-600 dark:text-yellow-400 border-yellow-200/50 dark:border-yellow-700/30';
+    if (index === 1) return 'from-gray-100 to-gray-50 dark:from-gray-900/20 dark:to-gray-800/10 text-gray-600 dark:text-gray-400 border-gray-200/50 dark:border-gray-700/30';
+    if (index === 2) return 'from-amber-100 to-amber-50 dark:from-amber-900/20 dark:to-amber-800/10 text-amber-600 dark:text-amber-400 border-amber-200/50 dark:border-amber-700/30';
+    return 'from-primary/20 to-primary/10 text-primary border-primary/20';
+  };
   
   return (
-    <div className="bg-card rounded-xl shadow-sm p-6 border border-border">
-      <div className="mb-4">
-        <h3 className="text-lg font-bold text-foreground mb-1">
-          أفضل الولايات من حيث الطلبات
-        </h3>
-        <p className="text-sm text-muted-foreground">
-          ترتيب الولايات حسب عدد الطلبات
-        </p>
-      </div>
-      <div className="h-80">
-        {isLoading ? (
-          <div className="flex justify-center items-center h-full">
-            <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent"></div>
+    <div className={cn(
+      "rounded-xl bg-card text-card-foreground relative overflow-hidden transition-all duration-300",
+      "bg-gradient-to-br from-background/95 to-background/90 backdrop-blur-md border border-border/20",
+      "shadow-lg hover:shadow-xl before:absolute before:inset-0 before:bg-gradient-to-br",
+      "before:from-primary/5 before:to-transparent before:pointer-events-none"
+    )}>
+      <div className="p-6 relative z-10">
+        {/* الرأس */}
+        <div className="mb-6">
+          <div className="flex items-center gap-3 mb-2">
+            <div className={cn(
+              "flex items-center justify-center h-12 w-12 rounded-xl border transition-all duration-300",
+              "bg-gradient-to-br from-primary/20 to-primary/10 text-primary border-primary/20",
+              "hover:scale-110 shadow-md hover:shadow-lg"
+            )}>
+              <MapPin className="h-6 w-6" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
+                أفضل الولايات من حيث الطلبات
+              </h3>
+              <p className="text-sm text-muted-foreground font-medium">
+                ترتيب الولايات حسب عدد الطلبات والإيرادات
+              </p>
+            </div>
           </div>
-        ) : error ? (
-          <div className="flex justify-center items-center h-full">
-            <p className="text-destructive text-sm">{error}</p>
-          </div>
-        ) : provinceData.length === 0 ? (
-          <div className="flex justify-center items-center h-full">
-            <p className="text-muted-foreground text-sm">لا توجد بيانات طلبات حسب الولايات</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {provinceData.map((province, index) => (
-              <div 
-                key={province.province_id} 
-                className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-6 h-6 flex items-center justify-center">
-                    {getRankIcon(index)}
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-medium text-foreground text-sm">
-                      {province.province_name}
-                    </div>
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Package className="h-3 w-3" />
-                      <span>{province.order_count} طلب</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="text-right">
-                  <div className="font-semibold text-foreground text-sm">
-                    {formatCurrency(province.total_revenue)}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {formatCurrency(province.avg_order_value)} متوسط
-                  </div>
-                </div>
+        </div>
+
+        {/* المحتوى */}
+        <div className="h-80">
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center h-full space-y-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent"></div>
+              <p className="text-sm text-muted-foreground font-medium">جاري تحميل بيانات الولايات...</p>
+            </div>
+          ) : error ? (
+            <div className={cn(
+              "flex flex-col items-center justify-center h-full space-y-4 text-center",
+              "bg-gradient-to-br from-muted/30 to-muted/20 border border-border/20 rounded-xl p-6"
+            )}>
+              <div className="p-3 rounded-xl bg-gradient-to-br from-red-100 to-red-50 dark:from-red-900/20 dark:to-red-800/10 border border-red-200/50 dark:border-red-700/30">
+                <Package className="h-6 w-6 text-red-600 dark:text-red-400" />
               </div>
-            ))}
-          </div>
-        )}
+              <p className="text-destructive text-sm font-medium">{error}</p>
+            </div>
+          ) : provinceData.length === 0 ? (
+            <div className={cn(
+              "flex flex-col items-center justify-center h-full space-y-4 text-center",
+              "bg-gradient-to-br from-muted/30 to-muted/20 border border-border/20 rounded-xl p-6"
+            )}>
+              <div className="p-3 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 border border-primary/20">
+                <MapPin className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <p className="font-semibold bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
+                  لا توجد بيانات طلبات حسب الولايات
+                </p>
+                <p className="text-sm text-muted-foreground mt-1 font-medium">
+                  ستظهر البيانات هنا بمجرد وجود طلبات
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {provinceData.map((province, index) => (
+                <div 
+                  key={province.province_id} 
+                  className={cn(
+                    "flex items-center justify-between p-4 rounded-xl transition-all duration-300 group",
+                    "bg-gradient-to-br from-background/60 to-background/40 backdrop-blur-sm border border-border/30",
+                    "hover:shadow-md hover:scale-[1.02] cursor-pointer"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "w-10 h-10 flex items-center justify-center rounded-xl border transition-all duration-300 group-hover:scale-110",
+                      "bg-gradient-to-br", getRankColor(index)
+                    )}>
+                      {getRankIcon(index)}
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-semibold text-foreground text-sm group-hover:text-primary transition-colors duration-300">
+                        {province.province_name}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                        <div className="flex items-center gap-1">
+                          <Package className="h-3 w-3" />
+                          <span className="font-medium">{province.order_count} طلب</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <TrendingUp className="h-3 w-3" />
+                          <span className="font-medium">{formatCurrency(province.avg_order_value)} متوسط</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="text-right">
+                    <div className="font-bold text-foreground text-sm bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
+                      {formatCurrency(province.total_revenue)}
+                    </div>
+                    <div className="text-xs text-muted-foreground font-medium">
+                      إجمالي الإيرادات
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

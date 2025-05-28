@@ -13,6 +13,7 @@ import ProtectedRoute from "./components/auth/ProtectedRoute";
 import SuperAdminRoute from "./components/auth/SuperAdminRoute";
 import SubscriptionCheck from "./components/subscription/SubscriptionCheck";
 import { SupabaseProvider } from "./context/SupabaseContext";
+import SessionMonitor from "./components/SessionMonitor";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import POS from "./pages/POS";
@@ -33,6 +34,7 @@ import Categories from "@/pages/dashboard/Categories";
 import Services from "@/pages/dashboard/Services";
 import Sales from '@/pages/dashboard/Sales';
 import Orders from '@/pages/dashboard/Orders';
+import POSOrders from '@/pages/POSOrders';
 import Expenses from '@/pages/dashboard/Expenses';
 import Analytics from '@/pages/dashboard/Analytics';
 import ServiceTrackingPage from './pages/ServiceTrackingPage';
@@ -342,6 +344,7 @@ const App = () => {
       <TooltipProvider>
         <TabFocusHandler>
           <SupabaseProvider>
+            <SessionMonitor showLoadingMessage={true} />
             <ShopProvider>
               <HelmetProvider>
                 <Toaster />
@@ -480,6 +483,13 @@ const App = () => {
                         <SubscriptionCheck>
                           <PermissionGuard requiredPermissions={['viewOrders']}>
                             <AbandonedOrders />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/pos-orders" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['accessPOS']}>
+                            <POSOrders />
                           </PermissionGuard>
                         </SubscriptionCheck>
                       } />

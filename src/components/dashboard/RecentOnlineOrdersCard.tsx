@@ -1,10 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Order } from '@/types';
 import { 
   ArrowRight, 
-  ShoppingBag, 
+  Globe, 
   Clock, 
   User, 
   Phone, 
@@ -20,12 +19,41 @@ import {
   XCircle,
   RefreshCw,
   Truck,
-  MapPin
+  MapPin,
+  ShoppingCart,
+  Monitor
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/lib/supabase-client';
 
-interface RecentOrdersCardProps {
-  orders: Order[];
+// نوع بيانات الطلب الأونلاين
+interface OnlineOrder {
+  id: string;
+  customer_order_number: number;
+  customer_name?: string;
+  customer_phone?: string;
+  customer_email?: string;
+  total: number;
+  status: string;
+  payment_status: string;
+  payment_method?: string;
+  shipping_cost?: number;
+  notes?: string;
+  created_at: string;
+  items?: OnlineOrderItem[];
+  metadata?: any;
+}
+
+interface OnlineOrderItem {
+  id: string;
+  order_id: string;
+  product_name: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+}
+
+interface RecentOnlineOrdersCardProps {
   limit?: number;
 }
 
@@ -135,8 +163,8 @@ const getPaymentStatusText = (status: string) => {
   }
 };
 
-// مكون مفرد للطلب الواحد لتحسين الأداء
-const OrderItem = React.memo(({ order, index }: { order: Order; index: number }) => {
+// مكون مفرد للطلب الأونلاين الواحد
+const OnlineOrderItem = React.memo(({ order, index }: { order: OnlineOrder; index: number }) => {
   const StatusIcon = getStatusIcon(order.status);
 
   return (
@@ -152,10 +180,18 @@ const OrderItem = React.memo(({ order, index }: { order: Order; index: number })
       }}
     >
       {/* التأثير المتدرج في الخلفية */}
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-green-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+      
+      {/* شارة الطلب الأونلاين */}
+      <div className="absolute top-3 left-3 z-20">
+        <div className="flex items-center gap-1.5 bg-gradient-to-r from-blue-100 to-blue-50 dark:from-blue-900/30 dark:to-blue-800/20 px-2.5 py-1 rounded-full border border-blue-200/50 dark:border-blue-700/30">
+          <Globe className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+          <span className="text-xs font-bold text-blue-600 dark:text-blue-400">أونلاين</span>
+        </div>
+      </div>
       
       {/* معلومات الطلب الأساسية */}
-      <div className="relative z-10 flex items-center justify-between mb-4">
+      <div className="relative z-10 flex items-center justify-between mb-4 mt-2">
         <div className="flex items-center gap-4">
           <div className={cn(
             "relative flex items-center justify-center h-14 w-14 rounded-2xl border-2 transition-all duration-500",
@@ -169,24 +205,24 @@ const OrderItem = React.memo(({ order, index }: { order: Order; index: number })
           <div>
             <div className="flex items-center gap-3 mb-1">
               <h4 className="text-base font-bold group-hover:text-primary transition-colors duration-300">
-                طلب #{order.id.slice(-6)}
+                طلب #{order.customer_order_number}
               </h4>
               <div className={cn(
                 "px-3 py-1 rounded-full text-xs font-bold border",
-                getPaymentStatusColor(order.paymentStatus)
+                getPaymentStatusColor(order.payment_status)
               )}>
-                {getPaymentStatusText(order.paymentStatus)}
+                {getPaymentStatusText(order.payment_status)}
               </div>
             </div>
             
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
               <div className="flex items-center gap-1.5 bg-muted/50 px-2 py-1 rounded-lg">
                 <Calendar className="h-3 w-3" />
-                <span className="font-medium">{formatDate(order.createdAt)}</span>
+                <span className="font-medium">{formatDate(order.created_at)}</span>
               </div>
               <div className="flex items-center gap-1.5 bg-muted/50 px-2 py-1 rounded-lg">
                 <Clock className="h-3 w-3" />
-                <span className="font-medium">{formatTime(order.createdAt)}</span>
+                <span className="font-medium">{formatTime(order.created_at)}</span>
               </div>
             </div>
           </div>
@@ -197,8 +233,8 @@ const OrderItem = React.memo(({ order, index }: { order: Order; index: number })
             {formatCurrency(order.total)}
           </div>
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground justify-end">
-            <span className="font-medium">{order.items.length} منتج</span>
-            <Package className="h-3 w-3" />
+            <span className="font-medium">{order.items?.length || 0} منتج</span>
+            <ShoppingCart className="h-3 w-3" />
           </div>
         </div>
       </div>
@@ -206,21 +242,32 @@ const OrderItem = React.memo(({ order, index }: { order: Order; index: number })
       {/* معلومات العميل وحالة الطلب */}
       <div className="relative z-10 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 bg-muted/50 px-3 py-1.5 rounded-xl">
-            <User className="h-3.5 w-3.5 text-primary/70" />
-            <span className="text-xs font-medium text-muted-foreground">
-              عميل #{order.customerId.slice(-4)}
-            </span>
-          </div>
+          {order.customer_name && (
+            <div className="flex items-center gap-2 bg-muted/50 px-3 py-1.5 rounded-xl">
+              <User className="h-3.5 w-3.5 text-primary/70" />
+              <span className="text-xs font-medium text-muted-foreground">
+                {order.customer_name}
+              </span>
+            </div>
+          )}
+
+          {order.customer_phone && (
+            <div className="flex items-center gap-2 bg-muted/50 px-3 py-1.5 rounded-xl">
+              <Phone className="h-3.5 w-3.5 text-primary/70" />
+              <span className="text-xs font-medium text-muted-foreground">
+                {order.customer_phone}
+              </span>
+            </div>
+          )}
           
-          {order.paymentMethod && (
+          {order.payment_method && (
             <div className="flex items-center gap-2 bg-muted/50 px-3 py-1.5 rounded-xl">
               <CreditCard className="h-3.5 w-3.5 text-primary/70" />
               <span className="text-xs font-medium text-muted-foreground">
-                {order.paymentMethod === 'cash' ? 'نقداً' : 
-                 order.paymentMethod === 'card' ? 'بطاقة' : 
-                 order.paymentMethod === 'bank_transfer' ? 'تحويل بنكي' : 
-                 order.paymentMethod}
+                {order.payment_method === 'cash' ? 'نقداً' : 
+                 order.payment_method === 'card' ? 'بطاقة' : 
+                 order.payment_method === 'bank_transfer' ? 'تحويل بنكي' : 
+                 order.payment_method}
               </span>
             </div>
           )}
@@ -244,15 +291,15 @@ const OrderItem = React.memo(({ order, index }: { order: Order; index: number })
           
           <div className="flex items-center gap-2">
             <Link 
-              to={`/dashboard/orders/${order.id}`}
+              to={`/dashboard/online-orders/${order.id}`}
               className={cn(
-                "group/btn p-2.5 rounded-xl bg-gradient-to-br from-primary/15 to-primary/5 border border-primary/25",
-                "hover:bg-gradient-to-br hover:from-primary/25 hover:to-primary/15 hover:border-primary/40",
-                "text-primary transition-all duration-300 hover:scale-110 hover:shadow-lg hover:shadow-primary/20",
+                "group/btn p-2.5 rounded-xl bg-gradient-to-br from-blue-500/15 to-blue-500/5 border border-blue-500/25",
+                "hover:bg-gradient-to-br hover:from-blue-500/25 hover:to-blue-500/15 hover:border-blue-500/40",
+                "text-blue-600 dark:text-blue-400 transition-all duration-300 hover:scale-110 hover:shadow-lg hover:shadow-blue-500/20",
                 "relative overflow-hidden"
               )}
             >
-              <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300" />
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-transparent opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300" />
               <Eye className="relative z-10 h-4 w-4" />
             </Link>
             
@@ -266,41 +313,113 @@ const OrderItem = React.memo(({ order, index }: { order: Order; index: number })
           </div>
         </div>
       </div>
+
+      {/* شريط الشحن إذا كان متوفراً */}
+      {order.shipping_cost && order.shipping_cost > 0 && (
+        <div className="relative z-10 mt-4 pt-4 border-t border-border/30">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 bg-orange-100/50 dark:bg-orange-900/20 px-3 py-1.5 rounded-xl">
+              <Truck className="h-3.5 w-3.5 text-orange-600 dark:text-orange-400" />
+              <span className="text-xs font-medium text-orange-600 dark:text-orange-400">
+                رسوم الشحن
+              </span>
+            </div>
+            <span className="text-sm font-bold text-orange-600 dark:text-orange-400">
+              {formatCurrency(order.shipping_cost)}
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 });
 
-OrderItem.displayName = 'OrderItem';
+OnlineOrderItem.displayName = 'OnlineOrderItem';
 
-const RecentOrdersCard = React.memo(({ orders, limit = 5 }: RecentOrdersCardProps) => {
-  // تحديد الطلبات المعروضة مع تحسين الأداء
-  const displayedOrders = React.useMemo(() => orders.slice(0, limit), [orders, limit]);
+const RecentOnlineOrdersCard = React.memo(({ limit = 5 }: RecentOnlineOrdersCardProps) => {
+  const [orders, setOrders] = React.useState<OnlineOrder[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+
+  // جلب الطلبات الأونلاين الحديثة
+  React.useEffect(() => {
+    const fetchRecentOnlineOrders = async () => {
+      try {
+        setLoading(true);
+        
+        // جلب الطلبات الأونلاين مع العناصر
+        const { data: ordersData, error: ordersError } = await supabase
+          .from('online_orders')
+          .select(`
+            *,
+            items:online_order_items(*)
+          `)
+          .order('created_at', { ascending: false })
+          .limit(limit);
+
+        if (ordersError) {
+          throw ordersError;
+        }
+
+        setOrders(ordersData || []);
+      } catch (err) {
+        console.error('خطأ في جلب الطلبات الأونلاين:', err);
+        setError('فشل في جلب الطلبات الأونلاين');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRecentOnlineOrders();
+  }, [limit]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <p className="text-sm text-muted-foreground">جاري تحميل الطلبات الأونلاين...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center space-y-2">
+          <AlertCircle className="h-8 w-8 text-red-500 mx-auto" />
+          <p className="text-sm text-red-600">{error}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full">
-      {displayedOrders.length === 0 ? (
+      {orders.length === 0 ? (
         <div className={cn(
           "relative flex flex-col items-center justify-center h-full py-12 text-center space-y-6 rounded-2xl overflow-hidden",
           "bg-gradient-to-br from-muted/40 to-muted/20 border border-border/30"
         )}>
           {/* الخلفية المتحركة */}
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5 animate-pulse" />
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-green-500/5 animate-pulse" />
           
           <div className="relative z-10 flex flex-col items-center space-y-4">
             <div className={cn(
-              "relative p-4 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/10 border border-primary/30",
+              "relative p-4 rounded-2xl bg-gradient-to-br from-blue-500/20 to-blue-500/10 border border-blue-500/30",
               "shadow-lg backdrop-blur-sm"
             )}>
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent rounded-2xl animate-pulse" />
-              <ShoppingBag className="relative z-10 h-8 w-8 text-primary" />
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-transparent rounded-2xl animate-pulse" />
+              <Monitor className="relative z-10 h-8 w-8 text-blue-600" />
             </div>
             
             <div className="space-y-2">
               <h3 className="text-lg font-bold bg-gradient-to-r from-foreground via-foreground/90 to-foreground/80 bg-clip-text text-transparent">
-                لا توجد طلبات حديثة
+                لا توجد طلبات أونلاين حديثة
               </h3>
               <p className="text-sm text-muted-foreground font-medium max-w-xs">
-                ستظهر الطلبات الجديدة هنا بمجرد إنشائها من العملاء
+                ستظهر الطلبات الأونلاين الجديدة هنا بمجرد إنشائها من العملاء عبر المتجر الإلكتروني
               </p>
             </div>
             
@@ -308,16 +427,16 @@ const RecentOrdersCard = React.memo(({ orders, limit = 5 }: RecentOrdersCardProp
               asChild 
               variant="outline" 
               className={cn(
-                "mt-6 bg-gradient-to-br from-primary/15 to-primary/5 border-primary/30",
-                "hover:bg-gradient-to-br hover:from-primary/25 hover:to-primary/15 hover:border-primary/40",
-                "text-primary font-semibold transition-all duration-300 hover:scale-105 hover:shadow-md",
+                "mt-6 bg-gradient-to-br from-blue-500/15 to-blue-500/5 border-blue-500/30",
+                "hover:bg-gradient-to-br hover:from-blue-500/25 hover:to-blue-500/15 hover:border-blue-500/40",
+                "text-blue-600 font-semibold transition-all duration-300 hover:scale-105 hover:shadow-md",
                 "relative overflow-hidden group"
               )}
             >
-              <Link to="/dashboard/orders" className="flex items-center gap-2 relative z-10">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                <ShoppingBag className="h-4 w-4" />
-                عرض جميع الطلبات
+              <Link to="/dashboard/online-orders" className="flex items-center gap-2 relative z-10">
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <Monitor className="h-4 w-4" />
+                عرض جميع الطلبات الأونلاين
                 <TrendingUp className="h-4 w-4 opacity-60" />
               </Link>
             </Button>
@@ -325,32 +444,32 @@ const RecentOrdersCard = React.memo(({ orders, limit = 5 }: RecentOrdersCardProp
         </div>
       ) : (
         <div className="space-y-4">
-          {displayedOrders.map((order, index) => (
-            <OrderItem key={order.id} order={order} index={index} />
+          {orders.map((order, index) => (
+            <OnlineOrderItem key={order.id} order={order} index={index} />
           ))}
           
-          {/* زر عرض جميع الطلبات */}
+          {/* زر عرض جميع الطلبات الأونلاين */}
           <div className="pt-4">
             <Button 
               asChild 
               variant="outline" 
               className={cn(
-                "w-full h-12 bg-gradient-to-br from-primary/15 to-primary/5 border-primary/30",
-                "hover:bg-gradient-to-br hover:from-primary/25 hover:to-primary/15 hover:border-primary/40",
-                "text-primary font-bold transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-primary/20",
+                "w-full h-12 bg-gradient-to-br from-blue-500/15 to-blue-500/5 border-blue-500/30",
+                "hover:bg-gradient-to-br hover:from-blue-500/25 hover:to-blue-500/15 hover:border-blue-500/40",
+                "text-blue-600 font-bold transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-blue-500/20",
                 "relative overflow-hidden group"
               )}
             >
-              <Link to="/dashboard/orders" className="flex items-center justify-center gap-3 relative z-10">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+              <Link to="/dashboard/online-orders" className="flex items-center justify-center gap-3 relative z-10">
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                 
                 <div className="flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4" />
-                  <span className="text-sm">عرض جميع الطلبات</span>
+                  <Monitor className="h-4 w-4" />
+                  <span className="text-sm">عرض جميع الطلبات الأونلاين</span>
                 </div>
                 
                 <div className="flex items-center gap-2">
-                  <div className="bg-primary/20 border border-primary/30 px-2.5 py-1 rounded-full">
+                  <div className="bg-blue-500/20 border border-blue-500/30 px-2.5 py-1 rounded-full">
                     <span className="text-xs font-bold">{orders.length}</span>
                   </div>
                   <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
@@ -364,6 +483,6 @@ const RecentOrdersCard = React.memo(({ orders, limit = 5 }: RecentOrdersCardProp
   );
 });
 
-RecentOrdersCard.displayName = 'RecentOrdersCard';
+RecentOnlineOrdersCard.displayName = 'RecentOnlineOrdersCard';
 
-export default RecentOrdersCard;
+export default RecentOnlineOrdersCard;

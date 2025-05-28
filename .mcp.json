@@ -8,12 +8,6 @@
         "--access-token",
         "sbp_c0eee2197d17729ac43e56eea84cb9690cb54e04"
       ]
-    },
-    "Sentry": {
-      "command": "npx",
-      "args": ["mcp-remote@latest", "https://mcp.sentry.dev/sse"],
-      "enabled": true,
-      "description": "Sentry MCP Server for error tracking and debugging"
     }
   }
 }

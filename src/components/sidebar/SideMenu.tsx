@@ -342,6 +342,13 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
           badge: 'جديد'
         },
         {
+          title: 'طلبيات نقطة البيع',
+          icon: Store,
+          href: '/dashboard/pos-orders',
+          requiredPermission: 'accessPOS',
+          badge: null
+        },
+        {
           title: 'المبيعات',
           icon: DollarSign,
           href: '/dashboard/sales',

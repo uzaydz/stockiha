@@ -39,8 +39,12 @@ export async function fetchWithAuth(url: string, options: FetchOptions = {}): Pr
       headers.set('Content-Type', 'application/json');
     }
     
-    // إضافة رؤوس لتجنب أخطاء CORS و 406
-    headers.set('Accept', 'application/json');
+    // إضافة رؤوس محسنة لتجنب أخطاء CORS و 406
+    headers.set('Accept', 'application/json, text/plain, */*');
+    headers.set('Accept-Language', 'ar,en;q=0.9');
+    headers.set('Accept-Encoding', 'gzip, deflate, br');
+    headers.set('Cache-Control', 'no-cache');
+    headers.set('Pragma', 'no-cache');
     
     // إضافة رؤوس أخرى ضرورية لطلبات Supabase
     if (url.includes('supabase.co')) {
@@ -52,16 +56,26 @@ export async function fetchWithAuth(url: string, options: FetchOptions = {}): Pr
         headers.set('ApiKey', supabaseAnonKey);
       }
       
+      // إضافة رؤوس Supabase المطلوبة
+      headers.set('X-Client-Info', 'bazaar-console-connect/1.0.0');
+      headers.set('Prefer', 'return=representation');
+      
       // إضافة Origin و Referer لتجنب مشاكل CORS
       if (!headers.has('Origin')) {
-        headers.set('Origin', supabaseUrl);
+        headers.set('Origin', window.location.origin);
+      }
+      
+      if (!headers.has('Referer')) {
+        headers.set('Referer', window.location.href);
       }
     }
     
     // دمج الإعدادات
     const fetchOptions: RequestInit = {
       ...options,
-      headers
+      headers,
+      credentials: 'include', // إضافة credentials للطلبات المتقاطعة
+      mode: 'cors' // تأكيد وضع CORS
     };
 
     // إنشاء وعد مع مهلة
@@ -73,7 +87,7 @@ export async function fetchWithAuth(url: string, options: FetchOptions = {}): Pr
     const fetchPromise = fetch(url, fetchOptions);
 
     // استخدام Promise.race للتنافس بين الطلب والمهلة
-    const response = await Promise.race([fetchPromise, timeoutPromise]);
+    let response = await Promise.race([fetchPromise, timeoutPromise]);
     
     // التعامل مع خطأ 401 (غير مصرح)
     if (response.status === 401) {
@@ -88,22 +102,54 @@ export async function fetchWithAuth(url: string, options: FetchOptions = {}): Pr
     if (!response.ok) {
       // معالجة خاصة لأخطاء 406
       if (response.status === 406) {
+        console.warn('خطأ 406 - محاولة إعادة الطلب مع رؤوس مختلفة');
         
-        // محاولة إعادة الطلب مع رؤوس مختلفة
-        const retryHeaders = new Headers(headers);
+        // محاولة إعادة الطلب مع رؤوس مبسطة
+        const retryHeaders = new Headers();
+        retryHeaders.set('Authorization', `Bearer ${session.access_token}`);
         retryHeaders.set('Accept', '*/*');
+        retryHeaders.set('Content-Type', 'application/json');
         
-        const retryResponse = await fetch(url, {
-          ...options,
-          headers: retryHeaders
-        });
-        
-        if (retryResponse.ok) {
-          return retryResponse;
+        if (url.includes('supabase.co')) {
+          const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+          if (supabaseAnonKey) {
+            retryHeaders.set('ApiKey', supabaseAnonKey);
+          }
         }
         
-        // إذا فشلت المحاولة الثانية، نرجع خطأ 406
-        throw new Error(`رمز الخطأ: ${response.status} - المحتوى غير مقبول. تأكد من تنسيق البيانات.`);
+        try {
+          const retryResponse = await fetch(url, {
+            ...options,
+            headers: retryHeaders,
+            credentials: 'include',
+            mode: 'cors'
+          });
+          
+          if (retryResponse.ok) {
+            console.log('نجحت المحاولة الثانية للطلب');
+            return retryResponse;
+          }
+          
+          // إذا فشلت المحاولة الثانية، جرب بدون رؤوس إضافية
+          const simpleRetryResponse = await fetch(url, {
+            method: options.method || 'GET',
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`,
+              'Accept': 'application/json'
+            }
+          });
+          
+          if (simpleRetryResponse.ok) {
+            console.log('نجحت المحاولة الثالثة المبسطة للطلب');
+            return simpleRetryResponse;
+          }
+          
+        } catch (retryError) {
+          console.error('فشلت محاولات إعادة الطلب:', retryError);
+        }
+        
+        // إذا فشلت جميع المحاولات، نرجع خطأ 406
+        throw new Error(`خطأ 406 - المحتوى غير مقبول. تأكد من تنسيق البيانات والرؤوس المطلوبة.`);
       }
       
       // رمي خطأ للحالات الأخرى
@@ -115,7 +161,7 @@ export async function fetchWithAuth(url: string, options: FetchOptions = {}): Pr
     // معالجة الأخطاء المختلفة
     if (error instanceof Error) {
       if (error.message === 'NETWORK_OFFLINE') {
-        
+        console.warn('التطبيق في وضع عدم الاتصال');
         // إنشاء استجابة وهمية لحالة عدم الاتصال
         return new Response(
           JSON.stringify({ 
@@ -130,7 +176,7 @@ export async function fetchWithAuth(url: string, options: FetchOptions = {}): Pr
       }
       
       if (error.message === 'REQUEST_TIMEOUT') {
-        
+        console.warn('انتهت مهلة الطلب');
         // إنشاء استجابة لحالة انتهاء المهلة
         return new Response(
           JSON.stringify({ 

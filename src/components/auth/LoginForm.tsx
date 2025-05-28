@@ -104,6 +104,33 @@ const LoginForm = () => {
       const twoFactorCheck = await checkUserRequires2FA(email, organizationId, domain, subdomain);
       
       if (!twoFactorCheck.userExists) {
+        // إذا لم يجد المستخدم مع organizationId، جرب بدون organizationId
+        if (organizationId) {
+          const retryCheck = await checkUserRequires2FA(email, undefined, domain, subdomain);
+          
+          if (retryCheck.userExists) {
+            // المستخدم موجود بدون organizationId، امسح القيمة الخاطئة من localStorage
+            localStorage.removeItem('bazaar_organization_id');
+            
+            // استخدم النتيجة الجديدة
+            if (retryCheck.requires2FA) {
+              setTwoFactorData({
+                userId: retryCheck.userId!,
+                userName: retryCheck.userName || 'المستخدم',
+                email: email
+              });
+              setPendingCredentials({ email, password });
+              setShow2FA(true);
+              setIsLoading(false);
+              return;
+            }
+            
+            // متابعة تسجيل الدخول العادي
+            await proceedWithLogin(email, password);
+            return;
+          }
+        }
+        
         toast.error('المستخدم غير موجود');
         setIsLoading(false);
         return;
