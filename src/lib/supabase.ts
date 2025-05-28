@@ -158,7 +158,6 @@ const options = {
     headers: {
       'X-Client-Info': 'bazaar-console-connect',
       'Accept': 'application/json, application/vnd.pgrst.object+json',
-      'Content-Type': 'application/json',
       'Prefer': 'return=representation'
     }
   },

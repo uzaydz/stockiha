@@ -15,8 +15,8 @@ applyInstantTheme();
 
 // تهيئة معالج أخطاء 406 فوراً
 if (typeof window !== 'undefined') {
-  initializeHttp406Handler();
-  console.log('🚀 تم تهيئة معالج أخطاء HTTP 406 المحسن');
+  // initializeHttp406Handler(); // تم التعليق مؤقتاً لتتبع الخطأ الأصلي
+  // console.log('🚀 تم تهيئة معالج أخطاء HTTP 406 المحسن');
 }
 
 // إصلاح createContext وأخرى: تأكد من تحميل React APIs قبل أي شيء آخر
@@ -245,7 +245,8 @@ const browserRouterOptions = {
   // تمكين النسخة المستقبلية من React Router يحسن أداء التنقل
   future: {
     v7_startTransition: true,
-    v7_normalizeFormMethod: true
+    v7_normalizeFormMethod: true,
+    v7_relativeSplatPath: true
   },
   // تخفيف الحمل أثناء التنقل
   basename: '/'
@@ -258,7 +259,7 @@ initializeReact();
 const AppProviders = ({ children }: { children: React.ReactNode }) => {
   return (
     <SentryErrorBoundary>
-      <BrowserRouter>
+      <BrowserRouter future={browserRouterOptions.future}>
         <AuthProvider>
           <TenantProvider>
             <ThemeProvider>
@@ -271,10 +272,22 @@ const AppProviders = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <AppProviders>
-      <App />
-    </AppProviders>
-  </React.StrictMode>
-);
+const rootElement = document.getElementById('root');
+let root = (rootElement as any)?.__reactRootContainer;
+
+if (rootElement && !root) {
+  root = ReactDOM.createRoot(rootElement);
+  (rootElement as any).__reactRootContainer = root;
+}
+
+if (root) {
+  root.render(
+    <React.StrictMode>
+      <AppProviders>
+        <App />
+      </AppProviders>
+    </React.StrictMode>
+  );
+} else {
+  console.error("فشل في العثور على عنصر الـ root أو إنشاءه.");
+}
