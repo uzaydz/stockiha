@@ -123,7 +123,20 @@ export function DomainSettingsCard({
           ? 'النطاق كان مرتبطًا بالفعل! يرجى التحقق من إعدادات DNS الخاصة بك.'
           : 'تم ربط النطاق بنجاح! يرجى إعداد سجلات DNS الخاصة بك.';
 
-        toast.success(successMessage);
+        // إذا كان هناك خطأ CSP، نعرض تعليمات إضافية
+        if (linkResult.data?.cspError && linkResult.data?.instructions) {
+          toast.success(linkResult.data.message);
+          
+          // عرض dialog مع التعليمات التفصيلية
+          setTimeout(() => {
+            const instructionsText = linkResult.data.instructions.join('\n');
+            if (window.confirm(`${linkResult.data.message}\n\n${instructionsText}\n\nهل تريد فتح لوحة تحكم Vercel الآن؟`)) {
+              window.open('https://vercel.com/dashboard', '_blank');
+            }
+          }, 1000);
+        } else {
+          toast.success(successMessage);
+        }
         return linkResult.data.domain;
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'حدث خطأ أثناء إضافة النطاق';

@@ -362,23 +362,34 @@ export async function linkDomainToVercelProject(
         // التحقق من خطأ CSP
         if (axiosError.message?.includes('Content Security Policy') || 
             axiosError.message?.includes('CSP') ||
-            axiosError.code === 'ERR_BLOCKED_BY_CLIENT') {
+            axiosError.code === 'ERR_BLOCKED_BY_CLIENT' ||
+            axiosError.message?.includes('violates the following Content Security Policy directive') ||
+            axiosError.message?.includes('connect-src')) {
           
-          // إرجاع حل بديل للمطور
+          console.warn('CSP Error detected. Using fallback solution for domain setup.');
+          
+          // إرجاع حل بديل للمطور مع تعليمات واضحة للمستخدمين الجدد
           return {
             success: true,
             data: {
               name: domain,
               apexName: domain,
-              message: 'تم إنشاء النطاق محلياً. يرجى إضافة النطاق يدوياً في لوحة تحكم Vercel.',
+              message: 'تم إنشاء النطاق محلياً بنجاح! يرجى إضافة النطاق يدوياً في لوحة تحكم Vercel لإكمال الإعداد.',
               manualSetupRequired: true,
+              cspError: true,
               instructions: [
-                '1. اذهب إلى لوحة تحكم Vercel',
-                '2. اختر مشروعك',
-                '3. اذهب إلى Domains',
-                `4. أضف النطاق: ${domain}`,
-                '5. اتبع التعليمات لإعداد DNS'
-              ]
+                '🌐 خطوات إعداد النطاق في Vercel:',
+                '1. اذهب إلى لوحة تحكم Vercel (vercel.com)',
+                '2. سجل الدخول إلى حسابك',
+                '3. اختر مشروع "stockiha" من القائمة',
+                '4. اذهب إلى تبويب "Domains"',
+                `5. انقر على "Add Domain" وأدخل: ${domain}`,
+                '6. اتبع التعليمات لإعداد DNS',
+                '7. عد إلى هنا واضغط "تحديث الحالة" بعد إعداد DNS',
+                '',
+                '⚠️ ملاحظة: هذا الإجراء مطلوب لأسباب أمنية (CSP)'
+              ],
+              technicalNote: 'تم منع الاتصال المباشر بـ Vercel API بواسطة Content Security Policy'
             }
           };
         }
