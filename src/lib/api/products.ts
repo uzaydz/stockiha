@@ -748,6 +748,9 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
     is_active: true,
   };
 
+  // !!!!! سأضيف console.log هنا !!!!!
+  console.log("بيانات المنتج الأساسية التي يتم إرسالها (productCoreDataToInsert):", JSON.stringify(productCoreDataToInsert, null, 2));
+
   const { data: createdProduct, error: productCreationError } = await supabase
       .from('products')
     .insert(productCoreDataToInsert)
