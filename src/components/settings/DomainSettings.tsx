@@ -339,7 +339,7 @@ const DomainSettings: React.FC = () => {
       setIsSaving(true);
       try {
         // 1. إزالة النطاق من Vercel
-        const result = await removeDomain(organization.id, organization.domain);
+        const result = await removeDomain(organization.domain, organization.id);
         
         if (!result.success) {
           throw new Error(result.error || 'فشل في إزالة النطاق من Vercel');

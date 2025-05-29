@@ -151,7 +151,6 @@ export function DomainSettingsCard({
 
   // وظيفة مساعدة لمسح التخزين المؤقت
   const clearCaches = (orgId: string) => {
-
     // مسح أي تخزين مؤقت للمؤسسة
     if (orgId) {
       localStorage.removeItem(`organization:${orgId}`);
@@ -159,15 +158,21 @@ export function DomainSettingsCard({
       // مسح التخزين المؤقت المتعلق بالنطاق والمستأجر
       Object.keys(localStorage).forEach(key => {
         if (key.includes(orgId) || key.includes('tenant:') || key.includes('domain:')) {
-          
           localStorage.removeItem(key);
         }
       });
     }
     
-    // إلغاء تخزين الاستعلامات المؤقتة
-    queryClient.invalidateQueries({ queryKey: ['organization'] });
-    queryClient.invalidateQueries({ queryKey: ['domain'] });
+    // إلغاء تخزين الاستعلامات المؤقتة بشكل محدود - فقط إذا لم تكن قيد التنفيذ
+    const currentQueries = queryClient.getQueriesData({ queryKey: ['organization'] });
+    if (currentQueries.length === 0 || !queryClient.isFetching({ queryKey: ['organization'] })) {
+      queryClient.invalidateQueries({ queryKey: ['organization'] });
+    }
+    
+    // تجنب إبطال استعلامات النطاق إذا كانت قيد التنفيذ
+    if (!queryClient.isFetching({ queryKey: ['domain'] })) {
+      queryClient.invalidateQueries({ queryKey: ['domain'] });
+    }
   };
 
   // التحقق من حالة النطاق
@@ -213,9 +218,12 @@ export function DomainSettingsCard({
       if (!currentDomain) return null;
       
       try {
-        // حذف التخزين المؤقت قبل إزالة النطاق
-        clearCaches(organizationId);
-        
+        // إظهار تأكيد حذف النطاق
+        const confirmed = window.confirm('هل أنت متأكد من أنك تريد حذف النطاق المخصص؟ سيصبح متجرك متاحًا فقط على النطاق الفرعي الافتراضي.');
+        if (!confirmed) {
+          return null;
+        }
+
         // استدعاء API مباشر لإزالة النطاق
         const result = await removeDomain(currentDomain, organizationId);
 
@@ -223,23 +231,39 @@ export function DomainSettingsCard({
           throw new Error(result.error || 'فشل في إزالة النطاق');
         }
 
+        // إعادة تعيين النطاق المحلي أولاً
+        setDomain('');
+        
         // استدعاء onDomainUpdate إذا كان موجودًا
         if (onDomainUpdate) {
           onDomainUpdate(null);
         }
 
-        // إعادة تعيين النطاق المحلي
-        setDomain('');
+        // حذف التخزين المؤقت بعد العملية الناجحة فقط
+        if (organizationId) {
+          localStorage.removeItem(`organization:${organizationId}`);
+          
+          // مسح التخزين المؤقت المتعلق بالنطاق والمستأجر
+          Object.keys(localStorage).forEach(key => {
+            if (key.includes(organizationId) || key.includes('tenant:') || key.includes('domain:')) {
+              localStorage.removeItem(key);
+            }
+          });
+        }
         
-        // المزيد من تنظيف التخزين المؤقت بعد إزالة النطاق
-        clearCaches(organizationId);
-        
-        // إعادة تحميل الصفحة بعد فترة قصيرة لتحديث واجهة المستخدم
-        setTimeout(() => {
-          window.location.reload();
-        }, 500);
+        // إلغاء تخزين الاستعلامات المؤقتة بشكل محدود
+        queryClient.removeQueries({ queryKey: ['organization'] });
+        queryClient.removeQueries({ queryKey: ['domain'] });
         
         toast.success('تم إزالة النطاق بنجاح');
+        
+        // إعادة تحميل الصفحة بعد فترة قصيرة فقط إذا لم يتم استدعاء onDomainUpdate
+        if (!onDomainUpdate) {
+          setTimeout(() => {
+            window.location.reload();
+          }, 1000);
+        }
+        
         return true;
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'حدث خطأ أثناء إزالة النطاق';
@@ -426,7 +450,13 @@ export function DomainSettingsCard({
                 <Button
                   variant="destructive"
                   size="sm"
-                  onClick={() => removeDomainMutation.mutate()}
+                  onClick={() => {
+                    // منع الضغط المتكرر
+                    if (removeDomainMutation.isPending) {
+                      return;
+                    }
+                    removeDomainMutation.mutate();
+                  }}
                   disabled={removeDomainMutation.isPending}
                 >
                   {removeDomainMutation.isPending ? (

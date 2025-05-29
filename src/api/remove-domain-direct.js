@@ -12,6 +12,17 @@ import { removeDomainFromVercelProject } from './domain-verification-api';
 import { getVercelToken, getVercelProjectId, hasVercelConfig } from '@/lib/api/env-config';
 
 export async function removeDomain(domain, organizationId) {
+  // حماية من الاستدعاءات المتكررة
+  const pendingKey = `removeDomain_${domain}_${organizationId}`;
+  if (window[pendingKey]) {
+    return {
+      success: false,
+      error: 'عملية حذف النطاق قيد التنفيذ بالفعل'
+    };
+  }
+  
+  window[pendingKey] = true;
+  
   try {
     if (!domain || !organizationId) {
       return {
@@ -109,5 +120,8 @@ export async function removeDomain(domain, organizationId) {
       success: false,
       error: error instanceof Error ? error.message : 'حدث خطأ غير متوقع'
     };
+  } finally {
+    // مسح علامة الانتظار
+    delete window[pendingKey];
   }
 }
