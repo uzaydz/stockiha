@@ -38,14 +38,19 @@ export const getOrganizationId = async (currentUser: any = null): Promise<string
     if (!hostname.includes('localhost')) {
       try {
         const supabase = await getSupabaseClient();
-        const { data: orgData } = await supabase
+        const { data: orgData, error: orgError } = await supabase
           .from('organizations')
           .select('id, domain, subdomain')
           .eq('domain', hostname)
-          .single();
+          .maybeSingle(); // استخدام maybeSingle بدلاً من single لتجنب الأخطاء
+          
+        if (orgError && orgError.code !== 'PGRST116') {
+          // تسجيل الخطأ فقط إذا لم يكن خطأ "لا توجد نتائج"
+          console.warn('خطأ في البحث عن المؤسسة بالنطاق:', orgError);
+        }
           
         if (orgData) {
-          
+          console.log('تم العثور على المؤسسة بالنطاق المخصص:', hostname);
           // تحديث التخزين المحلي بالمعرف الصحيح
           localStorage.setItem('bazaar_organization_id', orgData.id);
           localStorage.setItem('bazaar_current_subdomain', orgData.subdomain);
@@ -53,6 +58,7 @@ export const getOrganizationId = async (currentUser: any = null): Promise<string
           return orgData.id;
         }
       } catch (customDomainError) {
+        console.warn('خطأ في البحث عن المؤسسة بالنطاق المخصص:', customDomainError);
       }
     }
 
@@ -78,7 +84,7 @@ export const getOrganizationId = async (currentUser: any = null): Promise<string
     if (storedOrgId) {
       
       // التحقق من صحة المعرف المخزن
-      const { data: orgExists, error: orgError } = await supabase
+      const { error: orgError } = await supabase
         .from('organizations')
         .select('id')
         .eq('id', storedOrgId)
