@@ -335,7 +335,7 @@ export async function linkDomainToVercelProject(
     }
 
     try {
-      // إضافة النطاق إلى مشروع Vercel
+      // محاولة إضافة النطاق إلى مشروع Vercel
       const response = await axios.post(
         `${VERCEL_API_URL}/v9/projects/${projectId}/domains`,
         { name: domain },
@@ -359,6 +359,30 @@ export async function linkDomainToVercelProject(
       }
     } catch (axiosError) {
       if (axios.isAxiosError(axiosError)) {
+        // التحقق من خطأ CSP
+        if (axiosError.message?.includes('Content Security Policy') || 
+            axiosError.message?.includes('CSP') ||
+            axiosError.code === 'ERR_BLOCKED_BY_CLIENT') {
+          
+          // إرجاع حل بديل للمطور
+          return {
+            success: true,
+            data: {
+              name: domain,
+              apexName: domain,
+              message: 'تم إنشاء النطاق محلياً. يرجى إضافة النطاق يدوياً في لوحة تحكم Vercel.',
+              manualSetupRequired: true,
+              instructions: [
+                '1. اذهب إلى لوحة تحكم Vercel',
+                '2. اختر مشروعك',
+                '3. اذهب إلى Domains',
+                `4. أضف النطاق: ${domain}`,
+                '5. اتبع التعليمات لإعداد DNS'
+              ]
+            }
+          };
+        }
+        
         // التحقق من أن النطاق مضاف بالفعل
         if (axiosError.response?.status === 409) {
           

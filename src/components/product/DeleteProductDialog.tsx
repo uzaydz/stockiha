@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { deleteProduct, disableProduct } from '@/lib/api/products';
+import { deleteProductEnhanced } from '@/lib/api/products-enhanced-safe';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -148,25 +149,50 @@ const DeleteProductDialog = ({ product, open, onOpenChange, onProductDeleted }: 
     
     setIsDeleting(true);
     try {
-      await deleteProduct(product.id);
-      toast.success(`تم حذف المنتج "${product.name}" بنجاح`);
-      onOpenChange(false);
-      await onProductDeleted();
-    } catch (error: any) {
+      // استخدام الدالة المحسنة للحصول على تشخيص أفضل
+      const result = await deleteProductEnhanced(product.id);
       
-      if (error.code === 'PRODUCT_IN_USE') {
-        setShowDisableOption(true);
-        toast.error(error.message || 'لا يمكن حذف المنتج لأنه مستخدم في طلبات سابقة');
-      } else if (error.code === '23503') {
-        setShowDisableOption(true);
-        toast.error('لا يمكن حذف المنتج لأنه مستخدم في طلبات سابقة. يمكنك تعطيل المنتج بدلاً من حذفه.');
-      } else if (error.code === 'PGRST301') {
-        // خطأ صلاحيات قاعدة البيانات
-        
-        setShowPermissionAlert(true);
+      if (result.success) {
+        toast.success(`تم حذف المنتج "${product.name}" بنجاح`);
+        onOpenChange(false);
+        await onProductDeleted();
       } else {
-        toast.error('حدث خطأ أثناء حذف المنتج');
+        // معالجة الأخطاء بناءً على الكود
+        console.error('Delete failed:', result.error);
+        
+        switch (result.error?.code) {
+          case 'PRODUCT_IN_USE':
+            setShowDisableOption(true);
+            toast.error(result.error.message);
+            break;
+            
+          case 'PERMISSION_DENIED':
+            setShowPermissionAlert(true);
+            toast.error(result.error.message);
+            // عرض تفاصيل إضافية في وحدة التحكم للتشخيص
+            if (result.error.details) {
+              console.log('Permission details:', result.error.details);
+            }
+            break;
+            
+          case 'FOREIGN_KEY_VIOLATION':
+            setShowDisableOption(true);
+            toast.error('لا يمكن حذف المنتج لأنه مرتبط ببيانات أخرى. يمكنك تعطيله بدلاً من حذفه.');
+            break;
+            
+          case 'AUTH_REQUIRED':
+            toast.error('يجب تسجيل الدخول لحذف المنتج');
+            break;
+            
+          default:
+            toast.error(result.error?.message || 'حدث خطأ أثناء حذف المنتج');
+            // طباعة تفاصيل الخطأ للتشخيص
+            console.error('Detailed error:', result.error);
+        }
       }
+    } catch (error: any) {
+      console.error('Unexpected error:', error);
+      toast.error('حدث خطأ غير متوقع أثناء حذف المنتج');
     } finally {
       setIsDeleting(false);
     }
