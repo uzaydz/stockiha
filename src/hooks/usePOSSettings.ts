@@ -70,12 +70,16 @@ export function usePOSSettings({ organizationId }: UsePOSSettingsProps): UsePOSS
       setError(null);
 
       // محاولة جلب الإعدادات عبر RPC function أولاً (لتجنب مشاكل RLS)
-      const { data: rpcData, error: rpcError } = await supabase
-        .rpc('get_pos_settings', { p_organization_id: organizationId });
+      try {
+        const { data: rpcData, error: rpcError } = await supabase
+          .rpc('get_pos_settings', { p_organization_id: organizationId });
 
-      if (!rpcError && rpcData && rpcData.length > 0) {
-        setSettings(rpcData[0]);
-        return;
+        if (!rpcError && rpcData && rpcData.length > 0) {
+          setSettings(rpcData[0]);
+          return;
+        }
+      } catch (rpcErr) {
+        // صامت - سنجرب الطريقة البديلة
       }
 
       // إذا فشل RPC، جرب الجدول مباشرة

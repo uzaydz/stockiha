@@ -1,9 +1,8 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { persistQueryClient } from '@tanstack/react-query-persist-client';
-import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
+import { QueryClientProvider } from "@tanstack/react-query";
+import queryClient from "./lib/config/queryClient";
 import { Routes, Route, useLocation, useParams, Navigate } from "react-router-dom";
 import { useEffect, useState } from 'react';
 import { syncCategoriesDataOnStartup } from '@/lib/api/categories';
@@ -121,75 +120,24 @@ if (typeof window !== 'undefined') {
   }
 }
 
-// تكوين QueryClient مع خيارات مناسبة للبيئة (Electron أو متصفح)
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      // تعطيل التحديث التلقائي في المتصفح وتفعيله فقط في Electron
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: isRunningInElectron,
-      refetchOnMount: isRunningInElectron,
-      // جعل فترة طزاجة البيانات قصيرة في Electron ولا نهائية في المتصفح
-      staleTime: isRunningInElectron ? 1000 * 60 * 5 : Infinity,
-      // الحفاظ على التخزين المؤقت لفترة طويلة
-      gcTime: 1000 * 60 * 240,     // الاحتفاظ بالبيانات المخزنة مؤقتًا لمدة 4 ساعات
-      retry: 1,                    // عدد محاولات إعادة المحاولة عند فشل الطلب
-      retryDelay: 3000,            // تأخير 3 ثوانٍ بين المحاولات
-      // تعطيل إعادة المحاولة عند التركيب في المتصفح وتفعيلها في Electron
-      retryOnMount: isRunningInElectron,
-      structuralSharing: true,     // مشاركة البنية للحفاظ على مراجع الكائنات
-    },
-    mutations: {
-      retry: 1,                    // عدد محاولات إعادة المحاولة للطلبات الكتابية
-      retryDelay: 3000,            // تأخير 3 ثوانٍ بين المحاولات
-    }
-  },
-});
+// استخدام queryClient المحسن من الملف المنفصل
+// يتم التحكم في الإعدادات من src/lib/config/queryClient.ts
 
-// إعداد تخزين حالة الاستعلامات بين تبديل علامات التبويب
-if (typeof window !== 'undefined') {
-  const localStoragePersister = createSyncStoragePersister({
-    storage: window.localStorage,
-    key: 'BAZAAR_REACT_QUERY_CACHE',
-    throttleTime: 1000, // الوقت بين عمليات الحفظ
-  });
-
-  persistQueryClient({
-    queryClient,
-    persister: localStoragePersister,
-    maxAge: 1000 * 60 * 60 * 72, // حفظ البيانات لمدة 3 أيام (72 ساعة)
-    buster: import.meta.env.VITE_APP_VERSION || '1.0.0',
-    // hydrateOptions: {
-    //   // استخدام البيانات المخزنة مؤقتًا مباشرة دون التحقق من صحتها أو إعادة تحميلها
-    //   defaultOptions: {
-    //     queries: {
-    //       // استخدام البيانات المخزنة مباشرة
-    //       staleTime: Infinity,
-    //     },
-    //   },
-    // },
-    dehydrateOptions: {
-      shouldDehydrateQuery: (query) => {
-        // حفظ جميع الاستعلامات في التخزين المحلي
-        return true;
-      },
-    },
-  });
-}
+// التخزين المؤقت تتم إدارته في src/lib/config/queryClient.ts
 
 // إضافة مستمع لكشف محاولات إعادة التحميل التلقائية وتجاهلها عند تبديل النوافذ
 if (typeof window !== 'undefined') {
   (window as any).__REACT_QUERY_GLOBAL_CLIENT = queryClient;
 
-  // ضبط إعدادات ReactQuery لمنع التحديث التلقائي في المتصفح
+  // إعدادات إضافية بناءً على البيئة
   if (!isRunningInElectron) {
-    
+    // تعطيل إضافي للتحديث التلقائي في المتصفح
     queryClient.setDefaultOptions({
       queries: {
+        ...queryClient.getDefaultOptions().queries,
         refetchOnWindowFocus: false,
         refetchOnMount: false,
         refetchOnReconnect: false,
-        staleTime: Infinity,
       }
     });
   }

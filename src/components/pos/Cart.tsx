@@ -314,7 +314,8 @@ export default function Cart({
       }
       
       const numAmountPaid = parseFloat(amountPaid);
-      const paymentStatus = isPartialPayment ? 'pending' : 'paid';
+      // تحديد حالة الدفع بناءً على المبلغ المدفوع والمجموع الكلي
+      const paymentStatus = numAmountPaid >= total ? 'paid' : (numAmountPaid > 0 ? 'partial' : 'pending');
       
       // تخزين القيم الحالية للمتغيرات المالية قبل إرسال الطلب
       const currentTotal = total;

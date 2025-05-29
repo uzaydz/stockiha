@@ -22,10 +22,13 @@ import {
   TrendingUp
 } from 'lucide-react';
 
-// Components
-import { POSOrderStats } from '../components/pos-orders/POSOrderStats';
-import { POSOrderFilters } from '../components/pos-orders/POSOrderFilters';
-import { POSOrdersTable } from '../components/pos-orders/POSOrdersTable';
+// Layout component
+import Layout from '@/components/Layout';
+
+// Components - استخدام النسخ المحسنة
+import { POSOrderStatsOptimized as POSOrderStats } from '../components/pos-orders/POSOrderStatsOptimized';
+import { POSOrderFiltersOptimized as POSOrderFilters } from '../components/pos-orders/POSOrderFiltersOptimized';
+import { POSOrdersTableOptimized as POSOrdersTable } from '../components/pos-orders/POSOrdersTableOptimized';
 import { POSOrderDetails } from '../components/pos-orders/POSOrderDetails';
 import { POSOrderActions } from '../components/pos-orders/POSOrderActions';
 
@@ -288,7 +291,8 @@ export const POSOrders: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <Layout>
+      <div className="container mx-auto p-6 space-y-6">
       {/* رأس الصفحة */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
@@ -437,6 +441,7 @@ export const POSOrders: React.FC = () => {
         </Card>
       )}
     </div>
+    </Layout>
   );
 };
 

@@ -29,6 +29,7 @@ export interface POSOrderStats {
   total_revenue: number;
   completed_orders: number;
   pending_orders: number;
+  pending_payment_orders: number;
   cancelled_orders: number;
   cash_orders: number;
   card_orders: number;
@@ -99,6 +100,7 @@ export class POSOrdersService {
         total_revenue: parseFloat(statsData?.total_revenue || '0'),
         completed_orders: statsData?.completed_orders || 0,
         pending_orders: statsData?.pending_orders || 0,
+        pending_payment_orders: statsData?.pending_payment_orders || 0,
         cancelled_orders: statsData?.cancelled_orders || 0,
         cash_orders: statsData?.cash_orders || 0,
         card_orders: statsData?.card_orders || 0,
@@ -116,6 +118,7 @@ export class POSOrdersService {
         total_revenue: 0,
         completed_orders: 0,
         pending_orders: 0,
+        pending_payment_orders: 0,
         cancelled_orders: 0,
         cash_orders: 0,
         card_orders: 0,
@@ -217,7 +220,7 @@ export class POSOrdersService {
 
       const ordersWithDetails: POSOrderWithDetails[] = (orders || []).map(order => ({
         ...order,
-        items_count: order.order_items?.length || 0
+        items_count: order.order_items?.reduce((total, item) => total + (item.quantity || 0), 0) || 0
       }));
 
       const result = {
@@ -275,7 +278,7 @@ export class POSOrdersService {
 
       const orderWithDetails: POSOrderWithDetails = {
         ...order,
-        items_count: order.order_items?.length || 0
+        items_count: order.order_items?.reduce((total, item) => total + (item.quantity || 0), 0) || 0
       };
 
       this.setCache(cacheKey, orderWithDetails);
@@ -432,6 +435,109 @@ export class POSOrdersService {
     }
     
     keysToDelete.forEach(key => this.cache.delete(key));
+  }
+
+  /**
+   * إلغاء طلبية نقطة البيع
+   */
+  async cancelOrder(
+    orderId: string,
+    itemsToCancel: string[] | null = null,
+    cancellationReason: string = 'تم الإلغاء',
+    restoreInventory: boolean = true,
+    cancelledBy?: string
+  ): Promise<{
+    success: boolean;
+    error?: string;
+    data?: {
+      cancellation_id: string;
+      is_partial_cancellation: boolean;
+      cancelled_amount: number;
+      cancelled_items_count: number;
+      total_items_count: number;
+      new_total?: number;
+      message: string;
+    };
+  }> {
+    try {
+      const { data, error } = await supabase.rpc('cancel_pos_order', {
+        p_order_id: orderId,
+        p_items_to_cancel: itemsToCancel,
+        p_cancellation_reason: cancellationReason,
+        p_restore_inventory: restoreInventory,
+        p_cancelled_by: cancelledBy || null
+      });
+
+      if (error) throw error;
+
+      // مسح الكاش المتعلق بهذه الطلبية
+      this.clearCacheForOrder(orderId);
+
+      return {
+        success: data.success,
+        error: data.error,
+        data: data.success ? {
+          cancellation_id: data.cancellation_id,
+          is_partial_cancellation: data.is_partial_cancellation,
+          cancelled_amount: parseFloat(data.cancelled_amount || '0'),
+          cancelled_items_count: data.cancelled_items_count,
+          total_items_count: data.total_items_count,
+          new_total: data.new_total ? parseFloat(data.new_total) : undefined,
+          message: data.message
+        } : undefined
+      };
+    } catch (error) {
+      console.error('Error cancelling order:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'حدث خطأ أثناء إلغاء الطلبية'
+      };
+    }
+  }
+
+  /**
+   * جلب سجل إلغاءات طلبية
+   */
+  async getOrderCancellations(orderId: string): Promise<Array<{
+    id: string;
+    cancellation_reason: string;
+    cancelled_amount: number;
+    cancelled_items_count: number;
+    total_items_count: number;
+    is_partial_cancellation: boolean;
+    inventory_restored: boolean;
+    created_at: string;
+    cancelled_by?: { name: string; email: string; };
+  }>> {
+    const cacheKey = this.getCacheKey('order_cancellations', { orderId });
+    const cached = this.getFromCache<Array<any>>(cacheKey);
+    if (cached) return cached;
+
+    try {
+      const { data, error } = await supabase
+        .from('order_cancellations')
+        .select(`
+          id,
+          cancellation_reason,
+          cancelled_amount,
+          cancelled_items_count,
+          total_items_count,
+          is_partial_cancellation,
+          inventory_restored,
+          created_at,
+          cancelled_by:users!order_cancellations_cancelled_by_fkey(name, email)
+        `)
+        .eq('order_id', orderId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      this.setCache(cacheKey, data || []);
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching order cancellations:', error);
+      return [];
+    }
   }
 
   /**

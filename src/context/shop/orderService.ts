@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { isValidUUID } from './mappers';
 import { updateProductsInventory } from './productService';
 import { ensureCustomerExists } from '@/lib/fallback_customer';
+import { createPOSOrder } from './posOrderService';
 
 // معرف المنتج الافتراضي للمنتجات اليدوية (تم جلبه من قاعدة البيانات)
 const DEFAULT_PRODUCT_ID = "7b973625-5c3d-484f-a7e0-bf9e01f00ed2";
@@ -14,6 +15,10 @@ export const addOrder = async (
   currentOrganizationId: string | undefined
 ): Promise<Order> => {
   try {
+    // إذا كان طلب نقطة بيع، استخدم الدالة المخصصة
+    if (!order.isOnline) {
+      return await createPOSOrder(order, currentOrganizationId);
+    }
 
     // التحقق من وجود العميل وإنشائه إذا لم يكن موجودًا
     const customerId = await ensureCustomerExists(order.customerId, currentOrganizationId);

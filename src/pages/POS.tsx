@@ -625,6 +625,7 @@ const POS = () => {
           productId: item.product.id,
           productName: productName,
           quantity: item.quantity,
+          price: unitPrice, // استخدام price بدلاً من unitPrice
           unitPrice: unitPrice,
           totalPrice: unitPrice * item.quantity,
           isDigital: item.product.isDigital,
