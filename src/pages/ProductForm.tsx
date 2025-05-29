@@ -225,7 +225,7 @@ export default function ProductForm() {
       if (result) {
         toast.success(isEditMode ? 'تم تحديث المنتج بنجاح' : 'تم إنشاء المنتج بنجاح');
         if (!isEditMode && result.id) {
-          navigate('/products'); // Navigate to products list or to the new product's page
+          navigate('/dashboard/products'); // Navigate to dashboard products instead of store products
         } else if (isEditMode) {
           // Optionally, re-fetch data or handle UI update
         }
@@ -309,7 +309,7 @@ export default function ProductForm() {
       <Layout>
         <div className="flex flex-col items-center justify-center h-[80vh]">
           <p className="text-xl text-red-600">ليس لديك الصلاحية لعرض هذه الصفحة.</p>
-          <Button onClick={() => navigate('/products')} className="mt-4">العودة إلى المنتجات</Button>
+          <Button onClick={() => navigate('/dashboard/products')} className="mt-4">العودة إلى المنتجات</Button>
         </div>
       </Layout>
     );
@@ -349,7 +349,7 @@ export default function ProductForm() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => navigate('/products')}
+            onClick={() => navigate('/dashboard/products')}
             disabled={isSubmitting}
           >
             العودة
@@ -427,7 +427,7 @@ export default function ProductForm() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => navigate('/products')}
+              onClick={() => navigate('/dashboard/products')}
               disabled={isSubmitting}
             >
               إلغاء

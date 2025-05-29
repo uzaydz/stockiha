@@ -583,7 +583,7 @@ export default function ProductForm() {
       if (result) {
         toast.success(isEditMode ? 'تم تحديث المنتج بنجاح' : 'تم إنشاء المنتج بنجاح');
         if (!isEditMode) {
-          navigate('/products');
+          navigate('/dashboard/products');
         }
       } else {
         toast.error(isEditMode ? 'فشل تحديث المنتج' : 'فشل إنشاء المنتج');
@@ -682,7 +682,7 @@ export default function ProductForm() {
           <div className="flex gap-3">
             <Button
               variant="outline"
-              onClick={() => navigate('/products')}
+              onClick={() => navigate('/dashboard/products')}
             >
               <ArrowLeft className="ml-2 h-4 w-4" />
               العودة
@@ -893,7 +893,7 @@ export default function ProductForm() {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => navigate('/products')}
+                      onClick={() => navigate('/dashboard/products')}
                       className="ml-3"
                     >
                       <ArrowLeft className="ml-2 h-4 w-4" />
