@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { getSupabaseClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { useAuth } from './AuthContext';
 import { withCache, LONG_CACHE_TTL } from '@/lib/cache/storeCache';
 import { getOrganizationBySubdomain, getOrganizationByDomain } from '@/lib/api/subdomain';
@@ -65,7 +65,7 @@ const extractSubdomain = async (hostname: string): Promise<string | null> => {
   // التحقق من النطاق المخصص أولاً
   const checkCustomDomain = async (): Promise<string | null> => {
     try {
-      const { data: orgData, error } = await getSupabaseClient()
+      const { data: orgData, error } = await supabase
         .from('organizations')
         .select('subdomain')
         .eq('domain', hostname)
@@ -146,7 +146,7 @@ export const getOrganizationFromCustomDomain = async (hostname: string): Promise
   if (!hostname || hostname.includes('localhost')) return null;
   
   try {
-    const supabase = getSupabaseClient();
+    const supabaseClient = supabase;
     
     // البحث عن المؤسسة باستخدام النطاق المخصص
     const { data: orgData, error } = await supabase
@@ -498,7 +498,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         throw new Error('يجب تسجيل الدخول لإنشاء مؤسسة جديدة');
       }
 
-      const supabaseClient = await getSupabaseClient();
+      const supabaseClient = supabase;
       const { data, error } = await supabaseClient.rpc('create_organization', {
         org_name: name,
         org_description: description || null,
@@ -542,7 +542,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         throw new Error('يجب أن تكون مسؤول المؤسسة لدعوة مستخدمين');
       }
 
-      const supabaseClient = await getSupabaseClient();
+      const supabaseClient = supabase;
       const { data, error } = await supabaseClient.rpc('invite_user_to_organization', {
         user_email: email,
         user_role: role
@@ -601,7 +601,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // استخدام معرف المؤسسة لجلب البيانات المحدثة مباشرة
       if (orgId) {
         
-        const supabaseClient = await getSupabaseClient();
+        const supabaseClient = supabase;
         
         const { data: orgData, error: orgError } = await supabaseClient
           .from('organizations')
@@ -649,7 +649,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       loadingOrganization.current = false;
       setIsLoading(false);
     }
-  }, [currentSubdomain, authLoading, user, getOrganizationBySubdomain, getSupabaseClient]);
+  }, [currentSubdomain, authLoading, user, getOrganizationBySubdomain]);
 
   // استخدام useMemo لتجنب إعادة الإنشاء
   const value = useMemo(() => ({

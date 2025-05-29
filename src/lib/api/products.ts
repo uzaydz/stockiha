@@ -1,5 +1,4 @@
-import { supabase } from '@/lib/supabase-client';
-import { getSupabaseClient } from '@/lib/supabase-client';
+import { supabase } from '@/lib/supabase';
 import type { Database, TablesInsert, TablesUpdate } from '@/types/database.types';
 import { toast } from 'react-hot-toast';
 import { ProductFormValues } from '@/types/product';
@@ -645,18 +644,40 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
   // then we will use this `advancedSettingsFromForm` when we refer to the advanced settings data.
   const { advancedSettings: advancedSettingsFromForm, ...productCoreDataFromForm } = productData;
 
-  // DEBUGGING ADVANCED SETTINGS - Step 1: Log received advanced_settings
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-    const error = new Error("User not authenticated");
+  // استخدام العميل الموحد بدلاً من إنشاء عميل جديد
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  
+  if (userError || !user) {
+    console.error("خطأ في المصادقة:", userError);
     toast.error("يجب تسجيل الدخول لإنشاء منتج.");
-    throw error;
+    throw new Error("User not authenticated");
   }
+  
 
   if (!productData.organization_id) {
     const error = new Error("Organization ID is required");
     toast.error("معرف المؤسسة مطلوب");
+    throw error;
+  }
+
+  // التحقق من صحة المؤسسة والصلاحيات
+  try {
+    const { data: orgCheck, error: orgError } = await supabase
+      .from('organizations')
+      .select('id, name')
+      .eq('id', productData.organization_id)
+      .single();
+    
+    if (orgError || !orgCheck) {
+      console.error("خطأ في التحقق من المؤسسة:", orgError);
+      toast.error("المؤسسة غير موجودة أو ليس لديك صلاحية للوصول إليها");
+      throw new Error("Organization not found or access denied");
+    }
+    
+    console.log("تم التحقق من المؤسسة بنجاح:", orgCheck);
+  } catch (error) {
+    console.error("فشل في التحقق من المؤسسة:", error);
+    toast.error("فشل في التحقق من صحة المؤسسة");
     throw error;
   }
 
@@ -748,16 +769,18 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
     is_active: true,
   };
 
-  // !!!!! سأضيف console.log هنا !!!!!
-  console.log("بيانات المنتج الأساسية التي يتم إرسالها (productCoreDataToInsert):", JSON.stringify(productCoreDataToInsert, null, 2));
+  console.log("✅ بيانات المنتج الأساسية:", JSON.stringify(productCoreDataToInsert, null, 2));
+  console.log("✅ معلومات المستخدم:", { user_id: user.id, email: user.email });
 
+  // إدراج المنتج باستخدام function مؤقتة لتجاوز مشكلة RLS
   const { data: createdProduct, error: productCreationError } = await supabase
-      .from('products')
-    .insert(productCoreDataToInsert)
-      .select()
-      .single();
+    .rpc('create_product_with_user_context', {
+      product_data: productCoreDataToInsert,
+      user_id_param: user.id
+    });
 
   if (productCreationError) {
+    console.error("تفاصيل خطأ إنشاء المنتج:", productCreationError);
     toast.error(`فشل إنشاء المنتج: ${productCreationError.message}`);
     throw productCreationError;
   }

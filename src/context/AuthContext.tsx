@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
-import { getSupabaseClient } from '@/lib/supabase';
 import { getOrganizationBySubdomain } from '@/lib/api/tenant';
 import { getCacheData, setCacheData, LONG_CACHE_TTL, DEFAULT_CACHE_TTL } from '@/lib/cache/storeCache';
 import { withCache } from '@/lib/cache/storeCache';
@@ -194,7 +193,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const orgDetails = await withCache<AuthContextType['organization'] | null>(
         cacheKey,
         async () => {
-          const supabaseClient = await getSupabaseClient();
+          const supabaseClient = supabase;
           let organizationData: any = null; 
 
           if (!subdomain) {
@@ -442,7 +441,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       localStorage.removeItem('authSessionExists');
       localStorage.removeItem('authSessionLastUpdated');
-      const supabaseClient = await getSupabaseClient();
+      const supabaseClient = supabase;
       const { data, error } = await supabaseClient.auth.signInWithPassword({
         email,
         password,
@@ -473,7 +472,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     setIsLoadingOrganization(true);
     try {
-      const supabaseClient = await getSupabaseClient();
+      const supabaseClient = supabase;
       const role = currentSubdomain ? 'customer' : 'owner'; // Example: tenant signup = customer, main signup = owner
       const { data, error } = await supabaseClient.auth.signUp({
         email,

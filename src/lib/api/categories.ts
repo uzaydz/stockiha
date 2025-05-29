@@ -1,4 +1,4 @@
-import { getSupabaseClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import type { Database } from '@/types/database.types';
 import localforage from 'localforage';
 
@@ -160,7 +160,7 @@ export const getCategories = async (organizationId?: string): Promise<Category[]
       return await getLocalCategories();
     }
     
-    const supabaseClient = await getSupabaseClient();
+    const supabaseClient = supabase;
     
     // إذا لم يتم تمرير معرف المؤسسة، حاول الحصول عليه من المستخدم الحالي
     let orgId = organizationId;
@@ -294,7 +294,7 @@ export const getCategoryById = async (id: string, organizationId?: string): Prom
       return getLocalCategoryById(id);
     }
     
-    const supabaseClient = await getSupabaseClient();
+    const supabaseClient = supabase;
     
     // جلب الفئة مع تصفية حسب المؤسسة إذا كان معرف المؤسسة متوفرًا
     let query = supabaseClient.from('product_categories').select('*').eq('id', id);
@@ -380,7 +380,7 @@ export const createCategory = async (categoryData: Partial<Category>, organizati
     const uniqueSlug = `${baseSlug}-${timestamp}`;
     
     // إذا كان المستخدم متصل، استخدم السلوك الطبيعي
-    const supabaseClient = await getSupabaseClient();
+    const supabaseClient = supabase;
     const { data, error } = await supabaseClient
       .from('product_categories')
       .insert({
@@ -440,7 +440,7 @@ export const addCategoryToSyncQueue = async (category: Category): Promise<void> 
 
 export const updateCategory = async (id: string, categoryData: UpdateCategoryData, organizationId?: string): Promise<Category> => {
   try {
-    const supabaseClient = await getSupabaseClient();
+    const supabaseClient = supabase;
     
     // Prepare the update object, ensuring type safety for 'type'
     const updatePayload: any = { ...categoryData };
@@ -490,7 +490,7 @@ export const updateCategory = async (id: string, categoryData: UpdateCategoryDat
 
 export const deleteCategory = async (id: string): Promise<void> => {
   try {
-    const supabaseClient = await getSupabaseClient();
+    const supabaseClient = supabase;
     const { error } = await supabaseClient
       .from('product_categories')
       .delete()
@@ -523,7 +523,7 @@ export const getSubcategories = async (categoryId?: string): Promise<Subcategory
         : await getAllLocalSubcategories();
     }
     
-    const supabaseClient = await getSupabaseClient();
+    const supabaseClient = supabase;
     
     // إنشاء استعلام قاعدة بيانات للفئات الفرعية
     let query = supabaseClient
@@ -558,7 +558,7 @@ export const getSubcategoryById = async (id: string): Promise<Subcategory | null
       return subcategoriesStore.getItem<Subcategory>(id);
     }
     
-    const supabaseClient = await getSupabaseClient();
+    const supabaseClient = supabase;
     
     const { data, error } = await supabaseClient
       .from('product_subcategories')
@@ -624,7 +624,7 @@ export const createSubcategory = async (subcategory: { category_id: string; name
     const baseSlug = subcategory.name.toLowerCase().replace(/\s+/g, '-');
     const uniqueSlug = `${baseSlug}-${timestamp}`;
 
-    const supabaseClient = await getSupabaseClient();
+    const supabaseClient = supabase;
     const { data, error } = await supabaseClient
       .from('product_subcategories')
       .insert({
@@ -676,7 +676,7 @@ export const addSubcategoryToSyncQueue = async (subcategory: Subcategory): Promi
 
 export const updateSubcategory = async (id: string, updates: UpdateSubcategory): Promise<Subcategory> => {
   try {
-    const supabaseClient = await getSupabaseClient();
+    const supabaseClient = supabase;
     const { data, error } = await supabaseClient
       .from('product_subcategories')
       .update(updates)
@@ -711,7 +711,7 @@ export const updateSubcategory = async (id: string, updates: UpdateSubcategory):
 
 export const deleteSubcategory = async (id: string): Promise<void> => {
   try {
-    const supabaseClient = await getSupabaseClient();
+    const supabaseClient = supabase;
     const { error } = await supabaseClient
       .from('product_subcategories')
       .delete()
@@ -751,7 +751,7 @@ export const syncCategoriesDataOnStartup = async (): Promise<boolean> => {
     }
     
     // استخدام getSupabaseClient() للحصول على مثيل صالح
-    const supabaseClient = await getSupabaseClient();
+    const supabaseClient = supabase;
     
     // جلب الفئات من Supabase
     const { data: categories, error: categoriesError } = await supabaseClient
