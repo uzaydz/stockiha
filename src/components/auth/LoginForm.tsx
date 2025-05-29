@@ -104,34 +104,44 @@ const LoginForm = () => {
       const twoFactorCheck = await checkUserRequires2FA(email, organizationId, domain, subdomain);
       
       if (!twoFactorCheck.userExists) {
-        // إذا لم يجد المستخدم مع organizationId، جرب بدون organizationId
-        if (organizationId) {
-          const retryCheck = await checkUserRequires2FA(email, undefined, domain, subdomain);
-          
-          if (retryCheck.userExists) {
-            // المستخدم موجود بدون organizationId، امسح القيمة الخاطئة من localStorage
-            localStorage.removeItem('bazaar_organization_id');
+        // عرض رسالة الخطأ المخصصة إذا كانت موجودة
+        if (twoFactorCheck.error) {
+          toast.error(twoFactorCheck.error);
+        } else {
+          // إذا لم يجد المستخدم مع organizationId، جرب بدون organizationId
+          if (organizationId) {
+            const retryCheck = await checkUserRequires2FA(email, undefined, domain, subdomain);
             
-            // استخدم النتيجة الجديدة
-            if (retryCheck.requires2FA) {
-              setTwoFactorData({
-                userId: retryCheck.userId!,
-                userName: retryCheck.userName || 'المستخدم',
-                email: email
-              });
-              setPendingCredentials({ email, password });
-              setShow2FA(true);
+            if (retryCheck.userExists) {
+              // المستخدم موجود بدون organizationId، امسح القيمة الخاطئة من localStorage
+              localStorage.removeItem('bazaar_organization_id');
+              
+              // استخدم النتيجة الجديدة
+              if (retryCheck.requires2FA) {
+                setTwoFactorData({
+                  userId: retryCheck.userId!,
+                  userName: retryCheck.userName || 'المستخدم',
+                  email: email
+                });
+                setPendingCredentials({ email, password });
+                setShow2FA(true);
+                setIsLoading(false);
+                return;
+              }
+              
+              // متابعة تسجيل الدخول العادي
+              await proceedWithLogin(email, password);
+              return;
+            } else if (retryCheck.error) {
+              // عرض رسالة الخطأ من المحاولة الثانية
+              toast.error(retryCheck.error);
               setIsLoading(false);
               return;
             }
-            
-            // متابعة تسجيل الدخول العادي
-            await proceedWithLogin(email, password);
-            return;
           }
+          
+          toast.error('المستخدم غير موجود');
         }
-        
-        toast.error('المستخدم غير موجود');
         setIsLoading(false);
         return;
       }
@@ -183,6 +193,12 @@ const LoginForm = () => {
 
     // Double check session is valid
     const { data: sessionData } = await supabase.auth.getSession();
+    
+    if (!sessionData?.session) {
+      toast.error('جلسة المصادقة غير صالحة');
+      setIsLoading(false);
+      return;
+    }
 
     if (!user) {
       toast.error('حدث خطأ أثناء تسجيل الدخول - لم يتم العثور على بيانات المستخدم');
