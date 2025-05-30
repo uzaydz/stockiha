@@ -92,44 +92,183 @@ const Home = () => {
   return (
     <Layout>
       <main className="container mx-auto px-4 py-8">
-        {/* Hero Section */}
-        <section className="mb-12">
-          <div className="relative rounded-lg overflow-hidden shadow-xl h-[500px]">
-            <div 
-              className="absolute inset-0 bg-center bg-cover transition-opacity duration-1000"
-              style={{ 
-                backgroundImage: `url(${heroSlides[activeSlide].image})`,
-                opacity: 1 // Keep opacity 1, gradient handles dimming
-              }}
-            />
-            {/* Adjusted gradient for potentially better contrast */}
-            <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/60 to-black/10" />
+        {/* Hero Section - Modern Design */}
+        <section className="mb-16 relative">
+          <div className="relative bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-slate-900 dark:via-slate-800 dark:to-purple-900 rounded-3xl overflow-hidden shadow-2xl min-h-[600px] border border-slate-200/50 dark:border-slate-700/50">
             
-            <div className="relative h-full flex flex-col justify-center px-6 md:px-12 text-white max-w-2xl">
-              <h1 className="text-4xl md:text-5xl font-bold mb-4 drop-shadow-md">{heroSlides[activeSlide].title}</h1>
-              <p className="text-lg md:text-xl mb-6 drop-shadow-sm">{heroSlides[activeSlide].description}</p>
-              <div>
-                <Button asChild size="lg" className="font-bold pulse-glow">
-                  <Link to={heroSlides[activeSlide].buttonLink}>
-                    {heroSlides[activeSlide].buttonText}
-                    <ArrowRight className="mr-2 h-5 w-5 flip-x" />
-                  </Link>
-                </Button>
-              </div>
+            {/* Animated Background Elements */}
+            <div className="absolute inset-0 overflow-hidden">
+              <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-primary/20 to-blue-400/20 rounded-full blur-3xl animate-pulse"></div>
+              <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-tr from-purple-400/20 to-pink-400/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-gradient-to-r from-primary/10 to-blue-400/10 rounded-full blur-2xl animate-spin" style={{ animationDuration: '20s' }}></div>
             </div>
-            
-            {/* Improved slide indicators */}
-            <div className="absolute bottom-6 left-0 right-0 flex justify-center space-x-2 rtl:space-x-reverse">
-              {heroSlides.map((_, index) => (
-                <button
-                  key={index}
-                  className={`h-3 w-3 rounded-full transition-colors duration-300 ${
-                    index === activeSlide ? 'bg-primary' : 'bg-white/50 hover:bg-white/70'
-                  }`}
-                  aria-label={`Go to slide ${index + 1}`}
-                  onClick={() => setActiveSlide(index)}
-                />
-              ))}
+
+            <div className="relative z-10 container mx-auto px-6 py-12">
+              <div className="grid lg:grid-cols-2 gap-12 items-center min-h-[500px]">
+                
+                {/* Content Side */}
+                <div className="text-center lg:text-right space-y-8">
+                  
+                  {/* Badge */}
+                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 border border-primary/20 rounded-full text-primary font-medium text-sm">
+                    <span className="flex h-2 w-2 rounded-full bg-primary animate-pulse"></span>
+                    منصة إدارة المتاجر الرائدة في الجزائر
+                  </div>
+
+                  {/* Main Heading */}
+                  <div className="space-y-4">
+                    <h1 className="text-5xl lg:text-7xl font-extrabold leading-tight">
+                      <span className="bg-gradient-to-l from-primary via-blue-600 to-purple-600 bg-clip-text text-transparent">
+                        قيادة التجارة
+                      </span>
+                      <br />
+                      <span className="text-slate-800 dark:text-white">
+                        الرقمية
+                      </span>
+                    </h1>
+                    <div className="flex justify-center lg:justify-start">
+                      <div className="w-32 h-1.5 bg-gradient-to-r from-primary to-purple-600 rounded-full"></div>
+                    </div>
+                  </div>
+
+                  {/* Subtitle */}
+                  <p className="text-xl lg:text-2xl text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl mx-auto lg:mx-0">
+                    حوّل متجرك إلى إمبراطورية رقمية مع أقوى نظام إدارة متكامل. 
+                    <span className="text-primary font-semibold"> كل ما تحتاجه في منصة واحدة</span>
+                  </p>
+
+                  {/* Key Features */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto lg:mx-0">
+                    {[
+                      { icon: "⚡", text: "إعداد فوري في دقائق" },
+                      { icon: "🛡️", text: "أمان على أعلى مستوى" },
+                      { icon: "🌐", text: "متجر إلكتروني احترافي" },
+                      { icon: "📊", text: "تحليلات ذكية فورية" }
+                    ].map((feature, index) => (
+                      <div key={index} className="flex items-center gap-3 text-slate-700 dark:text-slate-300 bg-white/50 dark:bg-slate-800/50 rounded-xl p-3 backdrop-blur-sm border border-white/20 dark:border-slate-700/20">
+                        <span className="text-2xl">{feature.icon}</span>
+                        <span className="font-medium">{feature.text}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* CTA Buttons */}
+                  <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+                    <Button size="lg" className="min-w-[200px] h-14 text-lg font-bold shadow-2xl hover:shadow-3xl transition-all duration-300 bg-gradient-to-r from-primary to-blue-600 hover:from-primary/90 hover:to-blue-600/90 transform hover:scale-105">
+                      🚀 ابدأ رحلتك الآن
+                      <ArrowRight className="h-5 w-5 mr-2" />
+                    </Button>
+                    <Button 
+                      size="lg" 
+                      variant="outline" 
+                      className="min-w-[200px] h-14 text-lg font-bold border-2 border-primary/30 hover:bg-primary/5 dark:hover:bg-primary/10 backdrop-blur-sm transform hover:scale-105 transition-all duration-300"
+                    >
+                      🎬 شاهد العرض التوضيحي
+                    </Button>
+                  </div>
+
+                  {/* Stats */}
+                  <div className="flex flex-wrap justify-center lg:justify-start gap-8 pt-4">
+                    {[
+                      { value: "10K+", label: "تاجر نشط", icon: "👥" },
+                      { value: "500K+", label: "معاملة شهرية", icon: "💰" },
+                      { value: "99%", label: "نسبة الرضا", icon: "⭐" }
+                    ].map((stat, index) => (
+                      <div key={index} className="text-center bg-white/30 dark:bg-slate-800/30 rounded-2xl p-4 backdrop-blur-sm border border-white/20 dark:border-slate-700/20">
+                        <div className="text-2xl mb-1">{stat.icon}</div>
+                        <div className="text-2xl font-bold text-primary">{stat.value}</div>
+                        <div className="text-sm text-slate-600 dark:text-slate-400 font-medium">{stat.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Visual Side */}
+                <div className="relative">
+                  
+                  {/* Main Dashboard Preview */}
+                  <div className="relative transform rotate-2 hover:rotate-0 transition-transform duration-500">
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary/30 to-purple-500/30 rounded-3xl blur-2xl"></div>
+                    <div className="relative bg-white dark:bg-slate-800 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden backdrop-blur-sm">
+                      
+                      {/* Browser Header */}
+                      <div className="flex items-center gap-2 px-6 py-4 bg-slate-50 dark:bg-slate-700 border-b border-slate-200 dark:border-slate-600">
+                        <div className="flex gap-2">
+                          <div className="w-3 h-3 rounded-full bg-red-400"></div>
+                          <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
+                          <div className="w-3 h-3 rounded-full bg-green-400"></div>
+                        </div>
+                        <div className="flex-1 mx-4">
+                          <div className="bg-white dark:bg-slate-600 rounded-lg px-4 py-2 text-sm text-slate-600 dark:text-slate-300 text-center font-mono">
+                            متجري.دز
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Dashboard Content */}
+                      <div className="p-6 space-y-6">
+                        
+                        {/* Header */}
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-lg font-bold text-slate-800 dark:text-white">لوحة التحكم الذكية</h3>
+                          <div className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 px-3 py-1 rounded-full text-sm font-medium animate-pulse">
+                            🟢 متصل
+                          </div>
+                        </div>
+                        
+                        {/* Modern Stats Cards */}
+                        <div className="grid grid-cols-2 gap-4">
+                          {[
+                            { label: "المبيعات اليوم", value: "15,750 دج", color: "from-blue-500 to-blue-600", icon: "💰" },
+                            { label: "الطلبات الجديدة", value: "42", color: "from-green-500 to-green-600", icon: "📦" },
+                            { label: "المنتجات", value: "256", color: "from-purple-500 to-purple-600", icon: "🛍️" },
+                            { label: "العملاء النشطين", value: "128", color: "from-orange-500 to-orange-600", icon: "👥" }
+                          ].map((card, index) => (
+                            <div key={index} className="bg-slate-50 dark:bg-slate-700 rounded-2xl p-4 border border-slate-200/50 dark:border-slate-600/50">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-2xl">{card.icon}</span>
+                                <div className={`w-3 h-3 rounded-full bg-gradient-to-r ${card.color}`}></div>
+                              </div>
+                              <div className="text-sm text-slate-600 dark:text-slate-400 mb-1">{card.label}</div>
+                              <div className="text-xl font-bold text-slate-800 dark:text-white">{card.value}</div>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {/* Modern Chart */}
+                        <div className="bg-slate-50 dark:bg-slate-700 rounded-2xl p-4 border border-slate-200/50 dark:border-slate-600/50">
+                          <div className="flex items-center justify-between mb-4">
+                            <span className="text-sm font-bold text-slate-800 dark:text-white">📈 نمو المبيعات</span>
+                            <span className="text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 px-2 py-1 rounded-full font-medium">+35%</span>
+                          </div>
+                          <div className="flex items-end gap-1 h-16">
+                            {[40, 65, 45, 80, 60, 95, 75, 85].map((height, index) => (
+                              <div 
+                                key={index}
+                                className="bg-gradient-to-t from-primary to-blue-400 rounded-sm flex-1 transition-all duration-500 hover:scale-110" 
+                                style={{ height: `${height * 0.6}px` }}
+                              ></div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Floating Notifications */}
+                  <div className="absolute -top-4 -right-4 bg-gradient-to-r from-green-500 to-green-600 text-white px-4 py-2 rounded-2xl shadow-lg text-sm font-bold animate-bounce">
+                    🎉 طلب جديد وصل!
+                  </div>
+
+                  <div className="absolute -bottom-4 -left-4 bg-gradient-to-r from-primary to-blue-600 text-white px-4 py-2 rounded-2xl shadow-lg text-sm font-bold flex items-center gap-2">
+                    📊 +47% هذا الشهر
+                  </div>
+
+                  <div className="absolute top-1/3 -left-6 bg-gradient-to-r from-purple-500 to-purple-600 text-white px-3 py-2 rounded-2xl shadow-lg text-xs font-bold">
+                    💫 AI تحليل ذكي
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </section>

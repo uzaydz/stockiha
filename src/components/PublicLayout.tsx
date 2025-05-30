@@ -19,13 +19,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useTheme } from '@/context/ThemeContext';
-import { toast } from "sonner";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
@@ -50,7 +43,6 @@ export default function PublicLayout({ children }: PublicLayoutProps) {
 
   const toggleTheme = () => {
     setTheme(theme === "dark" ? "light" : "dark");
-    toast.success(`تم التغيير إلى ${theme === "dark" ? "الوضع الفاتح" : "الوضع المظلم"}`);
   };
 
   return (
@@ -105,28 +97,26 @@ export default function PublicLayout({ children }: PublicLayoutProps) {
             {/* Search, Cart, Theme Toggle */}
             <div className="flex items-center space-x-2 space-x-reverse">
               {/* زر تبديل الثيم */}
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={toggleTheme}
-                      className="relative rounded-full hover:bg-muted"
-                      aria-label={theme === "dark" ? "التبديل إلى الوضع الفاتح" : "التبديل إلى الوضع المظلم"}
-                    >
-                      {theme === "dark" ? (
-                        <Sun className="h-5 w-5 text-yellow-500" />
-                      ) : (
-                        <Moon className="h-5 w-5 text-slate-700" />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{theme === "dark" ? "الوضع الفاتح" : "الوضع المظلم"}</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleTheme}
+                className="relative rounded-lg"
+                aria-label={theme === "dark" ? "التبديل إلى الوضع الفاتح" : "التبديل إلى الوضع المظلم"}
+              >
+                <Sun className={cn(
+                  "absolute h-[1.2rem] w-[1.2rem] transition-all duration-200",
+                  theme === 'dark' 
+                    ? 'rotate-90 scale-0 opacity-0' 
+                    : 'rotate-0 scale-100 opacity-100'
+                )} />
+                <Moon className={cn(
+                  "absolute h-[1.2rem] w-[1.2rem] transition-all duration-200",
+                  theme === 'dark' 
+                    ? 'rotate-0 scale-100 opacity-100' 
+                    : '-rotate-90 scale-0 opacity-0'
+                )} />
+              </Button>
 
               <div className="hidden md:flex relative">
                 <Search className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />

@@ -172,114 +172,6 @@ export default {
 				'rotate-border': {
 					'0%': { backgroundPosition: '0% center' },
 					'100%': { backgroundPosition: '200% center' }
-				},
-				// تحسينات الدارك مود
-				'theme-switch': {
-					'0%': { 
-						opacity: '1',
-						transform: 'scale(1)'
-					},
-					'50%': { 
-						opacity: '0.8',
-						transform: 'scale(0.95)'
-					},
-					'100%': { 
-						opacity: '1',
-						transform: 'scale(1)'
-					}
-				},
-				'theme-fade-in': {
-					'0%': { 
-						opacity: '0',
-						transform: 'translateY(10px)'
-					},
-					'100%': { 
-						opacity: '1',
-						transform: 'translateY(0)'
-					}
-				},
-				'theme-slide-up': {
-					'0%': { 
-						transform: 'translateY(100%)',
-						opacity: '0'
-					},
-					'100%': { 
-						transform: 'translateY(0)',
-						opacity: '1'
-					}
-				},
-				'theme-glow-pulse': {
-					'0%, 100%': { 
-						boxShadow: '0 0 20px hsl(var(--primary) / 0.3)'
-					},
-					'50%': { 
-						boxShadow: '0 0 30px hsl(var(--primary) / 0.6)'
-					}
-				},
-				'theme-icon-rotate': {
-					'0%': { transform: 'rotate(0deg) scale(1)' },
-					'50%': { transform: 'rotate(180deg) scale(0.8)' },
-					'100%': { transform: 'rotate(360deg) scale(1)' }
-				},
-				'backdrop-blur-in': {
-					'0%': { backdropFilter: 'blur(0px)' },
-					'100%': { backdropFilter: 'blur(12px)' }
-				},
-				// تأثيرات إضافية للدارك مود
-				'theme-center-appear': {
-					'0%': { 
-						opacity: '0',
-						transform: 'scale(0.3) rotate(-180deg)'
-					},
-					'50%': { 
-						opacity: '0.8',
-						transform: 'scale(1.1) rotate(0deg)'
-					},
-					'100%': { 
-						opacity: '1',
-						transform: 'scale(1) rotate(0deg)'
-					}
-				},
-				'theme-ripple-effect': {
-					'0%': { 
-						transform: 'scale(0)',
-						opacity: '0.8'
-					},
-					'50%': { 
-						opacity: '0.4'
-					},
-					'100%': { 
-						transform: 'scale(2)',
-						opacity: '0'
-					}
-				},
-				'theme-particles-float': {
-					'0%, 100%': { 
-						transform: 'translateY(0px) scale(1)',
-						opacity: '0.6'
-					},
-					'50%': { 
-						transform: 'translateY(-10px) scale(1.2)',
-						opacity: '1'
-					}
-				},
-				'theme-glow-expand': {
-					'0%': { 
-						boxShadow: '0 0 20px hsl(var(--primary) / 0.3)',
-						transform: 'scale(1)'
-					},
-					'50%': { 
-						boxShadow: '0 0 40px hsl(var(--primary) / 0.6)',
-						transform: 'scale(1.05)'
-					},
-					'100%': { 
-						boxShadow: '0 0 20px hsl(var(--primary) / 0.3)',
-						transform: 'scale(1)'
-					}
-				},
-				'theme-border-rotate': {
-					'0%': { transform: 'rotate(0deg)' },
-					'100%': { transform: 'rotate(360deg)' }
 				}
 			},
 			animation: {
@@ -294,20 +186,7 @@ export default {
 				'spin-slow': 'spin-slow 3s linear infinite',
 				'breathe': 'breathe 4s infinite ease-in-out',
 				'moving-gradient': 'moving-gradient 4s ease infinite',
-				'rotate-border': 'rotate-border 4s linear infinite',
-				// تحسينات الدارك مود
-				'theme-switch': 'theme-switch 0.3s ease-in-out',
-				'theme-fade-in': 'theme-fade-in 0.4s ease-out',
-				'theme-slide-up': 'theme-slide-up 0.5s ease-out',
-				'theme-glow-pulse': 'theme-glow-pulse 2s ease-in-out infinite',
-				'theme-icon-rotate': 'theme-icon-rotate 0.6s ease-in-out',
-				'backdrop-blur-in': 'backdrop-blur-in 0.3s ease-out',
-				// تأثيرات إضافية للدارك مود
-				'theme-center-appear': 'theme-center-appear 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55)',
-				'theme-ripple-effect': 'theme-ripple-effect 1s ease-out forwards',
-				'theme-particles-float': 'theme-particles-float 2s ease-in-out infinite',
-				'theme-glow-expand': 'theme-glow-expand 1.5s ease-in-out infinite',
-				'theme-border-rotate': 'theme-border-rotate 3s linear infinite'
+				'rotate-border': 'rotate-border 4s linear infinite'
 			},
 			fontFamily: {
 				'sans': ['Tajawal', 'sans-serif'],

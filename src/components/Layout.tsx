@@ -121,18 +121,15 @@ export default function Layout({ children }: LayoutProps) {
         isMobile={isMobile}
       />
       
-      <div className="flex min-h-screen pt-16 transition-all duration-300">
+      <div className="flex pt-16">
         {/* القائمة الجانبية للشاشات الكبيرة */}
         {isStaff && !isLoadingUserProfile && !isMobile && (
-          <aside 
-            className={cn(
-              "fixed right-0 top-16 h-[calc(100vh-4rem)] z-30 border-l border-border/30 transition-all duration-300",
-              isSidebarOpen ? "w-72" : "w-20"
-            )}
-            style={{ width: isSidebarOpen ? '18rem' : '5rem' }}
-          >
+          <div className={cn(
+            "sticky top-16 self-start max-h-[calc(100vh-4rem)] transition-all duration-300",
+            isSidebarOpen ? "w-72" : "w-20"
+          )}>
             <SideMenu userRole={userRole} userPermissions={userPermissions} />
-          </aside>
+          </div>
         )}
         
         {/* القائمة الجانبية للموبايل */}
@@ -180,20 +177,7 @@ export default function Layout({ children }: LayoutProps) {
         )}
         
         {/* المحتوى الرئيسي */}
-        <main className={cn(
-          "w-full transition-all duration-300",
-          isStaff && !isLoadingUserProfile && !isMobile && isSidebarOpen 
-            ? "mr-72"
-            : (isStaff && !isLoadingUserProfile && !isMobile) 
-              ? "mr-20"
-              : "mr-0"
-        )}
-        style={{
-          marginRight: isStaff && !isLoadingUserProfile && !isMobile 
-            ? (isSidebarOpen ? '18rem' : '5rem') 
-            : '0'
-        }}
-        >
+        <main className="flex-1">
           <div className="max-w-7xl mx-auto p-4 md:p-6">
             {children}
           </div>

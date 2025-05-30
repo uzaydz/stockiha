@@ -41,22 +41,9 @@ function convertThemeMode(orgMode: OrganizationThemeMode): Theme {
   }
 }
 
-// دالة تطبيق الثيم على DOM مع تحسينات الأداء
-function applyThemeToDOM(theme: Theme, isTransitioning: boolean = false) {
+// دالة تطبيق الثيم على DOM بشكل سريع وبسيط
+function applyThemeToDOM(theme: Theme) {
   const root = document.documentElement;
-  
-  // إضافة فئة الانتقال إذا لزم الأمر
-  if (isTransitioning) {
-    root.classList.add('theme-switch-animation');
-    
-    // تأثير اهتزاز خفيف للصفحة (اختياري)
-    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      document.body.style.transform = 'scale(0.998)';
-      setTimeout(() => {
-        document.body.style.transform = '';
-      }, 150);
-    }
-  }
   
   // تحديد الثيم الفعلي
   let effectiveTheme = theme;
@@ -64,7 +51,7 @@ function applyThemeToDOM(theme: Theme, isTransitioning: boolean = false) {
     effectiveTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
   
-  // تطبيق الثيم بطريقة محسنة
+  // تطبيق الثيم بطريقة بسيطة وسريعة
   requestAnimationFrame(() => {
     // إزالة الفئات السابقة
     root.classList.remove('light', 'dark');
@@ -81,47 +68,7 @@ function applyThemeToDOM(theme: Theme, isTransitioning: boolean = false) {
       const themeColor = effectiveTheme === 'dark' ? '#0f172a' : '#ffffff';
       metaThemeColor.setAttribute('content', themeColor);
     }
-    
-    // إزالة فئة الانتقال بعد انتهاء الرسوم المتحركة
-    if (isTransitioning) {
-      setTimeout(() => {
-        root.classList.remove('theme-switch-animation');
-      }, 300);
-    }
   });
-  
-  // تأثير صوتي خفيف (اختياري - يمكن تعطيله)
-  if (isTransitioning && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    try {
-      // إنشاء تأثير صوتي خفيف باستخدام Web Audio API
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioContextClass) {
-        const audioContext = new AudioContextClass();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        
-        // تردد مختلف للوضع الداكن والفاتح
-        oscillator.frequency.setValueAtTime(
-          effectiveTheme === 'dark' ? 800 : 1200, 
-          audioContext.currentTime
-        );
-        oscillator.type = 'sine';
-        
-        // مستوى صوت منخفض جداً
-        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-        gainNode.gain.linearRampToValueAtTime(0.005, audioContext.currentTime + 0.05);
-        gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.1);
-        
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.1);
-      }
-    } catch (error) {
-      // تجاهل الأخطاء الصوتية
-    }
-  }
 }
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialOrganizationId }) => {
@@ -148,36 +95,26 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
     return 'light';
   });
 
-  // دالة تحديث الثيم مع تحسينات الأداء
-  const setTheme = useCallback(async (newTheme: Theme) => {
+  // دالة تحديث الثيم بشكل سريع وبسيط
+  const setTheme = useCallback((newTheme: Theme) => {
     if (newTheme === theme) return;
     
     setIsTransitioning(true);
     
-    try {
-      // حفظ التفضيل في localStorage
-      localStorage.setItem('theme', newTheme);
-      
-      // تطبيق الثيم على DOM
-      applyThemeToDOM(newTheme, true);
-      
-      // تحديث الحالة
-      setThemeState(newTheme);
-      
-      // إشعار مدير الثيم إذا لزم الأمر
-      if (currentOrganizationId) {
-        // يمكن إضافة منطق إضافي هنا لحفظ تفضيل المؤسسة
-      }
-      
-    } catch (error) {
-      console.error('خطأ في تطبيق الثيم:', error);
-    } finally {
-      // إنهاء حالة الانتقال بعد فترة قصيرة
-      setTimeout(() => {
-        setIsTransitioning(false);
-      }, 300);
-    }
-  }, [theme, currentOrganizationId]);
+    // حفظ التفضيل في localStorage
+    localStorage.setItem('theme', newTheme);
+    
+    // تطبيق الثيم على DOM
+    applyThemeToDOM(newTheme);
+    
+    // تحديث الحالة
+    setThemeState(newTheme);
+    
+    // إنهاء حالة الانتقال بسرعة
+    setTimeout(() => {
+      setIsTransitioning(false);
+    }, 150);
+  }, [theme]);
 
   // تطبيق ثيم المؤسسة
   const applyOrganizationTheme = useCallback(async () => {

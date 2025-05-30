@@ -296,7 +296,7 @@ const OrderActionsDropdown = ({
             </TooltipContent>
           </Tooltip>
           <DropdownMenuContent 
-            align="start" 
+            align="end" 
             className="w-56 p-1 rounded-lg border border-muted shadow-lg"
           >
             <DropdownMenuLabel className="text-xs font-medium text-muted-foreground px-2 py-1.5">

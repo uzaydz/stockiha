@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,6 +61,7 @@ const CallConfirmationDropdown = ({
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [selectedStatusId, setSelectedStatusId] = useState<number | null>(null);
   const [notes, setNotes] = useState("");
+  const [error, setError] = useState<string | null>(null);
   
   // حالة جديدة
   const [newStatusName, setNewStatusName] = useState("");
@@ -71,6 +72,21 @@ const CallConfirmationDropdown = ({
 
   // الحصول على حالات تأكيد الإتصال من Context
   const statuses = data.callConfirmationStatuses;
+
+  // تسجيل معلومات التشخيص
+  useEffect(() => {
+    if (statuses.length === 0 && !loading) {
+      console.warn('لا توجد حالات تأكيد اتصال متاحة');
+    }
+    
+    console.log('حالة القائمة المنسدلة:', {
+      orderId,
+      currentStatusId,
+      statusesCount: statuses.length,
+      disabled,
+      loading
+    });
+  }, [orderId, currentStatusId, statuses, disabled, loading]);
 
   // الحصول على الأيقونة المناسبة لكل حالة
   const getIconForStatus = (iconName: string | null) => {
@@ -93,24 +109,44 @@ const CallConfirmationDropdown = ({
   
   // معالجة تغيير الحالة
   const handleStatusChange = async (statusId: number) => {
+    console.log('تم اختيار حالة جديدة:', statusId);
+    setError(null);
     setSelectedStatusId(statusId);
     setShowNotesDialog(true);
   };
   
   // تأكيد تغيير الحالة مع الملاحظات
   const confirmStatusChange = async () => {
-    if (!selectedStatusId) return;
+    if (!selectedStatusId) {
+      setError('لم يتم اختيار حالة');
+      return;
+    }
     
     setIsUpdating(true);
+    setError(null);
+    
     try {
+      console.log('جاري تحديث حالة تأكيد الاتصال:', {
+        orderId,
+        statusId: selectedStatusId,
+        notes,
+        userId
+      });
+      
       await onUpdateStatus(orderId, selectedStatusId, notes);
       setShowNotesDialog(false);
       setNotes("");
-    } catch (error) {
+      toast({
+        title: "تم التحديث",
+        description: "تم تحديث حالة تأكيد الإتصال للطلب بنجاح",
+      });
+    } catch (error: any) {
+      console.error('خطأ في تحديث حالة تأكيد الاتصال:', error);
+      setError(error?.message || 'حدث خطأ أثناء تحديث الحالة');
       toast({
         variant: "destructive",
         title: "خطأ",
-        description: "فشل تحديث حالة تأكيد الإتصال، يرجى المحاولة مرة أخرى",
+        description: error?.message || "فشل تحديث حالة تأكيد الإتصال، يرجى المحاولة مرة أخرى",
       });
     } finally {
       setIsUpdating(false);
@@ -181,6 +217,14 @@ const CallConfirmationDropdown = ({
             disabled={disabled || isUpdating || statuses.length === 0}
             className={`h-8 px-2 py-0.5 border hover:opacity-90 transition-all rounded-md ${className}`}
             style={{ backgroundColor: currentStatus ? `${currentColor}20` : undefined, borderColor: currentStatus ? currentColor : undefined, color: currentStatus ? currentColor : undefined }}
+            onClick={() => {
+              // تسجيل عند النقر على القائمة المنسدلة
+              console.log('تم النقر على قائمة تأكيد الاتصال', {
+                statuses: statuses.map(s => ({ id: s.id, name: s.name })),
+                disabled,
+                isUpdating
+              });
+            }}
           >
             {isUpdating ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin ml-1.5" />
@@ -195,25 +239,31 @@ const CallConfirmationDropdown = ({
         </DropdownMenuTrigger>
 
         <DropdownMenuContent
-          align="center"
-          alignOffset={-50}
+          align="end"
+          alignOffset={0}
           className="min-w-[180px] p-1 rounded-lg border shadow-lg"
         >
-          {statuses.map((status) => {
-            const StatusIcon = getIconForStatus(status.icon);
-            return (
-              <DropdownMenuItem
-                key={status.id}
-                onClick={() => handleStatusChange(status.id)}
-                disabled={isUpdating || currentStatusId === status.id}
-                className="cursor-pointer my-0.5 flex items-center gap-1.5 p-1.5 rounded-md text-xs font-medium"
-                style={{ color: status.color }}
-              >
-                <StatusIcon className="h-3.5 w-3.5" />
-                <span>{status.name}</span>
-              </DropdownMenuItem>
-            );
-          })}
+          {statuses.length > 0 ? (
+            statuses.map((status) => {
+              const StatusIcon = getIconForStatus(status.icon);
+              return (
+                <DropdownMenuItem
+                  key={status.id}
+                  onClick={() => handleStatusChange(status.id)}
+                  disabled={isUpdating || currentStatusId === status.id}
+                  className="cursor-pointer my-0.5 flex items-center gap-1.5 p-1.5 rounded-md text-xs font-medium"
+                  style={{ color: status.color }}
+                >
+                  <StatusIcon className="h-3.5 w-3.5" />
+                  <span>{status.name}</span>
+                </DropdownMenuItem>
+              );
+            })
+          ) : (
+            <DropdownMenuItem disabled className="cursor-default my-0.5 flex items-center gap-1.5 p-1.5 rounded-md text-xs text-muted-foreground">
+              لا توجد حالات متاحة
+            </DropdownMenuItem>
+          )}
 
           {showAddNew && (
             <>
@@ -310,6 +360,12 @@ const CallConfirmationDropdown = ({
                 rows={4}
               />
             </div>
+            
+            {error && (
+              <div className="bg-destructive/15 text-destructive text-sm p-2 rounded-md">
+                {error}
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button 

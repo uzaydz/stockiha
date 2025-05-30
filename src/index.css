@@ -4,6 +4,21 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Custom gradient utilities */
+@layer utilities {
+  .bg-gradient-radial {
+    background-image: radial-gradient(ellipse at center, var(--tw-gradient-stops));
+  }
+  
+  .perspective-1000 {
+    perspective: 1000px;
+  }
+  
+  .transform-gpu {
+    transform: translateZ(0);
+  }
+}
+
 @layer base {
   :root {
     /* متغيرات الألوان الأساسية - الوضع الافتراضي (داكن) */
@@ -49,15 +64,9 @@
     --sidebar-border: 217.2 32.6% 17.5%;
     --sidebar-ring: 217.2 91.2% 59.8%;
 
-    /* متغيرات مخصصة للانتقالات */
-    --theme-transition-duration: 0.3s;
-    --theme-transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
-    
-    /* متغيرات للتأثيرات البصرية */
-    --glow-primary: 217.2 91.2% 59.8%;
-    --glow-secondary: 217.2 32.6% 17.5%;
-    --backdrop-blur: 12px;
-    --glass-opacity: 0.1;
+    /* متغيرات مخصصة للانتقالات السريعة */
+    --theme-transition-duration: 0.15s;
+    --theme-transition-timing: ease-out;
   }
 
   .light {
@@ -101,11 +110,6 @@
     --sidebar-accent-foreground: 222.2 84% 4.9%;
     --sidebar-border: 214.3 31.8% 91.4%;
     --sidebar-ring: 217.2 91.2% 59.8%;
-
-    /* تأثيرات بصرية للوضع الفاتح */
-    --glow-primary: 217.2 91.2% 59.8%;
-    --glow-secondary: 210 40% 96%;
-    --glass-opacity: 0.05;
   }
 
   .dark {
@@ -149,110 +153,44 @@
     --sidebar-accent-foreground: 210 40% 98%;
     --sidebar-border: 217.2 32.6% 17.5%;
     --sidebar-ring: 217.2 91.2% 59.8%;
-
-    /* تأثيرات بصرية للوضع الداكن */
-    --glow-primary: 217.2 91.2% 59.8%;
-    --glow-secondary: 217.2 32.6% 17.5%;
-    --glass-opacity: 0.15;
   }
 
-  /* تحسين الانتقالات العامة */
+  /* تحسين الانتقالات لتكون سريعة جداً */
   * {
     @apply border-border;
-    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
-    transition-duration: var(--theme-transition-duration);
-    transition-timing-function: var(--theme-transition-timing);
   }
 
   /* تحسين الجسم الرئيسي */
   body {
-    @apply bg-background text-foreground font-tajawal;
+    @apply bg-background text-foreground;
+    font-family: 'Tajawal', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     transition: background-color var(--theme-transition-duration) var(--theme-transition-timing),
                 color var(--theme-transition-duration) var(--theme-transition-timing);
     color-scheme: light dark;
   }
-
-  /* تحسين العناوين */
-  h1, h2, h3, h4, h5, h6 {
-    @apply font-sans;
-    transition: color var(--theme-transition-duration) var(--theme-transition-timing);
-  }
-
-  /* تحسين الروابط */
-  a {
-    transition: color var(--theme-transition-duration) var(--theme-transition-timing),
-                opacity var(--theme-transition-duration) var(--theme-transition-timing);
-  }
-
-  /* تحسين الأزرار */
-  button {
-    transition: all var(--theme-transition-duration) var(--theme-transition-timing);
-  }
-
-  /* تحسين حقول الإدخال */
-  input, textarea, select {
-    transition: all var(--theme-transition-duration) var(--theme-transition-timing);
-  }
 }
 
 @layer components {
-  /* أزرار محسنة */
+  /* أزرار محسنة بدون تأثيرات كبيرة */
   .primary-button {
     @apply bg-primary text-primary-foreground hover:bg-primary/90;
-    transition: all var(--theme-transition-duration) var(--theme-transition-timing);
-    box-shadow: 0 4px 14px 0 hsl(var(--primary) / 0.2);
-  }
-  
-  .primary-button:hover {
-    box-shadow: 0 6px 20px 0 hsl(var(--primary) / 0.3);
-    transform: translateY(-1px);
+    transition: background-color var(--theme-transition-duration) var(--theme-transition-timing);
   }
   
   .custom-button {
     @apply bg-primary text-primary-foreground hover:bg-primary-lighter;
-    transition: all var(--theme-transition-duration) var(--theme-transition-timing);
+    transition: background-color var(--theme-transition-duration) var(--theme-transition-timing);
   }
   
-  /* بطاقات محسنة */
+  /* بطاقات محسنة وبسيطة */
   .custom-card {
     @apply bg-card text-card-foreground border rounded-lg shadow-sm;
     transition: all var(--theme-transition-duration) var(--theme-transition-timing);
-    backdrop-filter: blur(var(--backdrop-blur));
-    background: hsl(var(--card) / calc(1 - var(--glass-opacity)));
   }
 
-  .custom-card:hover {
-    box-shadow: 0 10px 25px -3px hsl(var(--foreground) / 0.1),
-                0 4px 6px -2px hsl(var(--foreground) / 0.05);
-    transform: translateY(-2px);
-  }
-
-  /* تأثير الزجاج */
-  .glass-effect {
-    backdrop-filter: blur(var(--backdrop-blur));
-    background: hsl(var(--background) / calc(1 - var(--glass-opacity)));
-    border: 1px solid hsl(var(--border) / 0.5);
-  }
-
-  /* تأثير التوهج */
-  .glow-effect {
-    box-shadow: 0 0 20px hsl(var(--glow-primary) / 0.3);
-  }
-
-  .glow-effect:hover {
-    box-shadow: 0 0 30px hsl(var(--glow-primary) / 0.5);
-  }
-
-  /* انتقال سلس للثيم */
+  /* انتقال سلس وسريع للثيم */
   .theme-transition {
     transition: all var(--theme-transition-duration) var(--theme-transition-timing);
-  }
-
-  /* تحسين الشريط الجانبي */
-  .sidebar-enhanced {
-    backdrop-filter: blur(var(--backdrop-blur));
-    background: hsl(var(--sidebar-background) / 0.95);
-    border-right: 1px solid hsl(var(--sidebar-border) / 0.5);
   }
 }
 
@@ -302,146 +240,7 @@
   background: hsl(var(--sidebar-primary) / 0.6);
 }
 
-/* رسوم متحركة محسنة */
-@keyframes pulse-glow-enhanced {
-  0%, 100% {
-    box-shadow: 0 0 15px 0 hsl(var(--primary) / 0.4);
-  }
-  50% {
-    box-shadow: 0 0 25px 5px hsl(var(--primary) / 0.7);
-  }
-}
-
-.pulse-glow-enhanced {
-  animation: pulse-glow-enhanced 2s infinite;
-}
-
-@keyframes theme-switch {
-  0% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.8;
-    transform: scale(0.95);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.theme-switch-animation {
-  animation: theme-switch 0.3s ease-in-out;
-}
-
-/* تحسينات إضافية للدارك مود */
-@keyframes theme-center-appear {
-  0% {
-    opacity: 0;
-    transform: scale(0.3) rotate(-180deg);
-  }
-  50% {
-    opacity: 0.8;
-    transform: scale(1.1) rotate(0deg);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1) rotate(0deg);
-  }
-}
-
-@keyframes theme-ripple-effect {
-  0% {
-    transform: scale(0);
-    opacity: 0.8;
-  }
-  50% {
-    opacity: 0.4;
-  }
-  100% {
-    transform: scale(2);
-    opacity: 0;
-  }
-}
-
-@keyframes theme-particles-float {
-  0%, 100% {
-    transform: translateY(0px) scale(1);
-    opacity: 0.6;
-  }
-  50% {
-    transform: translateY(-10px) scale(1.2);
-    opacity: 1;
-  }
-}
-
-@keyframes theme-glow-expand {
-  0% {
-    box-shadow: 0 0 20px hsl(var(--primary) / 0.3);
-    transform: scale(1);
-  }
-  50% {
-    box-shadow: 0 0 40px hsl(var(--primary) / 0.6);
-    transform: scale(1.05);
-  }
-  100% {
-    box-shadow: 0 0 20px hsl(var(--primary) / 0.3);
-    transform: scale(1);
-  }
-}
-
-@keyframes theme-border-rotate {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
-}
-
-/* فئات CSS للتأثيرات الجديدة */
-.theme-center-appear {
-  animation: theme-center-appear 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-}
-
-.theme-ripple-effect {
-  animation: theme-ripple-effect 1s ease-out forwards;
-}
-
-.theme-particles-float {
-  animation: theme-particles-float 2s ease-in-out infinite;
-}
-
-.theme-glow-expand {
-  animation: theme-glow-expand 1.5s ease-in-out infinite;
-}
-
-.theme-border-rotate {
-  animation: theme-border-rotate 3s linear infinite;
-}
-
-/* تحسين الانتقالات للعناصر المختلفة */
-.theme-transition-fast {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.theme-transition-medium {
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.theme-transition-slow {
-  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* تأثيرات خاصة للأيقونات */
-.icon-glow-sun {
-  filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.6));
-}
-
-.icon-glow-moon {
-  filter: drop-shadow(0 0 8px rgba(148, 163, 184, 0.6));
-}
+/* إزالة الرسوم المتحركة الكبيرة */
 
 /* تحسين الفوكس */
 :focus-visible {
@@ -727,6 +526,145 @@
   animation: profit-pulse 2s ease-in-out infinite;
 }
 
+/* Enhanced Hero Section Animations */
+@keyframes blob {
+  0% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  33% {
+    transform: translate(30px, -50px) scale(1.1);
+  }
+  66% {
+    transform: translate(-20px, 20px) scale(0.9);
+  }
+  100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+}
+
+.animate-blob {
+  animation: blob 7s infinite;
+}
+
+.animation-delay-2000 {
+  animation-delay: 2s;
+}
+
+.animation-delay-4000 {
+  animation-delay: 4s;
+}
+
+/* Grid pattern for background */
+.bg-grid-pattern {
+  background-image: radial-gradient(circle, hsl(var(--primary)) 1px, transparent 1px);
+  background-size: 50px 50px;
+}
+
+/* Enhanced gradient backgrounds */
+.bg-size-200 {
+  background-size: 200% 200%;
+}
+
+/* Hero specific responsive improvements */
+@media (max-width: 640px) {
+  .hero-title-mobile {
+    @apply text-3xl leading-tight;
+  }
+  
+  .hero-subtitle-mobile {
+    @apply text-base px-4;
+  }
+  
+  .hero-buttons-mobile {
+    @apply flex-col gap-4 w-full px-4;
+  }
+  
+  .hero-button-mobile {
+    @apply w-full justify-center min-w-0;
+  }
+  
+  .hero-features-mobile {
+    @apply grid-cols-1 gap-4 px-4;
+  }
+  
+  .hero-stats-mobile {
+    @apply grid-cols-2 gap-4 text-center;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 768px) {
+  .hero-features-tablet {
+    @apply grid-cols-2 gap-6;
+  }
+  
+  .hero-stats-tablet {
+    @apply grid-cols-2 gap-6;
+  }
+}
+
+/* Performance optimizations */
+.hero-optimized {
+  @apply will-change-transform;
+  transform: translateZ(0);
+}
+
+.hero-text-optimized {
+  @apply will-change-auto;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Interactive elements hover states */
+.hero-interactive-card {
+  @apply transition-all duration-300 ease-out;
+  will-change: transform, box-shadow;
+}
+
+.hero-interactive-card:hover {
+  @apply transform scale-105 shadow-xl;
+}
+
+/* Reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .animate-blob,
+  .animate-breathe,
+  .animate-theme-particles-float,
+  .animate-moving-gradient,
+  .animate-bounce {
+    animation: none;
+  }
+  
+  .hero-interactive-card:hover {
+    transform: none;
+  }
+}
+
+/* Focus accessibility improvements */
+.hero-focusable:focus-visible {
+  @apply outline-2 outline-primary outline-offset-2;
+}
+
+/* Text selection improvements */
+.hero-text-selection::selection {
+  @apply bg-primary/20 text-primary;
+}
+
+/* Loading states */
+.hero-loading-skeleton {
+  @apply bg-gradient-to-r from-muted via-muted/50 to-muted;
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
 /* Enhanced focus states for accessibility */
 .pricing-input:focus-visible {
   @apply ring-2 ring-primary ring-offset-2 outline-none;
@@ -736,9 +674,163 @@
   @apply ring-2 ring-primary ring-offset-2 outline-none;
 }
 
-/* Remove complex animations and focus on clean transitions */
-* {
+/* Optimized smooth scrolling and performance */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Remove complex animations and focus on clean transitions - Performance Optimized */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Only essential transitions for better performance */
+a, button, input, textarea, select {
   @apply transition-colors duration-200 ease-in-out;
+}
+
+/* تحسينات شاملة للأداء والسكرول السلس */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  overflow-x: hidden;
+}
+
+body {
+  -webkit-overflow-scrolling: touch;
+  overflow-x: hidden;
+  will-change: scroll-position;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* تسريع جميع العناصر المتحركة */
+[data-framer-motion] {
+  transform: translateZ(0);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+
+/* Optimize animations for 60fps */
+@media (prefers-reduced-motion: no-preference) {
+  * {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Contain layout shifts */
+.landing-section {
+  contain: layout style paint;
+}
+
+/* Optimize framer-motion components - تحسين مكونات الحركة */
+[data-framer-motion] {
+  transform: translateZ(0);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+
+/* تحسينات إضافية للأداء */
+.landing-section {
+  contain: layout style paint;
+  will-change: auto;
+}
+
+/* تقليل التأثيرات المكلفة */
+.shadow-lg, .shadow-xl {
+  will-change: box-shadow;
+}
+
+/* تحسين الصور */
+img {
+  will-change: auto;
+  backface-visibility: hidden;
+}
+
+/* تحسين الانتقالات */
+.transition-all {
+  transition-property: transform, opacity, box-shadow;
+  transition-duration: 200ms;
+  transition-timing-function: ease-in-out;
+}
+
+/* إزالة الحركات المعقدة على الموبايل */
+@media (max-width: 768px) {
+  [data-framer-motion] {
+    transform: none !important;
+    animation: none !important;
+  }
+  
+  .hover\\:scale-105:hover {
+    transform: none !important;
+  }
+  
+  .transition-all {
+    transition: none !important;
+  }
+}
+
+/* تحسينات إضافية للأداء */
+.landing-page-optimized {
+  contain: layout style paint;
+  will-change: auto;
+}
+
+/* تحسين أداء الخطوط مع خط احتياطي */
+/* إزالة المرجع للملف المحلي غير الموجود والاعتماد على Google Fonts */
+.font-arabic-fallback {
+  font-family: 'Tajawal', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* خط احتياطي سريع */
+.font-arabic {
+  font-family: 'Tajawal', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* تحسين loading للصور */
+img {
+  loading: lazy;
+  decoding: async;
+}
+
+/* تحسين الذاكرة - تنظيف الحركات غير المستخدمة */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* تحسين أداء السكرول */
+.smooth-scroll {
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--primary)) transparent;
+}
+
+/* تقليل repaint للعناصر الثابتة */
+.static-element {
+  will-change: auto;
+  transform: none;
+}
+
+/* تحسين البطاقات */
+.optimized-card {
+  contain: layout style;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 /* Simplified card styles */

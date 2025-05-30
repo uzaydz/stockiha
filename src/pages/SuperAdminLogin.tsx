@@ -67,32 +67,35 @@ export default function SuperAdminLogin() {
     setLoginError(null);
     
     try {
-      // محاولة تسجيل الدخول
-      const { success, error } = await signIn(values.email, values.password);
+      // محاولة تسجيل الدخول مباشرة باستخدام Supabase
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: values.email,
+        password: values.password,
+      });
       
       if (error) {
         throw new Error(error.message);
       }
       
-      if (!success) {
+      if (!data.user) {
         throw new Error('فشل تسجيل الدخول لسبب غير معروف');
       }
       
       // التحقق من صلاحيات المسؤول الرئيسي
-      // بعد تسجيل الدخول، user سيكون متاحًا في useAuth
-      const userId = user?.id;
-      
-      if (!userId) {
-        throw new Error('لم يتم العثور على هوية المستخدم');
-      }
-      
-      const isSuperAdmin = await checkSuperAdminStatus(userId);
+      const isSuperAdmin = await checkSuperAdminStatus(data.user.id);
       
       if (!isSuperAdmin) {
         // تسجيل الخروج إذا لم يكن مسؤول رئيسي
         await supabase.auth.signOut();
         throw new Error('ليس لديك صلاحيات للوصول إلى لوحة المسؤول الرئيسي');
       }
+      
+      // حفظ حالة الـ Super Admin في localStorage لتجنب فقدان الجلسة
+      localStorage.setItem('is_super_admin', 'true');
+      localStorage.setItem('super_admin_session', JSON.stringify({
+        userId: data.user.id,
+        timestamp: Date.now()
+      }));
       
       // توجيه المستخدم إلى لوحة المسؤول الرئيسي
       toast({

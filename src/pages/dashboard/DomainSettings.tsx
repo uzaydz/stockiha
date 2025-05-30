@@ -7,7 +7,7 @@ const DomainSettings: React.FC = () => {
   return (
     <Layout>
       <Helmet>
-        <title>إعدادات النطاقات المخصصة | Bazaar</title>
+        <title>إعدادات النطاقات المخصصة | ستوكيها - منصة إدارة المتاجر الذكية</title>
       </Helmet>
       <div className="container py-6">
         <div className="flex items-center justify-between mb-6">

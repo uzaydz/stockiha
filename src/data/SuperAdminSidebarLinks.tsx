@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Settings, Users, CircleDollarSign, ShoppingCart, BookOpen, KeyRound, DatabaseZap } from 'lucide-react';
+import { LayoutDashboard, Settings, Users, CircleDollarSign, ShoppingCart, BookOpen, KeyRound, DatabaseZap, Search, GraduationCap } from 'lucide-react';
 
 // تعريف نوع رابط القائمة الجانبية
 export interface SidebarLink {
@@ -44,6 +44,16 @@ export const SuperAdminSidebarLinks: SidebarLink[] = [
     name: "طرق الدفع",
     href: "/super-admin/payment-methods",
     icon: <CircleDollarSign className="h-5 w-5" />,
+  },
+  {
+    name: "SEO والأرشفة",
+    href: "/super-admin/seo",
+    icon: <Search className="h-5 w-5" />,
+  },
+  {
+    name: "الدورات التدريبية",
+    href: "/super-admin/courses",
+    icon: <GraduationCap className="h-5 w-5" />,
   },
   {
     name: "الإعدادات",

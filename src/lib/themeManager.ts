@@ -21,7 +21,7 @@ export interface UnifiedTheme {
 
 // الألوان الافتراضية للموقع العام
 const DEFAULT_GLOBAL_THEME: UnifiedTheme = {
-  primaryColor: '#0099ff', // لون أزرق للموقع العام
+  primaryColor: '#ff8000', // اللون البرتقالي للموقع العام
   secondaryColor: '#6b21a8', // لون بنفسجي للموقع العام
   mode: 'light',
   lastUpdated: Date.now()
@@ -103,11 +103,20 @@ function isHSLColor(color: string): boolean {
  * تطبيق الثيم على العناصر في الصفحة
  */
 function applyThemeToDOM(theme: UnifiedTheme): void {
+  // التحقق من نوع الصفحة
+  const pageType = getCurrentPageType();
+  
+  // إذا كانت الصفحة العامة، نستخدم الثيم العام دائماً
+  if (pageType === 'global') {
+    theme = getStoredTheme('global') || DEFAULT_GLOBAL_THEME;
+  }
+
   console.log('🎨 [themeManager] تطبيق الثيم:', {
     primaryColor: theme.primaryColor,
     secondaryColor: theme.secondaryColor,
     mode: theme.mode,
-    organizationId: theme.organizationId
+    organizationId: theme.organizationId,
+    pageType: pageType
   });
   
   const root = document.documentElement;
@@ -183,7 +192,8 @@ function applyThemeToDOM(theme: UnifiedTheme): void {
   const computedPrimary = window.getComputedStyle(root).getPropertyValue('--primary');
   console.log('✅ [themeManager] تم تطبيق الثيم بنجاح:', {
     primary: computedPrimary.trim(),
-    mode: effectiveMode
+    mode: effectiveMode,
+    pageType: pageType
   });
 }
 
@@ -220,6 +230,12 @@ function getCurrentPageType(): 'global' | 'store' | 'admin' {
   const hostname = window.location.hostname;
   const pathname = window.location.pathname;
   
+  // تحقق من المسارات المحددة للصفحة العامة
+  const globalPaths = ['/', '/about', '/contact', '/blog', '/pricing', '/features'];
+  if (globalPaths.includes(pathname)) {
+    return 'global';
+  }
+
   // إذا كان في لوحة التحكم
   if (pathname.startsWith('/admin') || pathname.startsWith('/dashboard')) {
     return 'admin';
@@ -238,7 +254,13 @@ function getCurrentPageType(): 'global' | 'store' | 'admin' {
   if (orgId) {
     return 'store';
   }
+
+  // التحقق من المسار إذا كان يبدأ بـ /store
+  if (pathname.startsWith('/store/')) {
+    return 'store';
+  }
   
+  // إذا لم يتم التعرف على نوع الصفحة، نفترض أنها صفحة عامة
   return 'global';
 }
 
@@ -314,6 +336,8 @@ function getStoredTheme(type: 'global' | 'store' | 'organization'): UnifiedTheme
 export function applyInstantTheme(): void {
   const pageType = getCurrentPageType();
   
+  console.log('🔍 [applyInstantTheme] نوع الصفحة المكتشف:', pageType);
+  
   // محاولة استرجاع الثيم المناسب
   let theme: UnifiedTheme | null = null;
   
@@ -325,13 +349,22 @@ export function applyInstantTheme(): void {
     if (!theme) {
       theme = getStoredTheme('store') || DEFAULT_STORE_THEME;
     }
+    
+    console.log('🏪 [applyInstantTheme] تطبيق ثيم المتجر/لوحة التحكم');
   } else {
-    // للموقع العام، نستخدم الثيم العام
-    theme = getStoredTheme('global') || DEFAULT_GLOBAL_THEME;
+    // للموقع العام، نستخدم الثيم العام دائماً
+    theme = DEFAULT_GLOBAL_THEME;
+    console.log('🌐 [applyInstantTheme] تطبيق الثيم العام');
   }
   
   // تطبيق الثيم فوراً
   if (theme) {
+    // تأكد من عدم وجود معرف مؤسسة للصفحات العامة
+    if (pageType === 'global') {
+      delete theme.organizationId;
+      delete theme.subdomain;
+    }
+    
     applyThemeToDOM(theme);
   }
 }

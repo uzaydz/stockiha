@@ -46,7 +46,9 @@ import {
   ChevronLeft,
   ArrowRightToLine,
   ArrowLeftToLine,
-  X
+  X,
+  GraduationCap,
+  BookOpen
 } from 'lucide-react';
 
 const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
@@ -495,6 +497,49 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
           requiredPermission: 'viewEmployees',
           badge: null
         },
+        {
+          title: 'تقسيم الطلبيات',
+          icon: LayoutDashboard,
+          href: '/dashboard/order-distribution',
+          requiredPermission: 'manageEmployees',
+          badge: 'جديد'
+        },
+      ]
+    },
+    {
+      group: 'دورات سطوكيها',
+      icon: GraduationCap,
+      requiredPermission: null,
+      badge: 'قريباً',
+      items: [
+        {
+          title: 'دورة التسويق الإلكتروني',
+          icon: BookOpen,
+          href: '/dashboard/courses/digital-marketing',
+          requiredPermission: null,
+          badge: 'جديد'
+        },
+        {
+          title: 'دورة التسويق عبر التيك توك',
+          icon: BookOpen,
+          href: '/dashboard/courses/tiktok-marketing',
+          requiredPermission: null,
+          badge: 'جديد'
+        },
+        {
+          title: 'دورة صنع متجر إلكتروني',
+          icon: BookOpen,
+          href: '/dashboard/courses/e-commerce-store',
+          requiredPermission: null,
+          badge: 'جديد'
+        },
+        {
+          title: 'دورة التجارة الإلكترونية',
+          icon: BookOpen,
+          href: '/dashboard/courses/e-commerce',
+          requiredPermission: null,
+          badge: 'جديد'
+        },
       ]
     },
     {
@@ -683,17 +728,18 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
   return (
     <>
       <div 
-        id="sidebar-container"
+        id="sidebar-container" 
         className={cn(
-          "h-screen fixed top-0 right-0 z-20",
-          "flex flex-col transition-all duration-300 ease-in-out",
-          "bg-sidebar-background overflow-y-auto overflow-x-hidden",
-          "shadow-lg border-l border-sidebar-border",
-          "sidebar-scrollbar",
-          isCollapsed ? "w-20" : "w-72"
+          "h-[calc(100vh-4rem)]",
+          "border-l border-sidebar-border z-30",
+          "bg-sidebar-background text-sidebar-foreground sidebar-scrollbar",
+          "overflow-y-auto flex flex-col transition-all duration-300",
+          "shadow-md",
+          isCollapsed 
+            ? "w-20" 
+            : "w-72"
         )}
         dir="rtl"
-        style={{ width: isCollapsed ? '5rem' : '18rem' }}
       >
         {/* هيدر القائمة - معلومات المستخدم والتبديل */}
         <div className={cn(
@@ -1164,7 +1210,7 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
         <motion.button
           onClick={toggleCollapse}
           className={cn(
-            "fixed top-1/2 right-16 z-10 transform -translate-y-1/2",
+            "fixed top-1/2 right-[5.5rem] z-10 transform -translate-y-1/2",
             "h-10 w-10 rounded-full bg-primary text-primary-foreground shadow-lg",
             "flex items-center justify-center",
             "hover:scale-110 hover:shadow-xl",

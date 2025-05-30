@@ -33,7 +33,9 @@ import {
   Phone,
   Wallet,
   MapPin,
-  AlertTriangle
+  AlertTriangle,
+  Globe,
+  Clock
 } from 'lucide-react';
 
 // Lazy load dashboard components to improve initial load time
@@ -873,7 +875,7 @@ const Dashboard = () => {
 
   return (
     <Layout>
-      <div className="container px-2 sm:px-4 lg:px-6 mx-auto max-w-[1400px]">
+      <div className="container px-2 sm:px-4 lg:px-6 mx-auto max-w-6xl">
         <Suspense fallback={<ComponentLoader />}>
           <DashboardHeader 
             toggleSidebar={toggleSidebar} 
@@ -881,7 +883,7 @@ const Dashboard = () => {
             onCustomDateChange={handleCustomDateChange}
           />
         
-          {/* إضافة إشعار الفترة التجريبية */}
+          {/* إشعار الفترة التجريبية */}
           <TrialNotification />
         </Suspense>
         
@@ -907,11 +909,12 @@ const Dashboard = () => {
           </div>
         ) : (
           stats ? (
-            <div className="space-y-4 sm:space-y-6 lg:space-y-8">
+            <div className="space-y-8">
+              {/* الإحصائيات الرئيسية - مكون واحد كبير */}
               <Suspense fallback={<ComponentLoader />}>
-                {/* عرض الإحصائيات الرئيسية */}
-                <div className="rounded-lg sm:rounded-xl lg:rounded-2xl bg-card text-card-foreground relative overflow-hidden transition-all duration-300 bg-gradient-to-br from-background/95 to-background/90 backdrop-blur-md border border-border/20 shadow-lg hover:shadow-xl before:absolute before:inset-0 before:bg-gradient-to-br before:from-primary/5 before:to-transparent before:pointer-events-none p-3 sm:p-4 lg:p-6">
+                <div className="rounded-xl bg-card text-card-foreground relative overflow-hidden transition-all duration-300 bg-gradient-to-br from-background/95 to-background/90 backdrop-blur-md border border-border/20 shadow-lg hover:shadow-xl before:absolute before:inset-0 before:bg-gradient-to-br before:from-primary/5 before:to-transparent before:pointer-events-none p-5 lg:p-6">
                   <div className="relative z-10">
+                    <h2 className="text-xl font-bold text-foreground mb-4">ملخص الأداء</h2>
                     <StatsGrid 
                       sales={stats.sales}
                       revenue={stats.revenue}
@@ -923,102 +926,120 @@ const Dashboard = () => {
                 </div>
               </Suspense>
 
-              {/* قسم الوصول السريع للصفحات المهمة - محسن للجوال */}
-              <div className="rounded-lg sm:rounded-xl lg:rounded-2xl bg-card text-card-foreground relative overflow-hidden transition-all duration-300 bg-gradient-to-br from-background/95 to-background/90 backdrop-blur-md border border-border/20 shadow-lg hover:shadow-xl before:absolute before:inset-0 before:bg-gradient-to-br before:from-primary/5 before:to-transparent before:pointer-events-none p-3 sm:p-4 lg:p-6 space-y-3 sm:space-y-4">
-                <div className="flex justify-between items-center pb-2 sm:pb-3 border-b border-border/20 relative z-10">
-                  <h2 className="text-base sm:text-lg font-bold bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">الصفحات الرئيسية</h2>
-                  <p className="text-xs text-muted-foreground font-medium hidden sm:block">وصول سريع</p>
-                </div>
-                
-                {/* الصفحات الرئيسية - تخطيط متجاوب محسن */}
-                <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2 sm:gap-3 relative z-10">
-                  {quickAccessPages
-                    .filter(page => !page.requiredPermission || checkUserPermissions(user, page.requiredPermission as any))
-                    .slice(0, 16) // زيادة العدد للاستفادة من المساحة
-                    .map((page, index) => (
+              {/* روابط الوصول السريع - صف مستقل */}
+              <div className="grid grid-cols-5 sm:grid-cols-5 lg:grid-cols-10 gap-3">
+                {quickAccessPages
+                  .filter(page => !page.requiredPermission || checkUserPermissions(user, page.requiredPermission as any))
+                  .slice(0, 10)
+                  .map((page, index) => (
                     <Link 
                       key={index} 
                       to={page.href}
-                      className="group flex flex-col items-center p-2 sm:p-3 rounded-lg bg-gradient-to-br from-background/60 to-background/40 backdrop-blur-sm border border-border/30 hover:border-primary/50 hover:shadow-md transition-all duration-300 hover:scale-[1.02] text-center"
+                      className="group flex flex-col items-center p-3 rounded-lg bg-gradient-to-br from-background/60 to-background/40 backdrop-blur-sm border border-border/30 hover:border-primary/50 hover:shadow-md transition-all duration-300 hover:scale-[1.02] text-center"
                     >
-                      <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg ${page.color} text-white flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300 border border-white/20 mb-1 sm:mb-2`}>
-                        <page.icon className="h-4 w-4 sm:h-5 sm:w-5" />
+                      <div className={`w-10 h-10 rounded-lg ${page.color} text-white flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300 border border-white/20 mb-2`}>
+                        <page.icon className="h-5 w-5" />
                       </div>
-                      <h3 className="font-semibold text-xs sm:text-sm group-hover:text-primary transition-colors duration-300 bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent leading-tight text-center">{page.title}</h3>
+                      <h3 className="font-medium text-xs group-hover:text-primary transition-colors duration-300">{page.title}</h3>
                     </Link>
-                  ))}
-                </div>
-                
-                {/* عرض الباقي كأزرار صغيرة إضافية - محسن للجوال */}
-                {quickAccessPages.filter(page => !page.requiredPermission || checkUserPermissions(user, page.requiredPermission as any)).length > 16 && (
-                  <div className="pt-2 sm:pt-3 border-t border-border/20 relative z-10">
-                    <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                      {quickAccessPages
-                        .filter(page => !page.requiredPermission || checkUserPermissions(user, page.requiredPermission as any))
-                        .slice(16) // الصفحات الإضافية
-                        .map((page, index) => (
-                        <Link 
-                          key={index + 16} 
-                          to={page.href}
-                          className="inline-flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md bg-gradient-to-br from-background/60 to-background/40 backdrop-blur-sm border border-border/30 hover:border-primary/50 text-xs font-medium transition-all duration-300 hover:scale-105"
-                        >
-                          <div className={`w-3 h-3 sm:w-4 sm:h-4 rounded ${page.color} text-white flex items-center justify-center`}>
-                            <page.icon className="h-2 w-2 sm:h-2.5 sm:w-2.5" />
-                          </div>
-                          <span className="hidden sm:inline">{page.title}</span>
-                        </Link>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                  ))
+                }
               </div>
-              
-              {/* تم حذف مكونات تحليل المبيعات وحالة الطلبات */}
-              
-              {/* عرض المنتجات والطلبات - تخطيط محسن ومتجاوب */}
-              <Suspense fallback={<ComponentLoader />}>
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 mt-4 sm:mt-6">
-                  {/* المنتجات منخفضة المخزون */}
-                  <div className="rounded-lg sm:rounded-xl lg:rounded-2xl bg-card text-card-foreground relative overflow-hidden transition-all duration-300 bg-gradient-to-br from-background/95 to-background/90 backdrop-blur-md border border-border/20 shadow-lg hover:shadow-xl before:absolute before:inset-0 before:bg-gradient-to-br before:from-primary/5 before:to-transparent before:pointer-events-none p-3 sm:p-4 lg:p-6">
+
+              {/* الطلبات - صف مستقل يضم مكونين فقط جنبًا إلى جنب */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* آخر الطلبات العادية */}
+                <Suspense fallback={<ComponentLoader />}>
+                  <div className="rounded-xl bg-card text-card-foreground relative overflow-hidden transition-all duration-300 bg-gradient-to-br from-background/95 to-background/90 backdrop-blur-md border border-border/20 shadow-lg hover:shadow-xl before:absolute before:inset-0 before:bg-gradient-to-br before:from-primary/5 before:to-transparent before:pointer-events-none p-5">
                     <div className="relative z-10">
-                      <h3 className="text-base sm:text-lg font-bold mb-3 sm:mb-4 bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">المنتجات منخفضة المخزون</h3>
-                      <LowStockCard products={allProducts} />
-                    </div>
-                  </div>
-                  
-                  {/* آخر الطلبات العادية */}
-                  <div className="rounded-lg sm:rounded-xl lg:rounded-2xl bg-card text-card-foreground relative overflow-hidden transition-all duration-300 bg-gradient-to-br from-background/95 to-background/90 backdrop-blur-md border border-border/20 shadow-lg hover:shadow-xl before:absolute before:inset-0 before:bg-gradient-to-br before:from-primary/5 before:to-transparent before:pointer-events-none p-3 sm:p-4 lg:p-6">
-                    <div className="relative z-10">
-                      <h3 className="text-base sm:text-lg font-bold mb-3 sm:mb-4 bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">آخر الطلبات</h3>
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+                          <ShoppingBag className="h-5 w-5 text-primary" />
+                          آخر الطلبات
+                        </h2>
+                        <Link to="/dashboard/orders" className="text-sm text-primary hover:underline">
+                          عرض الكل
+                        </Link>
+                      </div>
                       <RecentOrdersCard orders={recentOrders} />
                     </div>
                   </div>
-                  
-                  {/* آخر الطلبات الأونلاين */}
-                  <div className="rounded-lg sm:rounded-xl lg:rounded-2xl bg-card text-card-foreground relative overflow-hidden transition-all duration-300 bg-gradient-to-br from-background/95 to-background/90 backdrop-blur-md border border-border/20 shadow-lg hover:shadow-xl before:absolute before:inset-0 before:bg-gradient-to-br before:from-primary/5 before:to-transparent before:pointer-events-none p-3 sm:p-4 lg:p-6 md:col-span-2 xl:col-span-1">
+                </Suspense>
+                
+                {/* آخر الطلبات الأونلاين */}
+                <Suspense fallback={<ComponentLoader />}>
+                  <div className="rounded-xl bg-card text-card-foreground relative overflow-hidden transition-all duration-300 bg-gradient-to-br from-background/95 to-background/90 backdrop-blur-md border border-border/20 shadow-lg hover:shadow-xl before:absolute before:inset-0 before:bg-gradient-to-br before:from-primary/5 before:to-transparent before:pointer-events-none p-5">
                     <div className="relative z-10">
-                      <h3 className="text-base sm:text-lg font-bold mb-3 sm:mb-4 bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">آخر الطلبات الأونلاين</h3>
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+                          <Globe className="h-5 w-5 text-blue-500" />
+                          آخر الطلبات الأونلاين
+                        </h2>
+                        <Link to="/dashboard/online-orders" className="text-sm text-primary hover:underline">
+                          عرض الكل
+                        </Link>
+                      </div>
                       <RecentOnlineOrdersCard limit={5} />
                     </div>
                   </div>
+                </Suspense>
+              </div>
+
+              {/* مكون المنتجات منخفضة المخزون - مكون واحد كبير */}
+              <Suspense fallback={<ComponentLoader />}>
+                <div className="rounded-xl bg-card text-card-foreground relative overflow-hidden transition-all duration-300 bg-gradient-to-br from-background/95 to-background/90 backdrop-blur-md border border-border/20 shadow-lg hover:shadow-xl before:absolute before:inset-0 before:bg-gradient-to-br before:from-primary/5 before:to-transparent before:pointer-events-none p-5">
+                  <div className="relative z-10">
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+                        <AlertTriangle className="h-5 w-5 text-amber-500" />
+                        المنتجات منخفضة المخزون
+                      </h2>
+                      <Link to="/dashboard/inventory" className="text-sm text-primary hover:underline">
+                        إدارة المخزون
+                      </Link>
+                    </div>
+                    <LowStockCard products={allProducts} />
+                  </div>
                 </div>
               </Suspense>
-
-              {/* مكونات تحليلات إضافية - تخطيط محسن */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
+              
+              {/* مكونات التحليلات - صف مستقل يضم مكونين فقط جنبًا إلى جنب */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* مكون أفضل الولايات */}
-                <div className="w-full">
-                  <Suspense fallback={<ComponentLoader />}>
-                    <ProvinceOrdersCard organizationId={currentOrganization?.id || ''} />
-                  </Suspense>
-                </div>
+                <Suspense fallback={<ComponentLoader />}>
+                  <div className="rounded-xl bg-card text-card-foreground relative overflow-hidden transition-all duration-300 bg-gradient-to-br from-background/95 to-background/90 backdrop-blur-md border border-border/20 shadow-lg hover:shadow-xl before:absolute before:inset-0 before:bg-gradient-to-br before:from-primary/5 before:to-transparent before:pointer-events-none p-5">
+                    <div className="relative z-10">
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+                          <MapPin className="h-5 w-5 text-teal-500" />
+                          الطلبات حسب الولايات
+                        </h2>
+                        <Link to="/dashboard/analytics" className="text-sm text-primary hover:underline">
+                          تفاصيل أكثر
+                        </Link>
+                      </div>
+                      <ProvinceOrdersCard organizationId={currentOrganization?.id || ''} />
+                    </div>
+                  </div>
+                </Suspense>
                 
                 {/* مكون خريطة الطلبات حسب الوقت */}
-                <div className="w-full">
-                  <Suspense fallback={<ComponentLoader />}>
-                    <OrderHeatmapCard organizationId={currentOrganization?.id || ''} />
-                  </Suspense>
-                </div>
+                <Suspense fallback={<ComponentLoader />}>
+                  <div className="rounded-xl bg-card text-card-foreground relative overflow-hidden transition-all duration-300 bg-gradient-to-br from-background/95 to-background/90 backdrop-blur-md border border-border/20 shadow-lg hover:shadow-xl before:absolute before:inset-0 before:bg-gradient-to-br before:from-primary/5 before:to-transparent before:pointer-events-none p-5">
+                    <div className="relative z-10">
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+                          <Clock className="h-5 w-5 text-indigo-500" />
+                          توزيع الطلبات حسب الوقت
+                        </h2>
+                        <Link to="/dashboard/analytics" className="text-sm text-primary hover:underline">
+                          تفاصيل أكثر
+                        </Link>
+                      </div>
+                      <OrderHeatmapCard organizationId={currentOrganization?.id || ''} />
+                    </div>
+                  </div>
+                </Suspense>
               </div>
             </div>
           ) : (

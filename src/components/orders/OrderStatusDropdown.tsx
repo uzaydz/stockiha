@@ -111,8 +111,8 @@ const OrderStatusDropdown = ({
       
       {availableStatuses.length > 0 && (
         <DropdownMenuContent
-          align="center"
-          alignOffset={-50} 
+          align="end"
+          alignOffset={0} 
           className="min-w-[130px] p-1 rounded-lg border shadow-lg"
         >
           {availableStatuses.map((status) => {

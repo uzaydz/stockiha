@@ -1,137 +1,198 @@
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect, memo, useRef } from 'react';
+import { motion, useScroll, useTransform, useInView, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { Star, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { 
+  Star, 
+  Store, 
+  User, 
+  ShoppingBag, 
+  Building2, 
+  Quote,
+  ChevronLeft,
+  ChevronRight,
+  Play,
+  Pause,
+  Heart,
+  Award,
+  TrendingUp,
+  Users,
+  Sparkles,
+  MapPin,
+  Calendar,
+  CheckCircle
+} from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 
-// Define the testimonial type
 interface Testimonial {
   id: number;
   name: string;
   position: string;
   company: string;
+  location: string;
   image: string;
   iconType: 'store' | 'user' | 'bag' | 'building';
-  iconBg: string;
-  iconColor: string;
+  gradient: string;
+  bgGradient: string;
   content: string;
   rating: number;
   businessType: string;
+  businessSize: string;
+  joinDate: string;
+  results: {
+    metric: string;
+    improvement: string;
+    icon: React.ElementType;
+  }[];
+  featured?: boolean;
 }
 
-const TestimonialsSection = () => {
+const TestimonialsSection = memo(() => {
   const [activeIndex, setActiveIndex] = useState(0);
   const [autoplay, setAutoplay] = useState(true);
+  const [hoveredCard, setHoveredCard] = useState<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isInView = useInView(containerRef, { once: true, amount: 0.2 });
+  const { scrollY } = useScroll();
+  const parallaxY = useTransform(scrollY, [0, 1000], [0, -50]);
   
-  // Testimonials data
+  // Enhanced testimonials data
   const testimonials: Testimonial[] = [
     {
       id: 1,
       name: 'عبد القادر بن عيسى',
       position: 'صاحب محل',
-      company: 'مكتبة النجاح - الجزائر العاصمة',
+      company: 'مكتبة النجاح',
+      location: 'الجزائر العاصمة',
       image: '/images/testimonials/user-1-dz.jpg',
       iconType: 'store',
-      iconBg: 'bg-blue-100',
-      iconColor: 'text-blue-600',
-      content: 'منصة بازار سهّلت عليّ تنظيم الفواتير والمخزون. الدعم التقني متجاوب جدًا والتطبيق سهل حتى لغير التقنيين. أنصح بها لكل تاجر جزائري.',
+      gradient: 'from-blue-500 to-indigo-600',
+      bgGradient: 'from-blue-500/10 to-indigo-600/10',
+      content: 'منصة بازار سهّلت عليّ تنظيم الفواتير والمخزون بطريقة لم أتوقعها. الدعم التقني متجاوب جدًا والتطبيق سهل حتى لغير التقنيين. زادت مبيعاتي 40% في 3 أشهر فقط!',
       rating: 5,
-      businessType: 'مكتبة'
+      businessType: 'مكتبة ومطبعة',
+      businessSize: 'متوسط',
+      joinDate: '2023',
+      results: [
+        { metric: '+40%', improvement: 'زيادة المبيعات', icon: TrendingUp },
+        { metric: '90%', improvement: 'توفير الوقت', icon: CheckCircle },
+        { metric: '200+', improvement: 'عملاء جدد', icon: Users }
+      ]
     },
     {
       id: 2,
       name: 'فاطمة الزهراء بوزيد',
       position: 'مديرة صالون',
-      company: 'صالون لمسة حواء - وهران',
+      company: 'صالون لمسة حواء',
+      location: 'وهران',
       image: '/images/testimonials/user-2-dz.jpg',
       iconType: 'user',
-      iconBg: 'bg-pink-100',
-      iconColor: 'text-pink-600',
-      content: 'جربت عدة أنظمة لكن لم أجد سهولة ودعم مثل بازار. كل شيء واضح وبالعربية الجزائرية. وفر لي الوقت في تسيير المواعيد والمنتجات.',
+      gradient: 'from-pink-500 to-rose-600',
+      bgGradient: 'from-pink-500/10 to-rose-600/10',
+      content: 'جربت عدة أنظمة لكن لم أجد سهولة ودعم مثل بازار. كل شيء واضح وبالعربية الجزائرية. وفر لي الوقت في تسيير المواعيد والمنتجات. عملائي سعداء بالخدمة السريعة.',
       rating: 5,
-      businessType: 'صالون تجميل'
+      businessType: 'صالون تجميل',
+      businessSize: 'صغير',
+      joinDate: '2023',
+      results: [
+        { metric: '+65%', improvement: 'رضا العملاء', icon: Heart },
+        { metric: '3x', improvement: 'سرعة الخدمة', icon: Award },
+        { metric: '85%', improvement: 'تنظيم أفضل', icon: CheckCircle }
+      ]
     },
     {
       id: 3,
       name: 'سليم قشي',
       position: 'مدير',
-      company: 'محل قشي للملابس - قسنطينة',
+      company: 'محل قشي للملابس',
+      location: 'قسنطينة',
       image: '/images/testimonials/user-3-dz.jpg',
       iconType: 'bag',
-      iconBg: 'bg-emerald-100',
-      iconColor: 'text-emerald-600',
-      content: 'منصة جزائرية 100%. سهولة في البيع أونلاين وربط مباشر مع الزبائن. زادت مبيعاتي بفضل حلول بازار المحلية.',
+      gradient: 'from-emerald-500 to-green-600',
+      bgGradient: 'from-emerald-500/10 to-green-600/10',
+      content: 'منصة جزائرية 100% تفهم السوق المحلي. سهولة في البيع أونلاين وربط مباشر مع الزبائن. زادت مبيعاتي بفضل حلول بازار المحلية. النظام يدعم كل احتياجاتي.',
       rating: 4,
-      businessType: 'ملابس وأزياء'
+      businessType: 'ملابس وأزياء',
+      businessSize: 'متوسط',
+      joinDate: '2022',
+      results: [
+        { metric: '+120%', improvement: 'مبيعات أونلاين', icon: TrendingUp },
+        { metric: '50%', improvement: 'عملاء جدد', icon: Users },
+        { metric: '4.9★', improvement: 'تقييم العملاء', icon: Star }
+      ]
     },
     {
       id: 4,
       name: 'ياسمين براهيمي',
       position: 'مديرة مقهى',
-      company: 'مقهى الياسمين - سطيف',
+      company: 'مقهى الياسمين',
+      location: 'سطيف',
       image: '/images/testimonials/user-4-dz.jpg',
       iconType: 'building',
-      iconBg: 'bg-amber-100',
-      iconColor: 'text-amber-600',
-      content: 'أخيرا وجدت تطبيق يسهل إدارة المقهى والفروع. كل شيء واضح بالدينار الجزائري والدعم دائمًا متواجد.',
+      gradient: 'from-amber-500 to-orange-600',
+      bgGradient: 'from-amber-500/10 to-orange-600/10',
+      content: 'أخيرا وجدت تطبيق يسهل إدارة المقهى والفروع. كل شيء واضح بالدينار الجزائري والدعم دائمًا متواجد. ساعدني أوسع لفرعين جديدين بسهولة كبيرة.',
       rating: 5,
-      businessType: 'مقاهي ومطاعم'
+      businessType: 'مقاهي ومطاعم',
+      businessSize: 'كبير',
+      joinDate: '2022',
+      results: [
+        { metric: '3', improvement: 'فروع جديدة', icon: Building2 },
+        { metric: '+75%', improvement: 'كفاءة التشغيل', icon: Award },
+        { metric: '24/7', improvement: 'خدمة مستمرة', icon: CheckCircle }
+      ],
+      featured: true
+    },
+    {
+      id: 5,
+      name: 'أحمد بن مولود',
+      position: 'صاحب محل قطع غيار',
+      company: 'قطع غيار الأمل',
+      location: 'عنابة',
+      image: '/images/testimonials/user-5-dz.jpg',
+      iconType: 'store',
+      gradient: 'from-purple-500 to-violet-600',
+      bgGradient: 'from-purple-500/10 to-violet-600/10',
+      content: 'نظام رائع يدير مخزوني من آلاف القطع بسهولة. البحث السريع والباركود ساعدني كثيراً. العملاء راضيين عن السرعة في الخدمة والدقة في الفواتير.',
+      rating: 5,
+      businessType: 'قطع غيار',
+      businessSize: 'متوسط',
+      joinDate: '2023',
+      results: [
+        { metric: '99%', improvement: 'دقة المخزون', icon: CheckCircle },
+        { metric: '5min', improvement: 'وقت الفاتورة', icon: Award },
+        { metric: '+30%', improvement: 'رضا العملاء', icon: Heart }
+      ]
+    },
+    {
+      id: 6,
+      name: 'خديجة العربي',
+      position: 'صاحبة مخبزة',
+      company: 'مخبزة الورود',
+      location: 'تلمسان',
+      image: '/images/testimonials/user-6-dz.jpg',
+      iconType: 'store',
+      gradient: 'from-cyan-500 to-blue-600',
+      bgGradient: 'from-cyan-500/10 to-blue-600/10',
+      content: 'التطبيق سهل جداً حتى بدون خبرة في التكنولوجيا. ساعدني أنظم طلبات الحلويات والأعراس. الزبائن يحجزون أونلاين والدفع أصبح أسهل بكثير.',
+      rating: 5,
+      businessType: 'مخبزة وحلويات',
+      businessSize: 'صغير',
+      joinDate: '2023',
+      results: [
+        { metric: '+200%', improvement: 'طلبات أونلاين', icon: TrendingUp },
+        { metric: '95%', improvement: 'سهولة الاستخدام', icon: CheckCircle },
+        { metric: '2x', improvement: 'أرباح الأعراس', icon: Award }
+      ]
     }
   ];
   
-  // Function to render the correct icon based on iconType
-  const renderIcon = (iconType: string, className: string) => {
-    switch (iconType) {
-      case 'store':
-        return (
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-            <path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"></path>
-            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
-            <path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"></path>
-            <path d="M2 7h20"></path>
-            <path d="M22 7v3a2 2 0 0 1-2 2v0a2 2 0 0 1-2-2V7"></path>
-            <path d="M18 12V7"></path>
-            <path d="M14 12V7"></path>
-            <path d="M10 12V7"></path>
-            <path d="M6 12V7"></path>
-            <path d="M2 7v3a2 2 0 0 0 2 2v0a2 2 0 0 0 2-2V7"></path>
-          </svg>
-        );
-      case 'user':
-        return (
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-            <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
-            <circle cx="12" cy="7" r="4"></circle>
-          </svg>
-        );
-      case 'bag':
-        return (
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-            <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"></path>
-            <path d="M3 6h18"></path>
-            <path d="M16 10a4 4 0 0 1-8 0"></path>
-          </svg>
-        );
-      case 'building':
-        return (
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-            <rect width="16" height="20" x="4" y="2" rx="2" ry="2"></rect>
-            <path d="M9 22v-4h6v4"></path>
-            <path d="M8 6h.01"></path>
-            <path d="M16 6h.01"></path>
-            <path d="M12 6h.01"></path>
-            <path d="M12 10h.01"></path>
-            <path d="M12 14h.01"></path>
-            <path d="M16 10h.01"></path>
-            <path d="M16 14h.01"></path>
-            <path d="M8 10h.01"></path>
-            <path d="M8 14h.01"></path>
-          </svg>
-        );
-      default:
-        return null;
-    }
+  const iconMap = {
+    'store': Store,
+    'user': User,
+    'bag': ShoppingBag,
+    'building': Building2
   };
   
   // Auto rotate testimonials
@@ -140,220 +201,456 @@ const TestimonialsSection = () => {
     
     const interval = setInterval(() => {
       setActiveIndex((prevIndex) => (prevIndex + 1) % testimonials.length);
-    }, 5000);
+    }, 6000);
     
     return () => clearInterval(interval);
   }, [autoplay, testimonials.length]);
   
   const handlePrev = () => {
-    setAutoplay(false);
     setActiveIndex((prevIndex) => (prevIndex - 1 + testimonials.length) % testimonials.length);
   };
   
   const handleNext = () => {
-    setAutoplay(false);
     setActiveIndex((prevIndex) => (prevIndex + 1) % testimonials.length);
   };
-  
+
+  const regularTestimonials = testimonials.filter(t => !t.featured);
+
   return (
-    <section className="py-20 bg-muted/30">
-      <div className="container px-4 mx-auto">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          viewport={{ once: true, margin: "-100px" }}
-          className="text-center max-w-3xl mx-auto mb-16"
-        >
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            ماذا يقول <span className="text-primary">عملاؤنا</span> عنا
-          </h2>
-          <p className="text-xl text-muted-foreground">
-            آلاف التجار يعتمدون على منصتنا كل يوم لإدارة وتنمية أعمالهم
-          </p>
-        </motion.div>
+    <section 
+      ref={containerRef}
+      className="relative py-32 bg-gradient-to-br from-background via-background/98 to-primary/5 dark:from-background dark:via-background/99 dark:to-primary/10 overflow-hidden landing-section"
+    >
+      
+      {/* Enhanced Background Effects */}
+      <div className="absolute inset-0">
+        {/* Animated Gradient Orbs */}
+        <motion.div
+          style={{ y: parallaxY }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: isInView ? 0.4 : 0 }}
+          transition={{ duration: 1 }}
+          className="absolute top-1/4 -left-1/4 w-[700px] h-[700px] bg-gradient-radial from-primary/20 via-primary/5 to-transparent rounded-full blur-3xl"
+        />
+        <motion.div
+          style={{ y: useTransform(parallaxY, y => y * 0.5) }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: isInView ? 0.3 : 0 }}
+          transition={{ duration: 1, delay: 0.2 }}
+          className="absolute bottom-1/4 -right-1/4 w-[900px] h-[900px] bg-gradient-radial from-purple-500/15 via-purple-500/5 to-transparent rounded-full blur-3xl"
+        />
         
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
-          {/* Left side - Featured testimonial */}
-          <motion.div 
-            key={`testimonial-${activeIndex}`}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
-            transition={{ duration: 0.4 }}
-            className="bg-card border border-border rounded-xl p-8 shadow-md relative overflow-hidden"
+        {/* Floating Hearts */}
+        {[...Array(15)].map((_, i) => (
+          <motion.div
+            key={i}
+            className="absolute"
+            initial={{
+              x: Math.random() * (typeof window !== 'undefined' ? window.innerWidth : 1000),
+              y: Math.random() * (typeof window !== 'undefined' ? window.innerHeight : 800),
+              opacity: 0
+            }}
+            animate={{
+              y: [null, Math.random() * -300 - 100],
+              opacity: [0, 0.4, 0],
+              rotate: [0, 180]
+            }}
+            transition={{
+              duration: Math.random() * 12 + 8,
+              repeat: Infinity,
+              delay: Math.random() * 5,
+              ease: "easeOut"
+            }}
           >
-            <div className="absolute top-0 right-0 w-40 h-40 bg-primary/5 rounded-full -mr-20 -mt-20"></div>
-            <div className="absolute bottom-0 left-0 w-40 h-40 bg-primary/5 rounded-full -ml-20 -mb-20"></div>
-            
-            <div className="relative">
-              <div className="flex justify-between items-start mb-6">
-                <div className="flex gap-4 items-center">
-                  <Avatar className="h-16 w-16 border-4 border-background">
-                    <AvatarImage 
-                      src={testimonials[activeIndex].image} 
-                      alt={testimonials[activeIndex].name}
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = `https://ui-avatars.com/api/?name=${testimonials[activeIndex].name}&background=random`;
-                      }}
-                    />
-                    <AvatarFallback className="bg-primary/10 text-primary">
-                      {testimonials[activeIndex].name.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <h3 className="font-bold text-xl">{testimonials[activeIndex].name}</h3>
-                    <p className="text-muted-foreground">
-                      {testimonials[activeIndex].position} | {testimonials[activeIndex].company}
-                    </p>
-                  </div>
-                </div>
-                <div className={cn(
-                  "w-12 h-12 rounded-lg flex items-center justify-center",
-                  testimonials[activeIndex].iconBg
-                )}>
-                  {renderIcon(testimonials[activeIndex].iconType, cn("w-6 h-6", testimonials[activeIndex].iconColor))}
-                </div>
-              </div>
-              
-              <div className="mb-6">
-                <div className="flex mb-2">
-                  {[...Array(5)].map((_, i) => (
-                    <Star 
-                      key={i} 
-                      className={cn(
-                        "w-5 h-5", 
-                        i < testimonials[activeIndex].rating 
-                          ? "text-amber-500 fill-amber-500" 
-                          : "text-muted"
-                      )} 
-                    />
-                  ))}
-                </div>
-                <div className="inline-block px-3 py-1 bg-primary/10 text-primary text-sm rounded-full">
-                  {testimonials[activeIndex].businessType}
-                </div>
-              </div>
-              
-              <div className="relative mb-6">
-                <svg 
-                  xmlns="http://www.w3.org/2000/svg" 
-                  width="24" 
-                  height="24" 
-                  viewBox="0 0 24 24" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  strokeWidth="2" 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  className="h-8 w-8 text-primary/20 absolute -top-1 -right-1"
-                >
-                  <path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z"></path>
-                  <path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3c0 1 0 1 1 1z"></path>
-                </svg>
-                <blockquote className="text-lg pr-6 pt-2 leading-relaxed">
-                  {testimonials[activeIndex].content}
-                </blockquote>
-              </div>
-              
-              <div className="flex gap-2 justify-end">
-                <Button 
-                  variant="outline" 
-                  size="icon" 
-                  onClick={handlePrev}
-                  className="h-9 w-9 rounded-full"
-                >
-                  <ChevronRight className="h-5 w-5" />
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="icon" 
-                  onClick={handleNext}
-                  className="h-9 w-9 rounded-full"
-                >
-                  <ChevronLeft className="h-5 w-5" />
-                </Button>
-              </div>
-              
-              <div className="absolute top-20 right-6">
-                <div className="text-7xl text-primary/10 font-serif">"</div>
-              </div>
+            <div className="w-4 h-4 text-primary/30">
+              <Heart className="w-full h-full fill-current" />
             </div>
           </motion.div>
+        ))}
+      </div>
+
+      <div className="container px-6 mx-auto relative z-10">
+        {/* Premium Header Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          viewport={{ once: true }}
+          className="text-center max-w-4xl mx-auto mb-20"
+        >
+          <Badge className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary/10 to-primary/5 text-primary border border-primary/20 rounded-full mb-6">
+            <Heart className="h-4 w-4" />
+            شهادات حقيقية من عملائنا
+          </Badge>
           
-          {/* Right side - Testimonial grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {testimonials.map((testimonial, index) => (
-              <motion.button
-                key={testimonial.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: index * 0.1 }}
-                viewport={{ once: true, margin: "-100px" }}
-                onClick={() => {
-                  setActiveIndex(index);
-                  setAutoplay(false);
-                }}
-                className={cn(
-                  "flex flex-col items-start p-5 rounded-lg border text-left transition-all",
-                  index === activeIndex 
-                    ? "bg-primary/5 border-primary scale-[1.02] shadow-md" 
-                    : "bg-card border-border hover:border-primary/30 hover:shadow-sm"
-                )}
-              >
-                <div className="flex justify-between items-start w-full mb-3">
-                  <div className="flex gap-3 items-center">
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage 
-                        src={testimonial.image} 
-                        alt={testimonial.name}
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.src = `https://ui-avatars.com/api/?name=${testimonial.name}&background=random`;
-                        }} 
-                      />
-                      <AvatarFallback className="bg-primary/10 text-primary">
-                        {testimonial.name.charAt(0)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <h4 className="font-medium text-sm">{testimonial.name}</h4>
-                      <p className="text-xs text-muted-foreground">{testimonial.company}</p>
-                    </div>
-                  </div>
-                  <div className={cn(
-                    "h-8 w-8 rounded-full flex items-center justify-center",
-                    testimonial.iconBg
-                  )}>
-                    {renderIcon(testimonial.iconType, cn("h-4 w-4", testimonial.iconColor))}
-                  </div>
+          <h2 className="text-4xl lg:text-6xl font-bold text-foreground mb-6">
+            نفخر بثقة <span className="bg-gradient-to-l from-primary via-primary-darker to-primary-lighter bg-clip-text text-transparent">تجارنا الجزائريين</span>
+          </h2>
+          
+          <p className="text-xl lg:text-2xl text-muted-foreground max-w-3xl mx-auto mb-8">
+            أكثر من 5000 تاجر جزائري يعتمدون على منصتنا يومياً لإدارة وتنمية أعمالهم بنجاح
+          </p>
+
+          {/* Stats */}
+          <div className="flex flex-wrap justify-center gap-8 text-sm">
+            <div className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-primary" />
+              <span className="font-semibold text-foreground">5000+</span>
+              <span className="text-muted-foreground">تاجر نشط</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Star className="h-5 w-5 text-yellow-500 fill-current" />
+              <span className="font-semibold text-foreground">4.9/5</span>
+              <span className="text-muted-foreground">متوسط التقييم</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Award className="h-5 w-5 text-green-500" />
+              <span className="font-semibold text-foreground">98%</span>
+              <span className="text-muted-foreground">معدل الرضا</span>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Featured Testimonial - Large Carousel */}
+        <div className="max-w-5xl mx-auto mb-20">
+          <div className="relative">
+            {/* Navigation */}
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-4">
+                <h3 className="text-2xl font-bold text-foreground">شهادات مميزة</h3>
+                <Badge className="bg-primary/10 text-primary border-primary/20">
+                  {activeIndex + 1} من {testimonials.length}
+                </Badge>
+              </div>
+              
+              <div className="flex items-center gap-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAutoplay(!autoplay)}
+                  className="border-border hover:bg-muted"
+                >
+                  {autoplay ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handlePrev}
+                    className="border-border hover:bg-muted"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleNext}
+                    className="border-border hover:bg-muted"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
                 </div>
-                
-                <div className="flex mb-2">
-                  {[...Array(5)].map((_, i) => (
-                    <Star 
-                      key={i} 
-                      className={cn(
-                        "w-3.5 h-3.5", 
-                        i < testimonial.rating 
-                          ? "text-amber-500 fill-amber-500" 
-                          : "text-muted"
-                      )} 
-                    />
-                  ))}
-                </div>
-                
-                <p className="text-sm line-clamp-2 text-muted-foreground">
-                  {testimonial.content}
-                </p>
-              </motion.button>
-            ))}
+              </div>
+            </div>
+
+            {/* Carousel Container */}
+            <div className="relative overflow-hidden rounded-3xl">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeIndex}
+                  initial={{ opacity: 0, x: 300 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -300 }}
+                  transition={{ duration: 0.5, ease: "easeInOut" }}
+                  className="relative"
+                >
+                  {(() => {
+                    const testimonial = testimonials[activeIndex];
+                    const IconComponent = iconMap[testimonial.iconType];
+                    
+                    return (
+                      <div className={`relative rounded-3xl border border-border/50 bg-gradient-to-br ${testimonial.bgGradient} dark:from-card dark:to-card/90 p-8 lg:p-12 shadow-2xl overflow-hidden`}>
+                        {/* Background Gradient */}
+                        <div className={`absolute inset-0 bg-gradient-to-br ${testimonial.gradient} opacity-5`} />
+                        
+                        {/* Quote Decoration */}
+                        <div className="absolute top-8 right-8 opacity-10">
+                          <Quote className="h-24 w-24 text-primary" />
+                        </div>
+                        
+                        <div className="relative z-10 grid lg:grid-cols-2 gap-12 items-center">
+                          {/* Content */}
+                          <div>
+                            <div className="flex items-center gap-4 mb-6">
+                              <div className={`p-4 rounded-2xl bg-gradient-to-br ${testimonial.gradient} shadow-lg`}>
+                                <IconComponent className="h-8 w-8 text-white" />
+                              </div>
+                              <div>
+                                <Badge className="bg-primary/10 text-primary border-primary/20 mb-2">
+                                  {testimonial.businessType}
+                                </Badge>
+                                <p className="text-sm text-muted-foreground flex items-center gap-2">
+                                  <MapPin className="h-4 w-4" />
+                                  {testimonial.location}
+                                  <span className="mx-2">•</span>
+                                  <Calendar className="h-4 w-4" />
+                                  عضو منذ {testimonial.joinDate}
+                                </p>
+                              </div>
+                            </div>
+                            
+                            <blockquote className="text-2xl text-foreground leading-relaxed mb-8 font-medium">
+                              "{testimonial.content}"
+                            </blockquote>
+                            
+                            <div className="flex items-center gap-2 mb-6">
+                              {[...Array(5)].map((_, i) => (
+                                <motion.div
+                                  key={i}
+                                  initial={{ opacity: 0, scale: 0 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  transition={{ delay: i * 0.1, duration: 0.3 }}
+                                >
+                                  <Star 
+                                    className={cn(
+                                      "w-6 h-6", 
+                                      i < testimonial.rating 
+                                        ? "text-yellow-500 fill-yellow-500" 
+                                        : "text-muted-foreground/30"
+                                    )} 
+                                  />
+                                </motion.div>
+                              ))}
+                              <span className="mr-3 text-lg font-semibold text-foreground">
+                                {testimonial.rating}/5
+                              </span>
+                            </div>
+                            
+                            {/* Results */}
+                            <div className="grid grid-cols-3 gap-4">
+                              {testimonial.results.map((result, i) => (
+                                <motion.div
+                                  key={i}
+                                  initial={{ opacity: 0, y: 20 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  transition={{ delay: 0.5 + i * 0.1 }}
+                                  className="text-center p-4 rounded-xl bg-card/50 border border-border/50"
+                                >
+                                  <result.icon className="h-6 w-6 text-primary mx-auto mb-2" />
+                                  <div className="text-2xl font-bold text-foreground">{result.metric}</div>
+                                  <div className="text-sm text-muted-foreground">{result.improvement}</div>
+                                </motion.div>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          {/* Profile */}
+                          <div className="text-center lg:text-right">
+                            <div className="relative inline-block mb-6">
+                              <motion.div
+                                animate={{ rotate: 360 }}
+                                transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+                                className="absolute inset-0 rounded-full bg-gradient-to-r from-primary to-primary-darker p-1"
+                              />
+                              <Avatar className="relative h-32 w-32 border-4 border-background shadow-2xl">
+                                <AvatarImage 
+                                  src={testimonial.image} 
+                                  alt={testimonial.name}
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.src = `https://ui-avatars.com/api/?name=${testimonial.name}&background=random`;
+                                  }}
+                                />
+                                <AvatarFallback className="bg-primary/10 text-primary font-bold text-3xl">
+                                  {testimonial.name.charAt(0)}
+                                </AvatarFallback>
+                              </Avatar>
+                            </div>
+                            
+                            <div>
+                              <h3 className="text-3xl font-bold text-foreground mb-2">{testimonial.name}</h3>
+                              <p className="text-xl text-primary font-semibold mb-1">{testimonial.position}</p>
+                              <p className="text-lg text-muted-foreground mb-4">{testimonial.company}</p>
+                              
+                              <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-500/10 text-green-600 dark:text-green-400 rounded-full text-sm font-medium">
+                                <CheckCircle className="h-4 w-4" />
+                                عميل موثق
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </motion.div>
+              </AnimatePresence>
+            </div>
+
+            {/* Dots Indicator */}
+            <div className="flex justify-center gap-2 mt-8">
+              {testimonials.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => setActiveIndex(index)}
+                  className={cn(
+                    "h-3 w-3 rounded-full transition-all duration-300",
+                    index === activeIndex 
+                      ? "bg-primary w-8" 
+                      : "bg-muted-foreground/30 hover:bg-muted-foreground/50"
+                  )}
+                />
+              ))}
+            </div>
           </div>
         </div>
+
+        {/* Regular Testimonials Grid */}
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
+          {regularTestimonials.slice(0, 6).map((testimonial, index) => {
+            const IconComponent = iconMap[testimonial.iconType];
+            
+            return (
+              <motion.div
+                key={testimonial.id}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: index * 0.1 }}
+                viewport={{ once: true }}
+                onMouseEnter={() => setHoveredCard(testimonial.id)}
+                onMouseLeave={() => setHoveredCard(null)}
+                whileHover={{ scale: 1.02, y: -5 }}
+                className="relative group"
+              >
+                {/* Glow Effect */}
+                <div className={`absolute inset-0 bg-gradient-to-br ${testimonial.gradient} opacity-0 group-hover:opacity-20 rounded-3xl blur-xl transform scale-110 transition-opacity duration-500`} />
+                
+                <div className={`relative h-full rounded-3xl border border-border/50 bg-gradient-to-br ${testimonial.bgGradient} dark:from-card dark:to-card/90 p-6 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden`}>
+                  
+                  {/* Background Gradient */}
+                  <div className={`absolute inset-0 bg-gradient-to-br ${testimonial.gradient} opacity-0 group-hover:opacity-5 transition-opacity duration-500`} />
+                  
+                  {/* Quote */}
+                  <div className="absolute top-4 right-4 opacity-10">
+                    <Quote className="h-8 w-8 text-primary" />
+                  </div>
+                  
+                  <div className="relative z-10">
+                    {/* Header */}
+                    <div className="flex items-start gap-4 mb-6">
+                      <Avatar className="h-14 w-14 border-2 border-primary/20 shadow-lg">
+                        <AvatarImage 
+                          src={testimonial.image} 
+                          alt={testimonial.name}
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = `https://ui-avatars.com/api/?name=${testimonial.name}&background=random`;
+                          }}
+                        />
+                        <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                          {testimonial.name.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
+                      
+                      <div className="flex-1">
+                        <h3 className="font-bold text-lg text-foreground mb-1">{testimonial.name}</h3>
+                        <p className="text-muted-foreground text-sm mb-1">{testimonial.position}</p>
+                        <p className="text-muted-foreground text-sm">{testimonial.company}</p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <MapPin className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">{testimonial.location}</span>
+                        </div>
+                      </div>
+                      
+                      <div className={`p-3 rounded-xl bg-gradient-to-br ${testimonial.gradient} shadow-lg group-hover:scale-110 transition-transform duration-300`}>
+                        <IconComponent className="h-5 w-5 text-white" />
+                      </div>
+                    </div>
+                    
+                    {/* Rating & Badge */}
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-1">
+                        {[...Array(5)].map((_, i) => (
+                          <Star 
+                            key={i} 
+                            className={cn(
+                              "w-4 h-4", 
+                              i < testimonial.rating 
+                                ? "text-yellow-500 fill-yellow-500" 
+                                : "text-muted-foreground/30"
+                            )} 
+                          />
+                        ))}
+                      </div>
+                      <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">
+                        {testimonial.businessType}
+                      </Badge>
+                    </div>
+                    
+                    {/* Content */}
+                    <blockquote className="text-muted-foreground leading-relaxed mb-6 text-sm">
+                      "{testimonial.content}"
+                    </blockquote>
+                    
+                    {/* Results - Show on Hover */}
+                    <AnimatePresence>
+                      {hoveredCard === testimonial.id && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="grid grid-cols-3 gap-2 pt-4 border-t border-border/50"
+                        >
+                          {testimonial.results.slice(0, 3).map((result, i) => (
+                            <div key={i} className="text-center">
+                              <result.icon className="h-4 w-4 text-primary mx-auto mb-1" />
+                              <div className="text-sm font-bold text-foreground">{result.metric}</div>
+                              <div className="text-xs text-muted-foreground">{result.improvement}</div>
+                            </div>
+                          ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+
+        {/* Bottom CTA */}
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          viewport={{ once: true }}
+          className="mt-20 text-center"
+        >
+          <div className="inline-flex flex-col items-center gap-6 p-8 rounded-3xl bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20">
+            <div className="p-4 rounded-2xl bg-primary">
+              <Sparkles className="h-8 w-8 text-white" />
+            </div>
+            <div>
+              <h3 className="text-2xl font-bold text-foreground mb-2">
+                انضم إلى آلاف التجار الناجحين
+              </h3>
+              <p className="text-lg text-muted-foreground max-w-2xl">
+                ابدأ رحلتك معنا اليوم واحصل على نفس النتائج المذهلة
+              </p>
+            </div>
+            <Button 
+              size="lg"
+              className="min-w-[200px] h-14 text-lg font-semibold bg-primary hover:bg-primary-darker shadow-lg hover:shadow-xl hover:shadow-primary/20 transition-all duration-300"
+            >
+              ابدأ تجربتك المجانية
+              <Sparkles className="h-5 w-5 mr-2" />
+            </Button>
+          </div>
+        </motion.div>
       </div>
     </section>
   );
-};
+});
+
+TestimonialsSection.displayName = 'TestimonialsSection';
 
 export default TestimonialsSection;

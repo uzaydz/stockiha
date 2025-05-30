@@ -18,11 +18,13 @@ import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import POS from "./pages/POS";
 import Features from "./pages/Features";
+import FeaturesPage from "./pages/landing/FeaturesPage";
 import OfflineFeatures from "./pages/OfflineFeatures";
 import POSFeaturesPage from "./pages/POSFeaturesPage";
 import OnlineStorePage from "./pages/features/OnlineStorePage";
 import AdvancedAnalyticsFeaturesPage from "./pages/AdvancedAnalyticsFeaturesPage";
 import ContactPage from "./pages/ContactPage";
+import ContactLandingPage from "./pages/landing/ContactPage";
 import NotFound from "./pages/NotFound";
 import LoginForm from "./components/auth/LoginForm";
 import Signup from "./pages/Signup";
@@ -81,6 +83,7 @@ import ProductForm from "./pages/ProductForm";
 import CustomPageView from "./pages/CustomPageView";
 import CustomPagesManager from "./pages/dashboard/CustomPagesManager";
 import QuickBarcodePrintPage from './pages/dashboard/QuickBarcodePrintPage';
+import OrderDistributionSettings from './pages/OrderDistributionSettings';
 
 // Super Admin Pages
 import SuperAdminDashboard from '@/pages/super-admin/SuperAdminDashboard';
@@ -91,6 +94,8 @@ import SuperAdminPaymentMethods from '@/pages/super-admin/PaymentMethods';
 import ActivationCodesPage from '@/pages/super-admin/activation-codes';
 import SuperAdminLayout from '@/components/SuperAdminLayout';
 import YalidineSyncPage from '@/pages/super-admin/YalidineSyncPage'; // Import new page
+import SuperAdminSEO from '@/pages/SuperAdminSEO';
+import SuperAdminCourses from '@/pages/SuperAdminCourses';
 
 // صفحة الاشتراكات
 import SubscriptionPage from "./pages/dashboard/subscription";
@@ -301,13 +306,14 @@ const App = () => {
                 <Sonner />
                 <Routes>
                   <Route path="/" element={<StoreRouter />} />
-                  <Route path="/features" element={<Features />} />
+                  <Route path="/features" element={<FeaturesPage />} />
                   <Route path="/offline-features" element={<OfflineFeatures />} />
                   <Route path="/features/pos" element={<POSFeaturesPage />} />
                   <Route path="/features/online-store" element={<OnlineStorePage />} />
                   <Route path="/features/advanced-analytics" element={<AdvancedAnalyticsFeaturesPage />} />
                   <Route path="/pricing" element={<PricingPage />} />
-                  <Route path="/contact" element={<ContactPage />} />
+                  <Route path="/contact" element={<ContactLandingPage />} />
+                  <Route path="/contact-old" element={<ContactPage />} />
                   <Route path="/login" element={<LoginForm />} />
                   <Route path="/super-admin/login" element={<SuperAdminLogin />} />
                   <Route path="/signup" element={<NotFound />} />
@@ -323,6 +329,8 @@ const App = () => {
                     <Route path="/super-admin/payment-methods" element={<SuperAdminPaymentMethods />} />
                     <Route path="/super-admin/activation-codes" element={<ActivationCodesPage />} />
                     <Route path="/super-admin/yalidine-sync" element={<YalidineSyncPage />} /> {/* Add new route here */}
+                    <Route path="/super-admin/seo" element={<SuperAdminSEO />} />
+                    <Route path="/super-admin/courses" element={<SuperAdminCourses />} />
                     <Route path="/super-admin/users" element={<SuperAdminDashboard />} />
                     <Route path="/super-admin/admins" element={<SuperAdminDashboard />} />
                     <Route path="/super-admin/settings" element={<SuperAdminDashboard />} />
@@ -481,6 +489,13 @@ const App = () => {
                         <SubscriptionCheck>
                           <PermissionGuard requiredPermissions={['viewEmployees']}>
                             <Employees />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/order-distribution" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['manageEmployees']}>
+                            <OrderDistributionSettings />
                           </PermissionGuard>
                         </SubscriptionCheck>
                       } />

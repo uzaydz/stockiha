@@ -72,8 +72,18 @@ const LoginForm = () => {
       let subdomain: string | undefined;
       let organizationId: string | undefined;
 
-      // تحديد النطاق والنطاق الفرعي
-      if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      // التعامل مع localhost ونطاقات الـ IP المحلية كنطاقات عامة
+      const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.match(/^localhost:\d+$/) || hostname.match(/^127\.0\.0\.1:\d+$/);
+      
+      if (isLocalhost) {
+        // إذا كان النطاق محلي، نستخدم domain='localhost' للإشارة إلى أنه نطاق عام
+        domain = 'localhost';
+        
+        // نستخدم النطاق الفرعي فقط إذا كان محدد بشكل صريح في currentSubdomain
+        if (currentSubdomain) {
+          subdomain = currentSubdomain;
+        }
+      } else {
         // للنطاقات المخصصة
         const publicDomains = ['ktobi.online', 'stockiha.com', 'bazaar.com', 'bazaar.dev'];
         const isPublicDomain = publicDomains.some(pd => hostname === pd || hostname === `www.${pd}`);
@@ -92,17 +102,18 @@ const LoginForm = () => {
           // نطاق فرعي في النطاقات العامة
           subdomain = currentSubdomain;
         }
-      } else if (currentSubdomain) {
-        // localhost مع نطاق فرعي
-        subdomain = currentSubdomain;
       }
 
       // الحصول على معرف المؤسسة من التخزين المحلي إذا كان متوفراً
       organizationId = localStorage.getItem('bazaar_organization_id') || undefined;
 
+      console.log('Login check parameters:', { email, organizationId, domain, subdomain });
+
       // أولاً، التحقق إذا كان المستخدم يحتاج للمصادقة الثنائية
       const twoFactorCheck = await checkUserRequires2FA(email, organizationId, domain, subdomain);
       
+      console.log('2FA check result:', twoFactorCheck);
+
       if (!twoFactorCheck.userExists) {
         // عرض رسالة الخطأ المخصصة إذا كانت موجودة
         if (twoFactorCheck.error) {

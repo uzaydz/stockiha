@@ -199,7 +199,7 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
   }, [currentSubdomain, initialStoreData]);
   
   useEffect(() => {
-    document.title = `${storeName} - المتجر الإلكتروني`;
+    document.title = `${storeName} | ستوكيها - المتجر الإلكتروني`;
   }, [storeName]);
 
   const handleReload = async () => {
