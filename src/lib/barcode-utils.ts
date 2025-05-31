@@ -226,7 +226,8 @@ export const isValidBarcode = (value: string, type: string): boolean => {
  * توليد رمز QR بناءً على القيمة المعطاة
  */
 export const getQRCodeUrl = (value: string, size: number = 150): string => {
-  return `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(value)}&size=${size}x${size}&margin=2`;
+  // تقليل الحجم الافتراضي من 200 إلى 150 والهامش من 10 إلى 8 لتناسب المساحة الجديدة
+  return `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(value)}&size=${size}x${size}&margin=8&ecc=L&qzone=2`;
 };
 
 /**
@@ -235,10 +236,10 @@ export const getQRCodeUrl = (value: string, size: number = 150): string => {
 export const getBarcodeImageUrl = (
   value: string, 
   type: string = 'code128', 
-  scale: number = 2, 
-  height: number = 60, 
+  scale: number = 3,  // زيادة المقياس الافتراضي من 2 إلى 3
+  height: number = 70, // زيادة الارتفاع الافتراضي من 60 إلى 70
   includeText: boolean = true,
-  textSize: number = 12
+  textSize: number = 14 // زيادة حجم النص من 12 إلى 14
 ): string => {
   // التحقق من القيمة وتنظيفها
   const barcodeValue = generateBarcodeValue(value, type);
@@ -250,19 +251,19 @@ export const getBarcodeImageUrl = (
   
   // ضبط القيم حسب نوع الباركود
   if (type === 'code128') {
-    adjustedScale = Math.max(3, scale);
-    adjustedHeight = 20;
+    adjustedScale = Math.max(4, scale); // زيادة من 3 إلى 4
+    adjustedHeight = 25; // زيادة من 20 إلى 25
   } else if (type === 'compact128') {
     // نوع جديد: باركود قصير وطويل لتوفير مساحة أكبر
     barcodeType = 'code128'; // نستخدم code128 كأساس
-    adjustedScale = Math.max(4, scale); // عرض أكبر
-    adjustedHeight = 15; // ارتفاع أقل جداً
+    adjustedScale = Math.max(5, scale); // زيادة من 4 إلى 5
+    adjustedHeight = 20; // زيادة من 15 إلى 20
   } else if (type === 'code39') {
-    adjustedScale = Math.max(3, scale);
-    adjustedHeight = 20;
+    adjustedScale = Math.max(4, scale); // زيادة من 3 إلى 4
+    adjustedHeight = 25; // زيادة من 20 إلى 25
   } else if (type === 'ean13') {
-    adjustedScale = Math.max(3, scale);
-    adjustedHeight = 25;
+    adjustedScale = Math.max(4, scale); // زيادة من 3 إلى 4
+    adjustedHeight = 30; // زيادة من 25 إلى 30
   }
 
   // تحقق نهائي من وجود قيمة صالحة للباركود
@@ -270,8 +271,8 @@ export const getBarcodeImageUrl = (
     return '';
   }
 
-  // استخدام معاملات أساسية فقط لتجنب أخطاء في واجهة API
-  return `https://bwipjs-api.metafloor.com/?bcid=${barcodeType}&text=${encodeURIComponent(barcodeValue)}&scale=${adjustedScale}&height=${adjustedHeight}&includetext=${includeText ? 'true' : 'false'}&textsize=${textSize}`;
+  // إضافة خيار "inkspread" لتحسين طباعة الباركود على الطابعات الحرارية
+  return `https://bwipjs-api.metafloor.com/?bcid=${barcodeType}&text=${encodeURIComponent(barcodeValue)}&scale=${adjustedScale}&height=${adjustedHeight}&includetext=${includeText ? 'true' : 'false'}&textsize=${textSize}&inkspread=0.25`;
 };
 
 /**
@@ -286,4 +287,95 @@ export const formatBarcodeText = (text: string, maxLength: number = 20): string 
   }
   
   return text;
+};
+
+/**
+ * تحضير قيمة الباركود للاستخدام مباشرة مع مكتبة JsBarcode
+ * هذه الدالة تضمن أن القيمة صالحة للنوع المحدد من الباركود
+ * @param value قيمة الباركود الأصلية
+ * @param barcodeType نوع الباركود المراد استخدامه
+ * @returns القيمة المحضرة الصالحة للنوع المحدد من الباركود
+ */
+export const prepareBarcodeValue = (value: string, barcodeType: string): string => {
+  if (!value || value.trim() === '') {
+    return 'DEFAULT0000';
+  }
+
+  let preparedValue = value.trim();
+  
+  // تنظيف وتحضير القيمة حسب نوع الباركود
+  if (barcodeType === 'EAN13' || barcodeType === 'ean13') {
+    // التأكد من أن القيمة هي 13 رقماً فقط
+    const numericValue = preparedValue.replace(/[^0-9]/g, '');
+    preparedValue = numericValue.padStart(13, '0').substring(0, 13);
+  } else if (barcodeType === 'EAN8' || barcodeType === 'ean8') {
+    // التأكد من أن القيمة هي 8 أرقام فقط
+    const numericValue = preparedValue.replace(/[^0-9]/g, '');
+    preparedValue = numericValue.padStart(8, '0').substring(0, 8);
+  } else if (barcodeType.toUpperCase().startsWith('CODE128') || barcodeType.toLowerCase().startsWith('code128')) {
+    // تنظيف الأحرف غير المرئية أو الخاصة
+    preparedValue = preparedValue.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
+  } else if (barcodeType.toUpperCase() === 'CODE39' || barcodeType.toLowerCase() === 'code39') {
+    // تحويل للأحرف الكبيرة وإزالة الأحرف غير المدعومة
+    preparedValue = preparedValue.toUpperCase().replace(/[^A-Z0-9\-\.\ \$\/\+\%]/g, '');
+  } else if (barcodeType.toUpperCase() === 'UPC' || barcodeType.toLowerCase() === 'upc') {
+    // التأكد من أن القيمة هي 12 رقماً فقط
+    const numericValue = preparedValue.replace(/[^0-9]/g, '');
+    preparedValue = numericValue.padStart(12, '0').substring(0, 12);
+  } else if (barcodeType.toUpperCase() === 'UPCE' || barcodeType.toLowerCase() === 'upce') {
+    // التأكد من أن القيمة هي 8 أرقام فقط
+    const numericValue = preparedValue.replace(/[^0-9]/g, '');
+    preparedValue = numericValue.padStart(8, '0').substring(0, 8);
+  } else if (barcodeType.toUpperCase() === 'ITF14' || barcodeType.toLowerCase() === 'itf14') {
+    // التأكد من أن القيمة هي 14 رقماً فقط
+    const numericValue = preparedValue.replace(/[^0-9]/g, '');
+    preparedValue = numericValue.padStart(14, '0').substring(0, 14);
+  } else if (barcodeType.toUpperCase() === 'ITF' || barcodeType.toLowerCase() === 'itf') {
+    // التأكد من أن القيمة هي أرقام فقط وعددها زوجي
+    const numericValue = preparedValue.replace(/[^0-9]/g, '');
+    if (numericValue.length % 2 !== 0) {
+      preparedValue = '0' + numericValue; // إضافة صفر في البداية إذا كان العدد فردياً
+    } else {
+      preparedValue = numericValue;
+    }
+  } else if (barcodeType.toUpperCase().startsWith('MSI') || barcodeType.toLowerCase().startsWith('msi')) {
+    // التأكد من أن القيمة هي أرقام فقط
+    preparedValue = preparedValue.replace(/[^0-9]/g, '');
+  } else if (barcodeType.toLowerCase() === 'pharmacode') {
+    // التأكد من أن القيمة هي أرقام فقط بين 3 و 131070
+    const numericValue = parseInt(preparedValue.replace(/[^0-9]/g, ''), 10);
+    if (isNaN(numericValue) || numericValue < 3 || numericValue > 131070) {
+      preparedValue = '3'; // قيمة افتراضية إذا كانت القيمة غير صالحة
+    } else {
+      preparedValue = numericValue.toString();
+    }
+  } else if (barcodeType.toLowerCase() === 'codabar') {
+    // التأكد من أن القيمة تبدأ وتنتهي بـ A, B, C, أو D وتحتوي على أرقام وبعض الرموز في الوسط
+    const validChars = '0123456789-$:/.+';
+    let cleanValue = '';
+    
+    for (let i = 0; i < preparedValue.length; i++) {
+      const char = preparedValue.charAt(i);
+      if (validChars.includes(char) || (i === 0 || i === preparedValue.length - 1) && 'ABCD'.includes(char.toUpperCase())) {
+        cleanValue += char.toUpperCase();
+      }
+    }
+    
+    // إضافة A في البداية والنهاية إذا لم تكن موجودة
+    if (!cleanValue.match(/^[ABCD]/i)) {
+      cleanValue = 'A' + cleanValue;
+    }
+    if (!cleanValue.match(/[ABCD]$/i)) {
+      cleanValue = cleanValue + 'A';
+    }
+    
+    preparedValue = cleanValue;
+  }
+  
+  // التأكد من أن القيمة ليست فارغة بعد التنظيف
+  if (!preparedValue || preparedValue.trim() === '') {
+    return 'DEFAULT0000';
+  }
+  
+  return preparedValue;
 };

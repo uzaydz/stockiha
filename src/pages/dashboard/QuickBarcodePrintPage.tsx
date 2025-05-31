@@ -19,6 +19,8 @@ import JsBarcode from 'jsbarcode';
 import QRCodeStyling from 'qr-code-styling'; // Import QRCodeStyling
 // Import barcode templates
 import { barcodeTemplates, BarcodeTemplate } from '@/config/barcode-templates';
+// استيراد دالة تحضير قيم الباركود
+import { prepareBarcodeValue } from '@/lib/barcode-utils';
 
 // Define the product data structure based on the SQL query
 interface ProductForBarcode {
@@ -480,31 +482,72 @@ const QuickBarcodePrintPage = () => {
             const productPageUrl = `${baseUrl}/products/${slugPart}`;
             const isFallbackUrl = baseUrl === 'fallback-base-url.com';
 
-            // Combine general JsBarcode options with template-specific options
+            // تحضير وتنظيف قيمة الباركود
             let barcodeFormatForTemplate = printSettings.barcode_type;
+            
+            // استخدام code128 كنوع افتراضي في حال كان النوع المحدد سيسبب خطأ
             if (selectedTemplate.id === 'qr-plus-barcode') {
-              barcodeFormatForTemplate = 'EAN13'; // EAN-13 للمنتجات التجارية - معيار عالمي
+              barcodeFormatForTemplate = 'CODE128'; // استخدام نوع أكثر مرونة لقبول قيم متنوعة
             }
+            
+            // استخدام الدالة الجديدة لتحضير قيمة الباركود
+            const valueToUse = prepareBarcodeValue(valueToEncodeForBarcode, barcodeFormatForTemplate);
 
             const barcodeOptions: JsBarcode.Options = {
-              format: barcodeFormatForTemplate,
-              lineColor: "#000",
-              width: 1.5, // Default, will be overridden by template options if specified
-              height: 30, // Default, will be overridden by template options if specified
-              displayValue: printSettings.display_barcode_value,
-              font: selectedFont?.cssValue || "sans-serif", // Use the full CSS value string for font
-              fontOptions: selectedFont?.isRTL ? "rtl" : "", // Keep RTL if applicable, remove forced bold for now
-              fontSize: 8, // This is a default, will be overridden by template specific
-              textMargin: 0, // This is a default, will be overridden by template specific
-              margin: 2, // Default margin for JsBarcode SVG, will be overridden by template specific
-              ...(selectedTemplate.jsBarcodeOptions || {}), // Spread template options
+                format: barcodeFormatForTemplate,
+                lineColor: "#000",
+                width: 1.5, // Default, will be overridden by template options if specified
+                height: 30, // Default, will be overridden by template options if specified
+                displayValue: printSettings.display_barcode_value,
+                font: selectedFont?.cssValue || "sans-serif", // Use the full CSS value string for font
+                fontOptions: selectedFont?.isRTL ? "rtl" : "", // Keep RTL if applicable, remove forced bold for now
+                fontSize: 8, // This is a default, will be overridden by template specific
+                textMargin: 0, // This is a default, will be overridden by template specific
+                margin: 2, // Default margin for JsBarcode SVG, will be overridden by template specific
+                ...(selectedTemplate.jsBarcodeOptions || {}), // Spread template options
+                // إضافة خيارات لتجنب الأخطاء
+                valid: function(valid) {
+                  if (!valid) {
+                    if (targetBarcodeSvgElement) {
+                      // إذا كان هناك خطأ، استخدم CODE128 كآخر محاولة
+                      try {
+                        JsBarcode(targetBarcodeSvgElement, valueToUse, {
+                          ...barcodeOptions,
+                          format: 'CODE128',
+                        });
+                      } catch (finalError) {
+                        // عرض رسالة خطأ أكثر تفصيلاً
+                        targetBarcodeSvgElement.innerHTML = `
+                          <text x="10" y="15" fill="red" font-size="8" font-weight="bold">خطأ في الباركود</text>
+                          <text x="10" y="25" fill="red" font-size="6">${valueToUse.substring(0, 10)}${valueToUse.length > 10 ? '...' : ''}</text>
+                        `;
+                      }
+                    }
+                  }
+                }
             };
 
             if (targetBarcodeSvgElement) {
               try {
-                JsBarcode(targetBarcodeSvgElement, valueToEncodeForBarcode, barcodeOptions);
+                JsBarcode(targetBarcodeSvgElement, valueToUse, barcodeOptions);
               } catch (e: any) {
-                if (targetBarcodeSvgElement) targetBarcodeSvgElement.innerHTML = '<text x="10" y="20" fill="red" font-size="10">Error</text>';
+                // في حالة الخطأ، حاول مرة أخرى باستخدام CODE128 الأكثر مرونة
+                try {
+                  // تجربة استخدام نوع باركود أكثر مرونة
+                  const fallbackValue = prepareBarcodeValue(valueToUse, 'CODE128');
+                  JsBarcode(targetBarcodeSvgElement, fallbackValue, {
+                    ...barcodeOptions,
+                    format: 'CODE128',
+                  });
+                } catch (e2: any) {
+                  // إذا فشلت كل المحاولات، اعرض رسالة خطأ
+                  targetBarcodeSvgElement.innerHTML = `
+                    <text x="10" y="15" fill="red" font-size="8" font-weight="bold">خطأ في الباركود</text>
+                    <text x="10" y="25" fill="red" font-size="6">${valueToUse.substring(0, 10)}${valueToUse.length > 10 ? '...' : ''}</text>
+                  `;
+                  // سجل الخطأ في وحدة التحكم للتصحيح
+                  (printWindow as any).console.error(`[Barcode Error] Failed to generate barcode for value: ${valueToUse}`, e, e2);
+                }
               }
             }
 
@@ -534,8 +577,8 @@ const QuickBarcodePrintPage = () => {
                   (printWindow as any).console.log(`[QR Debug ${uniqueSuffix}] QR Container offsetWidth: ${(qrCodeElement as HTMLElement).offsetWidth}, offsetHeight: ${(qrCodeElement as HTMLElement).offsetHeight}`);
                   
                   const containerSize = Math.min((qrCodeElement as HTMLElement).offsetWidth, (qrCodeElement as HTMLElement).offsetHeight);
-                  // زيادة الحد الأدنى للحجم للطباعة الحرارية - من 48px إلى 80px
-                  const qrActualSize = Math.max(containerSize, 80); // زيادة الحد الأدنى لتحسين الطباعة الحرارية
+                  // تقليل الحد الأدنى للحجم للتناسب مع الباركود الأكبر
+                  const qrActualSize = Math.max(containerSize, 90); // تقليل حجم QR من 120 إلى 90
 
                   (printWindow as any).console.log(`[QR Debug ${uniqueSuffix}] Calculated QR Code Size (target): ${qrActualSize}`);
 
@@ -545,21 +588,20 @@ const QuickBarcodePrintPage = () => {
                       height: qrActualSize,
                       type: 'svg', 
                       data: productPageUrl,
-                      margin: 6, // زيادة الهامش حول QR Code لتحسين الوضوح
+                      margin: 8, // تقليل الهامش من 10 إلى 8 لزيادة حجم المحتوى
                       dotsOptions: {
-                        type: "rounded", // تغيير شكل النقاط إلى مستدير
+                        type: "square", // تغيير شكل النقاط إلى مربعات للوضوح الأفضل
                         color: "#000000", // أسود
-                        // roundSize: true // تدوير حجم النقاط لتحسين الطباعة - تم التعليق عليه للتجربة
                       },
                       backgroundOptions: {
                         color: "#ffffff" // أبيض (افتراضي)
                       },
                       cornersSquareOptions: {
-                        type: "rounded",   // مربعات زوايا مستديرة
+                        type: "square",   // مربعات زوايا مستطيلة للوضوح
                         color: "#000000"  // أسود
                       },
                       cornersDotOptions: {
-                        type: "rounded",   // نقاط (مستديرة) داخل مربعات الزوايا
+                        type: "square",   // نقاط (مربعة) داخل مربعات الزوايا
                         color: "#000000"  // أسود
                       },
                       imageOptions: {
@@ -567,8 +609,8 @@ const QuickBarcodePrintPage = () => {
                         margin: 0 // عدم إضافة هامش للصورة لتوفير مساحة أكبر للنقاط
                       },
                       qrOptions: {
-                        errorCorrectionLevel: 'L', // تغيير إلى L للطباعة الحرارية - لرمز أقل كثافة
-                        typeNumber: 0 // السماح للمكتبة باختيار أفضل حجم تلقائياً
+                        errorCorrectionLevel: 'L', // تغيير إلى L لتقليل كثافة الرمز وجعله أوضح
+                        typeNumber: 4 // تحديد حجم محدد بدلاً من 0 لرمز أكثر اتساقًا
                       }
                     });
                     // Clear any previous content (e.g., error messages or old QR codes)

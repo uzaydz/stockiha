@@ -229,11 +229,11 @@ export const barcodeTemplates: BarcodeTemplate[] = [
         overflow: hidden; /* Prevent content from spilling out of the label */
       }
       .barcode-label.template-qr-plus-barcode .store-name-header-new {
-        font-size: 6.5pt !important; /* Adjusted for space */
-        font-weight: bold !important; /* Ensured bold as per previous, and user request */
+        font-size: 6pt !important; /* تقليل حجم الخط لتوفير مساحة أكبر */
+        font-weight: bold !important;
         text-align: center;
         width: 100%;
-        margin-bottom: 1mm; /* Adjusted margin */
+        margin-bottom: 0.5mm; /* تقليل الهامش */
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -246,12 +246,12 @@ export const barcodeTemplates: BarcodeTemplate[] = [
         align-items: center !important;
         width: 100%;
         flex-grow: 1; /* Allow this section to take available space */
-        gap: 1.5mm; /* Reduced gap */
+        gap: 1mm; /* تقليل المسافة بين العناصر */
         min-height: 0; /* Crucial for nested flex elements */
         overflow: hidden; /* Prevent internal overflow */
       }
       .barcode-label.template-qr-plus-barcode .qr-code-container-new {
-        flex: 0 0 40% !important; /* Slightly reduced to give more space to details */
+        flex: 0 0 40% !important; /* تقليل مساحة الـ QR Code من 50% إلى 40% */
         max-width: 40% !important;
         display: flex !important;
         justify-content: center !important;
@@ -260,12 +260,12 @@ export const barcodeTemplates: BarcodeTemplate[] = [
         min-height: 0; /* Prevent flex item from growing unexpectedly */
       }
       .barcode-label.template-qr-plus-barcode .qr-code-container-new svg {
-        max-width: 100% !important;
-        max-height: 100% !important;
+        max-width: 90% !important; /* تقليل حجم الـ QR code إلى 90% من مساحة الحاوية */
+        max-height: 90% !important;
         object-fit: contain !important;
       }
       .barcode-label.template-qr-plus-barcode .product-details-area-new {
-        flex: 1 1 auto !important; /* Allow to grow and shrink */
+        flex: 1 1 auto !important;
         display: flex !important;
         flex-direction: column !important;
         justify-content: center;
@@ -283,35 +283,35 @@ export const barcodeTemplates: BarcodeTemplate[] = [
         display: flex !important;
         justify-content: center !important;
         align-items: center !important;
-        border-bottom: 0.2mm solid #444 !important; /* Thinner border */
-        padding: 0.4mm 0.3mm !important; /* Reduced padding */
-        min-height: 4mm; /* Adjusted min-height */
-        flex-shrink: 0; /* Prevent rows from shrinking too much individually */
+        border-bottom: 0.2mm solid #444 !important;
+        padding: 0.3mm 0.2mm !important; /* تقليل المساحة الداخلية */
+        min-height: 3.5mm; /* تقليل الارتفاع الأدنى */
+        flex-shrink: 0;
       }
       .barcode-label.template-qr-plus-barcode .product-name-row-new {
-         font-size: 8.5pt !important; /* Increased product name font size */
+         font-size: 7.5pt !important; /* تقليل حجم الخط */
          font-weight: bold !important;
          text-align: center;
-         min-height: 6mm; /* Adjusted */
-         padding: 0.4mm 0.3mm 0.1mm 0.3mm !important;
+         min-height: 5mm; /* تقليل الارتفاع */
+         padding: 0.3mm 0.2mm 0.1mm 0.2mm !important;
       }
       .barcode-label.template-qr-plus-barcode .product-name-row-new .info-value-new {
           white-space: normal;
-          line-height: 1.2;
+          line-height: 1.1;
           text-overflow: ellipsis;
           overflow: hidden;
           display: -webkit-box;
           -webkit-line-clamp: 2; /* Max 2 lines */
           -webkit-box-orient: vertical;
-          max-height: 2.4em; /* line-height * 2 */
+          max-height: 2.2em; /* تقليل الارتفاع الأقصى */
       }
       .barcode-label.template-qr-plus-barcode .barcode-row-new {
          border-bottom: 0.2mm solid #444 !important;
          padding: 0 !important;
-         min-height: 10mm; /* تقليل المساحة لتوفير مجال للسعر */
+         min-height: 12mm !important; /* زيادة المساحة للباركود من 8mm إلى 12mm */
          display: flex;
          align-items: center;
-         justify-content: center; /* توسيط الباركود */
+         justify-content: center;
       }
       .barcode-label.template-qr-plus-barcode .barcode-svg-container-new {
         width: 100% !important;
@@ -322,7 +322,7 @@ export const barcodeTemplates: BarcodeTemplate[] = [
       }
       .barcode-label.template-qr-plus-barcode .barcode-svg-container-new svg {
         max-width: 100% !important;
-        height: 100% !important; /* يملأ كامل الارتفاع */
+        height: 100% !important;
         width: 100% !important;
       }
       
@@ -337,17 +337,17 @@ export const barcodeTemplates: BarcodeTemplate[] = [
           /* ضمان عدم تشويه الباركود */
           width: 100% !important;
           height: auto !important;
-          max-height: 9.5mm !important; /* تقليل الحد الأقصى */
-          min-height: 8mm !important; /* تقليل الحد الأدنى */
+          max-height: 11mm !important; /* زيادة الحد الأقصى للباركود من 7.5mm إلى 11mm */
+          min-height: 10mm !important; /* زيادة الحد الأدنى من 7mm إلى 10mm */
           /* تحسينات إضافية للوضوح */
-          filter: contrast(1.3) !important; /* زيادة التباين للطباعة الحرارية */
+          filter: contrast(1.5) !important; /* زيادة التباين للطباعة الحرارية */
           -webkit-print-color-adjust: exact !important;
           color-adjust: exact !important;
         }
         .barcode-label.template-qr-plus-barcode .barcode-row-new {
           /* ضمان مساحة محسنة للباركود */
-          min-height: 10mm !important;
-          max-height: 10.5mm !important;
+          min-height: 12mm !important; /* زيادة من 8mm إلى 12mm */
+          max-height: 13mm !important; /* زيادة من 8.5mm إلى 13mm */
           overflow: visible !important;
           /* تحسين التباين للطباعة */
           -webkit-print-color-adjust: exact !important;
@@ -356,20 +356,31 @@ export const barcodeTemplates: BarcodeTemplate[] = [
         /* تحسين النص أسفل الباركود */
         .barcode-label.template-qr-plus-barcode .barcode-svg-container-new svg text {
           font-weight: bold !important;
-          font-size: 5pt !important; /* تقليل حجم النص */
+          font-size: 5pt !important; /* زيادة حجم النص من 4.5pt إلى 5pt */
           fill: #000000 !important;
           stroke: none !important;
+        }
+        
+        /* تحسينات خاصة بـ QR Code للطباعة الحرارية */
+        .barcode-label.template-qr-plus-barcode .qr-code-container-new svg {
+          shape-rendering: crispEdges !important;
+          image-rendering: pixelated !important;
+          min-width: 12mm !important; /* تقليل الحد الأدنى للعرض من 15mm إلى 12mm */
+          min-height: 12mm !important; /* تقليل الحد الأدنى للارتفاع من 15mm إلى 12mm */
+          max-width: 90% !important; /* تقليل الحجم الأقصى */
+          max-height: 90% !important; /* تقليل الحجم الأقصى */
+          filter: contrast(1.5) !important; /* زيادة التباين للوضوح */
         }
       }
       
        .barcode-label.template-qr-plus-barcode .price-row-new {
-        font-size: 9pt !important; /* زيادة حجم خط السعر للوضوح */
+        font-size: 8pt !important; /* تقليل حجم خط السعر قليلاً */
         font-weight: bold !important;
         border-bottom: none !important;
         text-align: center;
-        min-height: 4.5mm !important; /* زيادة المساحة المخصصة للسعر */
-        padding: 0.5mm 0.3mm 0.5mm 0.3mm !important; /* زيادة padding للسعر */
-        display: flex !important; /* ضمان الظهور */
+        min-height: 4mm !important;
+        padding: 0.3mm 0.2mm 0.3mm 0.2mm !important;
+        display: flex !important;
         align-items: center !important;
         justify-content: center !important;
       }
@@ -384,16 +395,16 @@ export const barcodeTemplates: BarcodeTemplate[] = [
         white-space: nowrap; /* Default, product name will override */
       }
       .barcode-label.template-qr-plus-barcode .site-url-footer-new {
-        font-size: 5.5pt !important; /* Adjusted for space */
-        font-weight: bold !important; /* Added bold as per user request */
+        font-size: 5pt !important; /* تقليل حجم الخط للفوتر */
+        font-weight: bold !important;
         text-align: center;
         width: 100%;
-        margin-top: 1mm; /* Adjusted margin */
+        margin-top: 0.5mm; /* تقليل الهامش */
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
         color: #000;
-        flex-shrink: 0; /* Do not shrink footer */
+        flex-shrink: 0;
       }
       /* Hide elements not explicitly part of this new design */
       .barcode-label.template-qr-plus-barcode .sku,
@@ -405,12 +416,12 @@ export const barcodeTemplates: BarcodeTemplate[] = [
       }
     `,
     jsBarcodeOptions: {
-      height: 35,        // تقليل الارتفاع قليلاً لتوفير مساحة للسعر
-      width: 1.0,        // تقليل عرض الخطوط لتوفير مساحة
-      fontSize: 5,       // تقليل حجم الخط أكثر
+      height: 40,        // زيادة الارتفاع من 30 إلى 40
+      width: 1.5,        // زيادة عرض الخطوط من 1.3 إلى 1.5
+      fontSize: 5,       // تقليل حجم الخط
       displayValue: true, // إظهار النص أسفل الباركود
       margin: 0,         // بدون هوامش خارجية
-      textMargin: 0,     // بدون مسافة بين الباركود والنص (مدمج تماماً)
+      textMargin: 1,     // زيادة المسافة بين الباركود والنص
       fontOptions: "bold", // نص عريض للوضوح
       flat: true,        // خطوط مسطحة للطباعة الحرارية
       background: "#ffffff",
