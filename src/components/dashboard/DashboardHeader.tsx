@@ -122,83 +122,74 @@ const DashboardHeader = ({ toggleSidebar, onTimeframeChange, onCustomDateChange 
   };
 
   return (
-    <header className="w-full rounded-lg bg-card dark:bg-zinc-900 text-card-foreground dark:text-zinc-200 relative overflow-hidden transition-all duration-300 bg-gradient-to-br from-background/95 to-background/90 dark:from-zinc-900/95 dark:to-zinc-900/90 backdrop-blur-md border border-border/20 dark:border-zinc-800/20 shadow-lg hover:shadow-xl dark:hover:shadow-zinc-900/50 before:absolute before:inset-0 before:bg-gradient-to-br before:from-primary/5 before:to-transparent before:pointer-events-none mb-6">
-              {/* شريط أدوات لوحة التحكم */}
-        <div className="flex flex-col gap-5 p-6 relative z-10">
+    <header className="w-full rounded-xl bg-background/80 border border-border/30 shadow-sm mb-6">
+      {/* شريط أدوات لوحة التحكم */}
+      <div className="flex flex-col gap-4 p-5">
         {/* رأس الصفحة مع الأزرار */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-5">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex items-center">
             <Button 
               variant="ghost" 
               size="icon" 
-              className="md:hidden mr-3 text-foreground dark:text-zinc-200 hover:bg-accent dark:hover:bg-zinc-800" 
+              className="md:hidden mr-3" 
               onClick={toggleSidebar}
             >
               <MenuIcon className="h-5 w-5" />
             </Button>
             
             <div>
-              <h1 className="text-2xl font-bold tracking-tight mb-1 bg-gradient-to-r from-foreground to-foreground/80 dark:from-zinc-100 dark:to-zinc-300 bg-clip-text text-transparent">لوحة التحكم</h1>
-              <p className="text-muted-foreground dark:text-zinc-400 text-sm mb-3 font-medium">
+              <h1 className="text-xl font-bold mb-1">لوحة التحكم</h1>
+              <p className="text-sm text-muted-foreground">
                 {currentOrganization?.name ? `${currentOrganization.name} - ` : ''}
                 نظرة عامة على متجرك ومبيعاتك
               </p>
               {/* عرض عنوان الفترة الزمنية */}
-              <div className="inline-flex items-center gap-2 bg-gradient-to-br from-primary/10 to-primary/5 dark:from-primary/20 dark:to-primary/10 py-1.5 px-4 rounded-full text-sm text-primary dark:text-primary/90 border border-primary/20 dark:border-primary/30 font-medium">
-                <CalendarIcon className="h-4 w-4" />
+              <div className="inline-flex items-center gap-1.5 bg-primary/10 px-3 py-1 rounded-md text-xs text-primary border border-primary/20 mt-2">
+                <CalendarIcon className="h-3 w-3" />
                 <span>{getTimeframeTitle()}</span>
               </div>
             </div>
           </div>
         
-          <div className="flex items-center gap-3 self-end md:self-center">
+          <div className="flex items-center gap-2 self-end md:self-center">
             <Button
               variant="ghost"
               size="icon"
-              className="text-muted-foreground dark:text-zinc-400 hover:text-foreground dark:hover:text-zinc-200 hover:bg-accent dark:hover:bg-zinc-800"
+              className="h-8 w-8"
               onClick={() => navigate('/dashboard/notifications')}
             >
-              <Bell className="h-5 w-5" />
+              <Bell className="h-4 w-4" />
             </Button>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-9 w-9 rounded-full hover:bg-accent dark:hover:bg-zinc-800">
-                  <Avatar className="h-9 w-9 border border-border dark:border-zinc-700">
+                <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                  <Avatar className="h-8 w-8">
                     <AvatarImage src={user?.avatar_url || ""} alt={user?.full_name || "صورة المستخدم"} />
-                    <AvatarFallback className="bg-primary/10 dark:bg-primary/20 text-primary dark:text-primary/90">{getNameInitials()}</AvatarFallback>
+                    <AvatarFallback className="bg-primary/10 text-primary text-xs">{getNameInitials()}</AvatarFallback>
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56 bg-background dark:bg-zinc-800 border-border dark:border-zinc-700" align="end" forceMount>
-                <DropdownMenuLabel className="font-normal text-foreground dark:text-zinc-200">
+              <DropdownMenuContent className="w-56" align="end" forceMount>
+                <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
                     <p className="text-sm font-medium leading-none">{user?.full_name}</p>
-                    <p className="text-xs leading-none text-muted-foreground dark:text-zinc-400">
+                    <p className="text-xs leading-none text-muted-foreground">
                       {user?.email}
                     </p>
                   </div>
                 </DropdownMenuLabel>
-                <DropdownMenuSeparator className="bg-border dark:bg-zinc-700" />
-                <DropdownMenuItem 
-                  onClick={() => navigate('/dashboard/profile')}
-                  className="text-foreground dark:text-zinc-200 hover:bg-accent dark:hover:bg-zinc-700"
-                >
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate('/dashboard/profile')}>
                   <User className="ml-2 h-4 w-4" />
                   <span>الملف الشخصي</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem 
-                  onClick={() => navigate('/dashboard/settings')}
-                  className="text-foreground dark:text-zinc-200 hover:bg-accent dark:hover:bg-zinc-700"
-                >
+                <DropdownMenuItem onClick={() => navigate('/dashboard/settings')}>
                   <Settings className="ml-2 h-4 w-4" />
                   <span>الإعدادات</span>
                 </DropdownMenuItem>
-                <DropdownMenuSeparator className="bg-border dark:bg-zinc-700" />
-                <DropdownMenuItem 
-                  onClick={handleSignOut}
-                  className="text-foreground dark:text-zinc-200 hover:bg-accent dark:hover:bg-zinc-700"
-                >
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleSignOut}>
                   تسجيل الخروج
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -207,49 +198,50 @@ const DashboardHeader = ({ toggleSidebar, onTimeframeChange, onCustomDateChange 
         </div>
         
         {/* عناصر التحكم في الفترة الزمنية */}
-        <div className="bg-background rounded-lg shadow-sm overflow-hidden w-full border">
+        <div>
           <Tabs 
             defaultValue="monthly" 
             value={activeTimeframe}
             className="w-full"
             onValueChange={(value) => handleTimeframeChange(value as TimeframeType)}
           >
-            <TabsList className="grid grid-cols-5 w-full">
-              <TabsTrigger value="daily">يومي</TabsTrigger>
-              <TabsTrigger value="weekly">أسبوعي</TabsTrigger>
-              <TabsTrigger value="monthly">شهري</TabsTrigger>
-              <TabsTrigger value="annual">سنوي</TabsTrigger>
-              <TabsTrigger value="custom">مخصص</TabsTrigger>
+            <TabsList className="grid grid-cols-5 w-full h-9">
+              <TabsTrigger value="daily" className="text-xs">يومي</TabsTrigger>
+              <TabsTrigger value="weekly" className="text-xs">أسبوعي</TabsTrigger>
+              <TabsTrigger value="monthly" className="text-xs">شهري</TabsTrigger>
+              <TabsTrigger value="annual" className="text-xs">سنوي</TabsTrigger>
+              <TabsTrigger value="custom" className="text-xs">مخصص</TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
         
         {/* اختيار التاريخ المخصص */}
         {showDatePicker && (
-          <div className="bg-background p-5 rounded-lg shadow-sm border">
-            <div className="flex flex-col sm:flex-row items-center gap-5">
-              <div className="w-full sm:w-auto flex gap-3 sm:gap-5">
+          <div className="bg-muted/30 p-4 rounded-lg border border-border/30">
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              <div className="w-full sm:w-auto flex gap-3">
                 <div className="w-full sm:w-auto">
-                  <label className="text-xs text-muted-foreground block mb-1.5">من:</label>
+                  <label className="text-xs text-muted-foreground block mb-1">من:</label>
                   <input 
                     type="date" 
-                    className="w-full border rounded-md focus:ring focus:ring-primary/20 text-sm py-2 px-3"
+                    className="w-full border rounded-md text-sm py-1.5 px-2.5 bg-background"
                     value={customDateRange.start.toISOString().split('T')[0]}
                     onChange={(e) => handleDateChange('start', e.target.value)}
                   />
                 </div>
                 <div className="w-full sm:w-auto">
-                  <label className="text-xs text-muted-foreground block mb-1.5">إلى:</label>
+                  <label className="text-xs text-muted-foreground block mb-1">إلى:</label>
                   <input 
                     type="date" 
-                    className="w-full border rounded-md focus:ring focus:ring-primary/20 text-sm py-2 px-3"
+                    className="w-full border rounded-md text-sm py-1.5 px-2.5 bg-background"
                     value={customDateRange.end.toISOString().split('T')[0]}
                     onChange={(e) => handleDateChange('end', e.target.value)}
                   />
                 </div>
               </div>
               <Button 
-                className="w-full sm:w-auto mt-3 sm:mt-5"
+                size="sm"
+                className="w-full sm:w-auto mt-3 sm:mt-0"
                 onClick={handleApplyCustomRange}
               >
                 تطبيق

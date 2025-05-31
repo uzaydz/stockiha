@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>اختبار الألوان - Bazaar Console</title>
+  <style>
+    :root {
+      --primary: 217.2 91.2% 59.8%;
+      --primary-foreground: 210 40% 98%;
+      --primary-lighter: 217.2 91.2% 85%;
+      --primary-darker: 217.2 91.2% 35%;
+      --secondary: 210 40% 96%;
+      --secondary-foreground: 222.2 84% 4.9%;
+    }
+    
+    body {
+      font-family: 'Tajawal', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f5f5f5;
+      direction: rtl;
+    }
+    
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    
+    h1 {
+      color: hsl(var(--primary));
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    
+    .test-section {
+      margin-bottom: 30px;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    
+    .test-title {
+      margin-top: 0;
+      color: #333;
+      font-size: 1.2em;
+    }
+    
+    .color-sample {
+      height: 50px;
+      margin: 10px 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: bold;
+      border-radius: 4px;
+    }
+    
+    .primary-bg {
+      background-color: hsl(var(--primary));
+    }
+    
+    .primary-lighter-bg {
+      background-color: hsl(var(--primary-lighter));
+    }
+    
+    .primary-darker-bg {
+      background-color: hsl(var(--primary-darker));
+    }
+    
+    .secondary-bg {
+      background-color: hsl(var(--secondary));
+      color: hsl(var(--secondary-foreground));
+    }
+    
+    .text-primary {
+      color: hsl(var(--primary));
+    }
+    
+    .border-primary {
+      border: 2px solid hsl(var(--primary));
+      padding: 10px;
+    }
+    
+    button {
+      background-color: hsl(var(--primary));
+      color: hsl(var(--primary-foreground));
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 1em;
+      transition: background-color 0.2s;
+    }
+    
+    button:hover {
+      background-color: hsl(var(--primary-darker));
+    }
+    
+    .info-box {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #f0f8ff;
+      border-right: 4px solid hsl(var(--primary));
+    }
+    
+    #color-values {
+      margin-top: 20px;
+      font-family: monospace;
+      background-color: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      white-space: pre-wrap;
+    }
+    
+    /* إضافة تحسينات للمظهر العام */
+    * {
+      box-sizing: border-box;
+    }
+    
+    .flex {
+      display: flex;
+    }
+    
+    .flex-wrap {
+      flex-wrap: wrap;
+    }
+    
+    .justify-between {
+      justify-content: space-between;
+    }
+    
+    .gap-4 {
+      gap: 1rem;
+    }
+    
+    .mb-2 {
+      margin-bottom: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>اختبار ألوان الثيم</h1>
+    
+    <div class="test-section">
+      <h2 class="test-title">عينات الألوان الأساسية</h2>
+      <div class="color-sample primary-bg">اللون الأساسي (Primary)</div>
+      <div class="color-sample primary-lighter-bg">اللون الأساسي الفاتح (Primary Lighter)</div>
+      <div class="color-sample primary-darker-bg">اللون الأساسي الداكن (Primary Darker)</div>
+      <div class="color-sample secondary-bg">اللون الثانوي (Secondary)</div>
+    </div>
+    
+    <div class="test-section">
+      <h2 class="test-title">نماذج العناصر</h2>
+      <p>هذا نص عادي، بينما <span class="text-primary">هذا النص يستخدم اللون الأساسي</span>.</p>
+      <div class="border-primary mb-2">هذا عنصر بحدود تستخدم اللون الأساسي</div>
+      <div class="flex flex-wrap justify-between gap-4">
+        <button>زر أساسي</button>
+        <button style="background-color: hsl(var(--primary-lighter)); color: black;">زر فاتح</button>
+        <button style="background-color: hsl(var(--primary-darker));">زر داكن</button>
+      </div>
+    </div>
+    
+    <div class="info-box">
+      <h3>معلومات الثيم الحالي</h3>
+      <div id="color-values">جاري تحميل قيم الألوان...</div>
+    </div>
+    
+    <div class="test-section">
+      <h2 class="test-title">تشخيص المشكلات</h2>
+      <p>إذا كانت الألوان لا تظهر بشكل صحيح، حاول اتباع هذه الخطوات:</p>
+      <ol>
+        <li>تحقق من وجود متغيرات CSS في عنصر root (استخدم أدوات المطور)</li>
+        <li>تأكد من أن تطبيق الثيم يعمل بشكل صحيح</li>
+        <li>امسح ذاكرة التخزين المؤقت للمتصفح</li>
+        <li>تأكد من عدم وجود CSS آخر يتعارض مع متغيرات الثيم</li>
+      </ol>
+      <button id="refresh-btn">تحديث الصفحة</button>
+    </div>
+  </div>
+
+  <script>
+    // الحصول على قيم الألوان المطبقة فعلياً
+    function displayColorValues() {
+      const root = document.documentElement;
+      const computedStyle = getComputedStyle(root);
+      
+      const colorVars = [
+        'primary', 
+        'primary-foreground',
+        'primary-lighter',
+        'primary-darker',
+        'secondary',
+        'secondary-foreground'
+      ];
+      
+      let output = "";
+      
+      colorVars.forEach(varName => {
+        const value = computedStyle.getPropertyValue(`--${varName}`).trim();
+        output += `--${varName}: ${value}\n`;
+      });
+      
+      document.getElementById('color-values').textContent = output;
+    }
+    
+    // تنفيذ عند تحميل الصفحة
+    document.addEventListener('DOMContentLoaded', () => {
+      displayColorValues();
+      
+      // زر التحديث
+      document.getElementById('refresh-btn').addEventListener('click', () => {
+        location.reload();
+      });
+    });
+  </script>
+</body>
+</html> 

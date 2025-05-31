@@ -7,20 +7,16 @@ import {
   ShoppingBag, 
   Clock, 
   User, 
-  Phone, 
   CreditCard, 
   Package,
   Eye,
   Calendar,
-  DollarSign,
   TrendingUp,
   MoreHorizontal,
   CheckCircle,
   AlertCircle,
   XCircle,
-  RefreshCw,
-  Truck,
-  MapPin
+  RefreshCw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -135,101 +131,101 @@ const getPaymentStatusText = (status: string) => {
   }
 };
 
-// مكون مفرد للطلب الواحد لتحسين الأداء
+// مكون مفرد للطلب الواحد - تصميم محسن وأكثر بساطة
 const OrderItem = React.memo(({ order, index }: { order: Order; index: number }) => {
   const StatusIcon = getStatusIcon(order.status);
 
   return (
     <div 
       className={cn(
-        "relative p-5 rounded-2xl transition-all duration-500 group overflow-hidden",
-        "bg-gradient-to-br from-background/80 to-background/60 backdrop-blur-sm border border-border/40",
-        "hover:shadow-xl hover:shadow-primary/10 hover:scale-[1.02] cursor-pointer",
-        "hover:border-primary/30 hover:bg-gradient-to-br hover:from-background/90 hover:to-background/70"
+        "relative p-4 rounded-xl transition-all duration-300 group",
+        "bg-background/80 border border-border/30 shadow-sm",
+        "hover:shadow-md hover:scale-[1.01] cursor-pointer",
+        "hover:border-primary/20"
       )}
       style={{
         animationDelay: `${index * 100}ms`
       }}
     >
-      {/* التأثير المتدرج في الخلفية */}
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-      
-      {/* معلومات الطلب الأساسية */}
-      <div className="relative z-10 flex items-center justify-between mb-4">
-        <div className="flex items-center gap-4">
+      <div className="flex items-start justify-between gap-3">
+        {/* القسم الأيسر - معلومات الطلب الأساسية */}
+        <div className="flex items-start gap-3 flex-1 min-w-0">
+          {/* أيقونة حالة الطلب */}
           <div className={cn(
-            "relative flex items-center justify-center h-14 w-14 rounded-2xl border-2 transition-all duration-500",
-            "group-hover:scale-110 group-hover:rotate-3",
-            "bg-gradient-to-br shadow-lg", getStatusColor(order.status)
+            "flex items-center justify-center h-10 w-10 rounded-lg shrink-0",
+            "bg-gradient-to-br shadow-sm", getStatusColor(order.status)
           )}>
-            <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent rounded-2xl" />
-            <StatusIcon className="relative z-10 h-5 w-5" />
+            <StatusIcon className="h-4 w-4" />
           </div>
           
-          <div>
-            <div className="flex items-center gap-3 mb-1">
-              <h4 className="text-base font-bold group-hover:text-primary transition-colors duration-300">
+          {/* معلومات الطلب */}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              {/* رقم الطلب */}
+              <h4 className="text-sm font-bold group-hover:text-primary transition-colors duration-300">
                 طلب #{order.id.slice(-6)}
               </h4>
+              
+              {/* حالة الدفع */}
               <div className={cn(
-                "px-3 py-1 rounded-full text-xs font-bold border",
+                "px-2 py-0.5 rounded-md text-xs font-medium",
                 getPaymentStatusColor(order.paymentStatus)
               )}>
                 {getPaymentStatusText(order.paymentStatus)}
               </div>
             </div>
             
-            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-              <div className="flex items-center gap-1.5 bg-muted/50 px-2 py-1 rounded-lg">
+            {/* التاريخ والوقت */}
+            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+              <div className="flex items-center gap-1">
                 <Calendar className="h-3 w-3" />
-                <span className="font-medium">{formatDate(order.createdAt)}</span>
+                <span>{formatDate(order.createdAt)}</span>
               </div>
-              <div className="flex items-center gap-1.5 bg-muted/50 px-2 py-1 rounded-lg">
+              <div className="flex items-center gap-1">
                 <Clock className="h-3 w-3" />
-                <span className="font-medium">{formatTime(order.createdAt)}</span>
+                <span>{formatTime(order.createdAt)}</span>
               </div>
+            </div>
+
+            {/* معلومات العميل */}
+            <div className="flex flex-wrap gap-2 text-xs">
+              <div className="flex items-center gap-1 bg-muted/40 px-2 py-0.5 rounded-md">
+                <User className="h-3 w-3 text-muted-foreground" />
+                <span className="text-muted-foreground">عميل #{order.customerId.slice(-4)}</span>
+              </div>
+              
+              {order.paymentMethod && (
+                <div className="flex items-center gap-1 bg-muted/40 px-2 py-0.5 rounded-md">
+                  <CreditCard className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-muted-foreground">
+                    {order.paymentMethod === 'cash' ? 'نقداً' : 
+                     order.paymentMethod === 'card' ? 'بطاقة' : 
+                     order.paymentMethod === 'bank_transfer' ? 'تحويل بنكي' : 
+                     order.paymentMethod}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>
-        
-        <div className="text-right space-y-1">
-          <div className="text-lg font-bold bg-gradient-to-r from-primary via-primary/90 to-primary/80 bg-clip-text text-transparent">
+
+        {/* القسم الأيمن - المبلغ وحالة الطلب */}
+        <div className="text-right flex flex-col items-end gap-2">
+          {/* المبلغ الإجمالي */}
+          <div className="text-base font-bold text-primary">
             {formatCurrency(order.total)}
           </div>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground justify-end">
-            <span className="font-medium">{order.items.length} منتج</span>
+          
+          {/* عدد المنتجات */}
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <span>{order.items.length} منتج</span>
             <Package className="h-3 w-3" />
           </div>
-        </div>
-      </div>
-
-      {/* معلومات العميل وحالة الطلب */}
-      <div className="relative z-10 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 bg-muted/50 px-3 py-1.5 rounded-xl">
-            <User className="h-3.5 w-3.5 text-primary/70" />
-            <span className="text-xs font-medium text-muted-foreground">
-              عميل #{order.customerId.slice(-4)}
-            </span>
-          </div>
           
-          {order.paymentMethod && (
-            <div className="flex items-center gap-2 bg-muted/50 px-3 py-1.5 rounded-xl">
-              <CreditCard className="h-3.5 w-3.5 text-primary/70" />
-              <span className="text-xs font-medium text-muted-foreground">
-                {order.paymentMethod === 'cash' ? 'نقداً' : 
-                 order.paymentMethod === 'card' ? 'بطاقة' : 
-                 order.paymentMethod === 'bank_transfer' ? 'تحويل بنكي' : 
-                 order.paymentMethod}
-              </span>
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-muted/50 px-3 py-1.5 rounded-xl">
+          {/* حالة الطلب */}
+          <div className="flex items-center gap-1 mt-1 bg-muted/40 px-2 py-0.5 rounded-md">
             <div className={cn(
-              "h-2.5 w-2.5 rounded-full animate-pulse",
+              "h-2 w-2 rounded-full",
               order.status === 'completed' ? 'bg-emerald-500' :
               order.status === 'processing' ? 'bg-blue-500' :
               order.status === 'pending' ? 'bg-amber-500' :
@@ -237,33 +233,31 @@ const OrderItem = React.memo(({ order, index }: { order: Order; index: number })
               order.status === 'refunded' ? 'bg-orange-500' :
               'bg-slate-500'
             )} />
-            <span className="text-xs font-medium text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               {getStatusText(order.status)}
             </span>
           </div>
+        </div>
+      </div>
+      
+      {/* شريط الإجراءات */}
+      <div className="mt-3 pt-3 border-t border-border/20 flex justify-end items-center">
+        {/* أزرار الإجراءات */}
+        <div className="flex items-center gap-2">
+          <Link 
+            to={`/dashboard/orders/${order.id}`}
+            className="p-2 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary transition-all duration-200"
+            title="عرض الطلب"
+          >
+            <Eye className="h-4 w-4" />
+          </Link>
           
-          <div className="flex items-center gap-2">
-            <Link 
-              to={`/dashboard/orders/${order.id}`}
-              className={cn(
-                "group/btn p-2.5 rounded-xl bg-gradient-to-br from-primary/15 to-primary/5 border border-primary/25",
-                "hover:bg-gradient-to-br hover:from-primary/25 hover:to-primary/15 hover:border-primary/40",
-                "text-primary transition-all duration-300 hover:scale-110 hover:shadow-lg hover:shadow-primary/20",
-                "relative overflow-hidden"
-              )}
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300" />
-              <Eye className="relative z-10 h-4 w-4" />
-            </Link>
-            
-            <button className={cn(
-              "p-2.5 rounded-xl bg-gradient-to-br from-muted/50 to-muted/30 border border-border/30",
-              "hover:bg-gradient-to-br hover:from-muted/70 hover:to-muted/50 hover:border-border/50",
-              "text-muted-foreground hover:text-foreground transition-all duration-300 hover:scale-110"
-            )}>
-              <MoreHorizontal className="h-4 w-4" />
-            </button>
-          </div>
+          <button 
+            className="p-2 rounded-lg bg-muted/60 hover:bg-muted text-muted-foreground transition-all duration-200"
+            title="خيارات إضافية"
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </button>
         </div>
       </div>
     </div>
@@ -280,80 +274,58 @@ const RecentOrdersCard = React.memo(({ orders, limit = 5 }: RecentOrdersCardProp
     <div className="h-full">
       {displayedOrders.length === 0 ? (
         <div className={cn(
-          "relative flex flex-col items-center justify-center h-full py-12 text-center space-y-6 rounded-2xl overflow-hidden",
-          "bg-gradient-to-br from-muted/40 to-muted/20 border border-border/30"
+          "flex flex-col items-center justify-center py-8 text-center space-y-4 rounded-xl",
+          "bg-muted/30 border border-border/30"
         )}>
-          {/* الخلفية المتحركة */}
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5 animate-pulse" />
-          
-          <div className="relative z-10 flex flex-col items-center space-y-4">
-            <div className={cn(
-              "relative p-4 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/10 border border-primary/30",
-              "shadow-lg backdrop-blur-sm"
-            )}>
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent rounded-2xl animate-pulse" />
-              <ShoppingBag className="relative z-10 h-8 w-8 text-primary" />
-            </div>
-            
-            <div className="space-y-2">
-              <h3 className="text-lg font-bold bg-gradient-to-r from-foreground via-foreground/90 to-foreground/80 bg-clip-text text-transparent">
-                لا توجد طلبات حديثة
-              </h3>
-              <p className="text-sm text-muted-foreground font-medium max-w-xs">
-                ستظهر الطلبات الجديدة هنا بمجرد إنشائها من العملاء
-              </p>
-            </div>
-            
-            <Button 
-              asChild 
-              variant="outline" 
-              className={cn(
-                "mt-6 bg-gradient-to-br from-primary/15 to-primary/5 border-primary/30",
-                "hover:bg-gradient-to-br hover:from-primary/25 hover:to-primary/15 hover:border-primary/40",
-                "text-primary font-semibold transition-all duration-300 hover:scale-105 hover:shadow-md",
-                "relative overflow-hidden group"
-              )}
-            >
-              <Link to="/dashboard/orders" className="flex items-center gap-2 relative z-10">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                <ShoppingBag className="h-4 w-4" />
-                عرض جميع الطلبات
-                <TrendingUp className="h-4 w-4 opacity-60" />
-              </Link>
-            </Button>
+          <div className="p-3 rounded-full bg-primary/10 border border-primary/20">
+            <ShoppingBag className="h-6 w-6 text-primary" />
           </div>
+          
+          <div className="space-y-1 max-w-xs">
+            <h3 className="text-base font-bold text-foreground">
+              لا توجد طلبات حديثة
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              ستظهر الطلبات الجديدة هنا بمجرد إنشائها من العملاء
+            </p>
+          </div>
+          
+          <Button 
+            asChild 
+            variant="outline" 
+            className="mt-2 bg-primary/10 hover:bg-primary/20 text-primary border-primary/20"
+          >
+            <Link to="/dashboard/orders" className="flex items-center gap-2">
+              <ShoppingBag className="h-4 w-4" />
+              عرض جميع الطلبات
+              <TrendingUp className="h-4 w-4 opacity-60" />
+            </Link>
+          </Button>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {displayedOrders.map((order, index) => (
             <OrderItem key={order.id} order={order} index={index} />
           ))}
           
           {/* زر عرض جميع الطلبات */}
-          <div className="pt-4">
+          <div className="pt-2">
             <Button 
               asChild 
               variant="outline" 
-              className={cn(
-                "w-full h-12 bg-gradient-to-br from-primary/15 to-primary/5 border-primary/30",
-                "hover:bg-gradient-to-br hover:from-primary/25 hover:to-primary/15 hover:border-primary/40",
-                "text-primary font-bold transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-primary/20",
-                "relative overflow-hidden group"
-              )}
+              className="w-full bg-primary/5 hover:bg-primary/10 text-primary border-primary/20"
             >
-              <Link to="/dashboard/orders" className="flex items-center justify-center gap-3 relative z-10">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                
+              <Link to="/dashboard/orders" className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4" />
-                  <span className="text-sm">عرض جميع الطلبات</span>
+                  <ShoppingBag className="h-4 w-4" />
+                  <span>عرض جميع الطلبات</span>
                 </div>
                 
                 <div className="flex items-center gap-2">
-                  <div className="bg-primary/20 border border-primary/30 px-2.5 py-1 rounded-full">
-                    <span className="text-xs font-bold">{orders.length}</span>
+                  <div className="bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full">
+                    <span className="text-xs font-medium">{orders.length}</span>
                   </div>
-                  <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
+                  <ArrowRight className="h-4 w-4" />
                 </div>
               </Link>
             </Button>

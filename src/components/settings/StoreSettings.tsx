@@ -62,6 +62,47 @@ const StoreSettings = () => {
       // لا حاجة لإعادة تحميل الثيم لأنه يطبق مباشرة في useOrganizationSettings
       console.log('ℹ️ [StoreSettings] الثيم يطبق مباشرة، لا حاجة لإعادة التحميل');
       
+      // إطلاق حدث تحديث إعدادات المؤسسة لإعلام المكونات الأخرى
+      const settingsUpdatedEvent = new CustomEvent('organization_settings_updated', {
+        detail: {
+          siteName: settings.site_name,
+          logoUrl: settings.logo_url,
+          faviconUrl: settings.favicon_url,
+          displayTextWithLogo: settings.display_text_with_logo,
+          primaryColor: settings.theme_primary_color,
+          timestamp: Date.now()
+        }
+      });
+      console.log('🔔 [StoreSettings] إطلاق حدث تحديث إعدادات المؤسسة:', settingsUpdatedEvent.detail);
+      window.dispatchEvent(settingsUpdatedEvent);
+      
+      // تطبيق التغييرات في الواجهة بشكل مباشر
+      if (settings.site_name) {
+        document.title = settings.site_name;
+      }
+      
+      // تحديث الأيقونة في المتصفح إذا تغيرت
+      if (settings.favicon_url) {
+        const faviconElement = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+        if (faviconElement) {
+          faviconElement.href = `${settings.favicon_url}?t=${Date.now()}`;
+        } else {
+          const newFavicon = document.createElement('link');
+          newFavicon.rel = 'icon';
+          newFavicon.href = `${settings.favicon_url}?t=${Date.now()}`;
+          document.head.appendChild(newFavicon);
+        }
+      }
+      
+      // تحديث الشعار في جميع أنحاء التطبيق
+      if (settings.logo_url) {
+        const logoElements = document.querySelectorAll('img[data-logo="organization"]');
+        logoElements.forEach(element => {
+          const imgElement = element as HTMLImageElement;
+          imgElement.src = `${settings.logo_url}?t=${Date.now()}`;
+        });
+      }
+      
       if (!isSaving && !isLoading) {
         console.log('✅ [StoreSettings] الحفظ مكتمل، إغلاق النافذة بعد 1000ms...');
         // إغلاق النافذة المنبثقة بعد الحفظ بنجاح

@@ -21,7 +21,7 @@ export interface UnifiedTheme {
 
 // الألوان الافتراضية للموقع العام
 const DEFAULT_GLOBAL_THEME: UnifiedTheme = {
-  primaryColor: '#ff8000', // اللون البرتقالي للموقع العام
+  primaryColor: '#fc5a3e', // اللون البرتقالي للموقع العام
   secondaryColor: '#6b21a8', // لون بنفسجي للموقع العام
   mode: 'light',
   lastUpdated: Date.now()
@@ -107,7 +107,7 @@ function applyThemeToDOM(theme: UnifiedTheme): void {
   const pageType = getCurrentPageType();
   
   // إذا كانت الصفحة العامة، نستخدم الثيم العام دائماً
-  if (pageType === 'global') {
+  if (pageType === 'global' && !theme.organizationId) {
     theme = getStoredTheme('global') || DEFAULT_GLOBAL_THEME;
   }
 
@@ -127,11 +127,22 @@ function applyThemeToDOM(theme: UnifiedTheme): void {
       ? theme.primaryColor 
       : hexToHSL(theme.primaryColor);
     
+    console.log('🎨 [themeManager] تطبيق اللون الأساسي:', {
+      original: theme.primaryColor,
+      hsl: primaryHSL,
+      isHSL: isHSLColor(theme.primaryColor)
+    });
+    
+    // تطبيق اللون الأساسي على جميع العناصر الممكنة
+    const elementsToUpdate = [root, document.body];
+    
     // تطبيق اللون الأساسي مع !important لضمان الأولوية
-    root.style.setProperty('--primary', primaryHSL, 'important');
-    root.style.setProperty('--ring', primaryHSL, 'important');
-    root.style.setProperty('--sidebar-primary', primaryHSL, 'important');
-    root.style.setProperty('--sidebar-ring', primaryHSL, 'important');
+    elementsToUpdate.forEach(element => {
+      element.style.setProperty('--primary', primaryHSL, 'important');
+      element.style.setProperty('--ring', primaryHSL, 'important');
+      element.style.setProperty('--sidebar-primary', primaryHSL, 'important');
+      element.style.setProperty('--sidebar-ring', primaryHSL, 'important');
+    });
     
     // إنشاء ألوان مشتقة
     if (primaryHSL.includes('%')) {
@@ -140,9 +151,11 @@ function applyThemeToDOM(theme: UnifiedTheme): void {
       const saturation = s.replace('%', '').trim();
       const lightness = parseInt(l.replace('%', '').trim());
       
-      root.style.setProperty('--primary-foreground', '0 0% 100%', 'important');
-      root.style.setProperty('--primary-lighter', `${hue} ${saturation}% ${Math.min(lightness + 20, 85)}%`, 'important');
-      root.style.setProperty('--primary-darker', `${hue} ${saturation}% ${Math.max(lightness - 20, 25)}%`, 'important');
+      elementsToUpdate.forEach(element => {
+        element.style.setProperty('--primary-foreground', '0 0% 100%', 'important');
+        element.style.setProperty('--primary-lighter', `${hue} ${saturation}% ${Math.min(lightness + 20, 85)}%`, 'important');
+        element.style.setProperty('--primary-darker', `${hue} ${saturation}% ${Math.max(lightness - 20, 25)}%`, 'important');
+      });
     }
   }
   
@@ -152,20 +165,33 @@ function applyThemeToDOM(theme: UnifiedTheme): void {
       ? theme.secondaryColor 
       : hexToHSL(theme.secondaryColor);
     
-    root.style.setProperty('--secondary', secondaryHSL, 'important');
-    root.style.setProperty('--secondary-foreground', '0 0% 100%', 'important');
+    const elementsToUpdate = [root, document.body];
+    elementsToUpdate.forEach(element => {
+      element.style.setProperty('--secondary', secondaryHSL, 'important');
+      element.style.setProperty('--secondary-foreground', '0 0% 100%', 'important');
+    });
   }
   
   // تطبيق وضع المظهر
   root.classList.remove('light', 'dark');
+  document.body.classList.remove('light', 'dark');
   
   let effectiveMode = theme.mode;
   if (theme.mode === 'system') {
     effectiveMode = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
   
+  // إضافة الفئة الجديدة مع التأكد من عدم فقدانها
   root.classList.add(effectiveMode);
+  document.body.classList.add(effectiveMode);
+  
+  // تعيين data attribute كنسخة احتياطية
+  root.setAttribute('data-theme', effectiveMode);
+  document.body.setAttribute('data-theme', effectiveMode);
+  
+  // تحديث color-scheme للمتصفح
   document.body.style.colorScheme = effectiveMode;
+  root.style.colorScheme = effectiveMode;
   
   // تطبيق CSS المخصص
   if (theme.customCss) {
@@ -181,20 +207,176 @@ function applyThemeToDOM(theme: UnifiedTheme): void {
     styleElement.textContent = theme.customCss;
   }
   
+  // إنشاء أو تحديث عنصر style للألوان المخصصة للمؤسسة
+  if (theme.primaryColor || theme.secondaryColor) {
+    const orgStyleId = 'bazaar-org-theme-override';
+    let orgStyleElement = document.getElementById(orgStyleId) as HTMLStyleElement;
+    
+    if (!orgStyleElement) {
+      orgStyleElement = document.createElement('style');
+      orgStyleElement.id = orgStyleId;
+      // Always append to ensure it's at the end
+      document.head.appendChild(orgStyleElement);
+    } else {
+      // Remove and re-append to ensure it's at the end
+      orgStyleElement.remove();
+      document.head.appendChild(orgStyleElement);
+    }
+    
+    // إنشاء CSS يحتوي على الألوان المخصصة مع أولوية عالية
+    let cssOverride = `
+      /* تطبيق الألوان على جميع العناصر مع الأولوية القصوى */
+      :root,
+      :root.light,
+      :root.dark,
+      :root[data-theme="light"],
+      :root[data-theme="dark"],
+      html,
+      html.light,
+      html.dark,
+      html[data-theme="light"],
+      html[data-theme="dark"],
+      body,
+      body.light,
+      body.dark,
+      body[data-theme="light"],
+      body[data-theme="dark"] {
+    `;
+    
+    if (theme.primaryColor) {
+      const primaryHSL = isHSLColor(theme.primaryColor) ? theme.primaryColor : hexToHSL(theme.primaryColor);
+      cssOverride += `  --primary: ${primaryHSL} !important;\n`;
+      cssOverride += `  --ring: ${primaryHSL} !important;\n`;
+      cssOverride += `  --sidebar-primary: ${primaryHSL} !important;\n`;
+      cssOverride += `  --sidebar-ring: ${primaryHSL} !important;\n`;
+      
+      // استخراج مكونات HSL
+      if (primaryHSL.includes('%')) {
+        const [h, s, l] = primaryHSL.split(' ');
+        const hue = h.replace('deg', '').trim();
+        const saturation = s.replace('%', '').trim();
+        const lightness = parseInt(l.replace('%', '').trim());
+        
+        cssOverride += `  --primary-foreground: 0 0% 100% !important;\n`;
+        cssOverride += `  --primary-lighter: ${hue} ${saturation}% ${Math.min(lightness + 20, 85)}% !important;\n`;
+        cssOverride += `  --primary-darker: ${hue} ${saturation}% ${Math.max(lightness - 20, 25)}% !important;\n`;
+        
+        // إضافة متغيرات RGB للاستخدام في الحالات الخاصة
+        const rgbColor = hslToRgb(parseInt(hue), parseInt(saturation), lightness);
+        cssOverride += `  --primary-rgb: ${rgbColor.r}, ${rgbColor.g}, ${rgbColor.b} !important;\n`;
+      }
+    }
+    
+    if (theme.secondaryColor) {
+      const secondaryHSL = isHSLColor(theme.secondaryColor) ? theme.secondaryColor : hexToHSL(theme.secondaryColor);
+      cssOverride += `  --secondary: ${secondaryHSL} !important;\n`;
+      cssOverride += `  --secondary-foreground: 0 0% 100% !important;\n`;
+    }
+    
+    cssOverride += '}\n';
+    
+    // أضف CSS إضافي لضمان تطبيق الألوان على العناصر الشائعة
+    cssOverride += `
+      /* تطبيق الألوان على فئات Tailwind الشائعة */
+      .bg-primary {
+        --tw-bg-opacity: 1 !important;
+        background-color: hsl(var(--primary) / var(--tw-bg-opacity)) !important;
+      }
+      
+      .text-primary {
+        --tw-text-opacity: 1 !important;
+        color: hsl(var(--primary) / var(--tw-text-opacity)) !important;
+      }
+      
+      .border-primary {
+        --tw-border-opacity: 1 !important;
+        border-color: hsl(var(--primary) / var(--tw-border-opacity)) !important;
+      }
+      
+      .ring-primary {
+        --tw-ring-opacity: 1 !important;
+        --tw-ring-color: hsl(var(--primary) / var(--tw-ring-opacity)) !important;
+      }
+      
+      /* تطبيق الألوان على أزرار الواجهة الشائعة */
+      .btn-primary,
+      .button-primary,
+      [class*="btn-primary"],
+      [class*="button-primary"] {
+        background-color: hsl(var(--primary) / 1) !important;
+        color: hsl(var(--primary-foreground) / 1) !important;
+      }
+      
+      /* تطبيق الألوان على الهوفر */
+      .hover\\:bg-primary:hover,
+      .hover\\:text-primary:hover,
+      .hover\\:border-primary:hover {
+        --tw-bg-opacity: 1 !important;
+        background-color: hsl(var(--primary) / var(--tw-bg-opacity)) !important;
+        --tw-text-opacity: 1 !important;
+        color: hsl(var(--primary) / var(--tw-text-opacity)) !important;
+        --tw-border-opacity: 1 !important;
+        border-color: hsl(var(--primary) / var(--tw-border-opacity)) !important;
+      }
+    `;
+    
+    console.log('🎨 [themeManager] CSS Override being applied:', cssOverride);
+    
+    orgStyleElement.textContent = cssOverride;
+  }
+  
   // فرض إعادة تصيير العناصر
   const tempClass = 'theme-update-' + Date.now();
   root.classList.add(tempClass);
   setTimeout(() => {
     root.classList.remove(tempClass);
+    
+    // التحقق النهائي من تطبيق اللون
+    const computedPrimary = window.getComputedStyle(root).getPropertyValue('--primary');
+    console.log('✅ [themeManager] تم تطبيق الثيم بنجاح:', {
+      primary: computedPrimary.trim(),
+      mode: effectiveMode,
+      pageType: pageType
+    });
+    
+    // تأكيد تطبيق على العناصر المرئية
+    const visibleElements = document.querySelectorAll('.bg-primary, .text-primary, .border-primary, .ring-primary');
+    console.log(`🔍 [themeManager] عدد العناصر المرئية المتأثرة: ${visibleElements.length}`);
   }, 50);
+}
+
+/**
+ * تحويل HSL إلى RGB
+ */
+function hslToRgb(h: number, s: number, l: number): { r: number, g: number, b: number } {
+  s /= 100;
+  l /= 100;
   
-  // التحقق النهائي
-  const computedPrimary = window.getComputedStyle(root).getPropertyValue('--primary');
-  console.log('✅ [themeManager] تم تطبيق الثيم بنجاح:', {
-    primary: computedPrimary.trim(),
-    mode: effectiveMode,
-    pageType: pageType
-  });
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  const m = l - c / 2;
+  
+  let r = 0, g = 0, b = 0;
+  
+  if (0 <= h && h < 60) {
+    r = c; g = x; b = 0;
+  } else if (60 <= h && h < 120) {
+    r = x; g = c; b = 0;
+  } else if (120 <= h && h < 180) {
+    r = 0; g = c; b = x;
+  } else if (180 <= h && h < 240) {
+    r = 0; g = x; b = c;
+  } else if (240 <= h && h < 300) {
+    r = x; g = 0; b = c;
+  } else if (300 <= h && h < 360) {
+    r = c; g = 0; b = x;
+  }
+  
+  return {
+    r: Math.round((r + m) * 255),
+    g: Math.round((g + m) * 255),
+    b: Math.round((b + m) * 255)
+  };
 }
 
 /**
@@ -244,7 +426,13 @@ function getCurrentPageType(): 'global' | 'store' | 'admin' {
   // التحقق من النطاق المخصص أو الفرعي
   if (hostname.includes('.') && !hostname.startsWith('www.')) {
     const parts = hostname.split('.');
-    if (parts.length > 2 || (parts.length === 2 && parts[1] === 'localhost')) {
+    // Check for subdomain (e.g., store.example.com)
+    if (parts.length > 2) {
+      return 'store';
+    }
+    // Check for custom domain that's not a known public domain
+    const publicDomains = ['ktobi.online', 'stockiha.com'];
+    if (!publicDomains.includes(hostname)) {
       return 'store';
     }
   }
@@ -337,17 +525,59 @@ export function applyInstantTheme(): void {
   const pageType = getCurrentPageType();
   
   console.log('🔍 [applyInstantTheme] نوع الصفحة المكتشف:', pageType);
+  console.log('🌐 [applyInstantTheme] Current hostname:', window.location.hostname);
   
   // محاولة استرجاع الثيم المناسب
   let theme: UnifiedTheme | null = null;
   
   if (pageType === 'store' || pageType === 'admin') {
     // للمتاجر ولوحة التحكم، نحاول استرجاع ثيم المؤسسة أولاً
-    theme = getStoredTheme('organization');
+    const orgId = getOrganizationIdSync();
+    
+    // محاولة استرجاع ثيم المؤسسة من التخزين المحلي باستخدام hostname
+    const hostname = window.location.hostname;
+    const hostKey = `org_theme_${hostname}`;
+    const storedHostTheme = localStorage.getItem(hostKey);
+    
+    if (storedHostTheme) {
+      try {
+        const hostThemeData = JSON.parse(storedHostTheme);
+        theme = {
+          primaryColor: hostThemeData.primaryColor || DEFAULT_STORE_THEME.primaryColor,
+          secondaryColor: hostThemeData.secondaryColor || DEFAULT_STORE_THEME.secondaryColor,
+          mode: hostThemeData.mode || 'light',
+          customCss: hostThemeData.customCss,
+          organizationId: hostThemeData.organizationId || orgId,
+          lastUpdated: hostThemeData.timestamp || Date.now()
+        };
+        console.log('🎨 [applyInstantTheme] تم تحميل ثيم المؤسسة من التخزين:', theme);
+      } catch (e) {
+        console.error('خطأ في تحميل ثيم المؤسسة:', e);
+      }
+    }
+    
+    // Try to get theme from localStorage using organization ID
+    if (!theme && orgId) {
+      const orgThemeKey = `bazaar_org_theme`;
+      const storedOrgTheme = localStorage.getItem(orgThemeKey);
+      if (storedOrgTheme) {
+        try {
+          theme = JSON.parse(storedOrgTheme);
+          console.log('🎨 [applyInstantTheme] تم تحميل ثيم المؤسسة من التخزين (by org ID):', theme);
+        } catch (e) {
+          console.error('خطأ في تحميل ثيم المؤسسة (by org ID):', e);
+        }
+      }
+    }
     
     // إذا لم نجد ثيم المؤسسة، نستخدم ثيم المتجر الافتراضي
     if (!theme) {
-      theme = getStoredTheme('store') || DEFAULT_STORE_THEME;
+      theme = getStoredTheme('organization') || getStoredTheme('store') || DEFAULT_STORE_THEME;
+    }
+    
+    // Ensure organizationId is set for store pages
+    if (!theme.organizationId && orgId) {
+      theme.organizationId = orgId;
     }
     
     console.log('🏪 [applyInstantTheme] تطبيق ثيم المتجر/لوحة التحكم');
@@ -490,4 +720,9 @@ export default {
   getCurrentTheme,
   initializeSystemThemeListener,
   cleanupOldThemes
-}; 
+};
+
+// إضافة الدالة إلى النافذة العالمية للاستخدام المباشر من وحدة التحكم
+if (typeof window !== 'undefined') {
+  (window as any).applyInstantTheme = applyInstantTheme;
+} 

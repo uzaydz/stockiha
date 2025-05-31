@@ -8,15 +8,80 @@ import './sentry';
 import { initializeHttp406Handler } from './lib/http406Handler';
 
 // تطبيق النظام الموحد للثيمات فوراً قبل تحميل React
-import { applyInstantTheme } from './lib/themeManager';
+import { applyInstantTheme, cleanupOldThemes } from './lib/themeManager';
+
+// تطبيق الثيم الفوري مع إعادة المحاولة
+const applyThemeWithRetry = () => {
+  // تطبيق الثيم الفوري فوراً
+  applyInstantTheme();
+  
+  // محاولة إعادة تطبيق الثيم بعد 100 ملي ثانية للتأكد من التطبيق
+  setTimeout(() => {
+    applyInstantTheme();
+    
+    // تنظيف الثيمات القديمة
+    cleanupOldThemes();
+    
+    // محاولة أخيرة بعد 500 ملي ثانية (عند اكتمال تحميل DOM)
+    setTimeout(applyInstantTheme, 500);
+  }, 100);
+};
 
 // تطبيق الثيم الفوري لمنع الوميض
-applyInstantTheme();
+applyThemeWithRetry();
+
+// إضافة مستمع لحدث تحميل الصفحة لإعادة تطبيق الثيم
+if (typeof window !== 'undefined') {
+  window.addEventListener('DOMContentLoaded', applyInstantTheme);
+}
 
 // تهيئة معالج أخطاء 406 فوراً
 if (typeof window !== 'undefined') {
-  initializeHttp406Handler(); // تفعيل معالج أخطاء 406
-  console.log('🚀 تم تهيئة معالج أخطاء HTTP 406 المحسن');
+  try {
+    // فحص ما إذا كان المعالج مهيأ بالفعل
+    if (!(window as any).originalFetch) {
+      console.log('🔄 جاري تهيئة معالج أخطاء HTTP 406...');
+      
+      // تهيئة المعالج
+      initializeHttp406Handler();
+      
+      // التحقق من التهيئة الناجحة
+      if (typeof (window as any).disable406Handler === 'function' && 
+          typeof (window as any).enable406Handler === 'function') {
+        console.log('✅ تم تهيئة معالج أخطاء HTTP 406 بنجاح');
+        
+        // محاولة تعطيل ثم إعادة تفعيل المعالج للتحقق من عمله
+        (window as any).disable406Handler();
+        (window as any).enable406Handler();
+      } else {
+        console.warn('⚠️ تم تهيئة المعالج لكن الدوال المساعدة غير متاحة');
+      }
+      
+      // إعادة المحاولة بعد تحميل DOM
+      window.addEventListener('DOMContentLoaded', () => {
+        if (!(window as any).disable406Handler) {
+          console.log('🔄 إعادة محاولة تهيئة معالج أخطاء HTTP 406...');
+          initializeHttp406Handler();
+          console.log('✅ تمت إعادة تهيئة معالج أخطاء HTTP 406');
+        }
+      });
+    } else {
+      console.log('ℹ️ معالج أخطاء HTTP 406 مهيأ بالفعل');
+    }
+  } catch (error) {
+    console.error('❌ خطأ في تهيئة معالج أخطاء HTTP 406:', error);
+    
+    // محاولة إعادة التهيئة بعد فترة قصيرة
+    setTimeout(() => {
+      try {
+        console.log('🔄 إعادة محاولة تهيئة معالج أخطاء HTTP 406 بعد الخطأ...');
+        initializeHttp406Handler();
+        console.log('✅ تم تهيئة معالج أخطاء HTTP 406 بعد الخطأ');
+      } catch (retryError) {
+        console.error('❌ فشل في إعادة محاولة تهيئة معالج أخطاء HTTP 406:', retryError);
+      }
+    }, 1000);
+  }
 }
 
 // إصلاح createContext وأخرى: تأكد من تحميل React APIs قبل أي شيء آخر

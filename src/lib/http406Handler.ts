@@ -39,35 +39,43 @@ const failedRequests: Array<{
   error: string;
 }> = [];
 
+// حفظ fetch الأصلي
+let originalFetch: typeof fetch;
+
+// متغير للتحكم في تفعيل/تعطيل المعالج
+let isHandlerDisabled = false;
+
+// علم لمنع التكرار اللانهائي
+let isProcessingFetch = false;
+
+// علم لمتابعة ما إذا كان المعالج مهيأ
+let isHandlerInitialized = false;
+
+// قائمة بأنماط URLs التي يجب تجاهلها دائماً (بما في ذلك طلبات التخزين)
+const ALWAYS_IGNORED_URL_PATTERNS = [
+  '/storage/v1/object',
+  'supabase.co/storage',
+  '/storage/v1/upload',
+  'organization-assets',
+  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico',
+  '/storage/v1/', // أي طلب متعلق بالتخزين
+  'upload',
+  'download',
+  'image',
+  'file',
+  'assets',
+  'public'
+];
+
 /**
- * إنشاء رؤوس محسنة للطلبات
+ * فحص ما إذا كان عنوان URL يجب تجاهله
  */
-function createOptimizedHeaders(originalHeaders?: HeadersInit): Headers {
-  const headers = new Headers(originalHeaders);
-  
-  // رؤوس أساسية محسنة
-  headers.set('Accept', 'application/json, application/vnd.pgrst.object+json, text/plain, */*');
-  headers.set('Accept-Language', 'ar,en;q=0.9,*;q=0.8');
-  headers.set('Accept-Encoding', 'gzip, deflate, br');
-  headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-  headers.set('Pragma', 'no-cache');
-  headers.set('Expires', '0');
-  
-  // رؤوس خاصة بـ Supabase
-  if (!headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json');
-  }
-  
-  // إضافة رؤوس CORS
-  headers.set('Access-Control-Allow-Origin', '*');
-  headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Accept-Language, Accept-Encoding');
-  
-  return headers;
+function shouldIgnoreUrl(url: string): boolean {
+  return ALWAYS_IGNORED_URL_PATTERNS.some(pattern => url.includes(pattern));
 }
 
 /**
- * إنشاء رؤوس مبسطة للمحاولة الثانية
+ * إنشاء نسخة مبسطة من الرؤوس للمحاولة التالية
  */
 function createSimplifiedHeaders(originalHeaders?: HeadersInit): Headers {
   const headers = new Headers();
@@ -77,37 +85,21 @@ function createSimplifiedHeaders(originalHeaders?: HeadersInit): Headers {
     const original = new Headers(originalHeaders);
     
     // رؤوس المصادقة
-    if (original.has('Authorization')) {
-      headers.set('Authorization', original.get('Authorization')!);
-    }
-    if (original.has('apikey')) {
-      headers.set('apikey', original.get('apikey')!);
-    }
+    const importantHeaders = ['Authorization', 'apikey', 'X-Client-Info', 'Content-Type'];
+    importantHeaders.forEach(header => {
+      if (original.has(header)) {
+        headers.set(header, original.get(header)!);
+      }
+    });
   }
   
-  // رؤوس أساسية مبسطة
-  headers.set('Accept', '*/*');
-  headers.set('Content-Type', 'application/json');
+  // إضافة رؤوس أساسية
+  if (!headers.has('Accept')) {
+    headers.set('Accept', '*/*');
+  }
   
-  return headers;
-}
-
-/**
- * إنشاء رؤوس الحد الأدنى للمحاولة الأخيرة
- */
-function createMinimalHeaders(originalHeaders?: HeadersInit): Headers {
-  const headers = new Headers();
-  
-  // نسخ رؤوس المصادقة فقط
-  if (originalHeaders) {
-    const original = new Headers(originalHeaders);
-    
-    if (original.has('Authorization')) {
-      headers.set('Authorization', original.get('Authorization')!);
-    }
-    if (original.has('apikey')) {
-      headers.set('apikey', original.get('apikey')!);
-    }
+  if (!headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
   }
   
   return headers;
@@ -123,37 +115,26 @@ function delay(ms: number): Promise<void> {
 /**
  * إعادة المحاولة مع استراتيجية تدريجية
  */
-async function retryWithStrategy(
+async function retryWithBackoff(
   input: RequestInfo | URL,
   init?: RequestInit,
   config: RetryConfig = defaultRetryConfig
 ): Promise<Response> {
-  const originalFetch = window.fetch;
   let lastError: Error | null = null;
+  
+  // نسخة من الـ init لا تؤثر على الأصلي
+  const safeInit = init ? { ...init } : {};
   
   for (let attempt = 1; attempt <= config.maxRetries; attempt++) {
     try {
-      let headers: Headers;
-      let retryInit: RequestInit = { ...init };
+      // استخدام رؤوس مبسطة
+      const headers = createSimplifiedHeaders(safeInit.headers);
+      safeInit.headers = headers;
       
-      // اختيار استراتيجية الرؤوس حسب المحاولة
-      switch (attempt) {
-        case 1:
-          headers = createOptimizedHeaders(init?.headers);
-          break;
-        case 2:
-          headers = createSimplifiedHeaders(init?.headers);
-          break;
-        default:
-          headers = createMinimalHeaders(init?.headers);
-          break;
-      }
+      console.log(`🔄 محاولة ${attempt}/${config.maxRetries} للطلب:`, input.toString().substring(0, 100));
       
-      retryInit.headers = headers;
-      
-      console.log(`🔄 محاولة ${attempt}/${config.maxRetries} للطلب:`, input);
-      
-      const response = await originalFetch(input, retryInit);
+      // استخدام fetch الأصلي مباشرة
+      const response = await originalFetch(input, safeInit);
       
       if (response.status === 406) {
         throw new Error(`HTTP 406 في المحاولة ${attempt}`);
@@ -185,8 +166,8 @@ async function retryWithStrategy(
   
   // حفظ الطلب الفاشل للمراجعة
   failedRequests.push({
-    url: input.toString(),
-    init,
+    url: typeof input === 'string' ? input : input.toString(),
+    init: safeInit,
     timestamp: Date.now(),
     error: lastError?.message || 'خطأ غير معروف'
   });
@@ -195,23 +176,53 @@ async function retryWithStrategy(
 }
 
 /**
- * معالج الطلبات المحسن
+ * معالج الطلبات المحسن - النسخة الآمنة
  */
 async function enhancedFetch(
   input: RequestInfo | URL,
   init?: RequestInit
 ): Promise<Response> {
+  // إذا كان المعالج معطل، استخدم fetch الأصلي
+  if (isHandlerDisabled || !originalFetch) {
+    return window.fetch(input, init);
+  }
+  
+  // تحويل المدخلات إلى نص لفحصها
+  const url = typeof input === 'string' ? input : input.toString();
+  
+  // تجاهل URLs المحددة دائماً (مثل طلبات التخزين والصور)
+  if (shouldIgnoreUrl(url)) {
+    return originalFetch(input, init);
+  }
+  
+  // منع التكرار اللانهائي - إذا كنا بالفعل في عملية معالجة طلب
+  if (isProcessingFetch) {
+    return originalFetch(input, init);
+  }
+  
+  // تحديث الإحصائيات
   requestStats.total++;
   
   try {
-    // المحاولة الأولى مع الرؤوس الأصلية
-    const response = await window.fetch(input, init);
+    // وضع علامة أننا في عملية معالجة طلب
+    isProcessingFetch = true;
     
+    // نسخة من الـ init لتجنب التعديل على الكائن الأصلي
+    const safeInit = init ? { ...init } : {};
+    
+    // استخدام الـ fetch الأصلي دائماً في المحاولة الأولى
+    const response = await originalFetch(input, safeInit);
+    
+    // إعادة تعيين العلم
+    isProcessingFetch = false;
+    
+    // معالجة خطأ 406 إذا حدث
     if (response.status === 406) {
       console.warn('🚨 تم اكتشاف خطأ 406، بدء إعادة المحاولة...');
-      return await retryWithStrategy(input, init);
+      return await retryWithBackoff(input, safeInit);
     }
     
+    // تحديث الإحصائيات في حالة النجاح
     if (response.ok) {
       requestStats.success++;
     }
@@ -219,12 +230,15 @@ async function enhancedFetch(
     return response;
     
   } catch (error) {
+    // إعادة تعيين العلم في حالة الخطأ
+    isProcessingFetch = false;
+    
     console.error('❌ خطأ في الطلب:', error);
     
     // إذا كان خطأ شبكة، جرب إعادة المحاولة
     if (error instanceof TypeError && error.message.includes('fetch')) {
       console.warn('🔄 خطأ شبكة، محاولة إعادة الطلب...');
-      return await retryWithStrategy(input, init);
+      return await retryWithBackoff(input, init);
     }
     
     throw error;
@@ -235,46 +249,85 @@ async function enhancedFetch(
  * تهيئة معالج أخطاء 406
  */
 export function initializeHttp406Handler(): void {
-  // حفظ fetch الأصلي
-  const originalFetch = window.fetch;
+  // تجنب التهيئة المزدوجة
+  if (isHandlerInitialized) {
+    console.warn('تم تهيئة معالج HTTP 406 بالفعل');
+    return;
+  }
   
-  // استبدال fetch بالمعالج المحسن
-  window.fetch = enhancedFetch;
-  
-  console.log('✅ تم تهيئة معالج أخطاء HTTP 406');
-  
-  // إضافة دوال مساعدة للنافذة العامة للتطوير
-  (window as any).get406Stats = () => {
-    console.table(requestStats);
-    return requestStats;
-  };
-  
-  (window as any).getFailedRequests = () => {
-    console.table(failedRequests);
-    return failedRequests;
-  };
-  
-  (window as any).retryFailed406Requests = async () => {
-    console.log('🔄 إعادة محاولة الطلبات الفاشلة...');
+  try {
+    console.log('🚀 بدء تهيئة معالج أخطاء HTTP 406');
     
-    const failedCopy = [...failedRequests];
-    failedRequests.length = 0; // مسح القائمة
+    // حفظ fetch الأصلي
+    originalFetch = window.fetch.bind(window);
     
-    for (const request of failedCopy) {
-      try {
-        await retryWithStrategy(request.url, request.init);
-        console.log(`✅ نجحت إعادة محاولة: ${request.url}`);
-      } catch (error) {
-        console.error(`❌ فشلت إعادة محاولة: ${request.url}`, error);
+    // استبدال fetch بالمعالج المحسن
+    window.fetch = enhancedFetch;
+    
+    isHandlerInitialized = true;
+    isHandlerDisabled = false;
+    
+    console.log('✅ تم تهيئة معالج أخطاء HTTP 406 بنجاح');
+    
+    // إضافة دوال مساعدة للنافذة العامة للتطوير
+    (window as any).get406Stats = () => {
+      console.table(requestStats);
+      return requestStats;
+    };
+    
+    (window as any).getFailedRequests = () => {
+      console.table(failedRequests);
+      return failedRequests;
+    };
+    
+    // دالة لتعطيل المعالج مؤقتًا
+    (window as any).disable406Handler = () => {
+      isHandlerDisabled = true;
+      console.log('🛑 تم تعطيل معالج أخطاء HTTP 406 مؤقتًا');
+      return true;
+    };
+    
+    // دالة لإعادة تفعيل المعالج
+    (window as any).enable406Handler = () => {
+      isHandlerDisabled = false;
+      console.log('✅ تم إعادة تفعيل معالج أخطاء HTTP 406');
+      return true;
+    };
+    
+    // دالة لإعادة محاولة الطلبات الفاشلة
+    (window as any).retryFailed406Requests = async () => {
+      console.log('🔄 إعادة محاولة الطلبات الفاشلة...');
+      
+      const failedCopy = [...failedRequests];
+      failedRequests.length = 0; // مسح القائمة
+      
+      const results = [];
+      
+      for (const request of failedCopy) {
+        try {
+          await retryWithBackoff(request.url, request.init);
+          console.log(`✅ نجحت إعادة محاولة: ${request.url}`);
+          results.push({ url: request.url, success: true });
+        } catch (error) {
+          console.error(`❌ فشلت إعادة محاولة: ${request.url}`, error);
+          results.push({ url: request.url, success: false, error: String(error) });
+        }
       }
-    }
-  };
-  
-  (window as any).reset406Stats = () => {
-    requestStats = { total: 0, failed: 0, retried: 0, success: 0 };
-    failedRequests.length = 0;
-    console.log('🔄 تم إعادة تعيين إحصائيات 406');
-  };
+      
+      return results;
+    };
+    
+    // دالة لإعادة تعيين الإحصائيات
+    (window as any).reset406Stats = () => {
+      requestStats = { total: 0, failed: 0, retried: 0, success: 0 };
+      failedRequests.length = 0;
+      console.log('🔄 تم إعادة تعيين إحصائيات 406');
+      return true;
+    };
+    
+  } catch (error) {
+    console.error('❌ فشل في تهيئة معالج أخطاء HTTP 406:', error);
+  }
 }
 
 /**
@@ -282,8 +335,13 @@ export function initializeHttp406Handler(): void {
  */
 export function removeHttp406Handler(): void {
   // استعادة fetch الأصلي
-  delete (window as any).fetch;
-  console.log('🗑️ تم إزالة معالج أخطاء HTTP 406');
+  if (isHandlerInitialized && originalFetch) {
+    window.fetch = originalFetch;
+    originalFetch = undefined as any;
+    isHandlerInitialized = false;
+    isHandlerDisabled = false;
+    console.log('🗑️ تم إزالة معالج أخطاء HTTP 406');
+  }
 }
 
 /**
@@ -298,6 +356,15 @@ export function getRequestStats(): RequestStats {
  */
 export function getFailedRequests() {
   return [...failedRequests];
+}
+
+/**
+ * تفعيل أو تعطيل المعالج مؤقتاً
+ */
+export function toggleHandler(enable: boolean): boolean {
+  isHandlerDisabled = !enable;
+  console.log(`${enable ? '✅ تم تفعيل' : '🛑 تم تعطيل'} معالج أخطاء HTTP 406`);
+  return true;
 }
 
 /**

@@ -893,18 +893,19 @@ const Dashboard = () => {
             <p className="mt-3 sm:mt-4 text-sm sm:text-base text-muted-foreground text-center">جاري تحميل بيانات لوحة التحكم...</p>
           </div>
         ) : statsError ? (
-          <div className="flex flex-col items-center justify-center min-h-[300px] sm:min-h-[400px] rounded-lg sm:rounded-xl lg:rounded-2xl bg-card text-card-foreground relative overflow-hidden transition-all duration-300 bg-gradient-to-br from-background/95 to-background/90 backdrop-blur-md border border-border/20 shadow-lg hover:shadow-xl before:absolute before:inset-0 before:bg-gradient-to-br before:from-primary/5 before:to-transparent before:pointer-events-none p-4 sm:p-6">
-            <div className="relative z-10 text-center">
-              <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-br from-red-500/20 to-red-400/10 border border-red-500/20 inline-block mb-3 sm:mb-4">
-                <AlertTriangle className="h-6 w-6 sm:h-8 sm:w-8 text-red-600 dark:text-red-400" />
+          <div className="flex flex-col items-center justify-center min-h-[300px] rounded-xl bg-background/80 border border-border/30 shadow-sm p-6">
+            <div className="text-center">
+              <div className="p-3 rounded-full bg-red-100 dark:bg-red-900/20 inline-block mb-4">
+                <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400" />
               </div>
-              <p className="text-red-600 dark:text-red-400 font-bold text-base sm:text-lg mb-3 sm:mb-4">حدث خطأ أثناء تحميل البيانات</p>
-              <button
+              <p className="text-red-600 dark:text-red-400 font-medium mb-4">حدث خطأ أثناء تحميل البيانات</p>
+              <Button
                 onClick={refreshDashboard}
-                className="px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 text-primary font-semibold rounded-lg sm:rounded-xl hover:bg-gradient-to-br hover:from-primary/20 hover:to-primary/10 hover:border-primary/30 transition-all duration-300 text-sm sm:text-base"
+                variant="outline"
+                className="bg-red-50 hover:bg-red-100 dark:bg-red-900/10 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800"
               >
                 إعادة المحاولة
-              </button>
+              </Button>
             </div>
           </div>
         ) : (
@@ -912,17 +913,17 @@ const Dashboard = () => {
             <div className="space-y-8">
               {/* الإحصائيات الرئيسية - مكون واحد كبير */}
               <Suspense fallback={<ComponentLoader />}>
-                <div className="rounded-xl bg-card text-card-foreground relative overflow-hidden transition-all duration-300 bg-gradient-to-br from-background/95 to-background/90 backdrop-blur-md border border-border/20 shadow-lg hover:shadow-xl before:absolute before:inset-0 before:bg-gradient-to-br before:from-primary/5 before:to-transparent before:pointer-events-none p-5 lg:p-6">
-                  <div className="relative z-10">
-                    <h2 className="text-xl font-bold text-foreground mb-4">ملخص الأداء</h2>
-                    <StatsGrid 
-                      sales={stats.sales}
-                      revenue={stats.revenue}
-                      profits={stats.profits}
-                      orders={stats.orders}
-                      timeframe={timeframe}
-                    />
+                <div className="rounded-xl bg-background/80 border border-border/30 shadow-sm p-5">
+                  <div className="mb-4">
+                    <h2 className="text-lg font-bold text-foreground">ملخص الأداء</h2>
                   </div>
+                  <StatsGrid 
+                    sales={stats.sales}
+                    revenue={stats.revenue}
+                    profits={stats.profits}
+                    orders={stats.orders}
+                    timeframe={timeframe}
+                  />
                 </div>
               </Suspense>
 
@@ -935,12 +936,12 @@ const Dashboard = () => {
                     <Link 
                       key={index} 
                       to={page.href}
-                      className="group flex flex-col items-center p-3 rounded-lg bg-gradient-to-br from-background/60 to-background/40 backdrop-blur-sm border border-border/30 hover:border-primary/50 hover:shadow-md transition-all duration-300 hover:scale-[1.02] text-center"
+                      className="group flex flex-col items-center p-2 rounded-lg bg-background/80 border border-border/30 hover:border-primary/20 hover:shadow-sm transition-all duration-200 hover:scale-[1.01] text-center"
                     >
-                      <div className={`w-10 h-10 rounded-lg ${page.color} text-white flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300 border border-white/20 mb-2`}>
-                        <page.icon className="h-5 w-5" />
+                      <div className={`w-8 h-8 rounded-md ${page.color} text-white flex items-center justify-center mb-1.5`}>
+                        <page.icon className="h-4 w-4" />
                       </div>
-                      <h3 className="font-medium text-xs group-hover:text-primary transition-colors duration-300">{page.title}</h3>
+                      <h3 className="text-xs text-muted-foreground group-hover:text-foreground transition-colors">{page.title}</h3>
                     </Link>
                   ))
                 }
@@ -950,56 +951,50 @@ const Dashboard = () => {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* آخر الطلبات العادية */}
                 <Suspense fallback={<ComponentLoader />}>
-                  <div className="rounded-xl bg-card text-card-foreground relative overflow-hidden transition-all duration-300 bg-gradient-to-br from-background/95 to-background/90 backdrop-blur-md border border-border/20 shadow-lg hover:shadow-xl before:absolute before:inset-0 before:bg-gradient-to-br before:from-primary/5 before:to-transparent before:pointer-events-none p-5">
-                    <div className="relative z-10">
-                      <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-                          <ShoppingBag className="h-5 w-5 text-primary" />
-                          آخر الطلبات
-                        </h2>
-                        <Link to="/dashboard/orders" className="text-sm text-primary hover:underline">
-                          عرض الكل
-                        </Link>
-                      </div>
-                      <RecentOrdersCard orders={recentOrders} />
+                  <div className="rounded-xl bg-background/80 border border-border/30 shadow-sm p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-base font-bold flex items-center gap-2">
+                        <ShoppingBag className="h-4 w-4 text-primary" />
+                        آخر الطلبات
+                      </h2>
+                      <Link to="/dashboard/orders" className="text-xs text-primary hover:underline">
+                        عرض الكل
+                      </Link>
                     </div>
+                    <RecentOrdersCard orders={recentOrders} />
                   </div>
                 </Suspense>
                 
                 {/* آخر الطلبات الأونلاين */}
                 <Suspense fallback={<ComponentLoader />}>
-                  <div className="rounded-xl bg-card text-card-foreground relative overflow-hidden transition-all duration-300 bg-gradient-to-br from-background/95 to-background/90 backdrop-blur-md border border-border/20 shadow-lg hover:shadow-xl before:absolute before:inset-0 before:bg-gradient-to-br before:from-primary/5 before:to-transparent before:pointer-events-none p-5">
-                    <div className="relative z-10">
-                      <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-                          <Globe className="h-5 w-5 text-blue-500" />
-                          آخر الطلبات الأونلاين
-                        </h2>
-                        <Link to="/dashboard/online-orders" className="text-sm text-primary hover:underline">
-                          عرض الكل
-                        </Link>
-                      </div>
-                      <RecentOnlineOrdersCard limit={5} />
+                  <div className="rounded-xl bg-background/80 border border-border/30 shadow-sm p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-base font-bold flex items-center gap-2">
+                        <Globe className="h-4 w-4 text-blue-500" />
+                        آخر الطلبات الأونلاين
+                      </h2>
+                      <Link to="/dashboard/online-orders" className="text-xs text-primary hover:underline">
+                        عرض الكل
+                      </Link>
                     </div>
+                    <RecentOnlineOrdersCard limit={5} />
                   </div>
                 </Suspense>
               </div>
 
               {/* مكون المنتجات منخفضة المخزون - مكون واحد كبير */}
               <Suspense fallback={<ComponentLoader />}>
-                <div className="rounded-xl bg-card text-card-foreground relative overflow-hidden transition-all duration-300 bg-gradient-to-br from-background/95 to-background/90 backdrop-blur-md border border-border/20 shadow-lg hover:shadow-xl before:absolute before:inset-0 before:bg-gradient-to-br before:from-primary/5 before:to-transparent before:pointer-events-none p-5">
-                  <div className="relative z-10">
-                    <div className="flex items-center justify-between mb-4">
-                      <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-                        <AlertTriangle className="h-5 w-5 text-amber-500" />
-                        المنتجات منخفضة المخزون
-                      </h2>
-                      <Link to="/dashboard/inventory" className="text-sm text-primary hover:underline">
-                        إدارة المخزون
-                      </Link>
-                    </div>
-                    <LowStockCard products={allProducts} />
+                <div className="rounded-xl bg-background/80 border border-border/30 shadow-sm p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-base font-bold flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-amber-500" />
+                      المنتجات منخفضة المخزون
+                    </h2>
+                    <Link to="/dashboard/inventory" className="text-xs text-primary hover:underline">
+                      إدارة المخزون
+                    </Link>
                   </div>
+                  <LowStockCard products={allProducts} />
                 </div>
               </Suspense>
               
@@ -1007,54 +1002,51 @@ const Dashboard = () => {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* مكون أفضل الولايات */}
                 <Suspense fallback={<ComponentLoader />}>
-                  <div className="rounded-xl bg-card text-card-foreground relative overflow-hidden transition-all duration-300 bg-gradient-to-br from-background/95 to-background/90 backdrop-blur-md border border-border/20 shadow-lg hover:shadow-xl before:absolute before:inset-0 before:bg-gradient-to-br before:from-primary/5 before:to-transparent before:pointer-events-none p-5">
-                    <div className="relative z-10">
-                      <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-                          <MapPin className="h-5 w-5 text-teal-500" />
-                          الطلبات حسب الولايات
-                        </h2>
-                        <Link to="/dashboard/analytics" className="text-sm text-primary hover:underline">
-                          تفاصيل أكثر
-                        </Link>
-                      </div>
-                      <ProvinceOrdersCard organizationId={currentOrganization?.id || ''} />
+                  <div className="rounded-xl bg-background/80 border border-border/30 shadow-sm p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-base font-bold flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-teal-500" />
+                        الطلبات حسب الولايات
+                      </h2>
+                      <Link to="/dashboard/analytics" className="text-xs text-primary hover:underline">
+                        تفاصيل أكثر
+                      </Link>
                     </div>
+                    <ProvinceOrdersCard organizationId={currentOrganization?.id || ''} />
                   </div>
                 </Suspense>
                 
                 {/* مكون خريطة الطلبات حسب الوقت */}
                 <Suspense fallback={<ComponentLoader />}>
-                  <div className="rounded-xl bg-card text-card-foreground relative overflow-hidden transition-all duration-300 bg-gradient-to-br from-background/95 to-background/90 backdrop-blur-md border border-border/20 shadow-lg hover:shadow-xl before:absolute before:inset-0 before:bg-gradient-to-br before:from-primary/5 before:to-transparent before:pointer-events-none p-5">
-                    <div className="relative z-10">
-                      <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-                          <Clock className="h-5 w-5 text-indigo-500" />
-                          توزيع الطلبات حسب الوقت
-                        </h2>
-                        <Link to="/dashboard/analytics" className="text-sm text-primary hover:underline">
-                          تفاصيل أكثر
-                        </Link>
-                      </div>
-                      <OrderHeatmapCard organizationId={currentOrganization?.id || ''} />
+                  <div className="rounded-xl bg-background/80 border border-border/30 shadow-sm p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-base font-bold flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-indigo-500" />
+                        توزيع الطلبات حسب الوقت
+                      </h2>
+                      <Link to="/dashboard/analytics" className="text-xs text-primary hover:underline">
+                        تفاصيل أكثر
+                      </Link>
                     </div>
+                    <OrderHeatmapCard organizationId={currentOrganization?.id || ''} />
                   </div>
                 </Suspense>
               </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center min-h-[300px] sm:min-h-[400px] rounded-lg sm:rounded-xl lg:rounded-2xl bg-card text-card-foreground relative overflow-hidden transition-all duration-300 bg-gradient-to-br from-background/95 to-background/90 backdrop-blur-md border border-border/20 shadow-lg hover:shadow-xl before:absolute before:inset-0 before:bg-gradient-to-br before:from-primary/5 before:to-transparent before:pointer-events-none p-4 sm:p-6">
-              <div className="relative z-10 text-center">
-                <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 border border-primary/20 inline-block mb-3 sm:mb-4">
-                  <LayoutDashboard className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
+            <div className="flex flex-col items-center justify-center min-h-[300px] rounded-xl bg-background/80 border border-border/30 shadow-sm p-6">
+              <div className="text-center">
+                <div className="p-3 rounded-full bg-primary/10 inline-block mb-4">
+                  <LayoutDashboard className="h-6 w-6 text-primary" />
                 </div>
-                <p className="text-muted-foreground font-bold text-base sm:text-lg mb-3 sm:mb-4">لا توجد بيانات متاحة للوحة التحكم.</p>
-                <button
+                <p className="text-muted-foreground font-medium mb-4">لا توجد بيانات متاحة للوحة التحكم.</p>
+                <Button
                   onClick={refreshDashboard}
-                  className="px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 text-primary font-semibold rounded-lg sm:rounded-xl hover:bg-gradient-to-br hover:from-primary/20 hover:to-primary/10 hover:border-primary/30 transition-all duration-300 text-sm sm:text-base"
+                  variant="outline"
+                  className="bg-primary/10 hover:bg-primary/20 text-primary border-primary/20"
                 >
                   تحديث البيانات
-                </button>
+                </Button>
               </div>
             </div>
           )

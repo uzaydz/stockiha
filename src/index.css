@@ -21,47 +21,47 @@
 
 @layer base {
   :root {
-    /* متغيرات الألوان الأساسية - الوضع الافتراضي (داكن) */
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    /* متغيرات الألوان الأساسية - الوضع الافتراضي (فاتح) */
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
 
     --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 84% 4.9%;
-    --primary-lighter: 217.2 91.2% 75%;
-    --primary-darker: 217.2 91.2% 45%;
+    --primary-foreground: 210 40% 98%;
+    --primary-lighter: 217.2 91.2% 85%;
+    --primary-darker: 217.2 91.2% 35%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 84% 4.9%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222.2 84% 4.9%;
 
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
     --ring: 217.2 91.2% 59.8%;
 
     --radius: 0.75rem;
 
     /* متغيرات الشريط الجانبي */
-    --sidebar-background: 222.2 84% 4.9%;
-    --sidebar-foreground: 210 40% 98%;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 222.2 84% 4.9%;
     --sidebar-primary: 217.2 91.2% 59.8%;
-    --sidebar-primary-foreground: 222.2 84% 4.9%;
-    --sidebar-accent: 217.2 32.6% 17.5%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 217.2 32.6% 17.5%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 210 40% 96%;
+    --sidebar-accent-foreground: 222.2 84% 4.9%;
+    --sidebar-border: 214.3 31.8% 91.4%;
     --sidebar-ring: 217.2 91.2% 59.8%;
 
     /* متغيرات مخصصة للانتقالات السريعة */
@@ -168,6 +168,99 @@
                 color var(--theme-transition-duration) var(--theme-transition-timing);
     color-scheme: light dark;
   }
+  
+  /* Ensure all elements inherit theme colors */
+  *, *::before, *::after {
+    border-color: hsl(var(--border));
+  }
+  
+  /* Apply theme to all card elements */
+  .card, [class*="card"] {
+    background-color: hsl(var(--card));
+    color: hsl(var(--card-foreground));
+  }
+  
+  /* Apply theme to all background elements */
+  .bg-background {
+    background-color: hsl(var(--background)) !important;
+  }
+  
+  .text-foreground {
+    color: hsl(var(--foreground)) !important;
+  }
+  
+  /* Ensure theme colors are applied to common elements */
+  input, textarea, select {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    border-color: hsl(var(--border));
+  }
+  
+  /* Apply theme to buttons */
+  button {
+    transition: all var(--theme-transition-duration) var(--theme-transition-timing);
+  }
+  
+  /* Fallback for data-theme attribute */
+  [data-theme="light"] {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 84% 4.9%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222.2 84% 4.9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 222.2 84% 4.9%;
+    --sidebar-primary: 217.2 91.2% 59.8%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 210 40% 96%;
+    --sidebar-accent-foreground: 222.2 84% 4.9%;
+    --sidebar-border: 214.3 31.8% 91.4%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+  
+  [data-theme="dark"] {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 84% 4.9%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 222.2 84% 4.9%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 217.2 91.2% 59.8%;
+    --sidebar-primary-foreground: 222.2 84% 4.9%;
+    --sidebar-accent: 217.2 32.6% 17.5%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217.2 32.6% 17.5%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
 }
 
 @layer components {
@@ -237,6 +330,31 @@
 }
 
 .sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--sidebar-primary) / 0.6);
+}
+
+/* تنسيق مخصص لمحتوى القائمة الجانبية */
+#sidebar-content {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--sidebar-primary) / 0.4) hsl(var(--sidebar-accent) / 0.2);
+}
+
+#sidebar-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+#sidebar-content::-webkit-scrollbar-track {
+  background: hsl(var(--sidebar-accent) / 0.2);
+  border-radius: 3px;
+}
+
+#sidebar-content::-webkit-scrollbar-thumb {
+  background: hsl(var(--sidebar-primary) / 0.4);
+  border-radius: 3px;
+  transition: background var(--theme-transition-duration) var(--theme-transition-timing);
+}
+
+#sidebar-content::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--sidebar-primary) / 0.6);
 }
 

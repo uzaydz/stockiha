@@ -133,6 +133,42 @@ export function NavbarMain({
     if (currentOrganization?.id || currentOrganization?.name) {
       setTimeout(loadOrgSettings, 100);
     }
+    
+    // إضافة مستمع للتحديثات الحية
+    const handleSettingsUpdate = () => {
+      console.log('🔄 [NavbarMain] استجابة لتحديث إعدادات المؤسسة...');
+      loadOrgSettings();
+    };
+    
+    // الاشتراك في حدث تحديث إعدادات المؤسسة
+    window.addEventListener('organization_settings_updated', handleSettingsUpdate);
+    
+    // مراقبة تغييرات DOM للعثور على تحديثات شعار المؤسسة
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach(mutation => {
+        if (mutation.type === 'attributes' && 
+            mutation.attributeName === 'src' && 
+            mutation.target instanceof HTMLImageElement && 
+            mutation.target.dataset.logo === 'organization') {
+          // تحديث شعار المؤسسة إذا تغير في مكان آخر
+          const newLogoUrl = mutation.target.src;
+          if (newLogoUrl && newLogoUrl !== orgLogo) {
+            console.log('🔄 [NavbarMain] تم اكتشاف تغيير شعار المؤسسة، تحديث العرض');
+            setOrgLogo(newLogoUrl);
+          }
+        }
+      });
+    });
+    
+    // بدء مراقبة التغييرات في جميع صور الشعار
+    document.querySelectorAll('img[data-logo="organization"]').forEach(img => {
+      observer.observe(img, { attributes: true });
+    });
+    
+    return () => {
+      window.removeEventListener('organization_settings_updated', handleSettingsUpdate);
+      observer.disconnect();
+    };
   }, [currentOrganization?.id, currentOrganization?.name]);
   
   // Load product categories

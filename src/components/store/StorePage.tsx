@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
 import Navbar from '@/components/Navbar';
@@ -20,15 +20,15 @@ import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { ArrowRight, RefreshCw } from 'lucide-react';
 import SkeletonLoader, { SkeletonLoaderProps } from './SkeletonLoader';
-import themeLoader, { initializeTheme, updateTheme } from '@/lib/themeLoader';
+import { updateOrganizationTheme } from '@/lib/themeManager';
 import { getSupabaseClient } from '@/lib/supabase';
 import { 
   getStoreDataFast, 
   forceReloadStoreData, 
   StoreInitializationData, 
-  OrganizationSettings, 
   Product as StoreProduct
 } from '@/api/storeDataService';
+import type { OrganizationSettings } from '@/types/settings';
 import { Helmet } from 'react-helmet-async';
 import { StoreComponent, ComponentType } from '@/types/store-editor';
 import React from 'react';
@@ -40,7 +40,7 @@ interface StorePageProps {
 const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
   const { currentSubdomain } = useAuth();
   const { currentOrganization } = useTenant();
-  const [storeSettings, setStoreSettings] = useState<OrganizationSettings | null>(null);
+  const [storeSettings, setStoreSettings] = useState<any>(null);
   const [dataLoading, setDataLoading] = useState(true);
   const [storeData, setStoreData] = useState<Partial<StoreInitializationData> | null>(initialStoreData && Object.keys(initialStoreData).length > 0 ? initialStoreData : null);
   const [dataError, setDataError] = useState<string | null>(null);
@@ -95,9 +95,45 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
     return extended;
   };
 
+  // تطبيق ثيم المؤسسة مع محاولة إعادة تطبيق بعد التحميل
+  const applyOrganizationThemeWithRetry = useCallback((orgId: string, settings: {
+    theme_primary_color?: string;
+    theme_secondary_color?: string;
+    theme_mode?: 'light' | 'dark' | 'auto';
+    custom_css?: string;
+  }) => {
+    // تطبيق أول مرة
+    updateOrganizationTheme(orgId, {
+      theme_primary_color: settings.theme_primary_color,
+      theme_secondary_color: settings.theme_secondary_color,
+      theme_mode: settings.theme_mode,
+      custom_css: settings.custom_css
+    });
+    
+    // محاولة ثانية بعد 100 ملي ثانية
+    setTimeout(() => {
+      updateOrganizationTheme(orgId, {
+        theme_primary_color: settings.theme_primary_color,
+        theme_secondary_color: settings.theme_secondary_color,
+        theme_mode: settings.theme_mode,
+        custom_css: settings.custom_css
+      });
+      
+      // محاولة أخيرة بعد 500 ملي ثانية (لتغطية المكونات التي تحمل متأخرة)
+      setTimeout(() => {
+        updateOrganizationTheme(orgId, {
+          theme_primary_color: settings.theme_primary_color,
+          theme_secondary_color: settings.theme_secondary_color,
+          theme_mode: settings.theme_mode,
+          custom_css: settings.custom_css
+        });
+      }, 500);
+    }, 100);
+  }, []);
+
   useEffect(() => {
     if (currentSubdomain) {
-      initializeTheme(currentSubdomain);
+      // Theme is now initialized in main.tsx with applyInstantTheme()
     }
   }, [currentSubdomain]);
   
@@ -165,7 +201,15 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
           setStoreSettings(result.data.organization_settings || null);
           setCustomComponents(result.data.store_layout_components || []);
           if (result.data.organization_settings) {
-            updateTheme(subdomainToUse, result.data.organization_settings);
+            // Apply organization theme if settings are available
+            if (result.data.organization_settings && currentOrganization?.id) {
+              applyOrganizationThemeWithRetry(currentOrganization.id, {
+                theme_primary_color: result.data.organization_settings.theme_primary_color,
+                theme_secondary_color: result.data.organization_settings.theme_secondary_color,
+                theme_mode: result.data.organization_settings.theme_mode,
+                custom_css: result.data.organization_settings.custom_css
+              });
+            }
           }
         } else {
           setDataError("لم يتم العثور على بيانات للمتجر أو قد تكون البيانات فارغة.");
@@ -190,13 +234,21 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
         setDataLoading(false); 
         dataFetchAttempted.current = true;
         if (initialStoreData.organization_settings && currentSubdomain) {
-            updateTheme(currentSubdomain, initialStoreData.organization_settings);
+            // Apply organization theme if settings are available
+            if (initialStoreData.organization_settings && currentOrganization?.id) {
+              applyOrganizationThemeWithRetry(currentOrganization.id, {
+                theme_primary_color: initialStoreData.organization_settings.theme_primary_color,
+                theme_secondary_color: initialStoreData.organization_settings.theme_secondary_color,
+                theme_mode: initialStoreData.organization_settings.theme_mode,
+                custom_css: initialStoreData.organization_settings.custom_css
+              });
+            }
         }
     } else {
         loadStoreData();
     }
 
-  }, [currentSubdomain, initialStoreData]);
+  }, [currentSubdomain, initialStoreData, applyOrganizationThemeWithRetry]);
   
   useEffect(() => {
     document.title = `${storeName} | ستوكيها - المتجر الإلكتروني`;
@@ -221,7 +273,15 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
           setStoreSettings(result.data.organization_settings || null);
           setCustomComponents(result.data.store_layout_components || []);
           if (result.data.organization_settings) {
-            updateTheme(subdomainToReload, result.data.organization_settings);
+            // Apply organization theme if settings are available
+            if (result.data.organization_settings && currentOrganization?.id) {
+              applyOrganizationThemeWithRetry(currentOrganization.id, {
+                theme_primary_color: result.data.organization_settings.theme_primary_color,
+                theme_secondary_color: result.data.organization_settings.theme_secondary_color,
+                theme_mode: result.data.organization_settings.theme_mode,
+                custom_css: result.data.organization_settings.custom_css
+              });
+            }
           }
         } else {
           setDataError("فشل إعادة تحميل البيانات.");

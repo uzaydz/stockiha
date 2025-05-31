@@ -115,74 +115,78 @@ export default function Layout({ children }: LayoutProps) {
   return (
     <div dir="rtl" className="bg-background/95 min-h-screen">
       <Navbar 
-        className="fixed top-0 left-0 right-0 z-40 shadow-sm" 
+        className="fixed top-0 left-0 right-0 z-50 shadow-sm" 
         toggleSidebar={toggleSidebar} 
         isSidebarOpen={isSidebarOpen}
         isMobile={isMobile}
       />
       
-      <div className="flex pt-16">
-        {/* القائمة الجانبية للشاشات الكبيرة */}
+      <div className="flex h-screen pt-16">
         {isStaff && !isLoadingUserProfile && !isMobile && (
-          <div className={cn(
-            "sticky top-16 self-start max-h-[calc(100vh-4rem)] transition-all duration-300",
-            isSidebarOpen ? "w-72" : "w-20"
-          )}>
+          <div 
+            className={cn(
+              "fixed top-16 bottom-0 right-0 z-40 border-l border-border/30 bg-background/80 backdrop-blur-sm overflow-y-auto",
+              isSidebarOpen ? "w-72" : "w-20"
+            )}
+          >
             <SideMenu userRole={userRole} userPermissions={userPermissions} />
           </div>
         )}
         
-        {/* القائمة الجانبية للموبايل */}
-        {isStaff && !isLoadingUserProfile && isMobile && (
-          <>
-            {isMobileSidebarOpen && (
-              <div 
-                className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
-                onClick={handleOverlayClick}
-              />
-            )}
-            <aside 
-              className={cn(
-                "fixed right-0 top-0 h-screen z-50 border-l border-border/30 transition-all duration-300 shadow-xl w-72",
-                isMobileSidebarOpen ? "translate-x-0" : "translate-x-[100%]"
-              )}
-            >
-              <div className="flex items-center justify-between px-4 py-3 bg-card shadow-sm border-b border-sidebar-border">
-                <h2 className="text-lg font-bold text-primary flex items-center gap-2">
-                  <Store className="w-5 h-5" />
-                  {userProfile?.store_name || 'متجر بازار'}
-                </h2>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  onClick={toggleSidebar}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  <X className="h-5 w-5" />
-                </Button>
-              </div>
-              <SideMenu userRole={userRole} userPermissions={userPermissions} />
-            </aside>
-            {!isMobileSidebarOpen && (
-              <Button
-                className="fixed bottom-6 right-6 z-30 rounded-full shadow-lg bg-primary hover:bg-primary/90"
-                size="icon"
-                onClick={toggleSidebar}
-                aria-label="فتح القائمة الجانبية"
-              >
-                <Menu className="h-5 w-5" />
-              </Button>
-            )}
-          </>
-        )}
-        
-        {/* المحتوى الرئيسي */}
-        <main className="flex-1">
+        <main 
+          className={cn(
+            "flex-1 overflow-x-hidden",
+            isSidebarOpen && !isMobile ? "mr-72" : isMobile ? "mr-0" : "mr-20"
+          )}
+        >
           <div className="max-w-7xl mx-auto p-4 md:p-6">
             {children}
           </div>
         </main>
       </div>
+      
+      {isStaff && !isLoadingUserProfile && isMobile && (
+        <>
+          {isMobileSidebarOpen && (
+            <div 
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
+              onClick={handleOverlayClick}
+            />
+          )}
+          <aside 
+            className={cn(
+              "fixed right-0 top-0 h-screen z-50 border-l border-border/30 transition-all duration-300 shadow-xl w-72 bg-background/95",
+              isMobileSidebarOpen ? "translate-x-0" : "translate-x-[100%]"
+            )}
+          >
+            <div className="flex items-center justify-between px-4 py-3 bg-card shadow-sm border-b border-sidebar-border">
+              <h2 className="text-lg font-bold text-primary flex items-center gap-2">
+                <Store className="w-5 h-5" />
+                {userProfile?.store_name || 'متجر بازار'}
+              </h2>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={toggleSidebar}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+            <SideMenu userRole={userRole} userPermissions={userPermissions} />
+          </aside>
+          {!isMobileSidebarOpen && (
+            <Button
+              className="fixed bottom-6 right-6 z-30 rounded-full shadow-lg bg-primary hover:bg-primary/90"
+              size="icon"
+              onClick={toggleSidebar}
+              aria-label="فتح القائمة الجانبية"
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+          )}
+        </>
+      )}
     </div>
   );
 }

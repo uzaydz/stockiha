@@ -1,4 +1,5 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { getOrganizationSettings } from '@/lib/api/settings';
 import { updateOrganizationTheme, initializeSystemThemeListener } from '@/lib/themeManager';
 import type { OrganizationThemeMode } from '@/types/settings';
@@ -44,6 +45,7 @@ function convertThemeMode(orgMode: OrganizationThemeMode): Theme {
 // دالة تطبيق الثيم على DOM بشكل سريع وبسيط
 function applyThemeToDOM(theme: Theme) {
   const root = document.documentElement;
+  const body = document.body;
   
   // تحديد الثيم الفعلي
   let effectiveTheme = theme;
@@ -53,14 +55,21 @@ function applyThemeToDOM(theme: Theme) {
   
   // تطبيق الثيم بطريقة بسيطة وسريعة
   requestAnimationFrame(() => {
-    // إزالة الفئات السابقة
+    // إزالة الفئات السابقة من جميع العناصر المحتملة
     root.classList.remove('light', 'dark');
+    body.classList.remove('light', 'dark');
     
-    // إضافة الفئة الجديدة
+    // إضافة الفئة الجديدة إلى جميع العناصر
     root.classList.add(effectiveTheme);
+    body.classList.add(effectiveTheme);
+    
+    // تعيين data attribute كنسخة احتياطية
+    root.setAttribute('data-theme', effectiveTheme);
+    body.setAttribute('data-theme', effectiveTheme);
     
     // تحديث color-scheme للمتصفح
     document.body.style.colorScheme = effectiveTheme;
+    root.style.colorScheme = effectiveTheme;
     
     // تحديث meta theme-color للمتصفحات المحمولة
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
@@ -68,10 +77,16 @@ function applyThemeToDOM(theme: Theme) {
       const themeColor = effectiveTheme === 'dark' ? '#0f172a' : '#ffffff';
       metaThemeColor.setAttribute('content', themeColor);
     }
+    
+    // فرض إعادة حساب الأنماط
+    root.style.display = 'none';
+    root.offsetHeight; // Force reflow
+    root.style.display = '';
   });
 }
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialOrganizationId }) => {
+  const location = useLocation();
   const [currentOrganizationId, setCurrentOrganizationId] = useState<string | undefined>(initialOrganizationId);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [theme, setThemeState] = useState<Theme>(() => {
@@ -123,25 +138,31 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
     try {
       const settings = await getOrganizationSettings(currentOrganizationId);
       
-      if (settings?.theme_mode) {
-        const orgTheme = convertThemeMode(settings.theme_mode);
-        
-        // حفظ تفضيل المؤسسة
-        localStorage.setItem('theme-preference', orgTheme);
-        
-        // تطبيق الثيم إذا كان مختلفاً
-        if (orgTheme !== theme) {
-          await setTheme(orgTheme);
+      if (settings) {
+        // تطبيق وضع الثيم
+        if (settings.theme_mode) {
+          const orgTheme = convertThemeMode(settings.theme_mode);
+          
+          // حفظ تفضيل المؤسسة
+          localStorage.setItem('theme-preference', orgTheme);
+          
+          // تطبيق الثيم إذا كان مختلفاً
+          if (orgTheme !== theme) {
+            setTheme(orgTheme);
+          }
         }
         
-        // تطبيق إعدادات إضافية للثيم
+        // تطبيق ألوان المؤسسة المخصصة مباشرة
         if (settings.theme_primary_color || settings.theme_secondary_color || settings.custom_css) {
-          updateOrganizationTheme(currentOrganizationId, {
-            theme_primary_color: settings.theme_primary_color,
-            theme_secondary_color: settings.theme_secondary_color,
-            theme_mode: settings.theme_mode,
-            custom_css: settings.custom_css
-          });
+          // استخدام setTimeout لضمان تطبيق الألوان بعد تطبيق الثيم
+          setTimeout(() => {
+            updateOrganizationTheme(currentOrganizationId, {
+              theme_primary_color: settings.theme_primary_color,
+              theme_secondary_color: settings.theme_secondary_color,
+              theme_mode: settings.theme_mode,
+              custom_css: settings.custom_css
+            });
+          }, 50);
         }
       }
     } catch (error) {
@@ -153,6 +174,21 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
   useEffect(() => {
     applyThemeToDOM(theme);
   }, []);
+
+  // إعادة تطبيق الثيم عند تغيير المسار (لحل مشكلة عدم تطبيق الثيم بعد التنقل)
+  useEffect(() => {
+    // تطبيق الثيم مع تأخير بسيط لضمان اكتمال عملية التنقل
+    const timeoutId = setTimeout(() => {
+      applyThemeToDOM(theme);
+      
+      // إعادة تطبيق ثيم المؤسسة إذا كان موجوداً
+      if (currentOrganizationId) {
+        applyOrganizationTheme();
+      }
+    }, 10);
+
+    return () => clearTimeout(timeoutId);
+  }, [location.pathname, theme, currentOrganizationId, applyOrganizationTheme]);
 
   // مراقبة تغييرات معرف المؤسسة
   useEffect(() => {
@@ -190,6 +226,53 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
   useEffect(() => {
     initializeSystemThemeListener();
   }, []);
+
+  // مراقب للتأكد من بقاء فئة الثيم على العناصر
+  useEffect(() => {
+    const root = document.documentElement;
+    const body = document.body;
+    let effectiveTheme = theme;
+    
+    if (theme === 'system') {
+      effectiveTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+
+    // دالة للتحقق من وتطبيق الثيم
+    const ensureThemeApplied = (element: HTMLElement) => {
+      if (!element.classList.contains(effectiveTheme)) {
+        element.classList.remove('light', 'dark');
+        element.classList.add(effectiveTheme);
+        element.setAttribute('data-theme', effectiveTheme);
+      }
+    };
+
+    // إنشاء مراقب للتغييرات
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+          const target = mutation.target as HTMLElement;
+          ensureThemeApplied(target);
+        }
+      });
+    });
+
+    // بدء المراقبة على كل من html و body
+    observer.observe(root, {
+      attributes: true,
+      attributeFilter: ['class']
+    });
+    
+    observer.observe(body, {
+      attributes: true,
+      attributeFilter: ['class']
+    });
+
+    // تطبيق الثيم مباشرة
+    ensureThemeApplied(root);
+    ensureThemeApplied(body);
+
+    return () => observer.disconnect();
+  }, [theme]);
 
   // تحسين الأداء بمنع إعادة الرسم غير الضرورية
   const contextValue = React.useMemo(() => ({

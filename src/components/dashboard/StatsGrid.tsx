@@ -57,17 +57,6 @@ const StatsGrid = ({ sales, revenue, profits, orders, timeframe }: StatsGridProp
     return value;
   };
 
-  // الحصول على النص المناسب حسب الإطار الزمني
-  const getTimeframeText = (): string => {
-    switch(displayTimeframe) {
-      case 'daily': return 'اليوم';
-      case 'weekly': return 'هذا الأسبوع';
-      case 'monthly': return 'هذا الشهر';
-      case 'annual': return 'هذه السنة';
-      default: return 'هذا الشهر';
-    }
-  };
-  
   // التأكد من أن الطلبات لا تكون صفر أبدًا
   const displayOrders = {
     total: orders?.total || 0,
@@ -77,37 +66,37 @@ const StatsGrid = ({ sales, revenue, profits, orders, timeframe }: StatsGridProp
   };
   
   return (
-    <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
       <StatCard
         title="المبيعات"
         value={formatCurrency(getSaleValue())}
-        icon={<DollarSign className="h-6 w-6" />}
+        icon={<DollarSign className="h-4 w-4" />}
         trend={getSaleValue() > 0 ? "up" : "neutral"}
-        trendValue={getSaleValue() > 0 ? `+5% من ${getTimeframeText()} الماضي` : "لا توجد بيانات كافية"}
+        trendValue={getSaleValue() > 0 ? `+5%` : "لا توجد بيانات"}
         numberLabel="1"
       />
       <StatCard
         title="الإيرادات"
         value={formatCurrency(getRevenueValue())}
-        icon={<BarChart className="h-6 w-6" />}
+        icon={<BarChart className="h-4 w-4" />}
         trend={getRevenueValue() > 0 ? "up" : "neutral"}
-        trendValue={getRevenueValue() > 0 ? `+3% من ${getTimeframeText()} الماضي` : "لا توجد بيانات كافية"}
+        trendValue={getRevenueValue() > 0 ? `+3%` : "لا توجد بيانات"}
         numberLabel="2"
       />
       <StatCard
         title="الأرباح"
         value={formatCurrency(getProfitValue())}
-        icon={<TrendingUp className="h-6 w-6" />}
+        icon={<TrendingUp className="h-4 w-4" />}
         trend={getProfitValue() > 0 ? "up" : "neutral"}
-        trendValue={getProfitValue() > 0 ? `+2% من ${getTimeframeText()} الماضي` : "لا توجد بيانات كافية"}
+        trendValue={getProfitValue() > 0 ? `+2%` : "لا توجد بيانات"}
         numberLabel="3"
       />
       <StatCard
         title="الطلبات"
         value={displayOrders.total}
-        icon={<ShoppingBag className="h-6 w-6" />}
+        icon={<ShoppingBag className="h-4 w-4" />}
         description={displayOrders.total > 0 ? 
-          `${displayOrders.pending} قيد الانتظار، ${displayOrders.processing} قيد المعالجة، ${displayOrders.completed} مكتمل` : 
+          `${displayOrders.pending} انتظار، ${displayOrders.processing} معالجة، ${displayOrders.completed} مكتمل` : 
           "لا توجد طلبات"}
         numberLabel="4"
       />

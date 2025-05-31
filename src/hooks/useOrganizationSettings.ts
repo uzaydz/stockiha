@@ -5,6 +5,7 @@ import { OrganizationSettings } from '@/types/settings';
 import { useTheme } from 'next-themes';
 import { supabase } from '@/lib/supabase';
 import { getSupabaseClient } from '@/lib/supabase';
+import { useTenant } from '@/context/TenantContext';
 
 interface UseOrganizationSettingsProps {
   organizationId: string | undefined;
@@ -81,6 +82,7 @@ interface UseOrganizationSettingsReturn {
 export const useOrganizationSettings = ({ organizationId }: UseOrganizationSettingsProps): UseOrganizationSettingsReturn => {
   const { toast } = useToast();
   const { setTheme } = useTheme();
+  const { refreshOrganizationData } = useTenant();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -374,6 +376,14 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
         secondary: settings.theme_secondary_color,
         mode: themeMode
       });
+      
+      // تحديث بيانات المؤسسة لضمان تطبيق التغييرات في جميع أنحاء التطبيق
+      try {
+        await refreshOrganizationData();
+        console.log('✅ [useOrganizationSettings] تم تحديث بيانات المؤسسة بنجاح');
+      } catch (refreshError) {
+        console.warn('⚠️ [useOrganizationSettings] فشل في تحديث بيانات المؤسسة:', refreshError);
+      }
       
       setSaveSuccess(true);
       toast({

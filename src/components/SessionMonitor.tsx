@@ -86,6 +86,24 @@ export const SessionMonitor: React.FC = () => {
     console.error = (...args) => {
       const message = args.join(' ');
       
+      // تجاهل أخطاء رفع الصور وملفات التخزين
+      if (
+        message.includes('storage/v1/object') ||
+        message.includes('supabase.co/storage') ||
+        message.includes('organization-assets') ||
+        message.includes('.jpg') ||
+        message.includes('.png') ||
+        message.includes('.jpeg') ||
+        message.includes('.gif') ||
+        message.includes('.webp') ||
+        message.includes('.svg') ||
+        message.includes('.ico')
+      ) {
+        // تجاهل أخطاء الصور والملفات
+        originalError.apply(console, args);
+        return;
+      }
+      
       // تصفية الأخطاء المهمة
       if (
         message.includes('406') ||
@@ -94,6 +112,18 @@ export const SessionMonitor: React.FC = () => {
         message.includes('المستخدم غير موجود') ||
         message.includes('check_user_requires_2fa')
       ) {
+        // منع تكرار نفس الخطأ خلال 5 ثوانٍ
+        const now = new Date();
+        const lastError = consoleErrors[0];
+        
+        if (lastError && 
+            lastError.message === message && 
+            now.getTime() - lastError.timestamp.getTime() < 5000) {
+          // تجاهل الخطأ المتكرر
+          originalError.apply(console, args);
+          return;
+        }
+        
         setConsoleErrors(prev => {
           const newError: ConsoleError = {
             message,
@@ -118,7 +148,37 @@ export const SessionMonitor: React.FC = () => {
     console.warn = (...args) => {
       const message = args.join(' ');
       
+      // تجاهل تحذيرات الصور والملفات
+      if (
+        message.includes('storage/v1/object') ||
+        message.includes('supabase.co/storage') ||
+        message.includes('organization-assets') ||
+        message.includes('.jpg') ||
+        message.includes('.png') ||
+        message.includes('.jpeg') ||
+        message.includes('.gif') ||
+        message.includes('.webp') ||
+        message.includes('.svg') ||
+        message.includes('.ico')
+      ) {
+        // تجاهل تحذيرات الصور والملفات
+        originalWarn.apply(console, args);
+        return;
+      }
+      
       if (message.includes('406') || message.includes('session')) {
+        // منع تكرار نفس التحذير خلال 5 ثوانٍ
+        const now = new Date();
+        const lastError = consoleErrors[0];
+        
+        if (lastError && 
+            lastError.message === message && 
+            now.getTime() - lastError.timestamp.getTime() < 5000) {
+          // تجاهل التحذير المتكرر
+          originalWarn.apply(console, args);
+          return;
+        }
+        
         setConsoleErrors(prev => {
           const newError: ConsoleError = {
             message,
@@ -137,7 +197,7 @@ export const SessionMonitor: React.FC = () => {
       console.error = originalError;
       console.warn = originalWarn;
     };
-  }, []);
+  }, [consoleErrors]);
 
   // تحديث حالة الجلسة
   useEffect(() => {

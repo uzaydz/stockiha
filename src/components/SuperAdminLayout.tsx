@@ -79,78 +79,82 @@ export default function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
   return (
     <div dir="rtl" className="bg-background/95 min-h-screen">
       <SuperAdminNavbar 
-        className="fixed top-0 left-0 right-0 z-30 shadow-sm bg-primary/10 backdrop-blur-md" 
+        className="fixed top-0 left-0 right-0 z-50 shadow-sm bg-primary/10 backdrop-blur-md" 
         toggleSidebar={toggleSidebar} 
         isSidebarOpen={isSidebarOpen}
         isMobile={isMobile}
       />
       
-      <div className="pt-16 flex min-h-[calc(100vh-4rem)] relative">
-        {/* Desktop sidebar */}
+      {/* تخطيط المحتوى الرئيسي مع الشريط الجانبي */}
+      <div className="flex h-screen pt-16">
+        {/* الشريط الجانبي للشاشات الكبيرة */}
         {!isLoading && !isMobile && (
-          <aside 
+          <div 
             className={cn(
-              "fixed right-0 top-16 h-[calc(100vh-4rem)] z-20 border-l border-border/30 transition-all duration-300 bg-primary-foreground/5",
-              isSidebarOpen ? "translate-x-0" : "translate-x-64"
+              "fixed top-16 bottom-0 right-0 z-40 border-l border-border/30 transition-all duration-300 bg-primary-foreground/5 overflow-y-auto",
+              isSidebarOpen ? "w-64" : "w-0"
             )}
           >
             <SuperAdminSidebar />
-          </aside>
+          </div>
         )}
         
-        {/* Mobile sidebar */}
-        {!isLoading && isMobile && (
-          <>
-            {/* Overlay when sidebar is open */}
-            {isMobileSidebarOpen && (
-              <div 
-                className="fixed inset-0 bg-black/50 backdrop-blur-sm z-30"
-                onClick={handleOverlayClick}
-              />
-            )}
-            
-            <aside 
-              className={cn(
-                "fixed right-0 top-0 h-screen z-40 border-l border-border/30 transition-all duration-300 shadow-xl bg-card",
-                isMobileSidebarOpen ? "translate-x-0" : "translate-x-[100%]"
-              )}
-            >
-              <div className="flex items-center justify-between px-4 py-3 bg-primary shadow-sm">
-                <h2 className="text-lg font-bold text-primary-foreground">لوحة المسؤول الرئيسي</h2>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  onClick={toggleSidebar}
-                  className="text-primary-foreground hover:text-primary-foreground hover:bg-primary/90"
-                >
-                  <X className="h-5 w-5" />
-                </Button>
-              </div>
-              <SuperAdminSidebar />
-            </aside>
-            
-            {/* Mobile toggle button */}
-            {!isMobileSidebarOpen && (
-              <Button
-                className="fixed bottom-6 right-6 z-30 rounded-full shadow-lg bg-primary hover:bg-primary/90"
-                size="icon"
-                onClick={toggleSidebar}
-              >
-                <Menu className="h-5 w-5" />
-              </Button>
-            )}
-          </>
-        )}
-        
-        <main className={cn(
-          "w-full transition-all duration-300",
-          !isLoading && !isMobile && isSidebarOpen ? "mr-64" : "mr-0"
-        )}>
+        {/* المحتوى الرئيسي مع هامش لترك مساحة للشريط الجانبي */}
+        <main 
+          className={cn(
+            "flex-1 overflow-x-hidden",
+            !isLoading && !isMobile && isSidebarOpen ? "mr-64" : "mr-0"
+          )}
+        >
           <div className="max-w-7xl mx-auto p-4 md:p-6">
             {children}
           </div>
         </main>
       </div>
+      
+      {/* الشريط الجانبي للجوال */}
+      {!isLoading && isMobile && (
+        <>
+          {/* Overlay when sidebar is open */}
+          {isMobileSidebarOpen && (
+            <div 
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
+              onClick={handleOverlayClick}
+            />
+          )}
+          
+          <aside 
+            className={cn(
+              "fixed right-0 top-0 h-screen z-50 border-l border-border/30 transition-all duration-300 shadow-xl bg-card w-64",
+              isMobileSidebarOpen ? "translate-x-0" : "translate-x-[100%]"
+            )}
+          >
+            <div className="flex items-center justify-between px-4 py-3 bg-primary shadow-sm">
+              <h2 className="text-lg font-bold text-primary-foreground">لوحة المسؤول الرئيسي</h2>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={toggleSidebar}
+                className="text-primary-foreground hover:text-primary-foreground hover:bg-primary/90"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+            <SuperAdminSidebar />
+          </aside>
+          
+          {/* Mobile toggle button */}
+          {!isMobileSidebarOpen && (
+            <Button
+              className="fixed bottom-6 right-6 z-30 rounded-full shadow-lg bg-primary hover:bg-primary/90"
+              size="icon"
+              onClick={toggleSidebar}
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+          )}
+        </>
+      )}
     </div>
   );
 }

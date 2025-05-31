@@ -62,27 +62,75 @@ const OrganizationBrandSettings = () => {
   const uploadImage = async (file: File, path: string): Promise<string> => {
     if (!currentOrganization?.id || !file) return '';
     
-    const supabase = getSupabaseClient();
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Date.now()}.${fileExt}`;
-    const filePath = `${path}/${currentOrganization.id}/${fileName}`;
-    
-    const { data, error } = await supabase.storage
-      .from('organization-assets')
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: true
-      });
-    
-    if (error) {
-      throw error;
+    // التحقق من حجم الملف (الحد الأقصى 5 ميجابايت)
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+    if (file.size > MAX_FILE_SIZE) {
+      throw new Error(`حجم الملف كبير جدًا. الحد الأقصى المسموح به هو 5 ميجابايت.`);
     }
     
-    const { data: urlData } = supabase.storage
-      .from('organization-assets')
-      .getPublicUrl(filePath);
+    // التحقق من نوع الملف
+    const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      throw new Error(`نوع الملف غير مدعوم. الأنواع المدعومة هي: JPEG, PNG, GIF, WebP, SVG.`);
+    }
     
-    return urlData.publicUrl;
+    // تعطيل معالج الـ 406 مؤقتًا إذا كان موجودًا
+    const originalFetch = window.fetch;
+    let handlerDisabled = false;
+    
+    try {
+      // محاولة تعطيل معالج 406 باستخدام الدالة العامة
+      if (typeof (window as any).disable406Handler === 'function') {
+        (window as any).disable406Handler();
+        handlerDisabled = true;
+        console.log('✅ تم تعطيل معالج 406 مؤقتًا لرفع الصورة');
+      }
+      
+      const supabaseClient = getSupabaseClient();
+      const fileExt = file.name.split('.').pop();
+      // إضافة معرف فريد لتجنب تعارض الأسماء
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+      const filePath = `${path}/${currentOrganization.id}/${fileName}`;
+      
+      console.log(`🖼️ بدء رفع الملف: ${fileName} إلى المسار: ${filePath}`);
+      
+      // تنفيذ عملية الرفع
+      const { data, error } = await supabaseClient.storage
+        .from('organization-assets')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: file.type // تحديد نوع المحتوى بشكل صريح
+        });
+      
+      if (error) {
+        console.error('خطأ في رفع الملف:', error);
+        throw error;
+      }
+      
+      console.log(`✅ تم رفع الملف بنجاح: ${filePath}`);
+      
+      // الحصول على الرابط العام للملف
+      const { data: urlData } = supabaseClient.storage
+        .from('organization-assets')
+        .getPublicUrl(filePath);
+      
+      if (!urlData || !urlData.publicUrl) {
+        throw new Error('لم يتم استلام رابط الملف المرفوع');
+      }
+      
+      // إضافة معلمة للتحكم في التخزين المؤقت للمتصفح
+      return `${urlData.publicUrl}?t=${Date.now()}`;
+    } catch (error) {
+      console.error('خطأ غير متوقع أثناء رفع الملف:', error);
+      throw error;
+    } finally {
+      // إعادة تفعيل معالج الـ 406 إذا كان قد تم تعطيله
+      if (handlerDisabled && typeof (window as any).enable406Handler === 'function') {
+        (window as any).enable406Handler();
+        console.log('✅ تم إعادة تفعيل معالج 406 بعد رفع الصورة');
+      }
+    }
   };
   
   // Manejador de subida de logo
@@ -124,18 +172,46 @@ const OrganizationBrandSettings = () => {
       let finalLogoUrl = logoUrl;
       let finalFaviconUrl = faviconUrl;
       
-      setIsUploading(true);
+      // التحقق من وجود ملفات جديدة للرفع
+      const hasNewFiles = logoFile || faviconFile;
       
-      if (logoFile) {
-        finalLogoUrl = await uploadImage(logoFile, 'logos');
+      if (hasNewFiles) {
+        setIsUploading(true);
+        
+        // رفع الشعار
+        if (logoFile) {
+          try {
+            finalLogoUrl = await uploadImage(logoFile, 'logos');
+            setLogoFile(null); // مسح الملف بعد الرفع بنجاح
+          } catch (error) {
+            // الاحتفاظ بعنوان URL السابق في حالة فشل الرفع
+            toast({
+              title: 'خطأ في رفع الشعار',
+              description: error instanceof Error ? error.message : 'فشل في رفع الشعار',
+              variant: 'destructive',
+            });
+          }
+        }
+        
+        // رفع الأيقونة
+        if (faviconFile) {
+          try {
+            finalFaviconUrl = await uploadImage(faviconFile, 'favicons');
+            setFaviconFile(null); // مسح الملف بعد الرفع بنجاح
+          } catch (error) {
+            // الاحتفاظ بعنوان URL السابق في حالة فشل الرفع
+            toast({
+              title: 'خطأ في رفع الأيقونة',
+              description: error instanceof Error ? error.message : 'فشل في رفع أيقونة المتجر',
+              variant: 'destructive',
+            });
+          }
+        }
+        
+        setIsUploading(false);
       }
       
-      if (faviconFile) {
-        finalFaviconUrl = await uploadImage(faviconFile, 'favicons');
-      }
-      
-      setIsUploading(false);
-      
+      // التحقق من الجلسة
       const supabaseClient = getSupabaseClient();
       const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
 
@@ -151,13 +227,7 @@ const OrganizationBrandSettings = () => {
         return;
       }
 
-      if (currentOrganization?.id) {
-          
-      } else {
-          
-      }
-      
-      // Actualizar configuración
+      // تحديث الإعدادات
       await updateOrganizationSettings(currentOrganization.id, {
         site_name: siteName,
         logo_url: finalLogoUrl,
@@ -165,20 +235,59 @@ const OrganizationBrandSettings = () => {
         display_text_with_logo: displayTextWithLogo
       });
       
-      // Actualizar el tema si hubo cambios
-      await reloadOrganizationTheme(currentOrganization.id);
+      // تحديث الثيم وإعادة تحميل بيانات المؤسسة
+      if (currentOrganization.id) {
+        await reloadOrganizationTheme();
+      }
       
-      // Recargar los datos de la organización para reflejar los cambios
+      // إعادة تحميل بيانات المؤسسة لتحديث الواجهة بشكل كامل
       await refreshOrganizationData();
+      
+      // تطبيق التغييرات في الواجهة بشكل مباشر
+      document.title = siteName;
+      
+      // تحديث الأيقونة في المتصفح إذا تغيرت
+      if (finalFaviconUrl) {
+        const faviconElement = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+        if (faviconElement) {
+          faviconElement.href = `${finalFaviconUrl}?t=${Date.now()}`;
+        } else {
+          const newFavicon = document.createElement('link');
+          newFavicon.rel = 'icon';
+          newFavicon.href = `${finalFaviconUrl}?t=${Date.now()}`;
+          document.head.appendChild(newFavicon);
+        }
+      }
+      
+      // تحديث الشعار في جميع أنحاء التطبيق
+      const logoElements = document.querySelectorAll('img[data-logo="organization"]');
+      logoElements.forEach(element => {
+        const imgElement = element as HTMLImageElement;
+        imgElement.src = `${finalLogoUrl}?t=${Date.now()}`;
+      });
+      
+      // إطلاق حدث تحديث إعدادات المؤسسة لإعلام المكونات الأخرى
+      const settingsUpdatedEvent = new CustomEvent('organization_settings_updated', {
+        detail: {
+          siteName,
+          logoUrl: finalLogoUrl,
+          faviconUrl: finalFaviconUrl,
+          displayTextWithLogo,
+          timestamp: Date.now()
+        }
+      });
+      console.log('🔔 [OrganizationBrandSettings] إطلاق حدث تحديث إعدادات المؤسسة:', settingsUpdatedEvent.detail);
+      window.dispatchEvent(settingsUpdatedEvent);
       
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2000);
       
       toast({
         title: 'تم الحفظ',
-        description: 'تم حفظ إعدادات العلامة التجارية بنجاح',
+        description: 'تم حفظ إعدادات العلامة التجارية بنجاح، قد تحتاج إلى تحديث الصفحة لرؤية جميع التغييرات',
       });
     } catch (error) {
+      console.error('خطأ في حفظ الإعدادات:', error);
       toast({
         title: 'خطأ',
         description: 'فشل في حفظ إعدادات العلامة التجارية',

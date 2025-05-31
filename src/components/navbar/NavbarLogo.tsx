@@ -82,6 +82,7 @@ export function NavbarLogo({
           <img 
             src={orgLogo} 
             alt={siteName || "شعار الموقع"} 
+            data-logo="organization"
             className={cn(
               sizeClasses[size].logo,
               "object-contain transition-all duration-500",
