@@ -52,11 +52,12 @@ const Navbar = memo(() => {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-2 space-x-reverse">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M12 2L2 7L12 12L22 7L12 2Z" fill="currentColor" className="text-white" />
-                <path d="M2 17L12 22L22 17M2 12L12 17L22 12" stroke="currentColor" className="text-white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center overflow-hidden">
+              <img 
+                src="/images/logo-new.webp" 
+                alt="ستوكيها" 
+                className="w-full h-full object-cover"
+              />
             </div>
             <span className="text-xl font-bold text-slate-900 dark:text-white">
               ستوكيها

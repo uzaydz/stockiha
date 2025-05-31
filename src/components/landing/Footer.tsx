@@ -173,12 +173,12 @@ const Footer = () => {
                 {/* Enhanced Logo */}
                 <div className="relative">
                   <div className="absolute inset-0 bg-gradient-to-br from-primary to-primary-darker rounded-xl blur-lg opacity-0 group-hover:opacity-30 transition-opacity duration-300" />
-                  <div className="relative w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-primary-darker flex items-center justify-center shadow-xl group-hover:shadow-2xl transition-shadow">
-                    <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <rect x="4" y="8" width="24" height="16" rx="6" fill="#ffffff"/>
-                      <rect x="8" y="12" width="16" height="8" rx="4" fill="#0EA5E9"/>
-                      <path d="M10 20L16 12L22 20" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
+                  <div className="relative w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-primary-darker flex items-center justify-center shadow-xl group-hover:shadow-2xl transition-shadow overflow-hidden">
+                    <img 
+                      src="/images/logo-new.webp" 
+                      alt="ستوكيها" 
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                 </div>
                 <div className="font-extrabold text-3xl tracking-tight text-primary">
