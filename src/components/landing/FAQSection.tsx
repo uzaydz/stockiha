@@ -330,7 +330,7 @@ const FAQSection = memo(() => {
           viewport={{ once: true }}
           className="text-center max-w-4xl mx-auto mb-20"
         >
-          <Badge className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary/10 to-primary/5 text-primary border border-primary/20 rounded-full mb-6">
+          <Badge variant="landing" className="items-center gap-2 px-5 py-2.5 rounded-full mb-6">
             <MessageSquare className="h-4 w-4" />
             الأسئلة الشائعة
           </Badge>

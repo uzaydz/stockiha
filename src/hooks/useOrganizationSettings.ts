@@ -122,61 +122,99 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
     }
   }, [settings.theme_mode, isLoading, setTheme]);
 
-  // جلب الإعدادات
+  // تحميل البيانات
   useEffect(() => {
-    const fetchSettings = async () => {
-      if (!organizationId) return;
-      
-      setIsLoading(true);
+    if (organizationId) {
+      fetchSettings();
+    }
+  }, [organizationId]);
+
+  // جلب إعدادات المؤسسة
+  const fetchSettings = async () => {
+    console.log('🔍 [useOrganizationSettings] بدء تحميل إعدادات المؤسسة:', organizationId);
+    setIsLoading(true);
+    try {
+      // حذف التخزين المؤقت للإعدادات قبل الجلب
       try {
-        const orgSettings = await getOrganizationSettings(organizationId);
-        if (orgSettings) {
-          setSettings(orgSettings);
-          
-          if (orgSettings.custom_js) {
-            try {
-              // تحسين التعامل مع بيانات custom_js التالفة
-              let customJsData: CustomJsData | null = null;
-              
-              try {
-                // محاولة تحليل البيانات كما هي
-                const parsedData = JSON.parse(orgSettings.custom_js);
-                customJsData = parsedData;
-              } catch (parseError) {
-                
-                // في حالة فشل التحليل، نستخدم كائن جديد
-                customJsData = {
-                  trackingPixels: {
-                    facebook: { enabled: false, pixelId: '' },
-                    tiktok: { enabled: false, pixelId: '' },
-                    snapchat: { enabled: false, pixelId: '' },
-                    google: { enabled: false, pixelId: '' },
-                  }
-                };
-              }
-              
-              // استخدام بيانات التتبع إذا كانت موجودة
-              if (customJsData && customJsData.trackingPixels) {
-                setTrackingPixels(customJsData.trackingPixels);
-              }
-            } catch (error) {
-              // استمر باستخدام القيم الافتراضية في حالة الفشل
+        localStorage.removeItem(`organization_settings:${organizationId}`);
+      } catch (e) {
+        console.warn('⚠️ [useOrganizationSettings] خطأ عند محاولة حذف التخزين المؤقت:', e);
+      }
+
+      // الحصول على بيانات المؤسسة مباشرة من قاعدة البيانات
+      const supabaseClient = getSupabaseClient();
+      
+      // استخدام RPC لجلب أحدث البيانات مباشرة
+      const { data: latestSettings, error } = await supabaseClient
+        .from('organization_settings')
+        .select('*')
+        .eq('organization_id', organizationId)
+        .single();
+      
+      if (error) {
+        throw error;
+      }
+      
+      if (latestSettings) {
+        console.log('✅ [useOrganizationSettings] تم تحميل البيانات من قاعدة البيانات:', latestSettings);
+        
+        // تحميل بيانات بكسل التتبع من custom_js
+        let trackingData: TrackingPixels = {
+          facebook: { enabled: false, pixelId: '' },
+          tiktok: { enabled: false, pixelId: '' },
+          snapchat: { enabled: false, pixelId: '' },
+          google: { enabled: false, pixelId: '' },
+        };
+        
+        if (latestSettings.custom_js) {
+          try {
+            const customData = JSON.parse(latestSettings.custom_js);
+            if (customData && customData.trackingPixels) {
+              trackingData = {
+                ...trackingData,
+                ...customData.trackingPixels
+              };
             }
+          } catch (e) {
+            console.warn('⚠️ [useOrganizationSettings] فشل في تحليل بيانات التتبع:', e);
           }
         }
-      } catch (error) {
-        toast({
-          title: 'خطأ',
-          description: 'فشل في جلب إعدادات المؤسسة',
-          variant: 'destructive',
+        
+        // تحديث الإعدادات والتتبع - إصلاح نوع البيانات theme_mode
+        setSettings({
+          ...latestSettings,
+          theme_mode: (latestSettings.theme_mode as 'light' | 'dark' | 'auto') || 'light'
         });
-      } finally {
-        setIsLoading(false);
+        setTrackingPixels(trackingData);
+        
+        // تطبيق الثيم مباشرة
+        if (latestSettings.theme_mode) {
+          const themeMode = latestSettings.theme_mode === 'auto' ? 'system' : latestSettings.theme_mode;
+          setTheme(themeMode);
+        }
+        
+        // تطبيق عنوان الصفحة
+        if (latestSettings.site_name) {
+          document.title = latestSettings.site_name;
+        }
+      } else {
+        // إذا لم يتم العثور على إعدادات، استخدم القيم الافتراضية
+        const defaultSettings = await getOrganizationSettings(organizationId);
+        if (defaultSettings) {
+          setSettings(defaultSettings);
+        }
       }
-    };
-
-    fetchSettings();
-  }, [organizationId, toast]);
+    } catch (error) {
+      console.error('❌ [useOrganizationSettings] خطأ في تحميل الإعدادات:', error);
+      toast({
+        title: 'خطأ في التحميل',
+        description: 'فشل في تحميل إعدادات المؤسسة، يرجى إعادة تحميل الصفحة.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // تحديث قيمة في الإعدادات
   const updateSetting = (key: keyof OrganizationSettings, value: any) => {

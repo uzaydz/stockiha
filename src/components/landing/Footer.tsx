@@ -91,6 +91,7 @@ const Footer = () => {
             transition={{
               duration: Math.random() * 15 + 10,
               repeat: Infinity,
+              repeatType: "loop",
               delay: Math.random() * 5,
               ease: "easeOut"
             }}
@@ -112,7 +113,7 @@ const Footer = () => {
           viewport={{ once: true }}
           className="text-center mb-16 py-16"
         >
-          <Badge className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary/10 to-primary/5 text-primary border border-primary/20 rounded-full mb-6">
+          <Badge variant="landing" className="items-center gap-2 px-5 py-2.5 rounded-full mb-6">
             <Heart className="h-4 w-4" />
             شكراً لثقتكم
           </Badge>
@@ -441,10 +442,10 @@ const Footer = () => {
                 >
                   <Link 
                     to={link.href} 
-                    className="text-muted-foreground hover:text-primary transition-colors relative"
+                    className="text-muted-foreground hover:text-primary dark:text-muted-foreground dark:hover:text-primary-foreground transition-colors relative"
                   >
                     {link.label}
-                    <div className="absolute bottom-0 left-0 w-0 h-0.5 bg-primary group-hover:w-full transition-all duration-300" />
+                    <div className="absolute bottom-0 left-0 w-0 h-0.5 bg-primary dark:bg-primary-foreground group-hover:w-full transition-all duration-300" />
                   </Link>
                 </motion.div>
               ))}
@@ -481,16 +482,16 @@ const Footer = () => {
             viewport={{ once: true }}
             className="mt-8 pt-6 border-t border-border/30 text-center"
           >
-            <p className="text-sm text-muted-foreground flex items-center justify-center gap-2">
+            <div className="text-sm text-muted-foreground flex items-center justify-center gap-2">
               صُنع بـ 
               <motion.div
                 animate={{ scale: [1, 1.2, 1] }}
-                transition={{ duration: 1.5, repeat: Infinity }}
+                transition={{ duration: 1.5, repeat: Infinity, repeatType: "loop" }}
               >
                 <Heart className="h-4 w-4 text-red-500 fill-current" />
               </motion.div>
               في الجزائر 🇩🇿 من أجل التجار الجزائريين
-            </p>
+            </div>
           </motion.div>
         </motion.div>
       </div>

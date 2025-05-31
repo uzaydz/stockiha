@@ -696,6 +696,100 @@
   .hero-buttons-mobile {
     @apply flex-col gap-4 w-full px-4;
   }
+}
+
+/* AllInOneSection Enhancements */
+.all-in-one-section {
+  @apply relative overflow-hidden;
+}
+
+/* Smooth hover transitions for feature cards */
+.feature-card-hover {
+  @apply transition-all duration-300 ease-out;
+}
+
+.feature-card-hover:hover {
+  @apply transform translate-y-[-2px] shadow-lg;
+}
+
+/* System tab animations */
+.system-tab-active {
+  @apply relative overflow-hidden;
+}
+
+.system-tab-active::before {
+  content: '';
+  @apply absolute inset-0 bg-gradient-to-r from-primary/20 to-primary/10 opacity-0 transition-opacity duration-300;
+}
+
+.system-tab-active:hover::before {
+  @apply opacity-100;
+}
+
+/* Floating badges animation */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px) rotate(var(--rotate));
+  }
+  50% {
+    transform: translateY(-10px) rotate(var(--rotate));
+  }
+}
+
+.float-animation {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Interactive visual card 3D effect */
+.card-3d {
+  transform-style: preserve-3d;
+  transition: transform 0.6s;
+}
+
+.card-3d:hover {
+  transform: rotateY(5deg) rotateX(5deg);
+}
+
+/* Gradient text animation */
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.gradient-text-animated {
+  background-size: 200% 200%;
+  animation: gradient-shift 3s ease infinite;
+}
+
+/* Performance optimizations */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Responsive improvements for AllInOneSection */
+@media (max-width: 768px) {
+  .all-in-one-mobile {
+    @apply px-4 py-16;
+  }
+  
+  .feature-grid-mobile {
+    @apply grid-cols-1 gap-3;
+  }
+  
+  .system-tabs-mobile {
+    @apply flex-wrap gap-2;
+  }
   
   .hero-button-mobile {
     @apply w-full justify-center min-w-0;
@@ -1000,4 +1094,45 @@ img {
 .tooltip-content {
   @apply bg-popover text-popover-foreground border border-border rounded-lg px-3 py-2;
   @apply shadow-lg max-w-xs text-sm z-50;
+}
+
+/* Badge improvements for dark/light mode consistency */
+.badge-gradient {
+  @apply bg-gradient-to-r from-primary/20 to-primary/10 text-primary-foreground;
+  @apply dark:from-primary/30 dark:to-primary/20 dark:text-primary-foreground;
+  @apply border border-primary/20 dark:border-primary/30;
+}
+
+.badge-gradient-success {
+  @apply bg-gradient-to-r from-green-500/20 to-green-400/10 text-green-800;
+  @apply dark:from-green-500/30 dark:to-green-400/20 dark:text-green-400;
+  @apply border border-green-500/20 dark:border-green-500/30;
+}
+
+.badge-gradient-info {
+  @apply bg-gradient-to-r from-blue-500/20 to-blue-400/10 text-blue-800;
+  @apply dark:from-blue-500/30 dark:to-blue-400/20 dark:text-blue-400;
+  @apply border border-blue-500/20 dark:border-blue-500/30;
+}
+
+.badge-gradient-warning {
+  @apply bg-gradient-to-r from-yellow-500/20 to-yellow-400/10 text-yellow-800;
+  @apply dark:from-yellow-500/30 dark:to-yellow-400/20 dark:text-yellow-400;
+  @apply border border-yellow-500/20 dark:border-yellow-500/30;
+}
+
+.badge-gradient-purple {
+  @apply bg-gradient-to-r from-purple-500/20 to-purple-400/10 text-purple-800;
+  @apply dark:from-purple-500/30 dark:to-purple-400/20 dark:text-purple-400;
+  @apply border border-purple-500/20 dark:border-purple-500/30;
+}
+
+/* Ensure badge text is always readable */
+[class*="badge"] {
+  @apply font-semibold;
+}
+
+/* Fix badge contrast in dark mode */
+.dark [class*="badge"] {
+  @apply shadow-sm;
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { useTenant } from '@/context/TenantContext';
@@ -17,10 +17,11 @@ import SEOSettings from '@/components/settings/store-settings/SEOSettings';
 import { useOrganizationSettings } from '@/hooks/useOrganizationSettings';
 // استيراد هوك الثيم
 import { useTheme } from '@/context/ThemeContext.tsx';
+import { getSupabaseClient } from '@/lib/supabase-client';
 
 const StoreSettings = () => {
   const { toast } = useToast();
-  const { currentOrganization, isOrgAdmin } = useTenant();
+  const { currentOrganization, isOrgAdmin, refreshOrganizationData } = useTenant();
   const [activeTab, setActiveTab] = useState('general');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { reloadOrganizationTheme } = useTheme(); // استخدام هوك الثيم
@@ -38,6 +39,40 @@ const StoreSettings = () => {
   } = useOrganizationSettings({
     organizationId: currentOrganization?.id
   });
+
+  // دالة للتحقق من تطبيق التغييرات
+  const verifyChangesApplied = () => {
+    // التحقق من أن عنوان الصفحة تم تحديثه
+    if (settings.site_name && document.title !== settings.site_name) {
+      document.title = settings.site_name;
+      console.log(`🔄 [StoreSettings] تم تحديث عنوان الصفحة إلى: ${settings.site_name}`);
+    }
+    
+    // التحقق من أن الأيقونة تم تحديثها
+    if (settings.favicon_url) {
+      const faviconElement = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+      if (faviconElement) {
+        faviconElement.href = `${settings.favicon_url}?t=${Date.now()}`;
+        console.log(`🔄 [StoreSettings] تم تحديث أيقونة الموقع`);
+      } else {
+        const newFavicon = document.createElement('link');
+        newFavicon.rel = 'icon';
+        newFavicon.href = `${settings.favicon_url}?t=${Date.now()}`;
+        document.head.appendChild(newFavicon);
+        console.log(`🔄 [StoreSettings] تم إنشاء أيقونة جديدة للموقع`);
+      }
+    }
+    
+    // التحقق من أن الشعار تم تحديثه
+    if (settings.logo_url) {
+      const logoElements = document.querySelectorAll('img[data-logo="organization"]');
+      logoElements.forEach(element => {
+        const imgElement = element as HTMLImageElement;
+        imgElement.src = `${settings.logo_url}?t=${Date.now()}`;
+      });
+      console.log(`🔄 [StoreSettings] تم تحديث شعار المؤسسة في ${logoElements.length} عنصر`);
+    }
+  };
 
   // حفظ الإعدادات وإغلاق الديالوج
   const handleSaveSettings = async () => {
@@ -59,8 +94,24 @@ const StoreSettings = () => {
       const saveEndTime = Date.now();
       console.log(`⏱️ [StoreSettings] وقت تنفيذ saveSettings: ${saveEndTime - saveStartTime}ms`);
       
-      // لا حاجة لإعادة تحميل الثيم لأنه يطبق مباشرة في useOrganizationSettings
-      console.log('ℹ️ [StoreSettings] الثيم يطبق مباشرة، لا حاجة لإعادة التحميل');
+      // مسح ذاكرة التخزين المؤقت لإعدادات المؤسسة
+      try {
+        localStorage.removeItem(`organization_settings:${currentOrganization?.id}`);
+        console.log('🧹 [StoreSettings] تم مسح ذاكرة التخزين المؤقت لإعدادات المؤسسة');
+      } catch (cacheError) {
+        console.warn('⚠️ [StoreSettings] فشل في مسح ذاكرة التخزين المؤقت:', cacheError);
+      }
+      
+      // إعادة تحميل بيانات المؤسسة
+      try {
+        await refreshOrganizationData();
+        console.log('🔄 [StoreSettings] تم تحديث بيانات المؤسسة');
+      } catch (refreshError) {
+        console.warn('⚠️ [StoreSettings] فشل في تحديث بيانات المؤسسة:', refreshError);
+      }
+      
+      // تطبيق التغييرات مباشرة
+      verifyChangesApplied();
       
       // إطلاق حدث تحديث إعدادات المؤسسة لإعلام المكونات الأخرى
       const settingsUpdatedEvent = new CustomEvent('organization_settings_updated', {
@@ -104,12 +155,18 @@ const StoreSettings = () => {
       }
       
       if (!isSaving && !isLoading) {
-        console.log('✅ [StoreSettings] الحفظ مكتمل، إغلاق النافذة بعد 1000ms...');
-        // إغلاق النافذة المنبثقة بعد الحفظ بنجاح
+        console.log('✅ [StoreSettings] الحفظ مكتمل، إغلاق النافذة بعد 2000ms...');
+        // إغلاق النافذة المنبثقة بعد الحفظ بنجاح وإعادة تحميل الصفحة
         setTimeout(() => {
           setIsDialogOpen(false);
           console.log('🔒 [StoreSettings] تم إغلاق نافذة الإعدادات');
-        }, 1000); // تقليل التأخير لأن الثيم يطبق مباشرة
+          
+          // إضافة تأخير إضافي ثم إعادة تحميل الصفحة لتطبيق التغييرات بشكل كامل
+          setTimeout(() => {
+            console.log('🔄 [StoreSettings] إعادة تحميل الصفحة لتطبيق التغييرات...');
+            window.location.reload();
+          }, 500);
+        }, 2000);
       }
       
       const totalTime = Date.now() - startTime;
@@ -124,6 +181,16 @@ const StoreSettings = () => {
       });
     }
   };
+
+  // مستمع الأحداث لتطبيق التغييرات عند فتح النافذة
+  useEffect(() => {
+    if (isDialogOpen && !isLoading) {
+      // تأخير قصير ثم تطبيق التغييرات
+      setTimeout(() => {
+        verifyChangesApplied();
+      }, 500);
+    }
+  }, [isDialogOpen, isLoading]);
 
   if (isLoading) {
     return (

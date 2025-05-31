@@ -108,8 +108,26 @@ export function NavbarMain({
     if (!currentOrganization?.id) return;
     
     try {
-      const settings = await getOrganizationSettings(currentOrganization.id);
+      console.log('🔍 [NavbarMain] جاري تحميل إعدادات المؤسسة مباشرة من قاعدة البيانات...');
+      
+      // الحصول على عميل supabase
+      const supabaseClient = window.supabase || (await import('@/lib/supabase')).getSupabaseClient();
+      
+      // استعلام مباشر من قاعدة البيانات بدلاً من استخدام الوظيفة المخزنة مؤقتًا
+      const { data: settings, error } = await supabaseClient
+        .from('organization_settings')
+        .select('*')
+        .eq('organization_id', currentOrganization.id)
+        .single();
+        
+      if (error) {
+        console.error('❌ [NavbarMain] خطأ في تحميل إعدادات المؤسسة:', error);
+        throw error;
+      }
+        
       if (settings) {
+        console.log('✅ [NavbarMain] تم تحميل إعدادات المؤسسة بنجاح:', settings);
+        
         const orgData = {
           site_name: settings.site_name || currentOrganization.name,
           logo_url: settings.logo_url || currentOrganization.logo_url,
@@ -120,23 +138,94 @@ export function NavbarMain({
         setOrgLogo(orgData.logo_url);
         setDisplayTextWithLogo(orgData.display_text_with_logo);
         
+        // تحديث عنوان الصفحة
+        if (orgData.site_name) {
+          document.title = orgData.site_name;
+        }
+        
+        // تحديث الأيقونة
+        if (settings.favicon_url) {
+          const faviconElement = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+          if (faviconElement) {
+            faviconElement.href = `${settings.favicon_url}?t=${Date.now()}`;
+          } else {
+            const newFavicon = document.createElement('link');
+            newFavicon.rel = 'icon';
+            newFavicon.href = `${settings.favicon_url}?t=${Date.now()}`;
+            document.head.appendChild(newFavicon);
+          }
+        }
+        
+        // تحديث جميع صور الشعار في الصفحة
+        document.querySelectorAll('img[data-logo="organization"]').forEach(img => {
+          const imgElement = img as HTMLImageElement;
+          if (orgData.logo_url && imgElement.src !== orgData.logo_url) {
+            imgElement.src = `${orgData.logo_url}?t=${Date.now()}`;
+            console.log('🔄 [NavbarMain] تم تحديث شعار المؤسسة في العنصر:', imgElement);
+          }
+        });
+        
+        // تحديث التخزين المؤقت
         localStorage.setItem(cacheKey.current, JSON.stringify(orgData));
       }
     } catch (error) {
+      console.error('❌ [NavbarMain] فشل في تحميل إعدادات المؤسسة:', error);
     }
   };
 
   // Load organization settings
   useEffect(() => {
+    // تحميل الإعدادات المخزنة مؤقتًا أولاً
     loadCachedOrgSettings();
     
+    // ثم تحميل الإعدادات الحديثة من قاعدة البيانات
     if (currentOrganization?.id || currentOrganization?.name) {
-      setTimeout(loadOrgSettings, 100);
+      loadOrgSettings();
     }
     
     // إضافة مستمع للتحديثات الحية
-    const handleSettingsUpdate = () => {
-      console.log('🔄 [NavbarMain] استجابة لتحديث إعدادات المؤسسة...');
+    const handleSettingsUpdate = (event: Event) => {
+      console.log('🔄 [NavbarMain] تم استلام حدث تحديث إعدادات المؤسسة');
+      
+      // استخراج البيانات من الحدث إذا كانت موجودة
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail) {
+        const { siteName, logoUrl, faviconUrl, displayTextWithLogo } = customEvent.detail;
+        console.log('📦 [NavbarMain] بيانات الحدث:', { siteName, logoUrl, faviconUrl, displayTextWithLogo });
+        
+        // تطبيق التغييرات مباشرة من بيانات الحدث
+        if (siteName) {
+          setSiteName(siteName);
+          document.title = siteName;
+        }
+        
+        if (logoUrl) {
+          setOrgLogo(logoUrl);
+          document.querySelectorAll('img[data-logo="organization"]').forEach(img => {
+            const imgElement = img as HTMLImageElement;
+            imgElement.src = `${logoUrl}?t=${Date.now()}`;
+          });
+        }
+        
+        if (displayTextWithLogo !== undefined) {
+          setDisplayTextWithLogo(displayTextWithLogo);
+        }
+        
+        if (faviconUrl) {
+          const faviconElement = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+          if (faviconElement) {
+            faviconElement.href = `${faviconUrl}?t=${Date.now()}`;
+          } else {
+            const newFavicon = document.createElement('link');
+            newFavicon.rel = 'icon';
+            newFavicon.href = `${faviconUrl}?t=${Date.now()}`;
+            document.head.appendChild(newFavicon);
+          }
+        }
+      }
+      
+      // مسح ذاكرة التخزين المؤقت وإعادة تحميل البيانات
+      localStorage.removeItem(cacheKey.current);
       loadOrgSettings();
     };
     

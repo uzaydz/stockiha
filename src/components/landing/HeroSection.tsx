@@ -175,7 +175,7 @@ const HeroSection = memo(() => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: 0.1 }}
               >
-                <Badge className="group inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-primary/10 via-primary/5 to-primary/10 dark:from-primary/20 dark:via-primary/15 dark:to-primary/20 text-primary dark:text-primary-foreground border border-primary/20 dark:border-primary/30 rounded-full backdrop-blur-sm hover:border-primary/30 dark:hover:border-primary/40 transition-all duration-300">
+                <Badge variant="landing" className="group items-center gap-2 px-6 py-3 rounded-full hover:border-primary/30 dark:hover:border-primary/40 transition-all duration-300">
                   <motion.div
                     animate={{ rotate: 360 }}
                     transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
@@ -183,7 +183,7 @@ const HeroSection = memo(() => {
                   >
                     <Sparkles className="h-4 w-4" />
                   </motion.div>
-                  <span className="font-semibold text-sm tracking-wide dark:text-primary-foreground">النظام الأول في الجزائر</span>
+                  <span className="font-semibold text-sm tracking-wide text-primary dark:text-primary-foreground">النظام الأول في الجزائر</span>
                   <Award className="h-4 w-4 text-yellow-500 dark:text-yellow-400" />
                 </Badge>
               </motion.div>
@@ -283,7 +283,14 @@ const HeroSection = memo(() => {
                 </Link>
                 <Button 
                   size="lg" 
-                  variant="outline" 
+                  variant="outline"
+                  onClick={() => {
+                    // التمرير إلى قسم العرض التوضيحي (يمكن استبداله بفتح فيديو أو رابط)
+                    const demoSection = document.getElementById('demo-section');
+                    if (demoSection) {
+                      demoSection.scrollIntoView({ behavior: 'smooth' });
+                    }
+                  }}
                   className="group min-w-[200px] h-14 text-lg font-semibold border-2 border-border hover:border-primary hover:bg-primary/5 dark:hover:bg-primary/10 transition-all duration-300"
                 >
                   <PlayCircle className="h-5 w-5 ml-2 text-muted-foreground group-hover:text-primary transition-colors" />
@@ -580,7 +587,7 @@ const HeroSection = memo(() => {
                 transition={{ duration: 0.5 }}
                 viewport={{ once: true }}
               >
-                <Badge className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary/10 to-primary/5 dark:from-primary/20 dark:to-primary/15 text-primary dark:text-primary-foreground border border-primary/20 dark:border-primary/30 rounded-full mb-6">
+                <Badge variant="landing" className="items-center gap-2 px-5 py-2.5 rounded-full mb-6">
                   <Rocket className="h-4 w-4" />
                   مميزات قوية
                 </Badge>
