@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button, Card, Text, Group, Stack, Alert, Badge, Paper, List, Progress, Space, Container, Title } from '@mantine/core';
 import { IconRefresh, IconCheck, IconX, IconInfoCircle, IconDatabase } from '@tabler/icons-react';
-import { useSupabaseClient } from '@supabase/auth-helpers-react';
+import { supabase } from '@/lib/supabase';
 import { Layout } from '@/components/dashboard/Layout';
 import { notifications } from '@mantine/notifications';
 import { syncAllGlobalData, isGlobalDataUpToDate } from '@/api/yalidine/global-sync';
@@ -19,7 +19,6 @@ export default function YalidineGlobalPage() {
     municipalities: 0,
     centers: 0,
   });
-  const supabase = useSupabaseClient();
 
   // فحص حالة البيانات العالمية عند تحميل الصفحة
   useEffect(() => {

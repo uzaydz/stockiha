@@ -245,7 +245,8 @@ export default defineConfig(({ mode }: { mode: string }) => {
             'https://*.tiktok.com',
             'https://www.googletagmanager.com',
             'https://*.google-analytics.com',
-            'https://*.googleadservices.com'
+            'https://*.googleadservices.com',
+            'https://cdn.salla.sa'
           ]
         },
         build: {

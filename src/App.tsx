@@ -84,6 +84,9 @@ import CustomPageView from "./pages/CustomPageView";
 import CustomPagesManager from "./pages/dashboard/CustomPagesManager";
 import QuickBarcodePrintPage from './pages/dashboard/QuickBarcodePrintPage';
 import OrderDistributionSettings from './pages/OrderDistributionSettings';
+import RepairServices from './pages/RepairServices';
+import RepairTrackingPage from './pages/RepairTrackingPage';
+import StoreEditorDemo from '@/pages/admin/StoreEditorDemo';
 
 // Super Admin Pages
 import SuperAdminDashboard from '@/pages/super-admin/SuperAdminDashboard';
@@ -362,6 +365,8 @@ const App = () => {
                   
                   {/* صفحة خدمات الإصلاح العامة */}
                   <Route path="/services" element={<PublicServiceTrackingPage />} />
+                  <Route path="/repair-tracking" element={<RepairTrackingPage />} />
+                  <Route path="/repair-tracking/:trackingCode" element={<RepairTrackingPage />} />
 
                   {/* صفحات التوثيق */}
                   <Route path="/docs/custom-domains" element={<CustomDomainsDocPage />} />
@@ -425,6 +430,13 @@ const App = () => {
                       <Route path="/dashboard/services" element={
                         <SubscriptionCheck>
                           <Services />
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/repair-services" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['viewServices']}>
+                            <RepairServices />
+                          </PermissionGuard>
                         </SubscriptionCheck>
                       } />
                       <Route path="/dashboard/sales" element={
@@ -654,13 +666,20 @@ const App = () => {
                         </SubscriptionCheck>
                       } />
 
-                      {/* صفحة معاينة صفحات الهبوط */}
+                      {/* صفحة إدارة الصفحات المخصصة */}
                       <Route path="/:slug" element={<LandingPageView />} />
 
                       {/* صفحة تخصيص المتجر */}
                       <Route path="/dashboard/store-editor" element={
                         <SubscriptionCheck>
                           <StoreEditor />
+                        </SubscriptionCheck>
+                      } />
+
+                      {/* محرر المتجر الجديد */}
+                      <Route path="/dashboard/store-editor-new" element={
+                        <SubscriptionCheck>
+                          <StoreEditorDemo />
                         </SubscriptionCheck>
                       } />
 
@@ -723,6 +742,8 @@ const App = () => {
                           </PermissionGuard>
                         </SubscriptionCheck>
                       } />
+                      
+                      <Route path="/repair-services" element={<RequireTenant><RepairServices /></RequireTenant>} />
                       
                       <Route path="*" element={<NotFound />} />
                     </Route>

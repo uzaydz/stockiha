@@ -174,6 +174,13 @@ export type Database = {
             foreignKeyName: "abandoned_carts_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "abandoned_carts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -265,6 +272,13 @@ export type Database = {
           week_count?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "abandoned_carts_stats_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "abandoned_carts_stats_organization_id_fkey"
             columns: ["organization_id"]
@@ -396,6 +410,13 @@ export type Database = {
             foreignKeyName: "activation_codes_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "activation_codes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -473,6 +494,13 @@ export type Database = {
             foreignKeyName: "addresses_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "addresses_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -482,6 +510,34 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "shipping_data_view"
             referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "addresses_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "addresses_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "addresses_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "addresses_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "addresses_user_id_fkey"
@@ -628,6 +684,13 @@ export type Database = {
             foreignKeyName: "call_confirmation_statuses_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "call_confirmation_statuses_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -639,6 +702,421 @@ export type Database = {
             referencedColumns: ["organization_id"]
           },
         ]
+      }
+      conversion_event_queue: {
+        Row: {
+          event_data: Json
+          id: number
+          processed_at: string | null
+          scheduled_at: string | null
+          status: string | null
+        }
+        Insert: {
+          event_data: Json
+          id?: number
+          processed_at?: string | null
+          scheduled_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          event_data?: Json
+          id?: number
+          processed_at?: string | null
+          scheduled_at?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
+      conversion_events: {
+        Row: {
+          custom_data: Json | null
+          error_message: string | null
+          event_id: string | null
+          event_type: string
+          id: number
+          last_retry_at: string | null
+          order_id: string | null
+          platform: string
+          product_id: string
+          retry_count: number | null
+          sent_at: string | null
+          status: string | null
+          timestamp: string | null
+          user_data: Json | null
+        }
+        Insert: {
+          custom_data?: Json | null
+          error_message?: string | null
+          event_id?: string | null
+          event_type: string
+          id?: number
+          last_retry_at?: string | null
+          order_id?: string | null
+          platform: string
+          product_id: string
+          retry_count?: number | null
+          sent_at?: string | null
+          status?: string | null
+          timestamp?: string | null
+          user_data?: Json | null
+        }
+        Update: {
+          custom_data?: Json | null
+          error_message?: string | null
+          event_id?: string | null
+          event_type?: string
+          id?: number
+          last_retry_at?: string | null
+          order_id?: string | null
+          platform?: string
+          product_id?: string
+          retry_count?: number | null
+          sent_at?: string | null
+          status?: string | null
+          timestamp?: string | null
+          user_data?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversion_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversion_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "organization_order_summary"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "conversion_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "pos_orders_with_items_count"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversion_events_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_status"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversion_events_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "organization_inventory_summary"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "conversion_events_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversion_events_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products_to_reorder"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversion_events_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "reports_product_profitability"
+            referencedColumns: ["product_id"]
+          },
+        ]
+      }
+      conversion_settings_cache: {
+        Row: {
+          last_updated: string | null
+          product_id: string
+          settings: Json
+        }
+        Insert: {
+          last_updated?: string | null
+          product_id: string
+          settings: Json
+        }
+        Update: {
+          last_updated?: string | null
+          product_id?: string
+          settings?: Json
+        }
+        Relationships: []
+      }
+      course_attachments: {
+        Row: {
+          created_at: string | null
+          file_size: number | null
+          file_type: string | null
+          file_url: string
+          id: string
+          lesson_id: string
+          order_index: number | null
+          title: string
+        }
+        Insert: {
+          created_at?: string | null
+          file_size?: number | null
+          file_type?: string | null
+          file_url: string
+          id?: string
+          lesson_id: string
+          order_index?: number | null
+          title: string
+        }
+        Update: {
+          created_at?: string | null
+          file_size?: number | null
+          file_type?: string | null
+          file_url?: string
+          id?: string
+          lesson_id?: string
+          order_index?: number | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_attachments_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "course_lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_lessons: {
+        Row: {
+          content: string | null
+          created_at: string | null
+          description: string | null
+          duration: number | null
+          id: string
+          is_active: boolean | null
+          is_free: boolean | null
+          order_index: number | null
+          section_id: string
+          slug: string
+          title: string
+          updated_at: string | null
+          video_type: string | null
+          video_url: string | null
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string | null
+          description?: string | null
+          duration?: number | null
+          id?: string
+          is_active?: boolean | null
+          is_free?: boolean | null
+          order_index?: number | null
+          section_id: string
+          slug: string
+          title: string
+          updated_at?: string | null
+          video_type?: string | null
+          video_url?: string | null
+        }
+        Update: {
+          content?: string | null
+          created_at?: string | null
+          description?: string | null
+          duration?: number | null
+          id?: string
+          is_active?: boolean | null
+          is_free?: boolean | null
+          order_index?: number | null
+          section_id?: string
+          slug?: string
+          title?: string
+          updated_at?: string | null
+          video_type?: string | null
+          video_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_lessons_section_id_fkey"
+            columns: ["section_id"]
+            isOneToOne: false
+            referencedRelation: "course_sections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_notes: {
+        Row: {
+          content: string
+          created_at: string | null
+          id: string
+          lesson_id: string
+          timestamp: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          id?: string
+          lesson_id: string
+          timestamp?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          id?: string
+          lesson_id?: string
+          timestamp?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_notes_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "course_lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_quizzes: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          lesson_id: string
+          order_index: number | null
+          passing_score: number | null
+          questions: Json
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          lesson_id: string
+          order_index?: number | null
+          passing_score?: number | null
+          questions: Json
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          lesson_id?: string
+          order_index?: number | null
+          passing_score?: number | null
+          questions?: Json
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_quizzes_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "course_lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_sections: {
+        Row: {
+          course_id: string
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          order_index: number | null
+          slug: string
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          course_id: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          order_index?: number | null
+          slug: string
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          course_id?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          order_index?: number | null
+          slug?: string
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_sections_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      courses: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          description: string | null
+          icon: string | null
+          id: string
+          is_active: boolean | null
+          order_index: number | null
+          slug: string
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          order_index?: number | null
+          slug: string
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          order_index?: number | null
+          slug?: string
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       currency_balances: {
         Row: {
@@ -672,6 +1150,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "digital_currencies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "currency_balances_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "currency_balances_organization_id_fkey"
@@ -734,6 +1219,34 @@ export type Database = {
             foreignKeyName: "currency_sales_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "currency_sales_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "currency_sales_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "currency_sales_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "currency_sales_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -748,11 +1261,76 @@ export type Database = {
             foreignKeyName: "currency_sales_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "currency_sales_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "currency_sales_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "shipping_data_view"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      custom_pages: {
+        Row: {
+          content: string
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          meta_description: string | null
+          organization_id: string
+          slug: string
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          meta_description?: string | null
+          organization_id: string
+          slug: string
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          meta_description?: string | null
+          organization_id?: string
+          slug?: string
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custom_pages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "custom_pages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "custom_pages_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "shipping_data_view"
@@ -811,6 +1389,13 @@ export type Database = {
             foreignKeyName: "customer_testimonials_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "customer_testimonials_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -852,6 +1437,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "customers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "customers_organization_id_fkey"
             columns: ["organization_id"]
@@ -961,11 +1553,79 @@ export type Database = {
             foreignKeyName: "digital_currencies_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "digital_currencies_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "digital_currencies_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "shipping_data_view"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      distribution_rules: {
+        Row: {
+          assigned_employees: string[] | null
+          conditions: Json
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          organization_id: string
+          priority_order: number | null
+          rule_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          assigned_employees?: string[] | null
+          conditions?: Json
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          organization_id: string
+          priority_order?: number | null
+          rule_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          assigned_employees?: string[] | null
+          conditions?: Json
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          organization_id?: string
+          priority_order?: number | null
+          rule_type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "distribution_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "distribution_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "distribution_rules_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "shipping_data_view"
@@ -1008,6 +1668,13 @@ export type Database = {
           verified_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "domain_verifications_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "domain_verifications_organization_id_fkey"
             columns: ["organization_id"]
@@ -1060,8 +1727,43 @@ export type Database = {
             foreignKeyName: "employee_activities_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "employee_activities_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_activities_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_activities_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_activities_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_activities_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "employee_activities_organization_id_fkey"
@@ -1072,6 +1774,111 @@ export type Database = {
           },
           {
             foreignKeyName: "employee_activities_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "shipping_data_view"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      employee_distribution_stats: {
+        Row: {
+          availability_updated_at: string | null
+          average_response_time_minutes: number | null
+          completed_orders: number | null
+          current_open_orders: number | null
+          employee_id: string
+          id: string
+          is_available: boolean | null
+          last_assignment_at: string | null
+          organization_id: string
+          performance_score: number | null
+          rejected_orders: number | null
+          stats_updated_at: string | null
+          total_assigned_orders: number | null
+        }
+        Insert: {
+          availability_updated_at?: string | null
+          average_response_time_minutes?: number | null
+          completed_orders?: number | null
+          current_open_orders?: number | null
+          employee_id: string
+          id?: string
+          is_available?: boolean | null
+          last_assignment_at?: string | null
+          organization_id: string
+          performance_score?: number | null
+          rejected_orders?: number | null
+          stats_updated_at?: string | null
+          total_assigned_orders?: number | null
+        }
+        Update: {
+          availability_updated_at?: string | null
+          average_response_time_minutes?: number | null
+          completed_orders?: number | null
+          current_open_orders?: number | null
+          employee_id?: string
+          id?: string
+          is_available?: boolean | null
+          last_assignment_at?: string | null
+          organization_id?: string
+          performance_score?: number | null
+          rejected_orders?: number | null
+          stats_updated_at?: string | null
+          total_assigned_orders?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_distribution_stats_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "employee_distribution_stats_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_distribution_stats_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_distribution_stats_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_distribution_stats_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_distribution_stats_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "employee_distribution_stats_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_distribution_stats_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "shipping_data_view"
@@ -1124,8 +1931,43 @@ export type Database = {
             foreignKeyName: "employee_salaries_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "employee_salaries_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_salaries_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_salaries_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_salaries_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_salaries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "employee_salaries_organization_id_fkey"
@@ -1178,6 +2020,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "expense_categories_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "expense_categories_organization_id_fkey"
             columns: ["organization_id"]
@@ -1248,8 +2097,43 @@ export type Database = {
             foreignKeyName: "expenses_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "expenses_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "expenses_organization_id_fkey"
@@ -1304,6 +2188,13 @@ export type Database = {
             foreignKeyName: "flexi_balances_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "flexi_balances_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -1348,6 +2239,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "flexi_networks_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "flexi_networks_organization_id_fkey"
             columns: ["organization_id"]
@@ -1406,6 +2304,34 @@ export type Database = {
             foreignKeyName: "flexi_sales_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "flexi_sales_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flexi_sales_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flexi_sales_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flexi_sales_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -1415,6 +2341,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "flexi_networks"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flexi_sales_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "flexi_sales_organization_id_fkey"
@@ -1486,8 +2419,43 @@ export type Database = {
             foreignKeyName: "form_settings_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "form_settings_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_settings_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_settings_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_settings_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "form_settings_organization_id_fkey"
@@ -1613,6 +2581,34 @@ export type Database = {
             foreignKeyName: "inventory_log_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "inventory_log_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_log_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_log_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_log_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -1629,6 +2625,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "online_orders_view"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_log_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders_with_details_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "inventory_log_organization_id_fkey"
@@ -1984,6 +2994,13 @@ export type Database = {
             foreignKeyName: "invoices_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "invoices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -2177,6 +3194,13 @@ export type Database = {
             foreignKeyName: "landing_pages_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "landing_pages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -2325,6 +3349,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "online_order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders_with_details_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "online_order_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
             foreignKeyName: "online_order_items_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -2405,6 +3443,7 @@ export type Database = {
           tax: number
           total: number
           updated_at: string | null
+          zrexpress_tracking_id: string | null
         }
         Insert: {
           call_confirmation_notes?: string | null
@@ -2435,6 +3474,7 @@ export type Database = {
           tax: number
           total: number
           updated_at?: string | null
+          zrexpress_tracking_id?: string | null
         }
         Update: {
           call_confirmation_notes?: string | null
@@ -2465,6 +3505,7 @@ export type Database = {
           tax?: number
           total?: number
           updated_at?: string | null
+          zrexpress_tracking_id?: string | null
         }
         Relationships: [
           {
@@ -2478,8 +3519,43 @@ export type Database = {
             foreignKeyName: "online_orders_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "online_orders_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "online_orders_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "online_orders_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "online_orders_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "online_orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "online_orders_organization_id_fkey"
@@ -2504,51 +3580,352 @@ export type Database = {
           },
         ]
       }
+      order_cancellations: {
+        Row: {
+          cancellation_reason: string
+          cancelled_amount: number
+          cancelled_by: string | null
+          cancelled_items_count: number
+          created_at: string
+          id: string
+          inventory_restored: boolean
+          is_partial_cancellation: boolean
+          order_id: string
+          organization_id: string
+          total_items_count: number
+          updated_at: string
+        }
+        Insert: {
+          cancellation_reason?: string
+          cancelled_amount?: number
+          cancelled_by?: string | null
+          cancelled_items_count?: number
+          created_at?: string
+          id?: string
+          inventory_restored?: boolean
+          is_partial_cancellation?: boolean
+          order_id: string
+          organization_id: string
+          total_items_count?: number
+          updated_at?: string
+        }
+        Update: {
+          cancellation_reason?: string
+          cancelled_amount?: number
+          cancelled_by?: string | null
+          cancelled_items_count?: number
+          created_at?: string
+          id?: string
+          inventory_restored?: boolean
+          is_partial_cancellation?: boolean
+          order_id?: string
+          organization_id?: string
+          total_items_count?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_cancellations_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "order_cancellations_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_cancellations_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_cancellations_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_cancellations_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_cancellations_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_cancellations_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "organization_order_summary"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "order_cancellations_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "pos_orders_with_items_count"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_cancellations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "order_cancellations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_cancellations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "shipping_data_view"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      order_distribution_history: {
+        Row: {
+          assigned_employee_id: string | null
+          assignment_timestamp: string | null
+          created_at: string | null
+          distribution_plan_type: string
+          distribution_reason: string | null
+          id: string
+          order_id: string
+          organization_id: string
+          response_time_minutes: number | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          assigned_employee_id?: string | null
+          assignment_timestamp?: string | null
+          created_at?: string | null
+          distribution_plan_type: string
+          distribution_reason?: string | null
+          id?: string
+          order_id: string
+          organization_id: string
+          response_time_minutes?: number | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          assigned_employee_id?: string | null
+          assignment_timestamp?: string | null
+          created_at?: string | null
+          distribution_plan_type?: string
+          distribution_reason?: string | null
+          id?: string
+          order_id?: string
+          organization_id?: string
+          response_time_minutes?: number | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_distribution_history_assigned_employee_id_fkey"
+            columns: ["assigned_employee_id"]
+            isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "order_distribution_history_assigned_employee_id_fkey"
+            columns: ["assigned_employee_id"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_distribution_history_assigned_employee_id_fkey"
+            columns: ["assigned_employee_id"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_distribution_history_assigned_employee_id_fkey"
+            columns: ["assigned_employee_id"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_distribution_history_assigned_employee_id_fkey"
+            columns: ["assigned_employee_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_distribution_history_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "online_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_distribution_history_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "online_orders_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_distribution_history_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders_with_details_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_distribution_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "order_distribution_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_distribution_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "shipping_data_view"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      order_distribution_settings: {
+        Row: {
+          active_plan_id: string
+          active_plan_type: string
+          created_at: string | null
+          id: string
+          organization_id: string
+          settings: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          active_plan_id: string
+          active_plan_type: string
+          created_at?: string | null
+          id?: string
+          organization_id: string
+          settings?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          active_plan_id?: string
+          active_plan_type?: string
+          created_at?: string | null
+          id?: string
+          organization_id?: string
+          settings?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_distribution_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "order_distribution_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_distribution_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "shipping_data_view"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       order_items: {
         Row: {
+          created_at: string | null
           id: string
-          is_digital: boolean
+          is_digital: boolean | null
           is_wholesale: boolean | null
           name: string
           order_id: string
           organization_id: string
           original_price: number | null
           product_id: string
-          product_name: string
+          product_name: string | null
           quantity: number
           slug: string
           total_price: number
           unit_price: number
+          variant_info: Json | null
         }
         Insert: {
+          created_at?: string | null
           id?: string
-          is_digital: boolean
+          is_digital?: boolean | null
           is_wholesale?: boolean | null
           name: string
           order_id: string
           organization_id: string
           original_price?: number | null
           product_id: string
-          product_name: string
+          product_name?: string | null
           quantity: number
           slug: string
           total_price: number
           unit_price: number
+          variant_info?: Json | null
         }
         Update: {
+          created_at?: string | null
           id?: string
-          is_digital?: boolean
+          is_digital?: boolean | null
           is_wholesale?: boolean | null
           name?: string
           order_id?: string
           organization_id?: string
           original_price?: number | null
           product_id?: string
-          product_name?: string
+          product_name?: string | null
           quantity?: number
           slug?: string
           total_price?: number
           unit_price?: number
+          variant_info?: Json | null
         }
         Relationships: [
           {
@@ -2564,6 +3941,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organization_order_summary"
             referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "pos_orders_with_items_count"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "order_items_organization_id_fkey"
@@ -2618,10 +4009,13 @@ export type Database = {
       }
       orders: {
         Row: {
+          admin_notes: string | null
           amount_paid: number | null
+          completed_at: string | null
           consider_remaining_as_partial: boolean | null
           created_at: string | null
           customer_id: string | null
+          customer_notes: string | null
           customer_order_number: number | null
           discount: number | null
           employee_id: string | null
@@ -2632,6 +4026,7 @@ export type Database = {
           organization_id: string
           payment_method: string
           payment_status: string
+          pos_order_type: string | null
           remaining_amount: number | null
           shipping_address_id: string | null
           shipping_cost: number | null
@@ -2644,10 +4039,13 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          admin_notes?: string | null
           amount_paid?: number | null
+          completed_at?: string | null
           consider_remaining_as_partial?: boolean | null
           created_at?: string | null
           customer_id?: string | null
+          customer_notes?: string | null
           customer_order_number?: number | null
           discount?: number | null
           employee_id?: string | null
@@ -2658,6 +4056,7 @@ export type Database = {
           organization_id: string
           payment_method: string
           payment_status: string
+          pos_order_type?: string | null
           remaining_amount?: number | null
           shipping_address_id?: string | null
           shipping_cost?: number | null
@@ -2670,10 +4069,13 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          admin_notes?: string | null
           amount_paid?: number | null
+          completed_at?: string | null
           consider_remaining_as_partial?: boolean | null
           created_at?: string | null
           customer_id?: string | null
+          customer_notes?: string | null
           customer_order_number?: number | null
           discount?: number | null
           employee_id?: string | null
@@ -2684,6 +4086,7 @@ export type Database = {
           organization_id?: string
           payment_method?: string
           payment_status?: string
+          pos_order_type?: string | null
           remaining_amount?: number | null
           shipping_address_id?: string | null
           shipping_cost?: number | null
@@ -2707,8 +4110,43 @@ export type Database = {
             foreignKeyName: "orders_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "orders_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "orders_organization_id_fkey"
@@ -2730,6 +4168,79 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "addresses"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_conversion_settings: {
+        Row: {
+          created_at: string | null
+          default_currency_code: string | null
+          enable_enhanced_conversions: boolean | null
+          facebook_app_id: string | null
+          facebook_app_secret: string | null
+          facebook_business_id: string | null
+          google_ads_customer_id: string | null
+          google_analytics_property_id: string | null
+          google_measurement_id: string | null
+          id: number
+          organization_id: string
+          tiktok_app_id: string | null
+          tiktok_app_secret: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          default_currency_code?: string | null
+          enable_enhanced_conversions?: boolean | null
+          facebook_app_id?: string | null
+          facebook_app_secret?: string | null
+          facebook_business_id?: string | null
+          google_ads_customer_id?: string | null
+          google_analytics_property_id?: string | null
+          google_measurement_id?: string | null
+          id?: number
+          organization_id: string
+          tiktok_app_id?: string | null
+          tiktok_app_secret?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          default_currency_code?: string | null
+          enable_enhanced_conversions?: boolean | null
+          facebook_app_id?: string | null
+          facebook_app_secret?: string | null
+          facebook_business_id?: string | null
+          google_ads_customer_id?: string | null
+          google_analytics_property_id?: string | null
+          google_measurement_id?: string | null
+          id?: number
+          organization_id?: string
+          tiktok_app_id?: string | null
+          tiktok_app_secret?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_conversion_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "organization_conversion_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_conversion_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "shipping_data_view"
+            referencedColumns: ["organization_id"]
           },
         ]
       }
@@ -2795,6 +4306,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "organization_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "organization_settings_organization_id_fkey"
             columns: ["organization_id"]
@@ -2868,6 +4386,13 @@ export type Database = {
             foreignKeyName: "organization_subscriptions_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "organization_subscriptions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -2919,6 +4444,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "organization_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "organization_templates_organization_id_fkey"
             columns: ["organization_id"]
@@ -2990,6 +4522,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      password_change_logs: {
+        Row: {
+          changed_at: string | null
+          created_at: string | null
+          failure_reason: string | null
+          id: string
+          ip_address: unknown | null
+          success: boolean | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          changed_at?: string | null
+          created_at?: string | null
+          failure_reason?: string | null
+          id?: string
+          ip_address?: unknown | null
+          success?: boolean | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          changed_at?: string | null
+          created_at?: string | null
+          failure_reason?: string | null
+          id?: string
+          ip_address?: unknown | null
+          success?: boolean | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
       }
       payment_methods: {
         Row: {
@@ -3065,6 +4630,247 @@ export type Database = {
           value?: number
         }
         Relationships: []
+      }
+      pos_settings: {
+        Row: {
+          allow_price_edit: boolean | null
+          auto_cut: boolean | null
+          background_color: string | null
+          business_license: string | null
+          created_at: string | null
+          currency_position: string | null
+          currency_symbol: string | null
+          custom_css: string | null
+          font_size: number | null
+          footer_style: string | null
+          header_style: string | null
+          id: string
+          item_display_style: string | null
+          line_spacing: number | null
+          organization_id: string
+          paper_width: number | null
+          price_position: string | null
+          primary_color: string | null
+          print_density: string | null
+          receipt_footer_text: string | null
+          receipt_header_text: string | null
+          receipt_template: string | null
+          require_manager_approval: boolean | null
+          secondary_color: string | null
+          show_customer_info: boolean | null
+          show_date_time: boolean | null
+          show_employee_name: boolean | null
+          show_qr_code: boolean | null
+          show_store_info: boolean | null
+          show_store_logo: boolean | null
+          show_tracking_code: boolean | null
+          store_address: string | null
+          store_email: string | null
+          store_logo_url: string | null
+          store_name: string | null
+          store_phone: string | null
+          store_website: string | null
+          tax_label: string | null
+          tax_number: string | null
+          text_color: string | null
+          updated_at: string | null
+          welcome_message: string | null
+        }
+        Insert: {
+          allow_price_edit?: boolean | null
+          auto_cut?: boolean | null
+          background_color?: string | null
+          business_license?: string | null
+          created_at?: string | null
+          currency_position?: string | null
+          currency_symbol?: string | null
+          custom_css?: string | null
+          font_size?: number | null
+          footer_style?: string | null
+          header_style?: string | null
+          id?: string
+          item_display_style?: string | null
+          line_spacing?: number | null
+          organization_id: string
+          paper_width?: number | null
+          price_position?: string | null
+          primary_color?: string | null
+          print_density?: string | null
+          receipt_footer_text?: string | null
+          receipt_header_text?: string | null
+          receipt_template?: string | null
+          require_manager_approval?: boolean | null
+          secondary_color?: string | null
+          show_customer_info?: boolean | null
+          show_date_time?: boolean | null
+          show_employee_name?: boolean | null
+          show_qr_code?: boolean | null
+          show_store_info?: boolean | null
+          show_store_logo?: boolean | null
+          show_tracking_code?: boolean | null
+          store_address?: string | null
+          store_email?: string | null
+          store_logo_url?: string | null
+          store_name?: string | null
+          store_phone?: string | null
+          store_website?: string | null
+          tax_label?: string | null
+          tax_number?: string | null
+          text_color?: string | null
+          updated_at?: string | null
+          welcome_message?: string | null
+        }
+        Update: {
+          allow_price_edit?: boolean | null
+          auto_cut?: boolean | null
+          background_color?: string | null
+          business_license?: string | null
+          created_at?: string | null
+          currency_position?: string | null
+          currency_symbol?: string | null
+          custom_css?: string | null
+          font_size?: number | null
+          footer_style?: string | null
+          header_style?: string | null
+          id?: string
+          item_display_style?: string | null
+          line_spacing?: number | null
+          organization_id?: string
+          paper_width?: number | null
+          price_position?: string | null
+          primary_color?: string | null
+          print_density?: string | null
+          receipt_footer_text?: string | null
+          receipt_header_text?: string | null
+          receipt_template?: string | null
+          require_manager_approval?: boolean | null
+          secondary_color?: string | null
+          show_customer_info?: boolean | null
+          show_date_time?: boolean | null
+          show_employee_name?: boolean | null
+          show_qr_code?: boolean | null
+          show_store_info?: boolean | null
+          show_store_logo?: boolean | null
+          show_tracking_code?: boolean | null
+          store_address?: string | null
+          store_email?: string | null
+          store_logo_url?: string | null
+          store_name?: string | null
+          store_phone?: string | null
+          store_website?: string | null
+          tax_label?: string | null
+          tax_number?: string | null
+          text_color?: string | null
+          updated_at?: string | null
+          welcome_message?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "pos_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "shipping_data_view"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      privacy_settings: {
+        Row: {
+          allow_analytics: boolean | null
+          allow_contact_from_others: boolean | null
+          allow_data_collection: boolean | null
+          allow_friend_requests: boolean | null
+          allow_marketing_emails: boolean | null
+          created_at: string | null
+          id: string
+          profile_visibility: string | null
+          show_email: boolean | null
+          show_last_activity: boolean | null
+          show_phone: boolean | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          allow_analytics?: boolean | null
+          allow_contact_from_others?: boolean | null
+          allow_data_collection?: boolean | null
+          allow_friend_requests?: boolean | null
+          allow_marketing_emails?: boolean | null
+          created_at?: string | null
+          id?: string
+          profile_visibility?: string | null
+          show_email?: boolean | null
+          show_last_activity?: boolean | null
+          show_phone?: boolean | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          allow_analytics?: boolean | null
+          allow_contact_from_others?: boolean | null
+          allow_data_collection?: boolean | null
+          allow_friend_requests?: boolean | null
+          allow_marketing_emails?: boolean | null
+          created_at?: string | null
+          id?: string
+          profile_visibility?: string | null
+          show_email?: boolean | null
+          show_last_activity?: boolean | null
+          show_phone?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "privacy_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "privacy_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "privacy_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "privacy_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "privacy_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       product_advanced_settings: {
         Row: {
@@ -3258,6 +5064,13 @@ export type Database = {
             foreignKeyName: "product_categories_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "product_categories_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -3357,6 +5170,134 @@ export type Database = {
           },
         ]
       }
+      product_deletion_attempts: {
+        Row: {
+          attempt_status: string
+          created_at: string | null
+          error_code: string | null
+          error_message: string | null
+          id: string
+          organization_id: string | null
+          product_id: string | null
+          user_id: string | null
+          user_permissions: Json | null
+        }
+        Insert: {
+          attempt_status: string
+          created_at?: string | null
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          organization_id?: string | null
+          product_id?: string | null
+          user_id?: string | null
+          user_permissions?: Json | null
+        }
+        Update: {
+          attempt_status?: string
+          created_at?: string | null
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          organization_id?: string | null
+          product_id?: string | null
+          user_id?: string | null
+          user_permissions?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_deletion_attempts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "product_deletion_attempts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_deletion_attempts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "shipping_data_view"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "product_deletion_attempts_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_status"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_deletion_attempts_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "organization_inventory_summary"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "product_deletion_attempts_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_deletion_attempts_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products_to_reorder"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_deletion_attempts_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "reports_product_profitability"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "product_deletion_attempts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "product_deletion_attempts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_deletion_attempts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_deletion_attempts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_deletion_attempts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_images: {
         Row: {
           created_at: string
@@ -3424,6 +5365,7 @@ export type Database = {
         Row: {
           allow_images_in_reviews: boolean | null
           created_at: string | null
+          enable_facebook_conversion_api: boolean | null
           enable_facebook_pixel: boolean | null
           enable_fake_purchase_counter: boolean | null
           enable_fake_star_ratings: boolean | null
@@ -3435,6 +5377,7 @@ export type Database = {
           facebook_access_token: string | null
           facebook_advanced_matching_enabled: boolean | null
           facebook_conversations_api_enabled: boolean | null
+          facebook_dataset_id: string | null
           facebook_pixel_id: string | null
           facebook_standard_events: Json | null
           facebook_test_event_code: string | null
@@ -3443,11 +5386,13 @@ export type Database = {
           fake_star_rating_value: number | null
           fixed_discount_value_for_points: number | null
           google_ads_conversion_id: string | null
+          google_ads_conversion_label: string | null
           google_ads_enhanced_conversions_enabled: boolean | null
           google_ads_event_snippets: Json | null
           google_ads_global_site_tag_enabled: boolean | null
           google_ads_phone_conversion_label: string | null
           google_ads_phone_conversion_number: string | null
+          google_gtag_id: string | null
           id: string
           loyalty_points_enabled: boolean | null
           loyalty_points_name_plural: string | null
@@ -3484,6 +5429,7 @@ export type Database = {
           snapchat_pixel_id: string | null
           snapchat_standard_events: Json | null
           snapchat_test_event_code: string | null
+          test_mode: boolean | null
           tiktok_access_token: string | null
           tiktok_advanced_matching_enabled: boolean | null
           tiktok_events_api_enabled: boolean | null
@@ -3495,6 +5441,7 @@ export type Database = {
         Insert: {
           allow_images_in_reviews?: boolean | null
           created_at?: string | null
+          enable_facebook_conversion_api?: boolean | null
           enable_facebook_pixel?: boolean | null
           enable_fake_purchase_counter?: boolean | null
           enable_fake_star_ratings?: boolean | null
@@ -3506,6 +5453,7 @@ export type Database = {
           facebook_access_token?: string | null
           facebook_advanced_matching_enabled?: boolean | null
           facebook_conversations_api_enabled?: boolean | null
+          facebook_dataset_id?: string | null
           facebook_pixel_id?: string | null
           facebook_standard_events?: Json | null
           facebook_test_event_code?: string | null
@@ -3514,11 +5462,13 @@ export type Database = {
           fake_star_rating_value?: number | null
           fixed_discount_value_for_points?: number | null
           google_ads_conversion_id?: string | null
+          google_ads_conversion_label?: string | null
           google_ads_enhanced_conversions_enabled?: boolean | null
           google_ads_event_snippets?: Json | null
           google_ads_global_site_tag_enabled?: boolean | null
           google_ads_phone_conversion_label?: string | null
           google_ads_phone_conversion_number?: string | null
+          google_gtag_id?: string | null
           id?: string
           loyalty_points_enabled?: boolean | null
           loyalty_points_name_plural?: string | null
@@ -3555,6 +5505,7 @@ export type Database = {
           snapchat_pixel_id?: string | null
           snapchat_standard_events?: Json | null
           snapchat_test_event_code?: string | null
+          test_mode?: boolean | null
           tiktok_access_token?: string | null
           tiktok_advanced_matching_enabled?: boolean | null
           tiktok_events_api_enabled?: boolean | null
@@ -3566,6 +5517,7 @@ export type Database = {
         Update: {
           allow_images_in_reviews?: boolean | null
           created_at?: string | null
+          enable_facebook_conversion_api?: boolean | null
           enable_facebook_pixel?: boolean | null
           enable_fake_purchase_counter?: boolean | null
           enable_fake_star_ratings?: boolean | null
@@ -3577,6 +5529,7 @@ export type Database = {
           facebook_access_token?: string | null
           facebook_advanced_matching_enabled?: boolean | null
           facebook_conversations_api_enabled?: boolean | null
+          facebook_dataset_id?: string | null
           facebook_pixel_id?: string | null
           facebook_standard_events?: Json | null
           facebook_test_event_code?: string | null
@@ -3585,11 +5538,13 @@ export type Database = {
           fake_star_rating_value?: number | null
           fixed_discount_value_for_points?: number | null
           google_ads_conversion_id?: string | null
+          google_ads_conversion_label?: string | null
           google_ads_enhanced_conversions_enabled?: boolean | null
           google_ads_event_snippets?: Json | null
           google_ads_global_site_tag_enabled?: boolean | null
           google_ads_phone_conversion_label?: string | null
           google_ads_phone_conversion_number?: string | null
+          google_gtag_id?: string | null
           id?: string
           loyalty_points_enabled?: boolean | null
           loyalty_points_name_plural?: string | null
@@ -3626,6 +5581,7 @@ export type Database = {
           snapchat_pixel_id?: string | null
           snapchat_standard_events?: Json | null
           snapchat_test_event_code?: string | null
+          test_mode?: boolean | null
           tiktok_access_token?: string | null
           tiktok_advanced_matching_enabled?: boolean | null
           tiktok_events_api_enabled?: boolean | null
@@ -3635,6 +5591,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "product_marketing_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "product_marketing_settings_organization_id_fkey"
             columns: ["organization_id"]
@@ -3821,7 +5784,63 @@ export type Database = {
             foreignKeyName: "product_reviews_admin_reply_by_fkey"
             columns: ["admin_reply_by"]
             isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "product_reviews_admin_reply_by_fkey"
+            columns: ["admin_reply_by"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_reviews_admin_reply_by_fkey"
+            columns: ["admin_reply_by"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_reviews_admin_reply_by_fkey"
+            columns: ["admin_reply_by"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_reviews_admin_reply_by_fkey"
+            columns: ["admin_reply_by"]
+            isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_reviews_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "product_reviews_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_reviews_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_reviews_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
             referencedColumns: ["id"]
           },
           {
@@ -3830,6 +5849,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_reviews_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "product_reviews_organization_id_fkey"
@@ -3879,6 +5905,34 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "reports_product_profitability"
             referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "product_reviews_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "product_reviews_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_reviews_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_reviews_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "product_reviews_user_id_fkey"
@@ -4274,6 +6328,13 @@ export type Database = {
             foreignKeyName: "products_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "products_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -4367,6 +6428,408 @@ export type Database = {
           },
         ]
       }
+      repair_images: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          image_type: string | null
+          image_url: string
+          repair_order_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          image_type?: string | null
+          image_url: string
+          repair_order_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          image_type?: string | null
+          image_url?: string
+          repair_order_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "repair_images_repair_order_id_fkey"
+            columns: ["repair_order_id"]
+            isOneToOne: false
+            referencedRelation: "repair_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      repair_locations: {
+        Row: {
+          address: string | null
+          capacity: number | null
+          created_at: string | null
+          description: string | null
+          email: string | null
+          id: string
+          is_active: boolean | null
+          is_default: boolean | null
+          manager_name: string | null
+          name: string
+          organization_id: string
+          phone: string | null
+          specialties: string[] | null
+          updated_at: string | null
+          working_hours: Json | null
+        }
+        Insert: {
+          address?: string | null
+          capacity?: number | null
+          created_at?: string | null
+          description?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          manager_name?: string | null
+          name: string
+          organization_id: string
+          phone?: string | null
+          specialties?: string[] | null
+          updated_at?: string | null
+          working_hours?: Json | null
+        }
+        Update: {
+          address?: string | null
+          capacity?: number | null
+          created_at?: string | null
+          description?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          manager_name?: string | null
+          name?: string
+          organization_id?: string
+          phone?: string | null
+          specialties?: string[] | null
+          updated_at?: string | null
+          working_hours?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "repair_locations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "repair_locations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "repair_locations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "shipping_data_view"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      repair_orders: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          custom_location: string | null
+          customer_name: string
+          customer_phone: string
+          id: string
+          issue_description: string | null
+          notes: string | null
+          order_number: string
+          organization_id: string
+          paid_amount: number | null
+          payment_method: string | null
+          received_by: string | null
+          repair_images: Json | null
+          repair_location_id: string | null
+          status: string | null
+          total_price: number
+          updated_at: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          custom_location?: string | null
+          customer_name: string
+          customer_phone: string
+          id?: string
+          issue_description?: string | null
+          notes?: string | null
+          order_number: string
+          organization_id: string
+          paid_amount?: number | null
+          payment_method?: string | null
+          received_by?: string | null
+          repair_images?: Json | null
+          repair_location_id?: string | null
+          status?: string | null
+          total_price: number
+          updated_at?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          custom_location?: string | null
+          customer_name?: string
+          customer_phone?: string
+          id?: string
+          issue_description?: string | null
+          notes?: string | null
+          order_number?: string
+          organization_id?: string
+          paid_amount?: number | null
+          payment_method?: string | null
+          received_by?: string | null
+          repair_images?: Json | null
+          repair_location_id?: string | null
+          status?: string | null
+          total_price?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "repair_orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "repair_orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "repair_orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "shipping_data_view"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "repair_orders_received_by_fkey"
+            columns: ["received_by"]
+            isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "repair_orders_received_by_fkey"
+            columns: ["received_by"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "repair_orders_received_by_fkey"
+            columns: ["received_by"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "repair_orders_received_by_fkey"
+            columns: ["received_by"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "repair_orders_received_by_fkey"
+            columns: ["received_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "repair_orders_repair_location_id_fkey"
+            columns: ["repair_location_id"]
+            isOneToOne: false
+            referencedRelation: "repair_locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      repair_status_history: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          id: string
+          notes: string | null
+          repair_order_id: string
+          status: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          repair_order_id: string
+          status: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          repair_order_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "repair_status_history_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "repair_status_history_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "repair_status_history_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "repair_status_history_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "repair_status_history_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "repair_status_history_repair_order_id_fkey"
+            columns: ["repair_order_id"]
+            isOneToOne: false
+            referencedRelation: "repair_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      security_logs: {
+        Row: {
+          activity_description: string | null
+          activity_type: string
+          created_at: string | null
+          device_info: Json | null
+          id: string
+          ip_address: unknown | null
+          location_info: Json | null
+          metadata: Json | null
+          risk_level: string | null
+          session_id: string | null
+          status: string
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          activity_description?: string | null
+          activity_type: string
+          created_at?: string | null
+          device_info?: Json | null
+          id?: string
+          ip_address?: unknown | null
+          location_info?: Json | null
+          metadata?: Json | null
+          risk_level?: string | null
+          session_id?: string | null
+          status: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          activity_description?: string | null
+          activity_type?: string
+          created_at?: string | null
+          device_info?: Json | null
+          id?: string
+          ip_address?: unknown | null
+          location_info?: Json | null
+          metadata?: Json | null
+          risk_level?: string | null
+          session_id?: string | null
+          status?: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "security_logs_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "user_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "security_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "security_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "security_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "security_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "security_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       seo_cache: {
         Row: {
           cache_type: string
@@ -4397,6 +6860,13 @@ export type Database = {
             foreignKeyName: "seo_cache_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "seo_cache_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -4408,6 +6878,345 @@ export type Database = {
             referencedColumns: ["organization_id"]
           },
         ]
+      }
+      seo_crawl_log: {
+        Row: {
+          crawled_at: string | null
+          crawler_name: string | null
+          id: string
+          ip_address: unknown | null
+          requested_url: string | null
+          response_time_ms: number | null
+          status_code: number | null
+          user_agent: string | null
+        }
+        Insert: {
+          crawled_at?: string | null
+          crawler_name?: string | null
+          id?: string
+          ip_address?: unknown | null
+          requested_url?: string | null
+          response_time_ms?: number | null
+          status_code?: number | null
+          user_agent?: string | null
+        }
+        Update: {
+          crawled_at?: string | null
+          crawler_name?: string | null
+          id?: string
+          ip_address?: unknown | null
+          requested_url?: string | null
+          response_time_ms?: number | null
+          status_code?: number | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
+      seo_keywords: {
+        Row: {
+          created_at: string | null
+          current_position: number | null
+          difficulty: number | null
+          id: string
+          keyword: string
+          notes: string | null
+          search_volume: number | null
+          target_page: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          current_position?: number | null
+          difficulty?: number | null
+          id?: string
+          keyword: string
+          notes?: string | null
+          search_volume?: number | null
+          target_page?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          current_position?: number | null
+          difficulty?: number | null
+          id?: string
+          keyword?: string
+          notes?: string | null
+          search_volume?: number | null
+          target_page?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      seo_page_meta: {
+        Row: {
+          canonical_url: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          keywords: string[] | null
+          no_follow: boolean | null
+          no_index: boolean | null
+          og_description: string | null
+          og_image: string | null
+          og_title: string | null
+          og_type: string | null
+          page_path: string
+          title: string | null
+          twitter_card: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          canonical_url?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          keywords?: string[] | null
+          no_follow?: boolean | null
+          no_index?: boolean | null
+          og_description?: string | null
+          og_image?: string | null
+          og_title?: string | null
+          og_type?: string | null
+          page_path: string
+          title?: string | null
+          twitter_card?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          canonical_url?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          keywords?: string[] | null
+          no_follow?: boolean | null
+          no_index?: boolean | null
+          og_description?: string | null
+          og_image?: string | null
+          og_title?: string | null
+          og_type?: string | null
+          page_path?: string
+          title?: string | null
+          twitter_card?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      seo_performance_metrics: {
+        Row: {
+          avg_time_on_page: unknown | null
+          bounce_rate: number | null
+          click_through_rate: number | null
+          created_at: string | null
+          id: string
+          impressions: number | null
+          metric_date: string
+          organic_traffic: number | null
+          page_url: string
+          page_views: number | null
+          position: number | null
+          unique_visitors: number | null
+        }
+        Insert: {
+          avg_time_on_page?: unknown | null
+          bounce_rate?: number | null
+          click_through_rate?: number | null
+          created_at?: string | null
+          id?: string
+          impressions?: number | null
+          metric_date: string
+          organic_traffic?: number | null
+          page_url: string
+          page_views?: number | null
+          position?: number | null
+          unique_visitors?: number | null
+        }
+        Update: {
+          avg_time_on_page?: unknown | null
+          bounce_rate?: number | null
+          click_through_rate?: number | null
+          created_at?: string | null
+          id?: string
+          impressions?: number | null
+          metric_date?: string
+          organic_traffic?: number | null
+          page_url?: string
+          page_views?: number | null
+          position?: number | null
+          unique_visitors?: number | null
+        }
+        Relationships: []
+      }
+      seo_redirects: {
+        Row: {
+          created_at: string | null
+          from_path: string
+          id: string
+          is_active: boolean | null
+          redirect_type: number | null
+          to_path: string
+        }
+        Insert: {
+          created_at?: string | null
+          from_path: string
+          id?: string
+          is_active?: boolean | null
+          redirect_type?: number | null
+          to_path: string
+        }
+        Update: {
+          created_at?: string | null
+          from_path?: string
+          id?: string
+          is_active?: boolean | null
+          redirect_type?: number | null
+          to_path?: string
+        }
+        Relationships: []
+      }
+      seo_robots_rules: {
+        Row: {
+          allow_paths: string[] | null
+          crawl_delay: number | null
+          created_at: string | null
+          disallow_paths: string[] | null
+          id: string
+          is_active: boolean | null
+          priority: number | null
+          user_agent: string
+        }
+        Insert: {
+          allow_paths?: string[] | null
+          crawl_delay?: number | null
+          created_at?: string | null
+          disallow_paths?: string[] | null
+          id?: string
+          is_active?: boolean | null
+          priority?: number | null
+          user_agent?: string
+        }
+        Update: {
+          allow_paths?: string[] | null
+          crawl_delay?: number | null
+          created_at?: string | null
+          disallow_paths?: string[] | null
+          id?: string
+          is_active?: boolean | null
+          priority?: number | null
+          user_agent?: string
+        }
+        Relationships: []
+      }
+      seo_settings: {
+        Row: {
+          created_at: string | null
+          default_og_image: string | null
+          enable_robots_txt: boolean | null
+          enable_sitemap: boolean | null
+          facebook_pixel_id: string | null
+          google_analytics_id: string | null
+          google_search_console_key: string | null
+          id: string
+          site_description: string | null
+          site_keywords: string[] | null
+          site_title: string
+          twitter_handle: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          default_og_image?: string | null
+          enable_robots_txt?: boolean | null
+          enable_sitemap?: boolean | null
+          facebook_pixel_id?: string | null
+          google_analytics_id?: string | null
+          google_search_console_key?: string | null
+          id?: string
+          site_description?: string | null
+          site_keywords?: string[] | null
+          site_title: string
+          twitter_handle?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          default_og_image?: string | null
+          enable_robots_txt?: boolean | null
+          enable_sitemap?: boolean | null
+          facebook_pixel_id?: string | null
+          google_analytics_id?: string | null
+          google_search_console_key?: string | null
+          id?: string
+          site_description?: string | null
+          site_keywords?: string[] | null
+          site_title?: string
+          twitter_handle?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      seo_sitemap_entries: {
+        Row: {
+          change_frequency: string | null
+          created_at: string | null
+          id: string
+          include_in_sitemap: boolean | null
+          last_modified: string | null
+          priority: number | null
+          updated_at: string | null
+          url: string
+        }
+        Insert: {
+          change_frequency?: string | null
+          created_at?: string | null
+          id?: string
+          include_in_sitemap?: boolean | null
+          last_modified?: string | null
+          priority?: number | null
+          updated_at?: string | null
+          url: string
+        }
+        Update: {
+          change_frequency?: string | null
+          created_at?: string | null
+          id?: string
+          include_in_sitemap?: boolean | null
+          last_modified?: string | null
+          priority?: number | null
+          updated_at?: string | null
+          url?: string
+        }
+        Relationships: []
+      }
+      seo_structured_data: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          page_path: string | null
+          schema_data: Json
+          schema_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          page_path?: string | null
+          schema_data: Json
+          schema_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          page_path?: string | null
+          schema_data?: Json
+          schema_type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       service_bookings: {
         Row: {
@@ -4422,6 +7231,7 @@ export type Database = {
           organization_id: string
           price: number
           public_tracking_code: string | null
+          repair_location_id: string | null
           scheduled_date: string | null
           service_id: string
           service_name: string
@@ -4440,6 +7250,7 @@ export type Database = {
           organization_id: string
           price: number
           public_tracking_code?: string | null
+          repair_location_id?: string | null
           scheduled_date?: string | null
           service_id: string
           service_name: string
@@ -4458,6 +7269,7 @@ export type Database = {
           organization_id?: string
           price?: number
           public_tracking_code?: string | null
+          repair_location_id?: string | null
           scheduled_date?: string | null
           service_id?: string
           service_name?: string
@@ -4469,7 +7281,63 @@ export type Database = {
             foreignKeyName: "service_bookings_assigned_to_fkey"
             columns: ["assigned_to"]
             isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "service_bookings_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_bookings_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_bookings_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_bookings_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_bookings_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "service_bookings_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_bookings_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_bookings_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
             referencedColumns: ["id"]
           },
           {
@@ -4494,6 +7362,20 @@ export type Database = {
             referencedColumns: ["order_id"]
           },
           {
+            foreignKeyName: "service_bookings_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "pos_orders_with_items_count"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_bookings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
             foreignKeyName: "service_bookings_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -4506,6 +7388,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "shipping_data_view"
             referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "service_bookings_repair_location_id_fkey"
+            columns: ["repair_location_id"]
+            isOneToOne: false
+            referencedRelation: "repair_locations"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "service_bookings_service_id_fkey"
@@ -4552,8 +7441,43 @@ export type Database = {
             foreignKeyName: "service_progress_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "service_progress_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_progress_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_progress_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_progress_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_progress_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "service_progress_organization_id_fkey"
@@ -4629,6 +7553,13 @@ export type Database = {
             foreignKeyName: "services_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "services_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -4688,6 +7619,13 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "settings_audit_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "settings_audit_log_organization_id_fkey"
             columns: ["organization_id"]
@@ -4840,6 +7778,20 @@ export type Database = {
             referencedColumns: ["order_id"]
           },
           {
+            foreignKeyName: "shipping_orders_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "pos_orders_with_items_count"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shipping_orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
             foreignKeyName: "shipping_orders_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -4932,6 +7884,13 @@ export type Database = {
             foreignKeyName: "shipping_provider_clones_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "shipping_provider_clones_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -4999,6 +7958,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "shipping_provider_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "shipping_provider_settings_organization_id_fkey"
             columns: ["organization_id"]
@@ -5101,6 +8067,13 @@ export type Database = {
             foreignKeyName: "shipping_rates_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "shipping_rates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -5126,6 +8099,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      stats_refresh_log: {
+        Row: {
+          error_message: string | null
+          id: string
+          last_refresh: string
+          refresh_duration: unknown | null
+          status: string
+          view_name: string
+        }
+        Insert: {
+          error_message?: string | null
+          id?: string
+          last_refresh?: string
+          refresh_duration?: unknown | null
+          status?: string
+          view_name: string
+        }
+        Update: {
+          error_message?: string | null
+          id?: string
+          last_refresh?: string
+          refresh_duration?: unknown | null
+          status?: string
+          view_name?: string
+        }
+        Relationships: []
       }
       store_settings: {
         Row: {
@@ -5159,6 +8159,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "store_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "store_settings_organization_id_fkey"
             columns: ["organization_id"]
@@ -5220,8 +8227,43 @@ export type Database = {
             foreignKeyName: "subscription_history_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "subscription_history_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_history_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_history_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_history_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "subscription_history_organization_id_fkey"
@@ -5333,6 +8375,451 @@ export type Database = {
         }
         Relationships: []
       }
+      super_custom_components: {
+        Row: {
+          created_at: string | null
+          css: string | null
+          html: string | null
+          id: string
+          is_global: boolean | null
+          js: string | null
+          name: string
+          props: Json | null
+          tenant_id: string
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          css?: string | null
+          html?: string | null
+          id?: string
+          is_global?: boolean | null
+          js?: string | null
+          name: string
+          props?: Json | null
+          tenant_id: string
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          css?: string | null
+          html?: string | null
+          id?: string
+          is_global?: boolean | null
+          js?: string | null
+          name?: string
+          props?: Json | null
+          tenant_id?: string
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "super_custom_components_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "super_custom_components_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "super_custom_components_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "shipping_data_view"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      super_edit_history: {
+        Row: {
+          action: string
+          changes: Json
+          created_at: string | null
+          id: string
+          page_id: string
+          snapshot: Json | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          changes: Json
+          created_at?: string | null
+          id?: string
+          page_id: string
+          snapshot?: Json | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          changes?: Json
+          created_at?: string | null
+          id?: string
+          page_id?: string
+          snapshot?: Json | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "super_edit_history_page_id_fkey"
+            columns: ["page_id"]
+            isOneToOne: false
+            referencedRelation: "super_pages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      super_global_styles: {
+        Row: {
+          content: string
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          priority: number | null
+          tenant_id: string
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          priority?: number | null
+          tenant_id: string
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          priority?: number | null
+          tenant_id?: string
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "super_global_styles_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "super_global_styles_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "super_global_styles_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "shipping_data_view"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      super_media_library: {
+        Row: {
+          alt: string | null
+          created_at: string | null
+          filename: string
+          folder: string | null
+          height: number | null
+          id: string
+          mime_type: string
+          size: number
+          tags: string[] | null
+          tenant_id: string
+          thumbnail_url: string | null
+          url: string
+          width: number | null
+        }
+        Insert: {
+          alt?: string | null
+          created_at?: string | null
+          filename: string
+          folder?: string | null
+          height?: number | null
+          id?: string
+          mime_type: string
+          size: number
+          tags?: string[] | null
+          tenant_id: string
+          thumbnail_url?: string | null
+          url: string
+          width?: number | null
+        }
+        Update: {
+          alt?: string | null
+          created_at?: string | null
+          filename?: string
+          folder?: string | null
+          height?: number | null
+          id?: string
+          mime_type?: string
+          size?: number
+          tags?: string[] | null
+          tenant_id?: string
+          thumbnail_url?: string | null
+          url?: string
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "super_media_library_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "super_media_library_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "super_media_library_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "shipping_data_view"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      super_page_analytics: {
+        Row: {
+          avg_time_on_page: number | null
+          bounce_rate: number | null
+          conversion_rate: number | null
+          created_at: string | null
+          date: string
+          id: string
+          page_id: string
+          unique_visitors: number | null
+          views: number | null
+        }
+        Insert: {
+          avg_time_on_page?: number | null
+          bounce_rate?: number | null
+          conversion_rate?: number | null
+          created_at?: string | null
+          date: string
+          id?: string
+          page_id: string
+          unique_visitors?: number | null
+          views?: number | null
+        }
+        Update: {
+          avg_time_on_page?: number | null
+          bounce_rate?: number | null
+          conversion_rate?: number | null
+          created_at?: string | null
+          date?: string
+          id?: string
+          page_id?: string
+          unique_visitors?: number | null
+          views?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "super_page_analytics_page_id_fkey"
+            columns: ["page_id"]
+            isOneToOne: false
+            referencedRelation: "super_pages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      super_pages: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          metadata: Json | null
+          published: boolean | null
+          published_at: string | null
+          sections: Json
+          slug: string
+          tenant_id: string
+          theme_id: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          published?: boolean | null
+          published_at?: string | null
+          sections?: Json
+          slug: string
+          tenant_id: string
+          theme_id?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          published?: boolean | null
+          published_at?: string | null
+          sections?: Json
+          slug?: string
+          tenant_id?: string
+          theme_id?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "super_pages_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "super_pages_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "super_pages_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "shipping_data_view"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "super_pages_theme_id_fkey"
+            columns: ["theme_id"]
+            isOneToOne: false
+            referencedRelation: "super_themes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      super_section_templates: {
+        Row: {
+          category: string
+          created_at: string | null
+          default_props: Json | null
+          elements: Json
+          id: string
+          is_premium: boolean | null
+          name: string
+          thumbnail_url: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          category: string
+          created_at?: string | null
+          default_props?: Json | null
+          elements?: Json
+          id?: string
+          is_premium?: boolean | null
+          name: string
+          thumbnail_url?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          default_props?: Json | null
+          elements?: Json
+          id?: string
+          is_premium?: boolean | null
+          name?: string
+          thumbnail_url?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      super_themes: {
+        Row: {
+          border_radius: Json
+          colors: Json
+          created_at: string | null
+          id: string
+          is_default: boolean | null
+          name: string
+          spacing: Json
+          tenant_id: string
+          typography: Json
+          updated_at: string | null
+        }
+        Insert: {
+          border_radius?: Json
+          colors?: Json
+          created_at?: string | null
+          id?: string
+          is_default?: boolean | null
+          name: string
+          spacing?: Json
+          tenant_id: string
+          typography?: Json
+          updated_at?: string | null
+        }
+        Update: {
+          border_radius?: Json
+          colors?: Json
+          created_at?: string | null
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          spacing?: Json
+          tenant_id?: string
+          typography?: Json
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "super_themes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "super_themes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "super_themes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "shipping_data_view"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       supplier_contacts: {
         Row: {
           created_at: string | null
@@ -5435,6 +8922,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "supplier_payments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "supplier_payments_organization_id_fkey"
             columns: ["organization_id"]
@@ -5641,6 +9135,13 @@ export type Database = {
             foreignKeyName: "supplier_purchases_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "supplier_purchases_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -5709,6 +9210,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "supplier_ratings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "supplier_ratings_organization_id_fkey"
             columns: ["organization_id"]
@@ -5815,6 +9323,13 @@ export type Database = {
             foreignKeyName: "suppliers_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "suppliers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -5874,6 +9389,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "thank_you_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "thank_you_templates_organization_id_fkey"
             columns: ["organization_id"]
@@ -5973,6 +9495,34 @@ export type Database = {
             foreignKeyName: "transactions_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "transactions_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -5991,6 +9541,20 @@ export type Database = {
             referencedColumns: ["order_id"]
           },
           {
+            foreignKeyName: "transactions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "pos_orders_with_items_count"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
             foreignKeyName: "transactions_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -6003,6 +9567,374 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "shipping_data_view"
             referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      trusted_devices: {
+        Row: {
+          browser_info: Json | null
+          created_at: string | null
+          device_fingerprint: string
+          device_name: string | null
+          device_type: string | null
+          expires_at: string | null
+          first_seen_ip: unknown | null
+          id: string
+          is_trusted: boolean | null
+          last_seen_ip: unknown | null
+          last_used_at: string | null
+          trust_level: number | null
+          usage_count: number | null
+          user_id: string
+        }
+        Insert: {
+          browser_info?: Json | null
+          created_at?: string | null
+          device_fingerprint: string
+          device_name?: string | null
+          device_type?: string | null
+          expires_at?: string | null
+          first_seen_ip?: unknown | null
+          id?: string
+          is_trusted?: boolean | null
+          last_seen_ip?: unknown | null
+          last_used_at?: string | null
+          trust_level?: number | null
+          usage_count?: number | null
+          user_id: string
+        }
+        Update: {
+          browser_info?: Json | null
+          created_at?: string | null
+          device_fingerprint?: string
+          device_name?: string | null
+          device_type?: string | null
+          expires_at?: string | null
+          first_seen_ip?: unknown | null
+          id?: string
+          is_trusted?: boolean | null
+          last_seen_ip?: unknown | null
+          last_used_at?: string | null
+          trust_level?: number | null
+          usage_count?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trusted_devices_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "trusted_devices_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trusted_devices_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trusted_devices_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trusted_devices_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_course_progress: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          id: string
+          is_completed: boolean | null
+          last_watched_at: string | null
+          lesson_id: string
+          progress_percentage: number | null
+          updated_at: string | null
+          user_id: string
+          watch_time: number | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          is_completed?: boolean | null
+          last_watched_at?: string | null
+          lesson_id: string
+          progress_percentage?: number | null
+          updated_at?: string | null
+          user_id: string
+          watch_time?: number | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          is_completed?: boolean | null
+          last_watched_at?: string | null
+          lesson_id?: string
+          progress_percentage?: number | null
+          updated_at?: string | null
+          user_id?: string
+          watch_time?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_course_progress_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "course_lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_quiz_results: {
+        Row: {
+          answers: Json
+          completed_at: string | null
+          id: string
+          passed: boolean | null
+          quiz_id: string
+          score: number
+          user_id: string
+        }
+        Insert: {
+          answers: Json
+          completed_at?: string | null
+          id?: string
+          passed?: boolean | null
+          quiz_id: string
+          score: number
+          user_id: string
+        }
+        Update: {
+          answers?: Json
+          completed_at?: string | null
+          id?: string
+          passed?: boolean | null
+          quiz_id?: string
+          score?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_quiz_results_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "course_quizzes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_security_settings: {
+        Row: {
+          backup_codes: string[] | null
+          backup_codes_generated_at: string | null
+          backup_codes_used: Json | null
+          created_at: string | null
+          device_tracking_enabled: boolean | null
+          id: string
+          login_notification_enabled: boolean | null
+          max_active_sessions: number | null
+          password_expiry_days: number | null
+          prevent_password_reuse: number | null
+          require_reauth_for_sensitive: boolean | null
+          require_strong_password: boolean | null
+          session_timeout_minutes: number | null
+          suspicious_activity_alerts: boolean | null
+          totp_secret: string | null
+          two_factor_enabled: boolean | null
+          two_factor_method: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          backup_codes?: string[] | null
+          backup_codes_generated_at?: string | null
+          backup_codes_used?: Json | null
+          created_at?: string | null
+          device_tracking_enabled?: boolean | null
+          id?: string
+          login_notification_enabled?: boolean | null
+          max_active_sessions?: number | null
+          password_expiry_days?: number | null
+          prevent_password_reuse?: number | null
+          require_reauth_for_sensitive?: boolean | null
+          require_strong_password?: boolean | null
+          session_timeout_minutes?: number | null
+          suspicious_activity_alerts?: boolean | null
+          totp_secret?: string | null
+          two_factor_enabled?: boolean | null
+          two_factor_method?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          backup_codes?: string[] | null
+          backup_codes_generated_at?: string | null
+          backup_codes_used?: Json | null
+          created_at?: string | null
+          device_tracking_enabled?: boolean | null
+          id?: string
+          login_notification_enabled?: boolean | null
+          max_active_sessions?: number | null
+          password_expiry_days?: number | null
+          prevent_password_reuse?: number | null
+          require_reauth_for_sensitive?: boolean | null
+          require_strong_password?: boolean | null
+          session_timeout_minutes?: number | null
+          suspicious_activity_alerts?: boolean | null
+          totp_secret?: string | null
+          two_factor_enabled?: boolean | null
+          two_factor_method?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_security_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "user_security_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_security_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_security_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_security_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_sessions: {
+        Row: {
+          created_at: string | null
+          device_id: string | null
+          device_info: Json | null
+          expires_at: string | null
+          id: string
+          ip_address: unknown | null
+          is_active: boolean | null
+          is_trusted_device: boolean | null
+          last_activity_at: string | null
+          location_info: Json | null
+          login_method: string | null
+          session_token: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          device_id?: string | null
+          device_info?: Json | null
+          expires_at?: string | null
+          id?: string
+          ip_address?: unknown | null
+          is_active?: boolean | null
+          is_trusted_device?: boolean | null
+          last_activity_at?: string | null
+          location_info?: Json | null
+          login_method?: string | null
+          session_token: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          device_id?: string | null
+          device_info?: Json | null
+          expires_at?: string | null
+          id?: string
+          ip_address?: unknown | null
+          is_active?: boolean | null
+          is_trusted_device?: boolean | null
+          last_activity_at?: string | null
+          location_info?: Json | null
+          login_method?: string | null
+          session_token?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_sessions_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "trusted_devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "user_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -6056,54 +9988,120 @@ export type Database = {
       }
       users: {
         Row: {
+          account_locked_until: string | null
+          address: string | null
           auth_user_id: string | null
+          avatar_url: string | null
+          backup_codes: Json | null
+          bio: string | null
+          birth_date: string | null
+          city: string | null
+          country: string | null
           created_at: string | null
           email: string
+          failed_login_attempts: number | null
+          first_name: string | null
+          gender: string | null
+          google_account_linked: boolean | null
+          google_user_id: string | null
           id: string
           is_active: boolean
           is_org_admin: boolean | null
           is_super_admin: boolean | null
+          job_title: string | null
+          last_activity_at: string | null
+          last_name: string | null
+          last_password_change: string | null
           name: string
           organization_id: string | null
           permissions: Json | null
           phone: string | null
+          privacy_settings: Json | null
           role: string
+          security_notifications_enabled: boolean | null
+          status: string | null
+          two_factor_enabled: boolean | null
+          two_factor_secret: string | null
           updated_at: string | null
           whatsapp_connected: boolean | null
           whatsapp_enabled: boolean | null
           whatsapp_phone: string | null
         }
         Insert: {
+          account_locked_until?: string | null
+          address?: string | null
           auth_user_id?: string | null
+          avatar_url?: string | null
+          backup_codes?: Json | null
+          bio?: string | null
+          birth_date?: string | null
+          city?: string | null
+          country?: string | null
           created_at?: string | null
           email: string
+          failed_login_attempts?: number | null
+          first_name?: string | null
+          gender?: string | null
+          google_account_linked?: boolean | null
+          google_user_id?: string | null
           id?: string
           is_active?: boolean
           is_org_admin?: boolean | null
           is_super_admin?: boolean | null
+          job_title?: string | null
+          last_activity_at?: string | null
+          last_name?: string | null
+          last_password_change?: string | null
           name: string
           organization_id?: string | null
           permissions?: Json | null
           phone?: string | null
+          privacy_settings?: Json | null
           role: string
+          security_notifications_enabled?: boolean | null
+          status?: string | null
+          two_factor_enabled?: boolean | null
+          two_factor_secret?: string | null
           updated_at?: string | null
           whatsapp_connected?: boolean | null
           whatsapp_enabled?: boolean | null
           whatsapp_phone?: string | null
         }
         Update: {
+          account_locked_until?: string | null
+          address?: string | null
           auth_user_id?: string | null
+          avatar_url?: string | null
+          backup_codes?: Json | null
+          bio?: string | null
+          birth_date?: string | null
+          city?: string | null
+          country?: string | null
           created_at?: string | null
           email?: string
+          failed_login_attempts?: number | null
+          first_name?: string | null
+          gender?: string | null
+          google_account_linked?: boolean | null
+          google_user_id?: string | null
           id?: string
           is_active?: boolean
           is_org_admin?: boolean | null
           is_super_admin?: boolean | null
+          job_title?: string | null
+          last_activity_at?: string | null
+          last_name?: string | null
+          last_password_change?: string | null
           name?: string
           organization_id?: string | null
           permissions?: Json | null
           phone?: string | null
+          privacy_settings?: Json | null
           role?: string
+          security_notifications_enabled?: boolean | null
+          status?: string | null
+          two_factor_enabled?: boolean | null
+          two_factor_secret?: string | null
           updated_at?: string | null
           whatsapp_connected?: boolean | null
           whatsapp_enabled?: boolean | null
@@ -6114,6 +10112,13 @@ export type Database = {
             foreignKeyName: "fk_users_organization"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "fk_users_organization"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -6128,6 +10133,13 @@ export type Database = {
             foreignKeyName: "users_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "users_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -6137,6 +10149,84 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "shipping_data_view"
             referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      verification_codes: {
+        Row: {
+          attempts_count: number | null
+          code: string
+          code_type: string
+          created_at: string | null
+          expires_at: string
+          id: string
+          ip_address: unknown | null
+          is_used: boolean | null
+          max_attempts: number | null
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          attempts_count?: number | null
+          code: string
+          code_type: string
+          created_at?: string | null
+          expires_at: string
+          id?: string
+          ip_address?: unknown | null
+          is_used?: boolean | null
+          max_attempts?: number | null
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          attempts_count?: number | null
+          code?: string
+          code_type?: string
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          ip_address?: unknown | null
+          is_used?: boolean | null
+          max_attempts?: number | null
+          used_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "verification_codes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "verification_codes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "verification_codes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "verification_codes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "verification_codes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -6178,6 +10268,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "service_bookings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_messages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "whatsapp_messages_organization_id_fkey"
@@ -6228,6 +10325,13 @@ export type Database = {
             foreignKeyName: "whatsapp_templates_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "whatsapp_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -6269,6 +10373,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "wholesale_tiers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "wholesale_tiers_organization_id_fkey"
             columns: ["organization_id"]
@@ -6358,6 +10469,13 @@ export type Database = {
           wilaya_name?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "yalidine_centers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "yalidine_centers_organization_id_fkey"
             columns: ["organization_id"]
@@ -6510,6 +10628,13 @@ export type Database = {
             foreignKeyName: "yalidine_fees_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "yalidine_fees_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -6582,6 +10707,13 @@ export type Database = {
           wilaya_name?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "yalidine_municipalities_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "yalidine_municipalities_organization_id_fkey"
             columns: ["organization_id"]
@@ -6675,6 +10807,13 @@ export type Database = {
             foreignKeyName: "yalidine_provinces_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "yalidine_provinces_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -6753,6 +10892,13 @@ export type Database = {
           updated_at: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "abandoned_carts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "abandoned_carts_organization_id_fkey"
             columns: ["organization_id"]
@@ -6866,11 +11012,95 @@ export type Database = {
             foreignKeyName: "customer_testimonials_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "customer_testimonials_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "customer_testimonials_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "shipping_data_view"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      avatar_storage_stats: {
+        Row: {
+          avatar_count: number | null
+          email: string | null
+          last_upload: string | null
+          name: string | null
+          total_size_bytes: number | null
+          total_size_mb: number | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
+      conversion_settings_view: {
+        Row: {
+          organization_id: string | null
+          product_id: string | null
+          settings: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_marketing_settings_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: true
+            referencedRelation: "inventory_status"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_marketing_settings_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: true
+            referencedRelation: "organization_inventory_summary"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "product_marketing_settings_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: true
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_marketing_settings_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: true
+            referencedRelation: "products_to_reorder"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_marketing_settings_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: true
+            referencedRelation: "reports_product_profitability"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "products_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "products_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "shipping_data_view"
@@ -6895,6 +11125,34 @@ export type Database = {
           type: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "inventory_log_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "inventory_log_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_log_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_log_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "inventory_log_created_by_fkey"
             columns: ["created_by"]
@@ -7053,6 +11311,13 @@ export type Database = {
             foreignKeyName: "landing_pages_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "landing_pages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -7113,6 +11378,13 @@ export type Database = {
             foreignKeyName: "landing_pages_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "landing_pages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -7124,6 +11396,23 @@ export type Database = {
             referencedColumns: ["organization_id"]
           },
         ]
+      }
+      mv_organization_stats: {
+        Row: {
+          completed_orders: number | null
+          last_updated: string | null
+          low_stock_products: number | null
+          new_customers: number | null
+          organization_id: string | null
+          organization_name: string | null
+          pending_orders: number | null
+          total_customers: number | null
+          total_orders: number | null
+          total_products: number | null
+          total_revenue: number | null
+          total_services: number | null
+        }
+        Relationships: []
       }
       online_orders_view: {
         Row: {
@@ -7158,8 +11447,158 @@ export type Database = {
             foreignKeyName: "online_orders_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "online_orders_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "online_orders_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "online_orders_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "online_orders_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "online_orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "online_orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "online_orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "shipping_data_view"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "online_orders_shipping_address_id_fkey"
+            columns: ["shipping_address_id"]
+            isOneToOne: false
+            referencedRelation: "addresses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders_with_details_view: {
+        Row: {
+          call_confirmation_notes: string | null
+          call_confirmation_status_id: number | null
+          call_confirmation_updated_at: string | null
+          call_confirmation_updated_by: string | null
+          call_status_color: string | null
+          call_status_icon: string | null
+          call_status_name: string | null
+          created_at: string | null
+          created_from: string | null
+          customer_email: string | null
+          customer_id: string | null
+          customer_name: string | null
+          customer_order_number: number | null
+          customer_phone: string | null
+          discount: number | null
+          employee_id: string | null
+          form_data: Json | null
+          id: string | null
+          metadata: Json | null
+          notes: string | null
+          organization_id: string | null
+          payment_method: string | null
+          payment_status: string | null
+          shipping_address_id: string | null
+          shipping_city: string | null
+          shipping_cost: number | null
+          shipping_country: string | null
+          shipping_method: string | null
+          shipping_name: string | null
+          shipping_option: string | null
+          shipping_phone: string | null
+          shipping_state: string | null
+          shipping_street: string | null
+          slug: string | null
+          status: string | null
+          subtotal: number | null
+          tax: number | null
+          total: number | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "online_orders_call_confirmation_status_id_fkey"
+            columns: ["call_confirmation_status_id"]
+            isOneToOne: false
+            referencedRelation: "call_confirmation_statuses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "online_orders_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "online_orders_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "online_orders_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "online_orders_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "online_orders_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "online_orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "online_orders_organization_id_fkey"
@@ -7198,6 +11637,13 @@ export type Database = {
             foreignKeyName: "fk_users_organization"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "fk_users_organization"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -7206,6 +11652,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "shipping_data_view"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "users_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
             referencedColumns: ["organization_id"]
           },
           {
@@ -7243,6 +11696,13 @@ export type Database = {
             foreignKeyName: "fk_users_organization"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "fk_users_organization"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -7251,6 +11711,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "shipping_data_view"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "users_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
             referencedColumns: ["organization_id"]
           },
           {
@@ -7285,6 +11752,13 @@ export type Database = {
             foreignKeyName: "fk_users_organization"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "fk_users_organization"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -7293,6 +11767,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "shipping_data_view"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "users_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
             referencedColumns: ["organization_id"]
           },
           {
@@ -7332,6 +11813,13 @@ export type Database = {
             foreignKeyName: "supplier_purchases_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "supplier_purchases_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -7361,6 +11849,194 @@ export type Database = {
             columns: ["supplier_id"]
             isOneToOne: false
             referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      password_security_stats: {
+        Row: {
+          changes_last_30_days: number | null
+          email: string | null
+          failed_attempts_last_7_days: number | null
+          id: string | null
+          last_password_change: string | null
+          name: string | null
+          needs_password_change: boolean | null
+          role: string | null
+        }
+        Insert: {
+          changes_last_30_days?: never
+          email?: string | null
+          failed_attempts_last_7_days?: never
+          id?: string | null
+          last_password_change?: never
+          name?: string | null
+          needs_password_change?: never
+          role?: string | null
+        }
+        Update: {
+          changes_last_30_days?: never
+          email?: string | null
+          failed_attempts_last_7_days?: never
+          id?: string | null
+          last_password_change?: never
+          name?: string | null
+          needs_password_change?: never
+          role?: string | null
+        }
+        Relationships: []
+      }
+      pos_orders_with_items_count: {
+        Row: {
+          amount_paid: number | null
+          consider_remaining_as_partial: boolean | null
+          created_at: string | null
+          customer_id: string | null
+          customer_order_number: number | null
+          discount: number | null
+          employee_id: string | null
+          id: string | null
+          is_online: boolean | null
+          items_count: number | null
+          metadata: Json | null
+          notes: string | null
+          organization_id: string | null
+          payment_method: string | null
+          payment_status: string | null
+          remaining_amount: number | null
+          shipping_address_id: string | null
+          shipping_cost: number | null
+          shipping_method: string | null
+          slug: string | null
+          status: string | null
+          subtotal: number | null
+          tax: number | null
+          total: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          amount_paid?: number | null
+          consider_remaining_as_partial?: boolean | null
+          created_at?: string | null
+          customer_id?: string | null
+          customer_order_number?: number | null
+          discount?: number | null
+          employee_id?: string | null
+          id?: string | null
+          is_online?: boolean | null
+          items_count?: never
+          metadata?: Json | null
+          notes?: string | null
+          organization_id?: string | null
+          payment_method?: string | null
+          payment_status?: string | null
+          remaining_amount?: number | null
+          shipping_address_id?: string | null
+          shipping_cost?: number | null
+          shipping_method?: string | null
+          slug?: string | null
+          status?: string | null
+          subtotal?: number | null
+          tax?: number | null
+          total?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          amount_paid?: number | null
+          consider_remaining_as_partial?: boolean | null
+          created_at?: string | null
+          customer_id?: string | null
+          customer_order_number?: number | null
+          discount?: number | null
+          employee_id?: string | null
+          id?: string | null
+          is_online?: boolean | null
+          items_count?: never
+          metadata?: Json | null
+          notes?: string | null
+          organization_id?: string | null
+          payment_method?: string | null
+          payment_status?: string | null
+          remaining_amount?: number | null
+          shipping_address_id?: string | null
+          shipping_cost?: number | null
+          shipping_method?: string | null
+          slug?: string | null
+          status?: string | null
+          subtotal?: number | null
+          tax?: number | null
+          total?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "avatar_storage_stats"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "orders_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "password_security_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "safe_users_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "user_access_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "shipping_data_view"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "orders_shipping_address_id_fkey"
+            columns: ["shipping_address_id"]
+            isOneToOne: false
+            referencedRelation: "addresses"
             referencedColumns: ["id"]
           },
         ]
@@ -7423,6 +12099,13 @@ export type Database = {
             foreignKeyName: "orders_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -7445,6 +12128,13 @@ export type Database = {
           total_amount: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "expenses_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "expenses_organization_id_fkey"
             columns: ["organization_id"]
@@ -7473,6 +12163,13 @@ export type Database = {
           units_sold_last_30_days: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "products_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "products_organization_id_fkey"
             columns: ["organization_id"]
@@ -7520,6 +12217,13 @@ export type Database = {
             foreignKeyName: "products_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "products_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -7543,6 +12247,13 @@ export type Database = {
           units_sold: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "products_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "products_organization_id_fkey"
             columns: ["organization_id"]
@@ -7573,11 +12284,106 @@ export type Database = {
             foreignKeyName: "orders_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "shipping_data_view"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      safe_users_view: {
+        Row: {
+          auth_user_id: string | null
+          created_at: string | null
+          email: string | null
+          id: string | null
+          is_active: boolean | null
+          is_org_admin: boolean | null
+          is_super_admin: boolean | null
+          name: string | null
+          organization_id: string | null
+          phone: string | null
+          role: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          auth_user_id?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          is_org_admin?: boolean | null
+          is_super_admin?: boolean | null
+          name?: string | null
+          organization_id?: string | null
+          phone?: string | null
+          role?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          auth_user_id?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          is_org_admin?: boolean | null
+          is_super_admin?: boolean | null
+          name?: string | null
+          organization_id?: string | null
+          phone?: string | null
+          role?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_users_organization"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "fk_users_organization"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_users_organization"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "shipping_data_view"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "users_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "users_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "users_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "shipping_data_view"
@@ -7617,6 +12423,13 @@ export type Database = {
             foreignKeyName: "suppliers_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "suppliers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -7644,11 +12457,100 @@ export type Database = {
             foreignKeyName: "suppliers_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "suppliers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "suppliers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "shipping_data_view"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      user_access_view: {
+        Row: {
+          created_at: string | null
+          email: string | null
+          id: string | null
+          is_active: boolean | null
+          is_org_admin: boolean | null
+          name: string | null
+          organization_id: string | null
+          phone: string | null
+          role: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          is_org_admin?: boolean | null
+          name?: string | null
+          organization_id?: string | null
+          phone?: string | null
+          role?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          is_org_admin?: boolean | null
+          name?: string | null
+          organization_id?: string | null
+          phone?: string | null
+          role?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_users_organization"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "fk_users_organization"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_users_organization"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "shipping_data_view"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "users_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "users_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "users_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "shipping_data_view"
@@ -7671,6 +12573,13 @@ export type Database = {
           track_updates: boolean | null
         }
         Relationships: [
+          {
+            foreignKeyName: "shipping_provider_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "mv_organization_stats"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "shipping_provider_settings_organization_id_fkey"
             columns: ["organization_id"]
@@ -7741,6 +12650,10 @@ export type Database = {
           p_product_image?: string
         }
         Returns: string
+      }
+      add_default_call_confirmation_statuses: {
+        Args: { p_organization_id: string }
+        Returns: undefined
       }
       add_digital_currency: {
         Args: {
@@ -7849,6 +12762,14 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      auto_save_component_settings: {
+        Args: {
+          p_organization_id: string
+          p_component_type: string
+          p_settings: Json
+        }
+        Returns: Json
+      }
       batch_upsert_yalidine_fees: {
         Args: { p_data: Json }
         Returns: number
@@ -7861,12 +12782,28 @@ export type Database = {
         Args: { p_order_ids: string[]; p_status: string; p_user_id: string }
         Returns: number
       }
+      bulk_update_orders_status: {
+        Args: {
+          p_order_ids: string[]
+          p_status: string
+          p_organization_id: string
+          p_user_id?: string
+        }
+        Returns: {
+          updated_count: number
+          success: boolean
+        }[]
+      }
       calculate_conversion_rates: {
         Args: { org_id: string; time_range?: unknown }
         Returns: {
           recovery_rate: number
           conversion_rate: number
         }[]
+      }
+      calculate_employee_performance_score: {
+        Args: { p_employee_id: string; p_organization_id: string }
+        Returns: number
       }
       calculate_order_financial_impact: {
         Args: { p_order_id: string }
@@ -7919,8 +12856,24 @@ export type Database = {
         }
         Returns: number
       }
+      calculate_zrexpress_shipping: {
+        Args: {
+          p_organization_id: string
+          p_wilaya_id: string
+          p_is_home_delivery?: boolean
+        }
+        Returns: Database["public"]["CompositeTypes"]["shipping_calculation_result"]
+      }
       can_add_product: {
         Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      can_create_product: {
+        Args: { target_org_id: string }
+        Returns: boolean
+      }
+      can_create_product_simple: {
+        Args: { target_org_id: string }
         Returns: boolean
       }
       can_delete_product: {
@@ -7930,6 +12883,16 @@ export type Database = {
       can_edit_product: {
         Args: { product_id: string }
         Returns: boolean
+      }
+      cancel_pos_order: {
+        Args: {
+          p_order_id: string
+          p_items_to_cancel?: string[]
+          p_cancellation_reason?: string
+          p_restore_inventory?: boolean
+          p_cancelled_by?: string
+        }
+        Returns: Json
       }
       check_all_wholesale_products: {
         Args: Record<PropertyKey, never>
@@ -7948,6 +12911,10 @@ export type Database = {
         Args: { p_domain: string; p_organization_id?: string }
         Returns: Json
       }
+      check_failed_login_attempts: {
+        Args: { p_user_id: string }
+        Returns: boolean
+      }
       check_function_exists: {
         Args: { function_name: string }
         Returns: boolean
@@ -7959,6 +12926,37 @@ export type Database = {
           column_name: string
           does_exist: boolean
           foreign_key_constraint: string
+        }[]
+      }
+      check_password_change_rate_limit: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      check_password_strength: {
+        Args: { password: string }
+        Returns: Json
+      }
+      check_product_delete_permission: {
+        Args: { p_product_id: string; p_user_id: string }
+        Returns: Json
+      }
+      check_product_permissions: {
+        Args:
+          | { action_type: string; target_org_id?: string }
+          | { target_org_id: string }
+        Returns: boolean
+      }
+      check_product_permissions_simple: {
+        Args: { target_org_id: string }
+        Returns: boolean
+      }
+      check_products_security_status: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          policy_name: string
+          policy_type: string
+          is_enabled: boolean
+          description: string
         }[]
       }
       check_recurring_expenses: {
@@ -7973,9 +12971,36 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: Json
       }
+      check_unsaved_changes: {
+        Args: {
+          p_organization_id: string
+          p_component_type: string
+          p_current_settings: Json
+        }
+        Returns: Json
+      }
       check_user_organization_access: {
         Args: { p_user_id: string; p_organization_id: string }
         Returns: boolean
+      }
+      check_user_organization_permissions: {
+        Args: { user_id: string; org_id: string }
+        Returns: boolean
+      }
+      check_user_permissions: {
+        Args: { target_org_id?: string }
+        Returns: boolean
+      }
+      check_user_requires_2fa: {
+        Args:
+          | { p_user_email: string }
+          | {
+              p_user_email: string
+              p_organization_id?: string
+              p_domain?: string
+              p_subdomain?: string
+            }
+        Returns: Json
       }
       check_yalidine_fees_health: {
         Args: Record<PropertyKey, never> | { p_organization_id?: string }
@@ -8001,7 +13026,23 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      cleanup_expired_sessions: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      cleanup_expired_trusted_devices: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      cleanup_expired_verification_codes: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
       cleanup_old_abandoned_carts: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      cleanup_stats_refresh_log: {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
@@ -8073,6 +13114,25 @@ export type Database = {
           used_at: string | null
         }[]
       }
+      create_custom_page: {
+        Args: {
+          p_organization_id: string
+          p_title: string
+          p_slug: string
+          p_content: string
+          p_meta_description?: string
+        }
+        Returns: {
+          id: string
+          title: string
+          slug: string
+          content: string
+          meta_description: string
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }[]
+      }
       create_default_form_for_organization: {
         Args: { p_organization_id: string }
         Returns: string
@@ -8103,18 +13163,40 @@ export type Database = {
           employee_permissions?: Json
         }
         Returns: {
+          account_locked_until: string | null
+          address: string | null
           auth_user_id: string | null
+          avatar_url: string | null
+          backup_codes: Json | null
+          bio: string | null
+          birth_date: string | null
+          city: string | null
+          country: string | null
           created_at: string | null
           email: string
+          failed_login_attempts: number | null
+          first_name: string | null
+          gender: string | null
+          google_account_linked: boolean | null
+          google_user_id: string | null
           id: string
           is_active: boolean
           is_org_admin: boolean | null
           is_super_admin: boolean | null
+          job_title: string | null
+          last_activity_at: string | null
+          last_name: string | null
+          last_password_change: string | null
           name: string
           organization_id: string | null
           permissions: Json | null
           phone: string | null
+          privacy_settings: Json | null
           role: string
+          security_notifications_enabled: boolean | null
+          status: string | null
+          two_factor_enabled: boolean | null
+          two_factor_secret: string | null
           updated_at: string | null
           whatsapp_connected: boolean | null
           whatsapp_enabled: boolean | null
@@ -8191,6 +13273,72 @@ export type Database = {
         Args: { org_data: Json; user_id: string }
         Returns: string
       }
+      create_pos_order: {
+        Args:
+          | {
+              p_organization_id: string
+              p_customer_id: string
+              p_employee_id: string
+              p_items: Json
+              p_total_amount: number
+              p_payment_method?: string
+              p_payment_status?: string
+              p_notes?: string
+            }
+          | {
+              p_organization_id: string
+              p_customer_id: string
+              p_employee_id: string
+              p_items: Json
+              p_total_amount: number
+              p_payment_method?: string
+              p_payment_status?: string
+              p_notes?: string
+            }
+        Returns: {
+          admin_notes: string | null
+          amount_paid: number | null
+          completed_at: string | null
+          consider_remaining_as_partial: boolean | null
+          created_at: string | null
+          customer_id: string | null
+          customer_notes: string | null
+          customer_order_number: number | null
+          discount: number | null
+          employee_id: string | null
+          id: string
+          is_online: boolean
+          metadata: Json | null
+          notes: string | null
+          organization_id: string
+          payment_method: string
+          payment_status: string
+          pos_order_type: string | null
+          remaining_amount: number | null
+          shipping_address_id: string | null
+          shipping_cost: number | null
+          shipping_method: string | null
+          slug: string | null
+          status: string
+          subtotal: number
+          tax: number
+          total: number
+          updated_at: string | null
+        }
+      }
+      create_pos_order_safe: {
+        Args: {
+          p_organization_id: string
+          p_customer_id: string
+          p_items: Json
+          p_total_amount: number
+          p_employee_id?: string
+          p_payment_method?: string
+          p_payment_status?: string
+          p_notes?: string
+        }
+        Returns: Json
+      }
       create_product_color: {
         Args: {
           product_id: string
@@ -8209,6 +13357,25 @@ export type Database = {
       }
       create_product_safe: {
         Args: { product_data: Json }
+        Returns: Json
+      }
+      create_product_safely: {
+        Args: { product_data: Json }
+        Returns: string
+      }
+      create_product_size: {
+        Args: {
+          color_id: string
+          size_name: string
+          quantity: number
+          price?: number
+          barcode?: string
+          is_default?: boolean
+        }
+        Returns: string
+      }
+      create_product_with_user_context: {
+        Args: { product_data: Json; user_id_param: string }
         Returns: {
           allow_partial_wholesale: boolean | null
           allow_retail: boolean | null
@@ -8269,16 +13436,28 @@ export type Database = {
           use_sizes: boolean | null
           use_variant_prices: boolean | null
           wholesale_price: number | null
-        }[]
+        }
       }
-      create_product_size: {
+      create_sample_distribution_data: {
+        Args: { p_organization_id: string }
+        Returns: string
+      }
+      create_simple_device: {
         Args: {
-          color_id: string
-          size_name: string
-          quantity: number
-          price?: number
-          barcode?: string
-          is_default?: boolean
+          p_user_id: string
+          p_device_info?: Json
+          p_device_fingerprint?: string
+          p_ip_address?: string
+        }
+        Returns: string
+      }
+      create_simple_session: {
+        Args: {
+          p_user_id: string
+          p_session_token: string
+          p_device_info?: Json
+          p_ip_address?: string
+          p_user_agent?: string
         }
         Returns: string
       }
@@ -8322,12 +13501,66 @@ export type Database = {
         }
         Returns: undefined
       }
+      create_user_session: {
+        Args:
+          | {
+              p_user_id: string
+              p_session_token: string
+              p_ip_address?: unknown
+              p_user_agent?: string
+              p_device_info?: Json
+            }
+          | {
+              p_user_id: string
+              p_session_token: string
+              p_ip_address?: unknown
+              p_user_agent?: string
+              p_device_info?: Json
+              p_login_method?: string
+            }
+        Returns: string
+      }
+      create_user_session_v2: {
+        Args: {
+          p_user_id: string
+          p_session_token: string
+          p_ip_address: string
+          p_user_agent: string
+          p_device_info?: Json
+          p_login_method?: string
+        }
+        Returns: string
+      }
+      debug_auth_info: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      debug_user_permissions: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          current_user_id: string
+          user_exists: boolean
+          organization_id: string
+          is_active: boolean
+          is_org_admin: boolean
+          is_super_admin: boolean
+          permissions: Json
+        }[]
+      }
       delete_all_yalidine_fees: {
         Args: Record<PropertyKey, never>
         Returns: number
       }
+      delete_component_settings: {
+        Args: { p_organization_id: string; p_component_type: string }
+        Returns: boolean
+      }
       delete_currency_balance: {
         Args: { p_balance_id: string }
+        Returns: boolean
+      }
+      delete_custom_page: {
+        Args: { p_page_id: string }
         Returns: boolean
       }
       delete_customer_testimonial: {
@@ -8395,6 +13628,22 @@ export type Database = {
           fk_constraint: string
         }[]
       }
+      disable_two_factor_auth: {
+        Args: { p_user_id: string; p_verification_code: string }
+        Returns: Json
+      }
+      distribute_order: {
+        Args: { p_order_id: string; p_organization_id?: string }
+        Returns: string
+      }
+      enable_two_factor_auth: {
+        Args: { p_user_id: string; p_verification_code: string }
+        Returns: Json
+      }
+      end_user_session: {
+        Args: { p_session_id: string; p_user_id?: string }
+        Returns: boolean
+      }
       exec_sql: {
         Args: { sql_query: string }
         Returns: undefined
@@ -8458,6 +13707,13 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      fix_user_auth_links: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          fixed_count: number
+          error_message: string
+        }[]
+      }
       fix_wholesale_settings: {
         Args: {
           p_product_id: string
@@ -8495,6 +13751,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      generate_backup_codes: {
+        Args: Record<PropertyKey, never>
+        Returns: string[]
+      }
       generate_beforeafter_image_path: {
         Args: {
           p_organization_id: string
@@ -8515,6 +13775,14 @@ export type Database = {
       }
       generate_sitemap: {
         Args: { _organization_id: string }
+        Returns: string
+      }
+      generate_totp_qr_url: {
+        Args: { p_user_email: string; p_secret: string; p_issuer: string }
+        Returns: string
+      }
+      generate_totp_secret: {
+        Args: Record<PropertyKey, never>
         Returns: string
       }
       generate_unique_sku: {
@@ -8603,18 +13871,40 @@ export type Database = {
       get_all_employees: {
         Args: Record<PropertyKey, never>
         Returns: {
+          account_locked_until: string | null
+          address: string | null
           auth_user_id: string | null
+          avatar_url: string | null
+          backup_codes: Json | null
+          bio: string | null
+          birth_date: string | null
+          city: string | null
+          country: string | null
           created_at: string | null
           email: string
+          failed_login_attempts: number | null
+          first_name: string | null
+          gender: string | null
+          google_account_linked: boolean | null
+          google_user_id: string | null
           id: string
           is_active: boolean
           is_org_admin: boolean | null
           is_super_admin: boolean | null
+          job_title: string | null
+          last_activity_at: string | null
+          last_name: string | null
+          last_password_change: string | null
           name: string
           organization_id: string | null
           permissions: Json | null
           phone: string | null
+          privacy_settings: Json | null
           role: string
+          security_notifications_enabled: boolean | null
+          status: string | null
+          two_factor_enabled: boolean | null
+          two_factor_secret: string | null
           updated_at: string | null
           whatsapp_connected: boolean | null
           whatsapp_enabled: boolean | null
@@ -8646,6 +13936,22 @@ export type Database = {
           updated_at: string
           organization_id: string
         }[]
+      }
+      get_all_store_settings: {
+        Args: { p_organization_id: string }
+        Returns: {
+          id: string
+          component_type: string
+          settings: Json
+          is_active: boolean
+          order_index: number
+          created_at: string
+          updated_at: string
+        }[]
+      }
+      get_available_employee: {
+        Args: { p_organization_id: string; p_selected_employees: string[] }
+        Returns: string
       }
       get_available_shipping_providers: {
         Args: { org_id: string }
@@ -8686,6 +13992,10 @@ export type Database = {
           thumbnail_after: string
         }[]
       }
+      get_best_employee_smart: {
+        Args: { p_organization_id: string; p_selected_employees: string[] }
+        Returns: string
+      }
       get_call_confirmation_stats: {
         Args: { org_id: string }
         Returns: {
@@ -8700,6 +14010,21 @@ export type Database = {
       }
       get_complete_product_data: {
         Args: { p_slug: string; p_org_id: string }
+        Returns: Json
+      }
+      get_component_settings: {
+        Args: { p_organization_id: string; p_component_type: string }
+        Returns: {
+          id: string
+          settings: Json
+          is_active: boolean
+          order_index: number
+          created_at: string
+          updated_at: string
+        }[]
+      }
+      get_conversion_settings_cached: {
+        Args: { p_product_id: string }
         Returns: Json
       }
       get_currency_balance: {
@@ -8724,9 +14049,72 @@ export type Database = {
           latest_transaction: string
         }[]
       }
+      get_current_user: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          account_locked_until: string | null
+          address: string | null
+          auth_user_id: string | null
+          avatar_url: string | null
+          backup_codes: Json | null
+          bio: string | null
+          birth_date: string | null
+          city: string | null
+          country: string | null
+          created_at: string | null
+          email: string
+          failed_login_attempts: number | null
+          first_name: string | null
+          gender: string | null
+          google_account_linked: boolean | null
+          google_user_id: string | null
+          id: string
+          is_active: boolean
+          is_org_admin: boolean | null
+          is_super_admin: boolean | null
+          job_title: string | null
+          last_activity_at: string | null
+          last_name: string | null
+          last_password_change: string | null
+          name: string
+          organization_id: string | null
+          permissions: Json | null
+          phone: string | null
+          privacy_settings: Json | null
+          role: string
+          security_notifications_enabled: boolean | null
+          status: string | null
+          two_factor_enabled: boolean | null
+          two_factor_secret: string | null
+          updated_at: string | null
+          whatsapp_connected: boolean | null
+          whatsapp_enabled: boolean | null
+          whatsapp_phone: string | null
+        }
+      }
+      get_current_user_for_products: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          auth_user_id: string
+          user_organization_id: string
+          user_role: string
+          user_is_org_admin: boolean
+          user_is_super_admin: boolean
+        }[]
+      }
       get_current_user_id: {
         Args: Record<PropertyKey, never>
         Returns: string
+      }
+      get_current_user_info: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          user_id: string
+          user_organization_id: string
+          user_role: string
+          is_org_admin: boolean
+          is_super_admin: boolean
+        }[]
       }
       get_current_user_org_info: {
         Args: Record<PropertyKey, never>
@@ -8738,6 +14126,41 @@ export type Database = {
       get_current_user_organization: {
         Args: Record<PropertyKey, never>
         Returns: string
+      }
+      get_current_user_safe: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          user_id: string
+          org_id: string
+          is_admin: boolean
+          user_role: string
+        }[]
+      }
+      get_custom_page_by_slug: {
+        Args: { p_organization_id: string; p_slug: string }
+        Returns: {
+          id: string
+          title: string
+          slug: string
+          content: string
+          meta_description: string
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }[]
+      }
+      get_custom_pages_by_organization: {
+        Args: { org_id: string }
+        Returns: {
+          id: string
+          title: string
+          slug: string
+          content: string
+          meta_description: string
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }[]
       }
       get_customer_debts: {
         Args: { p_organization_id: string }
@@ -8753,6 +14176,34 @@ export type Database = {
           employee_id: string
           employee_name: string
         }[]
+      }
+      get_customers_with_stats: {
+        Args: {
+          p_organization_id: string
+          p_limit?: number
+          p_offset?: number
+          p_search?: string
+        }
+        Returns: {
+          customer: Json
+          stats: Json
+          total_count: number
+        }[]
+      }
+      get_daily_pos_summary: {
+        Args: { p_organization_id: string; p_date?: string }
+        Returns: {
+          orders_count: number
+          total_revenue: number
+          cash_sales: number
+          card_sales: number
+          completed_orders: number
+          pending_orders: number
+        }[]
+      }
+      get_dashboard_data: {
+        Args: { p_organization_id: string }
+        Returns: Json
       }
       get_debts_by_customer: {
         Args: { p_organization_id: string }
@@ -8858,7 +14309,7 @@ export type Database = {
               p_admin_id?: string
             }
         Returns: {
-          category_name: string
+          category: string
           total_amount: number
         }[]
       }
@@ -8874,6 +14325,14 @@ export type Database = {
           total_amount: number
           percentage_of_total: number
         }[]
+      }
+      get_expert_employee: {
+        Args: {
+          p_organization_id: string
+          p_product_ids: string[]
+          p_employee_products: Json
+        }
+        Returns: string
       }
       get_featured_products: {
         Args: { p_organization_id: string }
@@ -9064,6 +14523,14 @@ export type Database = {
           components: Json
         }[]
       }
+      get_last_password_change: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      get_next_employee_round_robin: {
+        Args: { p_organization_id: string; p_selected_employees: string[] }
+        Returns: string
+      }
       get_order_stats: {
         Args: { org_id: string }
         Returns: {
@@ -9080,6 +14547,14 @@ export type Database = {
           count: number
         }[]
       }
+      get_orders_shared_data: {
+        Args: { p_organization_id: string }
+        Returns: {
+          call_confirmation_statuses: Json
+          provinces: Json
+          municipalities: Json
+        }[]
+      }
       get_orders_stats: {
         Args: {
           p_organization_id: string
@@ -9089,6 +14564,59 @@ export type Database = {
         Returns: {
           total_orders: number
           avg_order_value: number
+        }[]
+      }
+      get_orders_stats_optimized: {
+        Args: { p_organization_id: string }
+        Returns: {
+          order_counts: Json
+          order_stats: Json
+        }[]
+      }
+      get_orders_with_details: {
+        Args: {
+          p_organization_id: string
+          p_limit?: number
+          p_offset?: number
+          p_status?: string
+          p_search_term?: string
+          p_date_from?: string
+          p_date_to?: string
+        }
+        Returns: {
+          order_id: string
+          customer_id: string
+          subtotal: number
+          tax: number
+          discount: number
+          total: number
+          status: string
+          payment_method: string
+          payment_status: string
+          shipping_address_id: string
+          shipping_method: string
+          shipping_cost: number
+          shipping_option: string
+          notes: string
+          employee_id: string
+          created_at: string
+          updated_at: string
+          organization_id: string
+          slug: string
+          customer_order_number: number
+          created_from: string
+          call_confirmation_status_id: number
+          call_confirmation_notes: string
+          call_confirmation_updated_at: string
+          call_confirmation_updated_by: string
+          form_data: Json
+          metadata: Json
+          customer_name: string
+          customer_email: string
+          customer_phone: string
+          shipping_address: Json
+          call_confirmation_status: Json
+          order_items: Json
         }[]
       }
       get_org_landing_page_forms: {
@@ -9109,9 +14637,56 @@ export type Database = {
           advanced_settings: Json
         }[]
       }
+      get_org_users: {
+        Args: { org_uuid: string }
+        Returns: {
+          account_locked_until: string | null
+          address: string | null
+          auth_user_id: string | null
+          avatar_url: string | null
+          backup_codes: Json | null
+          bio: string | null
+          birth_date: string | null
+          city: string | null
+          country: string | null
+          created_at: string | null
+          email: string
+          failed_login_attempts: number | null
+          first_name: string | null
+          gender: string | null
+          google_account_linked: boolean | null
+          google_user_id: string | null
+          id: string
+          is_active: boolean
+          is_org_admin: boolean | null
+          is_super_admin: boolean | null
+          job_title: string | null
+          last_activity_at: string | null
+          last_name: string | null
+          last_password_change: string | null
+          name: string
+          organization_id: string | null
+          permissions: Json | null
+          phone: string | null
+          privacy_settings: Json | null
+          role: string
+          security_notifications_enabled: boolean | null
+          status: string | null
+          two_factor_enabled: boolean | null
+          two_factor_secret: string | null
+          updated_at: string | null
+          whatsapp_connected: boolean | null
+          whatsapp_enabled: boolean | null
+          whatsapp_phone: string | null
+        }[]
+      }
       get_organization_branding: {
         Args: { org_id: string }
         Returns: Json
+      }
+      get_organization_by_domain: {
+        Args: { p_domain?: string; p_subdomain?: string }
+        Returns: string
       }
       get_organization_id_from_url: {
         Args: Record<PropertyKey, never>
@@ -9181,13 +14756,49 @@ export type Database = {
       }
       get_organization_theme: {
         Args: { p_organization_id: string }
+        Returns: Json[]
+      }
+      get_organization_users: {
+        Args: { org_id: string }
         Returns: {
-          theme_primary_color: string
-          theme_secondary_color: string
-          theme_mode: string
-          site_name: string
-          logo_url: string
-          favicon_url: string
+          account_locked_until: string | null
+          address: string | null
+          auth_user_id: string | null
+          avatar_url: string | null
+          backup_codes: Json | null
+          bio: string | null
+          birth_date: string | null
+          city: string | null
+          country: string | null
+          created_at: string | null
+          email: string
+          failed_login_attempts: number | null
+          first_name: string | null
+          gender: string | null
+          google_account_linked: boolean | null
+          google_user_id: string | null
+          id: string
+          is_active: boolean
+          is_org_admin: boolean | null
+          is_super_admin: boolean | null
+          job_title: string | null
+          last_activity_at: string | null
+          last_name: string | null
+          last_password_change: string | null
+          name: string
+          organization_id: string | null
+          permissions: Json | null
+          phone: string | null
+          privacy_settings: Json | null
+          role: string
+          security_notifications_enabled: boolean | null
+          status: string | null
+          two_factor_enabled: boolean | null
+          two_factor_secret: string | null
+          updated_at: string | null
+          whatsapp_connected: boolean | null
+          whatsapp_enabled: boolean | null
+          whatsapp_phone: string | null
         }[]
       }
       get_overdue_purchases: {
@@ -9209,11 +14820,82 @@ export type Database = {
           total_partial_payments: number
         }[]
       }
+      get_password_change_stats: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      get_pos_order_stats: {
+        Args: { p_organization_id: string }
+        Returns: {
+          total_orders: number
+          total_revenue: number
+          completed_orders: number
+          pending_orders: number
+          pending_payment_orders: number
+          cancelled_orders: number
+          cash_orders: number
+          card_orders: number
+          avg_order_value: number
+          today_orders: number
+          today_revenue: number
+        }[]
+      }
+      get_pos_settings: {
+        Args: { p_organization_id: string }
+        Returns: {
+          id: string
+          organization_id: string
+          store_name: string
+          store_phone: string
+          store_email: string
+          store_address: string
+          store_website: string
+          store_logo_url: string
+          receipt_header_text: string
+          receipt_footer_text: string
+          welcome_message: string
+          show_qr_code: boolean
+          show_tracking_code: boolean
+          show_customer_info: boolean
+          show_store_logo: boolean
+          show_store_info: boolean
+          show_date_time: boolean
+          show_employee_name: boolean
+          paper_width: number
+          font_size: number
+          line_spacing: number
+          print_density: string
+          auto_cut: boolean
+          primary_color: string
+          secondary_color: string
+          text_color: string
+          background_color: string
+          receipt_template: string
+          header_style: string
+          footer_style: string
+          item_display_style: string
+          price_position: string
+          custom_css: string
+          tax_label: string
+          currency_symbol: string
+          currency_position: string
+          allow_price_edit: boolean
+          require_manager_approval: boolean
+          business_license: string
+          tax_number: string
+          created_at: string
+          updated_at: string
+        }[]
+      }
       get_primary_keys: {
         Args: { p_table_name: string }
         Returns: {
           column_name: string
         }[]
+      }
+      get_priority_employee: {
+        Args: { p_organization_id: string; p_selected_employees: string[] }
+        Returns: string
       }
       get_product_colors: {
         Args: { product_id: string }
@@ -9233,6 +14915,10 @@ export type Database = {
           updated_at: string
           variant_number: number | null
         }[]
+      }
+      get_product_conversion_settings: {
+        Args: { p_product_id: string }
+        Returns: Json
       }
       get_product_counts_by_category: {
         Args: { org_id: string }
@@ -9340,6 +15026,21 @@ export type Database = {
           updated_at: string
         }[]
       }
+      get_products_for_barcode_printing: {
+        Args: { p_organization_id?: string }
+        Returns: {
+          product_id: string
+          product_name: string
+          product_price: number
+          product_sku: string
+          product_barcode: string
+          stock_quantity: number
+          product_slug: string
+          organization_name: string
+          organization_domain: string
+          organization_subdomain: string
+        }[]
+      }
       get_products_to_reorder: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -9354,8 +15055,26 @@ export type Database = {
         }[]
       }
       get_products_with_categories: {
-        Args: { org_id: string; active_only?: boolean }
-        Returns: Json
+        Args:
+          | { org_id: string; active_only?: boolean }
+          | {
+              p_organization_id: string
+              p_limit?: number
+              p_offset?: number
+              p_search?: string
+              p_category_id?: string
+              p_is_active?: boolean
+            }
+        Returns: {
+          product: Json
+          category: Json
+          subcategory: Json
+          total_count: number
+        }[]
+      }
+      get_public_domains: {
+        Args: Record<PropertyKey, never>
+        Returns: string[]
       }
       get_public_product_subcategories: {
         Args: { p_organization_id: string }
@@ -9450,6 +15169,25 @@ export type Database = {
           error_message: string
         }[]
       }
+      get_repair_locations: {
+        Args: { p_organization_id: string }
+        Returns: {
+          id: string
+          name: string
+          description: string
+          address: string
+          phone: string
+          email: string
+          is_active: boolean
+          is_default: boolean
+          capacity: number
+          working_hours: Json
+          specialties: string[]
+          manager_name: string
+          created_at: string
+          updated_at: string
+        }[]
+      }
       get_sales_by_channel: {
         Args: {
           p_organization_id: string
@@ -9534,6 +15272,10 @@ export type Database = {
       }
       get_shipping_provinces: {
         Args: { p_org_id: string }
+        Returns: Json
+      }
+      get_simple_conversion_settings: {
+        Args: { p_product_id: string }
         Returns: Json
       }
       get_store_about_component: {
@@ -9707,6 +15449,116 @@ export type Database = {
           total_expenses: number
         }[]
       }
+      get_user_active_sessions: {
+        Args: { p_user_id: string }
+        Returns: {
+          id: string
+          user_id: string
+          session_token: string
+          device_info: Json
+          ip_address: unknown
+          user_agent: string
+          location_info: Json
+          is_active: boolean
+          last_activity_at: string
+          expires_at: string
+          login_method: string
+          is_trusted_device: boolean
+          created_at: string
+          device_id: string
+        }[]
+      }
+      get_user_privacy_settings: {
+        Args: { p_user_id: string }
+        Returns: {
+          id: string
+          user_id: string
+          profile_visibility: string
+          show_email: boolean
+          show_phone: boolean
+          show_last_activity: boolean
+          allow_data_collection: boolean
+          allow_analytics: boolean
+          allow_marketing_emails: boolean
+          allow_contact_from_others: boolean
+          allow_friend_requests: boolean
+          created_at: string
+          updated_at: string
+        }[]
+      }
+      get_user_profile: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          id: string
+          email: string
+          name: string
+          first_name: string
+          last_name: string
+          phone: string
+          avatar_url: string
+          job_title: string
+          bio: string
+          birth_date: string
+          gender: string
+          address: string
+          city: string
+          country: string
+          role: string
+          is_org_admin: boolean
+          is_super_admin: boolean
+          status: string
+          last_activity_at: string
+          created_at: string
+          updated_at: string
+          whatsapp_phone: string
+          whatsapp_connected: boolean
+          whatsapp_enabled: boolean
+          organization_id: string
+        }[]
+      }
+      get_user_security_settings: {
+        Args: { p_user_id: string }
+        Returns: {
+          id: string
+          user_id: string
+          two_factor_enabled: boolean
+          two_factor_method: string
+          totp_secret: string
+          backup_codes: string[]
+          backup_codes_generated_at: string
+          backup_codes_used: Json
+          max_active_sessions: number
+          session_timeout_minutes: number
+          require_reauth_for_sensitive: boolean
+          password_expiry_days: number
+          require_strong_password: boolean
+          prevent_password_reuse: number
+          login_notification_enabled: boolean
+          suspicious_activity_alerts: boolean
+          device_tracking_enabled: boolean
+          created_at: string
+          updated_at: string
+        }[]
+      }
+      get_user_trusted_devices: {
+        Args: { p_user_id: string }
+        Returns: {
+          id: string
+          user_id: string
+          device_fingerprint: string
+          device_name: string
+          device_type: string
+          browser_info: Json
+          is_trusted: boolean
+          trust_level: number
+          last_used_at: string
+          first_seen_ip: unknown
+          last_seen_ip: unknown
+          usage_count: number
+          created_at: string
+          expires_at: string
+        }[]
+      }
       get_yalidine_fees_stats: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -9778,13 +15630,38 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      initialize_default_repair_location: {
+        Args: { p_organization_id: string }
+        Returns: boolean
+      }
+      initialize_distribution_settings: {
+        Args: { p_organization_id: string }
+        Returns: string
+      }
       initialize_missing_flexi_balances: {
         Args: Record<PropertyKey, never>
         Returns: number
       }
+      initialize_pos_settings: {
+        Args: { p_organization_id: string }
+        Returns: boolean
+      }
       initialize_store_settings: {
         Args: { p_organization_id: string }
         Returns: boolean
+      }
+      insert_call_confirmation_statuses_secure: {
+        Args: { organization_id: string; user_id?: string }
+        Returns: {
+          color: string
+          created_at: string
+          icon: string | null
+          id: number
+          is_default: boolean | null
+          name: string
+          organization_id: string
+          updated_at: string
+        }[]
       }
       insert_order_items_safe: {
         Args: { items_json: Json }
@@ -9825,6 +15702,18 @@ export type Database = {
       }
       is_organization_admin: {
         Args: { p_user_id: string; p_organization_id: string }
+        Returns: boolean
+      }
+      is_public_domain: {
+        Args: { p_domain: string }
+        Returns: boolean
+      }
+      is_valid_organization: {
+        Args: { org_id: string }
+        Returns: boolean
+      }
+      is_valid_product_data: {
+        Args: { org_id: string; cat_id: string; prod_name: string }
         Returns: boolean
       }
       ivfflat_bit_support: {
@@ -9869,6 +15758,18 @@ export type Database = {
         }
         Returns: undefined
       }
+      log_conversion_event: {
+        Args: {
+          p_product_id: string
+          p_order_id: string
+          p_event_type: string
+          p_platform: string
+          p_user_data?: Json
+          p_custom_data?: Json
+          p_event_id?: string
+        }
+        Returns: string
+      }
       log_dashboard_access: {
         Args: { p_user_id: string; p_organization_id: string; p_details?: Json }
         Returns: undefined
@@ -9882,6 +15783,38 @@ export type Database = {
           p_error?: string
         }
         Returns: undefined
+      }
+      log_password_change: {
+        Args: {
+          success_status?: boolean
+          failure_reason_text?: string
+          client_ip?: unknown
+          client_user_agent?: string
+        }
+        Returns: undefined
+      }
+      log_product_deletion_attempt: {
+        Args: {
+          p_product_id: string
+          p_user_id: string
+          p_status: string
+          p_error_message?: string
+          p_error_code?: string
+        }
+        Returns: undefined
+      }
+      log_security_activity: {
+        Args: {
+          p_user_id: string
+          p_activity_type: string
+          p_description: string
+          p_status?: string
+          p_risk_level?: string
+          p_ip_address?: unknown
+          p_user_agent?: string
+          p_metadata?: Json
+        }
+        Returns: string
       }
       manage_currency_balance: {
         Args: {
@@ -10121,7 +16054,7 @@ export type Database = {
         Args:
           | { p_table_name: string; p_limit?: number }
           | { query_text: string }
-        Returns: Record<string, unknown>[]
+        Returns: Json[]
       }
       record_debt_payment: {
         Args: {
@@ -10130,6 +16063,10 @@ export type Database = {
           p_is_full_payment?: boolean
         }
         Returns: string
+      }
+      record_failed_login: {
+        Args: { p_user_id: string }
+        Returns: undefined
       }
       record_payment_transaction: {
         Args:
@@ -10160,9 +16097,33 @@ export type Database = {
         Args: { cart_id: string; operator_id: string }
         Returns: string
       }
+      refresh_organization_stats: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      refresh_stats_with_logging: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      regenerate_backup_codes: {
+        Args: { p_user_id: string }
+        Returns: Json
+      }
       repair_inventory_inconsistencies: {
         Args: Record<PropertyKey, never>
         Returns: undefined
+      }
+      reset_failed_login_attempts: {
+        Args: { p_user_id: string }
+        Returns: undefined
+      }
+      reset_password_change_attempts: {
+        Args: { target_user_id: string }
+        Returns: boolean
+      }
+      reset_two_factor_auth: {
+        Args: { p_user_id: string }
+        Returns: Json
       }
       revoke_activation_code: {
         Args: {
@@ -10171,6 +16132,10 @@ export type Database = {
           p_notes?: string
         }
         Returns: boolean
+      }
+      safe_delete_product: {
+        Args: { p_product_id: string; p_user_id?: string }
+        Returns: Json
       }
       safe_insert_order_item: {
         Args: {
@@ -10187,6 +16152,29 @@ export type Database = {
           _original_price?: number
         }
         Returns: string
+      }
+      save_conversion_settings: {
+        Args: {
+          p_product_id: string
+          p_organization_id: string
+          p_facebook_enabled?: boolean
+          p_facebook_pixel_id?: string
+          p_facebook_conversion_api_enabled?: boolean
+          p_facebook_access_token?: string
+          p_facebook_dataset_id?: string
+          p_facebook_test_event_code?: string
+          p_tiktok_enabled?: boolean
+          p_tiktok_pixel_id?: string
+          p_tiktok_access_token?: string
+          p_tiktok_events_api_enabled?: boolean
+          p_tiktok_test_event_code?: string
+          p_google_enabled?: boolean
+          p_google_gtag_id?: string
+          p_google_conversion_id?: string
+          p_google_conversion_label?: string
+          p_test_mode?: boolean
+        }
+        Returns: boolean
       }
       search_orders: {
         Args: {
@@ -10237,6 +16225,14 @@ export type Database = {
         Args: { user_id: string; org_id: string }
         Returns: undefined
       }
+      setup_two_factor_auth: {
+        Args: { p_user_id: string }
+        Returns: Json
+      }
+      should_change_password: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
       show_limit: {
         Args: Record<PropertyKey, never>
         Returns: number
@@ -10255,6 +16251,10 @@ export type Database = {
         Args: { p_id: string; p_data: Json }
         Returns: boolean
       }
+      smart_auth_check: {
+        Args: { required_org_id?: string; required_action?: string }
+        Returns: boolean
+      }
       sparsevec_out: {
         Args: { "": unknown }
         Returns: unknown
@@ -10267,9 +16267,21 @@ export type Database = {
         Args: { "": unknown[] }
         Returns: number
       }
+      super_publish_page: {
+        Args: { page_id: string }
+        Returns: boolean
+      }
+      super_unpublish_page: {
+        Args: { page_id: string }
+        Returns: boolean
+      }
       sync_featured_products_from_settings: {
         Args: { p_organization_id: string }
         Returns: boolean
+      }
+      sync_footer_pages_with_links: {
+        Args: { p_organization_id: string }
+        Returns: undefined
       }
       sync_testimonial_items: {
         Args: { p_organization_id: string; p_testimonial_ids: string[] }
@@ -10278,6 +16290,34 @@ export type Database = {
       table_exists: {
         Args: { table_name: string }
         Returns: boolean
+      }
+      terminate_all_other_sessions: {
+        Args: { p_user_id: string; p_current_session_token: string }
+        Returns: number
+      }
+      terminate_user_session: {
+        Args: { p_session_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      test_inventory_update: {
+        Args: {
+          p_product_id: string
+          p_organization_id: string
+          p_quantity: number
+        }
+        Returns: Json
+      }
+      test_product_creation: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      test_save_blabblablab_conversion_settings: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          success: boolean
+          message: string
+          current_settings: Json
+        }[]
       }
       test_shipping_integration_settings: {
         Args: { p_form_id: string }
@@ -10288,8 +16328,20 @@ export type Database = {
           shipping_provider: string
         }[]
       }
+      test_user_access: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       toggle_testimonial_status: {
         Args: { p_testimonial_id: string; p_is_active: boolean }
+        Returns: boolean
+      }
+      trust_device: {
+        Args: { p_device_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      untrust_device: {
+        Args: { p_device_id: string; p_user_id: string }
         Returns: boolean
       }
       update_beforeafter_performance: {
@@ -10299,6 +16351,25 @@ export type Database = {
           p_load_time_ms: number
         }
         Returns: undefined
+      }
+      update_custom_page: {
+        Args: {
+          p_page_id: string
+          p_title: string
+          p_slug: string
+          p_content: string
+          p_meta_description?: string
+        }
+        Returns: {
+          id: string
+          title: string
+          slug: string
+          content: string
+          meta_description: string
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }[]
       }
       update_customer_testimonial: {
         Args: {
@@ -10324,6 +16395,23 @@ export type Database = {
           p_icon: string
           p_exchange_rate: number
           p_is_active: boolean
+        }
+        Returns: boolean
+      }
+      update_distribution_settings: {
+        Args: {
+          p_organization_id: string
+          p_active_plan_id: string
+          p_active_plan_type: string
+          p_settings: Json
+        }
+        Returns: boolean
+      }
+      update_distribution_status: {
+        Args: {
+          p_order_id: string
+          p_status: string
+          p_response_time_minutes?: number
         }
         Returns: boolean
       }
@@ -10389,6 +16477,20 @@ export type Database = {
           p_user_id?: string
         }
         Returns: boolean
+      }
+      update_order_call_confirmation_optimized: {
+        Args: {
+          p_order_id: string
+          p_status_id: number
+          p_organization_id: string
+          p_notes?: string
+          p_user_id?: string
+        }
+        Returns: {
+          success: boolean
+          updated_order: Json
+          status_info: Json
+        }[]
       }
       update_order_status: {
         Args: { p_order_id: string; p_status: string; p_user_id: string }
@@ -10695,8 +16797,20 @@ export type Database = {
         }
         Returns: boolean
       }
+      update_product_stock_safe: {
+        Args: { p_product_id: string; p_quantity_sold: number }
+        Returns: boolean
+      }
       update_product_without_returning: {
         Args: { p_product_id: string; p_data: Json }
+        Returns: boolean
+      }
+      update_session_activity: {
+        Args: {
+          p_session_token: string
+          p_ip_address?: unknown
+          p_user_agent?: string
+        }
         Returns: boolean
       }
       update_shipping_clone_prices_batch: {
@@ -10715,6 +16829,22 @@ export type Database = {
       }
       update_store_seo_settings: {
         Args: { _organization_id: string; _settings: Json }
+        Returns: Json
+      }
+      update_user_privacy_settings: {
+        Args: { p_user_id: string; p_settings: Json }
+        Returns: boolean
+      }
+      update_user_profile: {
+        Args: { profile_data: Json }
+        Returns: Json
+      }
+      update_user_security_settings: {
+        Args: { p_user_id: string; p_settings: Json }
+        Returns: boolean
+      }
+      update_user_status: {
+        Args: { new_status: string }
         Returns: Json
       }
       upload_file_direct: {
@@ -10746,6 +16876,16 @@ export type Database = {
           p_content_type?: string
         }
         Returns: Json
+      }
+      upsert_component_settings: {
+        Args: {
+          p_organization_id: string
+          p_component_type: string
+          p_settings: Json
+          p_is_active?: boolean
+          p_order_index?: number
+        }
+        Returns: string
       }
       upsert_domain_verification: {
         Args: {
@@ -10788,6 +16928,28 @@ export type Database = {
           p_theme_mode?: string
           p_site_name?: string
           p_default_language?: string
+        }
+        Returns: string
+      }
+      upsert_pos_settings: {
+        Args: { p_organization_id: string; p_settings: Json }
+        Returns: string
+      }
+      upsert_repair_location: {
+        Args: {
+          p_id?: string
+          p_organization_id?: string
+          p_name?: string
+          p_description?: string
+          p_address?: string
+          p_phone?: string
+          p_email?: string
+          p_is_active?: boolean
+          p_is_default?: boolean
+          p_capacity?: number
+          p_working_hours?: Json
+          p_specialties?: string[]
+          p_manager_name?: string
         }
         Returns: string
       }
@@ -10867,6 +17029,10 @@ export type Database = {
         }
         Returns: number
       }
+      user_can_manage_products: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
       uuid_nil: {
         Args: Record<PropertyKey, never>
         Returns: string
@@ -10899,6 +17065,10 @@ export type Database = {
         Args: { "": unknown[] }
         Returns: number
       }
+      verify_2fa_for_login: {
+        Args: { p_user_id: string; p_code: string }
+        Returns: Json
+      }
       verify_activation_code: {
         Args: { p_activation_code: string }
         Returns: {
@@ -10908,6 +17078,14 @@ export type Database = {
           plan_code: string
           expires_at: string
         }[]
+      }
+      verify_domain_access: {
+        Args: { p_user_id: string; p_domain?: string; p_subdomain?: string }
+        Returns: Json
+      }
+      verify_totp_code: {
+        Args: { p_user_id: string; p_code: string }
+        Returns: boolean
       }
     }
     Enums: {
@@ -10925,7 +17103,26 @@ export type Database = {
         | "footer"
     }
     CompositeTypes: {
-      [_ in never]: never
+      http_header: {
+        field: string | null
+        value: string | null
+      }
+      http_request: {
+        method: string | null
+        url: string | null
+        content_type: string | null
+        content: string | null
+      }
+      http_response: {
+        status: number | null
+        content: string | null
+        content_type: string | null
+      }
+      shipping_calculation_result: {
+        success: boolean | null
+        price: number | null
+        error: string | null
+      }
     }
   }
 }

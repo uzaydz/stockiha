@@ -83,7 +83,7 @@ const MobileFeatures = () => {
                 <div className="bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-900/20 dark:to-green-900/20 rounded-[2rem] p-8 aspect-[9/19.5]">
                   <div className="text-center mb-6">
                     <Smartphone className="w-16 h-16 text-emerald-500 mx-auto mb-3" />
-                    <h4 className="font-semibold text-gray-900 dark:text-white">تطبيق ستوكيها</h4>
+                    <h4 className="font-semibold text-gray-900 dark:text-white">تطبيق سطوكيها</h4>
                   </div>
                   
                   {/* محتوى تجريبي */}

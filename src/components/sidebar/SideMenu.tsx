@@ -48,7 +48,9 @@ import {
   ArrowLeftToLine,
   X,
   GraduationCap,
-  BookOpen
+  BookOpen,
+  SlidersHorizontal,
+  Palette
 } from 'lucide-react';
 
 const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
@@ -309,6 +311,13 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
           badge: null
         },
         {
+          title: 'خدمات التصليح',
+          icon: SlidersHorizontal,
+          href: '/dashboard/repair-services',
+          requiredPermission: 'viewServices',
+          badge: 'جديد'
+        },
+        {
           title: 'متابعة الخدمات',
           icon: Calendar,
           href: '/dashboard/service-tracking',
@@ -544,6 +553,13 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
           title: 'تخصيص المتجر',
           icon: Store,
           href: '/dashboard/store-editor',
+          requiredPermission: 'manageOrganizationSettings',
+          badge: 'جديد'
+        },
+        {
+          title: 'محرر المتجر الجديد',
+          icon: Palette,
+          href: '/dashboard/store-editor-new',
           requiredPermission: 'manageOrganizationSettings',
           badge: 'جديد'
         },

@@ -176,7 +176,7 @@ const Footer = () => {
                   <div className="relative w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-primary-darker flex items-center justify-center shadow-xl group-hover:shadow-2xl transition-shadow overflow-hidden">
                     <img 
                       src="/images/logo-new.webp" 
-                      alt="ستوكيها" 
+                      alt="سطوكيها" 
                       className="w-full h-full object-cover"
                     />
                   </div>

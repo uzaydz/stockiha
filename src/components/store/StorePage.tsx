@@ -251,7 +251,7 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
   }, [currentSubdomain, initialStoreData, applyOrganizationThemeWithRetry]);
   
   useEffect(() => {
-    document.title = `${storeName} | ستوكيها - المتجر الإلكتروني`;
+    document.title = `${storeName} | سطوكيها - المتجر الإلكتروني`;
   }, [storeName]);
 
   const handleReload = async () => {

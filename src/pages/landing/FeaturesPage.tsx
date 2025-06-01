@@ -35,7 +35,7 @@ const FeatureSkeleton = memo(() => (
 
 const FeaturesPage = memo(() => {
   useEffect(() => {
-    document.title = 'المميزات | ستوكيها - منصة إدارة المتاجر الذكية';
+    document.title = 'المميزات | سطوكيها - منصة إدارة المتاجر الذكية';
   }, []);
 
   const fadeInUp = {
@@ -47,9 +47,9 @@ const FeaturesPage = memo(() => {
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-b from-slate-50 to-white dark:from-slate-900 dark:to-black">
       <Helmet>
-        <title>المميزات | ستوكيها - منصة إدارة المتاجر الذكية</title>
-        <meta name="description" content="اكتشف جميع مميزات منصة ستوكيها: نظام نقطة البيع، المتجر الإلكتروني، إدارة المخزون، التوصيل، وأكثر." />
-        <meta name="keywords" content="مميزات ستوكيها، نقطة البيع، متجر إلكتروني، إدارة مخزون، توصيل، أتمتة" />
+        <title>المميزات | سطوكيها - منصة إدارة المتاجر الذكية</title>
+        <meta name="description" content="اكتشف جميع مميزات منصة سطوكيها: نظام نقطة البيع، المتجر الإلكتروني، إدارة المخزون، التوصيل، وأكثر." />
+        <meta name="keywords" content="مميزات سطوكيها، نقطة البيع، متجر إلكتروني، إدارة مخزون، توصيل، أتمتة" />
       </Helmet>
       
       <Navbar />

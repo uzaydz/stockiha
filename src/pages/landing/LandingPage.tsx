@@ -44,7 +44,7 @@ SectionSkeleton.displayName = 'SectionSkeleton';
 const LandingPage = memo(() => {
   // ضبط عنوان الصفحة عند التحميل
   useEffect(() => {
-    document.title = 'ستوكيها | منصة إدارة المتاجر الذكية';
+    document.title = 'سطوكيها | منصة إدارة المتاجر الذكية';
     
     // تحسين الأداء - استخدام خط احتياطي لتجنب مشاكل CSP
     document.body.classList.add('font-arabic-fallback');
@@ -58,9 +58,9 @@ const LandingPage = memo(() => {
   return (
     <div className="flex flex-col min-h-screen bg-background will-change-auto landing-page-optimized smooth-scroll">
       <Helmet>
-        <title>ستوكيها | منصة إدارة المتاجر الذكية</title>
+        <title>سطوكيها | منصة إدارة المتاجر الذكية</title>
         <meta name="description" content="منصة شاملة لإدارة المتاجر تجمع بين نقطة البيع والمتجر الإلكتروني وإدارة المخزون. ابدأ مجاناً اليوم!" />
-        <meta name="keywords" content="إدارة متجر، نقطة بيع، متجر إلكتروني، POS، إدارة مخزون، ستوكيها" />
+        <meta name="keywords" content="إدارة متجر، نقطة بيع، متجر إلكتروني، POS، إدارة مخزون، سطوكيها" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <link rel="dns-prefetch" href="//fonts.googleapis.com" />
       </Helmet>

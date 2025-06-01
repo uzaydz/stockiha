@@ -5,6 +5,7 @@ import { withCache, LONG_CACHE_TTL } from '@/lib/cache/storeCache';
 import { getOrganizationBySubdomain, getOrganizationByDomain } from '@/lib/api/subdomain';
 import { getOrganizationById } from '@/lib/api/organization';
 import { API_TIMEOUTS, RETRY_CONFIG, withTimeout, withRetry } from '@/config/api-timeouts';
+import { useUser } from './UserContext';
 
 export type Organization = {
   id: string;
@@ -228,6 +229,7 @@ const LoadingIndicator = ({ isLoading, error, retryCount }: {
 
 export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading: authLoading, currentSubdomain, organization: authOrganization } = useAuth();
+  const { organizationId } = useUser();
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [isOrgAdmin, setIsOrgAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);

@@ -138,29 +138,32 @@ export async function getRepairLocationById(organizationId: string, locationId: 
   }
 }
 
-// الحصول على المكان الافتراضي
-export async function getDefaultRepairLocation(organizationId: string): Promise<RepairLocation | null> {
+/**
+ * جلب مكان التصليح الافتراضي للمؤسسة
+ */
+export const getDefaultRepairLocation = async (organizationId: string): Promise<RepairLocation | null> => {
+  if (!organizationId) return null;
+  
   try {
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
       .from('repair_locations')
       .select('*')
       .eq('organization_id', organizationId)
       .eq('is_default', true)
       .eq('is_active', true)
       .single();
-
+      
     if (error) {
-      if (error.code === 'PGRST116') {
-        return null; // لا يوجد مكان افتراضي
-      }
-      throw new Error(error.message);
+      console.error('فشل في جلب مكان التصليح الافتراضي:', error);
+      return null;
     }
-
+    
     return data;
   } catch (error) {
-    throw error;
+    console.error('حدث خطأ أثناء جلب مكان التصليح الافتراضي:', error);
+    return null;
   }
-}
+};
 
 // تعيين مكان كافتراضي
 export async function setDefaultRepairLocation(organizationId: string, locationId: string): Promise<void> {

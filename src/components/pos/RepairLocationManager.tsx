@@ -1,13 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { RepairLocation } from '@/types';
-import { MapPin, Phone, Mail, Settings, Plus, Edit, Trash2, Building, Clock, Users } from 'lucide-react';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
+import { useUser } from '@/context/UserContext';
+import { toast } from 'sonner';
+import { v4 as uuidv4 } from 'uuid';
+
 import {
   Dialog,
   DialogContent,
@@ -16,261 +11,345 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Badge } from '@/components/ui/badge';
-import { toast } from 'sonner';
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Switch } from '@/components/ui/switch';
-import { getActiveRepairLocations, upsertRepairLocation, deleteRepairLocation } from '@/lib/api/repairLocations';
+import { Building, Loader2, Plus, Edit, Trash2 } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
-interface RepairLocationManagerProps {
-  organizationId: string;
-  onLocationSelect: (location: RepairLocation) => void;
-  selectedLocationId?: string;
+// واجهة بيانات مكان التصليح
+export interface RepairLocation {
+  id: string;
+  name: string;
+  description?: string;
+  is_default?: boolean;
+  is_active?: boolean;
+  created_at?: string;
+  organization_id?: string;
 }
 
-export default function RepairLocationManager({ 
-  organizationId, 
-  onLocationSelect, 
-  selectedLocationId 
-}: RepairLocationManagerProps) {
-  const [locations, setLocations] = useState<RepairLocation[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingLocation, setEditingLocation] = useState<RepairLocation | null>(null);
-  const [saving, setSaving] = useState(false);
+interface RepairLocationManagerProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSelectLocation?: (location: RepairLocation) => void;
+}
+
+const RepairLocationManager = ({ isOpen, onClose, onSelectLocation }: RepairLocationManagerProps) => {
+  const { organizationId } = useUser();
   
-  // بيانات النموذج
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    address: '',
-    phone: '',
-    email: '',
-    is_active: true,
-    is_default: false,
-    capacity: 10,
-    manager_name: '',
-    specialties: [] as string[]
-  });
+  const [locations, setLocations] = useState<RepairLocation[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // حالة إضافة/تحرير مكان
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [currentLocation, setCurrentLocation] = useState<RepairLocation | null>(null);
+  const [locationName, setLocationName] = useState('');
+  const [locationDescription, setLocationDescription] = useState('');
+  const [isDefault, setIsDefault] = useState(false);
+  const [isAddFormVisible, setIsAddFormVisible] = useState(false);
 
-  // تحميل أماكن التصليح
-  const loadLocations = async () => {
-    try {
-      setLoading(true);
-      const data = await getActiveRepairLocations(organizationId);
-      setLocations(data);
-    } catch (error) {
-      toast.error('حدث خطأ أثناء تحميل أماكن التصليح');
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // جلب أماكن التصليح
   useEffect(() => {
-    if (organizationId) {
-      loadLocations();
+    const fetchLocations = async () => {
+      if (!organizationId) return;
+      
+      setIsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('repair_locations')
+          .select('*')
+          .eq('organization_id', organizationId)
+          .eq('is_active', true)
+          .order('created_at', { ascending: false });
+          
+        if (error) throw error;
+        
+        setLocations(data || []);
+      } catch (error) {
+        console.error('فشل في جلب أماكن التصليح:', error);
+        toast.error('فشل في جلب أماكن التصليح');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    if (isOpen) {
+      fetchLocations();
     }
-  }, [organizationId]);
+  }, [organizationId, isOpen]);
 
-  // فتح نافذة إضافة مكان جديد
-  const handleAddNew = () => {
-    setEditingLocation(null);
-    setFormData({
-      name: '',
-      description: '',
-      address: '',
-      phone: '',
-      email: '',
-      is_active: true,
-      is_default: false,
-      capacity: 10,
-      manager_name: '',
-      specialties: []
-    });
-    setIsDialogOpen(true);
+  // إعادة تعيين نموذج الإضافة/التحرير
+  const resetForm = () => {
+    setLocationName('');
+    setLocationDescription('');
+    setIsDefault(false);
+    setCurrentLocation(null);
+    setIsEditMode(false);
   };
 
-  // فتح نافذة تحرير مكان موجود
+  // تبديل نموذج الإضافة
+  const toggleAddForm = () => {
+    setIsAddFormVisible(!isAddFormVisible);
+    resetForm();
+  };
+
+  // بدء تحرير مكان
   const handleEdit = (location: RepairLocation) => {
-    setEditingLocation(location);
-    setFormData({
-      name: location.name,
-      description: location.description || '',
-      address: location.address || '',
-      phone: location.phone || '',
-      email: location.email || '',
-      is_active: location.is_active,
-      is_default: location.is_default,
-      capacity: location.capacity,
-      manager_name: location.manager_name || '',
-      specialties: location.specialties || []
-    });
-    setIsDialogOpen(true);
+    setCurrentLocation(location);
+    setLocationName(location.name);
+    setLocationDescription(location.description || '');
+    setIsDefault(location.is_default || false);
+    setIsEditMode(true);
+    setIsAddFormVisible(true);
   };
 
-  // حفظ مكان التصليح
-  const handleSave = async () => {
-    if (!formData.name.trim()) {
-      toast.error('اسم مكان التصليح مطلوب');
-      return;
-    }
-
-    try {
-      setSaving(true);
-      
-      const locationData = {
-        ...formData,
-        organization_id: organizationId,
-        id: editingLocation?.id
-      };
-
-      await upsertRepairLocation(locationData);
-      
-      toast.success(editingLocation ? 'تم تحديث مكان التصليح بنجاح' : 'تم إضافة مكان التصليح بنجاح');
-      
-      setIsDialogOpen(false);
-      await loadLocations();
-    } catch (error) {
-      toast.error('حدث خطأ أثناء حفظ مكان التصليح');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // حذف مكان التصليح
+  // حذف مكان
   const handleDelete = async (location: RepairLocation) => {
-    if (location.is_default) {
-      toast.error('لا يمكن حذف المكان الافتراضي');
+    if (!confirm(`هل أنت متأكد من حذف "${location.name}"؟`)) {
       return;
     }
-
-    if (!confirm('هل أنت متأكد من حذف هذا المكان؟')) {
-      return;
-    }
-
+    
     try {
-      await deleteRepairLocation(organizationId, location.id);
+      const { error } = await supabase
+        .from('repair_locations')
+        .update({ is_active: false })
+        .eq('id', location.id);
+        
+      if (error) throw error;
+      
+      // تحديث القائمة المحلية
+      setLocations(locations.filter(loc => loc.id !== location.id));
       toast.success('تم حذف مكان التصليح بنجاح');
-      await loadLocations();
     } catch (error) {
-      toast.error('حدث خطأ أثناء حذف مكان التصليح');
+      console.error('فشل في حذف مكان التصليح:', error);
+      toast.error('فشل في حذف مكان التصليح');
     }
   };
 
-  // إضافة تخصص جديد
-  const addSpecialty = () => {
-    const specialty = prompt('أدخل التخصص الجديد:');
-    if (specialty && specialty.trim()) {
-      setFormData(prev => ({
-        ...prev,
-        specialties: [...prev.specialties, specialty.trim()]
-      }));
+  // حفظ مكان جديد أو تحديث مكان موجود
+  const handleSave = async () => {
+    if (!locationName.trim()) {
+      toast.error('اسم المكان مطلوب');
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    try {
+      // إذا كان المكان الجديد هو المكان الافتراضي، قم بإلغاء تعيين المكان الافتراضي الحالي
+      if (isDefault) {
+        await supabase
+          .from('repair_locations')
+          .update({ is_default: false })
+          .eq('organization_id', organizationId)
+          .eq('is_default', true);
+      }
+      
+      if (isEditMode && currentLocation) {
+        // تحديث مكان موجود
+        const { error } = await supabase
+          .from('repair_locations')
+          .update({
+            name: locationName,
+            description: locationDescription,
+            is_default: isDefault,
+          })
+          .eq('id', currentLocation.id);
+          
+        if (error) throw error;
+        
+        // تحديث القائمة المحلية
+        setLocations(locations.map(loc => 
+          loc.id === currentLocation.id 
+            ? { ...loc, name: locationName, description: locationDescription, is_default: isDefault }
+            : isDefault ? { ...loc, is_default: false } : loc
+        ));
+        
+        toast.success('تم تحديث مكان التصليح بنجاح');
+      } else {
+        // إضافة مكان جديد
+        const newLocation = {
+          id: uuidv4(),
+          name: locationName,
+          description: locationDescription,
+          is_default: isDefault,
+          is_active: true,
+          organization_id: organizationId,
+        };
+        
+        const { error } = await supabase
+          .from('repair_locations')
+          .insert(newLocation);
+          
+        if (error) throw error;
+        
+        // تحديث القائمة المحلية
+        setLocations(isDefault 
+          ? [newLocation, ...locations.map(loc => ({ ...loc, is_default: false }))]
+          : [newLocation, ...locations]
+        );
+        
+        toast.success('تم إضافة مكان التصليح بنجاح');
+      }
+      
+      // إعادة تعيين النموذج وإغلاقه
+      resetForm();
+      setIsAddFormVisible(false);
+    } catch (error) {
+      console.error('فشل في حفظ مكان التصليح:', error);
+      toast.error('فشل في حفظ مكان التصليح');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  // حذف تخصص
-  const removeSpecialty = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      specialties: prev.specialties.filter((_, i) => i !== index)
-    }));
+  // اختيار مكان تصليح
+  const handleSelectLocation = (location: RepairLocation) => {
+    if (onSelectLocation) {
+      onSelectLocation(location);
+    }
   };
-
-  if (loading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-center">
-          <Building className="h-12 w-12 mx-auto mb-3 text-muted-foreground animate-pulse" />
-          <p className="text-muted-foreground">جاري تحميل أماكن التصليح...</p>
-        </div>
-      </div>
-    );
-  }
-
+  
   return (
-    <div className="h-full flex flex-col bg-gradient-to-b from-card to-background rounded-lg border shadow-md overflow-hidden">
-      <div className="px-4 py-3 space-y-1.5 bg-card/80 border-b">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <Building className="h-5 w-5 text-primary" />
-            أماكن التصليح
-          </h2>
-          <Button onClick={handleAddNew} size="sm" className="gap-2">
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-2xl overflow-hidden">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-xl">
+            <Building className="h-5 w-5" />
+            إدارة أماكن التصليح
+          </DialogTitle>
+          <DialogDescription>
+            أضف وعدّل أماكن التصليح في مؤسستك
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="flex justify-between items-center">
+          <h3 className="text-lg font-medium">قائمة الأماكن</h3>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={toggleAddForm}
+            className="gap-1"
+          >
             <Plus className="h-4 w-4" />
-            إضافة مكان جديد
+            {isAddFormVisible ? 'إلغاء' : 'إضافة مكان جديد'}
           </Button>
         </div>
-        <p className="text-sm text-muted-foreground">
-          اختر مكان التصليح للخدمة
-        </p>
-      </div>
-
-      <Separator className="opacity-50" />
-
-      <ScrollArea className="flex-1">
-        {locations.length === 0 ? (
-          <div className="h-40 flex flex-col items-center justify-center text-muted-foreground">
-            <Building className="h-12 w-12 mb-3 opacity-20" />
-            <p className="text-base">لا توجد أماكن تصليح</p>
-            <p className="text-xs mt-1 text-muted-foreground">أضف مكان تصليح جديد للبدء</p>
-            <Button 
-              variant="link" 
-              onClick={handleAddNew}
-              className="mt-2"
-            >
-              إضافة مكان جديد
-            </Button>
+        
+        {isAddFormVisible && (
+          <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
+            <h4 className="font-medium">{isEditMode ? 'تعديل مكان' : 'إضافة مكان جديد'}</h4>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="location_name">اسم المكان <span className="text-red-500">*</span></Label>
+                <Input 
+                  id="location_name" 
+                  value={locationName}
+                  onChange={(e) => setLocationName(e.target.value)}
+                  placeholder="أدخل اسم المكان" 
+                  required
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="location_description">وصف المكان</Label>
+                <Input 
+                  id="location_description" 
+                  value={locationDescription}
+                  onChange={(e) => setLocationDescription(e.target.value)}
+                  placeholder="أدخل وصف المكان (اختياري)" 
+                />
+              </div>
+              
+              <div className="flex items-center space-x-2 rtl:space-x-reverse">
+                <Switch 
+                  id="is_default" 
+                  checked={isDefault}
+                  onCheckedChange={setIsDefault}
+                />
+                <Label htmlFor="is_default">تعيين كمكان افتراضي</Label>
+              </div>
+              
+              <div className="flex justify-end gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={toggleAddForm}
+                  disabled={isSubmitting}
+                >
+                  إلغاء
+                </Button>
+                <Button 
+                  onClick={handleSave}
+                  disabled={isSubmitting}
+                  className="flex gap-2 items-center"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      جاري الحفظ...
+                    </>
+                  ) : (
+                    <>
+                      حفظ
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-3 p-4">
-            {locations.map(location => (
-              <Card
-                key={location.id}
-                className={`hover:border-primary/50 hover:shadow-md transition-all cursor-pointer overflow-hidden bg-card group hover:translate-y-[-2px] ${
-                  selectedLocationId === location.id ? 'border-primary bg-primary/5' : ''
-                }`}
-                onClick={() => onLocationSelect(location)}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-medium text-base">{location.name}</h3>
-                        {location.is_default && (
-                          <Badge variant="secondary" className="bg-primary/10 text-primary">
-                            افتراضي
-                          </Badge>
-                        )}
-                      </div>
-                      {location.description && (
-                        <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
-                          {location.description}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex gap-1 ml-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleEdit(location);
-                        }}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      {!location.is_default && (
+        )}
+        
+        <ScrollArea className="h-[300px]">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <Loader2 className="h-8 w-8 animate-spin opacity-50" />
+            </div>
+          ) : locations.length === 0 ? (
+            <div className="text-center p-6 text-muted-foreground">
+              لا توجد أماكن تصليح. قم بإضافة مكان جديد.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>الاسم</TableHead>
+                  <TableHead>الوصف</TableHead>
+                  <TableHead>افتراضي</TableHead>
+                  <TableHead>الإجراءات</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {locations.map((location) => (
+                  <TableRow key={location.id} className="cursor-pointer" onClick={() => handleSelectLocation(location)}>
+                    <TableCell className="font-medium">{location.name}</TableCell>
+                    <TableCell>{location.description || '-'}</TableCell>
+                    <TableCell>{location.is_default ? 'نعم' : 'لا'}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEdit(location);
+                          }}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleDelete(location);
@@ -278,206 +357,23 @@ export default function RepairLocationManager({
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    {location.address && (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <MapPin className="h-4 w-4" />
-                        <span>{location.address}</span>
                       </div>
-                    )}
-                    {location.phone && (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Phone className="h-4 w-4" />
-                        <span>{location.phone}</span>
-                      </div>
-                    )}
-                    {location.manager_name && (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Users className="h-4 w-4" />
-                        <span>المدير: {location.manager_name}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-between mt-3 pt-3 border-t">
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <Users className="h-3 w-3" />
-                        <span>السعة: {location.capacity}</span>
-                      </div>
-                      {location.specialties && location.specialties.length > 0 && (
-                        <div className="flex items-center gap-1">
-                          <Settings className="h-3 w-3" />
-                          <span>{location.specialties.length} تخصص</span>
-                        </div>
-                      )}
-                    </div>
-                    {selectedLocationId === location.id && (
-                      <Badge className="bg-primary text-white">
-                        مختار
-                      </Badge>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-      </ScrollArea>
-
-      {/* نافذة إضافة/تحرير مكان التصليح */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {editingLocation ? 'تحرير مكان التصليح' : 'إضافة مكان تصليح جديد'}
-            </DialogTitle>
-            <DialogDescription>
-              أدخل معلومات مكان التصليح
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">اسم المكان *</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="اسم مكان التصليح"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="manager_name">اسم المدير</Label>
-                <Input
-                  id="manager_name"
-                  value={formData.manager_name}
-                  onChange={(e) => setFormData(prev => ({ ...prev, manager_name: e.target.value }))}
-                  placeholder="اسم مدير المكان"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description">الوصف</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="وصف مكان التصليح"
-                rows={3}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="address">العنوان</Label>
-              <Input
-                id="address"
-                value={formData.address}
-                onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
-                placeholder="عنوان مكان التصليح"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="phone">رقم الهاتف</Label>
-                <Input
-                  id="phone"
-                  value={formData.phone}
-                  onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-                  placeholder="رقم هاتف المكان"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">البريد الإلكتروني</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                  placeholder="البريد الإلكتروني"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="capacity">السعة القصوى</Label>
-                <Input
-                  id="capacity"
-                  type="number"
-                  min="1"
-                  value={formData.capacity}
-                  onChange={(e) => setFormData(prev => ({ ...prev, capacity: parseInt(e.target.value) || 10 }))}
-                />
-              </div>
-              <div className="space-y-4">
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="is_active"
-                    checked={formData.is_active}
-                    onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_active: checked }))}
-                  />
-                  <Label htmlFor="is_active">مكان نشط</Label>
-                </div>
-                {!editingLocation?.is_default && (
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="is_default"
-                      checked={formData.is_default}
-                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_default: checked }))}
-                    />
-                    <Label htmlFor="is_default">مكان افتراضي</Label>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>التخصصات</Label>
-                <Button type="button" variant="outline" size="sm" onClick={addSpecialty}>
-                  <Plus className="h-4 w-4 mr-1" />
-                  إضافة تخصص
-                </Button>
-              </div>
-              {formData.specialties.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {formData.specialties.map((specialty, index) => (
-                    <Badge key={index} variant="secondary" className="gap-1">
-                      {specialty}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-auto p-0 w-4 h-4"
-                        onClick={() => removeSpecialty(index)}
-                      >
-                        ×
-                      </Button>
-                    </Badge>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-              إلغاء
-            </Button>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? 'جاري الحفظ...' : (editingLocation ? 'تحديث' : 'إضافة')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </ScrollArea>
+        
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            إغلاق
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
-}
+};
+
+export default RepairLocationManager;

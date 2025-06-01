@@ -30,15 +30,15 @@ const ContactSkeleton = memo(() => (
 
 const ContactPage = memo(() => {
   useEffect(() => {
-    document.title = 'تواصل معنا | ستوكيها - منصة إدارة المتاجر الذكية';
+    document.title = 'تواصل معنا | سطوكيها - منصة إدارة المتاجر الذكية';
   }, []);
 
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-b from-slate-50 to-white dark:from-slate-900 dark:to-black">
       <Helmet>
-        <title>تواصل معنا | ستوكيها - منصة إدارة المتاجر الذكية</title>
-        <meta name="description" content="تواصل مع فريق ستوكيها للحصول على الدعم والمساعدة. نحن هنا لخدمتك على مدار الساعة." />
-        <meta name="keywords" content="تواصل معنا، دعم ستوكيها، خدمة العملاء، الدعم الفني" />
+        <title>تواصل معنا | سطوكيها - منصة إدارة المتاجر الذكية</title>
+        <meta name="description" content="تواصل مع فريق سطوكيها للحصول على الدعم والمساعدة. نحن هنا لخدمتك على مدار الساعة." />
+        <meta name="keywords" content="تواصل معنا، دعم سطوكيها، خدمة العملاء، الدعم الفني" />
       </Helmet>
       
       <Navbar />

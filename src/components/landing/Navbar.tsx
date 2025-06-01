@@ -55,12 +55,12 @@ const Navbar = memo(() => {
             <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center overflow-hidden">
               <img 
                 src="/images/logo-new.webp" 
-                alt="ستوكيها" 
+                alt="سطوكيها" 
                 className="w-full h-full object-cover"
               />
             </div>
             <span className="text-xl font-bold text-slate-900 dark:text-white">
-              ستوكيها
+              سطوكيها
             </span>
           </Link>
 

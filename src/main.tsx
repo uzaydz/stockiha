@@ -134,6 +134,7 @@ import './index.css';
 import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { TenantProvider, useTenant } from './context/TenantContext';
+import { UserProvider } from './context/UserContext';
 import { Toaster } from "./components/ui/toaster";
 import { ThemeProvider } from './context/ThemeContext';
 import { registerGlobalErrorHandler } from './lib/electron-errors';
@@ -287,9 +288,11 @@ const TenantWithTheme = ({ children }: { children: React.ReactNode }) => {
   return (
     <AuthProvider>
       <TenantProvider>
-        <TenantThemeConnector>
-          {children}
-        </TenantThemeConnector>
+        <UserProvider>
+          <TenantThemeConnector>
+            {children}
+          </TenantThemeConnector>
+        </UserProvider>
       </TenantProvider>
     </AuthProvider>
   );
@@ -327,9 +330,11 @@ const AppProviders = ({ children }: { children: React.ReactNode }) => {
       <BrowserRouter future={browserRouterOptions.future}>
         <AuthProvider>
           <TenantProvider>
-            <ThemeProvider>
-              {children}
-            </ThemeProvider>
+            <UserProvider>
+              <ThemeProvider>
+                {children}
+              </ThemeProvider>
+            </UserProvider>
           </TenantProvider>
         </AuthProvider>
       </BrowserRouter>

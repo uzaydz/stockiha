@@ -156,7 +156,7 @@ const POSFeatures = () => {
           <div className="relative">
             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl overflow-hidden">
               <div className="bg-green-500 text-white p-4 flex items-center justify-between">
-                <span className="font-semibold">نقطة البيع - ستوكيها</span>
+                <span className="font-semibold">نقطة البيع - سطوكيها</span>
                 <div className="flex gap-2">
                   <div className="w-3 h-3 bg-white/30 rounded-full"></div>
                   <div className="w-3 h-3 bg-white/30 rounded-full"></div>

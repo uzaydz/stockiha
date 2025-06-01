@@ -24,7 +24,7 @@ const FeaturesHero = () => {
             >
               <Sparkles className="w-8 h-8 text-primary" />
             </motion.div>
-            <span className="text-primary font-semibold text-lg">منصة ستوكيها المتكاملة</span>
+            <span className="text-primary font-semibold text-lg">منصة سطوكيها المتكاملة</span>
           </div>
           
           <h1 className="text-4xl lg:text-6xl font-bold text-gray-900 dark:text-white mb-6">

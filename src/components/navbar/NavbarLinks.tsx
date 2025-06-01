@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   ChevronDown, Home, Tag, Settings, Truck, 
-  Package, ShoppingCart, ShieldCheck, LayoutGrid, Sparkles
+  Package, ShoppingCart, ShieldCheck, LayoutGrid, Sparkles, Wrench
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -72,6 +72,7 @@ export function NavbarLinks({
         },
         { name: 'خدمات الإصلاح', path: '/services', icon: Settings },
         { name: 'تتبع الخدمات', path: '/service-tracking-public', icon: Truck },
+        { name: 'تتبع التصليح', path: '/repair-tracking', icon: Wrench },
       ];
     } else {
       // استخدام الواجهة الخاصة للعناصر الفرعية الافتراضية
@@ -92,6 +93,7 @@ export function NavbarLinks({
         },
         { name: 'خدمات الإصلاح', path: '/services', icon: Settings },
         { name: 'تتبع الخدمات', path: '/service-tracking-public', icon: Truck },
+        { name: 'تتبع التصليح', path: '/repair-tracking', icon: Wrench },
       ];
     }
   };

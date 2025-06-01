@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from "sonner";
+import { Link } from 'react-router-dom';
 import { Product, Order, User as AppUser, Service, OrderItem, ServiceBooking } from '@/types';
 import { useShop } from '@/context/ShopContext';
 import { useAuth } from '@/context/AuthContext';
@@ -12,6 +13,7 @@ import ServiceManager from '@/components/pos/ServiceManager';
 import PrintReceipt from '@/components/pos/PrintReceipt';
 import ProductVariantSelector from '@/components/pos/ProductVariantSelector';
 import POSSettings from '@/components/pos/settings/POSSettings';
+import RepairServiceDialog from '@/components/repair/RepairServiceDialog';
 import {
   Dialog,
   DialogContent,
@@ -68,9 +70,12 @@ const POS = () => {
   // إضافة حالة لنافذة إعدادات نقطة البيع
   const [isPOSSettingsOpen, setIsPOSSettingsOpen] = useState(false);
 
-  // حالة جديدة للتعامل مع قارئ الباركود العالمي
+  // حالة جديدة للتعامل مع قارئ الباركود
   const [barcodeBuffer, setBarcodeBuffer] = useState('');
   const [lastKeyTime, setLastKeyTime] = useState(0);
+
+  // حالة نافذة خدمة التصليح
+  const [isRepairDialogOpen, setIsRepairDialogOpen] = useState(false);
 
   // استماع عالمي لأحداث قارئ الباركود
   useEffect(() => {
@@ -752,50 +757,57 @@ const POS = () => {
         </div>
       ) : (
         <div className="mx-auto">
-          <Card className="border-0 shadow-none bg-transparent">
-            <CardHeader className="px-0 pt-0 pb-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div>
-                    <CardTitle className="text-2xl font-bold">نقطة البيع</CardTitle>
-                    <CardDescription>
-                      إدارة المبيعات وإضافة الخدمات وإصدار الفواتير
-                    </CardDescription>
-                  </div>
-                  
-                  {/* زر إعدادات نقطة البيع */}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsPOSSettingsOpen(true)}
-                    className="flex items-center gap-2"
-                  >
-                    <Settings2 className="h-4 w-4" />
-                    <span>إعدادات</span>
-                  </Button>
-                </div>
-                
-                {/* مؤشر حالة قارئ الباركود */}
-                <div className="flex flex-col items-end gap-2">
-                  {barcodeBuffer.length > 0 && (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
-                      <div className="animate-pulse w-2 h-2 bg-blue-500 rounded-full"></div>
-                      <span className="text-sm font-mono text-blue-700">{barcodeBuffer}</span>
-                      <span className="text-xs text-blue-600">جاري قراءة الباركود...</span>
-                    </div>
-                  )}
-                  
-                  {/* نصيحة لاستخدام قارئ الباركود */}
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>💡</span>
-                    <span>استخدم قارئ الباركود مباشرة أو اذهب للإجراءات السريعة</span>
-                  </div>
-                </div>
-              </div>
-            </CardHeader>
-          </Card>
-
-          <div className="grid grid-cols-12 gap-4 h-[calc(100vh-12rem)]">
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex gap-2">
+              <Button 
+                size="sm" 
+                variant={activeView === 'products' ? 'default' : 'outline'} 
+                onClick={() => setActiveView('products')}
+              >
+                <ShoppingCart className="h-4 w-4 mr-2" />
+                المنتجات
+              </Button>
+              <Button 
+                size="sm" 
+                variant={activeView === 'services' ? 'default' : 'outline'} 
+                onClick={() => setActiveView('services')}
+              >
+                <Wrench className="h-4 w-4 mr-2" />
+                الخدمات
+              </Button>
+              <Button 
+                size="sm" 
+                variant="outline" 
+                asChild
+              >
+                <Link to="/repair-services">
+                  <Wrench className="h-4 w-4 mr-2" />
+                  خدمات التصليح
+                </Link>
+              </Button>
+            </div>
+            
+            <div className="flex gap-2">
+              <Button 
+                size="sm"
+                variant="outline"
+                onClick={() => setIsPOSSettingsOpen(true)}
+              >
+                <Settings2 className="h-4 w-4 mr-2" />
+                الإعدادات
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setIsRepairDialogOpen(true)}
+              >
+                <Wrench className="h-4 w-4 mr-2" />
+                خدمة تصليح جديدة
+              </Button>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-12 gap-4 h-full">
             {/* عمود المنتجات والخدمات */}
             <div className="col-span-12 md:col-span-8 h-full flex flex-col">
               <Tabs 
@@ -976,6 +988,16 @@ const POS = () => {
       <POSSettings
         isOpen={isPOSSettingsOpen}
         onOpenChange={setIsPOSSettingsOpen}
+      />
+      
+      {/* نافذة خدمة التصليح */}
+      <RepairServiceDialog
+        isOpen={isRepairDialogOpen}
+        onClose={() => setIsRepairDialogOpen(false)}
+        onSuccess={(orderId) => {
+          setIsRepairDialogOpen(false);
+          toast.success('تم إنشاء طلبية تصليح جديدة بنجاح');
+        }}
       />
     </Layout>
   );

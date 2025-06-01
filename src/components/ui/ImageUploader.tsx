@@ -21,6 +21,8 @@ interface ImageUploaderProps {
   compact?: boolean;
 }
 
+
+
 // تصدير واجهة لوظائف المكون التي يمكن استدعاؤها من الخارج
 export interface ImageUploaderRef {
   getUploadedImageUrl: () => string;
@@ -41,12 +43,72 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
   const [isUploading, setIsUploading] = useState(false);
   const [preview, setPreview] = useState<string>(imageUrl);
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string>(imageUrl);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dropAreaRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const { currentOrganization } = useTenant();
   
   // استخدام useMemo لإنشاء عميل Supabase مرة واحدة فقط
   const supabase = useMemo(() => getSupabaseClient(), []);
+  
+  // إعداد مستمعي أحداث السحب والإفلات
+  useEffect(() => {
+    const handleDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!isUploading && !preview) {
+        setIsDragging(true);
+      }
+    };
+    
+    const handleDragLeave = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+    };
+    
+    const handleDrop = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+      
+      if (isUploading || !e.dataTransfer) return;
+      
+      const files = e.dataTransfer.files;
+      if (files && files.length > 0) {
+        // تمرير الملف الأول فقط من المسحوبات
+        const file = files[0];
+        if (file.type.startsWith('image/')) {
+          const fakeEvent = {
+            target: {
+              files: [file]
+            }
+          } as unknown as React.ChangeEvent<HTMLInputElement>;
+          handleImageSelect(fakeEvent);
+        } else {
+          toast({
+            variant: "destructive",
+            title: "نوع ملف غير مدعوم",
+            description: "يرجى اختيار ملف صورة فقط.",
+          });
+        }
+      }
+    };
+    
+    const dropArea = dropAreaRef.current;
+    if (dropArea) {
+      dropArea.addEventListener('dragover', handleDragOver);
+      dropArea.addEventListener('dragleave', handleDragLeave);
+      dropArea.addEventListener('drop', handleDrop);
+      
+      return () => {
+        dropArea.removeEventListener('dragover', handleDragOver);
+        dropArea.removeEventListener('dragleave', handleDragLeave);
+        dropArea.removeEventListener('drop', handleDrop);
+      };
+    }
+  }, [isUploading, preview, toast]);
   
   // تحديث الحالة عندما يتغير imageUrl من الخارج
   useEffect(() => {
@@ -104,7 +166,7 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
     });
   };
 
-  // دالة تخفيض حجم الصورة
+  // دالة لتخفيض حجم الصورة
   const compressImage = async (file: File): Promise<File> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -143,8 +205,8 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
           ctx.drawImage(img, 0, 0, width, height);
           
           // تحويل Canvas إلى Blob بتنسيق مناسب
-          const mimeType = 'image/webp';
-          const quality = 0.7;
+          const mimeType = file.type; // استخدام نوع الملف الأصلي
+          const quality = 0.8;
           
           canvas.toBlob(
             (blob) => {
@@ -153,21 +215,22 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
                 return;
               }
               
-              // إنشاء ملف جديد من البلوب مع نوع MIME مناسب
-              const compressedFileName = file.name.replace(/\.[^/.]+$/, '') + '.webp';
-              
-              // استخدام تاريخ محدث في اسم الملف
+              // إنشاء اسم ملف فريد
               const timestamp = Date.now();
-              const finalFileName = `${timestamp}_${compressedFileName.replace(/[^a-z0-9.]/gi, '')}`;
+              const extension = file.name.split('.').pop() || 'jpg';
+              const fileName = `image_${timestamp}.${extension}`;
               
-              const compressedFile = new File([blob], finalFileName, {
-                type: mimeType,
+              const compressedFile = new File([blob], fileName, {
+                type: file.type,
                 lastModified: Date.now()
               });
               
-              // حساب نسبة الضغط
-              const compressionRatio = ((file.size - compressedFile.size) / file.size * 100).toFixed(2);
-
+              console.log("تم ضغط الصورة:", {
+                originalSize: file.size,
+                newSize: compressedFile.size,
+                reduction: (1 - (compressedFile.size / file.size)) * 100
+              });
+              
               resolve(compressedFile);
             },
             mimeType,
@@ -176,12 +239,14 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
         };
         
         img.onerror = () => {
-          reject(new Error('فشل تحميل الصورة للضغط'));
+          console.error("فشل تحميل الصورة للضغط، سنستخدم الملف الأصلي");
+          resolve(file); // استخدام الملف الأصلي في حالة الفشل
         };
       };
       
       reader.onerror = () => {
-        reject(new Error('فشل قراءة الصورة للضغط'));
+        console.error("فشل قراءة الصورة للضغط، سنستخدم الملف الأصلي");
+        resolve(file); // استخدام الملف الأصلي في حالة الفشل
       };
     });
   };
@@ -231,18 +296,12 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
         throw new Error('الملف المقدم ليس ملفًا صالحًا');
       }
 
-      // استخدام formData بدلاً من تمرير الملف مباشرة
-      const formData = new FormData();
-      formData.append('file', file, file.name);
-      
-      // رفع الملف إلى Supabase باستخدام FormData
+      // رفع الملف إلى Supabase
       const { data, error } = await supabase.storage
         .from("organization-assets")
-        // استخدام formData بدلاً من file مباشرة
-        // وإعادة الخيارات الإضافية
-        .upload(filePath, formData, {
+        .upload(filePath, file, {
           cacheControl: "3600",
-          // upsert: true, // <-- تعطيل Upsert للتجربة
+          upsert: true
         });
       
       if (error) {
@@ -294,76 +353,60 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
       return;
     }
 
-    // ---> التحقق من المصادقة قبل المتابعة
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      toast({
-        variant: "destructive",
-        title: "غير مصادق عليه",
-        description: "الرجاء تسجيل الدخول للمتابعة.",
-      });
-      // إعادة تعيين حقل الإدخال إذا لزم الأمر
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-      return; // إيقاف التنفيذ إذا لم يكن المستخدم مسجلاً الدخول
-    }
-    // <--- نهاية التحقق من المصادقة
-
     try {
       setIsUploading(true);
       
       const file = event.target.files[0];
       
-      // تسجيل معلومات الملف الأصلي
-
-      // --- إعادة تمكين الضغط ---
-      const compressedFile = await compressImage(file);
-      // const compressedFile = file; // استخدام الملف الأصلي مباشرة - تم الإلغاء
-      // --------------------------
-      
-      // توليد اسم فريد للملف
-      const fileName = compressedFile.name;
-      // استخدام اسم الملف الأصلي مع طابع زمني فريد - تم الإلغاء
-      // const timestamp = Date.now();
-      // const uniqueFileName = `${timestamp}_${file.name.replace(/[^a-z0-9.]/gi, '')}`;
-      
-      const uniqueId = v4();
-      const organizationFolder = currentOrganization?.id || 'default';
-      const filePath = `${folder}/${organizationFolder}/${fileName}`; // استخدام اسم الملف المضغوط
-      // const filePath = `${folder}/${organizationFolder}/${uniqueFileName}`; // استخدام الاسم الفريد المولد - تم الإلغاء
-      
-      // تسجيل معلومات عملية الرفع
-
-      try {
-        // رفع الصورة إلى Supabase
-        const imageUrl = await uploadImageWithOfflineSupport(compressedFile, filePath);
-        
-        // تحديث المسار وإبلاغ المكون الأب
-        setUploadedImageUrl(imageUrl);
-        onImageUploaded(imageUrl);
-        
-        // إظهار رسالة نجاح
-        toast({
-          title: "تم رفع الصورة بنجاح",
-          description: "تم رفع الصورة بنجاح والحصول على الرابط",
-        });
-      } catch (error: any) {
-        
-        // إظهار رسالة خطأ
+      // التحقق من حجم الملف
+      if (file.size > maxSizeInBytes) {
         toast({
           variant: "destructive",
-          title: "فشل رفع الصورة",
-          description: `فشل رفع الصورة: ${error.message || 'خطأ غير معروف'}`,
+          title: "الملف كبير جداً",
+          description: `حجم الملف ${(file.size / (1024 * 1024)).toFixed(2)} ميجابايت. الحد الأقصى المسموح به هو ${maxSizeInMB} ميجابايت.`,
         });
+        return;
       }
+
+      // ضغط الصورة
+      const compressedFile = await compressImage(file);
+
+      // توليد اسم فريد للملف
+      const fileName = compressedFile.name;
+      const uniqueId = v4();
+      const organizationFolder = currentOrganization?.id || 'default';
+      const filePath = `${folder}/${organizationFolder}/${fileName}`;
+      
+      console.log("محاولة رفع الصورة:", {
+        fileName,
+        filePath,
+        fileSize: compressedFile.size,
+        fileType: compressedFile.type
+      });
+
+      // رفع الصورة إلى Supabase
+      const imageUrl = await uploadImageWithOfflineSupport(compressedFile, filePath);
+      
+      console.log("تم رفع الصورة بنجاح:", imageUrl);
+
+      // تحديث المسار وإبلاغ المكون الأب
+      setUploadedImageUrl(imageUrl);
+      setPreview(imageUrl);
+      onImageUploaded(imageUrl);
+      
+      // إظهار رسالة نجاح
+      toast({
+        title: "تم رفع الصورة بنجاح",
+        description: "تم رفع الصورة بنجاح والحصول على الرابط",
+      });
     } catch (error: any) {
+      console.error("خطأ في رفع الصورة:", error);
       
       // إظهار رسالة خطأ
       toast({
         variant: "destructive",
-        title: "فشل معالجة الصورة",
-        description: `فشل معالجة الصورة: ${error.message || 'خطأ غير معروف'}`,
+        title: "فشل رفع الصورة",
+        description: `فشل رفع الصورة: ${error.message || 'خطأ غير معروف'}`,
       });
     } finally {
       setIsUploading(false);
@@ -389,12 +432,38 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
   const handleTriggerFileInput = (e?: React.MouseEvent) => {
     // إيقاف انتشار الحدث لمنع النقرات المزدوجة
     if (e) e.preventDefault();
-    // فتح مربع حوار اختيار الملفات مباشرة
+    
+    // محاولة فتح مربع حوار اختيار الملفات باستخدام تأخير بسيط
     setTimeout(() => {
       if (fileInputRef.current) {
-        fileInputRef.current.click();
+        try {
+          console.log("فتح نافذة اختيار الملفات");
+          // إعادة تعيين قيمة الإدخال لضمان إمكانية اختيار نفس الملف مرة أخرى
+          fileInputRef.current.value = '';
+          // محاولة النقر التلقائي
+          fileInputRef.current.click();
+        } catch (error) {
+          console.error("خطأ في فتح نافذة اختيار الملفات:", error);
+          // استخدام طريقة بديلة في حالة فشل الطريقة الأولى
+          const newInput = document.createElement('input');
+          newInput.type = 'file';
+          newInput.accept = 'image/*';
+          newInput.style.display = 'none';
+          newInput.onchange = (event) => {
+            const target = event.target as HTMLInputElement;
+            if (target.files && target.files.length > 0) {
+              handleImageSelect({ target } as React.ChangeEvent<HTMLInputElement>);
+            }
+            // إزالة العنصر من DOM بعد الاستخدام
+            document.body.removeChild(newInput);
+          };
+          document.body.appendChild(newInput);
+          newInput.click();
+        }
+      } else {
+        console.error("مرجع عنصر الإدخال غير موجود");
       }
-    }, 0);
+    }, 10);
   };
 
   const parseAspectRatio = (ratio: number | string | undefined): number | undefined => {
@@ -415,7 +484,11 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
     <div className={`space-y-2 ${className}`}>
       {label && !compact && <Label className="block text-right">{label}</Label>}
       
-      <div className={`border rounded-md overflow-hidden relative ${preview ? "p-0" : compact ? "p-2" : "p-6"}`}>
+      <div 
+        ref={dropAreaRef}
+        className={`border rounded-md overflow-hidden relative ${preview ? "p-0" : compact ? "p-2" : "p-6"} ${isDragging ? 'border-primary bg-primary/5' : ''}`}
+        onClick={!preview ? handleTriggerFileInput : undefined}
+      >
         {preview ? (
           <div className="relative group">
             <img 
@@ -442,38 +515,30 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
                 size="sm"
                 variant="secondary" 
                 onClick={handleTriggerFileInput} 
-                className={`mr-2 ${compact ? "h-6 px-1.5 text-xs" : ""}`} 
-                disabled={isUploading}
+                className={`mr-2 ${compact ? "h-6 px-1.5 text-xs" : ""}`}
               >
-                <Upload className={compact ? "h-3 w-3 mr-0.5" : "h-4 w-4 mr-1"} /> {compact ? "" : "تغيير"}
+                <UploadCloud className={compact ? "h-3 w-3 mr-0.5" : "h-4 w-4 mr-1"} /> {compact ? "" : "تغيير"}
               </Button>
             </div>
           </div>
         ) : (
-          <div
-            className={`flex flex-col items-center justify-center cursor-pointer ${compact ? 'min-h-[80px]' : 'min-h-[150px]'}`}
-            onClick={handleTriggerFileInput}
-          >
+          <div className={`flex flex-col items-center justify-center h-full cursor-pointer border-2 border-dashed p-6 rounded-md ${isDragging ? 'border-primary bg-primary/10' : 'hover:border-primary'} transition-colors`}>
             {isUploading ? (
               <div className="flex flex-col items-center">
-                <Loader2 className={`${compact ? 'h-6 w-6 mb-1' : 'h-12 w-12 mb-2'} animate-spin text-muted-foreground`} />
-                <p className={`${compact ? 'text-xs' : 'text-sm'} text-center text-muted-foreground`}>
-                  {compact ? "جاري الرفع..." : "جاري رفع الصورة..."}
-                </p>
+                <Loader2 className="h-12 w-12 animate-spin text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">جاري رفع الصورة...</p>
               </div>
             ) : (
               <>
-                <UploadCloud className={`${compact ? 'h-6 w-6 mb-1' : 'h-12 w-12 mb-2'} text-muted-foreground`} />
-                <p className={`${compact ? 'text-xs' : 'text-sm'} text-center text-muted-foreground`}>
-                  {compact ? "انقر للرفع" : "انقر هنا لرفع صورة"}
-                  {!compact && (
-                    <>
-                      <br />
-                      <span className="text-xs">
-                        (الحد الأقصى للحجم: {maxSizeInMB} ميجابايت)
-                      </span>
-                    </>
-                  )}
+                <UploadCloud className={`h-12 w-12 ${isDragging ? 'text-primary' : 'text-muted-foreground'} mb-4`} />
+                <p className="text-lg font-medium mb-2 text-center">
+                  {isDragging ? 'أفلت الصورة هنا' : 'انقر لاختيار صورة'}
+                </p>
+                <p className="text-sm text-muted-foreground text-center">
+                  {isDragging ? 'سيتم رفع الصورة تلقائيًا' : 'أو اسحب الصورة وأفلتها هنا'}
+                </p>
+                <p className="text-xs text-muted-foreground mt-2 text-center">
+                  الحد الأقصى للحجم: {maxSizeInMB} ميجابايت
                 </p>
               </>
             )}
@@ -491,7 +556,5 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
     </div>
   );
 });
-
-ImageUploader.displayName = "ImageUploader";
 
 export default ImageUploader;

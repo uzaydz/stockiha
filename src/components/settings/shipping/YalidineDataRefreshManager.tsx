@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useSupabaseClient } from '@supabase/auth-helpers-react';
 import { CircularProgress, LinearProgress, Alert, Button, Card, CardContent, CardHeader, Switch, FormControlLabel, TextField, Typography, Box, Divider } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import { supabase } from '@/lib/supabase';
 
 interface YalidineRefreshStatus {
   status: string;
@@ -37,7 +37,6 @@ interface YalidineDataRefreshManagerProps {
 }
 
 export default function YalidineDataRefreshManager({ organizationId }: YalidineDataRefreshManagerProps) {
-  const supabase = useSupabaseClient();
   const [refreshStatus, setRefreshStatus] = useState<YalidineRefreshStatus | null>(null);
   const [refreshResult, setRefreshResult] = useState<YalidineRefreshResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);
