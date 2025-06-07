@@ -3,6 +3,39 @@ import { UseFormReturn } from 'react-hook-form';
 import { OrderFormValues, Wilaya, Commune } from '../OrderFormTypes';
 import { ShippingProviderSettings } from '../types';
 import { ZRExpressShippingCalculator } from '../custom-form-fields/ZRExpressShippingCalculator';
+import { EcotrackShippingCalculator } from '../custom-form-fields/EcotrackShippingCalculator';
+
+// Helper function to check if provider is Ecotrack-based
+const isEcotrackProvider = (providerCode: string): boolean => {
+  const ecotrackProviders = [
+    'ecotrack',
+    'anderson_delivery',
+    'areex', 
+    'ba_consult',
+    'conexlog',
+    'coyote_express',
+    'dhd',
+    'distazero',
+    'e48hr_livraison',
+    'fretdirect',
+    'golivri',
+    'mono_hub',
+    'msm_go',
+    'negmar_express',
+    'packers',
+    'prest',
+    'rb_livraison',
+    'rex_livraison',
+    'rocket_delivery',
+    'salva_delivery',
+    'speed_delivery',
+    'tsl_express',
+    'worldexpress'
+  ];
+  
+  return ecotrackProviders.includes(providerCode);
+};
+
 import {
   FormControl,
   FormField,
@@ -270,6 +303,18 @@ export const DeliveryInfoFields: React.FC<DeliveryInfoFieldsProps> = ({
         <ZRExpressShippingCalculator
           wilayaId={selectedWilaya}
           isHomeDelivery={deliveryType === 'home'}
+          onPriceCalculated={onDeliveryPriceCalculated || (() => {})}
+        />
+      )}
+      
+      {/* دعم شركات Ecotrack */}
+      {shippingProviderSettings?.provider_code && 
+       isEcotrackProvider(shippingProviderSettings.provider_code) && 
+       selectedWilaya && (
+        <EcotrackShippingCalculator
+          wilayaId={selectedWilaya}
+          isHomeDelivery={deliveryType === 'home'}
+          providerCode={shippingProviderSettings.provider_code}
           onPriceCalculated={onDeliveryPriceCalculated || (() => {})}
         />
       )}

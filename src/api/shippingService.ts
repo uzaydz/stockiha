@@ -12,7 +12,30 @@ export enum ShippingProvider {
   YALIDINE = 'yalidine',
   ZREXPRESS = 'zrexpress',
   MAYESTO = 'mayesto',
-  ECOTRACK = 'ecotrack'
+  ECOTRACK = 'ecotrack',
+  // Ecotrack-integrated providers
+  ANDERSON_DELIVERY = 'anderson_delivery',
+  AREEX = 'areex',
+  BA_CONSULT = 'ba_consult',
+  CONEXLOG = 'conexlog',
+  COYOTE_EXPRESS = 'coyote_express',
+  DHD = 'dhd',
+  DISTAZERO = 'distazero',
+  E48HR_LIVRAISON = 'e48hr_livraison',
+  FRETDIRECT = 'fretdirect',
+  GOLIVRI = 'golivri',
+  MONO_HUB = 'mono_hub',
+  MSM_GO = 'msm_go',
+  NEGMAR_EXPRESS = 'negmar_express',
+  PACKERS = 'packers',
+  PREST = 'prest',
+  RB_LIVRAISON = 'rb_livraison',
+  REX_LIVRAISON = 'rex_livraison',
+  ROCKET_DELIVERY = 'rocket_delivery',
+  SALVA_DELIVERY = 'salva_delivery',
+  SPEED_DELIVERY = 'speed_delivery',
+  TSL_EXPRESS = 'tsl_express',
+  WORLDEXPRESS = 'worldexpress'
 }
 
 interface ProviderCredentials {
@@ -496,6 +519,221 @@ export class ZRExpressShippingService extends BaseShippingService {
   }
 }
 
+/**
+ * Base class for Ecotrack-integrated providers
+ */
+export class EcotrackShippingService extends BaseShippingService {
+  private apiClient;
+  
+  constructor(providerCode: ShippingProvider, baseUrl: string, credentials: ProviderCredentials) {
+    super(providerCode, baseUrl, credentials);
+    
+    this.apiClient = axios.create({
+      baseURL: this.baseUrl,
+      headers: {
+        'Authorization': `Bearer ${credentials.token}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 10000
+    });
+  }
+  
+  /**
+   * Test credentials by calling the wilayas endpoint
+   */
+  async testCredentials(): Promise<TestCredentialsResult> {
+    try {
+      const response = await this.apiClient.get('/api/v1/get/wilayas');
+      
+      if (response.status === 200) {
+        return {
+          success: true,
+          message: 'تم الاتصال بنجاح مع خدمة Ecotrack'
+        };
+      }
+      
+      return {
+        success: false,
+        message: 'فشل في الاتصال مع خدمة Ecotrack'
+      };
+    } catch (error: any) {
+      if (error.response) {
+        const status = error.response.status;
+        if (status === 401 || status === 403) {
+          return {
+            success: false,
+            message: 'بيانات الاعتماد غير صحيحة'
+          };
+        }
+        return {
+          success: false,
+          message: `خطأ ${status}: ${error.response.data?.message || error.response.statusText}`
+        };
+      } else if (error.request) {
+        return {
+          success: false,
+          message: 'لا توجد استجابة من خدمة Ecotrack، تحقق من اتصال الإنترنت'
+        };
+      } else {
+        return {
+          success: false,
+          message: `خطأ في الإعداد: ${error.message}`
+        };
+      }
+    }
+  }
+  
+  /**
+   * Create a shipping order with Ecotrack API
+   */
+  async createShippingOrder(params: CreateOrderParams): Promise<any> {
+    try {
+      const requestBody = {
+        recipient_name: params.Client,
+        recipient_phone: params.MobileA,
+        recipient_phone_alt: params.MobileB || '',
+        address: params.Adresse,
+        region: params.IDWilaya,
+        city: params.Commune,
+        amount: parseFloat(params.Total),
+        delivery_type: params.TypeLivraison,
+        package_type: params.TypeColis,
+        is_confirmed: params.Confrimee === 1,
+        notes: params.Note || '',
+        products_description: params.TProd || '',
+        tracking_number: params.Tracking
+      };
+      
+      const response = await this.apiClient.post('/api/v1/create/order', requestBody);
+      
+      if (response.data.success) {
+        return response.data;
+      } else {
+        throw new Error(response.data.message || 'فشل في إنشاء الطلب');
+      }
+    } catch (error: any) {
+      if (error.response?.data?.success === false) {
+        throw new Error(error.response.data.message || 'فشل في إنشاء الطلب');
+      }
+      throw error;
+    }
+  }
+  
+  /**
+   * Get tracking information - not implemented in Ecotrack
+   */
+  async getTrackingInfo(trackingNumber: string): Promise<any> {
+    // Ecotrack doesn't provide tracking API - direct users to tracking URL
+    throw new Error('تتبع الطلبات غير متاح عبر API، يرجى استخدام رابط التتبع');
+  }
+  
+  /**
+   * Get available wilayas from Ecotrack
+   */
+  async getWilayas(): Promise<any[]> {
+    try {
+      const response = await this.apiClient.get('/api/v1/get/wilayas');
+      
+      if (response.data.success && response.data.data) {
+        return response.data.data;
+      }
+      
+      return [];
+    } catch (error) {
+      throw error;
+    }
+  }
+  
+  /**
+   * Get communes - not directly supported by Ecotrack
+   */
+  async getCommunes(wilayaId: string): Promise<any[]> {
+    // Ecotrack doesn't provide communes API
+    return [];
+  }
+  
+  /**
+   * Calculate shipping cost using Ecotrack fees API
+   */
+  async calculateShippingCost(fromWilaya: string, toWilaya: string, amount: number): Promise<number> {
+    try {
+      const params: any = {
+        to_wilaya_id: toWilaya
+      };
+      
+      if (fromWilaya) {
+        params.from_wilaya_id = fromWilaya;
+      }
+      
+      const response = await this.apiClient.get('/api/v1/get/fees', { params });
+      
+      if (response.data.success && response.data.data && response.data.data.length > 0) {
+        const rate = response.data.data[0];
+        // Return home delivery price as default
+        return parseFloat(rate.price_domicile || rate.price_local || '0');
+      }
+      
+      return 0;
+    } catch (error) {
+      throw error;
+    }
+  }
+  
+  /**
+   * Generate shipping label
+   */
+  async generateShippingLabel(trackingNumber: string): Promise<string> {
+    try {
+      const response = await this.apiClient.get(`/api/v1/get/order/label?tracking=${trackingNumber}`, {
+        responseType: 'arraybuffer'
+      });
+      
+      if (response.status === 200 && response.data && response.data.length > 0) {
+        // Convert to base64
+        const base64 = Buffer.from(response.data).toString('base64');
+        return `data:application/pdf;base64,${base64}`;
+      }
+      
+      throw new Error('ملصق الشحن فارغ أو غير متاح');
+    } catch (error: any) {
+      if (error.response?.status === 422) {
+        throw new Error('رقم التتبع غير موجود');
+      }
+      throw error;
+    }
+  }
+}
+
+// Helper function to get provider base URL
+function getProviderBaseUrl(provider: ShippingProvider): string {
+  const baseUrls: Record<string, string> = {
+    [ShippingProvider.ANDERSON_DELIVERY]: 'https://anderson.ecotrack.dz',
+    [ShippingProvider.AREEX]: 'https://areex.ecotrack.dz',
+    [ShippingProvider.BA_CONSULT]: 'https://baconsult.ecotrack.dz',
+    [ShippingProvider.CONEXLOG]: 'https://conexlog.ecotrack.dz',
+    [ShippingProvider.COYOTE_EXPRESS]: 'https://coyote.ecotrack.dz',
+    [ShippingProvider.DHD]: 'https://dhd.ecotrack.dz',
+    [ShippingProvider.DISTAZERO]: 'https://distazero.ecotrack.dz',
+    [ShippingProvider.E48HR_LIVRAISON]: 'https://e48hr.ecotrack.dz',
+    [ShippingProvider.FRETDIRECT]: 'https://fretdirect.ecotrack.dz',
+    [ShippingProvider.GOLIVRI]: 'https://golivri.ecotrack.dz',
+    [ShippingProvider.MONO_HUB]: 'https://monohub.ecotrack.dz',
+    [ShippingProvider.MSM_GO]: 'https://msmgo.ecotrack.dz',
+    [ShippingProvider.NEGMAR_EXPRESS]: 'https://negmar.ecotrack.dz',
+    [ShippingProvider.PACKERS]: 'https://packers.ecotrack.dz',
+    [ShippingProvider.PREST]: 'https://prest.ecotrack.dz',
+    [ShippingProvider.RB_LIVRAISON]: 'https://rb.ecotrack.dz',
+    [ShippingProvider.REX_LIVRAISON]: 'https://rex.ecotrack.dz',
+    [ShippingProvider.ROCKET_DELIVERY]: 'https://rocket.ecotrack.dz',
+    [ShippingProvider.SALVA_DELIVERY]: 'https://salva.ecotrack.dz',
+    [ShippingProvider.SPEED_DELIVERY]: 'https://speed.ecotrack.dz',
+    [ShippingProvider.TSL_EXPRESS]: 'https://tsl.ecotrack.dz',
+    [ShippingProvider.WORLDEXPRESS]: 'https://worldexpress.ecotrack.dz'
+  };
+  
+  return baseUrls[provider] || '';
+}
+
 // Factory function to create an appropriate shipping service
 export function createShippingService(
   provider: ShippingProvider, 
@@ -506,7 +744,32 @@ export function createShippingService(
       return new YalidineShippingService(credentials);
     case ShippingProvider.ZREXPRESS:
       return new ZRExpressShippingService(credentials);
-    // Add other providers as they are implemented
+    case ShippingProvider.ECOTRACK:
+      return new EcotrackShippingService(provider, 'https://api.ecotrack.dz', credentials);
+    // Ecotrack-integrated providers
+    case ShippingProvider.ANDERSON_DELIVERY:
+    case ShippingProvider.AREEX:
+    case ShippingProvider.BA_CONSULT:
+    case ShippingProvider.CONEXLOG:
+    case ShippingProvider.COYOTE_EXPRESS:
+    case ShippingProvider.DHD:
+    case ShippingProvider.DISTAZERO:
+    case ShippingProvider.E48HR_LIVRAISON:
+    case ShippingProvider.FRETDIRECT:
+    case ShippingProvider.GOLIVRI:
+    case ShippingProvider.MONO_HUB:
+    case ShippingProvider.MSM_GO:
+    case ShippingProvider.NEGMAR_EXPRESS:
+    case ShippingProvider.PACKERS:
+    case ShippingProvider.PREST:
+    case ShippingProvider.RB_LIVRAISON:
+    case ShippingProvider.REX_LIVRAISON:
+    case ShippingProvider.ROCKET_DELIVERY:
+    case ShippingProvider.SALVA_DELIVERY:
+    case ShippingProvider.SPEED_DELIVERY:
+    case ShippingProvider.TSL_EXPRESS:
+    case ShippingProvider.WORLDEXPRESS:
+      return new EcotrackShippingService(provider, getProviderBaseUrl(provider), credentials);
     default:
       throw new Error(`Shipping provider ${provider} is not supported`);
   }

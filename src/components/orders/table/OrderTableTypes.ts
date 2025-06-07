@@ -82,6 +82,7 @@ export type OrdersTableProps = {
   loading: boolean;
   onUpdateStatus: (orderId: string, newStatus: string, userId?: string) => Promise<void>;
   onUpdateCallConfirmation?: (orderId: string, statusId: number, notes?: string, userId?: string) => Promise<void>;
+  onSendToProvider?: (orderId: string, providerCode: string) => Promise<void>;
   onBulkUpdateStatus?: (orderIds: string[], newStatus: string, userId?: string) => Promise<void>;
   hasUpdatePermission: boolean;
   hasCancelPermission: boolean;
@@ -95,6 +96,7 @@ export type OrdersTableRowProps = {
   onSelect: (orderId: string, selected: boolean) => void;
   onUpdateStatus: (orderId: string, newStatus: string, userId?: string) => Promise<void>;
   onUpdateCallConfirmation?: (orderId: string, statusId: number, notes?: string, userId?: string) => Promise<void>;
+  onSendToProvider?: (orderId: string, providerCode: string) => Promise<void>;
   hasUpdatePermission: boolean;
   hasCancelPermission: boolean;
   visibleColumns?: string[];

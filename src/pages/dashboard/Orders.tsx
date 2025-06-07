@@ -22,6 +22,9 @@ import OrdersDashboard from "@/components/orders/OrdersDashboard";
 import OrdersAdvancedFilters from "@/components/orders/OrdersAdvancedFilters";
 import { OrdersDataProvider } from '@/context/OrdersDataContext';
 
+// استيراد دالة تكامل الشحن
+import { sendOrderToShippingProvider } from "@/utils/ecotrackShippingIntegration";
+
 // تعريف أنواع حالات الطلب
 type OrderStatus = 'all' | 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
 
@@ -67,7 +70,7 @@ const Orders = () => {
     pendingAmount: 0
   });
   const [visibleColumns, setVisibleColumns] = useState<string[]>([
-    'checkbox', 'expand', 'id', 'customer_name', 'customer_contact', 'total', 'items', 'status', 'call_confirmation', 'source', 'actions'
+    'checkbox', 'expand', 'id', 'customer_name', 'customer_contact', 'total', 'items', 'status', 'call_confirmation', 'shipping_provider', 'source', 'actions'
   ]);
   
   // متغيرات للتحميل المتدرج والتخزين المؤقت
@@ -741,6 +744,111 @@ const Orders = () => {
     }
   }, [callConfirmationStatuses, currentOrganization?.id, hasUpdatePermission, toast, user?.id]);
 
+  // دالة مساعدة لتحديد حقل التتبع المناسب
+  const getTrackingField = (providerCode: string): string => {
+    switch (providerCode) {
+      case 'yalidine':
+        return 'yalidine_tracking_id';
+      case 'zrexpress':
+        return 'zrexpress_tracking_id';
+      case 'maystro':
+        return 'maystro_tracking_id';
+      default:
+        // جميع شركات Ecotrack تستخدم نفس الحقل
+        return 'ecotrack_tracking_id';
+    }
+  };
+
+  // دالة مساعدة للحصول على اسم الشركة باللغة العربية
+  const getProviderDisplayName = (providerCode: string): string => {
+    const providerNames: { [key: string]: string } = {
+      'yalidine': 'ياليدين',
+      'zrexpress': 'زر إكسبرس',
+      'maystro': 'مايسترو ديليفري',
+      'ecotrack': 'إيكوتراك',
+      'anderson_delivery': 'أندرسون ديليفري',
+      'areex': 'أريكس',
+      'ba_consult': 'بي إي كونسلت',
+      'conexlog': 'كونكسلوغ',
+      'coyote_express': 'كويوت إكسبرس',
+      'dhd': 'دي إتش دي',
+      'distazero': 'ديستازيرو',
+      'e48hr_livraison': '48 ساعة',
+      'fretdirect': 'فريت دايركت',
+      'golivri': 'غو ليفري',
+      'mono_hub': 'مونو هاب',
+      'msm_go': 'إم إس إم غو',
+      'negmar_express': 'نيجمار إكسبرس',
+      'packers': 'باكرز',
+      'prest': 'بريست',
+      'rb_livraison': 'آر بي ليفريزون',
+      'rex_livraison': 'ريكس ليفريزون',
+      'rocket_delivery': 'روكيت ديليفري',
+      'salva_delivery': 'سالفا ديليفري',
+      'speed_delivery': 'سبيد ديليفري',
+      'tsl_express': 'تي إس إل إكسبرس',
+      'worldexpress': 'ورلد إكسبرس'
+    };
+    
+    return providerNames[providerCode] || providerCode;
+  };
+
+  // إرسال الطلب إلى مزود الشحن
+  const handleSendToProvider = useCallback(async (orderId: string, providerCode: string) => {
+    if (!currentOrganization?.id || !hasUpdatePermission) return;
+    
+    const providerDisplayName = getProviderDisplayName(providerCode);
+    
+    try {
+      toast({
+        title: "جاري الإرسال...",
+        description: `جاري إرسال الطلب إلى ${providerDisplayName}`,
+      });
+
+      const result = await sendOrderToShippingProvider(
+        orderId, 
+        providerCode, 
+        currentOrganization.id
+      );
+      
+      if (result.success) {
+        // تحديد الحقل الصحيح للتتبع
+        const trackingField = getTrackingField(providerCode);
+
+        // تحديث الطلب محلياً
+        const updateOrder = (order: any) => 
+          order.id === orderId ? { 
+            ...order, 
+            [trackingField]: result.trackingNumber,
+            shipping_provider: providerCode,
+            status: 'processing'
+          } : order;
+
+        setOrders(prevOrders => prevOrders.map(updateOrder));
+        setFilteredOrders(prevOrders => prevOrders.map(updateOrder));
+
+        toast({
+          title: "تم الإرسال بنجاح",
+          description: `تم إرسال الطلب إلى ${providerDisplayName} برقم التتبع: ${result.trackingNumber}`,
+          className: "bg-green-100 border-green-400 text-green-700",
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "فشل في الإرسال",
+          description: result.message || "حدث خطأ أثناء إرسال الطلب",
+        });
+      }
+    } catch (error) {
+      console.error('❌ [Orders] خطأ في إرسال الطلب:', error);
+      toast({
+        variant: "destructive",
+        title: "خطأ في الإرسال",
+        description: `حدث خطأ أثناء محاولة إرسال الطلب إلى ${providerDisplayName}. يرجى المحاولة مرة أخرى.`,
+      });
+    }
+  }, [currentOrganization?.id, hasUpdatePermission, toast]);
+
   // استرجاع الطلبات والإحصاءات عند تحميل الصفحة
   useEffect(() => {
     if (currentOrganization?.id && hasViewPermission && !permissionLoading) {
@@ -816,6 +924,7 @@ const Orders = () => {
                 loading={loading}
                 onUpdateStatus={updateOrderStatus}
                 onUpdateCallConfirmation={updateOrderCallConfirmation}
+                onSendToProvider={handleSendToProvider}
                 onBulkUpdateStatus={bulkUpdateOrderStatus}
                 hasUpdatePermission={hasUpdatePermission}
                 hasCancelPermission={hasCancelPermission}

@@ -22,7 +22,9 @@ import {
   Loader2,
   AlertTriangle,
   HelpCircle,
-  Layers
+  Layers,
+  Package2,
+  TruckIcon
 } from 'lucide-react';
 
 // Import API functions and types
@@ -47,6 +49,8 @@ const ProductShippingAndTemplates: React.FC<ProductShippingAndTemplatesProps> = 
   const { control, watch, setValue } = form; // Destructure for easier use
   const useShippingClone = watch('use_shipping_clone');
   const currentFormTemplateId = watch('form_template_id');
+  const shippingMethodType = watch('shipping_method_type');
+  const currentShippingProviderId = watch('shipping_provider_id');
 
   // Fetch organization templates
   useEffect(() => {
@@ -227,7 +231,15 @@ const ProductShippingAndTemplates: React.FC<ProductShippingAndTemplatesProps> = 
                       <FormControl>
                         <Switch 
                           checked={field.value} 
-                          onCheckedChange={field.onChange}
+                          onCheckedChange={(checked) => {
+                            field.onChange(checked);
+                            // تحديث نوع طريقة الشحن
+                            if (checked) {
+                              setValue('shipping_method_type', 'clone');
+                            } else {
+                              setValue('shipping_method_type', 'default');
+                            }
+                          }}
                           className="data-[state=checked]:bg-amber-600 dark:data-[state=checked]:bg-amber-500 shadow-sm"
                         />
                       </FormControl>
@@ -345,8 +357,44 @@ const ProductShippingAndTemplates: React.FC<ProductShippingAndTemplatesProps> = 
                         </Tooltip>
                       </FormLabel>
                       <Select 
-                        onValueChange={(value) => field.onChange(value === "" ? null : Number(value))} 
-                        value={field.value ? String(field.value) : ""} 
+                        onValueChange={(value) => {
+                          console.log('🔄 [ProductShipping] تغيير شركة التوصيل:', {
+                            selectedValue: value,
+                            currentProviderId: currentShippingProviderId,
+                            currentShippingMethodType: shippingMethodType
+                          });
+                          
+                          if (value === "" || value === "_NO_PROVIDER_SELECTED_") {
+                            console.log('📋 [ProductShipping] اختيار الافتراضي');
+                            field.onChange(null);
+                            setValue('shipping_method_type', 'default');
+                          } else if (value === "custom") {
+                            console.log('🎨 [ProductShipping] اختيار طريقة مخصصة');
+                            field.onChange(null);
+                            setValue('shipping_method_type', 'custom');
+                          } else {
+                            console.log('🚛 [ProductShipping] اختيار شركة عادية:', {
+                              providerId: Number(value),
+                              valueAsString: value
+                            });
+                            field.onChange(Number(value));
+                            setValue('shipping_method_type', 'standard');
+                          }
+                          
+                          // تحقق من القيم بعد التغيير
+                          setTimeout(() => {
+                            console.log('✅ [ProductShipping] القيم بعد التحديث:', {
+                              shipping_provider_id: form.getValues('shipping_provider_id'),
+                              shipping_method_type: form.getValues('shipping_method_type'),
+                              formIsDirty: form.formState.isDirty,
+                              dirtyFields: form.formState.dirtyFields
+                            });
+                          }, 100);
+                        }} 
+                        value={
+                          shippingMethodType === 'custom' ? 'custom' : 
+                          field.value ? String(field.value) : ""
+                        } 
                         disabled={isLoadingShippingProviders}
                       >
                         <FormControl>
@@ -363,14 +411,70 @@ const ProductShippingAndTemplates: React.FC<ProductShippingAndTemplatesProps> = 
                               <span className="text-muted-foreground">توصيل سطوكيها الافتراضي</span>
                             </div>
                           </SelectItem>
-                          {shippingProviders.map(provider => (
-                            <SelectItem key={provider.id} value={String(provider.id)} className="hover:bg-muted/50 dark:hover:bg-muted/30 transition-colors text-sm">
-                              <div className="flex items-center gap-2">
-                                <Truck className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" />
-                                <span className="text-foreground">{provider.name}</span>
+                          
+                          {/* فصل الطرق المخصصة عن الشركات العادية */}
+                          {shippingProviders.filter(p => p.type === 'custom').length > 0 && (
+                            <>
+                              <Separator className="my-1" />
+                              <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                                طرق الشحن المخصصة
                               </div>
-                            </SelectItem>
-                          ))}
+                              {shippingProviders.filter(p => p.type === 'custom').map(provider => {
+                                const IconComponent = Globe;
+                                return (
+                                  <SelectItem 
+                                    key={`custom-${provider.name}`} 
+                                    value="custom" 
+                                    className="hover:bg-muted/50 dark:hover:bg-muted/30 transition-colors text-sm"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <IconComponent className="h-3.5 w-3.5 text-primary dark:text-primary-foreground" />
+                                      <span className="text-foreground">{provider.name}</span>
+                                      <Badge variant="outline" className="text-xs text-primary border-primary/50">
+                                        مخصص
+                                      </Badge>
+                                    </div>
+                                  </SelectItem>
+                                );
+                              })}
+                            </>
+                          )}
+
+                                                    {/* شركات التوصيل العادية */}
+                          {shippingProviders.filter(p => p.type === 'standard').length > 0 && (
+                            <>
+                              <Separator className="my-1" />
+                              <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                                شركات التوصيل
+                              </div>
+                              {shippingProviders.filter(p => p.type === 'standard').map(provider => {
+                                // تحديد الأيقونة حسب كود الشركة
+                                const getStandardProviderIcon = (code: string) => {
+                                  switch (code) {
+                                    case 'yalidine': return Package2;
+                                    case 'zrexpress': return TruckIcon;
+                                    case 'mayesto': return Package;
+                                    default: return Truck;
+                                  }
+                                };
+
+                                const IconComponent = getStandardProviderIcon(provider.code);
+                                
+                                return (
+                                  <SelectItem 
+                                    key={`standard-${provider.id}`} 
+                                    value={String(provider.id)} 
+                                    className="hover:bg-muted/50 dark:hover:bg-muted/30 transition-colors text-sm"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <IconComponent className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" />
+                                      <span className="text-foreground">{provider.name}</span>
+                                    </div>
+                                  </SelectItem>
+                                );
+                              })}
+                            </>
+                          )}
                         </SelectContent>
                       </Select>
                       <FormDescription className="text-xs text-muted-foreground">
@@ -389,10 +493,12 @@ const ProductShippingAndTemplates: React.FC<ProductShippingAndTemplatesProps> = 
                     </div>
                     <AlertDescription className="flex-1">
                       <div className="font-medium text-blue-800 dark:text-blue-200 text-sm mb-1">
-                        إعدادات افتراضية
+                        خيارات التوصيل المتاحة
                       </div>
-                      <div className="text-xs text-blue-700 dark:text-blue-300">
-                        إذا لم تختر شركة توصيل، سيتم استخدام الإعدادات الافتراضية للمؤسسة
+                      <div className="text-xs text-blue-700 dark:text-blue-300 space-y-1">
+                        <div>• شركات التوصيل العادية: يالدين، ZR Express، مايستو، وغيرها</div>
+                        <div>• طرق الشحن المخصصة: أسعار محددة لكل ولاية حسب نوع التوصيل</div>
+                        <div>• إذا لم تختر، سيتم استخدام الإعدادات الافتراضية للمؤسسة</div>
                       </div>
                     </AlertDescription>
                   </div>

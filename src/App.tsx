@@ -102,6 +102,8 @@ import SuperAdminCourses from '@/pages/SuperAdminCourses';
 
 // صفحة الاشتراكات
 import SubscriptionPage from "./pages/dashboard/subscription";
+import SubscriptionServices from "./pages/dashboard/SubscriptionServices";
+import DeliveryManagement from "./pages/dashboard/DeliveryManagement";
 import SyncManager from './components/SyncManager';
 import PermissionGuard from './components/auth/PermissionGuard';
 import useTabFocusEffect from './hooks/useTabFocusEffect';
@@ -403,6 +405,24 @@ const App = () => {
                       {/* صفحة إدارة الاشتراك */}
                       <Route path="/dashboard/subscription" element={<SubscriptionPage />} />
                       
+                      {/* صفحة خدمات الاشتراكات */}
+                      <Route path="/dashboard/subscription-services" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+                            <SubscriptionServices />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+                      
+                      {/* صفحة إدارة التوصيل */}
+                      <Route path="/dashboard/delivery" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+                            <DeliveryManagement />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+                      
                       <Route path="/dashboard/products" element={
                         <SubscriptionCheck>
                           <Products />
@@ -640,6 +660,8 @@ const App = () => {
                           </PermissionGuard>
                         </SubscriptionCheck>
                       } />
+
+
 
                       {/* صفحات إدارة صفحات الهبوط */}
                       <Route path="/dashboard/landing-pages" element={

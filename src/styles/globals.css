@@ -1,3 +1,5 @@
+@import url('./viewport-simulator.css');
+
 @keyframes fadeIn {
   from {
     opacity: 0;

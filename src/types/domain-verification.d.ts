@@ -1,57 +1,47 @@
-import { Database as DatabaseTypes } from './database.types';
-
-// إضافة جدول domain_verifications إلى أنواع قاعدة البيانات
-declare module './database.types' {
-  interface Database {
-    public: {
-      Tables: {
-        domain_verifications: {
-          Row: {
-            id: string;
-            organization_id: string;
-            domain: string;
-            status: string;
-            verification_code?: string;
-            verified_at?: string;
-            error_message?: string;
-            created_at: string;
-            updated_at: string;
-          };
-          Insert: {
-            id?: string;
-            organization_id: string;
-            domain: string;
-            status: string;
-            verification_code?: string;
-            verified_at?: string;
-            error_message?: string;
-            created_at?: string;
-            updated_at?: string;
-          };
-          Update: {
-            id?: string;
-            organization_id?: string;
-            domain?: string;
-            status?: string;
-            verification_code?: string;
-            verified_at?: string;
-            error_message?: string;
-            created_at?: string;
-            updated_at?: string;
-          };
-          Relationships: [
-            {
-              foreignKeyName: "domain_verifications_organization_id_fkey";
-              columns: ["organization_id"];
-              isOneToOne: false;
-              referencedRelation: "organizations";
-              referencedColumns: ["id"];
-            }
-          ];
-        };
-      } & DatabaseTypes['public']['Tables'];
-    };
-  }
+// أنواع domain_verifications منفصلة لتجنب التضارب
+export interface DomainVerificationTable {
+  Row: {
+    id: string;
+    organization_id: string;
+    domain: string;
+    status: string;
+    verification_code?: string;
+    verified_at?: string;
+    error_message?: string;
+    created_at: string;
+    updated_at: string;
+  };
+  Insert: {
+    id?: string;
+    organization_id: string;
+    domain: string;
+    status: string;
+    verification_code?: string;
+    verified_at?: string;
+    error_message?: string;
+    created_at?: string;
+    updated_at?: string;
+  };
+  Update: {
+    id?: string;
+    organization_id?: string;
+    domain?: string;
+    status?: string;
+    verification_code?: string;
+    verified_at?: string;
+    error_message?: string;
+    created_at?: string;
+    updated_at?: string;
+  };
+  Relationships: [
+    {
+      foreignKeyName: "domain_verifications_organization_id_fkey";
+      columns: ["organization_id"];
+      isOneToOne: false;
+      referencedRelation: "organizations";
+      referencedColumns: ["id"];
+    }
+  ];
 }
 
 // أنواع الحالة للتحقق من النطاق

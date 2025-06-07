@@ -225,6 +225,94 @@ export class ShippingSettingsService {
           name = 'إيكوتراك';
           baseUrl = 'https://api.ecotrack.dz/';
           break;
+        case ShippingProvider.ANDERSON_DELIVERY:
+          name = 'Anderson Delivery';
+          baseUrl = 'https://anderson.ecotrack.dz/';
+          break;
+        case ShippingProvider.AREEX:
+          name = 'أريكس';
+          baseUrl = 'https://areex.ecotrack.dz/';
+          break;
+        case ShippingProvider.BA_CONSULT:
+          name = 'BA Consult';
+          baseUrl = 'https://baconsult.ecotrack.dz/';
+          break;
+        case ShippingProvider.CONEXLOG:
+          name = 'كونكسلوغ';
+          baseUrl = 'https://conexlog.ecotrack.dz/';
+          break;
+        case ShippingProvider.COYOTE_EXPRESS:
+          name = 'Coyote Express';
+          baseUrl = 'https://coyote.ecotrack.dz/';
+          break;
+        case ShippingProvider.DHD:
+          name = 'DHD';
+          baseUrl = 'https://dhd.ecotrack.dz/';
+          break;
+        case ShippingProvider.DISTAZERO:
+          name = 'ديستازيرو';
+          baseUrl = 'https://distazero.ecotrack.dz/';
+          break;
+        case ShippingProvider.E48HR_LIVRAISON:
+          name = 'E48HR Livraison';
+          baseUrl = 'https://e48hr.ecotrack.dz/';
+          break;
+        case ShippingProvider.FRETDIRECT:
+          name = 'فريت دايركت';
+          baseUrl = 'https://fretdirect.ecotrack.dz/';
+          break;
+        case ShippingProvider.GOLIVRI:
+          name = 'غوليفري';
+          baseUrl = 'https://golivri.ecotrack.dz/';
+          break;
+        case ShippingProvider.MONO_HUB:
+          name = 'Mono Hub';
+          baseUrl = 'https://monohub.ecotrack.dz/';
+          break;
+        case ShippingProvider.MSM_GO:
+          name = 'MSM Go';
+          baseUrl = 'https://msmgo.ecotrack.dz/';
+          break;
+        case ShippingProvider.NEGMAR_EXPRESS:
+          name = 'نيغمار إكسبرس';
+          baseUrl = 'https://negmar.ecotrack.dz/';
+          break;
+        case ShippingProvider.PACKERS:
+          name = 'باكرز';
+          baseUrl = 'https://packers.ecotrack.dz/';
+          break;
+        case ShippingProvider.PREST:
+          name = 'بريست';
+          baseUrl = 'https://prest.ecotrack.dz/';
+          break;
+        case ShippingProvider.RB_LIVRAISON:
+          name = 'RB Livraison';
+          baseUrl = 'https://rb.ecotrack.dz/';
+          break;
+        case ShippingProvider.REX_LIVRAISON:
+          name = 'ريكس ليفريزون';
+          baseUrl = 'https://rex.ecotrack.dz/';
+          break;
+        case ShippingProvider.ROCKET_DELIVERY:
+          name = 'Rocket Delivery';
+          baseUrl = 'https://rocket.ecotrack.dz/';
+          break;
+        case ShippingProvider.SALVA_DELIVERY:
+          name = 'سالفا ديليفري';
+          baseUrl = 'https://salva.ecotrack.dz/';
+          break;
+        case ShippingProvider.SPEED_DELIVERY:
+          name = 'سبيد ديليفري';
+          baseUrl = 'https://speed.ecotrack.dz/';
+          break;
+        case ShippingProvider.TSL_EXPRESS:
+          name = 'TSL Express';
+          baseUrl = 'https://tsl.ecotrack.dz/';
+          break;
+        case ShippingProvider.WORLDEXPRESS:
+          name = 'ورلد إكسبرس';
+          baseUrl = 'https://worldexpress.ecotrack.dz/';
+          break;
       }
       
       const { data, error } = await supabase

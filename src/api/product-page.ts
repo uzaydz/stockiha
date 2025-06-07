@@ -226,6 +226,17 @@ export async function getShippingMunicipalities(wilayaId: number, organizationId
     `shipping_municipalities:${organizationId}:${wilayaId}`,
     async () => {
       try {
+        console.log('🏘️ [getShippingMunicipalities] استدعاء دالة جلب البلديات:', {
+          wilayaId,
+          organizationId
+        });
+        
+        // التحقق من صحة المعاملات قبل الاستدعاء
+        if (!wilayaId || !organizationId) {
+          console.error('❌ [getShippingMunicipalities] معاملات غير صالحة:', { wilayaId, organizationId });
+          throw new Error('معاملات غير صالحة: wilayaId أو organizationId مفقود');
+        }
+        
         // استدعاء دالة جلب البلديات الموحدة في قاعدة البيانات
         const { data, error } = await supabase.rpc(
           'get_shipping_municipalities' as any,
@@ -235,13 +246,45 @@ export async function getShippingMunicipalities(wilayaId: number, organizationId
           }
         );
         
+        console.log('📊 [getShippingMunicipalities] نتيجة RPC:', {
+          wilayaId,
+          organizationId,
+          dataType: typeof data,
+          isArray: Array.isArray(data),
+          dataLength: Array.isArray(data) ? data.length : 'N/A',
+          error: error?.message,
+          errorDetails: error,
+          rawData: data
+        });
+        
         if (error) {
-          return [];
+          console.error('❌ [getShippingMunicipalities] خطأ في RPC:', error);
+          throw new Error(`فشل في جلب البلديات: ${error.message}`);
         }
         
-        return (Array.isArray(data) ? data : []) as Municipality[];
+        if (!data) {
+          console.error('❌ [getShippingMunicipalities] البيانات فارغة من قاعدة البيانات');
+          throw new Error('لم يتم إرجاع بيانات من قاعدة البيانات');
+        }
+        
+        const result = (Array.isArray(data) ? data : []) as Municipality[];
+        console.log('✅ [getShippingMunicipalities] النتيجة النهائية:', {
+          wilayaId,
+          count: result.length,
+          firstItems: result.slice(0, 3)
+        });
+        
+        if (result.length === 0) {
+          console.warn('⚠️ [getShippingMunicipalities] لم يتم العثور على بلديات للولاية:', wilayaId);
+          // بدلاً من إرجاع مصفوفة فارغة، تحقق من وجود الولاية في قاعدة البيانات
+          console.log('🔍 [getShippingMunicipalities] فحص وجود بيانات في قاعدة البيانات...');
+        }
+        
+        return result;
       } catch (error) {
-        return [];
+        console.error('❌ [getShippingMunicipalities] خطأ عام:', error);
+        // بدلاً من إرجاع مصفوفة فارغة، أعد الخطأ لمعرفة السبب الحقيقي
+        throw error;
       }
     },
     LONG_CACHE_TTL, // 24 ساعة
@@ -257,6 +300,7 @@ export async function getShippingMunicipalities(wilayaId: number, organizationId
  * @param deliveryType نوع التوصيل ('home' أو 'desk')
  * @param weight الوزن المقدر (كغم)
  * @param shippingProviderCloneIdInput معرف مزود الشحن المستنسخ (اختياري)
+ * @param productId معرف المنتج لفحص شركة التوصيل المربوطة (اختياري)
  * @returns سعر التوصيل
  */
 export async function calculateShippingFee(
@@ -265,7 +309,8 @@ export async function calculateShippingFee(
   toMunicipalityId: number,
   deliveryType: 'home' | 'desk',
   weight: number,
-  shippingProviderCloneIdInput?: string | number
+  shippingProviderCloneIdInput?: string | number,
+  productId?: string
 ): Promise<number> {
   
   // تحويل ومعالجة shippingProviderCloneIdInput
@@ -278,47 +323,115 @@ export async function calculateShippingFee(
   }
 
   return withCache<number>(
-    `shipping_fee:${organizationId}:${toWilayaId}:${toMunicipalityId}:${deliveryType}:${weight}:${shippingProviderCloneId || ''}`,
+    `shipping_fee:${organizationId}:${toWilayaId}:${toMunicipalityId}:${deliveryType}:${weight}:${shippingProviderCloneId || ''}:${productId || ''}`,
     async () => {
       try {
+        console.log('💰 [calculateShippingFee] بدء حساب سعر التوصيل:', {
+          organizationId,
+          toWilayaId,
+          toMunicipalityId,
+          deliveryType,
+          weight,
+          shippingProviderCloneId,
+          productId
+        });
+        
+        // التحقق من صحة المعاملات
+        if (!organizationId || !toWilayaId || !toMunicipalityId || !deliveryType) {
+          console.error('❌ [calculateShippingFee] معاملات غير صالحة:', {
+            organizationId,
+            toWilayaId,
+            toMunicipalityId,
+            deliveryType
+          });
+          throw new Error('معاملات الحساب غير صالحة');
+        }
+        
         // إذا تم توفير معرف مزود الشحن المستنسخ وكان صالحًا، نتحقق أولاً من إعداداته
-        if (shippingProviderCloneId !== undefined) { // التحقق من أنه رقم صالح
+        if (shippingProviderCloneId !== undefined) {
           try {
+            console.log('🔍 [calculateShippingFee] فحص إعدادات مزود الشحن المستنسخ:', shippingProviderCloneId);
+            
             // استعلام إعدادات مزود الشحن المستنسخ
             const { data: cloneData, error: cloneError } = await supabase
               .from('shipping_provider_clones')
               .select('*')
-              .eq('id', shippingProviderCloneId) // الآن shippingProviderCloneId هو رقم بالتأكيد
+              .eq('id', shippingProviderCloneId)
               .single();
 
-            // إذا تم العثور على الإعدادات وكان استخدام الأسعار الموحدة مفعلاً
             if (cloneData && !cloneError && cloneData.use_unified_price === true) {
+              console.log('💡 [calculateShippingFee] استخدام الأسعار الموحدة:', {
+                unified_home_price: cloneData.unified_home_price,
+                unified_desk_price: cloneData.unified_desk_price,
+                deliveryType
+              });
 
               // استخدام سعر موحد حسب نوع التوصيل
               if (deliveryType === 'home' && typeof cloneData.unified_home_price === 'number') {
-                
                 return cloneData.unified_home_price;
               } else if (deliveryType === 'desk' && typeof cloneData.unified_desk_price === 'number') {
-                
                 return cloneData.unified_desk_price;
               }
 
               // إذا كان التوصيل للمنزل غير مفعل، استخدم سعر الاستلام من المكتب كاحتياط
               if (deliveryType === 'home' && cloneData.is_home_delivery_enabled === false && typeof cloneData.unified_desk_price === 'number') {
-                
                 return cloneData.unified_desk_price;
               }
               
               // إذا كان الاستلام من المكتب غير مفعل، استخدم سعر التوصيل للمنزل كاحتياط
               if (deliveryType === 'desk' && cloneData.is_desk_delivery_enabled === false && typeof cloneData.unified_home_price === 'number') {
-                
                 return cloneData.unified_home_price;
               }
             }
           } catch (cloneError) {
+            console.warn('⚠️ [calculateShippingFee] تعذر جلب إعدادات مزود الشحن المستنسخ:', cloneError);
             // استمر في المعالجة العادية في حالة حدوث خطأ
           }
         }
+        
+        // التحقق من شركات التوصيل المربوطة بالمنتج لمعرفة إذا كانت Ecotrack
+        if (productId) {
+          try {
+            console.log('🔍 [calculateShippingFee] فحص شركة التوصيل المربوطة بالمنتج:', productId);
+            
+            const { data: productData } = await supabase
+              .from('products')
+              .select('shipping_provider_id')
+              .eq('id', productId)
+              .eq('organization_id', organizationId)
+              .single();
+              
+            if (productData?.shipping_provider_id) {
+              const { data: providerData } = await supabase
+                .from('shipping_providers')
+                .select('code')
+                .eq('id', productData.shipping_provider_id)
+                .single();
+                
+              if (providerData && isEcotrackProvider(providerData.code)) {
+                console.log('🌿 [calculateShippingFee] محاولة استخدام Ecotrack API لحساب السعر');
+                
+                const ecotrackResult = await calculateEcotrackShippingPrice(
+                  organizationId,
+                  providerData.code,
+                  toWilayaId.toString(),
+                  deliveryType
+                );
+                
+                if (ecotrackResult.success) {
+                  console.log('✅ [calculateShippingFee] نجح حساب السعر باستخدام Ecotrack:', ecotrackResult.price);
+                  return ecotrackResult.price;
+                } else {
+                  console.warn('⚠️ [calculateShippingFee] فشل Ecotrack، العودة للطريقة التقليدية:', ecotrackResult.error);
+                }
+              }
+            }
+          } catch (ecotrackError) {
+            console.warn('⚠️ [calculateShippingFee] خطأ في محاولة Ecotrack، العودة للطريقة التقليدية:', ecotrackError);
+          }
+        }
+        
+        console.log('📞 [calculateShippingFee] استدعاء دالة قاعدة البيانات calculate_shipping_fee');
         
         // استدعاء دالة حساب رسوم الشحن الموحدة في قاعدة البيانات
         const { data, error } = await supabase.rpc(
@@ -332,16 +445,43 @@ export async function calculateShippingFee(
           }
         );
         
+        console.log('📊 [calculateShippingFee] نتيجة حساب السعر:', {
+          data,
+          error: error?.message,
+          errorDetails: error,
+          dataType: typeof data
+        });
+        
         if (error) {
-          return 0;
+          console.error('❌ [calculateShippingFee] خطأ في حساب السعر:', error);
+          throw new Error(`فشل في حساب سعر التوصيل: ${error.message}`);
         }
         
-        return typeof data === 'number' ? data : 0;
+        const calculatedFee = typeof data === 'number' ? data : 0;
+        console.log('✅ [calculateShippingFee] السعر المحسوب:', calculatedFee);
+        
+        // التعامل مع النتيجة 0 - الدالة الجديدة ترجع 0 عندما لا تجد بيانات
+        if (calculatedFee === 0) {
+          console.error('❌ [calculateShippingFee] لم يتم العثور على أسعار شحن لهذه الوجهة:', {
+            organizationId,
+            toWilayaId,
+            toMunicipalityId,
+            deliveryType,
+            message: 'الدالة الجديدة ترجع 0 عندما لا تجد بيانات في قاعدة البيانات'
+          });
+          
+          // رفع خطأ واضح عندما لا تتوفر أسعار شحن
+          throw new Error(`عذراً، لا تتوفر أسعار شحن للولاية والبلدية المحددة. يرجى التواصل مع خدمة العملاء أو اختيار وجهة أخرى.`);
+        }
+        
+        return calculatedFee;
       } catch (error) {
-        return 0;
+        console.error('❌ [calculateShippingFee] خطأ عام في حساب السعر:', error);
+        // بدلاً من إرجاع 0، أعد رفع الخطأ لمعرفة السبب الحقيقي
+        throw error;
       }
     },
-    SHORT_CACHE_TTL, // 5 دقائق
+    60000, // دقيقة واحدة فقط للتخزين المؤقت
     true
   );
 }
@@ -360,4 +500,154 @@ export const refreshProductPageData = async (organizationId: string, slug: strin
   // إعادة تحميل البيانات الجديدة وتخزينها مؤقتاً
   // await getProductPageData(organizationId, slug); // لا حاجة لتتبع هذا الاستدعاء بشكل منفصل هنا لأنه يُتبع داخل getProductPageData
   await getProductPageData(organizationId, slug);
+};
+
+// Helper function to check if provider is Ecotrack-based
+const isEcotrackProvider = (providerCode: string): boolean => {
+  const ecotrackProviders = [
+    'ecotrack',
+    'anderson_delivery',
+    'areex', 
+    'ba_consult',
+    'conexlog',
+    'coyote_express',
+    'dhd',
+    'distazero',
+    'e48hr_livraison',
+    'fretdirect',
+    'golivri',
+    'mono_hub',
+    'msm_go',
+    'negmar_express',
+    'packers',
+    'prest',
+    'rb_livraison',
+    'rex_livraison',
+    'rocket_delivery',
+    'salva_delivery',
+    'speed_delivery',
+    'tsl_express',
+    'worldexpress'
+  ];
+  
+  return ecotrackProviders.includes(providerCode);
+};
+
+// Function to calculate Ecotrack shipping prices
+const calculateEcotrackShippingPrice = async (
+  organizationId: string,
+  providerCode: string,
+  wilayaId: string,
+  deliveryType: 'home' | 'desk'
+): Promise<{ success: boolean; price: number; error?: string }> => {
+  try {
+    console.log('🌿 [calculateEcotrackShippingPrice] بدء حساب سعر Ecotrack:', {
+      organizationId,
+      providerCode,
+      wilayaId,
+      deliveryType
+    });
+
+    // Get provider settings
+    const { data: providerSettings, error: settingsError } = await supabase
+      .from('shipping_provider_settings')
+      .select(`
+        *,
+        shipping_providers!inner(code, base_url)
+      `)
+      .eq('organization_id', organizationId)
+      .eq('shipping_providers.code', providerCode)
+      .eq('is_enabled', true)
+      .single();
+
+    if (settingsError || !providerSettings) {
+      console.error('❌ [calculateEcotrackShippingPrice] لا توجد إعدادات للشركة:', settingsError);
+      return {
+        success: false,
+        price: 0,
+        error: 'لا توجد إعدادات لشركة التوصيل'
+      };
+    }
+
+    const { api_token, shipping_providers } = providerSettings;
+    const baseUrl = shipping_providers.base_url;
+
+    if (!api_token) {
+      console.error('❌ [calculateEcotrackShippingPrice] لا يوجد API token');
+      return {
+        success: false,
+        price: 0,
+        error: 'لا يوجد API token للشركة'
+      };
+    }
+
+    console.log('🔗 [calculateEcotrackShippingPrice] إعدادات الشركة:', {
+      baseUrl,
+      hasToken: !!api_token
+    });
+
+    // Call Ecotrack API
+    const response = await fetch(`${baseUrl}/api/v1/get/fees?to_wilaya_id=${wilayaId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${api_token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    console.log('📡 [calculateEcotrackShippingPrice] استجابة API:', {
+      status: response.status,
+      statusText: response.statusText
+    });
+
+    if (!response.ok) {
+      console.error('❌ [calculateEcotrackShippingPrice] خطأ HTTP:', response.status);
+      return {
+        success: false,
+        price: 0,
+        error: `خطأ في API: ${response.status}`
+      };
+    }
+
+    const data = await response.json();
+    console.log('📊 [calculateEcotrackShippingPrice] بيانات الاستجابة:', data);
+
+    if (data.success && data.data && data.data.length > 0) {
+      const rate = data.data[0];
+      let price = 0;
+
+      if (deliveryType === 'home') {
+        price = parseFloat(rate.price_domicile || rate.price_local || '0');
+      } else {
+        price = parseFloat(rate.price_local || rate.price_domicile || '0');
+      }
+
+      console.log('✅ [calculateEcotrackShippingPrice] السعر المحسوب:', {
+        deliveryType,
+        price_domicile: rate.price_domicile,
+        price_local: rate.price_local,
+        finalPrice: price
+      });
+
+      return {
+        success: true,
+        price: price
+      };
+    }
+
+    console.warn('⚠️ [calculateEcotrackShippingPrice] لا توجد أسعار متاحة');
+    return {
+      success: false,
+      price: 0,
+      error: 'لا توجد أسعار متاحة لهذه الولاية'
+    };
+
+  } catch (error) {
+    console.error('❌ [calculateEcotrackShippingPrice] خطأ في الحساب:', error);
+    return {
+      success: false,
+      price: 0,
+      error: error instanceof Error ? error.message : 'خطأ غير معروف'
+    };
+  }
 };

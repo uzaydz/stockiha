@@ -214,6 +214,7 @@ export const productSchema = z.object({
   unit_sale_price: z.coerce.number().min(0, { message: "سعر بيع الوحدة يجب أن يكون 0 أو أكبر" }).optional(),
   form_template_id: z.string().uuid().nullable().optional(),
   shipping_provider_id: z.number().int().nullable().optional(),
+  shipping_method_type: z.enum(['default', 'standard', 'custom', 'clone']).default('default').optional(),
   use_shipping_clone: z.boolean().default(false).optional(),
   shipping_clone_id: z.number().int().nullable().optional(),
   created_by_user_id: z.string().uuid().optional(),
@@ -320,7 +321,8 @@ export interface ProductWithVariants {
   unit_purchase_price?: number;
   unit_sale_price?: number;
   form_template_id?: string;
-  shipping_provider_id?: number;
+  shipping_provider_id?: number | null;
+  shipping_method_type?: 'default' | 'standard' | 'custom' | 'clone';
   use_shipping_clone?: boolean;
   shipping_clone_id?: number;
   created_by_user_id?: string;

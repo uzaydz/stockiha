@@ -24,6 +24,7 @@ import { OrdersTableRowProps } from "./OrderTableTypes";
 import CallConfirmationDropdown from "../CallConfirmationDropdown";
 import CallConfirmationBadge from "../CallConfirmationBadge";
 import ShippingProviderBadge from "./ShippingProviderBadge";
+import ShippingProviderColumn from "./ShippingProviderColumn";
 
 const OrdersTableRow = ({
   order,
@@ -31,6 +32,7 @@ const OrdersTableRow = ({
   onSelect,
   onUpdateStatus,
   onUpdateCallConfirmation,
+  onSendToProvider,
   hasUpdatePermission,
   hasCancelPermission,
   visibleColumns = [],
@@ -225,9 +227,10 @@ const OrdersTableRow = ({
         {/* مزود الشحن */}
         {visibleColumns.includes("shipping_provider") && (
           <TableCell>
-            <ShippingProviderBadge
-              yalidineTrackingId={order.yalidine_tracking_id}
-              zrexpressTrackingId={order.zrexpress_tracking_id}
+            <ShippingProviderColumn
+              order={order}
+              onSendToProvider={onSendToProvider}
+              hasUpdatePermission={hasUpdatePermission}
             />
           </TableCell>
         )}

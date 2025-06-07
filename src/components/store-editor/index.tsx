@@ -1,9 +1,2 @@
-import ComponentEditor from './ComponentEditor';
-import ComponentPreview from './preview/ComponentPreview';
-import AboutEditor from './editors/AboutEditor';
-
-export { 
-  ComponentEditor, 
-  ComponentPreview,
-  AboutEditor
-};
+// المحرر المحسن هو الوحيد المتاح الآن
+export { ImprovedStoreEditor } from './improved';

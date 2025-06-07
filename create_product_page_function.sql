@@ -249,9 +249,8 @@ AS $$
     )
     ORDER BY ym.id
   ), '[]'::jsonb) as municipalities
-  FROM yalidine_municipalities ym
-  WHERE ym.organization_id = p_org_id
-    AND ym.wilaya_id = p_wilaya_id
+  FROM yalidine_municipalities_global ym
+  WHERE ym.wilaya_id = p_wilaya_id
     AND ym.is_deliverable = true;
 $$;
 
@@ -271,10 +270,16 @@ DECLARE
   v_fee NUMERIC;
   v_from_wilaya_id INT;
 BEGIN
+  -- محاولة الحصول على ولاية المنشأ من الإعدادات
   SELECT COALESCE(origin_wilaya_id, 40)
   INTO v_from_wilaya_id
   FROM yalidine_settings_with_origin y
   WHERE y.organization_id = p_org_id;
+  
+  -- إذا لم توجد إعدادات، استخدم الولاية الافتراضية (الجزائر)
+  IF v_from_wilaya_id IS NULL THEN
+    v_from_wilaya_id := 16;
+  END IF;
   
   IF p_delivery_type = 'desk' THEN
     SELECT COALESCE(stop_desk_fee, 0) INTO v_fee
@@ -293,6 +298,15 @@ BEGIN
       
     IF p_weight > 1 THEN
       v_fee := v_fee + ((p_weight - 1) * 100);
+    END IF;
+  END IF;
+  
+  -- إذا لم نجد سعر محدد، استخدم أسعار افتراضية
+  IF v_fee IS NULL OR v_fee = 0 THEN
+    IF p_delivery_type = 'desk' THEN
+      v_fee := 300; -- سعر افتراضي للتوصيل المكتبي
+    ELSE
+      v_fee := 800; -- سعر افتراضي للتوصيل المنزلي
     END IF;
   END IF;
   

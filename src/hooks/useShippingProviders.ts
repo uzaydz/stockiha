@@ -1,92 +1,106 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase-client';
-import { useTenant } from '@/context/TenantContext';
-import { withCache, LONG_CACHE_TTL } from '@/lib/cache/storeCache';
 
 export interface ShippingProvider {
-  id: number;
-  code: string;
-  name: string;
-  is_active: boolean | null;
-  has_credentials?: boolean;
-  logo_url?: string;
-  base_url?: string | null;
+  provider_id: number | null;
+  provider_code: string;
+  provider_name: string;
+  organization_id: string;
+  organization_name?: string;
+  api_token?: string;
+  api_key?: string;
+  is_enabled: boolean;
+  auto_shipping: boolean;
+  track_updates: boolean;
+  settings?: any;
+  created_at?: string;
+  updated_at?: string;
+  base_url?: string;
 }
 
-interface RawShippingProvider {
-  id: number;
-  code: string;
-  name: string;
-  is_active: boolean | null;
-  base_url: string | null;
+interface UseShippingProvidersReturn {
+  providers: ShippingProvider[];
+  isLoading: boolean;
+  error: string | null;
+  refetch: () => Promise<void>;
 }
 
-export function useShippingProviders() {
-  const { currentOrganization } = useTenant();
+export function useShippingProviders(organizationId: string): UseShippingProvidersReturn {
   const [providers, setProviders] = useState<ShippingProvider[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!currentOrganization) {
-      setIsLoading(false);
-      return;
-    }
-
-    async function fetchProviders() {
+  const fetchProviders = async () => {
       try {
         setIsLoading(true);
         setError(null);
         
-        const allProvidersRaw = await withCache<RawShippingProvider[]>(
-          'all_shipping_providers',
-          async () => {
-            const { data, error: providerError } = await supabase
-              .from('shipping_providers')
-              .select('id, code, name, is_active, base_url')
-              .order('name', { ascending: true });
-            if (providerError) throw providerError;
-            return data || [];
-          },
-          LONG_CACHE_TTL
-        );
+      // جلب شركات التوصيل العادية
+      const { data: standardProviders, error: standardError } = await supabase
+        .from('shipping_data_view')
+        .select('*')
+        .eq('organization_id', organizationId)
+        .not('provider_id', 'is', null);
           
-        if (!allProvidersRaw || allProvidersRaw.length === 0) {
-          setProviders([]);
-          setIsLoading(false);
-          return;
+      if (standardError) {
+        throw standardError;
         }
         
-        const { data: orgSettings, error: settingsError } = await supabase
+      // جلب طرق الشحن المخصصة
+      const { data: customProviders, error: customError } = await supabase
           .from('shipping_provider_settings')
-          .select('provider_id, is_enabled, api_token, api_key')
-          .eq('organization_id', currentOrganization.id);
+        .select('*')
+        .eq('organization_id', organizationId)
+        .is('provider_id', null);
           
-        if (settingsError) throw settingsError;
+      if (customError) {
+        throw customError;
+      }
         
-        const mergedProviders = allProvidersRaw.map(provider => {
-          const settings = orgSettings?.find(s => s.provider_id === provider.id);
+      // تحويل طرق الشحن المخصصة لنفس التنسيق
+      const formattedCustomProviders = customProviders?.map(provider => {
+        const settings = provider.settings as any;
           return {
-            ...provider,
-            id: provider.id,
-            is_active: settings ? settings.is_enabled : provider.is_active,
-            has_credentials: settings ? 
-              Boolean(settings.api_token && settings.api_key) : 
-              false
+          provider_id: null,
+          provider_code: 'custom',
+          provider_name: settings?.service_name || 'طريقة شحن مخصصة',
+          organization_id: provider.organization_id,
+          api_token: provider.api_token,
+          api_key: provider.api_key,
+          is_enabled: provider.is_enabled,
+          auto_shipping: provider.auto_shipping,
+          track_updates: provider.track_updates,
+          settings: provider.settings,
+          created_at: provider.created_at,
+          updated_at: provider.updated_at
           };
-        });
+      }) || [];
 
-        setProviders(mergedProviders as ShippingProvider[]);
-      } catch (err: any) {
-        setError(err);
-        setProviders([]);
+      // دمج النتائج
+      const allProviders = [...(standardProviders || []), ...formattedCustomProviders];
+      setProviders(allProviders);
+    } catch (err) {
+      console.error('Error fetching shipping providers:', err);
+      setError(err instanceof Error ? err.message : 'حدث خطأ أثناء تحميل شركات التوصيل');
       } finally {
         setIsLoading(false);
       }
+  };
+
+  const refetch = async () => {
+    await fetchProviders();
+  };
+
+  useEffect(() => {
+    if (organizationId) {
+      fetchProviders();
     }
+  }, [organizationId]);
 
-    fetchProviders();
-  }, [currentOrganization]);
-
-  return { providers, isLoading, error };
+  return {
+    providers,
+    isLoading,
+    error,
+    refetch
+  };
 }

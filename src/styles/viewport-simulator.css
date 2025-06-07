@@ -1,0 +1,208 @@
+/* CSS لمحاكاة أحجام الشاشات في المعاينة */
+
+/* محاكاة الموبايل - انتقائية أكثر */
+.mobile-viewport .sm\:block { display: block !important; }
+.mobile-viewport .sm\:flex { display: flex !important; }
+.mobile-viewport .sm\:grid { display: grid !important; }
+.mobile-viewport .sm\:inline-block { display: inline-block !important; }
+.mobile-viewport .sm\:inline { display: inline !important; }
+.mobile-viewport .sm\:inline-flex { display: inline-flex !important; }
+
+.mobile-viewport .sm\:hidden { display: none !important; }
+
+/* إخفاء عناصر محددة فقط في الموبايل */
+.mobile-viewport .lg\:hidden { display: none !important; }
+.mobile-viewport .md\:hidden { display: none !important; }
+
+/* محاكاة أحجام النصوص للموبايل */
+.mobile-viewport .text-6xl { font-size: 2.25rem !important; line-height: 2.5rem !important; }
+.mobile-viewport .text-5xl { font-size: 1.875rem !important; line-height: 2.25rem !important; }
+.mobile-viewport .text-4xl { font-size: 1.5rem !important; line-height: 2rem !important; }
+.mobile-viewport .text-3xl { font-size: 1.25rem !important; line-height: 1.75rem !important; }
+.mobile-viewport .text-2xl { font-size: 1.125rem !important; line-height: 1.5rem !important; }
+.mobile-viewport .text-xl { font-size: 1rem !important; line-height: 1.5rem !important; }
+
+/* محاكاة المسافات للموبايل */
+.mobile-viewport .p-8 { padding: 1rem !important; }
+.mobile-viewport .p-6 { padding: 0.75rem !important; }
+.mobile-viewport .p-4 { padding: 0.5rem !important; }
+.mobile-viewport .px-8 { padding-left: 1rem !important; padding-right: 1rem !important; }
+.mobile-viewport .py-8 { padding-top: 1rem !important; padding-bottom: 1rem !important; }
+.mobile-viewport .px-6 { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
+.mobile-viewport .py-6 { padding-top: 0.75rem !important; padding-bottom: 0.75rem !important; }
+
+.mobile-viewport .m-8 { margin: 1rem !important; }
+.mobile-viewport .m-6 { margin: 0.75rem !important; }
+.mobile-viewport .mx-8 { margin-left: 1rem !important; margin-right: 1rem !important; }
+.mobile-viewport .my-8 { margin-top: 1rem !important; margin-bottom: 1rem !important; }
+.mobile-viewport .mx-6 { margin-left: 0.75rem !important; margin-right: 0.75rem !important; }
+.mobile-viewport .my-6 { margin-top: 0.75rem !important; margin-bottom: 0.75rem !important; }
+
+/* محاكاة الشبكات للموبايل */
+.mobile-viewport .grid-cols-2 { grid-template-columns: repeat(1, minmax(0, 1fr)) !important; }
+.mobile-viewport .grid-cols-3 { grid-template-columns: repeat(1, minmax(0, 1fr)) !important; }
+.mobile-viewport .grid-cols-4 { grid-template-columns: repeat(1, minmax(0, 1fr)) !important; }
+.mobile-viewport .grid-cols-5 { grid-template-columns: repeat(1, minmax(0, 1fr)) !important; }
+.mobile-viewport .grid-cols-6 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+
+/* محاكاة فلكس بوكس للموبايل */
+.mobile-viewport .flex-row { flex-direction: column !important; }
+.mobile-viewport .justify-between { justify-content: center !important; }
+.mobile-viewport .items-start { align-items: center !important; }
+.mobile-viewport .items-end { align-items: center !important; }
+
+/* محاكاة العرض للموبايل */
+.mobile-viewport .w-1\/2 { width: 100% !important; }
+.mobile-viewport .w-1\/3 { width: 100% !important; }
+.mobile-viewport .w-1\/4 { width: 50% !important; }
+.mobile-viewport .w-2\/3 { width: 100% !important; }
+.mobile-viewport .w-3\/4 { width: 100% !important; }
+
+/* محاكاة التابلت - انتقائية أكثر */
+.tablet-viewport .md\:block { display: block !important; }
+.tablet-viewport .md\:flex { display: flex !important; }
+.tablet-viewport .md\:grid { display: grid !important; }
+.tablet-viewport .md\:inline-block { display: inline-block !important; }
+.tablet-viewport .md\:inline { display: inline !important; }
+.tablet-viewport .md\:inline-flex { display: inline-flex !important; }
+
+.tablet-viewport .md\:hidden { display: none !important; }
+.tablet-viewport .lg\:hidden { display: none !important; }
+
+/* محاكاة أحجام النصوص للتابلت */
+.tablet-viewport .text-6xl { font-size: 3rem !important; line-height: 1 !important; }
+.tablet-viewport .text-5xl { font-size: 2.25rem !important; line-height: 2.5rem !important; }
+.tablet-viewport .text-4xl { font-size: 1.875rem !important; line-height: 2.25rem !important; }
+.tablet-viewport .text-3xl { font-size: 1.5rem !important; line-height: 2rem !important; }
+
+/* محاكاة الشبكات للتابلت */
+.tablet-viewport .grid-cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+.tablet-viewport .grid-cols-5 { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+.tablet-viewport .grid-cols-6 { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+
+/* محاكاة العرض للتابلت */
+.tablet-viewport .w-1\/4 { width: 50% !important; }
+.tablet-viewport .w-1\/3 { width: 50% !important; }
+
+/* محاكاة الدسكتوب - إظهار جميع classes الكبيرة */
+.desktop-viewport .lg\:block { display: block !important; }
+.desktop-viewport .lg\:flex { display: flex !important; }
+.desktop-viewport .lg\:grid { display: grid !important; }
+.desktop-viewport .lg\:inline-block { display: inline-block !important; }
+.desktop-viewport .lg\:inline { display: inline !important; }
+.desktop-viewport .lg\:inline-flex { display: inline-flex !important; }
+
+.desktop-viewport .lg\:hidden { display: none !important; }
+
+/* إصلاحات محددة للمكونات */
+.mobile-viewport .space-x-4 > * + * { margin-left: 0 !important; margin-top: 0.5rem !important; }
+.mobile-viewport .space-x-6 > * + * { margin-left: 0 !important; margin-top: 0.75rem !important; }
+.mobile-viewport .space-x-8 > * + * { margin-left: 0 !important; margin-top: 1rem !important; }
+
+.mobile-viewport .gap-4 { gap: 0.5rem !important; }
+.mobile-viewport .gap-6 { gap: 0.75rem !important; }
+.mobile-viewport .gap-8 { gap: 1rem !important; }
+
+/* تحسينات خاصة للنافبار */
+.mobile-viewport .hidden { display: none !important; }
+.mobile-viewport .block { display: block !important; }
+.mobile-viewport .flex { display: flex !important; }
+
+/* قواعد أساسية للمحاكاة - مبسطة وآمنة */
+.mobile-viewport .hidden {
+  display: none !important;
+}
+
+.tablet-viewport .hidden {
+  display: none !important;
+}
+
+.desktop-viewport .hidden {
+  display: none !important;
+}
+
+/* إصلاحات إضافية لمحاكاة أفضل */
+.mobile-viewport .flex-row {
+  flex-direction: column !important;
+}
+
+.mobile-viewport .space-x-4 > :not([hidden]) ~ :not([hidden]) {
+  margin-right: 0 !important;
+  margin-top: 1rem !important;
+}
+
+.mobile-viewport .space-x-6 > :not([hidden]) ~ :not([hidden]) {
+  margin-right: 0 !important;
+  margin-top: 1.5rem !important;
+}
+
+.mobile-viewport .space-x-8 > :not([hidden]) ~ :not([hidden]) {
+  margin-right: 0 !important;
+  margin-top: 2rem !important;
+}
+
+/* محاكاة Gap للموبايل */
+.mobile-viewport .gap-4 {
+  gap: 0.5rem !important;
+}
+
+.mobile-viewport .gap-6 {
+  gap: 0.75rem !important;
+}
+
+.mobile-viewport .gap-8 {
+  gap: 1rem !important;
+}
+
+/* محاكاة الاتجاه والترتيب للموبايل */
+.mobile-viewport .justify-between {
+  justify-content: center !important;
+}
+
+.mobile-viewport .items-start {
+  align-items: center !important;
+}
+
+.mobile-viewport .items-end {
+  align-items: center !important;
+}
+
+/* إعادة ضبط display للعناصر */
+.mobile-viewport .block:not([style*="display: none"]) {
+  display: block !important;
+}
+
+.mobile-viewport .flex:not([style*="display: none"]) {
+  display: flex !important;
+}
+
+.tablet-viewport .block:not([style*="display: none"]) {
+  display: block !important;
+}
+
+.tablet-viewport .flex:not([style*="display: none"]) {
+  display: flex !important;
+}
+
+/* محاكاة أحجام الحاويات */
+.mobile-viewport .max-w-7xl {
+  max-width: 100% !important;
+}
+
+.mobile-viewport .max-w-6xl {
+  max-width: 100% !important;
+}
+
+.mobile-viewport .max-w-5xl {
+  max-width: 100% !important;
+}
+
+.mobile-viewport .max-w-4xl {
+  max-width: 100% !important;
+}
+
+.mobile-viewport .container {
+  max-width: 100% !important;
+  padding-left: 1rem !important;
+  padding-right: 1rem !important;
+} 

@@ -22,20 +22,12 @@ import {
   ChevronDown
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { Order } from "./OrderTableTypes";
+import { Order, OrdersTableProps } from "./OrderTableTypes";
 import OrderTableRow from "./OrderTableRow";
 import OrderBulkActions from "./OrderBulkActions";
 
-type OrdersTableProps = {
-  orders: Order[];
-  loading: boolean;
-  onUpdateStatus: (orderId: string, newStatus: string, userId?: string) => Promise<void>;
-  onUpdateCallConfirmation?: (orderId: string, statusId: number, notes?: string, userId?: string) => Promise<void>;
-  onBulkUpdateStatus?: (orderIds: string[], newStatus: string, userId?: string) => Promise<void>;
-  hasUpdatePermission: boolean;
-  hasCancelPermission: boolean;
-  visibleColumns?: string[];
-  currentUserId?: string;
+// إضافة الخصائص المفقودة إلى OrdersTableProps
+type ExtendedOrdersTableProps = OrdersTableProps & {
   currentPage?: number;
   totalItems?: number;
   pageSize?: number;
@@ -51,6 +43,7 @@ const OrdersTable = ({
   loading,
   onUpdateStatus,
   onUpdateCallConfirmation,
+  onSendToProvider,
   onBulkUpdateStatus,
   hasUpdatePermission,
   hasCancelPermission,
@@ -64,7 +57,7 @@ const OrdersTable = ({
   onPageChange,
   onLoadMore,
   hasMoreOrders = false,
-}: OrdersTableProps) => {
+}: ExtendedOrdersTableProps) => {
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [searchFilter, setSearchFilter] = useState("");
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
@@ -337,6 +330,7 @@ const OrdersTable = ({
                     onSelect={handleSelectOrder}
                     onUpdateStatus={onUpdateStatus}
                     onUpdateCallConfirmation={onUpdateCallConfirmation}
+                    onSendToProvider={onSendToProvider}
                     hasUpdatePermission={hasUpdatePermission}
                     hasCancelPermission={hasCancelPermission}
                     visibleColumns={visibleColumns}

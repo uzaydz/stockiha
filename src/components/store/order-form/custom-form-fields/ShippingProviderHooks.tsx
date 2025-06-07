@@ -169,7 +169,7 @@ export function getDefaultShippingProviderSettings(orgId: string | null | undefi
     unified_desk_price: 300,
     is_free_delivery_home: false,
     is_free_delivery_desk: false,
-    provider_code: "zrexpress", // تعيين القيمة الافتراضية إلى zrexpress بدلاً من yalidine
+    provider_code: "yalidine", // تعيين القيمة الافتراضية إلى yalidine
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     sync_enabled: false,
@@ -259,11 +259,17 @@ export const useShippingProviderLogic = (
                 const defaultProviderId = defaultProviderData[0].provider_id;
                 
                 // إذا كان المزود الافتراضي للمتجر ليس ياليدين، ابحث عن رمزه
-                if (defaultProviderId !== 1) {
+                // التحقق الشامل من أن defaultProviderId صالح قبل البحث
+                if (defaultProviderId !== 1 && 
+                    defaultProviderId !== null && 
+                    defaultProviderId !== undefined &&
+                    !isNaN(Number(defaultProviderId)) && 
+                    Number(defaultProviderId) > 0) {
                   
+                  const numericProviderId = Number(defaultProviderId);
                   const { data: defaultProvider, error: defaultProviderInfoError } = await (supabase as any).from('shipping_providers')
                     .select('code, name')
-                    .eq('id', defaultProviderId)
+                    .eq('id', numericProviderId)
                     .single();
                     
                   if (!defaultProviderInfoError && defaultProvider) {

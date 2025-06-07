@@ -6175,6 +6175,7 @@ export type Database = {
           reorder_level: number | null
           reorder_quantity: number | null
           shipping_clone_id: number | null
+          shipping_method_type: string | null
           shipping_provider_id: number | null
           show_price_on_landing: boolean
           sku: string
@@ -6236,6 +6237,7 @@ export type Database = {
           reorder_level?: number | null
           reorder_quantity?: number | null
           shipping_clone_id?: number | null
+          shipping_method_type?: string | null
           shipping_provider_id?: number | null
           show_price_on_landing?: boolean
           sku: string
@@ -6297,6 +6299,7 @@ export type Database = {
           reorder_level?: number | null
           reorder_quantity?: number | null
           shipping_clone_id?: number | null
+          shipping_method_type?: string | null
           shipping_provider_id?: number | null
           show_price_on_landing?: boolean
           sku?: string

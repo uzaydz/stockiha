@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight, Tag, Package, Laptop, Smartphone, Headphones, Monitor, ShoppingBag, FolderRoot, Folder, Layers } from 'lucide-react';
@@ -17,6 +17,19 @@ interface ProductCategoriesProps {
   categories?: ExtendedCategory[];
   useRealCategories?: boolean;
   selectedCategoryId?: string | null;
+  // إعدادات من المحرر
+  settings?: {
+    selectionMethod?: 'automatic' | 'manual' | 'popular' | 'newest';
+    selectedCategories?: string[];
+    displayCount?: number;
+    maxCategories?: number;
+    showDescription?: boolean;
+    showProductCount?: boolean;
+    showImages?: boolean;
+    displayStyle?: string;
+    backgroundStyle?: string;
+    showViewAllButton?: boolean;
+  };
 }
 
 // تعديل واجهة الفئة لتشمل حقل صورة الغلاف والأيقونة
@@ -150,7 +163,19 @@ const ProductCategories = ({
   title = 'تصفح فئات منتجاتنا',
   description = 'أفضل الفئات المختارة لتلبية احتياجاتك',
   useRealCategories = true,
-  selectedCategoryId = null
+  selectedCategoryId = null,
+  settings = {
+    selectionMethod: 'automatic',
+    selectedCategories: [],
+    displayCount: 6,
+    maxCategories: 6,
+    showDescription: true,
+    showProductCount: true,
+    showImages: true,
+    displayStyle: 'cards',
+    backgroundStyle: 'light',
+    showViewAllButton: true
+  }
 }: ProductCategoriesProps) => {
   const [searchParams] = useSearchParams();
   const urlCategoryId = searchParams.get('category');
@@ -170,7 +195,15 @@ const ProductCategories = ({
           const fetchedCategories = await getCategories(organizationId);
           const mappedCategories = mapRealCategoriesToExtended(fetchedCategories);
           setRealCategories(mappedCategories);
+          
+          console.log('📦 تم تحميل', mappedCategories.length, 'فئة في ProductCategories');
+          if (Object.keys(settings).length > 0) {
+            console.log('⚙️ إعدادات المكون:', settings);
+          } else {
+            console.log('⚠️ إعدادات المكون فارغة - سيتم استخدام الافتراضية');
+          }
         } catch (error) {
+          console.error('خطأ في تحميل الفئات في ProductCategories:', error);
           setRealCategories([]);
         } finally {
           setIsLoading(false);
@@ -181,8 +214,54 @@ const ProductCategories = ({
     }
   }, [useRealCategories, currentOrganization?.id]);
 
-  // استخدام الفئات الحقيقية
-  const displayCategories = useRealCategories ? realCategories : [];
+  // تطبيق منطق الاختيار والفلترة مع useMemo لتجنب اللوب
+  const displayCategories = useMemo(() => {
+    if (!useRealCategories) return [];
+    
+    const currentSettings = {
+      selectionMethod: settings.selectionMethod || 'automatic',
+      selectedCategories: settings.selectedCategories || [],
+      displayCount: settings.displayCount || settings.maxCategories || 6
+    };
+    
+    console.log('🔍 إعادة حساب الفئات - المتاحة:', realCategories.length, 'الإعدادات:', currentSettings);
+    
+    let filteredCategories = [...realCategories];
+    
+    // تطبيق منطق الاختيار
+    switch (currentSettings.selectionMethod) {
+      case 'manual':
+        if (currentSettings.selectedCategories.length > 0) {
+          console.log('✅ اختيار يدوي - فئات محددة:', currentSettings.selectedCategories);
+          filteredCategories = currentSettings.selectedCategories
+            .map(id => realCategories.find(cat => cat.id === id))
+            .filter(Boolean) as ExtendedCategory[];
+          console.log('📦 النتيجة:', filteredCategories.map(c => c.name));
+        } else {
+          console.log('⚠️ اختيار يدوي لكن لا توجد فئات محددة');
+          filteredCategories = [];
+        }
+        break;
+      case 'popular':
+        filteredCategories = [...realCategories].sort((a, b) => b.productsCount - a.productsCount);
+        break;
+      case 'newest':
+        // ترتيب حسب الأحدث (يمكن إضافة حقل تاريخ الإنشاء لاحقاً)
+        filteredCategories = [...realCategories];
+        break;
+      case 'automatic':
+      default:
+        // الترتيب الافتراضي
+        filteredCategories = [...realCategories];
+        break;
+    }
+    
+    // تطبيق حد العرض
+    filteredCategories = filteredCategories.slice(0, currentSettings.displayCount);
+    
+    console.log('✅ الفئات النهائية:', filteredCategories.length, filteredCategories.map(c => c.name));
+    return filteredCategories;
+  }, [useRealCategories, realCategories, settings.selectionMethod, settings.selectedCategories, settings.displayCount, settings.maxCategories]);
 
   // بطاقة الفئة المحسّنة
   const CategoryCard = ({ category }: { category: ExtendedCategory }) => {
@@ -206,6 +285,7 @@ const ProductCategories = ({
           }}
         >
           {/* قسم الصورة / الأيقونة */}
+          {(settings.showImages ?? true) && (
           <div 
             className={cn(
               "relative aspect-[16/10] overflow-hidden",
@@ -224,20 +304,25 @@ const ProductCategories = ({
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-black/10 to-transparent"></div>
             
-            {/* شارة عدد المنتجات (القيمة 0 مؤقتًا) */}
+              {/* شارة عدد المنتجات */}
+              {(settings.showProductCount ?? true) && (
             <Badge 
               variant="secondary" 
               className="absolute bottom-3 right-3 bg-background/80 backdrop-blur-sm text-foreground text-xs font-medium"
             >
               {category.productsCount} منتج
             </Badge>
+              )}
           </div>
+          )}
           
           {/* قسم النص */}
           <div className="p-4 flex-1 flex flex-col justify-between">
             <div>
               <h3 className="font-semibold text-lg mb-1 text-foreground group-hover:text-primary transition-colors duration-200">{category.name}</h3>
+              {(settings.showDescription ?? true) && (
               <p className="text-muted-foreground text-sm line-clamp-2 mb-3">{category.description}</p>
+              )}
             </div>
             <div className="mt-auto">
               <Button 

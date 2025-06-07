@@ -53,7 +53,8 @@ export const CustomFormFields: React.FC<CustomFormProps> = ({
     onDeliveryPriceChange,
     onFieldChange,
     setValue,
-    extendedFields
+    extendedFields,
+    productId // إضافة معرف المنتج
   );
 
   // Delivery Type Updater Logic

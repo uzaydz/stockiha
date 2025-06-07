@@ -119,7 +119,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
     form,
     tenant?.id,
     formSettings,
-    0, // initialDeliveryFee
+    deliveryFee, // استخدام deliveryFee المرسل كـ prop
     quantity,
     productId
   );
@@ -161,7 +161,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
     hasFreeShipping,
     visibleCustomFields,
     yalidineCentersList,
-    shippingLogic.shippingCloneId,
+
     formSettings,
     shippingLogic.getAppropriateShippingId,
     isSubmitting,
@@ -238,26 +238,27 @@ const OrderForm: React.FC<OrderFormProps> = ({
                 });
                 if (fieldName === 'deliveryOption') {
                   setSelectedDeliveryType(value as 'home' | 'desk');
-                  // Potentially trigger side effects from handleDeliveryTypeChange if not auto-triggered by watch
+                  // إعادة حساب سعر التوصيل عند تغيير نوع التوصيل
+                  const province = form.getValues('province');
+                  const municipality = form.getValues('municipality');
+                  if (province) {
+                    shippingLogic.updateDeliveryFee(province, municipality);
+                  }
                 }
                 if (fieldName === 'province' && value) {
-                  // If CustomFormFields handles province changes internally and calls onWilayaChange,
-                  // ensure it's wired correctly or call handleWilayaChange from here.
-                  // handleWilayaChange(value as string); // Example, if CustomFormFields doesn't call it
+                  // تحديث الولايات والبلديات
+                  shippingLogic.handleWilayaChange(value as string);
                 }
-                 if (fieldName === 'municipality' && value) {
-                  // If CustomFormFields updates delivery fee based on municipality
+                if (fieldName === 'municipality' && value) {
+                  // إعادة حساب سعر التوصيل عند تغيير البلدية
                   const province = form.getValues('province');
                   if (province) {
                     shippingLogic.updateDeliveryFee(province, value as string);
                   }
                 }
               }}
-              // Pass other necessary props like:
-              // initialDeliveryFee={currentDeliveryFee} // Or let it calculate internally
-              // shippingProviderSettings={shippingProviderSettings}
-              // formInstance={form} // if CustomFormFields needs direct access to form instance
-              // All props that CustomFormFields expects for its internal logic
+              // تمرير إعدادات إضافية للتأكد من التكامل
+              shippingProviderSettings={shippingLogic.shippingProviderSettings}
             />
           ) : (
             <>

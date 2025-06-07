@@ -50,7 +50,8 @@ import {
   GraduationCap,
   BookOpen,
   SlidersHorizontal,
-  Palette
+  Palette,
+  Tv
 } from 'lucide-react';
 
 const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
@@ -324,6 +325,13 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
           requiredPermission: 'trackServices',
           badge: null
         },
+        {
+          title: 'خدمات الاشتراكات',
+          icon: Tv,
+          href: '/dashboard/subscription-services',
+          requiredPermission: 'viewServices',
+          badge: 'جديد'
+        },
       ]
     },
     {
@@ -588,6 +596,13 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
           title: 'خدمات التوصيل',
           icon: Truck,
           href: '/dashboard/shipping-settings',
+          requiredPermission: 'manageOrganizationSettings',
+          badge: null
+        },
+        {
+          title: 'إدارة التوصيل',
+          icon: Truck,
+          href: '/dashboard/delivery',
           requiredPermission: 'manageOrganizationSettings',
           badge: 'جديد'
         },

@@ -3,8 +3,6 @@
  * يتم استيراد هذا الملف في بداية تشغيل التطبيق
  */
 
-import { AboutEditor } from '@/components/store-editor';
-import { StoreComponent } from '@/types/store-editor';
 import { lazy } from 'react';
 
 // مستودع المكونات المسجلة
@@ -69,8 +67,8 @@ registerComponent({
   // الأيقونة المرتبطة بالمكون
   icon: 'Building',
   
-  // مكون المحرر - يتم استخدامه لتعديل إعدادات المكون
-  editor: AboutEditor,
+  // مكون المحرر - سيتم إدارته من المحرر المحسن
+  editor: null,
   
   // البيانات الافتراضية للمكون
   defaultSettings: {
@@ -121,8 +119,8 @@ registerComponent({
   // الأيقونة المرتبطة بالمكون
   icon: 'Clock',
   
-  // مكون المحرر - يتم تحميله بشكل كسول
-  editor: lazy(() => import('@/components/store-editor/editors/CountdownOffersEditor')),
+  // مكون المحرر - سيتم إضافته في المحرر المحسن
+  editor: null,
   
   // البيانات الافتراضية للمكون
   defaultSettings: {

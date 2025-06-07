@@ -246,4 +246,17 @@ EXCEPTION
       'detail', SQLSTATE
     );
 END;
-$$ LANGUAGE plpgsql; 
+$$ LANGUAGE plpgsql;
+
+-- الحل البسيط: إضافة مايسترو ديليفري دون تعقيدات
+
+-- 1. حذف مايستو المكرر إذا وجد
+DELETE FROM shipping_providers WHERE code = 'mayesto';
+
+-- 2. إضافة مايسترو ديليفري
+INSERT INTO shipping_providers (code, name, is_active, base_url, created_at, updated_at) 
+VALUES ('maystro_delivery', 'مايسترو ديليفري', true, 'https://backend.maystro-delivery.com/api/', NOW(), NOW())
+ON CONFLICT (code) DO NOTHING;
+
+-- 3. التحقق
+SELECT id, code, name FROM shipping_providers WHERE code = 'maystro_delivery'; 

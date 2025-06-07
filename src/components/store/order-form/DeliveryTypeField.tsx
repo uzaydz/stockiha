@@ -213,10 +213,8 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
             <div>
               <span className="font-medium block text-foreground">توصيل للمنزل</span>
               <span className="text-xs text-muted-foreground block mt-1">سيتم توصيل الطلب إلى عنوانك</span>
-              {isFreeHomeDelivery ? (
+              {isFreeHomeDelivery && (
                 <span className="text-xs text-green-600 font-medium block mt-1">شحن مجاني!</span>
-              ) : (
-                <span className="text-xs text-blue-600 font-medium block mt-1">سعر الشحن: {homePrice} دج</span>
               )}
             </div>
           </div>
@@ -241,10 +239,8 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
             <div>
               <span className="font-medium block text-foreground">استلام من مكتب شركة التوصيل</span>
               <span className="text-xs text-muted-foreground block mt-1">استلام الطلب من مكتب شركة التوصيل</span>
-              {isFreeDeskDelivery ? (
+              {isFreeDeskDelivery && (
                 <span className="text-xs text-green-600 font-medium block mt-1">شحن مجاني!</span>
-              ) : (
-                <span className="text-xs text-blue-600 font-medium block mt-1">سعر الشحن: {deskPrice} دج</span>
               )}
             </div>
           </div>
@@ -290,10 +286,8 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
                 <div>
                   <span className="font-medium block text-foreground">توصيل للمنزل</span>
                   <span className="text-xs text-muted-foreground block mt-1">توصيل الطلب مباشرة إلى عنوانك</span>
-                  {isFreeHomeDelivery ? (
+                  {isFreeHomeDelivery && (
                     <span className="text-xs text-green-600 font-medium block mt-1">شحن مجاني!</span>
-                  ) : (
-                    <span className="text-xs text-blue-600 font-medium block mt-1">سعر الشحن: {homePrice} دج</span>
                   )}
                 </div>
               </div>
@@ -326,10 +320,8 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
                 <div>
                   <span className="font-medium block text-foreground">استلام من مكتب شركة التوصيل</span>
                   <span className="text-xs text-muted-foreground block mt-1">استلام الطلب من مكتب شركة التوصيل</span>
-                  {isFreeDeskDelivery ? (
+                  {isFreeDeskDelivery && (
                     <span className="text-xs text-green-600 font-medium block mt-1">شحن مجاني!</span>
-                  ) : (
-                    <span className="text-xs text-blue-600 font-medium block mt-1">سعر الشحن: {deskPrice} دج</span>
                   )}
                 </div>
               </div>

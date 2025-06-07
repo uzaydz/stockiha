@@ -141,6 +141,7 @@ export interface InsertProduct {
   updated_by_user_id?: string;
   form_template_id?: string | null;
   shipping_provider_id?: number | null;
+  shipping_method_type?: 'default' | 'standard' | 'custom' | 'clone';
   use_shipping_clone?: boolean;
   advanced_settings?: Record<string, any>;
 }
@@ -716,6 +717,7 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
     unit_sale_price,
     form_template_id,
     shipping_provider_id,
+    shipping_method_type,
     use_shipping_clone = false,
     shipping_clone_id,
     slug,
@@ -758,6 +760,7 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
     unit_sale_price: unit_sale_price ? parseFloat(String(unit_sale_price)) : null,
     form_template_id: form_template_id || null,
     shipping_provider_id: shipping_provider_id || null,
+    shipping_method_type: productData.shipping_method_type || 'default',
     use_shipping_clone,
     shipping_clone_id: shipping_clone_id || null,
     slug: slug || `${name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`,

@@ -1,261 +1,311 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { useLocation, useSearchParams } from 'react-router-dom';
-import { getProducts } from '@/lib/api/products';
+import { useSearchParams } from 'react-router-dom';
+import { getProductsPaginated } from '@/lib/api/products';
 import { getCategories, Category } from '@/lib/api/categories';
-import StoreProductHeader from '@/components/store/StoreProductHeader';
-import StoreCategoriesBar from '@/components/store/StoreCategoriesBar';
 import StoreProductGrid from '@/components/store/StoreProductGrid';
-import StoreProductFilters from '@/components/store/StoreProductFilters';
 import StoreLayout from '@/components/StoreLayout';
 import type { Product } from '@/lib/api/products';
 import { useTenant } from '@/context/TenantContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { SlidersHorizontal, Grid3X3, List, Filter, X, ShoppingBag, Search } from 'lucide-react';
+import { 
+  SlidersHorizontal, 
+  Grid3X3, 
+  List, 
+  Filter, 
+  X, 
+  ShoppingBag, 
+  Search, 
+  ChevronLeft, 
+  ChevronRight,
+  RotateCcw,
+  Loader2
+} from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { debounce } from 'lodash-es';
+import { useProductsCache } from '@/hooks/useProductsCache';
+import PerformanceMonitor from '@/components/PerformanceMonitor';
 
-const StoreProducts = () => {
-  const { currentOrganization } = useTenant();
+// Types for better type safety
+interface PaginationData {
+  products: Product[];
+  totalCount: number;
+  totalPages: number;
+  currentPage: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+interface FilterState {
+  searchQuery: string;
+  categoryFilter: string | null;
+  stockFilter: string;
+  sortOption: string;
+  priceRange: [number, number];
+}
+
+// Constants
+const PRODUCTS_PER_PAGE = 10;
+const DEBOUNCE_DELAY = 300;
+
+// Custom hooks for better performance
+const useProductFilters = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<string | null>(searchParams.get('category'));
-  const [priceRange, setPriceRange] = useState<[number, number]>([0, 5000]);
-  const [sortOption, setSortOption] = useState<string>('newest');
-  const [stockFilter, setStockFilter] = useState<string>('all');
-  const [view, setView] = useState<'grid' | 'list'>('grid');
-  const [gridColumns, setGridColumns] = useState<2 | 3 | 4>(3);
-  const [showFilters, setShowFilters] = useState(false);
+  
+  // Initialize filters from URL params only once
+  const [filters, setFilters] = useState<FilterState>(() => ({
+    searchQuery: searchParams.get('search') || '',
+    categoryFilter: searchParams.get('category'),
+    stockFilter: searchParams.get('stock') || 'all',
+    sortOption: searchParams.get('sort') || 'newest',
+    priceRange: [0, 5000]
+  }));
 
-  // Fetch products and categories data
-  useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      try {
-        if (!currentOrganization) {
-          setProducts([]);
-          setFilteredProducts([]);
+  const updateFilter = useCallback((key: keyof FilterState, value: any) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+    
+    // Update URL params
+    if (value && value !== 'all' && value !== '') {
+      setSearchParams(prev => {
+        const newParams = new URLSearchParams(prev);
+        const paramKey = key === 'categoryFilter' ? 'category' : 
+                        key === 'stockFilter' ? 'stock' :
+                        key === 'sortOption' ? 'sort' : 
+                        key === 'searchQuery' ? 'search' : key;
+        newParams.set(paramKey, value.toString());
+        return newParams;
+      });
+    } else {
+      setSearchParams(prev => {
+        const newParams = new URLSearchParams(prev);
+        const paramKey = key === 'categoryFilter' ? 'category' : 
+                        key === 'stockFilter' ? 'stock' :
+                        key === 'sortOption' ? 'sort' : 
+                        key === 'searchQuery' ? 'search' : key;
+        newParams.delete(paramKey);
+        return newParams;
+      });
+    }
+  }, [setSearchParams]);
+
+  const resetFilters = useCallback(() => {
+    const newFilters = {
+      searchQuery: '',
+      categoryFilter: null,
+      stockFilter: 'all',
+      sortOption: 'newest',
+      priceRange: [0, 5000] as [number, number]
+    };
+    setFilters(newFilters);
+    setSearchParams(new URLSearchParams());
+  }, [setSearchParams]);
+
+  return { filters, updateFilter, resetFilters };
+};
+
+const useProductsData = (organizationId: string | undefined, filters: FilterState, currentPage: number) => {
+  const [data, setData] = useState<PaginationData>({
+    products: [],
+    totalCount: 0,
+    totalPages: 0,
+    currentPage: 1,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Enhanced cache system
+  const cache = useProductsCache();
+  
+  // Memoize the fetch function with stable dependencies
+  const fetchProducts = useCallback(async (orgId: string, page: number, filterState: FilterState) => {
+    if (!orgId) return;
+    
+    const cacheKey = cache.generateCacheKey(orgId, page, filterState);
+
+    // Check cache first
+    const cachedData = cache.get(cacheKey);
+    if (cachedData) {
+      setData(cachedData);
+      setIsLoading(false);
           return;
         }
           
-        const [productsData, categoriesData] = await Promise.all([
-          getProducts(currentOrganization.id),
-          getCategories(currentOrganization.id)
-        ]);
-
-        setProducts(productsData);
-        setFilteredProducts(productsData);
-        
-        // تصفية الفئات لإظهار فئات المنتجات فقط
-        const productCategories = categoriesData.filter(
-          (category) => category.type === 'product'
-        );
-        setCategories(productCategories);
-
-        // تحديد نطاق السعر التلقائي بناءً على المنتجات
-        if (productsData.length > 0) {
-          const prices = productsData.map(p => p.price);
-          const minPrice = Math.min(...prices);
-          const maxPrice = Math.max(...prices);
-          setPriceRange([minPrice, maxPrice]);
-        }
-      } catch (error) {
-        toast.error('حدث خطأ أثناء تحميل البيانات');
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const result = await getProductsPaginated(orgId, page, PRODUCTS_PER_PAGE, {
+        searchQuery: filterState.searchQuery || undefined,
+        categoryFilter: filterState.categoryFilter || undefined,
+        stockFilter: filterState.stockFilter,
+        sortOption: filterState.sortOption,
+      });
+      
+      // Cache the result
+      cache.set(cacheKey, result);
+      setData(result);
+    } catch (err) {
+      setError('حدث خطأ أثناء تحميل المنتجات');
+      console.error('Error fetching products:', err);
       } finally {
         setIsLoading(false);
       }
+  }, [cache.generateCacheKey, cache.get, cache.set]);
+
+  // Create a stable debounced function
+  const debouncedFetch = useMemo(
+    () => debounce(fetchProducts, DEBOUNCE_DELAY),
+    [fetchProducts]
+  );
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      debouncedFetch.cancel?.();
     };
+  }, [debouncedFetch]);
 
-    fetchData();
-  }, [currentOrganization]);
-
-  // تحديث تصفية الفئة عند تغير معلمات URL
   useEffect(() => {
-    const categoryParam = searchParams.get('category');
-    if (categoryParam !== categoryFilter) {
-      setCategoryFilter(categoryParam);
+    if (organizationId) {
+      debouncedFetch(organizationId, currentPage, filters);
     }
-  }, [searchParams]);
+    
+    // Cleanup function to cancel debounced calls
+    return () => {
+      debouncedFetch.cancel?.();
+    };
+  }, [organizationId, currentPage, filters.searchQuery, filters.categoryFilter, filters.stockFilter, filters.sortOption, debouncedFetch]);
 
-  // Apply filters and search
+  // Clear cache when organization changes - use a separate effect
   useEffect(() => {
-    let result = [...products];
-
-    // Apply search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(
-        product => 
-          product.name.toLowerCase().includes(query) || 
-          product.description.toLowerCase().includes(query) ||
-          (product.brand && product.brand.toLowerCase().includes(query))
-      );
+    if (organizationId) {
+      cache.invalidate(`products_${organizationId}`);
     }
+  }, [organizationId]);
 
-    // Apply category filter
-    if (categoryFilter) {
-      result = result.filter(product => {
-        // الطريقة الأولى: التحقق من category_id
-        if (product.category_id === categoryFilter) {
-          return true;
-        }
-        
-        // الطريقة الثانية: التحقق من حقل category إذا كان string
-        if (product.category && typeof product.category === 'string' && product.category === categoryFilter) {
-          return true;
-        }
-        
-        // الطريقة الثالثة: التحقق من كائن category إذا كان موجوداً
-        if (product.category && typeof product.category === 'object') {
-          // فحص إضافي للتأكد من وجود id
-          if ('id' in product.category && (product.category as any).id === categoryFilter) {
-            return true;
-          }
-          
-          // فحص إضافي للتأكد من وجود name
-          if ('name' in product.category) {
-            // البحث عن الفئة بالاسم
-            const categoryByName = categories.find(cat => cat.name === (product.category as any).name);
-            if (categoryByName && categoryByName.id === categoryFilter) {
-              return true;
-            }
-          }
-        }
-        
-        // الطريقة الرابعة: البحث بالاسم مباشرة في حقل category
-        if (product.category && typeof product.category === 'string') {
-          const categoryByName = categories.find(cat => cat.name === product.category as string);
-          if (categoryByName && categoryByName.id === categoryFilter) {
-            return true;
-          }
-        }
-        
-        return false;
-      });
-    }
+  return { data, isLoading, error, cache };
+};
 
-    // Apply price range filter
-    result = result.filter(
-      product => product.price >= priceRange[0] && product.price <= priceRange[1]
-    );
-
-    // Apply stock filter
-    if (stockFilter !== 'all') {
-      if (stockFilter === 'in-stock') {
-        result = result.filter(product => product.stock_quantity > 0);
-      } else if (stockFilter === 'out-of-stock') {
-        result = result.filter(product => product.stock_quantity === 0);
-      }
-    }
-
-    // Apply sorting
-    if (sortOption === 'newest') {
-      result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    } else if (sortOption === 'price-high') {
-      result.sort((a, b) => b.price - a.price);
-    } else if (sortOption === 'price-low') {
-      result.sort((a, b) => a.price - b.price);
-    } else if (sortOption === 'popularity') {
-      // Sort by any popularity metric you have (views, sales, etc.)
-      // For now, just keep the default order
-    } else if (sortOption === 'rating') {
-      // Sort by rating if you have a rating system
-      // For now, just keep the default order
-    }
-
-    setFilteredProducts(result);
-  }, [products, searchQuery, categoryFilter, priceRange, sortOption, stockFilter]);
-
-  // تحديث معلمات URL عند تغيير تصفية الفئة بواسطة المستخدم
-  const handleCategoryChange = (categoryId: string | null) => {
-    setCategoryFilter(categoryId);
-    if (categoryId) {
-      setSearchParams(prev => {
-        prev.set('category', categoryId);
-        return prev;
-      });
-    } else {
-      setSearchParams(prev => {
-        prev.delete('category');
-        return prev;
-      });
-    }
-  };
-
-  // Reset all filters
-  const resetFilters = () => {
-    setSearchQuery('');
-    setCategoryFilter(null);
-    setStockFilter('all');
-    setSortOption('newest');
+// Pagination component
+const PaginationControls = ({ 
+  currentPage, 
+  totalPages, 
+  hasNextPage, 
+  hasPreviousPage, 
+  onPageChange,
+  isLoading 
+}: {
+  currentPage: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+  onPageChange: (page: number) => void;
+  isLoading: boolean;
+}) => {
+  const pageNumbers = useMemo(() => {
+    const pages = [];
+    const start = Math.max(1, currentPage - 2);
+    const end = Math.min(totalPages, currentPage + 2);
     
-    // إزالة معلمة الفئة من URL
-    setSearchParams(prev => {
-      prev.delete('category');
-      return prev;
-    });
-    
-    // Reset price range to the full range of all products
-    if (products.length > 0) {
-      const prices = products.map(p => p.price);
-      const minPrice = Math.min(...prices);
-      const maxPrice = Math.max(...prices);
-      setPriceRange([minPrice, maxPrice]);
-    } else {
-      setPriceRange([0, 5000]);
-    }
-  };
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+          }
+    return pages;
+  }, [currentPage, totalPages]);
 
-  // Clear search
-  const clearSearch = () => {
-    setSearchQuery('');
-  };
+  if (totalPages <= 1) return null;
 
-  // Get active filters count
-  const getActiveFiltersCount = () => {
-    let count = 0;
-    if (searchQuery) count++;
-    if (categoryFilter) count++;
-    if (stockFilter !== 'all') count++;
-    if (sortOption !== 'newest') count++;
-    return count;
-  };
+  return (
+    <div className="flex items-center justify-center gap-2 mt-8">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => onPageChange(currentPage - 1)}
+        disabled={!hasPreviousPage || isLoading}
+        className="gap-2"
+      >
+        <ChevronRight className="h-4 w-4" />
+        السابق
+      </Button>
+      
+      <div className="flex items-center gap-1">
+        {pageNumbers.map((page) => (
+          <Button
+            key={page}
+            variant={page === currentPage ? "default" : "outline"}
+            size="sm"
+            onClick={() => onPageChange(page)}
+            disabled={isLoading}
+            className="w-10 h-10"
+          >
+            {page}
+          </Button>
+        ))}
+      </div>
+      
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => onPageChange(currentPage + 1)}
+        disabled={!hasNextPage || isLoading}
+        className="gap-2"
+      >
+        التالي
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+};
 
-  const activeFiltersCount = getActiveFiltersCount();
-
-  if (isLoading) {
-    return (
-      <StoreLayout>
+// Loading skeleton component
+const ProductsSkeleton = () => (
         <div className="container mx-auto px-4 py-8">
           {/* Header Skeleton */}
-          <div className="mb-8">
-            <Skeleton className="h-8 w-64 mb-4" />
-            <Skeleton className="h-4 w-96" />
+    <div className="text-center mb-8">
+      <Skeleton className="h-16 w-16 rounded-full mx-auto mb-4" />
+      <Skeleton className="h-8 w-64 mx-auto mb-4" />
+      <Skeleton className="h-4 w-96 mx-auto mb-6" />
+      <div className="flex items-center justify-center gap-8">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="text-center">
+            <Skeleton className="h-6 w-12 mx-auto mb-2" />
+            <Skeleton className="h-4 w-16 mx-auto" />
+          </div>
+        ))}
+      </div>
           </div>
           
-          {/* Search and Filters Skeleton */}
-          <div className="mb-6 space-y-4">
-            <Skeleton className="h-12 w-full" />
-            <div className="flex gap-4">
-              <Skeleton className="h-10 w-32" />
-              <Skeleton className="h-10 w-32" />
-              <Skeleton className="h-10 w-32" />
+    {/* Filters Skeleton */}
+    <Card className="mb-8">
+      <CardContent className="p-6">
+        <Skeleton className="h-12 w-full mb-4" />
+        <div className="flex gap-4 mb-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-9 w-32" />
+          ))}
             </div>
+        <div className="flex justify-between pt-4 border-t">
+          <Skeleton className="h-4 w-48" />
+          <div className="flex gap-2">
+            <Skeleton className="h-8 w-20" />
+            <Skeleton className="h-8 w-12" />
           </div>
+        </div>
+      </CardContent>
+    </Card>
           
           {/* Products Grid Skeleton */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {Array.from({ length: 6 }).map((_, i) => (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      {Array.from({ length: 8 }).map((_, i) => (
               <Card key={i} className="overflow-hidden">
                 <Skeleton className="h-48 w-full" />
                 <CardContent className="p-4">
@@ -266,6 +316,118 @@ const StoreProducts = () => {
               </Card>
             ))}
           </div>
+  </div>
+);
+
+const StoreProducts = () => {
+  const { currentOrganization } = useTenant();
+  const { filters, updateFilter, resetFilters } = useProductFilters();
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [view, setView] = useState<'grid' | 'list'>('grid');
+  const [gridColumns, setGridColumns] = useState<2 | 3 | 4>(3);
+  const [showFilters, setShowFilters] = useState(false);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [showPerformanceMonitor, setShowPerformanceMonitor] = useState(
+    process.env.NODE_ENV === 'development'
+  );
+
+  // Use custom hook for products data
+  const { data: paginationData, isLoading, error, cache } = useProductsData(
+    currentOrganization?.id, 
+    filters, 
+    currentPage
+  );
+
+  // Fetch categories with stable reference
+  const organizationId = currentOrganization?.id;
+  
+  useEffect(() => {
+    if (!organizationId) return;
+    
+    let isCancelled = false;
+    
+    const fetchCategories = async () => {
+      try {
+        setCategoriesLoading(true);
+        const categoriesData = await getCategories(organizationId);
+        
+        if (!isCancelled) {
+          const productCategories = categoriesData.filter(
+            (category) => category.type === 'product'
+          );
+          setCategories(productCategories);
+        }
+      } catch (error) {
+        if (!isCancelled) {
+          toast.error('حدث خطأ أثناء تحميل الفئات');
+        }
+      } finally {
+        if (!isCancelled) {
+          setCategoriesLoading(false);
+        }
+      }
+    };
+
+    fetchCategories();
+    
+    return () => {
+      isCancelled = true;
+    };
+  }, [organizationId]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters.searchQuery, filters.categoryFilter, filters.stockFilter, filters.sortOption]);
+
+  // Memoized values for performance
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (filters.searchQuery) count++;
+    if (filters.categoryFilter) count++;
+    if (filters.stockFilter !== 'all') count++;
+    if (filters.sortOption !== 'newest') count++;
+    return count;
+  }, [filters]);
+
+  const selectedCategoryName = useMemo(() => {
+    return categories.find(c => c.id === filters.categoryFilter)?.name;
+  }, [categories, filters.categoryFilter]);
+
+  // Handlers
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  const clearSearch = useCallback(() => {
+    updateFilter('searchQuery', '');
+  }, [updateFilter]);
+
+  // Loading state
+  if (isLoading && currentPage === 1) {
+    return (
+      <StoreLayout>
+        <ProductsSkeleton />
+      </StoreLayout>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <StoreLayout>
+        <div className="container mx-auto px-4 py-16 text-center">
+          <div className="bg-destructive/10 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
+            <X className="h-12 w-12 text-destructive" />
+          </div>
+          <h3 className="text-2xl font-semibold mb-4">حدث خطأ</h3>
+          <p className="text-muted-foreground mb-6">{error}</p>
+          <Button onClick={() => window.location.reload()} variant="outline">
+            <RotateCcw className="h-4 w-4 ml-2" />
+            إعادة المحاولة
+          </Button>
         </div>
       </StoreLayout>
     );
@@ -294,7 +456,9 @@ const StoreProducts = () => {
             {/* Stats */}
             <div className="flex items-center justify-center gap-6 md:gap-8 mt-6">
               <div className="text-center">
-                <div className="text-xl md:text-2xl font-bold text-primary">{products.length}</div>
+                <div className="text-xl md:text-2xl font-bold text-primary">
+                  {paginationData.totalCount}
+                </div>
                 <div className="text-xs md:text-sm text-muted-foreground">منتج متاح</div>
               </div>
               <Separator orientation="vertical" className="h-6 md:h-8" />
@@ -304,8 +468,10 @@ const StoreProducts = () => {
               </div>
               <Separator orientation="vertical" className="h-6 md:h-8" />
               <div className="text-center">
-                <div className="text-xl md:text-2xl font-bold text-primary">{filteredProducts.length}</div>
-                <div className="text-xs md:text-sm text-muted-foreground">نتيجة البحث</div>
+                <div className="text-xl md:text-2xl font-bold text-primary">
+                  {paginationData.products.length}
+                </div>
+                <div className="text-xs md:text-sm text-muted-foreground">في الصفحة الحالية</div>
               </div>
             </div>
           </motion.div>
@@ -324,11 +490,11 @@ const StoreProducts = () => {
                   <Input
                     type="text"
                     placeholder="ابحث عن المنتجات..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    value={filters.searchQuery}
+                    onChange={(e) => updateFilter('searchQuery', e.target.value)}
                     className="pr-10 pl-10 h-12 text-lg border-primary/20 focus:border-primary"
                   />
-                  {searchQuery && (
+                  {filters.searchQuery && (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -347,7 +513,11 @@ const StoreProducts = () => {
                   </div>
                   
                   {/* Category Quick Filter */}
-                  <Select value={categoryFilter || 'all'} onValueChange={(value) => handleCategoryChange(value === 'all' ? null : value)}>
+                  <Select 
+                    value={filters.categoryFilter || 'all'} 
+                    onValueChange={(value) => updateFilter('categoryFilter', value === 'all' ? null : value)}
+                    disabled={categoriesLoading}
+                  >
                     <SelectTrigger className="w-40 h-9">
                       <SelectValue placeholder="الفئة" />
                     </SelectTrigger>
@@ -362,7 +532,7 @@ const StoreProducts = () => {
                   </Select>
 
                   {/* Sort Filter */}
-                  <Select value={sortOption} onValueChange={setSortOption}>
+                  <Select value={filters.sortOption} onValueChange={(value) => updateFilter('sortOption', value)}>
                     <SelectTrigger className="w-40 h-9">
                       <SelectValue placeholder="ترتيب" />
                     </SelectTrigger>
@@ -370,12 +540,13 @@ const StoreProducts = () => {
                       <SelectItem value="newest">الأحدث</SelectItem>
                       <SelectItem value="price-low">السعر: من الأقل للأعلى</SelectItem>
                       <SelectItem value="price-high">السعر: من الأعلى للأقل</SelectItem>
-                      <SelectItem value="popularity">الأكثر شعبية</SelectItem>
+                      <SelectItem value="name-asc">الاسم: أ-ي</SelectItem>
+                      <SelectItem value="name-desc">الاسم: ي-أ</SelectItem>
                     </SelectContent>
                   </Select>
 
                   {/* Stock Filter */}
-                  <Select value={stockFilter} onValueChange={setStockFilter}>
+                  <Select value={filters.stockFilter} onValueChange={(value) => updateFilter('stockFilter', value)}>
                     <SelectTrigger className="w-32 h-9">
                       <SelectValue placeholder="التوفر" />
                     </SelectTrigger>
@@ -383,44 +554,9 @@ const StoreProducts = () => {
                       <SelectItem value="all">الكل</SelectItem>
                       <SelectItem value="in-stock">متوفر</SelectItem>
                       <SelectItem value="out-of-stock">غير متوفر</SelectItem>
+                      <SelectItem value="low-stock">مخزون قليل</SelectItem>
                     </SelectContent>
                   </Select>
-
-                  {/* Advanced Filters Toggle */}
-                  <Sheet open={showFilters} onOpenChange={setShowFilters}>
-                    <SheetTrigger asChild>
-                      <Button variant="outline" className="h-9 relative">
-                        <SlidersHorizontal className="h-4 w-4 ml-2" />
-                        فلاتر متقدمة
-                        {activeFiltersCount > 0 && (
-                          <Badge variant="destructive" className="absolute -top-2 -left-2 h-5 w-5 rounded-full p-0 text-xs">
-                            {activeFiltersCount}
-                          </Badge>
-                        )}
-                      </Button>
-                    </SheetTrigger>
-                    <SheetContent side="right" className="w-80">
-                      <SheetHeader>
-                        <SheetTitle>فلاتر متقدمة</SheetTitle>
-                        <SheetDescription>
-                          استخدم الفلاتر للعثور على المنتجات التي تبحث عنها
-                        </SheetDescription>
-                      </SheetHeader>
-                      <div className="py-6">
-                        <StoreProductFilters
-                          categories={categories}
-                          selectedCategory={categoryFilter}
-                          onCategoryChange={handleCategoryChange}
-                          priceRange={priceRange}
-                          onPriceRangeChange={setPriceRange}
-                          stockFilter={stockFilter}
-                          onStockFilterChange={setStockFilter}
-                          onResetFilters={resetFilters}
-                          className="space-y-6"
-                        />
-                      </div>
-                    </SheetContent>
-                  </Sheet>
 
                   {/* Reset Filters */}
                   {activeFiltersCount > 0 && (
@@ -431,11 +567,16 @@ const StoreProducts = () => {
                   )}
                 </div>
 
-                {/* View Controls and Results Info */}
+                {/* Results Info and View Controls */}
                 <div className="flex items-center justify-between pt-4 border-t">
                   <div className="flex items-center gap-4">
                     <span className="text-sm text-muted-foreground">
-                      عرض {filteredProducts.length} من أصل {products.length} منتج
+                      عرض {paginationData.products.length} من أصل {paginationData.totalCount} منتج
+                      {paginationData.totalPages > 1 && (
+                        <span className="mr-2">
+                          (صفحة {paginationData.currentPage} من {paginationData.totalPages})
+                        </span>
+                      )}
                     </span>
                     
                     {/* Active Filters Display */}
@@ -443,19 +584,20 @@ const StoreProducts = () => {
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">الفلاتر النشطة:</span>
                         <div className="flex gap-1">
-                          {searchQuery && (
+                          {filters.searchQuery && (
                             <Badge variant="secondary" className="text-xs">
-                              بحث: {searchQuery}
+                              بحث: {filters.searchQuery}
                             </Badge>
                           )}
-                          {categoryFilter && (
+                          {filters.categoryFilter && (
                             <Badge variant="secondary" className="text-xs">
-                              فئة: {categories.find(c => c.id === categoryFilter)?.name}
+                              فئة: {selectedCategoryName}
                             </Badge>
                           )}
-                          {stockFilter !== 'all' && (
+                          {filters.stockFilter !== 'all' && (
                             <Badge variant="secondary" className="text-xs">
-                              {stockFilter === 'in-stock' ? 'متوفر' : 'غير متوفر'}
+                              {filters.stockFilter === 'in-stock' ? 'متوفر' : 
+                               filters.stockFilter === 'out-of-stock' ? 'غير متوفر' : 'مخزون قليل'}
                             </Badge>
                           )}
                         </div>
@@ -502,14 +644,25 @@ const StoreProducts = () => {
             </Card>
           </motion.div>
 
-          {/* Products Grid */}
+          {/* Products Grid with Loading State */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
+            className="relative"
           >
+            {/* Loading Overlay */}
+            {isLoading && currentPage > 1 && (
+              <div className="absolute inset-0 bg-background/50 backdrop-blur-sm z-10 flex items-center justify-center rounded-lg">
+                <div className="flex items-center gap-2 bg-background px-4 py-2 rounded-lg shadow-lg">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span>جاري التحميل...</span>
+                </div>
+              </div>
+            )}
+
             <AnimatePresence mode="wait">
-              {filteredProducts.length === 0 ? (
+              {paginationData.products.length === 0 && !isLoading ? (
                 <motion.div
                   key="empty"
                   initial={{ opacity: 0, scale: 0.9 }}
@@ -536,15 +689,34 @@ const StoreProducts = () => {
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                 >
+                  <Suspense fallback={<ProductsSkeleton />}>
                   <StoreProductGrid
-                    products={filteredProducts}
+                      products={paginationData.products}
                     view={view}
                     gridColumns={gridColumns}
                   />
+                  </Suspense>
                 </motion.div>
               )}
             </AnimatePresence>
           </motion.div>
+
+          {/* Pagination Controls */}
+          <PaginationControls
+            currentPage={paginationData.currentPage}
+            totalPages={paginationData.totalPages}
+            hasNextPage={paginationData.hasNextPage}
+            hasPreviousPage={paginationData.hasPreviousPage}
+            onPageChange={handlePageChange}
+            isLoading={isLoading}
+                     />
+
+           {/* Performance Monitor (Development Only) */}
+           <PerformanceMonitor
+             cache={cache}
+             visible={showPerformanceMonitor}
+             onToggle={() => setShowPerformanceMonitor(!showPerformanceMonitor)}
+           />
         </div>
       </div>
     </StoreLayout>

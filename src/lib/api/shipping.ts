@@ -2,38 +2,42 @@ import { supabase } from '@/lib/supabase-client';
 import { toast } from 'sonner';
 
 export interface ActiveShippingProvider {
-  id: number;
+  id: number | null; // للطرق المخصصة provider_id = null
   name: string;
+  code: string;
+  type: 'standard' | 'custom';
+  settings?: any;
 }
 
 export async function getActiveShippingProvidersForOrg(
   organizationId: string
 ): Promise<ActiveShippingProvider[]> {
   try {
+    // استخدام الـ view المحدث الذي يدعم الطرق المخصصة والعادية
     const { data, error } = await supabase
-      .from('shipping_provider_settings')
-      .select('provider_id, shipping_providers(id, name)')
+      .from('shipping_data_view')
+      .select('provider_id, provider_code, provider_name, settings')
       .eq('organization_id', organizationId)
-      .eq('is_enabled', true);
-      // قد تحتاج لإضافة .eq('shipping_providers.is_active', true) إذا كان ذلك ضرورياً
-      // ويتطلب ذلك التأكد من أن Supabase يدعم الفلترة على الحقول المرتبطة بهذا الشكل
-      // أو استخدام دالة RPC مخصصة.
+      .eq('is_enabled', true)
+      .order('provider_name');
 
     if (error) {
+      console.error('Error fetching shipping providers:', error);
       toast.error('حدث خطأ أثناء تحميل شركات التوصيل المفعلة للمؤسسة.');
       return [];
     }
 
-    // البيانات المتوقعة: [{ provider_id: 1, shipping_providers: { id: 1, name: 'Provider A' } }, ...]
-    // أو [{ provider_id: 1, shipping_providers: null }, ...] إذا لم يتم العثور على المزود المرتبط (نادر)
-    return data
-      ?.filter(item => item.shipping_providers) // التأكد من وجود الكائن المرتبط
-      .map(item => ({
-        id: item.shipping_providers!.id,
-        name: item.shipping_providers!.name,
-      })) as ActiveShippingProvider[] || [];
+    // تحويل البيانات إلى التنسيق المطلوب
+    return data?.map(item => ({
+      id: item.provider_id,
+      name: item.provider_name,
+      code: item.provider_code,
+      type: item.provider_code === 'custom' ? 'custom' : 'standard',
+      settings: item.settings
+    })) as ActiveShippingProvider[] || [];
 
   } catch (error) {
+    console.error('Unexpected error fetching shipping providers:', error);
     toast.error('حدث خطأ غير متوقع أثناء تحميل شركات التوصيل.');
     return [];
   }

@@ -117,6 +117,15 @@ export default function ProductForm() {
   const watchThumbnailImage = form.watch('thumbnail_image');
 
   const onSubmit = async (data: ProductFormValues) => {
+    console.log('💾 [ProductForm] بدء حفظ المنتج:', {
+      productName: data.name,
+      shipping_provider_id: data.shipping_provider_id,
+      shipping_method_type: data.shipping_method_type,
+      use_shipping_clone: data.use_shipping_clone,
+      shipping_clone_id: data.shipping_clone_id,
+      isEditMode
+    });
+    
     setIsSubmitting(true);
 
     if (!organizationIdFromTenant && !data.organization_id) {
@@ -187,6 +196,15 @@ export default function ProductForm() {
         slug: data.slug || `${data.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`,
       };
       
+      console.log('📦 [ProductForm] البيانات المحضرة للحفظ:', {
+        productName: submissionDataPrep.name,
+        shipping_provider_id: submissionDataPrep.shipping_provider_id,
+        shipping_method_type: submissionDataPrep.shipping_method_type,
+        use_shipping_clone: submissionDataPrep.use_shipping_clone,
+        shipping_clone_id: submissionDataPrep.shipping_clone_id,
+        organization_id: submissionDataPrep.organization_id
+      });
+      
       let finalSubmissionData: any;
 
       // Pass advancedSettings and marketingSettings as camelCase for both create and update
@@ -211,11 +229,30 @@ export default function ProductForm() {
 
       let result;
       try {
+        console.log('🚀 [ProductForm] إرسال البيانات للخادم:', {
+          isEditMode,
+          productId,
+          finalSubmissionData: {
+            name: finalSubmissionData.name,
+            shipping_provider_id: finalSubmissionData.shipping_provider_id,
+            shipping_method_type: finalSubmissionData.shipping_method_type,
+            use_shipping_clone: finalSubmissionData.use_shipping_clone,
+            shipping_clone_id: finalSubmissionData.shipping_clone_id,
+            organization_id: finalSubmissionData.organization_id
+          }
+        });
+        
         if (isEditMode && productId) {
           result = await updateProduct(productId, finalSubmissionData as UpdateProduct);
         } else {
           result = await createProduct(finalSubmissionData as InsertProduct);
         }
+        
+        console.log('✅ [ProductForm] استجابة الخادم:', {
+          result,
+          productCreated: result?.id,
+          success: !!result
+        });
       } catch (apiError: any) {
         const message = apiError.message || 'فشل الاتصال بالخادم.';
         toast.error(`فشل ${isEditMode ? 'تحديث' : 'إنشاء'} المنتج: ${message}`);

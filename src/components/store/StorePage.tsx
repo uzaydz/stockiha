@@ -206,7 +206,7 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
               applyOrganizationThemeWithRetry(currentOrganization.id, {
                 theme_primary_color: result.data.organization_settings.theme_primary_color,
                 theme_secondary_color: result.data.organization_settings.theme_secondary_color,
-                theme_mode: result.data.organization_settings.theme_mode,
+                theme_mode: (result.data.organization_settings as any).theme_mode,
                 custom_css: result.data.organization_settings.custom_css
               });
             }
@@ -239,7 +239,7 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
               applyOrganizationThemeWithRetry(currentOrganization.id, {
                 theme_primary_color: initialStoreData.organization_settings.theme_primary_color,
                 theme_secondary_color: initialStoreData.organization_settings.theme_secondary_color,
-                theme_mode: initialStoreData.organization_settings.theme_mode,
+                theme_mode: (initialStoreData.organization_settings as any).theme_mode,
                 custom_css: initialStoreData.organization_settings.custom_css
               });
             }
@@ -278,7 +278,7 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
               applyOrganizationThemeWithRetry(currentOrganization.id, {
                 theme_primary_color: result.data.organization_settings.theme_primary_color,
                 theme_secondary_color: result.data.organization_settings.theme_secondary_color,
-                theme_mode: result.data.organization_settings.theme_mode,
+                theme_mode: (result.data.organization_settings as any).theme_mode,
                 custom_css: result.data.organization_settings.custom_css
               });
             }
@@ -464,11 +464,18 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
                           <LazyStoreBanner heroData={component.settings as any} />
                         )}
                         {(component.type === 'product_categories') && (
-                          <LazyProductCategories 
-                            {...(component.settings as any)} 
-                            categories={categoriesForProps}
-                            allCategories={storeData?.categories || []} 
-                          />
+                          (() => {
+                            console.log('🏪 StorePage - عرض ProductCategories مع الإعدادات:', component.settings);
+                            return (
+                              <LazyProductCategories 
+                                title={component.settings?.title}
+                                description={component.settings?.description}
+                                useRealCategories={component.settings?.useRealCategories ?? true}
+                                categories={categoriesForProps}
+                                settings={component.settings}
+                              />
+                            );
+                          })()
                         )}
                         {(component.type === 'featured_products' || component.type === 'featuredproducts') && (
                           (() => {

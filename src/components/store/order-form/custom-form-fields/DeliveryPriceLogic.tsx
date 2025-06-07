@@ -2,7 +2,40 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase-client'; 
 import { calculateDeliveryPrice as calculateYalidineDeliveryPrice } from "@/api/yalidine/service";
 import { ZRExpressShippingCalculator } from './ZRExpressShippingCalculator';
+import { CustomShippingCalculator } from './CustomShippingCalculator';
+import { EcotrackShippingCalculator } from './EcotrackShippingCalculator';
 import { getDefaultShippingProviderSettings } from './ShippingProviderHooks'; // Assuming this is the correct path
+
+// Helper function to check if provider is Ecotrack-based
+const isEcotrackProvider = (providerCode: string): boolean => {
+  const ecotrackProviders = [
+    'ecotrack',
+    'anderson_delivery',
+    'areex', 
+    'ba_consult',
+    'conexlog',
+    'coyote_express',
+    'dhd',
+    'distazero',
+    'e48hr_livraison',
+    'fretdirect',
+    'golivri',
+    'mono_hub',
+    'msm_go',
+    'negmar_express',
+    'packers',
+    'prest',
+    'rb_livraison',
+    'rex_livraison',
+    'rocket_delivery',
+    'salva_delivery',
+    'speed_delivery',
+    'tsl_express',
+    'worldexpress'
+  ];
+  
+  return ecotrackProviders.includes(providerCode);
+};
 import type { ExtendedFormField } from "../types"; // Adjusted import path
 import type { CalculateDeliveryPriceFunction } from '../types';
 
@@ -26,11 +59,54 @@ export async function getDeliveryPriceCalculator(
     if (productId) {
       const { data: productData, error: productError } = await supabase
         .from('products')
-        .select('shipping_provider_id, shipping_clone_id, use_shipping_clone')
+        .select('shipping_provider_id, shipping_clone_id, use_shipping_clone, shipping_method_type')
         .eq('id', productId)
         .single();
         
       if (!productError && productData) {
+        // التحقق من نوع طريقة الشحن أولاً
+        if (productData.shipping_method_type === 'custom') {
+          // إذا كانت طريقة الشحن مخصصة، نرجع حاسبة الطرق المخصصة
+          return async (
+            organizationId: string,
+            fromWilayaId: string,
+            toWilayaId: string,
+            municipalityId: string,
+            deliveryType: 'home' | 'desk',
+            weight?: number,
+            shippingProviderCloneId?: number | string | null
+          ): Promise<number> => {
+            return new Promise<number>((resolve, reject) => {
+              try {
+                // التحقق من صحة المعاملات
+                if (!toWilayaId || !organizationId) {
+                  reject(new Error("معرف الولاية ومعرف المؤسسة مطلوبان"));
+                  return;
+                }
+
+                const handlePriceCalculated = (price: number) => {
+                  resolve(price);
+                };
+
+                // إنشاء مكون CustomShippingCalculator
+                const calculator = (
+                  <CustomShippingCalculator
+                    organizationId={organizationId}
+                    provinceId={toWilayaId}
+                    deliveryType={deliveryType}
+                    onPriceCalculated={handlePriceCalculated}
+                  />
+                );
+
+                // تشغيل المكون وبدء عملية الحساب
+                calculator.props.onPriceCalculated(0); // سيتم تحديث السعر لاحقاً من خلال المكون نفسه
+              } catch (error) {
+                reject(error);
+              }
+            });
+          };
+        }
+        
         // إذا كان المنتج يستخدم مزود شحن محدد
         if (productData.shipping_provider_id) {
           // استخدام مزود الشحن المحدد للمنتج
@@ -66,20 +142,64 @@ export async function getDeliveryPriceCalculator(
     if ((!originalProviderId || originalProviderId === 1) && !providerCode) {
       const { data, error } = await supabase
         .from('shipping_provider_settings')
-        .select('provider_id')
+        .select('provider_id, api_key')
         .eq('organization_id', organizationId)
         .eq('is_enabled', true)
         .order('created_at', { ascending: false })
         .limit(1);
 
       if (!error && data && data.length > 0) {
-        originalProviderId = data[0].provider_id;
+        const providerSettings = data[0];
+        originalProviderId = providerSettings.provider_id;
         
         // تحديث originalProviderId في الإعدادات
         shippingProviderSettings.original_provider_id = originalProviderId;
         
+        // التحقق من وجود طريقة شحن مخصصة
+        if (providerSettings.api_key === 'custom_shipping' && !providerSettings.provider_id) {
+          // إذا كانت طريقة الشحن مخصصة، نرجع حاسبة الطرق المخصصة
+          return async (
+            organizationId: string,
+            fromWilayaId: string,
+            toWilayaId: string,
+            municipalityId: string,
+            deliveryType: 'home' | 'desk',
+            weight?: number,
+            shippingProviderCloneId?: number | string | null
+          ): Promise<number> => {
+            return new Promise<number>((resolve, reject) => {
+              try {
+                // التحقق من صحة المعاملات
+                if (!toWilayaId || !organizationId) {
+                  reject(new Error("معرف الولاية ومعرف المؤسسة مطلوبان"));
+                  return;
+                }
+
+                const handlePriceCalculated = (price: number) => {
+                  resolve(price);
+                };
+
+                // إنشاء مكون CustomShippingCalculator
+                const calculator = (
+                  <CustomShippingCalculator
+                    organizationId={organizationId}
+                    provinceId={toWilayaId}
+                    deliveryType={deliveryType}
+                    onPriceCalculated={handlePriceCalculated}
+                  />
+                );
+
+                // تشغيل المكون وبدء عملية الحساب
+                calculator.props.onPriceCalculated(0); // سيتم تحديث السعر لاحقاً من خلال المكون نفسه
+              } catch (error) {
+                reject(error);
+              }
+            });
+          };
+        }
+        
         // البحث عن رمز المزود للمعرف الجديد
-        if (originalProviderId !== 1) { // عدم البحث إذا كان المعرف لا يزال ياليدين
+        if (originalProviderId && originalProviderId !== 1) { // عدم البحث إذا كان المعرف لا يزال ياليدين
           const { data: providerData, error: providerError } = await supabase
             .from('shipping_providers')
             .select('code, name')
@@ -96,7 +216,47 @@ export async function getDeliveryPriceCalculator(
     }
 
     // تحديد الدالة المناسبة بناءً على رمز المزود
-    if (providerCode === 'zrexpress') {
+    if (isEcotrackProvider(providerCode)) {
+      // إرجاع دالة حساب أسعار Ecotrack
+      return async (
+        organizationId: string,
+        fromWilayaId: string,
+        toWilayaId: string,
+        municipalityId: string,
+        deliveryType: 'home' | 'desk',
+        weight?: number,
+        shippingProviderCloneId?: number | string | null
+      ): Promise<number> => {
+        return new Promise<number>((resolve, reject) => {
+          try {
+            // التحقق من صحة المعاملات
+            if (!toWilayaId) {
+              reject(new Error("معرف الولاية مطلوب"));
+              return;
+            }
+
+            const handlePriceCalculated = (price: number) => {
+              resolve(price);
+            };
+
+            // إنشاء مكون EcotrackShippingCalculator
+            const calculator = (
+              <EcotrackShippingCalculator
+                wilayaId={toWilayaId}
+                isHomeDelivery={deliveryType === 'home'}
+                providerCode={providerCode}
+                onPriceCalculated={handlePriceCalculated}
+              />
+            );
+
+            // تشغيل المكون وبدء عملية الحساب
+            calculator.props.onPriceCalculated(0); // سيتم تحديث السعر لاحقاً من خلال المكون نفسه
+          } catch (error) {
+            reject(error);
+          }
+        });
+      };
+    } else if (providerCode === 'zrexpress') {
       return async (
         organizationId: string,
         fromWilayaId: string,

@@ -21,7 +21,6 @@ export const useOrderSubmissionLogic = (
   hasFreeShipping: boolean, // from useOrderCalculations
   visibleCustomFields: CustomFormField[],
   yalidineCentersList: any[],
-  shippingCloneId: string | number | null,
   formSettings: any, // Consider a more specific type
   getAppropriateShippingId: (selectedProvider: string | null) => string | number | null, // from useShippingLogic
   isSubmitting: boolean, // from useOrderFormManagement
@@ -133,9 +132,6 @@ export const useOrderSubmissionLogic = (
 
     const selectedDeliveryCompany = formValues.deliveryCompany;
     let shippingProviderIdToUse = getAppropriateShippingId(selectedDeliveryCompany || null);
-    if (shippingCloneId && !shippingProviderIdToUse && selectedDeliveryCompany !== "default_provider" && selectedDeliveryCompany !== "null") {
-      shippingProviderIdToUse = shippingCloneId;
-    }
 
     const submissionValues: Record<string, any> = {
       ...formValues,
@@ -144,7 +140,7 @@ export const useOrderSubmissionLogic = (
       province: formValues.province || "غير محدد",
       deliveryOption: formValues.deliveryOption || "home",
       form_id: formSettings?.id,
-      shipping_clone_id: shippingProviderIdToUse,
+      shipping_provider_id: shippingProviderIdToUse,
     };
 
     if (formValues.deliveryOption === "home") {
@@ -246,7 +242,7 @@ export const useOrderSubmissionLogic = (
   }, [
     form, tenantId, productId, productColorId, productSizeId, sizeName, basePrice, quantity,
     currentDeliveryFee, activeOffer, discountAmount, hasFreeShipping, visibleCustomFields,
-    yalidineCentersList, shippingCloneId, formSettings, getAppropriateShippingId,
+    yalidineCentersList, formSettings, getAppropriateShippingId,
     isSubmitting, setIsSubmitting, setError, debugAddStopDeskIdIfMissing, getFieldLabel, setOrderNumber,
     shippingProviderSettings, getMunicipalityName
   ]);
