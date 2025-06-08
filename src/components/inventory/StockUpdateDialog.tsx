@@ -87,7 +87,7 @@ export function StockUpdateDialog({
       // إجراء فحص فوري للاتصال عند فتح الحوار
       const checkConnectionOnOpen = async () => {
         try {
-          const response = await fetch('/api/health-check', {
+          const response = await fetch('/health-check.json', {
             method: 'HEAD',
             cache: 'no-store',
             headers: { 'Cache-Control': 'no-cache' }

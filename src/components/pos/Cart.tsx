@@ -12,6 +12,7 @@ import { Separator } from '@/components/ui/separator';
 // مكونات السلة الفرعية
 import CartItem, { CartItemType } from './CartItem';
 import CartService from './CartService';
+import CartSubscription from './CartSubscription';
 import CartSummary from './CartSummary';
 import PaymentDialog from './PaymentDialog';
 import NewCustomerDialog from './NewCustomerDialog';
@@ -34,6 +35,9 @@ interface CartProps {
   })[];
   removeService?: (serviceId: string) => void;
   updateServicePrice?: (serviceId: string, price: number) => void;
+  selectedSubscriptions?: any[];
+  removeSubscription?: (subscriptionId: string) => void;
+  updateSubscriptionPrice?: (subscriptionId: string, price: number) => void;
 }
 
 export default function Cart({
@@ -46,7 +50,10 @@ export default function Cart({
   currentUser,
   selectedServices = [],
   removeService = () => {},
-  updateServicePrice = () => {}
+  updateServicePrice = () => {},
+  selectedSubscriptions = [],
+  removeSubscription = () => {},
+  updateSubscriptionPrice = () => {}
 }: CartProps) {
   const { createCustomer } = useShop();
   
@@ -110,8 +117,13 @@ export default function Cart({
       sum + service.price, 0
     );
     
-    return productsSubtotal + servicesSubtotal;
-  }, [cartItems, selectedServices]);
+    // حساب المجموع الفرعي للاشتراكات
+    const subscriptionsSubtotal = selectedSubscriptions.reduce((sum, subscription) => 
+      sum + (subscription.final_price || subscription.selling_price || 0), 0
+    );
+    
+    return productsSubtotal + servicesSubtotal + subscriptionsSubtotal;
+  }, [cartItems, selectedServices, selectedSubscriptions]);
   
   const subtotal = calculateSubtotal();
   const discountAmount = (discount / 100) * subtotal;
@@ -120,7 +132,8 @@ export default function Cart({
   
   const hasItems = cartItems.length > 0;
   const hasServices = selectedServices.length > 0;
-  const isCartEmpty = !hasItems && !hasServices;
+  const hasSubscriptions = selectedSubscriptions.length > 0;
+  const isCartEmpty = !hasItems && !hasServices && !hasSubscriptions;
   
   // البحث عن عناصر السلة
   const filteredCartItems = useCallback(() => {
@@ -301,21 +314,38 @@ export default function Cart({
   // معالجة إتمام الدفع
   const handlePaymentComplete = async () => {
     try {
+      console.log('🚀 Starting payment process...');
       setIsProcessing(true);
       
-      if (cartItems.length === 0 && selectedServices.length === 0) {
+      if (cartItems.length === 0 && selectedServices.length === 0 && selectedSubscriptions.length === 0) {
+        console.log('❌ Cart is empty, stopping process');
         return;
       }
       
+      console.log('📦 Cart contents:', {
+        cartItems: cartItems.length,
+        selectedServices: selectedServices.length,
+        selectedSubscriptions: selectedSubscriptions.length
+      });
+      
       // التحقق من أن الدفع الجزئي يتطلب اختيار عميل
       if (isPartialPayment && !selectedCustomer) {
+        console.log('❌ Partial payment requires customer selection');
         toast.error("يجب اختيار عميل لتسجيل المبلغ المتبقي");
+        setIsProcessing(false);
         return;
       }
       
       const numAmountPaid = parseFloat(amountPaid);
       // تحديد حالة الدفع بناءً على المبلغ المدفوع والمجموع الكلي
-      const paymentStatus = numAmountPaid >= total ? 'paid' : (numAmountPaid > 0 ? 'partial' : 'pending');
+      const paymentStatus = numAmountPaid >= total ? 'paid' : 'pending';
+      
+      console.log('💰 Payment details:', {
+        numAmountPaid,
+        total,
+        paymentStatus,
+        paymentMethod
+      });
       
       // تخزين القيم الحالية للمتغيرات المالية قبل إرسال الطلب
       const currentTotal = total;
@@ -325,7 +355,10 @@ export default function Cart({
       // أنشئ معرف مؤقت للطلب
       const tempOrderId = `POS-${Date.now().toString().slice(-8)}`;
       
+      console.log('📝 Preparing order with ID:', tempOrderId);
+      
       // إرسال الطلب إلى الخادم
+      console.log('🚀 Calling submitOrder...');
       await submitOrder({
         customerId: selectedCustomer?.id || 'guest',
         paymentMethod,
@@ -343,6 +376,8 @@ export default function Cart({
         } : undefined,
         considerRemainingAsPartial: isPartialPayment ? considerRemainingAsPartial : undefined
       });
+      
+      console.log('✅ submitOrder completed successfully');
       
       // تعيين مؤشر أن الطلب قد تمت معالجته لتجنب تكرار التنفيذ
       setIsOrderProcessed(true);
@@ -362,7 +397,9 @@ export default function Cart({
       // فتح نافذة الطباعة
       setIsPaymentDialogOpen(false);
       setIsPrintDialogOpen(true);
+      setIsProcessing(false);
     } catch (error) {
+      console.error('Error submitting order:', error);
       toast.error("حدث خطأ أثناء إنشاء الطلب");
       setIsProcessing(false);
     }
@@ -426,9 +463,9 @@ export default function Cart({
             </h2>
           </div>
           
-          {hasItems ? (
+          {!isCartEmpty ? (
             <div className="bg-primary/10 dark:bg-primary/5 text-primary dark:text-primary/90 text-xs font-medium px-2.5 py-1 rounded-full">
-              {cartItems.reduce((sum, item) => sum + item.quantity, 0)} منتج
+              {cartItems.reduce((sum, item) => sum + item.quantity, 0) + selectedServices.length + selectedSubscriptions.length} عنصر
             </div>
           ) : (
             <div className="text-xs text-muted-foreground dark:text-zinc-500">
@@ -513,6 +550,23 @@ export default function Cart({
                     service={service}
                     customers={customers}
                     removeService={removeService}
+                  />
+                ))}
+                
+                {/* فاصل بين الخدمات والاشتراكات إذا كان هناك كلا النوعين */}
+                {hasServices && hasSubscriptions && (
+                  <div className="py-2 my-1">
+                    <Separator className="w-full opacity-30" />
+                  </div>
+                )}
+                
+                {/* اشتراكات - عرض خدمات الاشتراك */}
+                {selectedSubscriptions.map((subscription) => (
+                  <CartSubscription
+                    key={subscription.id}
+                    subscription={subscription}
+                    onRemove={removeSubscription}
+                    onUpdatePrice={updateSubscriptionPrice}
                   />
                 ))}
               </motion.div>

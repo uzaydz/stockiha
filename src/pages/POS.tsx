@@ -9,7 +9,8 @@ import Layout from '@/components/Layout';
 import ProductCatalog from '@/components/pos/ProductCatalog';
 import Cart from '@/components/pos/Cart';
 import QuickActions from '@/components/pos/QuickActions';
-import ServiceManager from '@/components/pos/ServiceManager';
+import SubscriptionCatalog from '@/components/pos/SubscriptionCatalog';
+
 import PrintReceipt from '@/components/pos/PrintReceipt';
 import ProductVariantSelector from '@/components/pos/ProductVariantSelector';
 import POSSettings from '@/components/pos/settings/POSSettings';
@@ -21,10 +22,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { ShoppingCart, Wrench, Settings2 } from 'lucide-react';
+import { ShoppingCart, Wrench, Settings2, CreditCard } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getProductPriceForQuantity } from '@/api/productService';
 import { Button } from '@/components/ui/button';
@@ -46,6 +48,10 @@ const POS = () => {
   const { user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [subscriptions, setSubscriptions] = useState<any[]>([]);
+  const [subscriptionCategories, setSubscriptionCategories] = useState<any[]>([]);
+  const [selectedSubscriptions, setSelectedSubscriptions] = useState<any[]>([]);
+  const [activeView, setActiveView] = useState<'products' | 'subscriptions'>('products');
   const [selectedServices, setSelectedServices] = useState<(Service & { 
     scheduledDate?: Date; 
     notes?: string; 
@@ -53,7 +59,6 @@ const POS = () => {
     public_tracking_code?: string;
     repair_location_id?: string;
   })[]>([]);
-  const [activeView, setActiveView] = useState<'products' | 'services'>('products');
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
   const [favoriteProducts, setFavoriteProducts] = useState<Product[]>([]);
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
@@ -207,6 +212,145 @@ const POS = () => {
       setProducts(shopProducts);
     }
   }, [shopProducts]);
+
+  // جلب خدمات الاشتراك
+  useEffect(() => {
+    if (user?.email) {
+      fetchSubscriptions();
+      fetchSubscriptionCategories();
+    }
+  }, [user?.email]);
+
+  const fetchSubscriptions = async () => {
+    try {
+      if (!user?.email) {
+        console.log('⚠️ No user email available');
+        return;
+      }
+
+      // جلب organization_id من جدول users
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('organization_id')
+        .eq('email', user.email)
+        .single();
+
+      if (userError) {
+        console.error('❌ Error fetching user organization:', userError);
+        return;
+      }
+
+      const currentOrgId = userData?.organization_id;
+      
+      console.log('🔍 Fetching subscriptions...');
+      console.log('📧 User email:', user?.email);
+      console.log('🏢 Organization ID from users table:', currentOrgId);
+      
+      if (!currentOrgId) {
+        console.log('⚠️ No organization ID found for user');
+        return;
+      }
+      
+      // جلب الخدمات
+      const { data: servicesData, error: servicesError } = await supabase
+        .from('subscription_services')
+        .select(`
+          *,
+          category:subscription_categories(*)
+        `)
+        .eq('organization_id', currentOrgId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (servicesError) {
+        console.error('❌ Error in subscriptions query:', servicesError);
+        throw servicesError;
+      }
+
+      // جلب أسعار كل خدمة
+      const servicesWithPricing = await Promise.all(
+        (servicesData || []).map(async (service) => {
+          const { data: pricingData } = await supabase
+            .from('subscription_service_pricing')
+            .select('*')
+            .eq('subscription_service_id', service.id)
+            .eq('is_active', true)
+            .gte('available_quantity', 0)
+            .order('display_order');
+
+          return {
+            ...service,
+            pricing_options: pricingData || []
+          };
+        })
+      );
+
+      // فقط الخدمات التي لديها أسعار (حتى لو نفد مخزونها)
+      const availableServices = servicesWithPricing.filter(service => 
+        service.pricing_options.length > 0
+      );
+
+      console.log('📊 Subscriptions query result:', { servicesData, servicesWithPricing });
+      console.log('📈 Total subscriptions found:', availableServices.length);
+      
+      setSubscriptions(availableServices);
+      console.log('✅ Subscriptions set to state:', availableServices);
+      
+    } catch (error) {
+      console.error('💥 Error fetching subscriptions:', error);
+    }
+  };
+
+  const fetchSubscriptionCategories = async () => {
+    try {
+      if (!user?.email) {
+        console.log('⚠️ No user email available for categories');
+        return;
+      }
+
+      // جلب organization_id من جدول users
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('organization_id')
+        .eq('email', user.email)
+        .single();
+
+      if (userError) {
+        console.error('❌ Error fetching user organization for categories:', userError);
+        return;
+      }
+
+      const currentOrgId = userData?.organization_id;
+      
+      console.log('🔍 Fetching subscription categories...');
+      console.log('🏢 Organization ID from users table for categories:', currentOrgId);
+      
+      if (!currentOrgId) {
+        console.log('⚠️ No organization ID found for user categories');
+        return;
+      }
+      
+      const { data, error } = await supabase
+        .from('subscription_categories')
+        .select('*')
+        .eq('organization_id', currentOrgId)
+        .order('name');
+
+      console.log('📊 Categories query result:', { data, error });
+      console.log('📈 Total categories found:', data?.length || 0);
+
+      if (error) {
+        console.error('❌ Error in categories query:', error);
+        throw error;
+      }
+      
+      setSubscriptionCategories(data || []);
+      console.log('✅ Categories set to state:', data || []);
+      
+    } catch (error) {
+      console.error('💥 Error fetching subscription categories:', error);
+    }
+  };
 
   // جلب الطلبات الأخيرة والمنتجات المفضلة
   useEffect(() => {
@@ -510,6 +654,78 @@ const POS = () => {
   const clearCart = () => {
     setCartItems([]);
     setSelectedServices([]);
+    setSelectedSubscriptions([]);
+  };
+
+  // إضافة اشتراك للسلة مع السعر المحدد
+  const handleAddSubscription = (subscription: any, pricing?: any) => {
+    // إذا لم يتم تمرير pricing، استخدم السعر الافتراضي
+    let selectedPricing = pricing;
+    
+    if (!selectedPricing) {
+      // البحث عن السعر الافتراضي في pricing_options
+      if (subscription.pricing_options && subscription.pricing_options.length > 0) {
+        selectedPricing = subscription.pricing_options.find((p: any) => p.is_default) || subscription.pricing_options[0];
+      } else {
+        // استخدام البيانات القديمة للتوافق
+        selectedPricing = {
+          id: `legacy-${subscription.id}`,
+          duration_months: 1,
+          duration_label: 'شهر واحد',
+          selling_price: subscription.selling_price || 0,
+          purchase_price: subscription.purchase_price || 0,
+          available_quantity: subscription.available_quantity || 1,
+          discount_percentage: 0,
+          promo_text: ''
+        };
+      }
+    }
+
+    const subscriptionWithPricing = {
+      ...subscription,
+      selectedPricing,
+      // إنشاء معرف فريد يتضمن معرف السعر
+      cart_id: `${subscription.id}-${selectedPricing.id}-${Date.now()}`,
+      tracking_code: `SUB-${Date.now()}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`,
+      // حفظ معلومات السعر في المستوى الأعلى للسهولة
+      duration_months: selectedPricing.duration_months,
+      duration_label: selectedPricing.duration_label,
+      final_price: selectedPricing.selling_price * (1 - (selectedPricing.discount_percentage || 0) / 100),
+      original_price: selectedPricing.selling_price,
+      discount_percentage: selectedPricing.discount_percentage || 0,
+      promo_text: selectedPricing.promo_text || ''
+    };
+
+    const existingIndex = selectedSubscriptions.findIndex(s => 
+      s.cart_id === subscriptionWithPricing.cart_id
+    );
+
+    if (existingIndex >= 0) {
+      toast.error('هذا الاشتراك موجود بالفعل في السلة');
+      return;
+    }
+
+    setSelectedSubscriptions(prev => [...prev, subscriptionWithPricing]);
+    toast.success(`تمت إضافة اشتراك "${subscription.name}" (${selectedPricing.duration_label}) للسلة`);
+  };
+
+  // إزالة اشتراك من السلة
+  const removeSubscriptionFromCart = (subscriptionId: string) => {
+    setSelectedSubscriptions(prev => prev.filter(s => s.cart_id !== subscriptionId));
+  };
+
+  // تحديث سعر الاشتراك
+  const updateSubscriptionPrice = (subscriptionId: string, price: number) => {
+    setSelectedSubscriptions(prev => prev.map(subscription => 
+      subscription.cart_id === subscriptionId ? { 
+        ...subscription, 
+        final_price: price,
+        selectedPricing: {
+          ...subscription.selectedPricing,
+          selling_price: price
+        }
+      } : subscription
+    ));
   };
 
   // Añadir servicio
@@ -589,12 +805,21 @@ const POS = () => {
 
   // Crear orden
   const submitOrder = async (orderDetails: Partial<Order>) => {
-    if (cartItems.length === 0 && selectedServices.length === 0) {
+    console.log('📝 submitOrder called with:', {
+      cartItems: cartItems.length,
+      selectedServices: selectedServices.length,
+      selectedSubscriptions: selectedSubscriptions.length,
+      orderDetails
+    });
+    
+    if (cartItems.length === 0 && selectedServices.length === 0 && selectedSubscriptions.length === 0) {
+      console.log('❌ All carts are empty');
       toast.error("لا يمكن إنشاء طلب فارغ");
       return;
     }
 
     try {
+      console.log('🚀 Starting order creation process...');
       // Get wholesale prices from Cart component
       const cartItemsWithWholesale = await Promise.all(
         cartItems.map(async (item) => {
@@ -697,8 +922,14 @@ const POS = () => {
         0
       );
       
+      // Calcular subtotal de اشتراكات
+      const subscriptionsSubtotal = selectedSubscriptions.reduce(
+        (sum, subscription) => sum + (subscription.final_price || subscription.selling_price || 0), 
+        0
+      );
+      
       // Subtotal total
-      const subtotal = productsSubtotal + servicesSubtotal;
+      const subtotal = productsSubtotal + servicesSubtotal + subscriptionsSubtotal;
       
       // Tax calculation
       const taxRate = 0; // إزالة الضريبة (تم تغييرها من 15% إلى 0%)
@@ -709,6 +940,71 @@ const POS = () => {
       // Total
       const total = taxableAmount + tax;
       
+      // إنشاء معاملات الاشتراكات
+      console.log('🔄 Processing subscriptions:', selectedSubscriptions.length);
+      const subscriptionTransactions = await Promise.all(
+        selectedSubscriptions.map(async (subscription, index) => {
+          console.log(`📋 Processing subscription ${index + 1}:`, subscription.name);
+          
+          // تم إزالة استدعاء set_config لأنه يسبب أخطاء
+          
+          // إدراج معاملة الاشتراك
+          const { data: transactionData, error: transactionError } = await supabase
+            .from('subscription_transactions')
+            .insert([{
+              service_id: subscription.id,
+              transaction_type: 'sale',
+              amount: subscription.final_price || subscription.selling_price || 0,
+              cost: subscription.selectedPricing?.purchase_price || subscription.purchase_price || 0,
+              customer_id: (orderDetails.customerId === 'walk-in' || orderDetails.customerId === 'guest') ? null : orderDetails.customerId,
+              customer_name: (orderDetails.customerId === 'walk-in' || orderDetails.customerId === 'guest') ? 'زائر' : users.find(u => u.id === orderDetails.customerId)?.name || 'غير محدد',
+              payment_method: orderDetails.paymentMethod || 'cash',
+              payment_status: orderDetails.paymentStatus === 'paid' ? 'completed' : orderDetails.paymentStatus || 'completed',
+              quantity: 1,
+              description: `${subscription.name} - ${subscription.duration_label}`,
+              notes: `كود التتبع: ${subscription.tracking_code}`,
+              processed_by: user?.id,
+              organization_id: user?.user_metadata?.organization_id || localStorage.getItem('bazaar_organization_id')
+            }])
+            .select()
+            .single();
+
+          if (transactionError) {
+            console.error('Error creating subscription transaction:', transactionError);
+            throw transactionError;
+          }
+
+          // تحديث المخزون إذا كان هناك خيار سعر محدد
+          if (subscription.selectedPricing?.id) {
+            // أولاً نحصل على القيم الحالية
+            const { data: currentPricing, error: fetchError } = await supabase
+              .from('subscription_service_pricing')
+              .select('available_quantity, sold_quantity')
+              .eq('id', subscription.selectedPricing.id)
+              .single();
+
+            if (!fetchError && currentPricing) {
+              // ثم نحدث القيم
+              const { error: inventoryError } = await supabase
+                .from('subscription_service_pricing')
+                .update({
+                  available_quantity: Math.max(0, currentPricing.available_quantity - 1),
+                  sold_quantity: (currentPricing.sold_quantity || 0) + 1
+                })
+                .eq('id', subscription.selectedPricing.id);
+
+              if (inventoryError) {
+                console.error('Error updating subscription inventory:', inventoryError);
+              }
+            } else if (fetchError) {
+              console.error('Error fetching current pricing:', fetchError);
+            }
+          }
+
+          return transactionData;
+        })
+      );
+
       const newOrder: Order = {
         id: uuidv4(),
         customerId: orderDetails.customerId || "walk-in",
@@ -736,13 +1032,21 @@ const POS = () => {
       
       await addOrder(newOrder);
       
+      // مسح الاشتراكات من السلة بعد إنشاء الطلب بنجاح
+      setSelectedSubscriptions([]);
+      
+      // إعادة تحديث بيانات الاشتراكات لإظهار الكميات المحدثة
+      await fetchSubscriptions();
+      
       toast.success("تم إنشاء الطلب بنجاح");
       
       // ملاحظة: تم إلغاء فتح نافذة الطباعة هنا لمنع ظهور نافذتين
       // يتم فتح نافذة الطباعة في مكون Cart.tsx فقط
       
     } catch (error) {
+      console.error("Error submitting order:", error);
       toast.error("حدث خطأ أثناء إنشاء الطلب");
+      throw error; // إعادة رمي الخطأ لمعالجته في Cart.tsx
     }
   };
 
@@ -759,22 +1063,6 @@ const POS = () => {
         <div className="mx-auto">
           <div className="flex justify-between items-center mb-4">
             <div className="flex gap-2">
-              <Button 
-                size="sm" 
-                variant={activeView === 'products' ? 'default' : 'outline'} 
-                onClick={() => setActiveView('products')}
-              >
-                <ShoppingCart className="h-4 w-4 mr-2" />
-                المنتجات
-              </Button>
-              <Button 
-                size="sm" 
-                variant={activeView === 'services' ? 'default' : 'outline'} 
-                onClick={() => setActiveView('services')}
-              >
-                <Wrench className="h-4 w-4 mr-2" />
-                الخدمات
-              </Button>
               <Button 
                 size="sm" 
                 variant="outline" 
@@ -808,23 +1096,39 @@ const POS = () => {
           </div>
           
           <div className="grid grid-cols-12 gap-4 h-full">
-            {/* عمود المنتجات والخدمات */}
+            {/* عمود المنتجات والاشتراكات */}
             <div className="col-span-12 md:col-span-8 h-full flex flex-col">
               <Tabs 
                 defaultValue="products" 
                 value={activeView} 
-                onValueChange={(value) => setActiveView(value as 'products' | 'services')}
+                onValueChange={(value) => setActiveView(value as 'products' | 'subscriptions')}
                 className="flex-1 flex flex-col"
                 dir="rtl"
               >
-                <TabsList className="mb-4 w-full grid grid-cols-2">
-                  <TabsTrigger value="products" className="flex items-center gap-2 py-3">
+                <TabsList className="mb-4 w-full grid grid-cols-2 bg-muted/50 p-1 rounded-lg border">
+                  <TabsTrigger 
+                    value="products" 
+                    className="flex items-center gap-2 py-3 px-4 transition-all duration-200 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border/50"
+                  >
                     <ShoppingCart className="h-4 w-4" />
-                    <span>المنتجات</span>
+                    <span className="font-medium">المنتجات</span>
+                    {products.length > 0 && (
+                      <span className="ml-auto bg-primary/10 text-primary text-xs px-2 py-0.5 rounded-full">
+                        {products.length}
+                      </span>
+                    )}
                   </TabsTrigger>
-                  <TabsTrigger value="services" className="flex items-center gap-2 py-3">
-                    <Wrench className="h-4 w-4" />
-                    <span>الخدمات</span>
+                  <TabsTrigger 
+                    value="subscriptions" 
+                    className="flex items-center gap-2 py-3 px-4 transition-all duration-200 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border/50"
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    <span className="font-medium">خدمات الاشتراك</span>
+                    {subscriptions.length > 0 && (
+                      <span className="ml-auto bg-green-500/10 text-green-600 text-xs px-2 py-0.5 rounded-full">
+                        {subscriptions.length}
+                      </span>
+                    )}
                   </TabsTrigger>
                 </TabsList>
                 
@@ -845,23 +1149,12 @@ const POS = () => {
                   )}
                 </TabsContent>
                 
-                <TabsContent value="services" className="flex-1 flex mt-0 data-[state=active]:block data-[state=inactive]:hidden">
-                  {services.length === 0 ? (
-                    <div className="h-full flex items-center justify-center">
-                      <div className="text-center p-6 bg-muted/30 rounded-lg">
-                        <Wrench className="h-12 w-12 mb-3 mx-auto opacity-20" />
-                        <h3 className="text-xl font-medium mb-2">لا توجد خدمات</h3>
-                        <p className="text-sm text-muted-foreground">لم يتم العثور على أي خدمات في قاعدة البيانات.</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <ServiceManager
-                      services={services}
-                      customers={users.filter(u => u.role === 'customer')}
-                      onAddService={handleAddService}
-                      organizationId={user?.user_metadata?.organization_id || localStorage.getItem('bazaar_organization_id') || ''}
-                    />
-                  )}
+                <TabsContent value="subscriptions" className="flex-1 flex mt-0 data-[state=active]:block data-[state=inactive]:hidden">
+                  <SubscriptionCatalog 
+                    subscriptions={subscriptions}
+                    categories={subscriptionCategories}
+                    onAddToCart={handleAddSubscription}
+                  />
                 </TabsContent>
               </Tabs>
             </div>
@@ -948,6 +1241,9 @@ const POS = () => {
                     selectedServices={selectedServices}
                     removeService={removeServiceFromCart}
                     updateServicePrice={updateServicePrice}
+                    selectedSubscriptions={selectedSubscriptions}
+                    removeSubscription={removeSubscriptionFromCart}
+                    updateSubscriptionPrice={updateSubscriptionPrice}
                   />
                 </div>
               </div>
