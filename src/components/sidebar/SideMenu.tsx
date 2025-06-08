@@ -309,7 +309,7 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
           icon: Wrench,
           href: '/dashboard/services',
           requiredPermission: 'viewServices',
-          badge: null
+                    badge: null
         },
         {
           title: 'خدمات التصليح',

@@ -8342,6 +8342,116 @@ export type Database = {
         }
         Relationships: []
       }
+      subscription_services: {
+        Row: {
+          id: string
+          organization_id: string
+          category_id: string | null
+          name: string
+          description: string | null
+          provider: string
+          service_type: string | null
+          supported_countries: Json | null
+          available_durations: Json | null
+          credentials_encrypted: string | null
+          delivery_method: string
+          status: string
+          purchase_price: number
+          selling_price: number
+          profit_margin: number | null
+          profit_amount: number | null
+          expires_at: string | null
+          total_quantity: number | null
+          available_quantity: number | null
+          sold_quantity: number | null
+          reserved_quantity: number | null
+          is_featured: boolean | null
+          is_active: boolean | null
+          logo_url: string | null
+          terms_conditions: string | null
+          usage_instructions: string | null
+          support_contact: string | null
+          renewal_policy: string | null
+          created_at: string
+          updated_at: string
+          created_by: string | null
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          category_id?: string | null
+          name: string
+          description?: string | null
+          provider: string
+          service_type?: string | null
+          supported_countries?: Json | null
+          available_durations?: Json | null
+          credentials_encrypted?: string | null
+          delivery_method?: string
+          status?: string
+          purchase_price?: number
+          selling_price?: number
+          profit_margin?: number | null
+          profit_amount?: number | null
+          expires_at?: string | null
+          total_quantity?: number | null
+          available_quantity?: number | null
+          sold_quantity?: number | null
+          reserved_quantity?: number | null
+          is_featured?: boolean | null
+          is_active?: boolean | null
+          logo_url?: string | null
+          terms_conditions?: string | null
+          usage_instructions?: string | null
+          support_contact?: string | null
+          renewal_policy?: string | null
+          created_at?: string
+          updated_at?: string
+          created_by?: string | null
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          category_id?: string | null
+          name?: string
+          description?: string | null
+          provider?: string
+          service_type?: string | null
+          supported_countries?: Json | null
+          available_durations?: Json | null
+          credentials_encrypted?: string | null
+          delivery_method?: string
+          status?: string
+          purchase_price?: number
+          selling_price?: number
+          profit_margin?: number | null
+          profit_amount?: number | null
+          expires_at?: string | null
+          total_quantity?: number | null
+          available_quantity?: number | null
+          sold_quantity?: number | null
+          reserved_quantity?: number | null
+          is_featured?: boolean | null
+          is_active?: boolean | null
+          logo_url?: string | null
+          terms_conditions?: string | null
+          usage_instructions?: string | null
+          support_contact?: string | null
+          renewal_policy?: string | null
+          created_at?: string
+          updated_at?: string
+          created_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_services_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       subscription_settings: {
         Row: {
           created_at: string

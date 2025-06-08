@@ -172,11 +172,11 @@ const SubscriptionServicesPage = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setServices((data as SubscriptionService[]) || []);
+      setServices((data as unknown as SubscriptionService[]) || []);
       
               // حساب الإحصائيات
         if (data) {
-          const services = data as SubscriptionService[];
+          const services = data as unknown as SubscriptionService[];
           const totalCount = services.length;
           const availableCount = services.filter(s => s.is_active && s.available_quantity > 0).length;
           const soldCount = services.filter(s => s.sold_quantity > 0).length;
@@ -266,7 +266,7 @@ const SubscriptionServicesPage = () => {
         setFormData(prev => ({ ...prev, service_type: correctedServiceType }));
       }
 
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from('subscription_services')
         .insert([serviceData]);
 
@@ -319,7 +319,6 @@ const SubscriptionServicesPage = () => {
         updateData.credentials_encrypted = btoa(formData.credentials_data);
       }
 
-      // @ts-ignore - جدول subscription_services غير موجود في types بعد
       const { error } = await supabase
         .from('subscription_services')
         .update(updateData)
@@ -349,7 +348,6 @@ const SubscriptionServicesPage = () => {
   // حذف خدمة
   const handleDeleteService = async (serviceId: string) => {
     try {
-      // @ts-ignore - جدول subscription_services غير موجود في types بعد
       const { error } = await supabase
         .from('subscription_services')
         .delete()
@@ -376,7 +374,7 @@ const SubscriptionServicesPage = () => {
   // تحديث حالة الخدمة
   const updateServiceStatus = async (serviceId: string, isActive: boolean) => {
     try {
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from('subscription_services')
         .update({ 
           is_active: isActive,

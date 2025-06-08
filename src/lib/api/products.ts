@@ -847,13 +847,65 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
     createdMarketingSettings = mktSettings;
   }
 
+  // معالجة الألوان إذا تم إرسالها
+  if (colors && colors.length > 0) {
+    // إدراج الألوان الجديدة مع التحقق من البيانات المطلوبة
+    const validColors = colors.filter(color => color.name && color.color_code);
+    
+    if (validColors.length > 0) {
+      const colorsToInsert = validColors.map(color => ({
+        product_id: createdProduct.id,
+        name: color.name,
+        color_code: color.color_code,
+        image_url: color.image_url || null,
+        quantity: Number(color.quantity) || 0,
+        is_default: Boolean(color.is_default),
+        barcode: color.barcode || null,
+        has_sizes: Boolean(color.has_sizes),
+        price: color.price ? Number(color.price) : null,
+      }));
+      
+      const { error: insertColorsError } = await supabase
+        .from('product_colors')
+        .insert(colorsToInsert);
+      
+      if (insertColorsError) {
+        console.error('خطأ في حفظ الألوان:', insertColorsError);
+        toast.error(`تحذير: تم إنشاء المنتج ولكن فشل حفظ الألوان: ${insertColorsError.message}`);
+      }
+    }
+  }
+  
+  // معالجة أسعار الجملة إذا تم إرسالها
+  if (wholesale_tiers && wholesale_tiers.length > 0) {
+    // إدراج أسعار الجملة الجديدة مع التحقق من البيانات المطلوبة
+    const validTiers = wholesale_tiers.filter(tier => tier.min_quantity && tier.price);
+    
+    if (validTiers.length > 0) {
+      const wholesaleTiersToInsert = validTiers.map(tier => ({
+        product_id: createdProduct.id,
+        min_quantity: Number(tier.min_quantity),
+        price: Number(tier.price),
+        organization_id: organization_id,
+      }));
+      
+      const { error: insertWholesaleError } = await supabase
+        .from('wholesale_tiers')
+        .insert(wholesaleTiersToInsert);
+      
+      if (insertWholesaleError) {
+        console.error('خطأ في حفظ أسعار الجملة:', insertWholesaleError);
+        toast.error(`تحذير: تم إنشاء المنتج ولكن فشل حفظ أسعار الجملة: ${insertWholesaleError.message}`);
+      }
+    }
+  }
+
   let createdImagesArray: any[] = [];
   if (additional_images && additional_images.length > 0) {
     const imageInserts: TablesInsert<'product_images'>[] = additional_images.map((imageUrl, index) => ({
       product_id: createdProduct.id,
       image_url: imageUrl,
-      sort_order: index,
-      organization_id: organization_id,
+      sort_order: index + 1,
     }));
     const { data: newImagesResult, error: imagesError } = await supabase.from('product_images').insert(imageInserts).select();
     if (imagesError) {
@@ -893,16 +945,15 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
     throw error;
     }
 
-  const { advancedSettings: advancedSettingsFromForm, ...productCoreUpdates } = updates;
-  
-  if (productCoreUpdates.purchase_price !== undefined && productCoreUpdates.purchase_price !== null) {
-    productCoreUpdates.purchase_price = Number(productCoreUpdates.purchase_price);
+  // استخدام mainProductUpdates بدلاً من productCoreUpdates لأنه تم تنظيفه بالفعل من الحقول غير المرغوب فيها
+  if (mainProductUpdates.purchase_price !== undefined && mainProductUpdates.purchase_price !== null) {
+    mainProductUpdates.purchase_price = Number(mainProductUpdates.purchase_price);
     }
 
   const { data: updatedProductData, error: productUpdateError } = await supabase
       .from('products')
     .update({
-      ...productCoreUpdates,
+      ...mainProductUpdates,
       updated_by_user_id: user.id, 
       updated_at: new Date().toISOString(), 
     } as TablesUpdate<'products'>)
@@ -927,58 +978,260 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
     }
 
   let currentAdvancedSettings = null;
-    if (advancedSettings && Object.keys(advancedSettings).length > 0) {
-    const settingsToUpsert: TablesInsert<'product_advanced_settings'> = {
-      product_id: id, 
-      ...advancedSettings, 
-    };
+  if (advancedSettings && Object.keys(advancedSettings).length > 0) {
+    try {
+      const settingsToUpsert: TablesInsert<'product_advanced_settings'> = {
+        product_id: id, 
+        ...advancedSettings, 
+      };
 
-    for (const key in settingsToUpsert) {
+      // تنظيف القيم المنطقية غير المحددة
+      for (const key in settingsToUpsert) {
         if (advancedSettings.hasOwnProperty(key) && typeof settingsToUpsert[key as keyof typeof settingsToUpsert] === 'boolean' && settingsToUpsert[key as keyof typeof settingsToUpsert] === undefined) {
-            // @ts-ignore
-            settingsToUpsert[key] = false;
+          // @ts-ignore
+          settingsToUpsert[key] = false;
+        }
       }
-    }
 
-    const { data: upsertedSettings, error: advancedSettingsError } = await supabase
+      // محاولة تحديث الإعدادات الموجودة أولاً
+      const { data: existingAdvancedSettings } = await supabase
+        .from('product_advanced_settings')
+        .select('*')
+        .eq('product_id', id)
+        .single();
+
+      let upsertedSettings;
+      let advancedSettingsError;
+
+      if (existingAdvancedSettings) {
+        // تحديث السجل الموجود
+        const { data, error } = await supabase
           .from('product_advanced_settings')
-      .upsert(settingsToUpsert, { onConflict: 'product_id' })
-      .select('*') 
+          .update(settingsToUpsert)
+          .eq('product_id', id)
+          .select('*')
           .single();
-
-    if (advancedSettingsError) {
-      toast.error(`تنبيه: تم تحديث المنتج، ولكن فشل تحديث الإعدادات المتقدمة: ${advancedSettingsError.message}`);
-      const { data: existingSettingsOnError, error: fetchExistingOnError } = await supabase.from('product_advanced_settings').select('*').eq('product_id', id).single();
-      if (fetchExistingOnError) {
-      }
-      currentAdvancedSettings = existingSettingsOnError || null;
-        } else {
-      currentAdvancedSettings = upsertedSettings;
-        }
+        upsertedSettings = data;
+        advancedSettingsError = error;
       } else {
-    const { data: existingSettings, error: fetchExistingError } = await supabase.from('product_advanced_settings').select('*').eq('product_id', id).single();
-    if (fetchExistingError) {
-        // في حالة الفشل هنا، currentAdvancedSettings سيبقى null كما تم تهيئته
-        } else {
-        currentAdvancedSettings = existingSettings;
-        }
+        // إنشاء سجل جديد
+        const { data, error } = await supabase
+          .from('product_advanced_settings')
+          .insert(settingsToUpsert)
+          .select('*')
+          .single();
+        upsertedSettings = data;
+        advancedSettingsError = error;
       }
+
+      if (advancedSettingsError) {
+        console.error('خطأ في حفظ الإعدادات المتقدمة:', advancedSettingsError);
+        toast.error(`تنبيه: تم تحديث المنتج، ولكن فشل تحديث الإعدادات المتقدمة: ${advancedSettingsError.message}`);
+        currentAdvancedSettings = existingAdvancedSettings || null;
+      } else {
+        currentAdvancedSettings = upsertedSettings;
+      }
+    } catch (error) {
+      console.error('خطأ في معالجة الإعدادات المتقدمة:', error);
+      // محاولة جلب الإعدادات الموجودة في حالة الخطأ
+      const { data: fallbackSettings } = await supabase
+        .from('product_advanced_settings')
+        .select('*')
+        .eq('product_id', id)
+        .single();
+      currentAdvancedSettings = fallbackSettings || null;
+    }
+  } else {
+    // جلب الإعدادات الموجودة إذا لم يتم إرسال إعدادات جديدة
+    try {
+      const { data: existingSettings } = await supabase
+        .from('product_advanced_settings')
+        .select('*')
+        .eq('product_id', id)
+        .single();
+      currentAdvancedSettings = existingSettings;
+    } catch (error) {
+      console.warn('لم يتم العثور على إعدادات متقدمة موجودة:', error);
+      currentAdvancedSettings = null;
+    }
+  }
 
   let currentMarketingSettings = null;
   if (marketingSettings && Object.keys(marketingSettings).length > 0) {
-    const { data: mktSettings, error: mktSettingsError } = await supabase
-      .from('product_marketing_settings')
-      .upsert({ ...marketingSettings, product_id: id, organization_id: updatedProductData.organization_id }, { onConflict: 'product_id' })
-      .select()
-      .single();
-    if (mktSettingsError) {
-      toast.error(`فشل تحديث إعدادات التسويق: ${mktSettingsError.message}`);
+    try {
+      // محاولة جلب الإعدادات الموجودة أولاً
+      const { data: existingMarketingSettings } = await supabase
+        .from('product_marketing_settings')
+        .select('*')
+        .eq('product_id', id)
+        .single();
+
+      const settingsToSave = {
+        ...marketingSettings,
+        product_id: id,
+        organization_id: updatedProductData.organization_id
+      };
+
+      let mktSettings;
+      let mktSettingsError;
+
+      if (existingMarketingSettings) {
+        // تحديث السجل الموجود
+        const { data, error } = await supabase
+          .from('product_marketing_settings')
+          .update(settingsToSave)
+          .eq('product_id', id)
+          .select('*')
+          .single();
+        mktSettings = data;
+        mktSettingsError = error;
+      } else {
+        // إنشاء سجل جديد
+        const { data, error } = await supabase
+          .from('product_marketing_settings')
+          .insert(settingsToSave)
+          .select('*')
+          .single();
+        mktSettings = data;
+        mktSettingsError = error;
+      }
+
+      if (mktSettingsError) {
+        console.error('خطأ في حفظ إعدادات التسويق:', mktSettingsError);
+        toast.error(`فشل تحديث إعدادات التسويق: ${mktSettingsError.message}`);
+        currentMarketingSettings = existingMarketingSettings || null;
+      } else {
+        currentMarketingSettings = mktSettings;
+      }
+    } catch (error) {
+      console.error('خطأ في معالجة إعدادات التسويق:', error);
+      // محاولة جلب الإعدادات الموجودة في حالة الخطأ
+      const { data: fallbackSettings } = await supabase
+        .from('product_marketing_settings')
+        .select('*')
+        .eq('product_id', id)
+        .single();
+      currentMarketingSettings = fallbackSettings || null;
     }
-    currentMarketingSettings = mktSettings;
   } else {
-    const { data: existingMkt } = await supabase.from('product_marketing_settings').select('*').eq('product_id', id).single();
-    currentMarketingSettings = existingMkt;
+    // جلب الإعدادات الموجودة إذا لم يتم إرسال إعدادات جديدة
+    try {
+      const { data: existingMkt } = await supabase
+        .from('product_marketing_settings')
+        .select('*')
+        .eq('product_id', id)
+        .single();
+      currentMarketingSettings = existingMkt;
+    } catch (error) {
+      console.warn('لم يتم العثور على إعدادات تسويق موجودة:', error);
+      currentMarketingSettings = null;
+    }
   }
+
+  // معالجة الألوان إذا تم إرسالها
+  if (colors && colors.length > 0) {
+    // حذف الألوان الموجودة أولاً
+    const { error: deleteColorsError } = await supabase
+      .from('product_colors')
+      .delete()
+      .eq('product_id', id);
+    
+    if (deleteColorsError) {
+      console.warn('تحذير: فشل حذف الألوان القديمة:', deleteColorsError.message);
+    }
+    
+    // إدراج الألوان الجديدة مع التحقق من البيانات المطلوبة
+    const validColors = colors.filter(color => color.name && color.color_code);
+    
+    if (validColors.length > 0) {
+      const colorsToInsert = validColors.map(color => ({
+        product_id: id,
+        name: color.name,
+        color_code: color.color_code,
+        image_url: color.image_url || null,
+        quantity: Number(color.quantity) || 0,
+        is_default: Boolean(color.is_default),
+        barcode: color.barcode || null,
+        has_sizes: Boolean(color.has_sizes),
+        price: color.price ? Number(color.price) : null,
+      }));
+      
+      const { error: insertColorsError } = await supabase
+        .from('product_colors')
+        .insert(colorsToInsert);
+      
+      if (insertColorsError) {
+        console.error('خطأ في حفظ الألوان:', insertColorsError);
+        toast.error(`تحذير: فشل حفظ ألوان المنتج: ${insertColorsError.message}`);
+      }
+    }
+  }
+  
+  // معالجة أسعار الجملة إذا تم إرسالها
+  if (wholesale_tiers && wholesale_tiers.length > 0) {
+    // حذف أسعار الجملة الموجودة أولاً
+    const { error: deleteWholesaleError } = await supabase
+      .from('wholesale_tiers')
+      .delete()
+      .eq('product_id', id);
+    
+    if (deleteWholesaleError) {
+      console.warn('تحذير: فشل حذف أسعار الجملة القديمة:', deleteWholesaleError.message);
+    }
+    
+    // إدراج أسعار الجملة الجديدة مع التحقق من البيانات المطلوبة
+    const validTiers = wholesale_tiers.filter(tier => tier.min_quantity && tier.price);
+    
+    if (validTiers.length > 0) {
+      const wholesaleTiersToInsert = validTiers.map(tier => ({
+        product_id: id,
+        min_quantity: Number(tier.min_quantity),
+        price: Number(tier.price),
+        organization_id: updatedProductData.organization_id,
+      }));
+      
+      const { error: insertWholesaleError } = await supabase
+        .from('wholesale_tiers')
+        .insert(wholesaleTiersToInsert);
+      
+      if (insertWholesaleError) {
+        console.error('خطأ في حفظ أسعار الجملة:', insertWholesaleError);
+        toast.error(`تحذير: فشل حفظ أسعار الجملة: ${insertWholesaleError.message}`);
+      }
+    }
+  }
+  
+  // معالجة الصور الإضافية إذا تم إرسالها
+  if (additional_images && additional_images.length > 0) {
+    // حذف الصور الموجودة أولاً
+    const { error: deleteImagesError } = await supabase
+      .from('product_images')
+      .delete()
+      .eq('product_id', id);
+    
+    if (deleteImagesError) {
+      console.warn('تحذير: فشل حذف الصور القديمة:', deleteImagesError.message);
+    }
+    
+    // إدراج الصور الجديدة (بدون organization_id لأنه غير موجود في الجدول)
+    const imagesToInsert = additional_images.map((imageUrl, index) => ({
+      product_id: id,
+      image_url: imageUrl,
+      sort_order: index + 1,
+    }));
+    
+    const { error: insertImagesError } = await supabase
+      .from('product_images')
+      .insert(imagesToInsert);
+    
+    if (insertImagesError) {
+      console.error('خطأ في حفظ الصور الإضافية:', insertImagesError);
+      toast.error(`تحذير: فشل حفظ الصور الإضافية: ${insertImagesError.message}`);
+    }
+  }
+
+  // معالجة إعدادات التسويق تتم بالفعل في أعلى الدالة
+  // لا نحتاج إلى معالجة إضافية هنا
 
   const resultProduct: Product = {
     ...(updatedProductData as unknown as Omit<Product, 'product_advanced_settings' | 'product_marketing_settings'>), 

@@ -210,8 +210,13 @@ export default function ProductForm() {
       // Pass advancedSettings and marketingSettings as camelCase for both create and update
       finalSubmissionData = {
         ...submissionDataPrep,
+        // الإعدادات المتقدمة وإعدادات التسويق يتم تمريرها بشكل منفصل
         advancedSettings: data.advancedSettings || undefined,
         marketingSettings: data.marketingSettings || undefined,
+        // البيانات التي تُعالج بشكل منفصل
+        colors: colorsToSubmit,
+        wholesale_tiers: wholesaleTiersToSubmit,
+        additional_images: imagesToSubmit,
       };
 
       if (!(isEditMode && productId)) {
@@ -219,10 +224,9 @@ export default function ProductForm() {
       }
       
       // Clean up fields not part of InsertProduct or UpdateProduct (fields used for form state but not direct DB columns for product table)
-      delete finalSubmissionData.additional_images; // `images` is the correct field for submissionDataPrep
       delete finalSubmissionData.is_sold_by_unit; 
       delete finalSubmissionData.use_variant_prices;
-      // No longer need to delete advancedSettings based on mode as it's always passed as camelCase
+      // marketingSettings و advancedSettings يتم تمريرها بشكل منفصل للAPI
 
       // DEBUGGING ADVANCED SETTINGS & MARKETING SETTINGS
       // END DEBUGGING

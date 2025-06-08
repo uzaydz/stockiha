@@ -38,7 +38,6 @@ import {
   CardHeader, 
   CardTitle 
 } from '@/components/ui/card';
-import EditProductDialog from './EditProductDialog';
 import DeleteProductDialog from './DeleteProductDialog';
 import ViewProductDialog from './ViewProductDialog';
 import type { Product } from '@/lib/api/products';
@@ -57,7 +56,7 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { checkUserPermissions, refreshUserData } from '@/lib/api/permissions';
 import { ProductFeatures } from '@/components/store/ProductFeatures';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 interface ProductsListProps {
   products: Product[];
@@ -65,12 +64,11 @@ interface ProductsListProps {
 }
 
 const ProductsList = ({ products, onRefreshProducts }: ProductsListProps) => {
+  const navigate = useNavigate();
   const [viewProduct, setViewProduct] = useState<Product | null>(null);
-  const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [deleteProduct, setDeleteProduct] = useState<Product | null>(null);
   const [productForFeatures, setProductForFeatures] = useState<Product | null>(null);
   const [isViewOpen, setIsViewOpen] = useState(false);
-  const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isFeaturesOpen, setIsFeaturesOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
@@ -135,8 +133,8 @@ const ProductsList = ({ products, onRefreshProducts }: ProductsListProps) => {
 
   const handleEdit = (product: Product) => {
     if (canEditProducts) {
-      setEditProduct(product);
-      setIsEditOpen(true);
+      // التنقل إلى صفحة تعديل المنتج
+      navigate(`/dashboard/product/${product.id}`);
     } else {
       // عرض تنبيه عدم وجود صلاحية
       setPermissionAlertType('edit');
@@ -332,15 +330,28 @@ const ProductsList = ({ products, onRefreshProducts }: ProductsListProps) => {
                         </Button>
                         
                         {/* زر التعديل - يظهر فقط إذا كان المستخدم لديه صلاحية */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEdit(product)}
-                          className={!canEditProducts ? "opacity-50 cursor-not-allowed" : ""}
-                        >
-                          <Edit className="h-4 w-4" />
-                          <span className="sr-only">تعديل</span>
-                        </Button>
+                        {canEditProducts ? (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            asChild
+                          >
+                            <Link to={`/dashboard/product/${product.id}`}>
+                              <Edit className="h-4 w-4" />
+                              <span className="sr-only">تعديل</span>
+                            </Link>
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEdit(product)}
+                            className="opacity-50 cursor-not-allowed"
+                          >
+                            <Edit className="h-4 w-4" />
+                            <span className="sr-only">تعديل</span>
+                          </Button>
+                        )}
                         
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -420,10 +431,24 @@ const ProductsList = ({ products, onRefreshProducts }: ProductsListProps) => {
                     <Eye className="ml-1 h-3 w-3" />
                     عرض
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleEdit(product)}>
-                    <Edit className="ml-1 h-3 w-3" />
-                    تعديل
-                  </Button>
+                  {canEditProducts ? (
+                    <Button variant="outline" size="sm" asChild>
+                      <Link to={`/dashboard/product/${product.id}`}>
+                        <Edit className="ml-1 h-3 w-3" />
+                        تعديل
+                      </Link>
+                    </Button>
+                  ) : (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => handleEdit(product)}
+                      className="opacity-50 cursor-not-allowed"
+                    >
+                      <Edit className="ml-1 h-3 w-3" />
+                      تعديل
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"
@@ -449,19 +474,7 @@ const ProductsList = ({ products, onRefreshProducts }: ProductsListProps) => {
         />
       )}
 
-      {/* Edit Product Dialog */}
-      {editProduct && (
-        <EditProductDialog
-          product={editProduct}
-          open={isEditOpen}
-          onOpenChange={(open) => {
-            if (!open) {
-              setIsEditOpen(open);
-            }
-          }}
-          onProductUpdated={onRefreshProducts}
-        />
-      )}
+      {/* تم إزالة EditProductDialog - الآن نستخدم صفحة ProductForm الكاملة */}
 
       {/* Delete Product Dialog */}
       {deleteProduct && (

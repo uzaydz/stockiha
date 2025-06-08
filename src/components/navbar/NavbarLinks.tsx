@@ -70,8 +70,6 @@ export function NavbarLinks({
           hasSubmenu: true, 
           submenuItems: categories
         },
-        { name: 'خدمات الإصلاح', path: '/services', icon: Settings },
-        { name: 'تتبع الخدمات', path: '/service-tracking-public', icon: Truck },
         { name: 'تتبع التصليح', path: '/repair-tracking', icon: Wrench },
       ];
     } else {
@@ -92,7 +90,6 @@ export function NavbarLinks({
           submenuItems: defaultSubmenuItems
         },
         { name: 'خدمات الإصلاح', path: '/services', icon: Settings },
-        { name: 'تتبع الخدمات', path: '/service-tracking-public', icon: Truck },
         { name: 'تتبع التصليح', path: '/repair-tracking', icon: Wrench },
       ];
     }
