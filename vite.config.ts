@@ -309,9 +309,65 @@ export default defineConfig(({ mode }: { mode: string }) => {
         },
         output: {
           format: 'esm' as ModuleFormat,
+          // تقسيم الحزم الذكي لتحسين الأداء
           manualChunks: {
-            'react-vendor': ['react', 'react-dom'],
-          }
+            // React والمكتبات الأساسية
+            'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+            
+            // مكتبات UI
+            'ui-vendor': [
+              'lucide-react',
+              'framer-motion',
+              '@radix-ui/react-dialog',
+              '@radix-ui/react-dropdown-menu',
+              '@radix-ui/react-tooltip',
+              '@radix-ui/react-tabs',
+              '@radix-ui/react-select',
+              '@radix-ui/react-checkbox',
+              '@radix-ui/react-radio-group',
+              '@radix-ui/react-slider',
+              '@radix-ui/react-switch',
+              '@radix-ui/react-progress',
+            ],
+            
+            // Supabase وقواعد البيانات
+            'database-vendor': ['@supabase/supabase-js'],
+            
+            // مكتبات أخرى
+            'utils-vendor': [
+              'date-fns',
+              'clsx',
+              'class-variance-authority',
+              'tailwind-merge',
+              'react-helmet-async',
+              'zod',
+              'react-hook-form',
+              '@hookform/resolvers'
+            ],
+          },
+          
+          // تسمية الملفات المحسنة
+          chunkFileNames: 'assets/js/[name]-[hash].js',
+          entryFileNames: 'assets/js/[name]-[hash].js',
+          
+          assetFileNames: (assetInfo) => {
+            const info = assetInfo.name?.split('.') || [];
+            const ext = info[info.length - 1];
+            
+            if (/\.(png|jpe?g|svg|gif|tiff|bmp|ico)$/i.test(assetInfo.name || '')) {
+              return `assets/images/[name]-[hash].${ext}`;
+            }
+            
+            if (/\.(woff2?|eot|ttf|otf)$/i.test(assetInfo.name || '')) {
+              return `assets/fonts/[name]-[hash].${ext}`;
+            }
+            
+            if (/\.css$/i.test(assetInfo.name || '')) {
+              return `assets/css/[name]-[hash].${ext}`;
+            }
+            
+            return `assets/[name]-[hash].${ext}`;
+          },
         } as OutputOptions,
         external: ['perf_hooks'],
       },
@@ -322,7 +378,7 @@ export default defineConfig(({ mode }: { mode: string }) => {
         include: [/node_modules/],
         transformMixedEsModules: true,
       },
-      chunkSizeWarningLimit: 1000, // زيادة حد التحذير لحجم الملف (1MB)
+      chunkSizeWarningLimit: 500, // تقليل حد التحذير لحجم الملف (500KB) لتحسين الأداء
     },
     // تشغيل الشفرة في محتوى واحد في Electron
     optimizeDeps: {

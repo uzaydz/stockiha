@@ -224,7 +224,10 @@ const ProductCategories = ({
       displayCount: settings.displayCount || settings.maxCategories || 6
     };
     
-    console.log('🔍 إعادة حساب الفئات - المتاحة:', realCategories.length, 'الإعدادات:', currentSettings);
+    // إزالة الإفراط في التسجيل
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 إعادة حساب الفئات - المتاحة:', realCategories.length, 'الإعدادات:', currentSettings);
+    }
     
     let filteredCategories = [...realCategories];
     
@@ -232,11 +235,15 @@ const ProductCategories = ({
     switch (currentSettings.selectionMethod) {
       case 'manual':
         if (currentSettings.selectedCategories.length > 0) {
+          if (process.env.NODE_ENV === 'development') {
           console.log('✅ اختيار يدوي - فئات محددة:', currentSettings.selectedCategories);
-          filteredCategories = currentSettings.selectedCategories
-            .map(id => realCategories.find(cat => cat.id === id))
-            .filter(Boolean) as ExtendedCategory[];
+        }
+        filteredCategories = currentSettings.selectedCategories
+          .map(id => realCategories.find(cat => cat.id === id))
+          .filter(Boolean) as ExtendedCategory[];
+        if (process.env.NODE_ENV === 'development') {
           console.log('📦 النتيجة:', filteredCategories.map(c => c.name));
+        }
         } else {
           console.log('⚠️ اختيار يدوي لكن لا توجد فئات محددة');
           filteredCategories = [];
@@ -259,7 +266,9 @@ const ProductCategories = ({
     // تطبيق حد العرض
     filteredCategories = filteredCategories.slice(0, currentSettings.displayCount);
     
-    console.log('✅ الفئات النهائية:', filteredCategories.length, filteredCategories.map(c => c.name));
+    if (process.env.NODE_ENV === 'development') {
+      console.log('✅ الفئات النهائية:', filteredCategories.length, filteredCategories.map(c => c.name));
+    }
     return filteredCategories;
   }, [useRealCategories, realCategories, settings.selectionMethod, settings.selectedCategories, settings.displayCount, settings.maxCategories]);
 

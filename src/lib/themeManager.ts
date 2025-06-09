@@ -103,6 +103,15 @@ function isHSLColor(color: string): boolean {
  * تطبيق الثيم على العناصر في الصفحة
  */
 function applyThemeToDOM(theme: UnifiedTheme): void {
+  // إنشاء مفتاح للثيم الحالي
+  const themeKey = `${theme.primaryColor}-${theme.secondaryColor}-${theme.mode}-${theme.organizationId || 'global'}`;
+  
+  // تجنب تطبيق الثيم نفسه مرة أخرى
+  if (currentAppliedTheme === themeKey) {
+    console.log('🛑 [applyThemeToDOM] تم تجاهل تطبيق الثيم المتكرر');
+    return;
+  }
+  
   // التحقق من نوع الصفحة
   const pageType = getCurrentPageType();
   
@@ -118,6 +127,9 @@ function applyThemeToDOM(theme: UnifiedTheme): void {
     organizationId: theme.organizationId,
     pageType: pageType
   });
+  
+  // حفظ مفتاح الثيم الحالي
+  currentAppliedTheme = themeKey;
   
   const root = document.documentElement;
   
@@ -518,14 +530,28 @@ function getStoredTheme(type: 'global' | 'store' | 'organization'): UnifiedTheme
   }
 }
 
+// متغير لتتبع آخر تطبيق للثيم وcache للثيم الحالي
+let lastThemeApplication = 0;
+let currentAppliedTheme: string | null = null;
+const THEME_THROTTLE_MS = 500; // تقليل المدة إلى 500ms
+
 /**
  * تطبيق الثيم الفوري قبل تحميل React
  */
 export function applyInstantTheme(): void {
+  // تجنب التطبيق المتكرر
+  const now = Date.now();
+  if (now - lastThemeApplication < THEME_THROTTLE_MS) {
+    console.log('🛑 [applyInstantTheme] تم تجاهل تطبيق الثيم المتكرر');
+    return;
+  }
+  
   const pageType = getCurrentPageType();
   
   console.log('🔍 [applyInstantTheme] نوع الصفحة المكتشف:', pageType);
   console.log('🌐 [applyInstantTheme] Current hostname:', window.location.hostname);
+  
+  lastThemeApplication = now;
   
   // محاولة استرجاع الثيم المناسب
   let theme: UnifiedTheme | null = null;

@@ -8,6 +8,8 @@ import { cn, formatPrice } from '@/lib/utils';
 import type { Product } from '@/lib/api/products';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import OptimizedImage from '@/components/ui/optimized-image';
+import React from 'react';
 
 interface ProductCardProps {
   product: Product;
@@ -17,7 +19,7 @@ interface ProductCardProps {
   isWishlisted?: boolean;
 }
 
-const ProductCard = ({ 
+const ProductCard = React.memo(({ 
   product, 
   view, 
   index, 
@@ -25,8 +27,7 @@ const ProductCard = ({
   isWishlisted = false 
 }: ProductCardProps) => {
   const navigate = useNavigate();
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const [imageError, setImageError] = useState(false);
+  // المتغيرات تم حذفها لأن OptimizedImage تدير الصور تلقائياً
   const [isVisible, setIsVisible] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -101,29 +102,16 @@ const ProductCard = ({
             {/* صورة المنتج */}
             <div className="relative w-32 h-32 flex-shrink-0">
               <div className="w-full h-full bg-muted rounded-lg overflow-hidden">
-                {isVisible && !imageError ? (
-                  <img
-                    src={product.thumbnail_image || product.images?.[0] || '/placeholder.svg'}
-                    alt={product.name}
-                    className={cn(
-                      "w-full h-full object-cover transition-all duration-300 group-hover:scale-105",
-                      !imageLoaded && "opacity-0"
-                    )}
-                    onLoad={() => setImageLoaded(true)}
-                    onError={() => setImageError(true)}
-                    loading="lazy"
-                  />
-                ) : imageError ? (
-                  <div className="w-full h-full flex items-center justify-center bg-muted">
-                    <Package className="h-8 w-8 text-muted-foreground" />
-                  </div>
-                ) : (
-                  <div className="w-full h-full bg-muted animate-pulse" />
-                )}
-                
-                {!imageLoaded && !imageError && isVisible && (
-                  <div className="absolute inset-0 bg-muted animate-pulse" />
-                )}
+                <OptimizedImage
+                  src={product.thumbnail_image || product.images?.[0] || '/placeholder.svg'}
+                  alt={product.name}
+                  className="w-full h-full object-cover transition-all duration-300 group-hover:scale-105"
+                  placeholder={
+                    <div className="w-full h-full flex items-center justify-center bg-muted">
+                      <Package className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                  }
+                />
               </div>
               
               {/* شارات المنتج */}
@@ -216,29 +204,16 @@ const ProductCard = ({
         {/* صورة المنتج */}
         <div className="relative aspect-square">
           <div className="w-full h-full bg-muted overflow-hidden">
-            {isVisible && !imageError ? (
-              <img
-                src={product.thumbnail_image || product.images?.[0] || '/placeholder.svg'}
-                alt={product.name}
-                className={cn(
-                  "w-full h-full object-cover transition-all duration-300 group-hover:scale-110",
-                  !imageLoaded && "opacity-0"
-                )}
-                onLoad={() => setImageLoaded(true)}
-                onError={() => setImageError(true)}
-                loading="lazy"
-              />
-            ) : imageError ? (
-              <div className="w-full h-full flex items-center justify-center bg-muted">
-                <Package className="h-12 w-12 text-muted-foreground" />
-              </div>
-            ) : (
-              <div className="w-full h-full bg-muted animate-pulse" />
-            )}
-            
-            {!imageLoaded && !imageError && isVisible && (
-              <div className="absolute inset-0 bg-muted animate-pulse" />
-            )}
+            <OptimizedImage
+              src={product.thumbnail_image || product.images?.[0] || '/placeholder.svg'}
+              alt={product.name}
+              className="w-full h-full object-cover transition-all duration-300 group-hover:scale-110"
+              placeholder={
+                <div className="w-full h-full flex items-center justify-center bg-muted">
+                  <Package className="h-12 w-12 text-muted-foreground" />
+                </div>
+              }
+            />
           </div>
           
           {/* شارات المنتج */}
@@ -320,6 +295,8 @@ const ProductCard = ({
       </Card>
     </motion.div>
   );
-};
+});
+
+ProductCard.displayName = 'ProductCard';
 
 export default ProductCard; 

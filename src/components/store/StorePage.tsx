@@ -22,11 +22,16 @@ import { ArrowRight, RefreshCw } from 'lucide-react';
 import SkeletonLoader, { SkeletonLoaderProps } from './SkeletonLoader';
 import { updateOrganizationTheme } from '@/lib/themeManager';
 import { getSupabaseClient } from '@/lib/supabase';
+// استيراد الخدمة المحسنة
 import { 
-  getStoreDataFast, 
+  getStoreDataProgressive, 
   forceReloadStoreData, 
   StoreInitializationData, 
   Product as StoreProduct
+} from '@/api/optimizedStoreDataService';
+// الاحتفاظ بالخدمة القديمة كـ fallback
+import { 
+  getStoreDataFast as getStoreDataFallback
 } from '@/api/storeDataService';
 import type { OrganizationSettings } from '@/types/settings';
 import { Helmet } from 'react-helmet-async';
@@ -95,40 +100,20 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
     return extended;
   };
 
-  // تطبيق ثيم المؤسسة مع محاولة إعادة تطبيق بعد التحميل
+  // تطبيق ثيم المؤسسة مع منع التطبيق المتكرر
   const applyOrganizationThemeWithRetry = useCallback((orgId: string, settings: {
     theme_primary_color?: string;
     theme_secondary_color?: string;
     theme_mode?: 'light' | 'dark' | 'auto';
     custom_css?: string;
   }) => {
-    // تطبيق أول مرة
+    // تطبيق الثيم مرة واحدة فقط
     updateOrganizationTheme(orgId, {
       theme_primary_color: settings.theme_primary_color,
       theme_secondary_color: settings.theme_secondary_color,
       theme_mode: settings.theme_mode,
       custom_css: settings.custom_css
     });
-    
-    // محاولة ثانية بعد 100 ملي ثانية
-    setTimeout(() => {
-      updateOrganizationTheme(orgId, {
-        theme_primary_color: settings.theme_primary_color,
-        theme_secondary_color: settings.theme_secondary_color,
-        theme_mode: settings.theme_mode,
-        custom_css: settings.custom_css
-      });
-      
-      // محاولة أخيرة بعد 500 ملي ثانية (لتغطية المكونات التي تحمل متأخرة)
-      setTimeout(() => {
-        updateOrganizationTheme(orgId, {
-          theme_primary_color: settings.theme_primary_color,
-          theme_secondary_color: settings.theme_secondary_color,
-          theme_mode: settings.theme_mode,
-          custom_css: settings.custom_css
-        });
-      }, 500);
-    }, 100);
   }, []);
 
   useEffect(() => {
@@ -168,28 +153,51 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
   
   useEffect(() => {
     const loadStoreData = async () => {
-      if (dataFetchAttempted.current && !(initialStoreData && Object.keys(initialStoreData).length > 0) ) return;
-      if (!(initialStoreData && Object.keys(initialStoreData).length > 0)) {
+      // تجنب التحميل المتكرر
+      if (dataFetchAttempted.current) return;
+      
+      // إذا كانت البيانات موجودة مسبقاً، استخدمها مباشرة
+      if (initialStoreData && Object.keys(initialStoreData).length > 0) {
+        setStoreData(initialStoreData);
+        setStoreSettings(initialStoreData.organization_settings || null);
+        setCustomComponents(initialStoreData.store_layout_components || []);
+        setDataLoading(false); 
         dataFetchAttempted.current = true;
-        setDataLoading(true);
+        
+        // تطبيق الثيم إذا كان متاحاً
+        if (initialStoreData.organization_settings && currentOrganization?.id) {
+          applyOrganizationThemeWithRetry(currentOrganization.id, {
+            theme_primary_color: initialStoreData.organization_settings.theme_primary_color,
+            theme_secondary_color: initialStoreData.organization_settings.theme_secondary_color,
+            theme_mode: (initialStoreData.organization_settings as any).theme_mode,
+            custom_css: initialStoreData.organization_settings.custom_css
+          });
+        }
+        return;
       }
+
+      // بدء تحميل جديد للبيانات
+      dataFetchAttempted.current = true;
+      setDataLoading(true);
       setDataError(null);
 
       let subdomainToUse = currentSubdomain;
 
+      // تحقق من النطاق المخصص
       const customDomainSubdomain = await checkCustomDomainAndLoadData();
       if (typeof customDomainSubdomain === 'string') {
         subdomainToUse = customDomainSubdomain;
       }
 
       if (!subdomainToUse) {
-        if (!(initialStoreData && Object.keys(initialStoreData).length > 0)) setDataLoading(false);
+        setDataLoading(false);
         setDataError("لم يتم تحديد المتجر. يرجى التحقق من الرابط.");
         return;
       }
       
       try {
-        const result = await getStoreDataFast(subdomainToUse);
+        // استخدام الخدمة المحسنة مباشرة
+        const result = await getStoreDataProgressive(subdomainToUse);
 
         if (result.data?.error) {
           setDataError(result.data.error);
@@ -200,16 +208,15 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
           setStoreData(result.data);
           setStoreSettings(result.data.organization_settings || null);
           setCustomComponents(result.data.store_layout_components || []);
-          if (result.data.organization_settings) {
-            // Apply organization theme if settings are available
-            if (result.data.organization_settings && currentOrganization?.id) {
-              applyOrganizationThemeWithRetry(currentOrganization.id, {
-                theme_primary_color: result.data.organization_settings.theme_primary_color,
-                theme_secondary_color: result.data.organization_settings.theme_secondary_color,
-                theme_mode: (result.data.organization_settings as any).theme_mode,
-                custom_css: result.data.organization_settings.custom_css
-              });
-            }
+          
+          // تطبيق الثيم مرة واحدة فقط
+          if (result.data.organization_settings && currentOrganization?.id) {
+            applyOrganizationThemeWithRetry(currentOrganization.id, {
+              theme_primary_color: result.data.organization_settings.theme_primary_color,
+              theme_secondary_color: result.data.organization_settings.theme_secondary_color,
+              theme_mode: (result.data.organization_settings as any).theme_mode,
+              custom_css: result.data.organization_settings.custom_css
+            });
           }
         } else {
           setDataError("لم يتم العثور على بيانات للمتجر أو قد تكون البيانات فارغة.");
@@ -218,37 +225,33 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
           setCustomComponents([]);
         }
       } catch (error: any) {
-        setDataError(error.message || "خطأ غير معروف أثناء تحميل البيانات.");
-        setStoreData(null);
-        setStoreSettings(null);
-        setCustomComponents([]);
+        // في حالة فشل الخدمة المحسنة، استخدم الخدمة القديمة كـ fallback
+        console.warn('استخدام الخدمة القديمة كـ fallback:', error);
+        try {
+          const fallbackResult = await getStoreDataFallback(subdomainToUse);
+          if (fallbackResult.data?.error) {
+            setDataError(fallbackResult.data.error);
+            setStoreData(null);
+            setStoreSettings(null);
+            setCustomComponents([]);
+          } else if (fallbackResult.data) {
+            setStoreData(fallbackResult.data);
+            setStoreSettings(fallbackResult.data.organization_settings || null);
+            setCustomComponents(fallbackResult.data.store_layout_components || []);
+          }
+        } catch (fallbackError: any) {
+          setDataError(fallbackError.message || "خطأ غير معروف أثناء تحميل البيانات.");
+          setStoreData(null);
+          setStoreSettings(null);
+          setCustomComponents([]);
+        }
       } finally {
-        if (!(initialStoreData && Object.keys(initialStoreData).length > 0)) setDataLoading(false);
+        setDataLoading(false);
       }
     };
     
-    if (initialStoreData && Object.keys(initialStoreData).length > 0) {
-        setStoreData(initialStoreData);
-        setStoreSettings(initialStoreData.organization_settings || null);
-        setCustomComponents(initialStoreData.store_layout_components || []);
-        setDataLoading(false); 
-        dataFetchAttempted.current = true;
-        if (initialStoreData.organization_settings && currentSubdomain) {
-            // Apply organization theme if settings are available
-            if (initialStoreData.organization_settings && currentOrganization?.id) {
-              applyOrganizationThemeWithRetry(currentOrganization.id, {
-                theme_primary_color: initialStoreData.organization_settings.theme_primary_color,
-                theme_secondary_color: initialStoreData.organization_settings.theme_secondary_color,
-                theme_mode: (initialStoreData.organization_settings as any).theme_mode,
-                custom_css: initialStoreData.organization_settings.custom_css
-              });
-            }
-        }
-    } else {
-        loadStoreData();
-    }
-
-  }, [currentSubdomain, initialStoreData, applyOrganizationThemeWithRetry]);
+          loadStoreData();
+  }, [currentSubdomain]);
   
   useEffect(() => {
     document.title = `${storeName} | سطوكيها - المتجر الإلكتروني`;

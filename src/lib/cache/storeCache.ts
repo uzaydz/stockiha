@@ -1,231 +1,227 @@
-import localforage from 'localforage';
-import { supabase } from '@/lib/supabase';
-import LRUCache from 'lru-cache';
+// نظام التخزين المؤقت المحسن للمتجر
+import { openDB, DBSchema, IDBPDatabase } from 'idb';
 
-// إنشاء مخزن فورج محلي للمتجر
-const storeCache = localforage.createInstance({
-  name: 'bazaar-store-cache',
-  storeName: 'store-data'
-});
-
-// تخزين مؤقت في الذاكرة باستخدام LRU (Least Recently Used) لإدارة الذاكرة
-const memoryCache = new LRUCache<string, any>({
-  max: 500, // عدد أقصى من المفاتيح
-  ttl: 1000 * 60 * 30, // 30 دقيقة
-  allowStale: false, // لا تسمح باستخدام القيم منتهية الصلاحية
-  updateAgeOnGet: true, // تحديث العمر عند الاستخدام
-  updateAgeOnHas: true, // تحديث العمر عند التحقق من الوجود
-});
-
-// تعريف أنواع البيانات المخزنة مؤقتاً
-interface CachedData<T> {
-  data: T;
-  timestamp: number;
-  version: string;
-  accessCount?: number; // عدد مرات الوصول للتكيف مع سياسات انتهاء الصلاحية
-  lastAccessed?: number; // آخر وقت تم الوصول فيه
+interface StoreCacheDB extends DBSchema {
+  storeData: {
+    key: string;
+    value: {
+      data: any;
+      timestamp: number;
+      ttl: number;
+    };
+  };
+  storeImages: {
+    key: string;
+    value: {
+      blob: Blob;
+      timestamp: number;
+      ttl: number;
+    };
+  };
 }
 
-// توسيع أوقات التخزين المؤقت للبيانات الثابتة نسبيًا
-// المدة الافتراضية للتخزين المؤقت (بالمللي ثانية) - 30 دقيقة
-const DEFAULT_CACHE_TTL = 30 * 60 * 1000;
+let dbPromise: Promise<IDBPDatabase<StoreCacheDB>>;
+let pendingQueries: Record<string, Promise<any>> = {};
 
-// تخزين مؤقت طويل المدى (24 ساعة) للبيانات التي لا تتغير كثيرًا
-const LONG_CACHE_TTL = 24 * 60 * 60 * 1000;
-
-// مدة قصيرة (5 دقائق) للبيانات المتغيرة بشكل متكرر
-const SHORT_CACHE_TTL = 5 * 60 * 1000;
-
-// مفتاح نسخة التخزين المؤقت - يتم زيادته عند تحديث هيكل البيانات
-const CACHE_VERSION = '1.2.0';
-
-// حفظ الاستعلامات قيد التنفيذ لمنع الاستعلامات المتكررة المتزامنة
-const pendingQueries: Record<string, Promise<any>> = {};
-
-// تتبع إحصائيات التخزين المؤقت لتحسين الأداء
-interface CacheStats {
-  hits: number;
-  misses: number;
-  stored: number;
-  deleted: number;
-}
-
-const cacheStats: CacheStats = {
-  hits: 0,
-  misses: 0,
-  stored: 0,
-  deleted: 0
+// تهيئة قاعدة البيانات
+const initDB = async (): Promise<IDBPDatabase<StoreCacheDB>> => {
+  if (!dbPromise) {
+    dbPromise = openDB<StoreCacheDB>('storeCache', 2, {
+      upgrade(db, oldVersion, newVersion) {
+        if (oldVersion < 1) {
+          db.createObjectStore('storeData');
+        }
+        if (oldVersion < 2) {
+          db.createObjectStore('storeImages');
+        }
+      },
+    });
+  }
+  return dbPromise;
 };
 
-/**
- * تحديد إذا كان يجب تمديد فترة انتهاء الصلاحية بناءً على معدل الاستخدام
- * المفاتيح المستخدمة بكثرة تحصل على فترة انتهاء صلاحية أطول
- */
-function shouldExtendTtl(accessCount: number, ttl: number): boolean {
-  if (accessCount >= 10) {
-    return true; // تمديد الفترة للعناصر المستخدمة بكثرة
+// تنظيف البيانات المنتهية الصلاحية
+const cleanupExpiredData = async (db: IDBPDatabase<StoreCacheDB>) => {
+  const now = Date.now();
+  
+  // تنظيف بيانات المتجر
+  const storeDataKeys = await db.getAllKeys('storeData');
+  for (const key of storeDataKeys) {
+    const item = await db.get('storeData', key);
+    if (item && (now - item.timestamp) > item.ttl) {
+      await db.delete('storeData', key);
+    }
   }
-  return false;
-}
-
-/**
- * الحصول على مدة انتهاء صلاحية متكيفة بناءً على استخدام العنصر
- */
-function getAdaptiveTtl(accessCount: number, baseTtl: number): number {
-  if (accessCount >= 20) {
-    return baseTtl * 2; // مضاعفة المدة للعناصر المستخدمة بكثرة جداً
-  } else if (accessCount >= 10) {
-    return baseTtl * 1.5; // زيادة المدة بنسبة 50% للعناصر المستخدمة بكثرة
+  
+  // تنظيف الصور
+  const imageKeys = await db.getAllKeys('storeImages');
+  for (const key of imageKeys) {
+    const item = await db.get('storeImages', key);
+    if (item && (now - item.timestamp) > item.ttl) {
+      await db.delete('storeImages', key);
+    }
   }
-  return baseTtl;
-}
+};
 
-/**
- * وظيفة لتخزين البيانات في التخزين المؤقت
- */
-export async function setCacheData<T>(key: string, data: T, useMemoryCache = false): Promise<void> {
+// دالة محسنة لحفظ البيانات
+export async function setCacheData(key: string, data: any, ttl: number = 15 * 60 * 1000): Promise<void> {
   try {
-    const cacheItem: CachedData<T> = {
+    const db = await initDB();
+    
+    // تنظيف البيانات المنتهية أحياناً
+    if (Math.random() < 0.1) {
+      cleanupExpiredData(db);
+    }
+    
+    await db.put('storeData', {
       data,
       timestamp: Date.now(),
-      version: CACHE_VERSION,
-      accessCount: 1,
-      lastAccessed: Date.now(),
-    };
+      ttl
+    }, key);
     
-    // تخزين في ذاكرة التطبيق للوصول الأسرع
-    if (useMemoryCache) {
-      memoryCache.set(key, cacheItem);
-    }
-    
-    await storeCache.setItem(key, cacheItem);
-    cacheStats.stored++;
+    console.log(`💾 [Cache] تم حفظ البيانات: ${key}`);
   } catch (error) {
+    console.error('خطأ في حفظ البيانات في Cache:', error);
+    // fallback إلى localStorage
+    try {
+      localStorage.setItem(`cache_${key}`, JSON.stringify({
+        data,
+        timestamp: Date.now(),
+        ttl
+      }));
+    } catch (fallbackError) {
+      console.error('خطأ في fallback cache:', fallbackError);
+    }
   }
 }
 
-/**
- * وظيفة للحصول على البيانات من التخزين المؤقت
- */
-export async function getCacheData<T>(
-  key: string, 
-  ttl: number = DEFAULT_CACHE_TTL,
-  useMemoryCache = false
-): Promise<T | null> {
+// دالة محسنة لاسترجاع البيانات
+export async function getCacheData(key: string): Promise<any | null> {
   try {
-    // أولاً، التحقق من وجودها في ذاكرة التطبيق
-    if (useMemoryCache && memoryCache.has(key)) {
-      const cachedItem = memoryCache.get(key) as CachedData<T>;
-      
-      if (cachedItem && cachedItem.version === CACHE_VERSION) {
-        const now = Date.now();
-        const age = now - cachedItem.timestamp;
-        
-        // تحديث إحصائيات الوصول
-        cachedItem.accessCount = (cachedItem.accessCount || 1) + 1;
-        cachedItem.lastAccessed = now;
-        
-        // التحقق من انتهاء الصلاحية
-        if (age <= ttl || shouldExtendTtl(cachedItem.accessCount, ttl)) {
-          cacheStats.hits++;
-          // تحديث القيمة في ذاكرة التطبيق
-          memoryCache.set(key, cachedItem);
-          return cachedItem.data;
+    const db = await initDB();
+    const item = await db.get('storeData', key);
+    
+    if (!item) {
+      // محاولة استرجاع من localStorage كـ fallback
+      const fallbackData = localStorage.getItem(`cache_${key}`);
+      if (fallbackData) {
+        const parsed = JSON.parse(fallbackData);
+        if ((Date.now() - parsed.timestamp) < parsed.ttl) {
+          console.log(`📦 [Cache] تم استرجاع البيانات من fallback: ${key}`);
+          return parsed.data;
+        } else {
+          localStorage.removeItem(`cache_${key}`);
         }
-        
-        // إذا انتهت الصلاحية، قم بإزالتها من ذاكرة التطبيق
-        memoryCache.delete(key);
       }
-    }
-    
-    const cachedItem = await storeCache.getItem<CachedData<T>>(key);
-    
-    // التحقق من وجود البيانات المخزنة
-    if (!cachedItem) {
-      cacheStats.misses++;
       return null;
     }
     
-    // التحقق من نسخة البيانات
-    if (cachedItem.version !== CACHE_VERSION) {
-      await storeCache.removeItem(key); // إزالة البيانات القديمة
-      cacheStats.deleted++;
-      cacheStats.misses++;
+    // التحقق من انتهاء صلاحية البيانات
+    if ((Date.now() - item.timestamp) > item.ttl) {
+      await db.delete('storeData', key);
+      console.log(`🗑️ [Cache] تم حذف البيانات المنتهية: ${key}`);
       return null;
     }
     
-    // التحقق من صلاحية البيانات
-    const now = Date.now();
-    const age = now - cachedItem.timestamp;
-    
-    // تحديث إحصائيات الوصول
-    cachedItem.accessCount = (cachedItem.accessCount || 1) + 1;
-    cachedItem.lastAccessed = now;
-    
-    // التحقق من انتهاء الصلاحية
-    const adaptiveTtl = getAdaptiveTtl(cachedItem.accessCount, ttl);
-    
-    if (age > adaptiveTtl) {
-      cacheStats.misses++;
-      return null;
-    }
-    
-    // التخزين في ذاكرة التطبيق للوصول اللاحق السريع
-    if (useMemoryCache) {
-      memoryCache.set(key, cachedItem);
-    }
-    
-    // تحديث البيانات في التخزين المستديم بإحصائيات الوصول المحدثة
-    await storeCache.setItem(key, cachedItem);
-    
-    cacheStats.hits++;
-    return cachedItem.data;
+    console.log(`✅ [Cache] تم استرجاع البيانات: ${key}`);
+    return item.data;
   } catch (error) {
-    cacheStats.misses++;
+    console.error('خطأ في استرجاع البيانات من Cache:', error);
     return null;
   }
 }
 
-/**
- * وظيفة لمسح التخزين المؤقت لمفتاح معين
- */
+// دالة لحذف عنصر محدد من Cache
 export async function clearCacheItem(key: string): Promise<void> {
   try {
-    // حذف من ذاكرة التطبيق
-    memoryCache.delete(key);
-    
-    await storeCache.removeItem(key);
-    cacheStats.deleted++;
+    const db = await initDB();
+    await db.delete('storeData', key);
+    localStorage.removeItem(`cache_${key}`);
+    console.log(`🗑️ [Cache] تم حذف: ${key}`);
   } catch (error) {
+    console.error('خطأ في حذف البيانات من Cache:', error);
   }
 }
 
-/**
- * وظيفة لمسح جميع بيانات التخزين المؤقت
- */
+// دالة لحذف جميع البيانات
 export async function clearAllCache(): Promise<void> {
   try {
-    // مسح ذاكرة التطبيق المؤقتة
-    memoryCache.clear();
+    const db = await initDB();
+    await db.clear('storeData');
+    await db.clear('storeImages');
     
-    await storeCache.clear();
-    cacheStats.deleted += 100; // قيمة تقريبية
+    // تنظيف localStorage أيضاً
+    const keys = Object.keys(localStorage);
+    keys.forEach(key => {
+      if (key.startsWith('cache_')) {
+        localStorage.removeItem(key);
+      }
+    });
+    
+    console.log('🧹 [Cache] تم حذف جميع البيانات');
   } catch (error) {
+    console.error('خطأ في حذف جميع البيانات:', error);
   }
 }
 
-/**
- * وظيفة للتحقق من صلاحية التخزين المؤقت وتنفيذ وظيفة جلب البيانات عند الحاجة
- * مع التعامل مع الاستعلامات المتزامنة
- */
+// دالة محسنة لcache الصور
+export async function cacheImage(url: string, ttl: number = 60 * 60 * 1000): Promise<string | null> {
+  try {
+    const db = await initDB();
+    const cached = await db.get('storeImages', url);
+    
+    // التحقق من وجود الصورة في Cache
+    if (cached && (Date.now() - cached.timestamp) < cached.ttl) {
+      return URL.createObjectURL(cached.blob);
+    }
+    
+    // تحميل الصورة
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    
+    const blob = await response.blob();
+    
+    // حفظ في Cache
+    await db.put('storeImages', {
+      blob,
+      timestamp: Date.now(),
+      ttl
+    }, url);
+    
+    console.log(`🖼️ [Cache] تم حفظ الصورة: ${url}`);
+    return URL.createObjectURL(blob);
+  } catch (error) {
+    console.error('خطأ في cache الصورة:', error);
+    return null;
+  }
+}
+
+// دالة للحصول على حجم Cache
+export async function getCacheSize(): Promise<{storeData: number, images: number, total: number}> {
+  try {
+    const db = await initDB();
+    const storeDataCount = await db.count('storeData');
+    const imagesCount = await db.count('storeImages');
+    
+    return {
+      storeData: storeDataCount,
+      images: imagesCount,
+      total: storeDataCount + imagesCount
+    };
+  } catch (error) {
+    console.error('خطأ في حساب حجم Cache:', error);
+    return { storeData: 0, images: 0, total: 0 };
+  }
+}
+
+// دالة withCache للتوافق مع الكود الموجود
 export async function withCache<T>(
   key: string,
   fetchFn: () => Promise<T>,
-  ttl: number = DEFAULT_CACHE_TTL,
-  useMemoryCache = true
+  ttl: number = 15 * 60 * 1000
 ): Promise<T> {
   // محاولة الحصول على البيانات من التخزين المؤقت
-  const cachedData = await getCacheData<T>(key, ttl, useMemoryCache);
+  const cachedData = await getCacheData(key);
   
   // إذا وجدت البيانات في التخزين المؤقت، أعد استخدامها
   if (cachedData !== null) {
@@ -235,157 +231,83 @@ export async function withCache<T>(
   // التحقق من وجود استعلام مماثل قيد التنفيذ
   if (pendingQueries[key]) {
     try {
-      // انتظار الاستعلام الحالي بدلاً من إنشاء استعلام جديد
       return await pendingQueries[key];
     } catch (error) {
-      // في حالة فشل الاستعلام الحالي، نسمح بإنشاء استعلام جديد
       delete pendingQueries[key];
     }
   }
   
   // إنشاء وعد جديد للاستعلام
   const fetchPromise = fetchFn();
-  
-  // تسجيل الاستعلام قيد التنفيذ
   pendingQueries[key] = fetchPromise;
   
   try {
-    // انتظار النتيجة
     const newData = await fetchPromise;
     
     // تخزين البيانات الجديدة في التخزين المؤقت
-    // تأكد من أن البيانات قابلة للتخزين (ليست وعودًا)
-    if (newData !== null && typeof newData !== 'undefined' && !(newData instanceof Promise)) {
-      try {
-        // تجربة تخزين البيانات
-        await setCacheData(key, newData, useMemoryCache);
-      } catch (error) {
-        // استمر بإرجاع البيانات حتى لو فشل التخزين المؤقت
-      }
-    } else {
+    if (newData !== null && typeof newData !== 'undefined') {
+      await setCacheData(key, newData, ttl);
     }
     
     return newData;
   } finally {
-    // إزالة الاستعلام من قائمة الاستعلامات قيد التنفيذ
     delete pendingQueries[key];
   }
 }
 
-/**
- * وظيفة للحصول على إحصائيات التخزين المؤقت
- */
-export function getCacheStats(): CacheStats {
-  return { ...cacheStats };
-}
-
-/**
- * وظيفة للحصول على النطاق الفرعي للمؤسسة من معرفها
- * مع تحسينات تخزين مؤقت للأداء العالي
- */
+// دالة للحصول على النطاق الفرعي من معرف المؤسسة
 export async function getSubdomainFromOrganizationId(organizationId: string): Promise<string | null> {
-  if (!organizationId) {
+  if (!organizationId) return null;
+  
+  try {
+    // استخدام cache بسيط للsubdomain
+    const cached = await getCacheData(`org_subdomain:${organizationId}`);
+    if (cached) return cached;
+    
+    // استيراد supabase محلياً لتجنب مشاكل الاستيراد
+    const { supabase } = await import('@/lib/supabase');
+    
+    const { data, error } = await supabase
+      .from('organizations')
+      .select('subdomain')
+      .eq('id', organizationId)
+      .single();
+    
+    if (error || !data?.subdomain) {
+      return null;
+    }
+    
+    // حفظ في cache لمدة ساعة
+    await setCacheData(`org_subdomain:${organizationId}`, data.subdomain, 60 * 60 * 1000);
+    return data.subdomain;
+  } catch (error) {
+    console.error('خطأ في الحصول على subdomain:', error);
     return null;
   }
-  
-  const cacheKey = `org_subdomain:${organizationId}`;
-  
-  return withCache<string | null>(
-    cacheKey,
-    async () => {
-      try {
-        const { data, error } = await supabase
-          .from('organizations')
-          .select('subdomain')
-          .eq('id', organizationId)
-          .single();
-        
-        if (error || !data?.subdomain) {
-          return null;
-        }
-        
-        return data.subdomain;
-      } catch (error) {
-        return null;
-      }
-    },
-    LONG_CACHE_TTL,
-    true
-  );
 }
 
-/**
- * وظيفة لمسح تخزين المتجر المؤقت باستخدام معرف المؤسسة
- */
+// دالة لمسح cache المتجر باستخدام معرف المؤسسة
 export async function clearStoreCacheByOrganizationId(organizationId: string): Promise<void> {
-  const subdomain = await getSubdomainFromOrganizationId(organizationId);
-  if (subdomain) {
-    // مسح المفاتيح الصحيحة المستخدمة في storeDataService
-    await clearCacheItem(`store_init_data:${subdomain}`);
-    await clearCacheItem(`store_data:${subdomain}`); // للتوافق مع الإصدارات السابقة
-    
-    // حذف البيانات ذات الصلة أيضًا
-    await clearCacheItem(`categories:${organizationId}`);
-    await clearCacheItem(`products:${organizationId}`);
-    await clearCacheItem(`shipping:${organizationId}`);
-    await clearCacheItem(`org_subdomain:${organizationId}`); // مسح تخزين النطاق الفرعي أيضاً
+  try {
+    const subdomain = await getSubdomainFromOrganizationId(organizationId);
+    if (subdomain) {
+      // مسح جميع البيانات المتعلقة بهذا المتجر
+      await clearCacheItem(`store_basic_${subdomain}`);
+      await clearCacheItem(`store_init_data:${subdomain}`);
+      await clearCacheItem(`store_data:${subdomain}`);
+      await clearCacheItem(`categories:${organizationId}`);
+      await clearCacheItem(`products:${organizationId}`);
+      await clearCacheItem(`shipping:${organizationId}`);
+      await clearCacheItem(`org_subdomain:${organizationId}`);
+      
+      console.log(`🧹 [Cache] تم حذف cache المتجر: ${subdomain}`);
+    }
+  } catch (error) {
+    console.error('خطأ في مسح cache المتجر:', error);
   }
 }
 
-// تنظيف التخزين المؤقت بشكل دوري للحفاظ على الأداء
-export function setupCacheCleanup(): void {
-  // تنفيذ تنظيف التخزين المؤقت كل 30 دقيقة
-  setInterval(async () => {
-    // الحصول على جميع المفاتيح
-    const keys = await storeCache.keys();
-    
-    const now = Date.now();
-    let cleanupCount = 0;
-    
-    // التحقق من كل مفتاح وحذف العناصر القديمة
-    for (const key of keys) {
-      try {
-        const item = await storeCache.getItem<CachedData<any>>(key);
-        
-        if (!item) continue;
-        
-        // حذف العناصر القديمة (أكثر من يوم)
-        if (now - item.timestamp > 24 * 60 * 60 * 1000) {
-          await storeCache.removeItem(key);
-          memoryCache.delete(key);
-          cleanupCount++;
-        }
-        // حذف العناصر ذات الإصدار القديم
-        else if (item.version !== CACHE_VERSION) {
-          await storeCache.removeItem(key);
-          memoryCache.delete(key);
-          cleanupCount++;
-        }
-        // حذف العناصر التي لم يتم الوصول إليها لفترة طويلة (أكثر من 3 ساعات)
-        else if (item.lastAccessed && now - item.lastAccessed > 3 * 60 * 60 * 1000 && item.accessCount && item.accessCount < 3) {
-          await storeCache.removeItem(key);
-          memoryCache.delete(key);
-          cleanupCount++;
-        }
-      } catch (error) {
-      }
-    }
-    
-    if (cleanupCount > 0) {
-      
-      cacheStats.deleted += cleanupCount;
-    }
-  }, 30 * 60 * 1000);
-}
-
-// Initialize cache cleanup on script load
-setupCacheCleanup();
-
-// تصدير ثوابت TTL للاستخدام في أجزاء مختلفة من التطبيق
-export {
-  DEFAULT_CACHE_TTL,
-  LONG_CACHE_TTL,
-  SHORT_CACHE_TTL
-};
-
-export default storeCache;
+// متغيرات للتوافق مع الكود الموجود
+export const DEFAULT_CACHE_TTL = 15 * 60 * 1000; // 15 دقيقة
+export const LONG_CACHE_TTL = 60 * 60 * 1000; // ساعة واحدة  
+export const SHORT_CACHE_TTL = 5 * 60 * 1000; // 5 دقائق 

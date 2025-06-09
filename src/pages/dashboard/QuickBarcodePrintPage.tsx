@@ -625,8 +625,9 @@ const QuickBarcodePrintPage = () => {
       printWindow.document.write(printHtmlContent);
       printWindow.document.close();
 
-      // Delay to allow DOM to be ready and CSS to be applied (especially for fonts)
-      const renderDelay = (selectedFont && selectedFont.url) || selectedTemplate.id === 'qr-plus-barcode' ? 100 : 50; // Longer delay if webfonts or QR codes are involved
+      // تأخير أطول للسماح للـ DOM والـ CSS والمكتبات بالتحميل
+      const renderDelay = selectedTemplate.id === 'qr-plus-barcode' ? 500 : 
+                         (selectedFont && selectedFont.url) ? 300 : 100;
 
       setTimeout(() => {
         selectedProducts.forEach(product => {
@@ -717,140 +718,193 @@ const QuickBarcodePrintPage = () => {
             // Generate QR Code if the template is qr-plus-barcode
             if (selectedTemplate.id === 'qr-plus-barcode') {
               const qrCodeElement = printWindow.document.getElementById(qrCodeContainerId);
-              // baseUrl, slugPart, productPageUrl, and isFallbackUrl are already defined above
-
-              // Logging for debugging
-              (printWindow as any).console.log(`[QR Debug ${uniqueSuffix}] Target Container ID: ${qrCodeContainerId}`);
-              (printWindow as any).console.log(`[QR Debug ${uniqueSuffix}] QR Code Element found:`, qrCodeElement);
-              (printWindow as any).console.log(`[QR Debug ${uniqueSuffix}] Base URL for QR: ${baseUrl}`);
-              (printWindow as any).console.log(`[QR Debug ${uniqueSuffix}] Product Slug for QR: ${product.product_slug}`);
-              (printWindow as any).console.log(`[QR Debug ${uniqueSuffix}] Product ID for QR (fallback): ${product.product_id}`);
-              (printWindow as any).console.log(`[QR Debug ${uniqueSuffix}] Product Page URL for QR: ${productPageUrl}`);
-              (printWindow as any).console.log(`[QR Debug ${uniqueSuffix}] Is Fallback URL: ${isFallbackUrl}`);
-
+              
+              // إضافة تحقق أفضل من وجود العنصر والبيانات
               if (qrCodeElement && productPageUrl && !isFallbackUrl) {
                 try {
+                  // إعداد العنصر للحصول على قياسات صحيحة
                   (qrCodeElement as HTMLElement).style.display = 'flex';
-                  (qrCodeElement as HTMLElement).style.justifyContent = 'center'; // Center SVG in container
-                  (qrCodeElement as HTMLElement).style.alignItems = 'center'; // Center SVG in container
-                  // Remove fixed width/height from JS style, let CSS or SVG itself control it within the 8mm box from template
-                  // (qrCodeElement as HTMLElement).style.width = '8mm'; 
-                  // (qrCodeElement as HTMLElement).style.height = '8mm';
+                  (qrCodeElement as HTMLElement).style.justifyContent = 'center';
+                  (qrCodeElement as HTMLElement).style.alignItems = 'center';
+                  (qrCodeElement as HTMLElement).style.minWidth = '20mm';
+                  (qrCodeElement as HTMLElement).style.minHeight = '20mm';
 
-                  (printWindow as any).console.log(`[QR Debug ${uniqueSuffix}] QR Container offsetWidth: ${(qrCodeElement as HTMLElement).offsetWidth}, offsetHeight: ${(qrCodeElement as HTMLElement).offsetHeight}`);
-                  
-                  const containerSize = Math.min((qrCodeElement as HTMLElement).offsetWidth, (qrCodeElement as HTMLElement).offsetHeight);
-                  // تقليل الحد الأدنى للحجم للتناسب مع الباركود الأكبر
-                  const qrActualSize = Math.max(containerSize, 90); // تقليل حجم QR من 120 إلى 90
+                  // حساب الحجم مع ضمان حد أدنى آمن
+                  const containerWidth = Math.max((qrCodeElement as HTMLElement).offsetWidth || 80, 60);
+                  const containerHeight = Math.max((qrCodeElement as HTMLElement).offsetHeight || 80, 60);
+                  const containerSize = Math.min(containerWidth, containerHeight);
+                  const qrActualSize = Math.max(containerSize, 60); // حد أدنى 60 بكسل
 
-                  (printWindow as any).console.log(`[QR Debug ${uniqueSuffix}] Calculated QR Code Size (target): ${qrActualSize}`);
+                  (printWindow as any).console.log(`[QR Debug ${uniqueSuffix}] Container: ${containerWidth}x${containerHeight}, Final Size: ${qrActualSize}`);
 
-                  if (qrActualSize >= 20) { // Check if size is reasonable, library might have its own internal minimum
-                    const qrCodeInstance = new QRCodeStyling({
-                      width: qrActualSize,
-                      height: qrActualSize,
-                      type: 'svg', 
-                      data: productPageUrl,
-                      margin: 8, // تقليل الهامش من 10 إلى 8 لزيادة حجم المحتوى
-                      dotsOptions: {
-                        type: "square", // تغيير شكل النقاط إلى مربعات للوضوح الأفضل
-                        color: "#000000", // أسود
-                      },
-                      backgroundOptions: {
-                        color: "#ffffff" // أبيض (افتراضي)
-                      },
-                      cornersSquareOptions: {
-                        type: "square",   // مربعات زوايا مستطيلة للوضوح
-                        color: "#000000"  // أسود
-                      },
-                      cornersDotOptions: {
-                        type: "square",   // نقاط (مربعة) داخل مربعات الزوايا
-                        color: "#000000"  // أسود
-                      },
-                      imageOptions: {
-                        hideBackgroundDots: true, // إخفاء النقاط خلف الصورة إذا وجدت
-                        margin: 0 // عدم إضافة هامش للصورة لتوفير مساحة أكبر للنقاط
-                      },
-                      qrOptions: {
-                        errorCorrectionLevel: 'L', // تغيير إلى L لتقليل كثافة الرمز وجعله أوضح
-                        typeNumber: 4 // تحديد حجم محدد بدلاً من 0 لرمز أكثر اتساقًا
-                      }
-                    });
-                    // Clear any previous content (e.g., error messages or old QR codes)
-                    (qrCodeElement as HTMLElement).innerHTML = ''; 
+                  // إنشاء QR Code مع إعدادات محسّنة
+                  const qrCodeInstance = new QRCodeStyling({
+                    width: qrActualSize,
+                    height: qrActualSize,
+                    type: 'svg',
+                    data: productPageUrl,
+                    margin: 4, // تقليل الهامش لمساحة أكبر
+                    dotsOptions: {
+                      type: "square",
+                      color: "#000000",
+                    },
+                    backgroundOptions: {
+                      color: "#ffffff"
+                    },
+                    cornersSquareOptions: {
+                      type: "square",
+                      color: "#000000"
+                    },
+                    cornersDotOptions: {
+                      type: "square",
+                      color: "#000000"
+                    },
+                    qrOptions: {
+                      errorCorrectionLevel: 'L', // أقل كثافة للطباعة الأوضح
+                      typeNumber: 0 // دع المكتبة تختار الحجم المناسب
+                    }
+                  });
 
-                    // New method: Get SVG data as string and set innerHTML
-                    qrCodeInstance.getRawData("svg").then((svgData) => {
-                      if (svgData && typeof svgData === 'string') {
-                        (qrCodeElement as HTMLElement).innerHTML = svgData;
-                        (printWindow as any).console.log(`[QR Debug ${uniqueSuffix}] QR Code SVG string injected into element.`);
-                      } else if (svgData && svgData instanceof Blob) {
-                        // If it's a Blob, read its text content
-                        svgData.text().then(text => {
-                          (qrCodeElement as HTMLElement).innerHTML = text;
-                          (printWindow as any).console.log(`[QR Debug ${uniqueSuffix}] QR Code SVG (from Blob.text()) injected into element.`);
-                        }).catch(blobError => {
-                          (printWindow as any).console.error(`[QR Debug ${uniqueSuffix}] Error reading Blob text:`, blobError);
-                          if(qrCodeElement) (qrCodeElement as HTMLElement).innerHTML = '<p style="color:red; font-size:5pt;">Blob Read Err</p>';
-                        });
-                      } else if (svgData) {
-                        // Attempt to convert if it's not a string or Blob but exists (e.g. Buffer)
-                        try {
-                            const svgStringFromBuffer = svgData.toString();
-                            (qrCodeElement as HTMLElement).innerHTML = svgStringFromBuffer;
-                            (printWindow as any).console.log(`[QR Debug ${uniqueSuffix}] QR Code SVG (from buffer/blob.toString()) injected into element.`);
-                        } catch (conversionError) {
-                            (printWindow as any).console.error(`[QR Debug ${uniqueSuffix}] getRawData("svg") returned non-string and failed to convert:`, svgData, conversionError);
-                            if(qrCodeElement) (qrCodeElement as HTMLElement).innerHTML = '<p style="color:red; font-size:5pt;">SVG Type Err</p>';
+                  // محاولة متعددة للحصول على SVG
+                  const generateQRWithFallback = async () => {
+                    try {
+                      // المحاولة الأولى: استخدام getRawData
+                      const svgData = await qrCodeInstance.getRawData("svg");
+                      
+                      if (svgData) {
+                        let svgString = '';
+                        
+                        if (typeof svgData === 'string') {
+                          svgString = svgData;
+                        } else if (svgData instanceof Blob) {
+                          svgString = await svgData.text();
+                        } else {
+                          svgString = svgData.toString();
                         }
-                      } else {
-                        (printWindow as any).console.error(`[QR Debug ${uniqueSuffix}] getRawData("svg") returned null or empty.`);
-                        if(qrCodeElement) (qrCodeElement as HTMLElement).innerHTML = '<p style="color:red; font-size:5pt;">SVG Data Err</p>';
+                        
+                        if (svgString && svgString.includes('<svg')) {
+                          (qrCodeElement as HTMLElement).innerHTML = svgString;
+                          (printWindow as any).console.log(`[QR Success ${uniqueSuffix}] QR Code generated successfully`);
+                          return true;
+                        }
                       }
-                    }).catch(error => {
-                      (printWindow as any).console.error(`[QR Debug ${uniqueSuffix}] Error calling getRawData("svg"):`, error);
-                      if(qrCodeElement) (qrCodeElement as HTMLElement).innerHTML = '<p style="color:red; font-size:5pt;">SVG Promise Err</p>';
-                    });
-                  } else {
-                    (printWindow as any).console.error(`[QR Debug ${uniqueSuffix}] QR Code size is 0 or invalid (${qrActualSize}), cannot generate QR code.`);
-                    if(qrCodeElement) (qrCodeElement as HTMLElement).innerHTML = '<p style="color:red; font-size:5pt;">QR Size Err</p>';
-                  }
+                    } catch (qrError) {
+                      (printWindow as any).console.warn(`[QR Warning ${uniqueSuffix}] getRawData failed:`, qrError);
+                    }
+                    
+                    // المحاولة الثانية: استخدام append
+                    try {
+                      (qrCodeElement as HTMLElement).innerHTML = '';
+                      await qrCodeInstance.append(qrCodeElement as HTMLElement);
+                      
+                      // التحقق من وجود SVG
+                      const svgElement = (qrCodeElement as HTMLElement).querySelector('svg');
+                      if (svgElement) {
+                        (printWindow as any).console.log(`[QR Success ${uniqueSuffix}] QR Code appended successfully`);
+                        return true;
+                      }
+                                         } catch (appendError) {
+                       (printWindow as any).console.warn(`[QR Warning ${uniqueSuffix}] append failed:`, appendError);
+                     }
+                    
+                    // المحاولة الثالثة: استخدام خدمة خارجية كـ fallback
+                    try {
+                      const fallbackUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(productPageUrl)}&size=${qrActualSize}x${qrActualSize}&margin=4&ecc=L&format=svg`;
+                      
+                      const response = await fetch(fallbackUrl);
+                      if (response.ok) {
+                        const svgContent = await response.text();
+                        if (svgContent && svgContent.includes('<svg')) {
+                          (qrCodeElement as HTMLElement).innerHTML = svgContent;
+                          (printWindow as any).console.log(`[QR Success ${uniqueSuffix}] Fallback QR Code loaded`);
+                          return true;
+                        }
+                      }
+                                         } catch (fallbackError) {
+                       (printWindow as any).console.warn(`[QR Warning ${uniqueSuffix}] Fallback failed:`, fallbackError);
+                     }
+                    
+                    return false;
+                  };
+                  
+                  // تنفيذ التوليد مع معالجة الأخطاء
+                  generateQRWithFallback().then(success => {
+                    if (!success) {
+                      // إذا فشلت كل المحاولات، عرض رسالة أو باركود احتياطي
+                      (qrCodeElement as HTMLElement).innerHTML = `
+                        <div style="width: ${qrActualSize}px; height: ${qrActualSize}px; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 8px; text-align: center; color: #666;">
+                          <div>لم يتم تحميل<br/>رمز QR<br/><small>${productPageUrl.substring(0, 20)}...</small></div>
+                        </div>
+                      `;
+                      (printWindow as any).console.error(`[QR Error ${uniqueSuffix}] All QR generation methods failed`);
+                    }
+                                     }).catch(promiseError => {
+                     (printWindow as any).console.error(`[QR Error ${uniqueSuffix}] QR generation promise failed:`, promiseError);
+                    (qrCodeElement as HTMLElement).innerHTML = `
+                      <div style="width: ${qrActualSize}px; height: ${qrActualSize}px; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 8px; text-align: center; color: #666;">
+                        <div>خطأ في تحميل<br/>رمز QR</div>
+                      </div>
+                    `;
+                  });
+                  
                 } catch (qrError: any) {
-                  (printWindow as any).console.error(`[QR Debug ${uniqueSuffix}] Error generating or appending QR Code:`, qrError);
-                  if(qrCodeElement) (qrCodeElement as HTMLElement).innerHTML = '<p style="color:red; font-size:5pt;">QR Error</p>';
+                  (printWindow as any).console.error(`[QR Error ${uniqueSuffix}] QR Code generation failed:`, qrError);
+                  if (qrCodeElement) {
+                    (qrCodeElement as HTMLElement).innerHTML = `
+                      <div style="width: 60px; height: 60px; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 8px; text-align: center; color: #666;">
+                        <div>خطأ QR</div>
+                      </div>
+                    `;
+                  }
                 }
               } else {
-                let reason = "Unknown issue.";
-                if (!qrCodeElement) reason = `QR Code container (${qrCodeContainerId}) not found.`;
-                else if (isFallbackUrl) reason = "Product URL is a fallback (missing domain/subdomain).";
-                else if (!productPageUrl) reason = "Product Page URL is empty or null.";
+                // عرض رسالة توضيحية عند عدم توفر البيانات
+                let reason = "بيانات غير متوفرة";
+                if (!qrCodeElement) reason = "عنصر QR غير موجود";
+                else if (isFallbackUrl) reason = "نطاق المتجر غير محدد";
+                else if (!productPageUrl) reason = "رابط المنتج فارغ";
                 
-                (printWindow as any).console.warn(`[QR Debug ${uniqueSuffix}] Cannot generate QR. Reason: ${reason} (URL: ${productPageUrl})`);
-                if(qrCodeElement) qrCodeElement.innerHTML = `<p style="color:orange; font-size:5pt;">QR Data? (${reason.substring(0,30)})</p>`;
+                (printWindow as any).console.warn(`[QR Warning ${uniqueSuffix}] Cannot generate QR: ${reason}`);
+                if (qrCodeElement) {
+                  (qrCodeElement as HTMLElement).innerHTML = `
+                    <div style="width: 60px; height: 60px; border: 1px dashed #ccc; display: flex; align-items: center; justify-content: center; font-size: 7px; text-align: center; color: #999;">
+                      <div>${reason}</div>
+                    </div>
+                  `;
+                }
               }
             }
           }
         });
 
         printWindow.focus();
-        // Ensure printWindow and its document are fully available
-        if (printWindow && printWindow.document) {
+        
+        // التأكد من تحميل كافة العناصر قبل الطباعة
+        const initiateActualPrint = () => {
+          if (printWindow && printWindow.document) {
             const pWindow = printWindow as Window & { document: Document & { fonts: FontFaceSet } };
-            if (pWindow.document.fonts && typeof pWindow.document.fonts.ready === 'function') {
-                (pWindow.document.fonts.ready as Promise<FontFaceSet>).then(() => { // Explicitly cast to Promise<FontFaceSet>
-                    pWindow.print();
-                }).catch(error => {
-                    pWindow.print(); 
+            
+            // تأخير إضافي للـ QR codes لضمان التحميل الكامل
+            const finalDelay = selectedTemplate.id === 'qr-plus-barcode' ? 2000 : 1000;
+            
+            setTimeout(() => {
+              if (pWindow.document.fonts && typeof pWindow.document.fonts.ready === 'function') {
+                (pWindow.document.fonts.ready as Promise<FontFaceSet>).then(() => {
+                  pWindow.print();
+                }).catch(printError => {
+                  pWindow.print(); 
                 });
-            } else {
-                setTimeout(() => {
-                    pWindow.print();
-                }, 1500);
-            }
-        } else {
-             // Fallback if printWindow or printWindow.document is somehow null, though unlikely after previous checks
+              } else {
+                pWindow.print();
+              }
+            }, finalDelay);
+          } else {
             toast.error("فشل تهيئة نافذة الطباعة بشكل كامل.");
-        }
+          }
+        };
+        
+        // بدء عملية الطباعة
+        initiateActualPrint();
       }, renderDelay);
 
     } else {
