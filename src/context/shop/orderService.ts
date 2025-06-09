@@ -52,7 +52,7 @@ export const addOrder = async (
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
-      .select();
+      .select('*');
       
     if (orderError) {
       throw new Error(`Error creating order: ${orderError.message}`);
@@ -175,6 +175,7 @@ export const addOrder = async (
     return {
       ...order,
       id: newOrderId,
+      customer_order_number: orderData[0].customer_order_number,
       createdAt: new Date(),
       updatedAt: new Date(),
       slug: orderSlug

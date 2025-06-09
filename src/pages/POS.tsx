@@ -15,6 +15,7 @@ import PrintReceipt from '@/components/pos/PrintReceipt';
 import ProductVariantSelector from '@/components/pos/ProductVariantSelector';
 import POSSettings from '@/components/pos/settings/POSSettings';
 import RepairServiceDialog from '@/components/repair/RepairServiceDialog';
+import QuickReturnDialog from '@/components/pos/QuickReturnDialog';
 import {
   Dialog,
   DialogContent,
@@ -26,7 +27,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { ShoppingCart, Wrench, Settings2, CreditCard } from 'lucide-react';
+import { ShoppingCart, Wrench, Settings2, CreditCard, RotateCcw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getProductPriceForQuantity } from '@/api/productService';
 import { Button } from '@/components/ui/button';
@@ -81,6 +82,9 @@ const POS = () => {
 
   // حالة نافذة خدمة التصليح
   const [isRepairDialogOpen, setIsRepairDialogOpen] = useState(false);
+
+  // حالة نافذة الإرجاع السريع
+  const [isQuickReturnOpen, setIsQuickReturnOpen] = useState(false);
 
   // استماع عالمي لأحداث قارئ الباركود
   useEffect(() => {
@@ -804,7 +808,7 @@ const POS = () => {
   };
 
   // Crear orden
-  const submitOrder = async (orderDetails: Partial<Order>) => {
+  const submitOrder = async (orderDetails: Partial<Order>): Promise<{orderId: string, customerOrderNumber: number}> => {
     console.log('📝 submitOrder called with:', {
       cartItems: cartItems.length,
       selectedServices: selectedServices.length,
@@ -1030,7 +1034,7 @@ const POS = () => {
       
       // هام: addOrder تقوم بتحديث المخزون تلقائيًا - أي وظيفة إضافية لتحديث المخزون ستؤدي إلى تحديثه مرتين
       
-      await addOrder(newOrder);
+      const createdOrder = await addOrder(newOrder);
       
       // مسح الاشتراكات من السلة بعد إنشاء الطلب بنجاح
       setSelectedSubscriptions([]);
@@ -1039,6 +1043,12 @@ const POS = () => {
       await fetchSubscriptions();
       
       toast.success("تم إنشاء الطلب بنجاح");
+      
+      // إرجاع معرف الطلبية ورقم الطلبية
+      return {
+        orderId: createdOrder.id,
+        customerOrderNumber: createdOrder.customer_order_number || 0
+      };
       
       // ملاحظة: تم إلغاء فتح نافذة الطباعة هنا لمنع ظهور نافذتين
       // يتم فتح نافذة الطباعة في مكون Cart.tsx فقط
@@ -1076,6 +1086,14 @@ const POS = () => {
             </div>
             
             <div className="flex gap-2">
+              <Button 
+                size="sm"
+                variant="outline"
+                onClick={() => setIsQuickReturnOpen(true)}
+              >
+                <RotateCcw className="h-4 w-4 mr-2" />
+                إرجاع سريع
+              </Button>
               <Button 
                 size="sm"
                 variant="outline"
@@ -1293,6 +1311,16 @@ const POS = () => {
         onSuccess={(orderId) => {
           setIsRepairDialogOpen(false);
           toast.success('تم إنشاء طلبية تصليح جديدة بنجاح');
+        }}
+      />
+
+      {/* نافذة الإرجاع السريع */}
+      <QuickReturnDialog
+        isOpen={isQuickReturnOpen}
+        onOpenChange={setIsQuickReturnOpen}
+        onReturnCreated={() => {
+          // يمكن إضافة أي إجراءات إضافية هنا عند إنشاء الإرجاع
+          toast.success('تم إنشاء طلب الإرجاع بنجاح');
         }}
       />
     </Layout>

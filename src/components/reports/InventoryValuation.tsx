@@ -38,8 +38,8 @@ type InventoryItem = {
   product_name: string;
   category: string;
   stock_quantity: number;
-  cost_price: number;
-  sale_price: number;
+  purchase_price: number;
+  price: number;
   total_value: number;
   status: 'in_stock' | 'low_stock' | 'out_of_stock';
   last_updated: string;
@@ -381,10 +381,10 @@ const InventoryValuation = ({ data, isLoading }: InventoryValuationProps) => {
                         <Button 
                           variant="ghost" 
                           className="gap-1 p-0 h-auto font-medium"
-                          onClick={() => toggleSort('cost_price')}
+                          onClick={() => toggleSort('purchase_price')}
                         >
                           سعر التكلفة
-                          {sortBy.column === 'cost_price' && (
+                          {sortBy.column === 'purchase_price' && (
                             <ChevronsUpDown className="h-3 w-3" />
                           )}
                         </Button>
@@ -393,10 +393,10 @@ const InventoryValuation = ({ data, isLoading }: InventoryValuationProps) => {
                         <Button 
                           variant="ghost" 
                           className="gap-1 p-0 h-auto font-medium"
-                          onClick={() => toggleSort('sale_price')}
+                          onClick={() => toggleSort('price')}
                         >
                           سعر البيع
-                          {sortBy.column === 'sale_price' && (
+                          {sortBy.column === 'price' && (
                             <ChevronsUpDown className="h-3 w-3" />
                           )}
                         </Button>
@@ -424,8 +424,8 @@ const InventoryValuation = ({ data, isLoading }: InventoryValuationProps) => {
                         </TableCell>
                         <TableCell>{item.category}</TableCell>
                         <TableCell>{item.stock_quantity}</TableCell>
-                        <TableCell>{Number(item.cost_price).toLocaleString()} د.ج</TableCell>
-                        <TableCell>{Number(item.sale_price).toLocaleString()} د.ج</TableCell>
+                        <TableCell>{Number(item.purchase_price).toLocaleString()} د.ج</TableCell>
+                        <TableCell>{Number(item.price).toLocaleString()} د.ج</TableCell>
                         <TableCell>{Number(item.total_value).toLocaleString()} د.ج</TableCell>
                         <TableCell>
                           <Badge className={`${getStatusColor(item.status)} hover:${getStatusColor(item.status)}`}>

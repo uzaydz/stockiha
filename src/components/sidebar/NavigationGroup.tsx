@@ -201,7 +201,7 @@ const NavigationGroup = ({
                   )}
                 </h3>
               </div>
-              <div className="space-y-1 py-1 max-h-[calc(100vh-200px)] overflow-y-auto">
+                              <div className="space-y-1 py-1 max-h-[calc(100vh-200px)] overflow-y-auto">
                 {filteredItems.map((item) => {
                   const isActive =
                     currentPath === item.href ||

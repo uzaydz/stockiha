@@ -353,13 +353,13 @@ export default function Cart({
       const currentDiscount = discountAmount;
       
       // أنشئ معرف مؤقت للطلب
-      const tempOrderId = `POS-${Date.now().toString().slice(-8)}`;
-      
-      console.log('📝 Preparing order with ID:', tempOrderId);
+          const tempOrderId = `POS-${Date.now().toString().slice(-8)}`;
+    
+    console.log('📝 Preparing order with ID:', tempOrderId);
       
       // إرسال الطلب إلى الخادم
       console.log('🚀 Calling submitOrder...');
-      await submitOrder({
+      const orderResult = await submitOrder({
         customerId: selectedCustomer?.id || 'guest',
         paymentMethod,
         discount: discountAmount,
@@ -389,7 +389,8 @@ export default function Cart({
       setCompletedSubtotal(currentSubtotal);
       setCompletedDiscount(currentDiscount);
       setCompletedCustomerName(selectedCustomer?.name);
-      setCompletedOrderNumber(tempOrderId);
+      // استخدام رقم الطلبية الفعلي من قاعدة البيانات
+      setCompletedOrderNumber(orderResult.customerOrderNumber.toString());
       setCompletedOrderDate(new Date());
       setCompletedPaidAmount(numAmountPaid);
       setCompletedRemainingAmount(remainingAmount);

@@ -52,8 +52,8 @@ export const createPOSOrder = async (
         p_items: order.items.map(item => ({
           product_id: item.productId,
           quantity: item.quantity,
-          price: item.price,
-          total: item.price * item.quantity
+          price: item.unitPrice,
+          total: item.unitPrice * item.quantity
         })),
         p_total_amount: order.total,
         p_employee_id: order.employeeId || null,
@@ -65,17 +65,19 @@ export const createPOSOrder = async (
       const { data: rpcData, error: rpcError } = await supabase
         .rpc('create_pos_order_safe', rpcParams);
 
-      if (!rpcError && rpcData?.success) {
+      if (!rpcError && rpcData && typeof rpcData === 'object' && 'success' in rpcData && rpcData.success) {
         console.log('Order created successfully via RPC:', rpcData);
+        const orderResult = rpcData as any;
         return {
           ...order,
-          id: rpcData.id,
-          slug: rpcData.slug,
-          createdAt: new Date(rpcData.created_at),
-          updatedAt: new Date(rpcData.updated_at)
+          id: orderResult.id,
+          customer_order_number: orderResult.customer_order_number,
+          slug: orderResult.slug,
+          createdAt: new Date(orderResult.created_at),
+          updatedAt: new Date(orderResult.updated_at)
         };
-      } else if (rpcData?.error) {
-        console.warn('RPC create_pos_order_safe returned error:', rpcData.error);
+      } else if (rpcData && typeof rpcData === 'object' && 'error' in rpcData) {
+        console.warn('RPC create_pos_order_safe returned error:', (rpcData as any).error);
       } else if (rpcError) {
         console.warn('RPC error:', rpcError);
       }
@@ -109,8 +111,8 @@ export const createPOSOrder = async (
           product_name: item.productName || item.name || 'منتج',
           name: item.productName || item.name || 'منتج',
           quantity: item.quantity,
-          unit_price: item.price,
-          total_price: item.price * item.quantity,
+          unit_price: item.unitPrice,
+          total_price: item.unitPrice * item.quantity,
           is_digital: item.isDigital || false,
           organization_id: currentOrganizationId,
           slug: `item-${Date.now()}-${index}`,
@@ -150,10 +152,11 @@ export const createPOSOrder = async (
       console.error('Error adding transaction:', error);
     }
     
-    // إعادة الطلب المضاف
+    // إعادة الطلب المضاف مع البيانات الكاملة من قاعدة البيانات
     return {
       ...order,
       id: newOrderId,
+      customer_order_number: insertedOrder.customer_order_number,
       createdAt: new Date(insertedOrder.created_at),
       updatedAt: new Date(insertedOrder.updated_at),
       slug: insertedOrder.slug

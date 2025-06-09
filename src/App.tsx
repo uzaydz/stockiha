@@ -33,7 +33,6 @@ import TenantSignup from "./pages/TenantSignup";
 import Products from "./pages/dashboard/Products";
 import Inventory from "./pages/dashboard/Inventory";
 import Categories from "@/pages/dashboard/Categories";
-import Services from "@/pages/dashboard/Services";
 import Sales from '@/pages/dashboard/Sales';
 import Orders from '@/pages/dashboard/Orders';
 import POSOrders from '@/pages/POSOrders';
@@ -104,6 +103,8 @@ import SuperAdminCourses from '@/pages/SuperAdminCourses';
 import SubscriptionPage from "./pages/dashboard/subscription";
 import SubscriptionServices from "./pages/dashboard/SubscriptionServices";
 import DeliveryManagement from "./pages/dashboard/DeliveryManagement";
+import ProductReturns from "./pages/returns/ProductReturns";
+import LossDeclarations from "./pages/losses/LossDeclarations";
 import SyncManager from './components/SyncManager';
 import PermissionGuard from './components/auth/PermissionGuard';
 import useTabFocusEffect from './hooks/useTabFocusEffect';
@@ -447,11 +448,6 @@ const App = () => {
                           </PermissionGuard>
                         </SubscriptionCheck>
                       } />
-                      <Route path="/dashboard/services" element={
-                        <SubscriptionCheck>
-                          <Services />
-                        </SubscriptionCheck>
-                      } />
                       <Route path="/dashboard/repair-services" element={
                         <SubscriptionCheck>
                           <PermissionGuard requiredPermissions={['viewServices']}>
@@ -480,6 +476,20 @@ const App = () => {
                         <SubscriptionCheck>
                           <PermissionGuard requiredPermissions={['accessPOS']}>
                             <POSOrders />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/returns" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['accessPOS']}>
+                            <ProductReturns />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+                      <Route path="/dashboard/losses" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['accessPOS']}>
+                            <LossDeclarations />
                           </PermissionGuard>
                         </SubscriptionCheck>
                       } />
@@ -652,17 +662,6 @@ const App = () => {
                         </SubscriptionCheck>
                       } />
 
-                      {/* صفحة إعدادات الشحن والتوصيل */}
-                      <Route path="/dashboard/shipping-settings" element={
-                        <SubscriptionCheck>
-                          <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
-                            <ShippingSettingsPage />
-                          </PermissionGuard>
-                        </SubscriptionCheck>
-                      } />
-
-
-
                       {/* صفحات إدارة صفحات الهبوط */}
                       <Route path="/dashboard/landing-pages" element={
                         <SubscriptionCheck>
@@ -695,13 +694,6 @@ const App = () => {
                       <Route path="/dashboard/store-editor" element={
                         <SubscriptionCheck>
                           <StoreEditor />
-                        </SubscriptionCheck>
-                      } />
-
-                      {/* محرر المتجر الجديد */}
-                      <Route path="/dashboard/store-editor-new" element={
-                        <SubscriptionCheck>
-                          <StoreEditorDemo />
                         </SubscriptionCheck>
                       } />
 
@@ -747,15 +739,6 @@ const App = () => {
                         </SubscriptionCheck>
                       } />
 
-                      {/* صفحة متابعة الخدمات */}
-                      <Route path="/dashboard/service-tracking" element={
-                        <SubscriptionCheck>
-                          <PermissionGuard requiredPermissions={['trackServices']}>
-                            <ServiceTrackingPage />
-                          </PermissionGuard>
-                        </SubscriptionCheck>
-                      } />
-                      
                       {/* صفحة طلبات الخدمات */}
                       <Route path="/dashboard/service-requests" element={
                         <SubscriptionCheck>

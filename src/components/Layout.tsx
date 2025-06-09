@@ -115,35 +115,35 @@ export default function Layout({ children }: LayoutProps) {
   return (
     <div dir="rtl" className="bg-background/95 min-h-screen">
       <Navbar 
-        className="fixed top-0 left-0 right-0 z-50 shadow-sm" 
+        className="fixed top-0 left-0 right-0 z-50 shadow-sm h-16" 
         toggleSidebar={toggleSidebar} 
         isSidebarOpen={isSidebarOpen}
         isMobile={isMobile}
       />
       
-      <div className="flex h-screen pt-16">
-        {isStaff && !isLoadingUserProfile && !isMobile && (
-          <div 
-            className={cn(
-              "fixed top-16 bottom-0 right-0 z-40 border-l border-border/30 bg-background/80 backdrop-blur-sm overflow-y-auto",
-              isSidebarOpen ? "w-72" : "w-20"
-            )}
-          >
-            <SideMenu userRole={userRole} userPermissions={userPermissions} />
-          </div>
-        )}
-        
-        <main 
+      {/* القائمة الجانبية الثابتة */}
+      {isStaff && !isLoadingUserProfile && !isMobile && (
+        <aside
           className={cn(
-            "flex-1 overflow-x-hidden",
-            isSidebarOpen && !isMobile ? "mr-72" : isMobile ? "mr-0" : "mr-20"
+            "fixed top-16 bottom-0 right-0 z-40 border-l border-border/30 bg-background/95 backdrop-blur-sm transition-all duration-300",
+            isSidebarOpen ? "w-72" : "w-20"
           )}
         >
-          <div className="max-w-7xl mx-auto p-4 md:p-6">
-            {children}
-          </div>
-        </main>
-      </div>
+          <SideMenu userRole={userRole} userPermissions={userPermissions} />
+        </aside>
+      )}
+      
+      {/* المحتوى الرئيسي */}
+      <main 
+        className={cn(
+          "pt-16 min-h-screen transition-all duration-300",
+          isSidebarOpen && !isMobile ? "mr-72" : isMobile ? "mr-0" : "mr-20"
+        )}
+      >
+        <div className="max-w-7xl mx-auto p-4 md:p-6 pb-8">
+          {children}
+        </div>
+      </main>
       
       {isStaff && !isLoadingUserProfile && isMobile && (
         <>

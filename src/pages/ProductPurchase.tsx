@@ -11,6 +11,7 @@ import StoreFooter from '@/components/store/StoreFooter';
 import CustomizableStoreFooter from '@/components/store/CustomizableStoreFooter';
 import ProductBreadcrumb from '@/components/store/product/ProductBreadcrumb';
 import ProductDescription from '@/components/store/product/ProductDescription';
+import AnimatedBackground from '@/components/ui/AnimatedBackground';
 
 // مكونات العروض والمؤقت
 import OfferTimer from '@/components/store/OfferTimer';
@@ -242,10 +243,15 @@ const ProductPurchase = () => {
   const shouldShowFullContent = !isLoading && !error && product;
 
   return (
-    <div className="w-full min-h-screen bg-background">
-      <Navbar />
-      <LoadingProgressBar isVisible={isLoading || isOrganizationLoading} />
-      <div className="container mx-auto py-4 px-4 md:px-6">
+    <div className="w-full min-h-screen relative">
+      {/* الخلفية المتحركة */}
+      <AnimatedBackground />
+      
+      {/* المحتوى الرئيسي */}
+      <div className="relative z-10">
+        <Navbar />
+        <LoadingProgressBar isVisible={isLoading || isOrganizationLoading} />
+      <div className="container mx-auto py-4 px-4 md:px-6 relative z-20">
         {isLoading || isOrganizationLoading ? (
           <LoadingState />
         ) : error ? (
@@ -357,8 +363,8 @@ const ProductPurchase = () => {
                 )}
                 
                 {shouldShowFullContent && (
-                  <div ref={orderFormRef} className="bg-card p-6 rounded-xl shadow-sm mb-8">
-                    <h2 className="text-2xl font-bold mb-4">طلب المنتج</h2>
+                  <div ref={orderFormRef} className="bg-card/95 backdrop-blur-md p-6 rounded-xl shadow-lg border border-border/30 mb-8">
+                    <h2 className="text-2xl font-bold mb-4 text-foreground">طلب المنتج</h2>
                     <Suspense fallback={<SuspenseFallback />}>
                       <OrderForm
                         productId={effectiveProduct?.id || product.id}
@@ -415,8 +421,8 @@ const ProductPurchase = () => {
                   </div>
                 )}
                 
-                <div className="mb-12 bg-card p-6 rounded-xl shadow-sm">
-                  <h2 className="text-2xl font-bold mb-4">وصف المنتج</h2>
+                <div className="mb-12 bg-card/95 backdrop-blur-md p-6 rounded-xl shadow-lg border border-border/30">
+                  <h2 className="text-2xl font-bold mb-4 text-foreground">وصف المنتج</h2>
                   <ProductDescription
                     description={product.description}
                   />
@@ -544,6 +550,7 @@ const ProductPurchase = () => {
           <CustomizableStoreFooter {...finalFooterSettings} />
         );
       }, [footerSettings, currentOrganization])}
+      </div>
     </div>
   );
 };

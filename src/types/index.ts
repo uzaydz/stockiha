@@ -157,6 +157,7 @@ export interface Order {
   updatedAt: Date;
   organization_id?: string; // معرف المنظمة/المؤسسة
   slug?: string; // المعرف المقروء للطلب
+  customer_order_number?: number; // رقم الطلبية الخاص بالعميل
 }
 
 // User Types

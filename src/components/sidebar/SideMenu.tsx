@@ -51,7 +51,9 @@ import {
   BookOpen,
   SlidersHorizontal,
   Palette,
-  Tv
+  Tv,
+  RotateCcw,
+  AlertTriangle
 } from 'lucide-react';
 
 const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
@@ -319,13 +321,6 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
           badge: 'جديد'
         },
         {
-          title: 'متابعة الخدمات',
-          icon: Calendar,
-          href: '/dashboard/service-tracking',
-          requiredPermission: 'trackServices',
-          badge: null
-        },
-        {
           title: 'خدمات الاشتراكات',
           icon: Tv,
           href: '/dashboard/subscription-services',
@@ -401,6 +396,27 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
           href: '/dashboard/customer-debts',
           requiredPermission: 'viewDebts',
           badge: null
+        },
+      ]
+    },
+    {
+      group: 'الإرجاع والخسائر',
+      icon: RotateCcw,
+      requiredPermission: 'accessPOS',
+      items: [
+        {
+          title: 'إرجاع المنتجات',
+          icon: RotateCcw,
+          href: '/dashboard/returns',
+          requiredPermission: 'accessPOS',
+          badge: 'جديد'
+        },
+        {
+          title: 'التصريح بالخسائر',
+          icon: AlertTriangle,
+          href: '/dashboard/losses',
+          requiredPermission: 'accessPOS',
+          badge: 'جديد'
         },
       ]
     },
@@ -565,13 +581,6 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
           badge: 'جديد'
         },
         {
-          title: 'محرر المتجر الجديد',
-          icon: Palette,
-          href: '/dashboard/store-editor-new',
-          requiredPermission: 'manageOrganizationSettings',
-          badge: 'جديد'
-        },
-        {
           title: 'صفحات الهبوط',
           icon: Layout,
           href: '/dashboard/landing-pages',
@@ -591,13 +600,6 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
           href: '/dashboard/thank-you-editor',
           requiredPermission: 'manageOrganizationSettings',
           badge: 'جديد'
-        },
-        {
-          title: 'خدمات التوصيل',
-          icon: Truck,
-          href: '/dashboard/shipping-settings',
-          requiredPermission: 'manageOrganizationSettings',
-          badge: null
         },
         {
           title: 'إدارة التوصيل',

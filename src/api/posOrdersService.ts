@@ -11,6 +11,13 @@ export interface POSOrderWithDetails extends Order {
   employee?: User;
   order_items: OrderItem[];
   items_count: number;
+  // حقول المرتجعات
+  effective_status?: string;
+  effective_total?: number;
+  original_total?: number;
+  has_returns?: boolean;
+  is_fully_returned?: boolean;
+  total_returned_amount?: number;
 }
 
 export interface POSOrderFilters {
@@ -36,6 +43,12 @@ export interface POSOrderStats {
   avg_order_value: number;
   today_orders: number;
   today_revenue: number;
+  // إحصائيات المرتجعات
+  fully_returned_orders?: number;
+  partially_returned_orders?: number;
+  total_returned_amount?: number;
+  effective_revenue?: number;
+  return_rate?: number;
 }
 
 export class POSOrdersService {
@@ -78,14 +91,30 @@ export class POSOrdersService {
   }
 
   /**
-   * جلب إحصائيات طلبيات نقطة البيع
+   * مسح كاش الطلبيات لضمان جلب البيانات المحدثة بعد المرتجعات
+   */
+  clearOrdersCache(): void {
+    const keysToDelete: string[] = [];
+    
+    for (const [key] of this.cache) {
+      if (key.includes('pos_orders') || key.includes('pos_stats')) {
+        keysToDelete.push(key);
+      }
+    }
+    
+    keysToDelete.forEach(key => this.cache.delete(key));
+  }
+
+  /**
+   * جلب إحصائيات طلبيات نقطة البيع مع المرتجعات
    */
   async getPOSOrderStats(organizationId: string): Promise<POSOrderStats> {
-    const cacheKey = this.getCacheKey('pos_stats', { organizationId });
+    const cacheKey = this.getCacheKey('pos_stats_with_returns', { organizationId });
     const cached = this.getFromCache<POSOrderStats>(cacheKey);
     if (cached) return cached;
 
     try {
+      // جلب الإحصائيات الأساسية
       const { data, error } = await supabase.rpc('get_pos_order_stats', {
         p_organization_id: organizationId
       });
@@ -95,18 +124,83 @@ export class POSOrdersService {
       // البيانات تأتي كمصفوفة، نأخذ العنصر الأول
       const statsData = Array.isArray(data) ? data[0] : data;
 
+      // حساب إحصائيات المرتجعات
+      const { data: returnsStats } = await supabase
+        .from('orders')
+        .select(`
+          id,
+          total,
+          status,
+          created_at
+        `)
+        .eq('organization_id', organizationId)
+        .eq('is_online', false);
+
+      const orderIds = (returnsStats || []).map(order => order.id);
+      let returnsData: any[] = [];
+      let totalReturnedAmount = 0;
+      let fullyReturnedCount = 0;
+      let partiallyReturnedCount = 0;
+
+      if (orderIds.length > 0) {
+        const { data: returns } = await supabase
+          .from('returns')
+          .select(`
+            original_order_id,
+            status,
+            refund_amount
+          `)
+          .in('original_order_id', orderIds)
+          .eq('status', 'approved');
+
+        returnsData = returns || [];
+
+        // حساب المرتجعات لكل طلبية
+        const orderReturnsMap = new Map<string, number>();
+        returnsData.forEach(returnItem => {
+          const orderId = returnItem.original_order_id;
+          const currentTotal = orderReturnsMap.get(orderId) || 0;
+          orderReturnsMap.set(orderId, currentTotal + parseFloat(returnItem.refund_amount || '0'));
+        });
+
+        // حساب الإحصائيات
+        for (const [orderId, returnedAmount] of orderReturnsMap) {
+          const order = returnsStats?.find(o => o.id === orderId);
+          if (order) {
+            const originalTotal = parseFloat(order.total);
+            totalReturnedAmount += returnedAmount;
+            
+            if (returnedAmount >= originalTotal) {
+              fullyReturnedCount++;
+            } else if (returnedAmount > 0) {
+              partiallyReturnedCount++;
+            }
+          }
+        }
+      }
+
+      const totalRevenue = parseFloat(String(statsData?.total_revenue || '0'));
+      const effectiveRevenue = totalRevenue - totalReturnedAmount;
+      const returnRate = totalRevenue > 0 ? (totalReturnedAmount / totalRevenue) * 100 : 0;
+
       const stats: POSOrderStats = {
         total_orders: statsData?.total_orders || 0,
-        total_revenue: parseFloat(statsData?.total_revenue || '0'),
+        total_revenue: totalRevenue,
         completed_orders: statsData?.completed_orders || 0,
         pending_orders: statsData?.pending_orders || 0,
         pending_payment_orders: statsData?.pending_payment_orders || 0,
         cancelled_orders: statsData?.cancelled_orders || 0,
         cash_orders: statsData?.cash_orders || 0,
         card_orders: statsData?.card_orders || 0,
-        avg_order_value: parseFloat(statsData?.avg_order_value || '0'),
+        avg_order_value: parseFloat(String(statsData?.avg_order_value || '0')),
         today_orders: statsData?.today_orders || 0,
-        today_revenue: parseFloat(statsData?.today_revenue || '0')
+        today_revenue: parseFloat(String(statsData?.today_revenue || '0')),
+        // إحصائيات المرتجعات
+        fully_returned_orders: fullyReturnedCount,
+        partially_returned_orders: partiallyReturnedCount,
+        total_returned_amount: totalReturnedAmount,
+        effective_revenue: effectiveRevenue,
+        return_rate: returnRate
       };
 
       this.setCache(cacheKey, stats);
@@ -124,7 +218,12 @@ export class POSOrdersService {
         card_orders: 0,
         avg_order_value: 0,
         today_orders: 0,
-        today_revenue: 0
+        today_revenue: 0,
+        fully_returned_orders: 0,
+        partially_returned_orders: 0,
+        total_returned_amount: 0,
+        effective_revenue: 0,
+        return_rate: 0
       };
     }
   }
@@ -218,10 +317,59 @@ export class POSOrdersService {
 
       if (error) throw error;
 
-      const ordersWithDetails: POSOrderWithDetails[] = (orders || []).map(order => ({
-        ...order,
-        items_count: order.order_items?.reduce((total, item) => total + (item.quantity || 0), 0) || 0
-      }));
+      // حساب حالة المرتجعات لكل طلبية
+      const orderIds = (orders || []).map(order => order.id);
+      let returnsData: any[] = [];
+      
+      if (orderIds.length > 0) {
+        const { data: returns } = await supabase
+          .from('returns')
+          .select(`
+            original_order_id,
+            status,
+            refund_amount,
+            return_items!inner(return_quantity)
+          `)
+          .in('original_order_id', orderIds)
+          .eq('status', 'approved');
+        
+        returnsData = returns || [];
+      }
+
+      const ordersWithDetails: POSOrderWithDetails[] = (orders || []).map(order => {
+        // حساب المرتجعات لهذه الطلبية
+        const orderReturns = returnsData.filter(r => r.original_order_id === order.id);
+        const totalReturnedAmount = orderReturns.reduce((sum, ret) => sum + parseFloat(ret.refund_amount || '0'), 0);
+        const totalReturnedItems = orderReturns.reduce((sum, ret) => 
+          sum + ret.return_items.reduce((itemSum: number, item: any) => itemSum + (item.return_quantity || 0), 0), 0
+        );
+        
+        const originalTotal = parseFloat(order.total);
+        const originalItemsCount = order.order_items?.reduce((total, item) => total + (item.quantity || 0), 0) || 0;
+        const effectiveTotal = originalTotal - totalReturnedAmount;
+        const effectiveItemsCount = originalItemsCount - totalReturnedItems;
+        const isFullyReturned = totalReturnedAmount >= originalTotal;
+        const hasReturns = orderReturns.length > 0;
+        
+        let effectiveStatus = order.status;
+        if (hasReturns) {
+          effectiveStatus = isFullyReturned ? 'fully_returned' : 'partially_returned';
+        }
+
+        return {
+          ...order,
+          items_count: effectiveItemsCount,
+          total: effectiveTotal.toString(),
+          status: effectiveStatus,
+          // حقول المرتجعات
+          effective_status: effectiveStatus,
+          effective_total: effectiveTotal,
+          original_total: originalTotal,
+          has_returns: hasReturns,
+          is_fully_returned: isFullyReturned,
+          total_returned_amount: totalReturnedAmount
+        };
+      }) as POSOrderWithDetails[];
 
       const result = {
         orders: ordersWithDetails,
@@ -276,10 +424,10 @@ export class POSOrdersService {
       if (error) throw error;
       if (!order) return null;
 
-      const orderWithDetails: POSOrderWithDetails = {
+      const orderWithDetails = {
         ...order,
         items_count: order.order_items?.reduce((total, item) => total + (item.quantity || 0), 0) || 0
-      };
+      } as POSOrderWithDetails;
 
       this.setCache(cacheKey, orderWithDetails);
       return orderWithDetails;
@@ -350,7 +498,7 @@ export class POSOrdersService {
           .single();
           
         if (order) {
-          updateData.remaining_amount = parseFloat(order.total) - amountPaid;
+          updateData.remaining_amount = parseFloat(String(order.total)) - amountPaid;
         }
       }
       
@@ -473,17 +621,17 @@ export class POSOrdersService {
       // مسح الكاش المتعلق بهذه الطلبية
       this.clearCacheForOrder(orderId);
 
-      return {
-        success: data.success,
-        error: data.error,
-        data: data.success ? {
-          cancellation_id: data.cancellation_id,
-          is_partial_cancellation: data.is_partial_cancellation,
-          cancelled_amount: parseFloat(data.cancelled_amount || '0'),
-          cancelled_items_count: data.cancelled_items_count,
-          total_items_count: data.total_items_count,
-          new_total: data.new_total ? parseFloat(data.new_total) : undefined,
-          message: data.message
+              return {
+        success: (data as any).success,
+        error: (data as any).error,
+        data: (data as any).success ? {
+          cancellation_id: (data as any).cancellation_id,
+          is_partial_cancellation: (data as any).is_partial_cancellation,
+          cancelled_amount: parseFloat(String((data as any).cancelled_amount || '0')),
+          cancelled_items_count: (data as any).cancelled_items_count,
+          total_items_count: (data as any).total_items_count,
+          new_total: (data as any).new_total ? parseFloat(String((data as any).new_total)) : undefined,
+          message: (data as any).message
         } : undefined
       };
     } catch (error) {
@@ -579,9 +727,9 @@ export class POSOrdersService {
 
       const summary = {
         orders_count: summaryData?.orders_count || 0,
-        total_revenue: parseFloat(summaryData?.total_revenue || '0'),
-        cash_sales: parseFloat(summaryData?.cash_sales || '0'),
-        card_sales: parseFloat(summaryData?.card_sales || '0'),
+        total_revenue: parseFloat(String(summaryData?.total_revenue || '0')),
+        cash_sales: parseFloat(String(summaryData?.cash_sales || '0')),
+        card_sales: parseFloat(String(summaryData?.card_sales || '0')),
         completed_orders: summaryData?.completed_orders || 0,
         pending_orders: summaryData?.pending_orders || 0
       };
@@ -600,4 +748,6 @@ export class POSOrdersService {
       };
     }
   }
+
+
 }

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, ZoomIn, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ProductGalleryProps {
@@ -11,14 +11,49 @@ interface ProductGalleryProps {
 
 const ProductGallery = ({ mainImage, additionalImages = [], productName }: ProductGalleryProps) => {
   const [activeImage, setActiveImage] = useState(mainImage);
-  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [isHovering, setIsHovering] = useState(false);
+  const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 });
+  const [zoomScale, setZoomScale] = useState(1);
+  const imageRef = useRef<HTMLImageElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  
   const allImages = [mainImage, ...(additionalImages || [])];
   const currentIndex = allImages.indexOf(activeImage);
   
   // تحديث الصورة النشطة عندما تتغير الصورة الرئيسية (عند تغيير اللون)
   useEffect(() => {
     setActiveImage(mainImage);
+    setImageLoaded(false);
   }, [mainImage]);
+
+  // تحميل الصورة
+  const handleImageLoad = useCallback(() => {
+    setImageLoaded(true);
+  }, []);
+
+  // معالجة حركة الماوس للزوم
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!containerRef.current || !imageRef.current || !isHovering) return;
+    
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    
+    setHoverPosition({ x, y });
+  }, [isHovering]);
+
+  // دخول الماوس للحاوية
+  const handleMouseEnter = useCallback(() => {
+    setIsHovering(true);
+    setZoomScale(2);
+  }, []);
+
+  // خروج الماوس من الحاوية
+  const handleMouseLeave = useCallback(() => {
+    setIsHovering(false);
+    setZoomScale(1);
+  }, []);
 
   const goToNext = () => {
     const nextIndex = (currentIndex + 1) % allImages.length;
@@ -30,184 +65,192 @@ const ProductGallery = ({ mainImage, additionalImages = [], productName }: Produ
     setActiveImage(allImages[prevIndex]);
   };
 
-  const handleZoom = (image: string) => {
-    setZoomedImage(image);
-  };
-
-  const closeZoom = () => {
-    setZoomedImage(null);
-  };
-
   return (
     <>
-      <div className="space-y-4">
-        {/* صورة المنتج الرئيسية */}
+      <div className="space-y-6">
+        {/* صورة المنتج الرئيسية مع الزوم */}
         <motion.div 
-          className="relative aspect-square overflow-hidden rounded-2xl bg-card border border-border shadow-sm group"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5 }}
+          ref={containerRef}
+          className="relative aspect-square overflow-hidden rounded-3xl bg-gradient-to-br from-background via-muted/5 to-background border border-border/50 shadow-xl group cursor-zoom-in"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, type: "spring", damping: 25 }}
+          onMouseMove={handleMouseMove}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
         >
+          {/* طبقة الخلفية المتدرجة */}
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+          
           <AnimatePresence mode="wait">
             <motion.div
               key={activeImage}
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.3 }}
-              className="h-full w-full flex items-center justify-center"
+              initial={{ opacity: 0, scale: 0.9, rotateY: 5 }}
+              animate={{ opacity: 1, scale: 1, rotateY: 0 }}
+              exit={{ opacity: 0, scale: 0.9, rotateY: -5 }}
+              transition={{ duration: 0.5, type: "spring", damping: 20 }}
+              className="h-full w-full flex items-center justify-center relative"
             >
+              {/* مؤشر التحميل */}
+              {!imageLoaded && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+                </div>
+              )}
+              
               <img
+                ref={imageRef}
                 src={activeImage}
                 alt={productName}
-                className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.02]"
+                onLoad={handleImageLoad}
+                className={cn(
+                  "h-full w-full object-contain transition-all duration-500 ease-out",
+                  imageLoaded ? "opacity-100" : "opacity-0",
+                  isHovering ? "cursor-zoom-in" : ""
+                )}
+                style={{
+                  transform: `scale(${zoomScale})`,
+                  transformOrigin: `${hoverPosition.x}% ${hoverPosition.y}%`,
+                }}
               />
+              
             </motion.div>
           </AnimatePresence>
           
-          {/* زر التكبير */}
-          <button 
-            onClick={() => handleZoom(activeImage)}
-            className="absolute bottom-3 right-3 bg-background/90 dark:bg-background/70 backdrop-blur-sm p-2 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-            aria-label="تكبير الصورة"
-          >
-            <ZoomIn className="h-5 w-5 text-foreground" />
-          </button>
-          
-          {/* أزرار التنقل */}
+          {/* أزرار التنقل المحسنة */}
           {allImages.length > 1 && (
             <>
-              <button 
+              <motion.button 
                 onClick={goToPrevious}
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-background/90 dark:bg-background/70 backdrop-blur-sm shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:bg-background"
+                className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-2xl bg-background/95 backdrop-blur-xl shadow-lg border border-border/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-background hover:shadow-xl"
+                whileHover={{ scale: 1.05, x: -2 }}
+                whileTap={{ scale: 0.95 }}
                 aria-label="الصورة السابقة"
               >
                 <ChevronRight className="h-6 w-6 text-foreground" />
-              </button>
+              </motion.button>
               
-              <button 
+              <motion.button 
                 onClick={goToNext}
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-background/90 dark:bg-background/70 backdrop-blur-sm shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:bg-background"
+                className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-2xl bg-background/95 backdrop-blur-xl shadow-lg border border-border/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-background hover:shadow-xl"
+                whileHover={{ scale: 1.05, x: 2 }}
+                whileTap={{ scale: 0.95 }}
                 aria-label="الصورة التالية"
               >
                 <ChevronLeft className="h-6 w-6 text-foreground" />
-              </button>
+              </motion.button>
             </>
           )}
           
-          {/* مؤشر الموقع */}
+          {/* مؤشر الموقع المحسن */}
           {allImages.length > 1 && (
-            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 bg-background/95 backdrop-blur-xl px-4 py-2 rounded-2xl border border-border/50 shadow-lg">
               {allImages.map((_, idx) => (
-                <div 
-                  key={idx} 
+                <motion.button
+                  key={idx}
+                  onClick={() => setActiveImage(allImages[idx])}
                   className={cn(
-                    "w-1.5 h-1.5 rounded-full transition-all duration-300",
+                    "w-2 h-2 rounded-full transition-all duration-300 cursor-pointer",
                     idx === currentIndex 
-                      ? "bg-primary w-4" 
-                      : "bg-muted-foreground/30 hover:bg-muted-foreground/50"
+                      ? "bg-primary w-6" 
+                      : "bg-muted-foreground/40 hover:bg-muted-foreground/70"
                   )}
+                  whileHover={{ scale: 1.2 }}
+                  whileTap={{ scale: 0.9 }}
+                  aria-label={`الصورة ${idx + 1}`}
                 />
               ))}
             </div>
           )}
         </motion.div>
         
-        {/* الصور المصغرة */}
+        {/* الصور المصغرة المحسنة */}
         {allImages.length > 1 && (
           <motion.div 
-            className="flex justify-center gap-2 mt-4 overflow-x-auto pb-2 no-scrollbar"
-            initial={{ opacity: 0, y: 20 }}
+            className="flex justify-center gap-2 sm:gap-3 mt-4 sm:mt-6 overflow-x-auto pb-3 no-scrollbar px-2"
+            initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
+            transition={{ duration: 0.6, delay: 0.3, type: "spring", damping: 25 }}
           >
             {allImages.map((image, index) => (
               <motion.button
                 key={index}
                 onClick={() => setActiveImage(image)}
                 className={cn(
-                  "min-w-16 h-16 rounded-lg overflow-hidden border-2 transition-all duration-300",
+                  "relative min-w-16 sm:min-w-20 h-16 sm:h-20 rounded-xl sm:rounded-2xl overflow-hidden border-2 transition-all duration-500",
                   activeImage === image 
-                    ? "border-primary ring-2 ring-primary/20 shadow-md scale-105" 
-                    : "border-transparent opacity-60 hover:opacity-100 hover:border-border"
+                    ? "border-primary ring-2 sm:ring-4 ring-primary/10 shadow-xl scale-105 sm:scale-110 z-10" 
+                    : "border-border/30 opacity-70 hover:opacity-100 hover:border-border hover:shadow-lg hover:scale-105"
                 )}
-                whileHover={{ scale: activeImage === image ? 1.05 : 1.03 }}
-                whileTap={{ scale: 0.98 }}
+                whileHover={{ 
+                  scale: activeImage === image ? 1.1 : 1.05,
+                  y: activeImage === image ? 0 : -2
+                }}
+                whileTap={{ scale: 0.95 }}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ 
+                  duration: 0.3, 
+                  delay: index * 0.1,
+                  type: "spring",
+                  damping: 20
+                }}
               >
+                {/* خلفية متدرجة */}
+                <div className="absolute inset-0 bg-gradient-to-br from-background via-muted/5 to-background" />
+                
                 <img 
                   src={image} 
                   alt={`${productName} - ${index + 1}`}
-                  className="h-full w-full object-cover"
+                  className="relative h-full w-full object-cover transition-transform duration-300"
                 />
+                
+                {/* مؤشر الصورة النشطة */}
+                {activeImage === image && (
+                  <motion.div 
+                    className="absolute inset-0 bg-primary/10 border-2 border-primary/30 rounded-2xl"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.3 }}
+                  />
+                )}
+                
+                {/* رقم الصورة */}
+                <div className="absolute bottom-1 right-1 bg-background/90 backdrop-blur-sm text-xs px-1.5 py-0.5 rounded-lg text-foreground/70">
+                  {index + 1}
+                </div>
               </motion.button>
             ))}
           </motion.div>
         )}
       </div>
       
-      {/* عرض الصورة المكبرة */}
-      <AnimatePresence>
-        {zoomedImage && (
-          <motion.div 
-            className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={closeZoom}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="relative max-w-4xl max-h-[80vh] w-full"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <img 
-                src={zoomedImage} 
-                alt={productName} 
-                className="w-full h-full object-contain"
-              />
-              <button 
-                onClick={closeZoom}
-                className="absolute top-4 right-4 bg-white/20 hover:bg-white/30 backdrop-blur-sm p-2 rounded-full transition-colors duration-200"
-              >
-                <X className="h-6 w-6 text-white" />
-              </button>
-              
-              {allImages.length > 1 && (
-                <>
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const idx = allImages.indexOf(zoomedImage);
-                      const prevIdx = (idx - 1 + allImages.length) % allImages.length;
-                      setZoomedImage(allImages[prevIdx]);
-                    }}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-sm flex items-center justify-center transition-colors duration-200"
-                  >
-                    <ChevronRight className="h-8 w-8 text-white" />
-                  </button>
-                  
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const idx = allImages.indexOf(zoomedImage);
-                      const nextIdx = (idx + 1) % allImages.length;
-                      setZoomedImage(allImages[nextIdx]);
-                    }}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-sm flex items-center justify-center transition-colors duration-200"
-                  >
-                    <ChevronLeft className="h-8 w-8 text-white" />
-                  </button>
-                </>
-              )}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </>
   );
 };
 
 export default ProductGallery;
+
+// إضافة الأنماط المخصصة
+const styles = `
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .cursor-zoom-in {
+    cursor: zoom-in;
+  }
+`;
+
+// إضافة الأنماط إلى الصفحة إذا لم تكن موجودة
+if (typeof document !== 'undefined' && !document.getElementById('product-gallery-styles')) {
+  const styleElement = document.createElement('style');
+  styleElement.id = 'product-gallery-styles';
+  styleElement.textContent = styles;
+  document.head.appendChild(styleElement);
+}

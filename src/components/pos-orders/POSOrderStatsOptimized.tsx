@@ -7,11 +7,9 @@ import {
   CheckCircle, 
   Clock, 
   XCircle,
-  CreditCard,
-  Banknote,
   TrendingUp,
-  Calendar,
-  Receipt
+  RotateCcw,
+  Target
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { POSOrderStats } from '@/api/posOrdersService';
@@ -128,10 +126,10 @@ export const POSOrderStatsOptimized = React.memo<POSOrderStatsProps>(({
       colorClass: 'from-blue-500 to-blue-600'
     },
     {
-      title: 'إجمالي الإيرادات',
-      value: formatCurrency(stats?.total_revenue || 0),
+      title: 'الإيرادات الفعلية',
+      value: formatCurrency(stats?.effective_revenue || 0),
       icon: <DollarSign className="h-6 w-6 text-white" />,
-      subtitle: `${formatCurrency(stats?.today_revenue || 0)} اليوم`,
+      subtitle: `أصلي: ${formatCurrency(stats?.total_revenue || 0)}`,
       colorClass: 'from-green-500 to-green-600'
     },
     {
@@ -159,16 +157,18 @@ export const POSOrderStatsOptimized = React.memo<POSOrderStatsProps>(({
       colorClass: 'from-red-500 to-red-600'
     },
     {
-      title: 'مدفوعات نقدية',
-      value: formatNumber(stats?.cash_orders || 0),
-      icon: <Banknote className="h-6 w-6 text-white" />,
-      colorClass: 'from-teal-500 to-teal-600'
+      title: 'مرتجعة بالكامل',
+      value: formatNumber(stats?.fully_returned_orders || 0),
+      icon: <RotateCcw className="h-6 w-6 text-white" />,
+      subtitle: `جزئياً: ${formatNumber(stats?.partially_returned_orders || 0)}`,
+      colorClass: 'from-purple-500 to-purple-600'
     },
     {
-      title: 'مدفوعات بالبطاقة',
-      value: formatNumber(stats?.card_orders || 0),
-      icon: <CreditCard className="h-6 w-6 text-white" />,
-      colorClass: 'from-indigo-500 to-indigo-600'
+      title: 'معدل الإرجاع',
+      value: `${(stats?.return_rate || 0).toFixed(1)}%`,
+      icon: <Target className="h-6 w-6 text-white" />,
+      subtitle: `مبلغ: ${formatCurrency(stats?.total_returned_amount || 0)}`,
+      colorClass: 'from-orange-500 to-orange-600'
     }
   ], [stats]);
 

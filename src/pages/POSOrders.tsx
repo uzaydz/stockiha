@@ -40,6 +40,7 @@ import {
   type POSOrderStats as StatsType
 } from '../api/posOrdersService';
 
+
 // Contexts
 import { useOrganization } from '../hooks/useOrganization';
 import { useTitle } from '../hooks/useTitle';
@@ -148,11 +149,13 @@ export const POSOrders: React.FC = () => {
   // التحميل الأولي
   useEffect(() => {
     if (organization?.id) {
+      // مسح الكاش لضمان جلب البيانات المحدثة
+      posOrdersService.clearOrdersCache();
       fetchStats();
       fetchOrders(1, {});
       fetchEmployees();
     }
-  }, [organization?.id, fetchStats, fetchOrders, fetchEmployees]);
+  }, [organization?.id, fetchStats, fetchOrders, fetchEmployees, posOrdersService]);
 
   // معالج تغيير الفلاتر
   const handleFiltersChange = useCallback((newFilters: FilterType) => {

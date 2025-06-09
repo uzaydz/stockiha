@@ -63,6 +63,8 @@ const StatusBadge = React.memo<{ status: string }>(({ status }) => {
     processing: { label: 'قيد المعالجة', className: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' },
     completed: { label: 'مكتمل', className: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' },
     cancelled: { label: 'ملغي', className: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' },
+    fully_returned: { label: 'مرجعة بالكامل', className: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' },
+    partially_returned: { label: 'مرجعة جزئياً', className: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300' },
   };
 
   const { label, className } = config[status as keyof typeof config] || {
@@ -149,12 +151,26 @@ const OrderRow = React.memo<{
         <div className="flex items-center gap-1">
           <Package className="h-4 w-4 text-muted-foreground" />
           <span>{order.items_count}</span>
+          {order.has_returns && (
+            <Badge variant="outline" className="text-xs ml-1 text-purple-600">
+              مرتجع
+            </Badge>
+          )}
         </div>
       </TableCell>
       <TableCell>
         <StatusBadge status={order.status} />
       </TableCell>
-      <TableCell>{formatCurrency(parseFloat(order.total))}</TableCell>
+      <TableCell>
+        <div className="text-right">
+          {formatCurrency(parseFloat(order.total))}
+          {order.has_returns && order.total_returned_amount && order.total_returned_amount > 0 && (
+            <div className="text-xs text-muted-foreground">
+              مرتجع: {formatCurrency(order.total_returned_amount)}
+            </div>
+          )}
+        </div>
+      </TableCell>
       <TableCell>
         <Badge variant="secondary" className="text-xs">
           {order.payment_method === 'cash' ? 'نقدي' : 

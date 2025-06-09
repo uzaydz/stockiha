@@ -14,7 +14,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Search, Filter, SortAsc, SortDesc, Calendar, Hash, Package } from 'lucide-react';
 import JsBarcode from 'jsbarcode';
 import QRCodeStyling from 'qr-code-styling'; // Import QRCodeStyling
 // Import barcode templates
@@ -40,6 +40,18 @@ interface SelectedProduct extends ProductForBarcode {
   selected: boolean;
   print_quantity: number;
   use_stock_quantity: boolean;
+}
+
+// إضافة interface للفلاتر والبحث
+interface SearchAndFilter {
+  search_query: string;
+  sort_by: 'name' | 'price' | 'stock' | 'created_at' | 'sku';
+  sort_order: 'asc' | 'desc';
+  stock_filter: 'all' | 'in_stock' | 'low_stock' | 'out_of_stock';
+  price_range: {
+    min: string;
+    max: string;
+  };
 }
 
 interface PrintSettings {
@@ -120,9 +132,22 @@ export const fontOptions: FontOption[] = [
 
 const QuickBarcodePrintPage = () => {
   const [products, setProducts] = useState<SelectedProduct[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<SelectedProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectAll, setSelectAll] = useState(false);
+  
+  // إضافة state للبحث والفلترة
+  const [searchAndFilter, setSearchAndFilter] = useState<SearchAndFilter>({
+    search_query: '',
+    sort_by: 'name',
+    sort_order: 'asc',
+    stock_filter: 'all',
+    price_range: {
+      min: '',
+      max: ''
+    }
+  });
 
   const [printSettings, setPrintSettings] = useState<PrintSettings>({
     label_width: 50,
@@ -139,6 +164,97 @@ const QuickBarcodePrintPage = () => {
     selected_template_id: barcodeTemplates[0]?.id || "default", // Default to the first template
     font_family_css: fontOptions[0]?.cssValue || "sans-serif", // Default to system font
   });
+
+  // دالة الفلترة والبحث
+  const filterAndSortProducts = useCallback((products: SelectedProduct[], filters: SearchAndFilter): SelectedProduct[] => {
+    let filtered = [...products];
+
+    // تطبيق البحث
+    if (filters.search_query.trim()) {
+      const searchTerm = filters.search_query.toLowerCase().trim();
+      filtered = filtered.filter(product => 
+        product.product_name.toLowerCase().includes(searchTerm) ||
+        product.product_sku.toLowerCase().includes(searchTerm) ||
+        (product.product_barcode && product.product_barcode.toLowerCase().includes(searchTerm))
+      );
+    }
+
+    // تطبيق فلتر المخزون
+    switch (filters.stock_filter) {
+      case 'in_stock':
+        filtered = filtered.filter(product => product.stock_quantity > 5);
+        break;
+      case 'low_stock':
+        filtered = filtered.filter(product => product.stock_quantity > 0 && product.stock_quantity <= 5);
+        break;
+      case 'out_of_stock':
+        filtered = filtered.filter(product => product.stock_quantity === 0);
+        break;
+      // 'all' case doesn't need filtering
+    }
+
+    // تطبيق فلتر نطاق السعر
+    if (filters.price_range.min) {
+      const minPrice = parseFloat(filters.price_range.min);
+      if (!isNaN(minPrice)) {
+        filtered = filtered.filter(product => {
+          const price = typeof product.product_price === 'string' 
+            ? parseFloat(product.product_price) 
+            : product.product_price;
+          return price >= minPrice;
+        });
+      }
+    }
+
+    if (filters.price_range.max) {
+      const maxPrice = parseFloat(filters.price_range.max);
+      if (!isNaN(maxPrice)) {
+        filtered = filtered.filter(product => {
+          const price = typeof product.product_price === 'string' 
+            ? parseFloat(product.product_price) 
+            : product.product_price;
+          return price <= maxPrice;
+        });
+      }
+    }
+
+    // تطبيق الترتيب
+    filtered.sort((a, b) => {
+      let aValue: any, bValue: any;
+      
+      switch (filters.sort_by) {
+        case 'name':
+          aValue = a.product_name.toLowerCase();
+          bValue = b.product_name.toLowerCase();
+          break;
+        case 'price':
+          aValue = typeof a.product_price === 'string' ? parseFloat(a.product_price) : a.product_price;
+          bValue = typeof b.product_price === 'string' ? parseFloat(b.product_price) : b.product_price;
+          break;
+        case 'stock':
+          aValue = a.stock_quantity;
+          bValue = b.stock_quantity;
+          break;
+        case 'sku':
+          aValue = a.product_sku.toLowerCase();
+          bValue = b.product_sku.toLowerCase();
+          break;
+        case 'created_at':
+          // نظراً لأن البيانات لا تحتوي على created_at، سنستخدم الترتيب الحالي
+          return 0;
+        default:
+          return 0;
+      }
+
+      if (filters.sort_order === 'asc') {
+        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+      } else {
+        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+      }
+    });
+
+    return filtered;
+  }, []);
 
   const fetchProductsForBarcode = useCallback(async () => {
     setIsLoading(true);
@@ -183,10 +299,57 @@ const QuickBarcodePrintPage = () => {
     fetchProductsForBarcode();
   }, [fetchProductsForBarcode]);
 
+  // تطبيق الفلاتر عند تغيير المنتجات أو الفلاتر
+  useEffect(() => {
+    const filtered = filterAndSortProducts(products, searchAndFilter);
+    setFilteredProducts(filtered);
+    setSelectAll(false); // إعادة تعيين تحديد الكل عند تغيير الفلاتر
+  }, [products, searchAndFilter, filterAndSortProducts]);
+
   useEffect(() => {
     // Initial toast message
     toast.info('مرحباً بك في صفحة الطباعة السريعة للباركود!');
   }, []);
+
+  // دوال التعامل مع البحث والفلترة
+  const handleSearchChange = (value: string) => {
+    setSearchAndFilter(prev => ({
+      ...prev,
+      search_query: value
+    }));
+  };
+
+  const handleSortChange = (field: SearchAndFilter['sort_by']) => {
+    setSearchAndFilter(prev => ({
+      ...prev,
+      sort_by: field,
+      // عكس الترتيب إذا كان نفس الحقل
+      sort_order: prev.sort_by === field && prev.sort_order === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  const handleFilterChange = <K extends keyof SearchAndFilter>(
+    key: K,
+    value: SearchAndFilter[K]
+  ) => {
+    setSearchAndFilter(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  const clearFilters = () => {
+    setSearchAndFilter({
+      search_query: '',
+      sort_by: 'name',
+      sort_order: 'asc',
+      stock_filter: 'all',
+      price_range: {
+        min: '',
+        max: ''
+      }
+    });
+  };
 
   const handleSelectProduct = (productId: string) => {
     setProducts((prevProducts) =>
@@ -717,10 +880,125 @@ const QuickBarcodePrintPage = () => {
                     htmlFor="selectAllProducts"
                     className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                 >
-                    تحديد الكل ({products.filter(p => p.selected).length} / {products.length})
+                    تحديد الكل ({products.filter(p => p.selected).length} / {filteredProducts.length})
                 </label>
                 </div>
             )}
+          </div>
+
+          {/* قسم البحث والفلترة */}
+          <div className="mb-6 space-y-4">
+            {/* شريط البحث */}
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1 relative">
+                <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                <Input
+                  placeholder="ابحث بالاسم أو SKU أو الباركود..."
+                  value={searchAndFilter.search_query}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  className="pr-10"
+                />
+              </div>
+              <Button 
+                variant="outline" 
+                onClick={clearFilters}
+                className="whitespace-nowrap"
+              >
+                <Filter className="h-4 w-4 ml-2" />
+                مسح الفلاتر
+              </Button>
+            </div>
+
+            {/* فلاتر متقدمة */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* ترتيب حسب */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium flex items-center gap-2">
+                  <Package className="h-4 w-4" />
+                  ترتيب حسب
+                </Label>
+                <Select 
+                  value={`${searchAndFilter.sort_by}-${searchAndFilter.sort_order}`} 
+                  onValueChange={(value) => {
+                    const [field, order] = value.split('-') as [SearchAndFilter['sort_by'], 'asc' | 'desc'];
+                    setSearchAndFilter(prev => ({ ...prev, sort_by: field, sort_order: order }));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="name-asc">الاسم (أ-ي)</SelectItem>
+                    <SelectItem value="name-desc">الاسم (ي-أ)</SelectItem>
+                    <SelectItem value="price-asc">السعر (من الأقل)</SelectItem>
+                    <SelectItem value="price-desc">السعر (من الأعلى)</SelectItem>
+                    <SelectItem value="stock-asc">المخزون (من الأقل)</SelectItem>
+                    <SelectItem value="stock-desc">المخزون (من الأكثر)</SelectItem>
+                    <SelectItem value="sku-asc">SKU (أ-ي)</SelectItem>
+                    <SelectItem value="sku-desc">SKU (ي-أ)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* فلتر المخزون */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">حالة المخزون</Label>
+                <Select 
+                  value={searchAndFilter.stock_filter} 
+                  onValueChange={(value: SearchAndFilter['stock_filter']) => 
+                    handleFilterChange('stock_filter', value)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">جميع المنتجات</SelectItem>
+                    <SelectItem value="in_stock">متوفر (أكثر من 5)</SelectItem>
+                    <SelectItem value="low_stock">مخزون منخفض (1-5)</SelectItem>
+                    <SelectItem value="out_of_stock">نفد المخزون (0)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* نطاق السعر - الحد الأدنى */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">السعر من</Label>
+                <Input
+                  type="number"
+                  placeholder="الحد الأدنى"
+                  value={searchAndFilter.price_range.min}
+                  onChange={(e) => handleFilterChange('price_range', {
+                    ...searchAndFilter.price_range,
+                    min: e.target.value
+                  })}
+                />
+              </div>
+
+              {/* نطاق السعر - الحد الأعلى */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">السعر إلى</Label>
+                <Input
+                  type="number"
+                  placeholder="الحد الأعلى"
+                  value={searchAndFilter.price_range.max}
+                  onChange={(e) => handleFilterChange('price_range', {
+                    ...searchAndFilter.price_range,
+                    max: e.target.value
+                  })}
+                />
+              </div>
+            </div>
+
+            {/* عرض إحصائيات النتائج */}
+            <div className="flex justify-between items-center text-sm text-muted-foreground">
+              <span>
+                عرض {filteredProducts.length} من أصل {products.length} منتج
+              </span>
+              {searchAndFilter.search_query && (
+                <span>نتائج البحث عن: "{searchAndFilter.search_query}"</span>
+              )}
+            </div>
           </div>
 
           {products.length === 0 && !isLoading && (
@@ -728,7 +1006,18 @@ const QuickBarcodePrintPage = () => {
               لم يتم العثور على منتجات. قد تحتاج إلى إضافة منتجات أولاً أو التحقق من الدالة `get_products_for_barcode_printing` في قاعدة البيانات.
             </p>
           )}
-          {products.length > 0 && (
+          {filteredProducts.length === 0 && products.length > 0 && (
+            <div className="text-center py-8">
+              <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground">
+                لا توجد منتجات تطابق معايير البحث والفلترة
+              </p>
+              <Button variant="outline" onClick={clearFilters} className="mt-2">
+                مسح الفلاتر
+              </Button>
+            </div>
+          )}
+          {filteredProducts.length > 0 && (
             <div className="max-h-[500px] overflow-y-auto border rounded-md">
               <Table>
                 <TableHeader className="sticky top-0 bg-background z-10">
@@ -741,15 +1030,44 @@ const QuickBarcodePrintPage = () => {
                         aria-label="Select all rows"
                       />
                     </TableHead>
-                    <TableHead>اسم المنتج</TableHead>
-                    <TableHead>SKU</TableHead>
-                    <TableHead className="text-center">المخزون</TableHead>
+                    <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSortChange('name')}>
+                      <div className="flex items-center gap-2">
+                        اسم المنتج
+                        {searchAndFilter.sort_by === 'name' && (
+                          searchAndFilter.sort_order === 'asc' ? <SortAsc className="h-4 w-4" /> : <SortDesc className="h-4 w-4" />
+                        )}
+                      </div>
+                    </TableHead>
+                    <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSortChange('sku')}>
+                      <div className="flex items-center gap-2">
+                        SKU
+                        {searchAndFilter.sort_by === 'sku' && (
+                          searchAndFilter.sort_order === 'asc' ? <SortAsc className="h-4 w-4" /> : <SortDesc className="h-4 w-4" />
+                        )}
+                      </div>
+                    </TableHead>
+                    <TableHead className="text-center cursor-pointer hover:bg-muted/50" onClick={() => handleSortChange('stock')}>
+                      <div className="flex items-center justify-center gap-2">
+                        المخزون
+                        {searchAndFilter.sort_by === 'stock' && (
+                          searchAndFilter.sort_order === 'asc' ? <SortAsc className="h-4 w-4" /> : <SortDesc className="h-4 w-4" />
+                        )}
+                      </div>
+                    </TableHead>
+                    <TableHead className="w-[120px] text-center cursor-pointer hover:bg-muted/50" onClick={() => handleSortChange('price')}>
+                      <div className="flex items-center justify-center gap-2">
+                        السعر
+                        {searchAndFilter.sort_by === 'price' && (
+                          searchAndFilter.sort_order === 'asc' ? <SortAsc className="h-4 w-4" /> : <SortDesc className="h-4 w-4" />
+                        )}
+                      </div>
+                    </TableHead>
                     <TableHead className="w-[150px] text-center">عدد النسخ</TableHead>
                     <TableHead className="w-[180px] text-center">استخدام كمية المخزون</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {products.map((product) => (
+                  {filteredProducts.map((product) => (
                     <TableRow key={product.product_id} className={product.selected ? 'bg-muted/50' : ''}>
                       <TableCell>
                         <Checkbox
@@ -759,9 +1077,33 @@ const QuickBarcodePrintPage = () => {
                           aria-label={`Select ${product.product_name}`}
                         />
                       </TableCell>
-                      <TableCell className="font-medium">{product.product_name}</TableCell>
-                      <TableCell>{product.product_sku}</TableCell>
-                      <TableCell className="text-center">{product.stock_quantity}</TableCell>
+                      <TableCell className="font-medium">
+                        <div className="max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap" title={product.product_name}>
+                          {product.product_name}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <code className="text-xs">{product.product_sku}</code>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          product.stock_quantity === 0 
+                            ? 'bg-red-100 text-red-800' 
+                            : product.stock_quantity <= 5 
+                            ? 'bg-yellow-100 text-yellow-800' 
+                            : 'bg-green-100 text-green-800'
+                        }`}>
+                          {product.stock_quantity}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <span className="font-medium">
+                          {typeof product.product_price === 'number' 
+                            ? product.product_price.toFixed(2) 
+                            : parseFloat(product.product_price).toFixed(2)
+                          } د.ج
+                        </span>
+                      </TableCell>
                       <TableCell className="text-center">
                         <Input
                           type="number"
