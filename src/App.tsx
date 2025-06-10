@@ -113,6 +113,7 @@ import { useSessionTracking } from './hooks/useSessionTracking';
 import { isElectron } from '@/lib/isElectron';
 import { useTenant } from '@/context/TenantContext';
 import { getCategoryById, getCategories } from '@/lib/api/categories';
+import PerformanceMonitor from './components/PerformanceMonitor';
 
 // تحقق ما إذا كان التطبيق يعمل في بيئة Electron
 const isRunningInElectron = isElectron();
@@ -771,6 +772,12 @@ const App = () => {
                   <Route path="*" element={<NotFound />} />
                 </Routes>
                 <SyncManagerWrapper />
+                
+                {/* 🚀 PERFORMANCE MONITOR: Million.js Enhanced */}
+                <PerformanceMonitor 
+                  enabled={import.meta.env.DEV || window.location.search.includes('debug=performance')}
+                  logToConsole={import.meta.env.DEV}
+                />
               </HelmetProvider>
             </ShopProvider>
           </SupabaseProvider>

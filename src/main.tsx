@@ -1,3 +1,11 @@
+// 🚀 PERFORMANCE OPTIMIZATION: Critical CSS Injection (أولاً قبل كل شيء)
+import { injectCriticalCSS } from './utils/criticalCss';
+
+// حقن Critical CSS فوراً قبل أي شيء آخر
+if (typeof document !== 'undefined') {
+  injectCriticalCSS();
+}
+
 // استيراد ملف polyfill لـ module قبل أي استيراد آخر
 import './lib/module-polyfill';
 
@@ -360,4 +368,43 @@ if (root) {
   );
 } else {
   console.error("فشل في العثور على عنصر الـ root أو إنشاءه.");
+}
+
+// 🚀 PERFORMANCE OPTIMIZATION: Register Advanced Service Worker
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', async () => {
+    try {
+      const registration = await navigator.serviceWorker.register('/sw-advanced.js', {
+        scope: '/',
+        updateViaCache: 'none' // Always check for updates
+      });
+      
+      console.log('✅ Service Worker registered successfully:', registration.scope);
+      
+      // Handle updates
+      registration.addEventListener('updatefound', () => {
+        const newWorker = registration.installing;
+        if (newWorker) {
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // New content available, could notify user
+              console.log('🔄 New content available, reloading...');
+              
+              // Send message to new SW to skip waiting
+              newWorker.postMessage({ type: 'SKIP_WAITING' });
+            }
+          });
+        }
+      });
+      
+      // Listen for SW controller change
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        // Reload when new SW takes control
+        window.location.reload();
+      });
+      
+    } catch (error) {
+      console.warn('❌ Service Worker registration failed:', error);
+    }
+  });
 }

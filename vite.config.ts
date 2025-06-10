@@ -7,6 +7,8 @@ import csp from 'vite-plugin-csp-guard';
 import type { Connect, ViteDevServer } from 'vite';
 import { ServerResponse, IncomingMessage } from 'http';
 import type { ModuleFormat, OutputOptions } from 'rollup';
+import { visualizer } from 'rollup-plugin-visualizer';
+import million from 'million/compiler';
 
 // تكوين استيراد ملفات Markdown كنصوص
 function rawContentPlugin(): Plugin {
@@ -145,6 +147,10 @@ export default defineConfig(({ mode }: { mode: string }) => {
       }
     },
     plugins: [
+      // 🚀 PERFORMANCE BOOST: Million.js للأداء الفائق
+      million.vite({ 
+        auto: true // تفعيل التحسين التلقائي
+      }),
       react(),
       nodePolyfills({
         protocolImports: true,
@@ -253,6 +259,14 @@ export default defineConfig(({ mode }: { mode: string }) => {
           sri: true // تفعيل Subresource Integrity
         }
       }),
+      // إضافة Bundle Analyzer للإنتاج
+      isProduction && visualizer({
+        filename: 'dist/bundle-analysis.html',
+        open: false,
+        gzipSize: true,
+        brotliSize: true,
+        template: 'treemap', // أو 'sunburst' أو 'network'
+      }),
     ].filter(Boolean),
     resolve: {
       alias: {
@@ -295,11 +309,19 @@ export default defineConfig(({ mode }: { mode: string }) => {
       sourcemap: true, // Source map enabled for all builds for easier debugging
       // تحسينات بناء Electron + PERFORMANCE OPTIMIZATION
       target: ['es2020', 'edge88', 'firefox78', 'chrome87', 'safari14'],
-      minify: isProduction ? 'esbuild' as const : false, // استخدام esbuild للتصغير السريع
+      minify: isProduction ? 'terser' as const : false, // تغيير إلى terser للضغط الأفضل
       terserOptions: isProduction ? {
         compress: {
-          drop_console: true, // قد نرغب في تعطيل هذا أيضًا لرؤية أي console.logs من المكتبات
-          drop_debugger: true
+          drop_console: true,
+          drop_debugger: true,
+          pure_funcs: ['console.log', 'console.info', 'console.debug'],
+          passes: 2 // تشغيل الضغط مرتين للحصول على نتائج أفضل
+        },
+        mangle: {
+          safari10: true,
+        },
+        format: {
+          comments: false,
         }
       } : undefined,
       // التأكد من أن جميع المسارات نسبية
@@ -345,12 +367,7 @@ export default defineConfig(({ mode }: { mode: string }) => {
               '@hookform/resolvers'
             ],
             
-            // PERFORMANCE OPTIMIZATION: Store components في bundle منفصل
-            'store-components': [
-              'src/components/store/LazyStoreComponents',
-              'src/components/store/StoreTracking',
-              'src/components/store/StoreServices'
-            ],
+
           },
           
           // تسمية الملفات المحسنة

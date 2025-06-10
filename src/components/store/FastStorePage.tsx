@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo, Suspense } from 'react';
+import { block } from 'million/react';
 import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
 import Navbar from '@/components/Navbar';
@@ -37,8 +38,10 @@ const StoreServices = React.lazy(() => import('./StoreServices'));
 // 🎯 OPTIMIZED COMPONENTS
 // =================================================================
 
-// High-performance loading component
-const OptimizedLoader = React.memo(() => (
+// 🚀 MILLION.JS OPTIMIZED COMPONENTS
+
+// High-performance loading component - Million.js optimized
+const OptimizedLoader = block(() => (
   <div className="flex items-center justify-center py-8" role="status" aria-label="جاري التحميل">
     <div className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin"></div>
     <span className="sr-only">جاري التحميل...</span>
@@ -75,8 +78,8 @@ const useIntersectionObserver = (options = {}) => {
   return [targetRef, isIntersecting] as const;
 };
 
-// Optimized Section Component
-const LazySection = React.memo<{
+// Optimized Section Component - Million.js block
+const LazySection = block<{
   children: React.ReactNode;
   fallback?: React.ReactNode;
   threshold?: number;
@@ -496,4 +499,7 @@ const FastStorePage = React.memo<FastStorePageProps>(({
 
 FastStorePage.displayName = 'FastStorePage';
 
-export default FastStorePage; 
+// 🚀 MILLION.JS OPTIMIZATION: تحسين المكون الرئيسي
+const OptimizedFastStorePage = block(FastStorePage);
+
+export default OptimizedFastStorePage; 
