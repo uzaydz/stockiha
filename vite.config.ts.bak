@@ -7,6 +7,7 @@ import csp from 'vite-plugin-csp-guard';
 import type { Connect, ViteDevServer } from 'vite';
 import { ServerResponse, IncomingMessage } from 'http';
 import type { ModuleFormat, OutputOptions } from 'rollup';
+import { visualizer } from 'rollup-plugin-visualizer'
 
 // تكوين استيراد ملفات Markdown كنصوص
 function rawContentPlugin(): Plugin {
@@ -51,6 +52,34 @@ export default defineConfig(({ mode }: { mode: string }) => {
   
   return {
     base: '/',
+    define: {
+      'process.env': Object.keys(env).reduce((acc, key) => {
+        acc[key] = JSON.stringify(env[key]);
+        return acc;
+      }, {} as { [key: string]: string }),
+    },
+    resolve: {
+      alias: {
+        "@": path.resolve(__dirname, './src'),
+        "react": path.resolve(__dirname, "node_modules/react"),
+        "react-dom": path.resolve(__dirname, "node_modules/react-dom"),
+        stream: 'stream-browserify',
+        path: 'path-browserify',
+        util: 'util',
+        buffer: 'buffer',
+        crypto: 'crypto-browserify',
+        assert: 'assert',
+        http: 'stream-http',
+        https: 'https-browserify',
+        os: 'os-browserify',
+        url: 'url',
+        zlib: 'browserify-zlib',
+        fs: 'memfs',
+      },
+      dedupe: ['react', 'react-dom'],
+      // تحسينات للتوافق مع Electron
+      mainFields: ['browser', 'module', 'jsnext:main', 'jsnext']
+    },
     server: {
       host: true,
       port: 8080,
@@ -253,27 +282,13 @@ export default defineConfig(({ mode }: { mode: string }) => {
           sri: true // تفعيل Subresource Integrity
         }
       }),
+      visualizer({
+        filename: 'dist/stats.html',
+        open: true,
+        gzipSize: true,
+        brotliSize: true
+      })
     ].filter(Boolean),
-    resolve: {
-      alias: {
-        "@": path.resolve(__dirname, "./src"),
-        stream: 'stream-browserify',
-        path: 'path-browserify',
-        util: 'util',
-        buffer: 'buffer',
-        crypto: 'crypto-browserify',
-        assert: 'assert',
-        http: 'stream-http',
-        https: 'https-browserify',
-        os: 'os-browserify',
-        url: 'url',
-        zlib: 'browserify-zlib',
-        fs: 'memfs',
-      },
-      dedupe: ['react', 'react-dom'],
-      // تحسينات للتوافق مع Electron
-      mainFields: ['browser', 'module', 'jsnext:main', 'jsnext']
-    },
     define: {
       '__dirname': JSON.stringify('/'),
       'process.env': process.env,
@@ -293,13 +308,20 @@ export default defineConfig(({ mode }: { mode: string }) => {
       assetsDir: 'assets',
       emptyOutDir: true,
       sourcemap: true, // Source map enabled for all builds for easier debugging
-      // تحسينات بناء Electron + PERFORMANCE OPTIMIZATION
-      target: ['es2020', 'edge88', 'firefox78', 'chrome87', 'safari14'],
-      minify: isProduction ? 'esbuild' as const : false, // استخدام esbuild للتصغير السريع
+      // تحسينات بناء Electron
+      target: 'esnext',
+      minify: isProduction ? 'terser' as const : false,
       terserOptions: isProduction ? {
         compress: {
-          drop_console: true, // قد نرغب في تعطيل هذا أيضًا لرؤية أي console.logs من المكتبات
-          drop_debugger: true
+          drop_console: false, // تغيير إلى false للحفاظ على console statements
+          drop_debugger: true,
+          pure_funcs: [], // إزالة pure_funcs لمنع حذف الكود المهم
+          keep_fnames: true, // الحفاظ على أسماء الدوال
+          keep_classnames: true // الحفاظ على أسماء الكلاسات
+        },
+        mangle: {
+          keep_fnames: true, // منع تغيير أسماء الدوال مثل forwardRef
+          reserved: ['React', 'forwardRef', 'memo', 'lazy', 'Suspense', 'Slot', 'createSlot'] // حماية أسماء React و Radix
         }
       } : undefined,
       // التأكد من أن جميع المسارات نسبية
@@ -309,96 +331,61 @@ export default defineConfig(({ mode }: { mode: string }) => {
         },
         output: {
           format: 'esm' as ModuleFormat,
-          // تقسيم الحزم الذكي لتحسين الأداء
-          manualChunks: {
-            // React والمكتبات الأساسية
-            'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-            
-            // مكتبات UI
-            'ui-vendor': [
-              'lucide-react',
-              'framer-motion',
-              '@radix-ui/react-dialog',
-              '@radix-ui/react-dropdown-menu',
-              '@radix-ui/react-tooltip',
-              '@radix-ui/react-tabs',
-              '@radix-ui/react-select',
-              '@radix-ui/react-checkbox',
-              '@radix-ui/react-radio-group',
-              '@radix-ui/react-slider',
-              '@radix-ui/react-switch',
-              '@radix-ui/react-progress',
-            ],
-            
-            // Supabase وقواعد البيانات
-            'database-vendor': ['@supabase/supabase-js'],
-            
-            // مكتبات أخرى
-            'utils-vendor': [
-              'date-fns',
-              'clsx',
-              'class-variance-authority',
-              'tailwind-merge',
-              'react-helmet-async',
-              'zod',
-              'react-hook-form',
-              '@hookform/resolvers'
-            ],
-            
-            // PERFORMANCE OPTIMIZATION: Store components في bundle منفصل
-            'store-components': [
-              'src/components/store/LazyStoreComponents',
-              'src/components/store/StoreTracking',
-              'src/components/store/StoreServices'
-            ],
+          // ضمان تحميل React قبل أي شيء آخر
+          inlineDynamicImports: false,
+          manualChunks: (id) => {
+            if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+              return 'react-vendor';
+            }
+            if (id.includes('node_modules')) {
+              return 'vendor';
+            }
           },
-          
-          // تسمية الملفات المحسنة
-          chunkFileNames: 'assets/js/[name]-[hash].js',
-          entryFileNames: 'assets/js/[name]-[hash].js',
-          
+          chunkFileNames: (chunkInfo) => {
+            const facadeModuleId = chunkInfo.facadeModuleId ? 
+              chunkInfo.facadeModuleId.split('/').pop().replace('.tsx', '').replace('.ts', '') : 
+              'unknown'
+            return `js/[name]-[hash].js`
+          },
           assetFileNames: (assetInfo) => {
-            const info = assetInfo.name?.split('.') || [];
-            const ext = info[info.length - 1];
-            
-            if (/\.(png|jpe?g|svg|gif|tiff|bmp|ico)$/i.test(assetInfo.name || '')) {
-              return `assets/images/[name]-[hash].${ext}`;
+            const info = assetInfo.name.split('.')
+            const ext = info[info.length - 1]
+            if (/\.(png|jpe?g|svg|gif|tiff|bmp|ico)$/i.test(assetInfo.name)) {
+              return `images/[name]-[hash].${ext}`
             }
-            
-            if (/\.(woff2?|eot|ttf|otf)$/i.test(assetInfo.name || '')) {
-              return `assets/fonts/[name]-[hash].${ext}`;
+            if (/\.(css)$/i.test(assetInfo.name)) {
+              return `css/[name]-[hash].${ext}`
             }
-            
-            if (/\.css$/i.test(assetInfo.name || '')) {
-              return `assets/css/[name]-[hash].${ext}`;
-            }
-            
-            return `assets/[name]-[hash].${ext}`;
-          },
+            return `assets/[name]-[hash].${ext}`
+          }
         } as OutputOptions,
         external: ['perf_hooks'],
-        
-        // PERFORMANCE OPTIMIZATION: Tree shaking محسن
-        treeshake: {
-          preset: 'recommended' as const,
-          manualPureFunctions: ['console.log', 'console.warn'],
-        },
       },
       // تحسين ضغط الصور
-      assetsInlineLimit: 4096, // 4KB
+      assetsInlineLimit: 2048, // تقليل من 4KB إلى 2KB
       // تجنب مشاكل تقسيم الشفرة في Electron
       commonjsOptions: {
         include: [/node_modules/],
         transformMixedEsModules: true,
       },
-      chunkSizeWarningLimit: 500, // تقليل حد التحذير لحجم الملف (500KB) لتحسين الأداء
-      
-      // PERFORMANCE OPTIMIZATION: CSS code splitting
-      cssCodeSplit: true,
+      chunkSizeWarningLimit: 300, // تقليل من 500 إلى 300KB
+      reportCompressedSize: true
     },
-    // تشغيل الشفرة في محتوى واحد في Electron
+    // تحسين بسيط للتبعيات - ضمان تحميل React أولاً
     optimizeDeps: {
-      exclude: ['path-browserify', 'perf_hooks']
+      force: true,
+      include: [
+        'react',
+        'react-dom',
+        'react-router-dom',
+        '@radix-ui/react-slot'
+      ],
+      // التأكد من معالجة React قبل Radix UI
+      esbuildOptions: {
+        define: {
+          global: 'globalThis'
+        }
+      }
     },
     preview: {
       port: 3000,

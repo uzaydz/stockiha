@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 // import { Navigate } from 'react-router-dom'; // Navigate غير مستخدمة حاليًا
 import { getOrganizationByDomain, getOrganizationBySubdomain } from '@/lib/api/subdomain';
 import { extractSubdomainFromHostname } from '@/lib/api/subdomain';
-import StorePage from '@/components/store/StorePage';
+import FastStorePage from '@/components/store/FastStorePage';
 import LandingPage from '@/pages/landing/LandingPage';
 // إزالة getFullStoreData واستيراد الخدمات الجديدة
 // import { getFullStoreData } from '@/api/store'; 
@@ -106,7 +106,7 @@ const StoreRouter = () => {
   }
   
   if (isStore === true && storeData) { // التأكد من وجود storeData أيضًا
-    return <StorePage storeData={storeData} />;
+    return <FastStorePage storeData={storeData} />;
   }
   
   return <LandingPage />;

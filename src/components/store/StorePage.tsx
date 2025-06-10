@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
 import Navbar from '@/components/Navbar';
@@ -53,9 +53,12 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
   const dataFetchAttempted = useRef(false);
   const forceTimerRef = useRef<NodeJS.Timeout | null>(null);
   
-  const storeNameFromDetails = storeData?.organization_details?.name;
-  const storeNameFromSettings = storeSettings?.site_name;
-  const storeName = storeNameFromDetails || storeNameFromSettings || currentSubdomain || 'المتجر الإلكتروني';
+  // PERFORMANCE OPTIMIZATION: Memoized store name calculation
+  const storeName = useMemo(() => {
+    const nameFromDetails = storeData?.organization_details?.name;
+    const nameFromSettings = storeSettings?.site_name;
+    return nameFromDetails || nameFromSettings || currentSubdomain || 'المتجر الإلكتروني';
+  }, [storeData?.organization_details?.name, storeSettings?.site_name, currentSubdomain]);
   
   const [customComponents, setCustomComponents] = useState<StoreComponent[]>(
     initialStoreData?.store_layout_components || []
@@ -86,19 +89,19 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
     };
   }, [dataLoading, storeData, dataError]);
 
-  const getExtendedCategories = () => {
+  // PERFORMANCE OPTIMIZATION: Memoized categories calculation
+  const extendedCategories = useMemo(() => {
     if (!storeData?.categories || storeData.categories.length === 0) {
       return [];
     }
-    const extended = storeData.categories.map(category => ({
+    return storeData.categories.map(category => ({
       ...category,
       imageUrl: category.image_url || '',
       productsCount: category.product_count || 0,
       icon: category.icon || 'folder', 
       color: 'from-blue-500 to-indigo-600' 
     }));
-    return extended;
-  };
+  }, [storeData?.categories]);
 
   // تطبيق ثيم المؤسسة مع منع التطبيق المتكرر
   const applyOrganizationThemeWithRetry = useCallback((orgId: string, settings: {
@@ -458,7 +461,7 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
                   {componentsToRender.map((component, index) => {
                     let categoriesForProps: any[] = [];
                     if (component.type === 'product_categories') {
-                      categoriesForProps = getExtendedCategories();
+                      categoriesForProps = extendedCategories;
                     }
 
                     return (

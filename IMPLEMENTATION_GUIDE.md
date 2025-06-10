@@ -1,48 +1,93 @@
-# دليل تنفيذ الحل النهائي لمشكلة إنشاء المنظمات
+# 🚀 دليل تطبيق تحسينات الأداء على المتجر
 
-## المشكلة
-تحدث أخطاء متكررة عند محاولة إنشاء منظمة جديدة بسبب عدم تطابق في أسماء معاملات وظائف SQL والطريقة التي يتم بها استدعاؤها من التطبيق.
+## 📋 ملخص التحسينات المطلوبة
 
-## خطوات التنفيذ
+بناءً على تحليل PageSpeed Insights، إليك خطة التطبيق الشاملة:
 
-### 1. تطبيق التغييرات على قاعدة البيانات
-قم بتنفيذ ملف `fix_organization_function_final.sql` في قاعدة بيانات Supabase الخاصة بك:
+### 🎯 **المشاكل الحرجة المكتشفة:**
+- **الأداء**: 37/100 → **الهدف**: 85+/100
+- **FCP**: 17.1s → **الهدف**: < 2.5s
+- **LCP**: 26.1s → **الهدف**: < 4s
+- **TBT**: 350ms → **الهدف**: < 200ms
+- **JavaScript**: 2,144 KiB → **الهدف**: < 500 KiB
 
+---
+
+## 🔧 **خطوات التطبيق**
+
+### الخطوة 1: **تحديث تكوين Vite**
+
+#### 1.1 نسخ احتياطي من التكوين الحالي:
 ```bash
-cat fix_organization_function_final.sql | supabase db sql
-```
-أو انسخ محتويات الملف وقم بلصقها في محرر SQL في لوحة تحكم Supabase.
-
-### 2. تطبيق التغييرات على التطبيق
-1. استبدل الملف الحالي `src/lib/api/organization-creation.ts` بالملف المحسن `src/lib/api/organization-creation-fixed.ts`
-2. استبدل الملف الحالي `src/lib/api/tenant-registration.ts` بالملف المحسن `src/lib/api/tenant-registration-fixed.ts`
-3. استبدل الاستيرادات في `src/components/tenant-registration/TenantRegistrationForm.tsx` لتستخدم الملفات الجديدة
-
-### 3. التحقق من التغييرات
-تأكد من تطبيق التغييرات بشكل صحيح:
-
-```sql
--- التحقق من وجود وتعريف الوظائف
-SELECT routine_name, pg_get_function_arguments(p.oid) as args
-FROM pg_proc p
-JOIN pg_namespace n ON p.pronamespace = n.oid
-WHERE routine_name IN ('insert_organization_simple', 'create_organization_safe');
+cp vite.config.ts vite.config.backup.ts
 ```
 
-يجب أن ترى أن أسماء المعاملات هي: 
-- `p_name TEXT, p_subdomain TEXT, p_owner_id UUID, p_settings JSONB`
+#### 1.2 دمج التحسينات مع التكوين الحالي:
+```typescript
+// إضافة هذه التحسينات إلى vite.config.ts الحالي
 
-### 4. تطبيق التغييرات
-قم بإعادة تشغيل التطبيق ومحاولة إنشاء منظمة جديدة.
+// في قسم build، أضف:
+build: {
+  // Target modern browsers for smaller bundles
+  target: ['es2020', 'edge88', 'firefox78', 'chrome87', 'safari14'],
+  
+  // Rollup optimization
+  rollupOptions: {
+    output: {
+      // Advanced chunking strategy
+      manualChunks: {
+        'react-vendor': ['react', 'react-dom'],
+        'routing': ['react-router-dom'],
+        'ui-vendor': ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu'],
+        'store-components': [
+          'src/components/store/LazyStoreComponents',
+          'src/components/store/StoreTracking',
+          'src/components/store/StoreServices'
+        ],
+      },
+      
+      // Optimized file names
+      chunkFileNames: 'js/[name]-[hash].js',
+      entryFileNames: 'js/[name]-[hash].js',
+      assetFileNames: (assetInfo) => {
+        const extType = assetInfo.name?.split('.').pop() || '';
+        if (/png|jpe?g|svg|gif|tiff|bmp|ico/i.test(extType)) {
+          return `img/[name]-[hash][extname]`;
+        }
+        if (/css/i.test(extType)) {
+          return `css/[name]-[hash][extname]`;
+        }
+        return `assets/[name]-[hash][extname]`;
+      },
+    },
+    
+    // Tree shaking
+    treeshake: {
+      preset: 'recommended',
+      manualPureFunctions: ['console.log', 'console.warn'],
+    },
+  },
+  
+  // Chunk size warning
+  chunkSizeWarningLimit: 500,
+  
+  // CSS code splitting
+  cssCodeSplit: true,
+  
+  // Minification
+  minify: 'esbuild',
+},
+```
 
-## ملاحظات مهمة
-- المشكلة الرئيسية كانت عدم تطابق أسماء المعاملات (`org_name` مقابل `p_name`)
-- تم تحسين منطق معالجة الخطأ في وظائف SQL
-- تم إضافة منطق لتجنب استخدام عبارة ON CONFLICT غير المحددة
-- تمت إضافة تحقق مباشر في التطبيق للتأكد من وجود المنظمة قبل استدعاء الوظيفة
+### الخطوة 2: **تطبيق StorePage المحسن**
 
-## اختبار الحل
-يمكنك استخدام ملف `test_solution.js` لاختبار الحل بشكل مستقل.
+#### 2.1 العثور على ملف StorePage الحالي:
+```bash
+find src -name "*StorePage*" -type f
+```
 
-## تعديلات لاحقة محتملة
-يجب مراجعة وظائف SQL الأخرى المشابهة للتأكد من عدم وجود نفس المشكلة فيها. 
+#### 2.2 استبدال StorePage في الـ Routes:
+
+<function_calls>
+<invoke name="grep_search">
+<parameter name="query">StorePage
