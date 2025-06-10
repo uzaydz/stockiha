@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react-swc";
 import * as path from "path";
 import { componentTagger } from "lovable-tagger";
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
-import csp from 'vite-plugin-csp-guard';
+// import csp from 'vite-plugin-csp-guard'; // مُعطل مؤقتاً
 import type { Connect, ViteDevServer } from 'vite';
 import { ServerResponse, IncomingMessage } from 'http';
 import type { ModuleFormat, OutputOptions } from 'rollup';
@@ -180,89 +180,8 @@ export default defineConfig(({ mode }: { mode: string }) => {
       mode === 'development' && componentTagger(),
       contentTypePlugin(),
       rawContentPlugin(),
-      // إضافة CSP plugin فقط إذا لم يكن معطلاً في متغيرات البيئة
-      env.VITE_DISABLE_CSP !== 'true' && csp({
-        dev: {
-          run: true, // تشغيل في وضع التطوير
-        },
-        policy: {
-          'connect-src': [
-            "'self'",
-            'https://api.vercel.com',
-            'https://*.vercel.com',
-            'https://*.vercel.app',
-            'https://*.supabase.co',
-            'https://*.supabase.in',
-            'wss://*.supabase.co',
-            'https://api.yalidine.app',
-            'https://procolis.com',
-            'https://*.sentry.io',
-            'https://www.facebook.com',
-            'https://graph.facebook.com',
-            'https://www.google-analytics.com',
-            'https://analytics.google.com',
-            'https://ads.tiktok.com',
-            'https://analytics.tiktok.com',
-            'https://fonts.googleapis.com',
-            'https://fonts.gstatic.com',
-            'https://images.unsplash.com',
-            'https://cdn.gpteng.co',
-            'ws://localhost:*',
-            'wss://localhost:*',
-            'http://localhost:*',
-            'http://127.0.0.1:*',
-            'ws://127.0.0.1:*'
-          ],
-          'script-src': [
-            "'self'",
-            "'unsafe-inline'",
-            "'unsafe-eval'",
-            'https://cdn.gpteng.co',
-            'https://connect.facebook.net',
-            'https://*.facebook.net',
-            'https://www.facebook.com',
-            'https://*.facebook.com',
-            'https://analytics.tiktok.com',
-            'https://*.tiktok.com',
-            'https://www.googletagmanager.com',
-            'https://*.google-analytics.com',
-            'https://*.googleadservices.com'
-          ],
-          'style-src': [
-            "'self'",
-            "'unsafe-inline'",
-            'https://fonts.googleapis.com'
-          ],
-          'font-src': [
-            "'self'",
-            'https://fonts.gstatic.com'
-          ],
-          'img-src': [
-            "'self'",
-            'data:',
-            'blob:',
-            'https://*.supabase.co',
-            'https://*.supabase.in',
-            'https://cdn.jsdelivr.net',
-            'https://images.unsplash.com',
-            'https://maps.googleapis.com',
-            'https://*.googleusercontent.com',
-            'https://www.gravatar.com',
-            'https://secure.gravatar.com',
-            'https://www.facebook.com',
-            'https://*.facebook.com',
-            'https://analytics.tiktok.com',
-            'https://*.tiktok.com',
-            'https://www.googletagmanager.com',
-            'https://*.google-analytics.com',
-            'https://*.googleadservices.com',
-            'https://cdn.salla.sa'
-          ]
-        },
-        build: {
-          sri: true // تفعيل Subresource Integrity
-        }
-      }),
+      // CSP تم تعطيله مؤقتاً لحل مشاكل الاتصال
+      // env.VITE_DISABLE_CSP !== 'true' && csp({...}),
       // إضافة Bundle Analyzer للإنتاج
       isProduction && visualizer({
         filename: 'dist/bundle-analysis.html',
