@@ -101,6 +101,14 @@ self.addEventListener('fetch', event => {
   // تجاهل طلبات Chrome extension
   if (url.protocol === 'chrome-extension:') return;
   
+  // تجاهل POST requests للـ Supabase RPC وSentry (لتجنب مشاكل الـ caching)
+  if (request.method === 'POST' && 
+      (url.href.includes('supabase.co/rest/v1/rpc') || 
+       url.href.includes('sentry.io'))) {
+    event.respondWith(fetch(request));
+    return;
+  }
+  
   // العثور على الاستراتيجية المناسبة
   const routeStrategy = ROUTE_STRATEGIES.find(route => 
     route.pattern.test(url.pathname) || route.pattern.test(request.url)
@@ -138,6 +146,11 @@ async function handleRequest(request, strategy) {
 
 // Cache First Strategy
 async function cacheFirst(request, cache, maxAge) {
+  // لا نستخدم cache للـ POST requests
+  if (request.method !== 'GET') {
+    return fetch(request);
+  }
+  
   const cachedResponse = await cache.match(request);
   
   if (cachedResponse && !isExpired(cachedResponse, maxAge)) {
@@ -146,7 +159,7 @@ async function cacheFirst(request, cache, maxAge) {
   
   try {
     const networkResponse = await fetch(request);
-    if (networkResponse.ok) {
+    if (networkResponse.ok && request.method === 'GET') {
       cache.put(request, networkResponse.clone());
     }
     return networkResponse;
@@ -160,12 +173,19 @@ async function cacheFirst(request, cache, maxAge) {
 async function networkFirst(request, cache, maxAge) {
   try {
     const networkResponse = await fetch(request);
-    if (networkResponse.ok) {
+    // لا نقوم بـ cache POST requests
+    if (networkResponse.ok && request.method === 'GET') {
       cache.put(request, networkResponse.clone());
     }
     return networkResponse;
   } catch (error) {
     console.warn('[SW] Network failed, trying cache:', error);
+    
+    // لا نحاول استخدام cache للـ POST requests
+    if (request.method !== 'GET') {
+      throw error;
+    }
+    
     const cachedResponse = await cache.match(request);
     
     if (cachedResponse && !isExpired(cachedResponse, maxAge)) {
@@ -178,11 +198,16 @@ async function networkFirst(request, cache, maxAge) {
 
 // Stale While Revalidate Strategy
 async function staleWhileRevalidate(request, cache, maxAge) {
+  // لا نستخدم cache للـ POST requests
+  if (request.method !== 'GET') {
+    return fetch(request);
+  }
+  
   const cachedResponse = await cache.match(request);
   
   // إرجاع النسخة المخزنة فوراً إذا وجدت
   const fetchPromise = fetch(request).then(networkResponse => {
-    if (networkResponse.ok) {
+    if (networkResponse.ok && request.method === 'GET') {
       cache.put(request, networkResponse.clone());
     }
     return networkResponse;
