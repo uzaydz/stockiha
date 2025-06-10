@@ -149,7 +149,7 @@ export default defineConfig(({ mode }: { mode: string }) => {
     plugins: [
       // 🚀 PERFORMANCE BOOST: Million.js للأداء الفائق
       million.vite({ 
-        auto: true // تفعيل التحسين التلقائي
+        auto: false // تعطيل التحسين التلقائي لتجنب الأخطاء
       }),
       react(),
       nodePolyfills({

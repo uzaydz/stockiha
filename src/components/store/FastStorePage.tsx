@@ -40,13 +40,13 @@ const StoreServices = React.lazy(() => import('./StoreServices'));
 
 // 🚀 MILLION.JS OPTIMIZED COMPONENTS
 
-// High-performance loading component - Million.js optimized
-const OptimizedLoader = block(() => (
+// High-performance loading component
+const OptimizedLoader: React.FC = () => (
   <div className="flex items-center justify-center py-8" role="status" aria-label="جاري التحميل">
     <div className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin"></div>
     <span className="sr-only">جاري التحميل...</span>
   </div>
-));
+);
 
 // Intersection Observer Hook للتحميل المؤجل
 const useIntersectionObserver = (options = {}) => {
@@ -78,13 +78,13 @@ const useIntersectionObserver = (options = {}) => {
   return [targetRef, isIntersecting] as const;
 };
 
-// Optimized Section Component - Million.js block
-const LazySection = block<{
+// Optimized Section Component
+const LazySection: React.FC<{
   children: React.ReactNode;
   fallback?: React.ReactNode;
   threshold?: number;
   rootMargin?: string;
-}>(({ 
+}> = ({ 
   children, 
   fallback = <OptimizedLoader />,
   threshold = 0.1,
@@ -103,7 +103,7 @@ const LazySection = block<{
       )}
     </div>
   );
-});
+};
 
 // =================================================================
 // 🚀 MAIN COMPONENT
@@ -113,7 +113,7 @@ interface FastStorePageProps {
   storeData?: Partial<StoreInitializationData>;
 }
 
-const FastStorePage = React.memo<FastStorePageProps>(({ 
+const FastStorePage: React.FC<FastStorePageProps> = ({ 
   storeData: initialStoreData = {} 
 }) => {
   const { currentSubdomain } = useAuth();
@@ -495,11 +495,11 @@ const FastStorePage = React.memo<FastStorePageProps>(({
       )}
     </>
   );
-});
+};
 
 FastStorePage.displayName = 'FastStorePage';
 
 // 🚀 MILLION.JS OPTIMIZATION: تحسين المكون الرئيسي
-const OptimizedFastStorePage = block(FastStorePage);
+const OptimizedFastStorePage = React.memo(FastStorePage);
 
 export default OptimizedFastStorePage; 
