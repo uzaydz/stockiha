@@ -1359,3 +1359,159 @@ export async function checkUserRequires2FA(
     };
   }
 }
+
+/**
+ * الحصول على حالة المصادقة الثنائية
+ */
+export async function getTwoFactorStatus(): Promise<{
+  enabled: boolean;
+  method?: string;
+  backup_codes_count?: number;
+  setup_completed?: boolean;
+}> {
+  try {
+    const settings = await getSecuritySettings();
+    
+    if (!settings) {
+      return {
+        enabled: false,
+        setup_completed: false
+      };
+    }
+
+    return {
+      enabled: settings.two_factor_enabled || false,
+      method: settings.two_factor_method || undefined,
+      backup_codes_count: settings.backup_codes_used ? 
+        (10 - settings.backup_codes_used.length) : 0,
+      setup_completed: !!(settings.totp_secret && settings.totp_secret.trim())
+    };
+  } catch (error) {
+    return {
+      enabled: false,
+      setup_completed: false
+    };
+  }
+}
+
+/**
+ * التحقق من رمز المصادقة الثنائية (مع التحقق في جانب العميل)
+ */
+export async function verifyTwoFactorCode(code: string): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  try {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      return {
+        success: false,
+        error: 'المستخدم غير مصادق عليه'
+      };
+    }
+
+    // جلب إعدادات المصادقة الثنائية
+    const { data: settings } = await supabase
+      .from('user_security_settings')
+      .select('totp_secret, backup_codes, backup_codes_used')
+      .eq('user_id', user.id)
+      .single();
+
+    if (!settings?.totp_secret) {
+      return {
+        success: false,
+        error: 'المصادقة الثنائية غير مفعلة'
+      };
+    }
+
+    // استخدام verify2FAForLogin للتحقق
+    const result = await verify2FAForLogin(user.id, code);
+    return result;
+  } catch (error) {
+    return {
+      success: false,
+      error: 'حدث خطأ غير متوقع'
+    };
+  }
+}
+
+/**
+ * إعادة توليد backup codes
+ */
+export async function regenerateBackupCodes(): Promise<{
+  success: boolean;
+  backup_codes?: string[];
+  error?: string;
+}> {
+  try {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      return {
+        success: false,
+        error: 'المستخدم غير مصادق عليه'
+      };
+    }
+
+    const { data, error } = await (supabase as any)
+      .rpc('regenerate_backup_codes', { p_user_id: user.id });
+
+    if (error) {
+      return {
+        success: false,
+        error: 'فشل في إعادة توليد backup codes'
+      };
+    }
+
+    return {
+      success: data.success,
+      backup_codes: data.backup_codes,
+      error: data.error
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: 'حدث خطأ غير متوقع'
+    };
+  }
+}
+
+/**
+ * إعادة تعيين المصادقة الثنائية
+ */
+export async function resetTwoFactorAuth(): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  try {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      return {
+        success: false,
+        error: 'المستخدم غير مصادق عليه'
+      };
+    }
+
+    const { data, error } = await (supabase as any)
+      .rpc('reset_two_factor_auth', { p_user_id: user.id });
+
+    if (error) {
+      return {
+        success: false,
+        error: 'فشل في إعادة تعيين المصادقة الثنائية'
+      };
+    }
+
+    return {
+      success: data.success,
+      error: data.error
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: 'حدث خطأ غير متوقع'
+    };
+  }
+}
