@@ -100,6 +100,7 @@ const SignupForm = () => {
               required
               className="text-right"
               dir="rtl"
+              autoComplete="new-password"
             />
           </div>
           <div className="space-y-2">
@@ -113,6 +114,7 @@ const SignupForm = () => {
               required
               className="text-right"
               dir="rtl"
+              autoComplete="new-password"
             />
           </div>
           <Button type="submit" className="w-full" disabled={isLoading}>

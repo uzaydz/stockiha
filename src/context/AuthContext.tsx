@@ -41,6 +41,7 @@ export interface AuthContextType {
   currentSubdomain: string | null;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ success: boolean; error: Error | null }>;
+  signUp: (email: string, password: string, name: string) => Promise<{ success: boolean; error: Error | null }>;
   signOut: () => Promise<void>;
   refreshData: () => Promise<void>;
 }
@@ -617,6 +618,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const signUp = async (email: string, password: string, name: string) => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signUp({ 
+        email, 
+        password,
+        options: {
+          data: {
+            name: name
+          }
+        }
+      });
+      
+      if (error) {
+        setIsLoading(false);
+        return { success: false, error };
+      }
+      
+      if (data.session && data.user) {
+        updateAuthState(data.session, data.user);
+      }
+      
+      return { success: true, error: null };
+    } catch (error) {
+      setIsLoading(false);
+      return { success: false, error: error as Error };
+    }
+  };
+
   const signOut = useCallback(async () => {
     await signOutAndClearState();
   }, [signOutAndClearState]);
@@ -629,9 +659,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     currentSubdomain,
     isLoading,
     signIn,
+    signUp,
     signOut,
     refreshData,
-  }), [session, user, userProfile, organization, currentSubdomain, isLoading, signIn, signOut, refreshData]);
+  }), [session, user, userProfile, organization, currentSubdomain, isLoading, signIn, signUp, signOut, refreshData]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

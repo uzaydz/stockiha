@@ -912,247 +912,6 @@ export async function disableTwoFactorAuth(verificationCode: string): Promise<{
 }
 
 /**
- * التحقق من رمز المصادقة الثنائية (مع التحقق في جانب العميل)
- */
-export async function verifyTwoFactorCode(code: string): Promise<{
-  success: boolean;
-  error?: string;
-}> {
-  try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
-      return {
-        success: false,
-        error: 'المستخدم غير مصادق عليه'
-      };
-    }
-
-    // جلب إعدادات المصادقة الثنائية
-    const { data: settings } = await supabase
-      .from('user_security_settings')
-      .select('totp_secret, backup_codes, backup_codes_used')
-      .eq('user_id', user.id)
-      .single();
-
-    if (!settings?.totp_secret) {
-      return {
-        success: false,
-        error: 'المصادقة الثنائية غير مفعلة'
-      };
-    }
-
-    // التحقق من رمز TOTP أولاً
-    const isValidTOTP = await verifyTOTP(settings.totp_secret, code, 2);
-    
-    if (isValidTOTP) {
-      return { success: true };
-    }
-
-    // إذا فشل TOTP، تحقق من backup codes
-    if (settings.backup_codes && Array.isArray(settings.backup_codes)) {
-      const usedCodes = Array.isArray(settings.backup_codes_used) 
-        ? settings.backup_codes_used 
-        : [];
-
-      if (settings.backup_codes.includes(code) && !usedCodes.includes(code)) {
-        // إضافة الرمز إلى المستخدمة
-        const newUsedCodes = [...usedCodes, code];
-        
-        await supabase
-          .from('user_security_settings')
-          .update({
-            backup_codes_used: newUsedCodes,
-            updated_at: new Date().toISOString()
-          })
-          .eq('user_id', user.id);
-
-        return { success: true };
-      }
-    }
-
-    // Debug info للتطوير
-    await debugTOTP(settings.totp_secret);
-    
-    return {
-      success: false,
-      error: 'رمز التحقق غير صحيح'
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: 'حدث خطأ غير متوقع'
-    };
-  }
-}
-
-/**
- * إعادة توليد backup codes
- */
-export async function regenerateBackupCodes(): Promise<{
-  success: boolean;
-  error?: string;
-  backup_codes?: string[];
-}> {
-  try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
-      return {
-        success: false,
-        error: 'المستخدم غير مصادق عليه'
-      };
-    }
-
-    const { data, error } = await (supabase as any)
-      .rpc('regenerate_backup_codes', { p_user_id: user.id });
-
-    if (error) {
-      return {
-        success: false,
-        error: 'فشل في إعادة توليد backup codes'
-      };
-    }
-
-    return {
-      success: data.success,
-      error: data.error,
-      backup_codes: data.backup_codes
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: 'حدث خطأ غير متوقع'
-    };
-  }
-}
-
-/**
- * إعادة تعيين المصادقة الثنائية
- */
-export async function resetTwoFactorAuth(): Promise<{
-  success: boolean;
-  error?: string;
-}> {
-  try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
-      return {
-        success: false,
-        error: 'المستخدم غير مصادق عليه'
-      };
-    }
-
-    const { data, error } = await (supabase as any)
-      .rpc('reset_two_factor_auth', { p_user_id: user.id });
-
-    if (error) {
-      return {
-        success: false,
-        error: 'فشل في إعادة تعيين المصادقة الثنائية'
-      };
-    }
-
-    return {
-      success: data.success,
-      error: data.error
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: 'حدث خطأ غير متوقع'
-    };
-  }
-}
-
-/**
- * الحصول على حالة المصادقة الثنائية
- */
-export async function getTwoFactorStatus(): Promise<{
-  enabled: boolean;
-  method?: string;
-  backup_codes_count?: number;
-  setup_completed?: boolean;
-}> {
-  try {
-    const settings = await getSecuritySettings();
-    
-    if (!settings) {
-      return {
-        enabled: false,
-        setup_completed: false
-      };
-    }
-
-    return {
-      enabled: settings.two_factor_enabled || false,
-      method: settings.two_factor_method || undefined,
-      backup_codes_count: settings.backup_codes_used ? 
-        (10 - settings.backup_codes_used.length) : 0,
-      setup_completed: !!(settings.totp_secret && settings.totp_secret.trim())
-    };
-  } catch (error) {
-    return {
-      enabled: false,
-      setup_completed: false
-    };
-  }
-}
-
-/**
- * التحقق إذا كان المستخدم يحتاج للمصادقة الثنائية
- */
-export async function checkUserRequires2FA(
-  email: string,
-  organizationId?: string,
-  domain?: string,
-  subdomain?: string
-): Promise<{
-  userExists: boolean;
-  userId?: string;
-  userName?: string;
-  requires2FA: boolean;
-  organizationId?: string;
-  error?: string;
-}> {
-  try {
-    const { data, error } = await (supabase as any)
-      .rpc('check_user_requires_2fa', { 
-        p_user_email: email,
-        p_organization_id: organizationId || null,
-        p_domain: domain || null,
-        p_subdomain: subdomain || null
-      });
-
-    if (error) {
-      return {
-        userExists: false,
-        requires2FA: false,
-        error: 'فشل في التحقق من متطلبات المصادقة الثنائية'
-      };
-    }
-
-    const result = {
-      userExists: data.user_exists,
-      userId: data.user_id,
-      userName: data.user_name,
-      requires2FA: data.requires_2fa,
-      organizationId: data.organization_id,
-      error: data.error
-    };
-
-    return result;
-  } catch (error) {
-    return {
-      userExists: false,
-      requires2FA: false,
-      error: 'حدث خطأ غير متوقع'
-    };
-  }
-}
-
-/**
  * التحقق من رمز المصادقة الثنائية عند تسجيل الدخول
  */
 export async function verify2FAForLogin(userId: string, code: string): Promise<{
@@ -1160,19 +919,45 @@ export async function verify2FAForLogin(userId: string, code: string): Promise<{
   error?: string;
 }> {
   try {
-    
-    // استخدام الدالة الصحيحة verify_totp_code_secure مع ترتيب المعاملات الصحيح
+    // الحصول على totp_secret للمستخدم
+    const { data: userSecurityData, error: securityError } = await supabase
+      .from('user_security_settings')
+      .select('totp_secret')
+      .eq('user_id', userId)
+      .single();
+
+    if (securityError || !userSecurityData?.totp_secret) {
+      return {
+        success: false,
+        error: 'لم يتم العثور على إعدادات المصادقة الثنائية'
+      };
+    }
+
+    // استخدام الدالة الصحيحة verify_totp_code_secure مع المعاملات الصحيحة
     const { data, error } = await (supabase as any)
       .rpc('verify_totp_code_secure', { 
-        p_user_id: userId,
-        p_code: code
+        secret_base32: userSecurityData.totp_secret,
+        input_code: code
       });
 
     if (error) {
-      
+      // Fallback: استخدام test_totp_code للمستخدم الحالي
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('email')
+        .eq('id', userId)
+        .single();
+
+      if (userError || !userData?.email) {
+        return {
+          success: false,
+          error: 'فشل في التحقق من المصادقة الثنائية'
+        };
+      }
+
       const { data: altData, error: altError } = await (supabase as any)
         .rpc('test_totp_code', { 
-          p_user_email: 'uzaydz33030@gmail.com',
+          p_user_email: userData.email,
           p_code: code
         });
       
@@ -1193,8 +978,8 @@ export async function verify2FAForLogin(userId: string, code: string): Promise<{
     }
 
     return {
-      success: data.success,
-      error: data.error
+      success: Boolean(data),
+      error: data ? undefined : 'رمز المصادقة الثنائية غير صحيح'
     };
   } catch (error) {
     return {
@@ -1518,6 +1303,58 @@ export async function createCurrentUserSession(): Promise<{
   } catch (error) {
     return {
       success: false,
+      error: 'حدث خطأ غير متوقع'
+    };
+  }
+}
+
+/**
+ * التحقق إذا كان المستخدم يحتاج للمصادقة الثنائية
+ */
+export async function checkUserRequires2FA(
+  email: string,
+  organizationId?: string,
+  domain?: string,
+  subdomain?: string
+): Promise<{
+  userExists: boolean;
+  userId?: string;
+  userName?: string;
+  requires2FA: boolean;
+  organizationId?: string;
+  error?: string;
+}> {
+  try {
+    const { data, error } = await (supabase as any)
+      .rpc('check_user_requires_2fa', { 
+        p_user_email: email,
+        p_organization_id: organizationId || null,
+        p_domain: domain || null,
+        p_subdomain: subdomain || null
+      });
+
+    if (error) {
+      return {
+        userExists: false,
+        requires2FA: false,
+        error: 'فشل في التحقق من متطلبات المصادقة الثنائية'
+      };
+    }
+
+    const result = {
+      userExists: data.user_exists,
+      userId: data.user_id,
+      userName: data.user_name,
+      requires2FA: data.requires_2fa,
+      organizationId: data.organization_id,
+      error: data.error
+    };
+
+    return result;
+  } catch (error) {
+    return {
+      userExists: false,
+      requires2FA: false,
       error: 'حدث خطأ غير متوقع'
     };
   }

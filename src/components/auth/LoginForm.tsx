@@ -454,6 +454,7 @@ const LoginForm = () => {
               required
               className="text-right"
               dir="rtl"
+              autoComplete="current-password"
             />
           </div>
           <Button type="submit" className="w-full" disabled={isLoading}>
