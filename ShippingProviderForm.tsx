@@ -94,10 +94,8 @@ export default function ShippingProviderForm({
           setWilayas(result.data);
           
         } else {
-          console.error('Failed to load wilayas:', result);
         }
       } catch (error) {
-        console.error('Error loading wilayas:', error);
       } finally {
         setIsLoadingWilayas(false);
       }
@@ -118,10 +116,8 @@ export default function ShippingProviderForm({
           setCommunes(result.data);
           
         } else {
-          console.error('Failed to load communes:', result);
         }
       } catch (error) {
-        console.error('Error loading communes:', error);
       }
     }
     
@@ -137,10 +133,8 @@ export default function ShippingProviderForm({
         setCenters(result.data);
         
       } else {
-        console.error('Failed to load centers:', result);
       }
     } catch (error) {
-      console.error('Error loading centers:', error);
     }
   };
   
@@ -158,8 +152,7 @@ export default function ShippingProviderForm({
       const result = await yalidineClient.getShippingFees(fromWilayaId, toWilayaId);
       
       if (result.success && result.data) {
-        
-        
+
         // تخزين النتيجة في التخزين المؤقت المحلي
         setFeesCache(prev => ({
           ...prev,
@@ -168,11 +161,9 @@ export default function ShippingProviderForm({
         
         return result.data;
       } else {
-        console.error('Failed to load shipping fees:', result);
         return null;
       }
     } catch (error) {
-      console.error('Error loading shipping fees:', error);
       return null;
     }
   };
@@ -198,11 +189,9 @@ export default function ShippingProviderForm({
         
         return result.data;
       } else {
-        console.error('Failed to create parcel:', result);
         return null;
       }
     } catch (error) {
-      console.error('Error creating parcel:', error);
       return null;
     }
   };
@@ -280,4 +269,4 @@ export default function ShippingProviderForm({
       </div>
     </div>
   );
-} 
+}

@@ -36,8 +36,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    console.log('🔍 [Edge Function] جلب إعدادات التحويل للمنتج:', productId);
-
     // استخدام الدالة الجديدة المحسنة
     const { data, error } = await supabase
       .rpc('get_simple_conversion_settings', { 
@@ -45,7 +43,6 @@ Deno.serve(async (req: Request) => {
       });
 
     if (error) {
-      console.error('❌ [Edge Function] خطأ في جلب إعدادات التحويل:', error);
       return new Response(
         JSON.stringify({
           error: 'فشل في جلب الإعدادات',
@@ -57,8 +54,6 @@ Deno.serve(async (req: Request) => {
         }
       );
     }
-
-    console.log('✅ [Edge Function] تم جلب إعدادات التحويل:', data);
 
     return new Response(
       JSON.stringify({
@@ -78,7 +73,6 @@ Deno.serve(async (req: Request) => {
     );
 
   } catch (error) {
-    console.error('❌ [Edge Function] خطأ في معالجة الطلب:', error);
     return new Response(
       JSON.stringify({
         error: 'خطأ داخلي في الخادم',
@@ -90,4 +84,4 @@ Deno.serve(async (req: Request) => {
       }
     );
   }
-}); 
+});

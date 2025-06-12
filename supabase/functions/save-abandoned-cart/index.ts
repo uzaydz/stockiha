@@ -4,8 +4,6 @@ import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { AbandonedCartData, CustomFieldData, corsHeaders, AbandonedCartItem } from '../_shared/types.ts';
 
-
-
 // Local enum definition for robustness, matching _shared/types.ts
 enum AbandonedCartStatus { 
   PENDING = 'pending',
@@ -118,14 +116,10 @@ function hasSignificantChanges(oldPayload: any, newPayload: any): boolean {
 
 // تحسين أداء معالجة الطلبات المتروكة باستخدام الطابور والمعالجة الدفعية
 serve(async (req: Request) => {
-  
-  
-  
+
   for (const [key, value] of req.headers.entries()) {
     
   }
-
-  
 
   if (req.method === 'OPTIONS') {
     
@@ -146,7 +140,6 @@ serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
     if (!supabaseUrl || !supabaseServiceKey) {
-      console.error('Server config error: Missing Supabase URL or Service Key');
       return new Response(JSON.stringify({ error: 'Server configuration error' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
@@ -162,10 +155,8 @@ serve(async (req: Request) => {
     try {
       
       requestBodyAsText = await req.text();
-      
 
       if (!requestBodyAsText || requestBodyAsText.trim() === '') {
-        console.error('Request body is empty after reading as text.');
         return new Response(JSON.stringify({
           error: 'Request body is empty.',
           details: 'The server received an empty request body.',
@@ -175,13 +166,9 @@ serve(async (req: Request) => {
         });
       }
 
-      
       flatPayload = JSON.parse(requestBodyAsText);
       
     } catch (parsingError: any) {
-      console.error('Error during JSON.parse(requestBodyAsText):', parsingError.message);
-      console.error('JSON.parse() stack trace:', parsingError.stack);
-      console.error('The text that failed to parse was:', requestBodyAsText); // Log the problematic text
       return new Response(JSON.stringify({
         error: `Failed to parse JSON body. Error: ${parsingError.message}`,
         details: 'The request body could not be parsed as JSON after being read as text. It might be malformed or contain encoding issues.',
@@ -201,8 +188,7 @@ serve(async (req: Request) => {
     
     // التحقق من آخر تحديث - إذا كان التحديث الأخير حديثًا جدًا (أقل من الحد الأدنى المسموح به)
     if (cached && (now - cached.timestamp < MINIMUM_SAVE_INTERVAL)) {
-      
-      
+
       // في حالة التحديث المتكرر خلال فترة قصيرة، تحقق مما إذا كانت هناك تغييرات كبيرة
       if (!hasSignificantChanges(cached.payload, flatPayload)) {
         
@@ -217,8 +203,7 @@ serve(async (req: Request) => {
           }
         );
       }
-      
-      
+
     }
 
     // Transform flatPayload to AbandonedCartData
@@ -276,13 +261,11 @@ serve(async (req: Request) => {
 
     // VALIDATION (now on the transformed cartData)
     if (!cartData.organization_id || !cartData.customer_phone) {
-      console.warn('Validation failed: organization_id or customer_phone missing. Data:', cartData);
       return new Response(JSON.stringify({ error: 'organization_id and customer_phone are required' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
       });
     }
-    
 
     // DATABASE OPERATIONS (using transformed cartData)
     const { data: existingCart, error: fetchError } = await supabaseAdmin
@@ -295,13 +278,11 @@ serve(async (req: Request) => {
       .maybeSingle();
 
     if (fetchError) {
-      console.error('Error fetching existing cart:', fetchError);
       throw fetchError;
     }
 
     if (existingCart && existingCart.status === AbandonedCartStatus.PENDING) {
-      
-      
+
       const existingCartItems = Array.isArray(existingCart.cart_items) ? existingCart.cart_items : [];
       const currentCartItems = Array.isArray(cartData.cart_items) ? cartData.cart_items : [];
       const mergedItems = mergeCartItems(existingCartItems, currentCartItems);
@@ -324,8 +305,7 @@ serve(async (req: Request) => {
       });
       
       if (!hasItemsChanged && !hasFieldsChanged) {
-        
-        
+
         // التحديث الوحيد هو last_activity_at للإشارة إلى أن المستخدم لا يزال نشطًا
         const { data: updatedCart, error: updateError } = await supabaseAdmin
           .from('abandoned_carts')
@@ -337,7 +317,6 @@ serve(async (req: Request) => {
           .single();
           
         if (updateError) {
-          console.error('Error updating last_activity_at:', updateError);
           throw updateError;
         }
         
@@ -370,10 +349,8 @@ serve(async (req: Request) => {
         .single();
 
       if (updateError) {
-        console.error('Error updating abandoned cart:', updateError);
         throw updateError;
       }
-      
 
       // تحديث التخزين المؤقت بالبيانات الجديدة والنتيجة
       cartCache.set(cacheKey, { 
@@ -386,7 +363,6 @@ serve(async (req: Request) => {
         // إرسال إشعار بتحديث الجداول المجمعة
         await supabaseAdmin.rpc('notify_refresh_materialized_views');
       } catch (error) {
-        console.error('Error notifying for materialized view refresh (non-critical):', error);
       }
 
       return new Response(JSON.stringify(updatedData), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
@@ -407,10 +383,8 @@ serve(async (req: Request) => {
         .single();
 
       if (insertError) {
-        console.error('Error inserting new abandoned cart:', insertError);
         throw insertError;
       }
-      
 
       // تحديث التخزين المؤقت بالبيانات الجديدة والنتيجة
       cartCache.set(cacheKey, { 
@@ -423,7 +397,6 @@ serve(async (req: Request) => {
         // إرسال إشعار بتحديث الجداول المجمعة
         await supabaseAdmin.rpc('notify_refresh_materialized_views');
       } catch (error) {
-        console.error('Error notifying for materialized view refresh (non-critical):', error);
       }
 
       return new Response(JSON.stringify(newData), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 201 });
@@ -431,41 +404,30 @@ serve(async (req: Request) => {
 
   } catch (error: any) {
     // Enhanced general error logging
-    console.error('Caught in general error processing block. Raw error object:', error);
     let errorResponseMessage = 'An unexpected error occurred';
     let stackPreview = 'No stack trace available';
     let errorDetails: string | null = null; // Initialize as string | null
 
     if (error instanceof Error) {
-      console.error('Error Type: Standard Error');
-      console.error('Error Name:', error.name);
-      console.error('Error Message:', error.message);
-      console.error('Error Stack:', error.stack);
       errorResponseMessage = error.message;
       if (error.stack) {
         stackPreview = error.stack.split('\n').slice(0, 7).join(' ||| '); // First 7 lines of stack, joined
       }
     } else if (typeof error === 'object' && error !== null) {
-      console.error('Error Type: Object (not Error instance)');
-      console.error('Error Properties:', Object.keys(error));
       try {
         // Attempt to get a meaningful message from common error object structures
         const potentialMessage = (error as any).message || (error as any).error || (error as any).details;
         if (potentialMessage) errorResponseMessage = String(potentialMessage);
         
         const errorString = JSON.stringify(error);
-        console.error('Error as JSON string (first 500 chars):', errorString.substring(0, 500));
         if (!potentialMessage) errorResponseMessage = errorString.substring(0, 200); // Fallback to snippet if no clear message
         errorDetails = errorString.substring(0, 500); // Assign string here
       } catch (stringifyError) {
-        console.error('Could not stringify error object:', stringifyError);
         errorResponseMessage = 'Error object could not be stringified.';
         errorDetails = 'Could not stringify error object.'; // Assign string here
       }
     } else {
-      console.error('Error Type: Primitive or unknown');
       const errorString = String(error);
-      console.error('Error Value:', errorString);
       errorResponseMessage = errorString.substring(0,200);
       errorDetails = errorString.substring(0, 500); // Assign string here
     }
@@ -515,5 +477,3 @@ function mergeCustomFields(existingFields: CustomFieldData[], newFields: CustomF
     });
     return Array.from(fieldMap.values());
 }
-
-

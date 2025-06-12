@@ -4,7 +4,6 @@ import { platform } from 'os';
 // تحديد نظام التشغيل
 const currentPlatform = platform();
 
-
 try {
   // بناء التطبيق للويب أولاً
   
@@ -15,24 +14,19 @@ try {
     // macOS
     
     execSync('npm run electron:build:mac', { stdio: 'inherit' });
-    
-    
+
   } else if (currentPlatform === 'win32') {
     // Windows
     
     execSync('npm run electron:build:win', { stdio: 'inherit' });
-    
-    
+
   } else {
     // Linux أو أنظمة أخرى
     
     execSync('npm run electron:build', { stdio: 'inherit' });
-    
-    
+
   }
-  
-  
+
 } catch (error) {
-  console.error('حدث خطأ أثناء بناء التطبيق:', error);
   process.exit(1);
-} 
+}

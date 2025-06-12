@@ -22,7 +22,6 @@ serve(async (req: Request) => {
   }
 
   if (req.method !== "POST") {
-    console.warn(`[save-global-yalidine-config] Method Not Allowed: ${req.method}`); // DEBUG LOG
     return new Response(JSON.stringify({ error: "Method Not Allowed", received_method: req.method }), {
       status: 405,
       headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
@@ -65,7 +64,6 @@ serve(async (req: Request) => {
       .single();
 
     if (error) {
-      console.error("[save-global-yalidine-config] Error updating Yalidine config in DB:", error); // DEBUG LOG
       return new Response(JSON.stringify({ error: error.message }), {
         status: 500,
         headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
@@ -73,7 +71,6 @@ serve(async (req: Request) => {
     }
 
     if (!data) {
-        console.warn("[save-global-yalidine-config] Failed to update configuration or configuration not found (id=1)."); // DEBUG LOG
         return new Response(JSON.stringify({ error: "Failed to update configuration or configuration not found." }), {
             status: 404, 
             headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
@@ -86,10 +83,8 @@ serve(async (req: Request) => {
     });
 
   } catch (e) {
-    console.error("[save-global-yalidine-config] Unhandled error in POST handler:", e); // DEBUG LOG
     // Check if the error is from req.json() failing (e.g. invalid JSON)
     if (e instanceof SyntaxError && e.message.includes("JSON")) {
-        console.warn("[save-global-yalidine-config] Invalid JSON payload received."); // DEBUG LOG
         return new Response(JSON.stringify({ error: "Invalid JSON payload." }), {
             status: 400, 
             headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },

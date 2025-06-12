@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 
 /**
- * هوك لتأخير التغييرات على قيمة معينة بمقدار وقت محدد
- * مفيد لتأخير البحث أثناء الكتابة
+ * Hook للتحكم في تأخير تنفيذ القيم المتغيرة (debouncing)
+ * مفيد لتحسين الأداء عند البحث أو التصفية
  *
  * @param value القيمة المراد تأخيرها
  * @param delay مدة التأخير بالميللي ثانية
@@ -13,13 +13,13 @@ export function useDebounce<T>(value: T, delay: number): T {
 
   useEffect(() => {
     // تعيين مؤقت لتحديث القيمة المؤخرة بعد انتهاء وقت التأخير
-    const timer = setTimeout(() => {
+    const handler = setTimeout(() => {
       setDebouncedValue(value);
     }, delay);
 
     // تنظيف المؤقت عند تغيير القيمة أو إزالة المكون
     return () => {
-      clearTimeout(timer);
+      clearTimeout(handler);
     };
   }, [value, delay]);
 

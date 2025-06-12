@@ -5,8 +5,7 @@
 
 export const updateProduct = async (id: string, updates: UpdateProduct): Promise<Product> => {
   try {
-    
-    
+
     // استخدام وظيفة RPC بسيطة لتحديث المنتج
     const { data: updateSuccess, error: updateError } = await supabase
       .rpc('simple_update_product', {
@@ -15,7 +14,6 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
       });
     
     if (updateError) {
-      console.error(`خطأ في تحديث المنتج ${id}:`, updateError);
       throw updateError;
     }
     
@@ -31,18 +29,15 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
       .single();
     
     if (fetchError) {
-      console.error(`خطأ في جلب المنتج المحدث ${id}:`, fetchError);
       throw fetchError;
     }
     
     if (!updatedProduct) {
       throw new Error(`لم يتم العثور على المنتج بعد التحديث: ${id}`);
     }
-    
-    
+
     return updatedProduct;
   } catch (error) {
-    console.error(`خطأ عام في تحديث المنتج ${id}:`, error);
     throw error;
   }
-}; 
+};

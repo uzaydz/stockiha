@@ -1,11 +1,13 @@
-import { useState, useEffect } from 'react';
-import { useToast } from '@/components/ui/use-toast';
-import { getOrganizationSettings, updateOrganizationSettings } from '@/lib/api/settings';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { toast } from '@/components/ui/use-toast';
+import { 
+  getOrganizationSettings, 
+  updateOrganizationSettings
+} from '@/lib/api/settings';
+import { useTenant } from '@/context/TenantContext';
 import { OrganizationSettings } from '@/types/settings';
 import { useTheme } from 'next-themes';
 import { supabase } from '@/lib/supabase';
-import { getSupabaseClient } from '@/lib/supabase';
-import { useTenant } from '@/context/TenantContext';
 
 interface UseOrganizationSettingsProps {
   organizationId: string | undefined;
@@ -80,10 +82,9 @@ interface UseOrganizationSettingsReturn {
  * هوك مخصص للتعامل مع إعدادات المؤسسة
  */
 export const useOrganizationSettings = ({ organizationId }: UseOrganizationSettingsProps): UseOrganizationSettingsReturn => {
-  const { toast } = useToast();
   const { setTheme } = useTheme();
   const { refreshOrganizationData } = useTenant();
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   
@@ -114,123 +115,159 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
     google: { enabled: false, pixelId: '' },
   });
 
-  // تطبيق وضع الثيم عند تغييره في الإعدادات
+  // References لمنع re-renders والتحديثات المتكررة
+  const lastFetchedRef = useRef<string | null>(null);
+  const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const settingsCacheRef = useRef<Map<string, { data: OrganizationSettings; timestamp: number }>>(new Map());
+  const isFirstThemeSetRef = useRef(true);
+  
+  // Cache timeout - 30 seconds
+  const CACHE_DURATION = 30 * 1000;
+
+  // تطبيق وضع الثيم عند تغييره في الإعدادات مع منع التحديث المتكرر
   useEffect(() => {
-    if (!isLoading && settings.theme_mode) {
+    if (!isLoading && settings.theme_mode && isFirstThemeSetRef.current) {
+      isFirstThemeSetRef.current = false;
       const themeMode = settings.theme_mode === 'auto' ? 'system' : settings.theme_mode;
       setTheme(themeMode);
     }
   }, [settings.theme_mode, isLoading, setTheme]);
 
-  // تحميل البيانات
-  useEffect(() => {
-    if (organizationId) {
-      fetchSettings();
+  // دالة للتحقق من صحة الكاش
+  const getCachedSettings = useCallback((orgId: string) => {
+    const cached = settingsCacheRef.current.get(orgId);
+    if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
+      return cached.data;
     }
-  }, [organizationId]);
+    return null;
+  }, []);
 
-  // جلب إعدادات المؤسسة
-  const fetchSettings = async () => {
-    console.log('🔍 [useOrganizationSettings] بدء تحميل إعدادات المؤسسة:', organizationId);
-    setIsLoading(true);
-    try {
-      // حذف التخزين المؤقت للإعدادات قبل الجلب
+  // دالة لحفظ في الكاش
+  const setCachedSettings = useCallback((orgId: string, data: OrganizationSettings) => {
+    settingsCacheRef.current.set(orgId, { data, timestamp: Date.now() });
+  }, []);
+
+  // Debounced fetch settings function
+  const debouncedFetchSettings = useCallback(async (orgId: string) => {
+    // إلغاء الطلب السابق إذا كان موجوداً
+    if (fetchTimeoutRef.current) {
+      clearTimeout(fetchTimeoutRef.current);
+    }
+
+    // التحقق من الكاش أولاً
+    const cachedData = getCachedSettings(orgId);
+    if (cachedData) {
+      setSettings(cachedData);
+      setIsLoading(false);
+      return;
+    }
+
+    // Debounce لمنع الطلبات المتكررة
+    fetchTimeoutRef.current = setTimeout(async () => {
+      if (lastFetchedRef.current === orgId) {
+        return;
+      }
+
+      lastFetchedRef.current = orgId;
+      setIsLoading(true);
+
       try {
-        localStorage.removeItem(`organization_settings:${organizationId}`);
-      } catch (e) {
-        console.warn('⚠️ [useOrganizationSettings] خطأ عند محاولة حذف التخزين المؤقت:', e);
-      }
+        const { data: latestSettings, error } = await supabase
+          .from('organization_settings')
+          .select('*')
+          .eq('organization_id', orgId)
+          .single();
 
-      // الحصول على بيانات المؤسسة مباشرة من قاعدة البيانات
-      const supabaseClient = getSupabaseClient();
-      
-      // استخدام RPC لجلب أحدث البيانات مباشرة
-      const { data: latestSettings, error } = await supabaseClient
-        .from('organization_settings')
-        .select('*')
-        .eq('organization_id', organizationId)
-        .single();
-      
-      if (error) {
-        throw error;
-      }
-      
-      if (latestSettings) {
-        console.log('✅ [useOrganizationSettings] تم تحميل البيانات من قاعدة البيانات:', latestSettings);
-        
-        // تحميل بيانات بكسل التتبع من custom_js
-        let trackingData: TrackingPixels = {
-          facebook: { enabled: false, pixelId: '' },
-          tiktok: { enabled: false, pixelId: '' },
-          snapchat: { enabled: false, pixelId: '' },
-          google: { enabled: false, pixelId: '' },
-        };
-        
-        if (latestSettings.custom_js) {
-          try {
-            const customData = JSON.parse(latestSettings.custom_js);
-            if (customData && customData.trackingPixels) {
-              trackingData = {
-                ...trackingData,
-                ...customData.trackingPixels
-              };
+        if (error) {
+          // Use default settings on error
+          const defaultSettings = await getOrganizationSettings(orgId);
+          if (defaultSettings) {
+            setSettings(defaultSettings);
+            setCachedSettings(orgId, defaultSettings);
+          }
+          return;
+        }
+
+        if (latestSettings) {
+          
+          // تحميل بيانات بكسل التتبع من custom_js
+          let trackingData: TrackingPixels = {
+            facebook: { enabled: false, pixelId: '' },
+            tiktok: { enabled: false, pixelId: '' },
+            snapchat: { enabled: false, pixelId: '' },
+            google: { enabled: false, pixelId: '' },
+          };
+
+          if (latestSettings.custom_js) {
+            try {
+              const customData = JSON.parse(latestSettings.custom_js);
+              if (customData && customData.trackingPixels) {
+                trackingData = {
+                  ...trackingData,
+                  ...customData.trackingPixels
+                };
+              }
+            } catch (e) {
             }
-          } catch (e) {
-            console.warn('⚠️ [useOrganizationSettings] فشل في تحليل بيانات التتبع:', e);
+          }
+
+          // تحديث الإعدادات والتتبع - إصلاح نوع البيانات theme_mode
+          const processedSettings = {
+            ...latestSettings,
+            theme_mode: (latestSettings.theme_mode as 'light' | 'dark' | 'auto') || 'light'
+          };
+
+          setSettings(processedSettings);
+          setTrackingPixels(trackingData);
+          setCachedSettings(orgId, processedSettings);
+
+          // تطبيق عنوان الصفحة
+          if (latestSettings.site_name && document.title !== latestSettings.site_name) {
+            document.title = latestSettings.site_name;
           }
         }
-        
-        // تحديث الإعدادات والتتبع - إصلاح نوع البيانات theme_mode
-        setSettings({
-          ...latestSettings,
-          theme_mode: (latestSettings.theme_mode as 'light' | 'dark' | 'auto') || 'light'
+      } catch (error) {
+        toast({
+          title: 'خطأ في التحميل',
+          description: `فشل في تحميل إعدادات المؤسسة: ${error.message || 'خطأ غير معروف'}`,
+          variant: 'destructive',
         });
-        setTrackingPixels(trackingData);
-        
-        // تطبيق الثيم مباشرة
-        if (latestSettings.theme_mode) {
-          const themeMode = latestSettings.theme_mode === 'auto' ? 'system' : latestSettings.theme_mode;
-          setTheme(themeMode);
-        }
-        
-        // تطبيق عنوان الصفحة
-        if (latestSettings.site_name) {
-          document.title = latestSettings.site_name;
-        }
-      } else {
-        // إذا لم يتم العثور على إعدادات، استخدم القيم الافتراضية
-        const defaultSettings = await getOrganizationSettings(organizationId);
-        if (defaultSettings) {
-          setSettings(defaultSettings);
-        }
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      console.error('❌ [useOrganizationSettings] خطأ في تحميل الإعدادات:', error);
-      toast({
-        title: 'خطأ في التحميل',
-        description: 'فشل في تحميل إعدادات المؤسسة، يرجى إعادة تحميل الصفحة.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    }, 300); // 300ms debounce
+  }, [getCachedSettings, setCachedSettings]);
 
-  // تحديث قيمة في الإعدادات
-  const updateSetting = (key: keyof OrganizationSettings, value: any) => {
+  // تحميل البيانات مع debouncing
+  useEffect(() => {
+    if (organizationId && organizationId !== lastFetchedRef.current) {
+      debouncedFetchSettings(organizationId);
+    }
+
+    // Cleanup
+    return () => {
+      if (fetchTimeoutRef.current) {
+        clearTimeout(fetchTimeoutRef.current);
+      }
+    };
+  }, [organizationId, debouncedFetchSettings]);
+
+  // تحديث قيمة في الإعدادات مع منع تطبيق الثيم المتكرر
+  const updateSetting = useCallback((key: keyof OrganizationSettings, value: any) => {
     setSettings((prev) => ({
       ...prev,
       [key]: value,
     }));
 
-    if (key === 'theme_mode') {
+    // تطبيق الثيم فقط إذا كان مختلفاً
+    if (key === 'theme_mode' && value !== settings.theme_mode) {
       const themeMode = value === 'auto' ? 'system' : value;
       setTheme(themeMode);
     }
-  };
+  }, [settings.theme_mode, setTheme]);
 
   // تحديث قيمة في بكسل التتبع
-  const updateTrackingPixel = (platform: keyof TrackingPixels, field: string, value: any) => {
+  const updateTrackingPixel = useCallback((platform: keyof TrackingPixels, field: string, value: any) => {
     setTrackingPixels((prev) => ({
       ...prev,
       [platform]: {
@@ -238,20 +275,13 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
         [field]: value,
       },
     }));
-  };
+  }, []);
   
   // حفظ الإعدادات
-  const saveSettings = async () => {
+  const saveSettings = useCallback(async () => {
     const startTime = Date.now();
-    console.log('🚀 [useOrganizationSettings] بدء عملية حفظ الإعدادات:', {
-      organizationId,
-      settings,
-      trackingPixels,
-      timestamp: new Date().toISOString()
-    });
 
     if (!organizationId) {
-      console.error('❌ [useOrganizationSettings] معرف المؤسسة مفقود');
       toast({
         title: 'خطأ في الحفظ',
         description: 'معرف المؤسسة مطلوب لحفظ الإعدادات.',
@@ -264,17 +294,13 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
     setSaveSuccess(false);
     
     try {
-      console.log('⏱️ [useOrganizationSettings] التحقق من جلسة المستخدم...');
       const sessionStartTime = Date.now();
       
       // تأكد من الحصول على أحدث جلسة قبل إجراء طلب RPC
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       const sessionEndTime = Date.now();
-      
-      console.log(`⏱️ [useOrganizationSettings] وقت التحقق من الجلسة: ${sessionEndTime - sessionStartTime}ms`);
 
       if (sessionError) {
-        console.error('❌ [useOrganizationSettings] خطأ في الجلسة:', sessionError);
         toast({ 
           title: 'خطأ في الجلسة', 
           description: 'لا يمكن التحقق من جلسة المستخدم عند محاولة الحفظ.', 
@@ -285,7 +311,6 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
       }
 
       if (!session || !session.user) {
-        console.error('❌ [useOrganizationSettings] جلسة غير نشطة');
         toast({ 
           title: 'جلسة غير نشطة', 
           description: 'يرجى تسجيل الدخول مرة أخرى قبل الحفظ.', 
@@ -295,7 +320,6 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
         return;
       }
 
-      console.log('✅ [useOrganizationSettings] الجلسة صالحة، تحضير البيانات...');
       const dataStartTime = Date.now();
 
       // إنشاء كائن بيانات custom_js جديد بدلاً من محاولة استرجاع البيانات القديمة
@@ -315,29 +339,25 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
               existingSeoSettings = existingData.seoSettings;
             }
           } catch (parseError) {
-            console.warn('⚠️ [useOrganizationSettings] فشل في تحليل custom_js الموجود:', parseError);
           }
           
           if (existingSeoSettings) {
             customJsData.seoSettings = existingSeoSettings;
           }
         } catch (error) {
-          console.warn('⚠️ [useOrganizationSettings] خطأ في معالجة SEO settings:', error);
         }
       }
       
       const themeMode = settings.theme_mode === 'auto' ? 'system' : settings.theme_mode;
       
       // إنشاء عميل supabase جديد مع الجلسة المحدثة
-      const freshSupabase = getSupabaseClient();
+      const freshSupabase = supabase;
 
       // تأكد من تحويل البيانات إلى نص JSON بشكل صحيح
       const safeCustomJsStr = JSON.stringify(customJsData);
       
       const dataEndTime = Date.now();
-      console.log(`⏱️ [useOrganizationSettings] وقت تحضير البيانات: ${dataEndTime - dataStartTime}ms`);
       
-      console.log('📤 [useOrganizationSettings] إرسال البيانات لحفظ إعدادات المؤسسة...');
       const updateStartTime = Date.now();
       
       // إعلام المستخدم أن العملية قد تستغرق وقتاً
@@ -362,14 +382,11 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
       });
       
       const updateEndTime = Date.now();
-      console.log(`⏱️ [useOrganizationSettings] وقت حفظ إعدادات المؤسسة: ${updateEndTime - updateStartTime}ms`);
-      console.log('📊 [useOrganizationSettings] نتيجة حفظ إعدادات المؤسسة:', updateResult);
 
       // حفظ إعدادات SEO بشكل منفصل في جدول store_settings
       // تم تعطيل هذا مؤقتاً لتحسين الأداء - سيتم حفظ SEO مع الإعدادات العامة
       /*
       if (customJsData.seoSettings) {
-        console.log('📤 [useOrganizationSettings] حفظ إعدادات SEO...');
         const seoStartTime = Date.now();
         
         try {
@@ -379,27 +396,19 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
           });
           
           const seoEndTime = Date.now();
-          console.log(`⏱️ [useOrganizationSettings] وقت حفظ إعدادات SEO: ${seoEndTime - seoStartTime}ms`);
           
           if (error) {
-            console.error('❌ [useOrganizationSettings] خطأ في حفظ إعدادات SEO:', error);
             throw error;
           }
 
-          console.log('✅ [useOrganizationSettings] تم حفظ إعدادات SEO بنجاح:', data);
         } catch (error) {
-          console.warn('⚠️ [useOrganizationSettings] فشل في حفظ إعدادات SEO، لكن سنستمر:', error);
         }
       }
       */
-      
-      console.log('ℹ️ [useOrganizationSettings] تم تخطي حفظ SEO المنفصل لتحسين الأداء');
-      
-      console.log('🎨 [useOrganizationSettings] تطبيق الثيم...');
+
       setTheme(themeMode);
       
       // تطبيق الثيم مباشرة من البيانات المحفوظة
-      console.log('🔧 [useOrganizationSettings] تطبيق الثيم مباشرة من البيانات المحفوظة...');
       const { updateOrganizationTheme } = await import('@/lib/themeManager');
       
       updateOrganizationTheme(organizationId, {
@@ -408,19 +417,11 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
         theme_mode: settings.theme_mode,
         custom_css: settings.custom_css
       });
-      
-      console.log('✅ [useOrganizationSettings] تم تطبيق الثيم مباشرة:', {
-        primary: settings.theme_primary_color,
-        secondary: settings.theme_secondary_color,
-        mode: themeMode
-      });
-      
+
       // تحديث بيانات المؤسسة لضمان تطبيق التغييرات في جميع أنحاء التطبيق
       try {
         await refreshOrganizationData();
-        console.log('✅ [useOrganizationSettings] تم تحديث بيانات المؤسسة بنجاح');
       } catch (refreshError) {
-        console.warn('⚠️ [useOrganizationSettings] فشل في تحديث بيانات المؤسسة:', refreshError);
       }
       
       setSaveSuccess(true);
@@ -461,24 +462,13 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
           
           return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
         })();
-        
-        console.log('🔍 [useOrganizationSettings] التحقق من تطبيق الثيم:', {
-          expectedHex: settings.theme_primary_color,
-          expectedHSL,
-          appliedPrimary,
-          themeMode,
-          isMatch: appliedPrimary === expectedHSL
-        });
-        
+
         if (appliedPrimary === expectedHSL) {
-          console.log('✅ [useOrganizationSettings] الثيم مطبق بنجاح');
         } else {
-          console.warn('⚠️ [useOrganizationSettings] الثيم لم يتطبق بالشكل المتوقع');
         }
       }, 100);
       
       const totalTime = Date.now() - startTime;
-      console.log(`🎉 [useOrganizationSettings] اكتملت عملية الحفظ بنجاح في ${totalTime}ms`);
       
       setTimeout(() => {
         setSaveSuccess(false);
@@ -486,12 +476,6 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
       
     } catch (error) {
       const totalTime = Date.now() - startTime;
-      console.error('💥 [useOrganizationSettings] خطأ في عملية الحفظ:', {
-        error,
-        message: error instanceof Error ? error.message : 'خطأ غير معروف',
-        stack: error instanceof Error ? error.stack : undefined,
-        totalTime: `${totalTime}ms`
-      });
       
       toast({
         title: 'خطأ في الحفظ',
@@ -501,9 +485,10 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [organizationId, settings, trackingPixels, setTheme]);
 
-  return {
+  // Memoized return value
+  const returnValue = useMemo(() => ({
     settings,
     trackingPixels,
     isLoading,
@@ -512,7 +497,9 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
     updateSetting,
     updateTrackingPixel,
     saveSettings,
-  };
+  }), [settings, trackingPixels, isLoading, isSaving, saveSuccess, updateSetting, updateTrackingPixel, saveSettings]);
+
+  return returnValue;
 };
 
 export default useOrganizationSettings;

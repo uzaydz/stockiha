@@ -43,6 +43,10 @@ const PerformanceMonitor: React.FC<PerformanceMonitorProps> = block(({
   visible = false,
   onToggle
 }) => {
+  // إخفاء المكون في الإنتاج
+  if (process.env.NODE_ENV === 'production' || !enabled) {
+    return null;
+  }
   const [metrics, setMetrics] = useState<Partial<PerformanceMetrics>>({});
   const [isVisible, setIsVisible] = useState(false);
 
@@ -67,12 +71,9 @@ const PerformanceMonitor: React.FC<PerformanceMonitorProps> = block(({
     onMetricsChange?.(newMetrics);
     
     if (logToConsole) {
-      console.group('🚀 Performance Metrics Update');
       Object.entries(newMetrics).forEach(([key, value]) => {
         const formattedValue = typeof value === 'number' ? `${value.toFixed(2)}ms` : value;
-        console.log(`${key.toUpperCase()}: ${formattedValue}`);
       });
-      console.groupEnd();
     }
   }, [logToConsole, onMetricsChange]);
 
@@ -139,7 +140,6 @@ const PerformanceMonitor: React.FC<PerformanceMonitorProps> = block(({
           clsObserver.disconnect();
         };
       } catch (error) {
-        console.warn('Performance Observer not supported:', error);
       }
     }
   }, [updateMetrics]);
@@ -464,4 +464,4 @@ export const usePerformanceMetrics = () => {
   }, []);
 
   return metrics;
-}; 
+};

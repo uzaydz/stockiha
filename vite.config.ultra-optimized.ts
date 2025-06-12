@@ -93,7 +93,6 @@ function bundleAnalysisPlugin(): Plugin {
   return {
     name: 'bundle-analysis',
     generateBundle(options, bundle) {
-      console.log('📊 Bundle Analysis:');
       Object.keys(bundle).forEach(fileName => {
         const chunk = bundle[fileName];
         if (chunk.type === 'chunk') {
@@ -101,9 +100,7 @@ function bundleAnalysisPlugin(): Plugin {
           const sizeKB = (size / 1024).toFixed(2);
           
           if (size > 200 * 1024) { // Warn for chunks > 200KB
-            console.warn(`⚠️  Large chunk detected: ${fileName} (${sizeKB} KB)`);
           } else {
-            console.log(`✅ ${fileName}: ${sizeKB} KB`);
           }
         }
       });
@@ -123,7 +120,6 @@ function performanceMonitoringPlugin(): Plugin {
             // Web Vitals monitoring
             function reportWebVitals() {
               function sendToAnalytics(metric) {
-                console.log('📈 Web Vital:', metric.name, metric.value);
                 
                 // Send to your analytics service
                 if (window.gtag) {
@@ -430,4 +426,4 @@ export default defineConfig(({ command, mode }) => {
 // 4. Use `npm run preview` to test production build locally
 // 5. Consider implementing Service Worker for caching
 // 6. Implement image optimization with next-gen formats (WebP, AVIF)
-// 7. Use CDN for static assets in production 
+// 7. Use CDN for static assets in production

@@ -23,8 +23,6 @@ function convertPngToSvg() {
       throw new Error(`ملف الإدخال غير موجود: ${inputFile}`);
     }
 
-    console.log('جاري تحويل الصورة إلى SVG...');
-    
     // استخدام ImageMagick لتحويل PNG إلى SVG
     // يجب تثبيت ImageMagick أولاً: brew install imagemagick
     const command = `convert "${inputFile}" "${outputFile}"`;
@@ -32,41 +30,22 @@ function convertPngToSvg() {
     execSync(command, { stdio: 'inherit' });
     
     // تحسين ملف SVG (اختياري)
-    console.log('جاري تحسين ملف SVG...');
     try {
       // يمكن استخدام svgo لتحسين ملف SVG
       // npm install -g svgo
       execSync(`svgo "${outputFile}" -o "${outputFile}"`, { stdio: 'inherit' });
     } catch (optimizeError) {
-      console.log('تم تخطي تحسين SVG (svgo غير مثبت)');
     }
     
-    console.log(`✅ تم تحويل الصورة بنجاح إلى: ${outputFile}`);
-    console.log('ملاحظة: للحصول على أفضل نتيجة، قد تحتاج إلى:');
-    console.log('1. تثبيت ImageMagick: brew install imagemagick');
-    console.log('2. تثبيت SVGO لتحسين الملف: npm install -g svgo');
   } catch (error) {
-    console.error('❌ حدث خطأ أثناء تحويل الصورة:');
-    console.error(error.message || error);
     
     // محاولة بديلة باستخدام inkscape إذا كان مثبتاً
     try {
-      console.log('\nجاري محاولة التحويل باستخدام Inkscape...');
       execSync(`inkscape "${inputFile}" --export-filename="${outputFile}"`, { stdio: 'inherit' });
-      console.log(`✅ تم تحويل الصورة بنجاح باستخدام Inkscape إلى: ${outputFile}`);
       return;
     } catch (inkscapeError) {
-      console.log('فشلت محاولة استخدام Inkscape.');
     }
-    
-    console.log('\nحلول بديلة:');
-    console.log('1. تثبيت ImageMagick: brew install imagemagick');
-    console.log('2. تثبيت Inkscape: brew install inkscape');
-    console.log('3. استخدام خدمات تحويل عبر الإنترنت مثل:');
-    console.log('   - https://convertio.co/png-svg/');
-    console.log('   - https://www.pngtosvg.com/');
-    console.log('   - https://vectorizer.ai/');
-    
+
     // إنشاء ملف HTML بسيط لتحويل الصورة
     createHtmlConverter();
   }
@@ -158,8 +137,6 @@ function createHtmlConverter() {
 </html>`;
   
   fs.writeFileSync(htmlPath, htmlContent);
-  console.log(`\n✅ تم إنشاء صفحة HTML للمساعدة في التحويل: ${htmlPath}`);
-  console.log('يمكنك فتح هذا الملف في المتصفح واتباع التعليمات لتحويل الصورة يدوياً.');
 }
 
 // تنفيذ التحويل

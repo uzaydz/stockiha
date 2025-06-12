@@ -61,9 +61,16 @@ import { Link, useNavigate } from 'react-router-dom';
 interface ProductsListProps {
   products: Product[];
   onRefreshProducts: () => Promise<void>;
+  viewMode?: 'grid' | 'list';
+  isLoading?: boolean;
 }
 
-const ProductsList = ({ products, onRefreshProducts }: ProductsListProps) => {
+const ProductsList = ({ 
+  products, 
+  onRefreshProducts, 
+  viewMode = 'list',
+  isLoading = false 
+}: ProductsListProps) => {
   const navigate = useNavigate();
   const [viewProduct, setViewProduct] = useState<Product | null>(null);
   const [deleteProduct, setDeleteProduct] = useState<Product | null>(null);
@@ -71,7 +78,6 @@ const ProductsList = ({ products, onRefreshProducts }: ProductsListProps) => {
   const [isViewOpen, setIsViewOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isFeaturesOpen, setIsFeaturesOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [showPermissionAlert, setShowPermissionAlert] = useState(false);
   const [permissionAlertType, setPermissionAlertType] = useState<'edit' | 'delete'>('edit');
   const [canEditProducts, setCanEditProducts] = useState(false);
@@ -247,115 +253,119 @@ const ProductsList = ({ products, onRefreshProducts }: ProductsListProps) => {
       </Dialog>
 
       <div className="bg-background rounded-lg border shadow-sm overflow-hidden">
-        <div className="flex justify-end p-2">
-          <div className="flex space-x-1 rounded-lg bg-muted p-1">
-            <Button
-              variant={viewMode === 'table' ? 'secondary' : 'ghost'}
-              size="sm"
-              className="text-xs"
-              onClick={() => setViewMode('table')}
-            >
-              جدول
-            </Button>
-            <Button
-              variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
-              size="sm"
-              className="text-xs"
-              onClick={() => setViewMode('grid')}
-            >
-              شبكة
-            </Button>
-          </div>
-        </div>
-        
-        {viewMode === 'table' ? (
+        {viewMode === 'list' ? (
           <div className="overflow-auto">
             <Table>
-              <TableHeader>
+              <TableHeader className="hidden sm:table-header-group">
                 <TableRow>
-                  <TableHead>المنتج</TableHead>
-                  <TableHead>الصنف</TableHead>
-                  <TableHead>السعر</TableHead>
-                  <TableHead>الكمية</TableHead>
-                  <TableHead>SKU</TableHead>
-                  <TableHead>الحالة</TableHead>
-                  <TableHead className="text-left">إجراءات</TableHead>
+                  <TableHead className="min-w-[250px]">المنتج</TableHead>
+                  <TableHead className="hidden md:table-cell">الصنف</TableHead>
+                  <TableHead className="hidden lg:table-cell">السعر</TableHead>
+                  <TableHead className="hidden lg:table-cell">الكمية</TableHead>
+                  <TableHead className="hidden xl:table-cell">SKU</TableHead>
+                  <TableHead className="hidden md:table-cell">الحالة</TableHead>
+                  <TableHead className="text-left min-w-[100px]">إجراءات</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {products.map((product) => (
-                  <TableRow key={product.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="rounded-md h-9 w-9">
+                  <TableRow key={product.id} className="sm:table-row block border-b border-border pb-4 mb-4 sm:pb-0 sm:mb-0">
+                    <TableCell className="sm:table-cell block pb-2 sm:pb-0">
+                      <div className="flex items-start gap-3">
+                        <Avatar className="rounded-md h-12 w-12 sm:h-9 sm:w-9 flex-shrink-0">
                           <AvatarImage src={product.thumbnail_image} alt={product.name} />
                           <AvatarFallback className="rounded-md bg-primary/10 text-primary">
                             {product.name.substring(0, 2)}
                           </AvatarFallback>
                         </Avatar>
-                        <div>
-                          <div className="font-medium">{product.name}</div>
-                          <div className="text-xs text-muted-foreground truncate max-w-[250px]">
-                            {product.description.substring(0, 40)}
-                            {product.description.length > 40 ? '...' : ''}
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm sm:text-base">{product.name}</div>
+                          <div className="text-xs text-muted-foreground line-clamp-2 sm:line-clamp-1 sm:truncate sm:max-w-[250px]">
+                            {product.description.substring(0, 60)}
+                            {product.description.length > 60 ? '...' : ''}
                           </div>
+                          {/* Mobile info - show on small screens only */}
+                          <div className="flex flex-wrap gap-2 mt-2 sm:hidden">
+                            <span className="text-sm font-medium">{formatPrice(product.price)}</span>
+                            <StockStatus quantity={product.stock_quantity} />
+                            {product.category && (
+                              <Badge variant="outline" className="text-xs">
+                                {(() => {
+                                  if (typeof product.category === 'string') return product.category;
+                                  if (typeof product.category === 'object' && 'name' in product.category) {
+                                    return (product.category as { name: string }).name;
+                                  }
+                                  return '';
+                                })()}
+                              </Badge>
+                            )}
+                          </div>
+                          {product.sku && (
+                            <div className="text-xs text-muted-foreground mt-1 sm:hidden">
+                              SKU: {product.sku}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">
                       {(() => {
-                        if (!product.category) return '';
+                        if (!product.category) return '-';
                         if (typeof product.category === 'string') return product.category;
                         if (typeof product.category === 'object' && 'name' in product.category) {
                           return (product.category as { name: string }).name;
                         }
-                        return '';
+                        return '-';
                       })()}
                     </TableCell>
-                    <TableCell>{formatPrice(product.price)}</TableCell>
-                    <TableCell>{product.stock_quantity}</TableCell>
-                    <TableCell>{product.sku}</TableCell>
-                    <TableCell>
+                    <TableCell className="hidden lg:table-cell">{formatPrice(product.price)}</TableCell>
+                    <TableCell className="hidden lg:table-cell">{product.stock_quantity}</TableCell>
+                    <TableCell className="hidden xl:table-cell">
+                      <code className="text-xs bg-muted px-1 py-0.5 rounded">{product.sku}</code>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
                       <StockStatus quantity={product.stock_quantity} />
                     </TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-end space-x-2">
+                    <TableCell className="sm:table-cell block">
+                      <div className="flex items-center justify-end space-x-2 sm:space-x-2">
                         <Button
                           variant="ghost"
-                          size="icon"
+                          size="sm"
                           onClick={() => handleView(product)}
+                          className="sm:size-auto"
                         >
-                          <Eye className="h-4 w-4" />
-                          <span className="sr-only">عرض</span>
+                          <Eye className="h-4 w-4 sm:mr-0 mr-1" />
+                          <span className="sm:sr-only">عرض</span>
                         </Button>
                         
                         {/* زر التعديل - يظهر فقط إذا كان المستخدم لديه صلاحية */}
                         {canEditProducts ? (
                           <Button
                             variant="ghost"
-                            size="icon"
+                            size="sm"
                             asChild
+                            className="sm:size-auto"
                           >
                             <Link to={`/dashboard/product/${product.id}`}>
-                              <Edit className="h-4 w-4" />
-                              <span className="sr-only">تعديل</span>
+                              <Edit className="h-4 w-4 sm:mr-0 mr-1" />
+                              <span className="sm:sr-only">تعديل</span>
                             </Link>
                           </Button>
                         ) : (
                           <Button
                             variant="ghost"
-                            size="icon"
+                            size="sm"
                             onClick={() => handleEdit(product)}
-                            className="opacity-50 cursor-not-allowed"
+                            className="opacity-50 cursor-not-allowed sm:size-auto"
                           >
-                            <Edit className="h-4 w-4" />
-                            <span className="sr-only">تعديل</span>
+                            <Edit className="h-4 w-4 sm:mr-0 mr-1" />
+                            <span className="sm:sr-only">تعديل</span>
                           </Button>
                         )}
                         
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
+                            <Button variant="ghost" size="sm" className="sm:size-auto">
                               <MoreVertical className="h-4 w-4" />
                               <span className="sr-only">المزيد</span>
                             </Button>
@@ -400,39 +410,65 @@ const ProductsList = ({ products, onRefreshProducts }: ProductsListProps) => {
             </Table>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 p-4">
             {products.map((product) => (
               <Card key={product.id} className="h-full">
-                <CardHeader className="p-4 pb-2">
-                  <div className="aspect-square rounded-md overflow-hidden mb-2">
+                <CardHeader className="p-3 sm:p-4 pb-2">
+                  <div className="aspect-square rounded-md overflow-hidden mb-2 bg-muted">
                     <img
                       src={product.thumbnail_image}
                       alt={product.name}
                       className="h-full w-full object-cover transition-all hover:scale-105"
+                      loading="lazy"
                     />
                   </div>
-                  <CardTitle className="text-base truncate">{product.name}</CardTitle>
-                  <CardDescription className="truncate">
+                  <CardTitle className="text-sm sm:text-base line-clamp-2 leading-tight">{product.name}</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm line-clamp-2 mt-1">
                     {product.description.substring(0, 60)}
                     {product.description.length > 60 ? '...' : ''}
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="p-4 pt-0 pb-2">
-                  <div className="flex items-center justify-between">
-                    <div className="font-medium">{formatPrice(product.price)}</div>
+                <CardContent className="p-3 sm:p-4 pt-0 pb-2">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="font-medium text-sm sm:text-base">{formatPrice(product.price)}</div>
                     <StockStatus quantity={product.stock_quantity} />
                   </div>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    SKU: {product.sku}
-                  </div>
+                  {product.sku && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      SKU: {product.sku}
+                    </div>
+                  )}
+                  {product.category && (
+                    <div className="mt-2">
+                      <Badge variant="outline" className="text-xs">
+                        {(() => {
+                          if (typeof product.category === 'string') return product.category;
+                          if (typeof product.category === 'object' && 'name' in product.category) {
+                            return (product.category as { name: string }).name;
+                          }
+                          return '';
+                        })()}
+                      </Badge>
+                    </div>
+                  )}
                 </CardContent>
-                <CardFooter className="p-4 pt-2 flex justify-between">
-                  <Button variant="outline" size="sm" onClick={() => handleView(product)}>
+                <CardFooter className="p-3 sm:p-4 pt-2 flex flex-col sm:flex-row gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => handleView(product)}
+                    className="w-full sm:w-auto"
+                  >
                     <Eye className="ml-1 h-3 w-3" />
                     عرض
                   </Button>
                   {canEditProducts ? (
-                    <Button variant="outline" size="sm" asChild>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      asChild
+                      className="w-full sm:w-auto"
+                    >
                       <Link to={`/dashboard/product/${product.id}`}>
                         <Edit className="ml-1 h-3 w-3" />
                         تعديل
@@ -443,7 +479,7 @@ const ProductsList = ({ products, onRefreshProducts }: ProductsListProps) => {
                       variant="outline" 
                       size="sm" 
                       onClick={() => handleEdit(product)}
-                      className="opacity-50 cursor-not-allowed"
+                      className="w-full sm:w-auto opacity-50 cursor-not-allowed"
                     >
                       <Edit className="ml-1 h-3 w-3" />
                       تعديل

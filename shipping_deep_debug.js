@@ -2,14 +2,9 @@
 // تشخيص شامل لمشكلة أسعار الشحن - تشغيل في console المتصفح
 // ===================================================================
 
-console.log('🔍 بدء التشخيص الشامل لمشكلة أسعار الشحن...');
-
 // 1. فحص التخزين المؤقت بتفصيل أكبر
-console.log('\n📦 فحص التخزين المؤقت:');
 const allLocalStorage = Object.keys(localStorage);
 const allSessionStorage = Object.keys(sessionStorage);
-console.log('localStorage keys:', allLocalStorage);
-console.log('sessionStorage keys:', allSessionStorage);
 
 // البحث عن أي مفاتيح تحتوي على shipping أو fee أو cache
 const shippingRelated = allLocalStorage.filter(k => 
@@ -17,10 +12,8 @@ const shippingRelated = allLocalStorage.filter(k =>
   k.toLowerCase().includes('fee') || 
   k.toLowerCase().includes('cache')
 );
-console.log('مفاتيح متعلقة بالشحن:', shippingRelated);
 
 // 2. اختبار مباشر لدالة قاعدة البيانات
-console.log('\n🗄️ اختبار دالة قاعدة البيانات المباشر:');
 
 // محاولة الوصول لـ Supabase client
 const testDatabaseFunction = async () => {
@@ -32,11 +25,8 @@ const testDatabaseFunction = async () => {
     } else if (window.__SUPABASE_CLIENT__) {
       supabase = window.__SUPABASE_CLIENT__;
     } else {
-      console.log('❌ لم يتم العثور على Supabase client');
       return;
     }
-
-    console.log('✅ تم العثور على Supabase client');
 
     // اختبار الدالة مباشرة
     const testCases = [
@@ -47,7 +37,6 @@ const testDatabaseFunction = async () => {
     ];
 
     for (const testCase of testCases) {
-      console.log(`\n🧪 اختبار: الولاية ${testCase.wilayaId}، البلدية ${testCase.municipalityId}، النوع ${testCase.deliveryType}`);
       
       const { data, error } = await supabase.rpc('calculate_shipping_fee', {
         organization_id: testCase.orgId,
@@ -58,11 +47,9 @@ const testDatabaseFunction = async () => {
         shipping_provider_clone_id: null
       });
 
-      console.log('النتيجة:', { data, error });
     }
 
   } catch (error) {
-    console.error('❌ خطأ في اختبار دالة قاعدة البيانات:', error);
   }
 };
 
@@ -71,12 +58,9 @@ const checkYalidineFeesData = async () => {
   try {
     let supabase = window.supabase || window.__SUPABASE_CLIENT__;
     if (!supabase) {
-      console.log('❌ لم يتم العثور على Supabase client');
       return;
     }
 
-    console.log('\n📊 فحص بيانات yalidine_fees:');
-    
     const { data, error } = await supabase
       .from('yalidine_fees')
       .select('*')
@@ -85,10 +69,7 @@ const checkYalidineFeesData = async () => {
       .in('commune_id', [515, 1401])
       .limit(10);
 
-    console.log('بيانات yalidine_fees:', { data, error });
-
   } catch (error) {
-    console.error('❌ خطأ في فحص yalidine_fees:', error);
   }
 };
 
@@ -98,24 +79,18 @@ const checkYalidineSettings = async () => {
     let supabase = window.supabase || window.__SUPABASE_CLIENT__;
     if (!supabase) return;
 
-    console.log('\n⚙️ فحص إعدادات yalidine_settings:');
-    
     const { data, error } = await supabase
       .from('yalidine_settings_with_origin')
       .select('*')
       .eq('organization_id', 'fed872f9-1ade-4351-b020-5598fda976fe')
       .limit(5);
 
-    console.log('إعدادات yalidine_settings:', { data, error });
-
   } catch (error) {
-    console.error('❌ خطأ في فحص yalidine_settings:', error);
   }
 };
 
 // 5. محاولة مسح جميع أنواع التخزين المؤقت
 const clearAllCaches = () => {
-  console.log('\n🧹 مسح شامل للتخزين المؤقت:');
   
   // مسح localStorage
   let clearedCount = 0;
@@ -123,7 +98,6 @@ const clearAllCaches = () => {
     if (key.includes('shipping') || key.includes('fee') || key.includes('cache') || key.includes('calculate')) {
       localStorage.removeItem(key);
       clearedCount++;
-      console.log(`❌ تم حذف من localStorage: ${key}`);
     }
   });
 
@@ -132,18 +106,14 @@ const clearAllCaches = () => {
     if (key.includes('shipping') || key.includes('fee') || key.includes('cache') || key.includes('calculate')) {
       sessionStorage.removeItem(key);
       clearedCount++;
-      console.log(`❌ تم حذف من sessionStorage: ${key}`);
     }
   });
-
-  console.log(`✅ تم حذف ${clearedCount} عنصر من التخزين المؤقت`);
 
   // مسح ذاكرة المتصفح
   if ('caches' in window) {
     caches.keys().then(names => {
       names.forEach(name => {
         caches.delete(name);
-        console.log(`❌ تم حذف cache: ${name}`);
       });
     });
   }
@@ -156,11 +126,10 @@ const runAllTests = async () => {
   await checkYalidineSettings();
   clearAllCaches();
   
-  console.log('\n🔄 انتظار 3 ثوانٍ ثم إعادة تحميل الصفحة...');
   setTimeout(() => {
     window.location.reload();
   }, 3000);
 };
 
 // تشغيل التشخيص
-runAllTests(); 
+runAllTests();

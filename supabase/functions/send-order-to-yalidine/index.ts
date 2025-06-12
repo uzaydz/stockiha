@@ -39,7 +39,6 @@ class YalidineApiClient {
       const responseData = await response.json();
       
       if (!response.ok) {
-        console.error('Yalidine API request failed:', response.status, responseData);
         return {
           success: false,
           error: { 
@@ -55,7 +54,6 @@ class YalidineApiClient {
       };
 
     } catch (error) {
-      console.error('Error creating parcel in YalidineApiClient:', error);
       return {
         success: false,
         error: error instanceof Error ? { message: error.message, stack: error.stack } : error
@@ -64,7 +62,6 @@ class YalidineApiClient {
   }
 }
 // --- End of Integrated YalidineApiClient ---
-
 
 interface OrderPayload {
   orderId: string;
@@ -87,7 +84,6 @@ async function getOrgYalidineCredentials(supabase: SupabaseClient, organizationI
     .single();
 
   if (error || !data) {
-    console.error(`Error fetching Yalidine credentials for org ${organizationId}:`, error);
     return null;
   }
   return { apiId: data.api_token, apiToken: data.api_key };
@@ -125,7 +121,6 @@ serve(async (req: Request) => {
       .single();
 
     if (orderError || !orderData) {
-      console.error(`Order not found or error fetching order ${orderId}:`, orderError);
       return new Response(JSON.stringify({ error: `Order not found: ${orderId}` }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -163,7 +158,6 @@ serve(async (req: Request) => {
             .eq("id", orderData.customer_id)
             .single();
         if (guestError && guestError.code !== 'PGRST116') {
-            console.error("Error fetching guest customer:", guestError);
         }
         if (guestCustomer) {
             customerName = guestCustomer.name || customerName;
@@ -175,7 +169,6 @@ serve(async (req: Request) => {
                 .eq("id", orderData.customer_id)
                 .single();
             if (regError && regError.code !== 'PGRST116') {
-                 console.error("Error fetching registered customer:", regError);
             }
             if(registeredCustomer){
                 customerName = registeredCustomer.name || customerName;
@@ -199,7 +192,6 @@ serve(async (req: Request) => {
             .eq("id", orderData.shipping_address_id)
             .single();
         if (addrError && addrError.code !== 'PGRST116') {
-             console.error("Error fetching address details:", addrError);
         }
 
         if (addressDetails) {
@@ -213,14 +205,11 @@ serve(async (req: Request) => {
                         .limit(1)
                         .single();
                     if (wError && wError.code !== 'PGRST116') {
-                        console.error(`Error fetching wilaya name for wilaya_id ${wilayaId} from yalidine_provinces_global:`, wError);
                     } else if (wilayaInfo && wilayaInfo.name) {
                         toWilayaName = wilayaInfo.name;
                     } else {
-                        console.warn(`Wilaya name not found in yalidine_provinces_global for wilaya_id: ${wilayaId}. Original value from addresses: ${addressDetails.state}`);
                     }
                 } else {
-                     console.warn(`Invalid wilaya_id format in addresses table: ${addressDetails.state}. Expected a numeric string.`);
                 }
             } else if (addressDetails.state) { 
                 toWilayaName = addressDetails.state;
@@ -237,14 +226,11 @@ serve(async (req: Request) => {
                         .limit(1)
                         .single();
                     if (cError && cError.code !== 'PGRST116') {
-                        console.error(`Error fetching commune name for commune_id ${communeId} from yalidine_municipalities:`, cError);
                     } else if (communeInfo && communeInfo.name) {
                         toCommuneName = communeInfo.name;
                     } else {
-                        console.warn(`Commune name not found in yalidine_municipalities for commune_id: ${communeId}. Original value from addresses: ${communeIdString}`);
                     }
                 } else {
-                    console.warn(`Invalid commune_id format in addresses table: ${communeIdString}. Expected a numeric string.`);
                 }
             } else if (communeIdString) { 
                  toCommuneName = communeIdString;
@@ -262,7 +248,6 @@ serve(async (req: Request) => {
             .single();
 
         if (centerError && centerError.code !== 'PGRST116') {
-            console.error("Error fetching stop desk info:", centerError);
         }
         if (centerInfo) {
             toWilayaName = centerInfo.wilaya_name;
@@ -273,7 +258,6 @@ serve(async (req: Request) => {
     }
 
     if (!toWilayaName || !toCommuneName) {
-         console.warn(`Wilaya or Commune name missing for order ${orderId}. Wilaya: '${toWilayaName}', Commune: '${toCommuneName}'`);
          return new Response(JSON.stringify({ error: `Destination Wilaya or Commune is missing for order ${orderId}. Please ensure address or stop desk is correctly set.` }), {
             status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
@@ -284,14 +268,12 @@ serve(async (req: Request) => {
     // ولحالة stop_desk، streetAddressLine1 سيكون اسم المكتب.
     const addressForYalidine = streetAddressLine1 ? streetAddressLine1 : `${toCommuneName}, ${toWilayaName}`;
 
-
     const {data: orderItems, error: itemsError} = await supabase
         .from("online_order_items")
         .select("product_name, quantity")
         .eq("order_id", orderId);
     
     if (itemsError) {
-        console.error("Error fetching order items:", itemsError);
         return new Response(JSON.stringify({ error: "Failed to fetch order items." }), {
             status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
@@ -305,12 +287,10 @@ serve(async (req: Request) => {
       .eq("organization_id", organizationId)
       .single();
     if (orgSettingsError && orgSettingsError.code !== 'PGRST116'){
-        console.warn("Error fetching organization yalidine settings", orgSettingsError)
     }
     if (orgYalidineSettings && orgYalidineSettings.origin_wilaya_name) {
       fromWilayaName = orgYalidineSettings.origin_wilaya_name;
     } else {
-      console.warn(`Origin wilaya name not found for organization ${organizationId}, using default: ${fromWilayaName}`);
     }
 
     const parcelData = {
@@ -338,7 +318,6 @@ serve(async (req: Request) => {
     };
     
     if (!parcelData.contact_phone || !/^0[0-9]{8,9}$/.test(parcelData.contact_phone)) {
-        console.warn(`Invalid phone number format for order ${orderId}: ${parcelData.contact_phone}. Proceeding, but Yalidine might reject.`);
     }
 
     const yalidineResult = await yalidineApiClient.createParcel(parcelData);
@@ -362,7 +341,6 @@ serve(async (req: Request) => {
           })
           .eq("id", orderId);
           
-        console.log(`Order ${orderId} successfully sent to Yalidine. Tracking: ${yalidineTrackingId}`);
         return new Response(JSON.stringify({ success: true, tracking_id: yalidineTrackingId, label_url: labelUrl }), {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -371,14 +349,12 @@ serve(async (req: Request) => {
         const errorMessage = parcelSpecificResult?.message || 
                              apiResponseData?.message || 
                              "Yalidine API reported a failure for this order. Check Yalidine dashboard for details.";
-        console.error(`Yalidine API error for order ${orderId} (parcel specific):`, errorMessage, "Full response:", apiResponseData);
         return new Response(JSON.stringify({ success: false, message: errorMessage, yalidine_response: apiResponseData }), {
           status: 400, 
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
     } else {
-      console.error(`Failed to send order ${orderId} to Yalidine via API client:`, yalidineResult.error);
       return new Response(JSON.stringify({ success: false, message: "Failed to communicate with Yalidine API.", error_details: yalidineResult.error?.message || yalidineResult.error }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -386,7 +362,6 @@ serve(async (req: Request) => {
     }
 
   } catch (e) {
-    console.error("Unhandled error in send-order-to-yalidine function:", e);
     let errorMessage = "Internal Server Error";
     if (e instanceof Error) {
       errorMessage = e.message;
@@ -398,4 +373,4 @@ serve(async (req: Request) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-}); 
+});

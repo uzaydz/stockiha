@@ -26,7 +26,7 @@ export enum ShippingProvider {
   GOLIVRI = 'golivri',
   MONO_HUB = 'mono_hub',
   MSM_GO = 'msm_go',
-  NEGMAR_EXPRESS = 'negmar_express',
+  IMIR_EXPRESS = 'imir_express',
   PACKERS = 'packers',
   PREST = 'prest',
   RB_LIVRAISON = 'rb_livraison',
@@ -47,7 +47,7 @@ interface ProviderCredentials {
 interface CreateOrderParams {
   Tracking: string;
   TypeLivraison: number; // 1: Home delivery, 2: Stop desk
-  TypeColis: number; // 0: Regular shipping, 1: Exchange
+  TypeColis: number; // 0: Livraison (normal delivery), 1: Échange (exchange/return) - القيم معكوسة في API!
   Confrimee: number; // 0: Not confirmed, 1: Confirmed
   Client: string;
   MobileA: string;
@@ -528,8 +528,11 @@ export class EcotrackShippingService extends BaseShippingService {
   constructor(providerCode: ShippingProvider, baseUrl: string, credentials: ProviderCredentials) {
     super(providerCode, baseUrl, credentials);
     
+    // إزالة slash مضاعف في حالة انتهاء baseUrl بـ slash
+    const cleanBaseUrl = this.baseUrl.endsWith('/') ? this.baseUrl.slice(0, -1) : this.baseUrl;
+    
     this.apiClient = axios.create({
-      baseURL: this.baseUrl,
+      baseURL: cleanBaseUrl,
       headers: {
         'Authorization': `Bearer ${credentials.token}`,
         'Content-Type': 'application/json'
@@ -587,34 +590,45 @@ export class EcotrackShippingService extends BaseShippingService {
    * Create a shipping order with Ecotrack API
    */
   async createShippingOrder(params: CreateOrderParams): Promise<any> {
+    const requestBody = {
+      tracking: params.Tracking,
+      nom_client: params.Client,
+      telephone: params.MobileA,
+      telephone_2: params.MobileB || '',
+      adresse: params.Adresse,
+      code_wilaya: params.IDWilaya,
+      commune: params.Commune,
+      montant: parseFloat(params.Total),
+      note: params.Note || '',
+      type: params.TypeLivraison,
+      type_colis: params.TypeColis,
+      confirmee: params.Confrimee,
+      description: params.TProd || ''
+    };
+
     try {
-      const requestBody = {
-        recipient_name: params.Client,
-        recipient_phone: params.MobileA,
-        recipient_phone_alt: params.MobileB || '',
-        address: params.Adresse,
-        region: params.IDWilaya,
-        city: params.Commune,
-        amount: parseFloat(params.Total),
-        delivery_type: params.TypeLivraison,
-        package_type: params.TypeColis,
-        is_confirmed: params.Confrimee === 1,
-        notes: params.Note || '',
-        products_description: params.TProd || '',
-        tracking_number: params.Tracking
-      };
-      
+
       const response = await this.apiClient.post('/api/v1/create/order', requestBody);
-      
+
       if (response.data.success) {
         return response.data;
       } else {
         throw new Error(response.data.message || 'فشل في إنشاء الطلب');
       }
     } catch (error: any) {
+      
+      // Log more detailed error information
+      if (error.response?.data) {
+      }
+      
       if (error.response?.data?.success === false) {
         throw new Error(error.response.data.message || 'فشل في إنشاء الطلب');
       }
+      
+      if (error.response?.data) {
+        throw new Error(`HTTP ${error.response.status}: ${JSON.stringify(error.response.data)}`);
+      }
+      
       throw error;
     }
   }
@@ -719,7 +733,7 @@ function getProviderBaseUrl(provider: ShippingProvider): string {
     [ShippingProvider.GOLIVRI]: 'https://golivri.ecotrack.dz',
     [ShippingProvider.MONO_HUB]: 'https://monohub.ecotrack.dz',
     [ShippingProvider.MSM_GO]: 'https://msmgo.ecotrack.dz',
-    [ShippingProvider.NEGMAR_EXPRESS]: 'https://negmar.ecotrack.dz',
+    [ShippingProvider.IMIR_EXPRESS]: 'https://imir.ecotrack.dz',
     [ShippingProvider.PACKERS]: 'https://packers.ecotrack.dz',
     [ShippingProvider.PREST]: 'https://prest.ecotrack.dz',
     [ShippingProvider.RB_LIVRAISON]: 'https://rb.ecotrack.dz',
@@ -759,7 +773,7 @@ export function createShippingService(
     case ShippingProvider.GOLIVRI:
     case ShippingProvider.MONO_HUB:
     case ShippingProvider.MSM_GO:
-    case ShippingProvider.NEGMAR_EXPRESS:
+    case ShippingProvider.IMIR_EXPRESS:
     case ShippingProvider.PACKERS:
     case ShippingProvider.PREST:
     case ShippingProvider.RB_LIVRAISON:

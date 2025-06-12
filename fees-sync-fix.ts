@@ -7,9 +7,7 @@ async function saveFees(fees: any[], organizationId: string): Promise<void> {
     
     return;
   }
-  
-  
-  
+
   // تجميع السجلات في دفعات للحفظ
   const batchSize = 200;
   const batches = [];
@@ -17,9 +15,7 @@ async function saveFees(fees: any[], organizationId: string): Promise<void> {
   for (let i = 0; i < fees.length; i += batchSize) {
     batches.push(fees.slice(i, i + batchSize));
   }
-  
-  
-  
+
   // معالجة 2 دفعات بالتوازي فقط لتقليل الضغط
   const concurrentBatches = 2;
   
@@ -35,7 +31,6 @@ async function saveFees(fees: any[], organizationId: string): Promise<void> {
         });
 
         if (error) {
-          console.error(`[FEES] خطأ في حفظ دفعة (${batch.length} سجل) باستخدام RPC:`, error);
           
           // محاولة استخدام الطريقة البديلة مع شريحة أصغر إذا فشلت الدالة
           if (batch.length > 50) {
@@ -53,7 +48,6 @@ async function saveFees(fees: any[], organizationId: string): Promise<void> {
                 });
                 
                 if (smallError) {
-                  console.error(`[FEES] فشل حفظ الدفعة الصغيرة أيضًا (${smallBatch.length} سجل):`, smallError);
                   
                   // المحاولة النهائية باستخدام upsert المباشر
                   
@@ -65,7 +59,6 @@ async function saveFees(fees: any[], organizationId: string): Promise<void> {
                     });
                     
                   if (directError) {
-                    console.error(`[FEES] فشل الحفظ المباشر أيضًا:`, directError);
                   } else {
                     
                   }
@@ -73,7 +66,6 @@ async function saveFees(fees: any[], organizationId: string): Promise<void> {
                   
                 }
               } catch (e) {
-                console.error(`[FEES] استثناء أثناء محاولة حفظ دفعة صغيرة:`, e);
               }
             }
           } else {
@@ -87,12 +79,10 @@ async function saveFees(fees: any[], organizationId: string): Promise<void> {
                 });
                 
               if (directError) {
-                console.error(`[FEES] فشل الحفظ المباشر أيضًا:`, directError);
               } else {
                 
               }
             } catch (e) {
-              console.error(`[FEES] استثناء أثناء محاولة الحفظ المباشر:`, e);
             }
           }
         } else {
@@ -100,10 +90,8 @@ async function saveFees(fees: any[], organizationId: string): Promise<void> {
           
         }
       }));
-      
-      
+
     } catch (e) {
-      console.error(`[FEES] استثناء أثناء حفظ الأسعار:`, e);
     }
   }
   
@@ -115,10 +103,8 @@ async function saveFees(fees: any[], organizationId: string): Promise<void> {
       .eq('organization_id', organizationId);
     
     if (error) {
-      console.error(`[FEES] خطأ في التحقق من عدد السجلات:`, error);
     } else {
-      
-      
+
       // لفحص المشكلة، افحص أيضًا السجلات في yalidine_fees_new
       try {
         const { count: newCount, error: newError } = await supabase
@@ -127,10 +113,8 @@ async function saveFees(fees: any[], organizationId: string): Promise<void> {
           .eq('organization_id', organizationId);
           
         if (!newError) {
-          
-          
+
           if (count === 0 && newCount > 0) {
-            console.warn('[FEES] تحذير: البيانات مخزنة في الجدول yalidine_fees_new وليس في yalidine_fees!');
           }
         }
       } catch (e) {
@@ -138,6 +122,5 @@ async function saveFees(fees: any[], organizationId: string): Promise<void> {
       }
     }
   } catch (e) {
-    console.error(`[FEES] استثناء أثناء التحقق من عدد السجلات:`, e);
   }
-} 
+}

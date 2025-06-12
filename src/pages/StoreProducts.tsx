@@ -155,7 +155,6 @@ const useProductsData = (organizationId: string | undefined, filters: FilterStat
       setData(result);
     } catch (err) {
       setError('حدث خطأ أثناء تحميل المنتجات');
-      console.error('Error fetching products:', err);
       } finally {
         setIsLoading(false);
       }
@@ -712,11 +711,13 @@ const StoreProducts = () => {
                      />
 
            {/* Performance Monitor (Development Only) */}
-           <PerformanceMonitor
-             cache={cache}
-             visible={showPerformanceMonitor}
-             onToggle={() => setShowPerformanceMonitor(!showPerformanceMonitor)}
-           />
+           {process.env.NODE_ENV === 'development' && (
+             <PerformanceMonitor
+               cache={cache}
+               visible={showPerformanceMonitor}
+               onToggle={() => setShowPerformanceMonitor(!showPerformanceMonitor)}
+             />
+           )}
         </div>
       </div>
     </StoreLayout>

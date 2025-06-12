@@ -26,7 +26,6 @@ class ZRExpressApiClient {
 
   async createParcel(parcelData: any): Promise<{ success: boolean; data?: any; error?: any }> {
     try {
-      console.log('ZR Express: Creating parcel with data:', JSON.stringify(parcelData, null, 2));
       
       const response = await fetch(`${this.baseUrl}/add_colis`, {
         method: 'POST',
@@ -39,10 +38,8 @@ class ZRExpressApiClient {
       });
       
       const responseData = await response.json();
-      console.log('ZR Express API response:', JSON.stringify(responseData, null, 2));
       
       if (!response.ok) {
-        console.error('ZR Express API request failed:', response.status, responseData);
         return {
           success: false,
           error: { 
@@ -59,7 +56,6 @@ class ZRExpressApiClient {
       };
 
     } catch (error) {
-      console.error('Error creating parcel in ZRExpressApiClient:', error);
       return {
         success: false,
         error: error instanceof Error ? { message: error.message, stack: error.stack } : error
@@ -111,7 +107,6 @@ async function getOrgZRExpressCredentials(supabase: SupabaseClient, organization
     .single();
 
   if (error || !data) {
-    console.error(`Error fetching ZR Express credentials for org ${organizationId}:`, error);
     return null;
   }
   return { apiToken: data.api_token, apiKey: data.api_key };
@@ -150,7 +145,6 @@ serve(async (req: Request) => {
       .single();
 
     if (orderError || !orderData) {
-      console.error(`Order not found or error fetching order ${orderId}:`, orderError);
       return new Response(JSON.stringify({ error: `Order not found: ${orderId}` }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -190,7 +184,6 @@ serve(async (req: Request) => {
             .eq("id", orderData.customer_id)
             .single();
         if (guestError && guestError.code !== 'PGRST116') {
-            console.error("Error fetching guest customer:", guestError);
         }
         if (guestCustomer) {
             customerName = guestCustomer.name || customerName;
@@ -202,7 +195,6 @@ serve(async (req: Request) => {
                 .eq("id", orderData.customer_id)
                 .single();
             if (regError && regError.code !== 'PGRST116') {
-                 console.error("Error fetching registered customer:", regError);
             }
             if(registeredCustomer){
                 customerName = registeredCustomer.name || customerName;
@@ -224,7 +216,6 @@ serve(async (req: Request) => {
             .single();
             
         if (addrError && addrError.code !== 'PGRST116') {
-             console.error("Error fetching address details:", addrError);
         }
 
         if (addressDetails) {
@@ -250,7 +241,6 @@ serve(async (req: Request) => {
         .eq("order_id", orderId);
     
     if (itemsError) {
-        console.error("Error fetching order items:", itemsError);
         return new Response(JSON.stringify({ error: "Failed to fetch order items." }), {
             status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
@@ -282,17 +272,13 @@ serve(async (req: Request) => {
 
     // التحقق من صحة رقم الهاتف
     if (!parcelData.MobileA || !/^0[0-9]{8,9}$/.test(parcelData.MobileA)) {
-        console.warn(`Invalid phone number format for order ${orderId}: ${parcelData.MobileA}. Using default.`);
         parcelData.MobileA = "0500000000";
     }
-
-    console.log('Sending parcel to ZR Express:', JSON.stringify(parcelData, null, 2));
 
     // إرسال الطلب إلى ZR Express
     const zrResult = await zrApiClient.createParcel(parcelData);
 
     if (zrResult.success && zrResult.data) {
-      console.log('ZR Express response data:', JSON.stringify(zrResult.data, null, 2));
       
       // معالجة استجابة ZR Express
       const responseData = zrResult.data;
@@ -306,7 +292,6 @@ serve(async (req: Request) => {
           finalTrackingId = parcelResponse.Tracking || trackingNumber;
           isSuccess = true;
         } else {
-          console.error(`ZR Express API error: ${parcelResponse.MessageRetour}`);
           return new Response(JSON.stringify({ 
             success: false, 
             message: `ZR Express API error: ${parcelResponse.MessageRetour}`,
@@ -332,7 +317,6 @@ serve(async (req: Request) => {
           })
           .eq("id", orderId);
           
-        console.log(`Order ${orderId} successfully sent to ZR Express. Tracking: ${finalTrackingId}`);
         return new Response(JSON.stringify({ 
           success: true, 
           tracking_id: finalTrackingId,
@@ -343,7 +327,6 @@ serve(async (req: Request) => {
         });
       } else {
         const errorMessage = responseData?.MessageRetour || "Unknown error from ZR Express";
-        console.error(`ZR Express API error for order ${orderId}:`, errorMessage);
         return new Response(JSON.stringify({ 
           success: false, 
           message: errorMessage, 
@@ -354,7 +337,6 @@ serve(async (req: Request) => {
         });
       }
     } else {
-      console.error(`Failed to send order ${orderId} to ZR Express:`, zrResult.error);
       return new Response(JSON.stringify({ 
         success: false, 
         message: "Failed to communicate with ZR Express API.", 
@@ -366,7 +348,6 @@ serve(async (req: Request) => {
     }
 
   } catch (e) {
-    console.error("Unhandled error in send-order-to-zrexpress function:", e);
     let errorMessage = "Internal Server Error";
     if (e instanceof Error) {
       errorMessage = e.message;
@@ -381,4 +362,4 @@ serve(async (req: Request) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-}); 
+});

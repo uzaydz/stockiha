@@ -201,4 +201,4 @@ export default defineConfig({
 
   // Cache للتطوير
   cacheDir: 'node_modules/.vite',
-}); 
+});

@@ -22,8 +22,6 @@ async function fetchFromYalidine(endpoint: string, apiKey: string, apiToken: str
   const YALIDINE_API_BASE_URL = "https://api.yalidine.app/v1";
   let delay = initialDelay;
 
-  
-
   for (let i = 0; i < retries; i++) {
     try {
       const response = await fetch(`${YALIDINE_API_BASE_URL}${endpoint}`, {
@@ -37,7 +35,6 @@ async function fetchFromYalidine(endpoint: string, apiKey: string, apiToken: str
 
       if (!response.ok) {
         const errorBody = await response.text();
-        console.error(`[sync-yalidine] Yalidine API Error (${response.status}) for ${endpoint}. Attempt ${i + 1}/${retries}. Body: ${errorBody}`);
         if (response.status >= 400 && response.status < 500 && response.status !== 429) {
           // Don't retry for client errors like 401, 403, 404 unless it's 429 (rate limit)
           throw new Error(`Yalidine API Client Error (${response.status} for ${endpoint}): ${errorBody}`);
@@ -54,7 +51,6 @@ async function fetchFromYalidine(endpoint: string, apiKey: string, apiToken: str
       
       return responseData;
     } catch (e) {
-      console.error(`[sync-yalidine] Fetch attempt ${i + 1}/${retries} for ${endpoint} failed: ${e.message}`);
       if (i === retries - 1) {
         // If this was the last attempt, rethrow the caught error or a new one if e is not an Error instance
         if (e instanceof Error) throw e;
@@ -78,8 +74,6 @@ async function fetchAllPaginatedData(baseEndpoint: string, apiKey: string, apiTo
   let totalFetched = 0;
   const PAGINATION_DELAY_MS = 500; // تأخير 500 مللي ثانية بين طلبات الصفحات
 
-  
-
   while (hasMore) {
     const endpointWithPagination = `${baseEndpoint}?page=${page}&page_size=${pageSize}`;
     try {
@@ -99,11 +93,9 @@ async function fetchAllPaginatedData(baseEndpoint: string, apiKey: string, apiTo
           
         }
       } else {
-        console.warn(`[sync-yalidine] Unexpected response structure or no data array from ${endpointWithPagination}. Stopping pagination for ${baseEndpoint}. Response:`, responseJson);
         hasMore = false; // Stop if data format is not as expected
       }
     } catch (error) {
-      console.error(`[sync-yalidine] Error fetching page ${page} for ${baseEndpoint}: ${error.message}. Halting pagination for this endpoint.`);
       // Depending on the error, you might want to rethrow or handle differently
       // For now, we stop pagination for this specific endpoint on error to prevent infinite loops on persistent errors.
       hasMore = false; 
@@ -120,8 +112,7 @@ async function upsertData(supabase: SupabaseClient, tableName: string, conflictC
     
     return { data: [], error: null };
   }
-  
-  
+
   // Ensure all items have created_at and updated_at if your table expects them and they aren't auto-set
   // const now = new Date().toISOString();
   // const processedData = data.map(item => ({
@@ -147,12 +138,10 @@ async function upsertData(supabase: SupabaseClient, tableName: string, conflictC
     }); 
   
   if (error) {
-    console.error(`[sync-yalidine] Error upserting to ${tableName}:`, error); 
     syncResults.errors++;
     syncResults.message = error.message || JSON.stringify(error); 
   } else {
-    
-    
+
     // syncResults.synced = (result && result.length > 0) ? result.length : processedData.length;
     syncResults.synced = count !== null ? count : 0; // Use the exact count if available
     syncResults.message = ""; 
@@ -172,8 +161,6 @@ serve(async (req: Request) => {
   const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
   let apiKey = "", apiToken = "";
 
-  
-
   try {
     // 1. Fetch API credentials from DB
     
@@ -184,10 +171,8 @@ serve(async (req: Request) => {
       .single();
 
     if (configError || !config || !config.yalidine_api_key || !config.yalidine_api_token) {
-      console.error("[sync-yalidine] API configuration not found or incomplete in database.", configError);
       throw new Error("API configuration not found or incomplete in database.");
     }
-    
 
     // --- !!! DECRYPTION POINT !!! ---
     // apiKey = decrypt(config.yalidine_api_key, ENCRYPTION_KEY);
@@ -206,11 +191,9 @@ serve(async (req: Request) => {
     try {
       
       const rawProvincesData = await fetchAllPaginatedData("/wilayas/", apiKey, apiToken);
-      
-      
+
       const provincesToUpsert = rawProvincesData.map((p: any) => {
         if (!p.id || !p.name) {
-            console.warn("[sync-yalidine] Province item missing id or name:", p);
         }
         return {
             id: p.id, 
@@ -231,18 +214,15 @@ serve(async (req: Request) => {
     } catch (e) {
       syncResults.provinces.message = e.message;
       syncResults.provinces.errors++;
-      console.error("[sync-yalidine] Error syncing provinces:", e);
     }
 
     // 3. Sync Municipalities (Communes)
     try {
       
       const rawMunicipalitiesData = await fetchAllPaginatedData("/communes/", apiKey, apiToken);
-      
-      
+
       const municipalitiesToUpsert = rawMunicipalitiesData.map((m: any) => {
         if (!m.id || !m.name || !m.wilaya_id) {
-            console.warn("[sync-yalidine] Municipality item missing id, name, or wilaya_id:", m);
         }
         return {
             id: m.id, 
@@ -267,7 +247,6 @@ serve(async (req: Request) => {
     } catch (e) {
       syncResults.municipalities.message = e.message;
       syncResults.municipalities.errors++;
-      console.error("[sync-yalidine] Error syncing municipalities:", e);
     }
 
     // 4. Sync Centers (Stop Desks)
@@ -276,12 +255,10 @@ serve(async (req: Request) => {
       
       const rawCentersData = await fetchAllPaginatedData("/centers/", apiKey, apiToken);
       centersApiCallSuccessful = true; // API call was successful
-      
 
       const centersToUpsert = rawCentersData.map((c: any) => {
         // Check for essential fields based on Yalidine's documentation for centers
         if (!c.center_id || !c.name || !c.commune_id || !c.wilaya_id) { 
-            console.warn("[sync-yalidine] Center item missing center_id, name, commune_id, or wilaya_id:", c);
         }
 
         let lat: number | null = null;
@@ -296,10 +273,8 @@ serve(async (req: Request) => {
               lng = parsedLng;
             } else {
               // lat and lng remain null
-              console.warn("[sync-yalidine] Could not parse lat/lng from GPS string:", c.gps, "for center_id:", c.center_id);
             }
           } else {
-              console.warn("[sync-yalidine] GPS string does not appear to be a valid comma-separated lat,lng pair:", c.gps, "for center_id:", c.center_id);
           }
         }
 
@@ -322,7 +297,6 @@ serve(async (req: Request) => {
                                   c.wilaya_id && // wilaya_id is also NOT NULL
                                   c.wilaya_name;
         if (!hasRequiredFields) {
-          console.warn("[sync-yalidine] Filtering out center due to missing required (NOT NULL) fields after mapping. Center Data:", JSON.stringify(c));
         }
         return !!hasRequiredFields; // Ensure boolean return, and all checked fields are present
       });
@@ -338,7 +312,6 @@ serve(async (req: Request) => {
     } catch (e) {
       syncResults.centers.message = e.message;
       syncResults.centers.errors++;
-      console.error("[sync-yalidine] Error syncing centers:", e);
       // centersApiCallSuccessful remains false
     }
 
@@ -348,7 +321,6 @@ serve(async (req: Request) => {
         await supabase.from("global_yalidine_configuration").update({ last_global_centers_sync: new Date().toISOString() }).eq("id", 1);
         
       } catch (tsError) {
-        console.error("[sync-yalidine] Error updating last_global_centers_sync timestamp:", tsError);
         // Optionally, you could add this to syncResults.centers.message or a general error message
         syncResults.centers.message = syncResults.centers.message ? `${syncResults.centers.message} | Failed to update sync timestamp.` : `Failed to update sync timestamp: ${tsError.message}`;
         syncResults.centers.errors++; 
@@ -358,7 +330,6 @@ serve(async (req: Request) => {
     let status = 200;
     if (syncResults.provinces.errors > 0 || syncResults.municipalities.errors > 0 || syncResults.centers.errors > 0) {
         status = 207; // Multi-Status: some operations may have failed
-        console.warn("[sync-yalidine] Global Yalidine Sync process completed with some errors.", syncResults);
     } else {
         
     }
@@ -369,7 +340,6 @@ serve(async (req: Request) => {
     });
 
   } catch (e) {
-    console.error("[sync-yalidine] Fatal error in sync-global-yalidine-data function:", e);
     return new Response(JSON.stringify({ error: "Internal Server Error: " + e.message, details: e.stack }), {
       status: 500,
       headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },

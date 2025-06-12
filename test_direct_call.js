@@ -7,7 +7,6 @@ const supabase = createClient(
 
 (async () => {
   try {
-    console.log('🔍 اختبار الاستدعاء المباشر...');
     const { data, error } = await supabase.rpc('calculate_shipping_fee', {
       p_org_id: 'fed872f9-1ade-4351-b020-5598fda976fe',
       p_to_wilaya_id: 8,
@@ -15,9 +14,7 @@ const supabase = createClient(
       p_delivery_type: 'home',
       p_weight: 1
     });
-    
-    console.log('📊 النتيجة 1 (الولاية 8، البلدية 817، منزل):', { data, error });
-    
+
     // اختبار إضافي للبلدية 801
     const { data: data2, error: error2 } = await supabase.rpc('calculate_shipping_fee', {
       p_org_id: 'fed872f9-1ade-4351-b020-5598fda976fe',
@@ -26,10 +23,7 @@ const supabase = createClient(
       p_delivery_type: 'desk',
       p_weight: 1
     });
-    
-    console.log('📊 النتيجة 2 (الولاية 8، البلدية 801، مكتب):', { data: data2, error: error2 });
-    
+
   } catch (err) {
-    console.error('❌ خطأ:', err);
   }
-})(); 
+})();

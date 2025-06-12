@@ -16,7 +16,7 @@ VALUES
   ('golivri', 'غوليفري', 'https://golivri.ecotrack.dz/', true),
   ('mono_hub', 'Mono Hub', 'https://monohub.ecotrack.dz/', true),
   ('msm_go', 'MSM Go', 'https://msmgo.ecotrack.dz/', true),
-  ('negmar_express', 'نيغمار إكسبرس', 'https://negmar.ecotrack.dz/', true),
+  ('imir_express', 'إمير إكسبرس', 'https://imir.ecotrack.dz/', true),
   ('packers', 'باكرز', 'https://packers.ecotrack.dz/', true),
   ('prest', 'بريست', 'https://prest.ecotrack.dz/', true),
   ('rb_livraison', 'RB Livraison', 'https://rb.ecotrack.dz/', true),
@@ -38,7 +38,7 @@ SET updated_at = NOW()
 WHERE code IN (
   'anderson_delivery', 'areex', 'ba_consult', 'conexlog', 'coyote_express', 
   'dhd', 'distazero', 'e48hr_livraison', 'fretdirect', 'golivri', 
-  'mono_hub', 'msm_go', 'negmar_express', 'packers', 'prest', 
+  'mono_hub', 'msm_go', 'imir_express', 'packers', 'prest', 
   'rb_livraison', 'rex_livraison', 'rocket_delivery', 'salva_delivery', 
   'speed_delivery', 'tsl_express', 'worldexpress'
 );

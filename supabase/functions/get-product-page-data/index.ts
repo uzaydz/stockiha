@@ -12,13 +12,9 @@ interface ProductPageData {
   reviews: any[];
 }
 
-console.log('Fn: get-product-page-data - Cold start or new instance.');
-
 Deno.serve(async (req: Request) => {
-  console.log('Fn: get-product-page-data - Request received. Method:', req.method);
 
   if (req.method === 'OPTIONS') {
-    console.log('Fn: get-product-page-data - Handling OPTIONS request.');
     return new Response('ok', { headers: corsHeaders });
   }
 
@@ -27,7 +23,6 @@ Deno.serve(async (req: Request) => {
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
 
     if (!supabaseUrl || !supabaseAnonKey) {
-      console.error('Fn: get-product-page-data - Missing SUPABASE_URL or SUPABASE_ANON_KEY');
       return new Response(JSON.stringify({ error: 'Server configuration error: Missing Supabase credentials.' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
@@ -39,7 +34,6 @@ Deno.serve(async (req: Request) => {
         headers: { Authorization: req.headers.get('Authorization')! },
       },
     });
-    console.log('Fn: get-product-page-data - Supabase client initialized.');
 
     // --- Extract slug and organization_id from request body ---
     let productSlug: string | undefined;
@@ -49,9 +43,7 @@ Deno.serve(async (req: Request) => {
       const body = await req.json();
       productSlug = body.slug;
       organizationId = body.organization_id;
-      console.log('Fn: get-product-page-data - Parsed body. Slug:', productSlug, 'Org ID:', organizationId);
     } catch (jsonError) {
-      console.warn('Fn: get-product-page-data - Could not parse JSON body:', jsonError);
       return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
@@ -60,7 +52,6 @@ Deno.serve(async (req: Request) => {
 
     if (!productSlug) {
       const errorMsg = 'Product slug (slug) is required in body';
-      console.warn(`Fn: get-product-page-data - Returning 400: ${errorMsg}`);
       return new Response(JSON.stringify({ error: errorMsg }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
@@ -68,14 +59,11 @@ Deno.serve(async (req: Request) => {
     }
     if (!organizationId) {
       const errorMsg = 'Organization ID (organization_id) is required in body';
-      console.warn(`Fn: get-product-page-data - Returning 400: ${errorMsg}`);
       return new Response(JSON.stringify({ error: errorMsg }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
       });
     }
-
-    console.log(`Fn: get-product-page-data - Calling RPC get_complete_product_data with Slug: ${productSlug}, Org: ${organizationId}`);
 
     // --- Call the RPC function ---
     const { data: rpcData, error: rpcError } = await supabase.rpc('get_complete_product_data', {
@@ -84,7 +72,6 @@ Deno.serve(async (req: Request) => {
     });
 
     if (rpcError) {
-      console.error('Fn: get-product-page-data - Error calling RPC get_complete_product_data:', rpcError);
       // Check for specific error codes if needed, e.g., P0001 for "Product not found" if you raise custom errors in SQL
       // For now, assume any RPC error means product not found or other critical issue.
       let statusCode = 500;
@@ -96,13 +83,10 @@ Deno.serve(async (req: Request) => {
         // Or if the product itself is null from the main query within the RPC
         statusCode = 404;
         errorMessage = 'Product not found or not available.';
-         console.warn(`Fn: get-product-page-data - Product not found based on RPC error: ${rpcError.message}`);
       } else if (rpcError.details?.includes('limit_1')) { // Example custom error code check
           statusCode = 404;
           errorMessage = 'Product not found (CTE did not return a row).';
-          console.warn(`Fn: get-product-page-data - Product not found (CTE error) for slug ${productSlug}, org ${organizationId}`);
       }
-
 
       return new Response(JSON.stringify({ error: errorMessage, details: rpcError.message }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -113,7 +97,6 @@ Deno.serve(async (req: Request) => {
     // The RPC function is designed to return NULL if the product itself is not found/active.
     // The top-level rpcData would be null in that case.
     if (rpcData === null || rpcData.product === null) {
-        console.warn(`Fn: get-product-page-data - RPC returned null or product in data is null for slug ${productSlug}, org ${organizationId}.`);
         const errorMsg = 'Product not found or not available.';
         return new Response(JSON.stringify({ error: errorMsg }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -143,13 +126,10 @@ Deno.serve(async (req: Request) => {
     // The ProductDataLoader.tsx then accesses data.product, data.colors etc.
     // So, the structure productPagePayload should be compatible.
 
-    console.log(`Fn: get-product-page-data - Successfully fetched and processed data for product slug: ${productSlug}. Form selected: ${productPagePayload.form_settings?.id ?? 'none'}`);
-    
     let responseBodyString;
     try {
       responseBodyString = JSON.stringify(productPagePayload);
     } catch (stringifyError) {
-      console.error('Fn: get-product-page-data - CRITICAL: Failed to stringify productPagePayload:', stringifyError);
       return new Response(JSON.stringify({ error: 'Failed to stringify product data on server', details: (stringifyError as Error).message }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
@@ -163,10 +143,8 @@ Deno.serve(async (req: Request) => {
 
   } catch (error) {
     const errorMsg = (error as Error).message || 'Internal Server Error';
-    console.error('Fn: get-product-page-data - CRITICAL Error in main try-catch:', error);
     // Avoid circular JSON stringify if error has complex properties
     const simpleError = { message: (error as Error).message, stack: (error as Error).stack, name: (error as Error).name }; 
-    console.error('Fn: get-product-page-data - Full Error Object (simplified for logging):', JSON.stringify(simpleError, null, 2));
     
     return new Response(JSON.stringify({ error: errorMsg, details: simpleError }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

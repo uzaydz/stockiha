@@ -1,11 +1,12 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
+import { supabase, getSupabaseClient } from '@/lib/supabase';
 import { getOrganizationBySubdomain } from '@/lib/api/tenant';
 import { getCacheData, setCacheData, LONG_CACHE_TTL, DEFAULT_CACHE_TTL } from '@/lib/cache/storeCache';
 import { withCache } from '@/lib/cache/storeCache';
 import { getCurrentUserProfile } from '@/lib/api/users';
-import { setUserContext, logError, setTag } from '../sentry';
+import { setUserContext, setTag } from '../sentry';
+import { getOrganizationById } from '@/lib/api/organization';
 
 // Define Json type if not available from Supabase directly
 export type Json =
@@ -21,37 +22,26 @@ export interface UserProfile {
   id: string;
   role: string;
   permissions?: Json;
+  organization_id: string;
   // Add other profile fields as needed
   [key: string]: any; // Allow other properties
+}
+
+export interface Organization {
+  id: string;
+  name: string;
+  [key: string]: any;
 }
 
 export interface AuthContextType {
   session: Session | null;
   user: SupabaseUser | null;
   userProfile: UserProfile | null;
-  isLoadingUserProfile: boolean;
-  organization: {
-    id: string;
-    name: string;
-    subscription_tier: string;
-    subscription_status: string;
-    subscription_id: string | null;
-    created_at: string;
-  } | null;
-  signIn: (email: string, password: string) => Promise<{
-    success: boolean;
-    error: Error | null;
-  }>;
-  signUp: (email: string, password: string, name: string) => Promise<{
-    success: boolean;
-    error: Error | null;
-  }>;
+  organization: Organization | null;
+  isLoading: boolean;
+  signIn: (email: string, password: string) => Promise<{ success: boolean; error: Error | null }>;
   signOut: () => Promise<void>;
-  loading: boolean;
-  isLoadingOrganization: boolean;
-  isTenant: boolean;
-  currentSubdomain: string | null;
-  refreshOrganizationData: () => Promise<boolean>;
+  refreshData: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -128,437 +118,525 @@ const getDefaultOrganizationId = (): string | null => {
   return defaultOrgId;
 };
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<SupabaseUser | null>(null);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [isLoadingUserProfile, setIsLoadingUserProfile] = useState<boolean>(true);
-  const [loading, setLoading] = useState(true);
-  const [isLoadingOrganization, setIsLoadingOrganization] = useState<boolean>(true);
-  const [isTenant, setIsTenant] = useState(false);
-  const [currentSubdomain, setCurrentSubdomain] = useState<string | null>(() => 
-    extractSubdomain(window.location.hostname)
-  );
-  const [organization, setOrganization] = useState<AuthContextType['organization']>(null);
-  
-  useEffect(() => {
-    // console.log("AuthContext initialized");
-  }, []);
+// أضافة دالة ensureClientReady
+const ensureClientReady = async () => {
+  try {
+    // تحقق من أن supabase متاح
+    if (supabase && supabase.auth && typeof supabase.auth.getSession === 'function') {
+      return supabase;
+    }
+    
+    // fallback: استخدم getSupabaseClient
+    const client = await getSupabaseClient();
+    if (client && client.auth && typeof client.auth.getSession === 'function') {
+      return client;
+    }
+    
+    throw new Error('Supabase client غير متاح');
+  } catch (error) {
+    return supabase; // fallback إلى supabase مباشرة
+  }
+};
 
-  // Load User Profile - Depends on user.id now
-  useEffect(() => {
-    const loadUserProfile = async () => {
-      const currentUserId = user?.id; // Get the ID
+// إضافة دوال مساعدة لإدارة حالة المصادقة
+const saveAuthState = (session: Session | null, user: SupabaseUser | null, forceDelete: boolean = false) => {
+  try {
+    if (session && user) {
+      const authState = {
+        session: {
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+          expires_at: session.expires_at,
+          token_type: session.token_type,
+          user: {
+            id: user.id,
+            email: user.email,
+            user_metadata: user.user_metadata,
+            app_metadata: user.app_metadata,
+          }
+        },
+        timestamp: Date.now(),
+        lastValidation: Date.now() // إضافة timestamp للتحقق الأخير
+      };
+      localStorage.setItem('bazaar_auth_state', JSON.stringify(authState));
+    } else if (forceDelete) {
+      // حذف البيانات فقط إذا طُلب ذلك صراحة (مثل تسجيل الخروج)
+      localStorage.removeItem('bazaar_auth_state');
+    } else {
+    }
+  } catch (error) {
+  }
+};
 
-      if (currentUserId) {
-        setIsLoadingUserProfile(true);
-        const cacheKey = `user_profile:${currentUserId}`;
-        try {
-          const profile = await withCache<UserProfile | null>(
-            cacheKey,
-            async () => {
-              // getCurrentUserProfile internally uses supabase.auth.getUser(), 
-              // which should be in sync with the `user` state from onAuthStateChange
-              const fetchedProfile = await getCurrentUserProfile(); 
-              return fetchedProfile as UserProfile | null;
-            },
-            DEFAULT_CACHE_TTL, 
-            true 
-          );
-          setUserProfile(profile);
-        } catch (error) {
-          setUserProfile(null); 
-        } finally {
-          setIsLoadingUserProfile(false);
-        }
-      } else {
-        setUserProfile(null);
-        // If there's no user, profile is not loading, or already loaded as null.
-        // Set to false to ensure any loading indicators are hidden.
-        setIsLoadingUserProfile(false); 
+const loadSavedAuthState = (): { session: Session | null; user: SupabaseUser | null } => {
+  try {
+    const savedState = localStorage.getItem('bazaar_auth_state');
+    if (!savedState) return { session: null, user: null };
+
+    const authState = JSON.parse(savedState);
+    
+    // تحقق من انتهاء صلاحية الجلسة (مع إضافة 10 دقائق buffer)
+    const expiresAt = authState.session?.expires_at;
+    if (expiresAt) {
+      const expirationTime = expiresAt * 1000; // تحويل إلى milliseconds
+      const now = Date.now();
+      const bufferTime = 10 * 60 * 1000; // 10 دقائق buffer محسّن
+      
+      if (now >= (expirationTime - bufferTime)) {
+        localStorage.removeItem('bazaar_auth_state');
+        return { session: null, user: null };
       }
+    }
+
+    // التحقق من أن البيانات المحفوظة لا تتجاوز 24 ساعة
+    const savedTimestamp = authState.timestamp || 0;
+    const maxAge = 24 * 60 * 60 * 1000; // 24 ساعة
+    if (Date.now() - savedTimestamp > maxAge) {
+      localStorage.removeItem('bazaar_auth_state');
+      return { session: null, user: null };
+    }
+
+    return {
+      session: authState.session as Session,
+      user: authState.session.user as SupabaseUser
     };
+  } catch (error) {
+    localStorage.removeItem('bazaar_auth_state');
+    return { session: null, user: null };
+  }
+};
 
-    loadUserProfile();
-  }, [user?.id]); // Dependency changed to user?.id
+// دالة مساعدة للتحقق من صحة الجلسة دورياً
+const validateSessionPeriodically = async (session: Session | null): Promise<boolean> => {
+  if (!session) return false;
+  
+  try {
+    // فحص انتهاء صلاحية التوكن
+    const now = Date.now();
+    const expiresAt = session.expires_at ? session.expires_at * 1000 : 0;
+    
+    // إذا انتهت الصلاحية أو ستنتهي خلال 5 دقائق
+    if (expiresAt && now >= (expiresAt - 5 * 60 * 1000)) {
+      
+      const client = await getSupabaseClient();
+      const { data, error } = await client.auth.refreshSession();
+      
+      if (error || !data.session) {
+        return false;
+      }
+      
+      return true;
+    }
+    
+    return true;
+  } catch (error) {
+    return false;
+  }
+};
 
-  // تحسين وظيفة تحميل بيانات المؤسسة باستخدام useCallback والتخزين المؤقت
-  const loadOrganizationData = useCallback(async (subdomain: string | null) => {
-    setIsLoadingOrganization(true);
-    const cacheKey = subdomain 
-      ? `organization_auth_context:${subdomain}`
-      : `organization_auth_context:default`;
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // تحميل البيانات المحفوظة كحالة أولية
+  const savedAuthState = loadSavedAuthState();
+  
+  const [session, setSession] = useState<Session | null>(savedAuthState.session);
+  const [user, setUser] = useState<SupabaseUser | null>(savedAuthState.user);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [organization, setOrganization] = useState<Organization | null>(null);
+  const [isLoading, setIsLoading] = useState(!savedAuthState.session); // إذا كانت هناك جلسة محفوظة، نبدأ بـ false
+  const [isProcessingToken, setIsProcessingToken] = useState(false);
+  const [isExplicitSignOut, setIsExplicitSignOut] = useState(false);
+
+  // References للتحكم في الأحداث المتكررة
+  const lastEventRef = useRef<{ event: string; sessionId: string | null; timestamp: number } | null>(null);
+  const authEventTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const fetchingUserDataRef = useRef(false);
+  const initialLoadRef = useRef(true);
+  const pageVisibilityRef = useRef<boolean>(true);
+  const lastVisibilityChangeRef = useRef<number>(Date.now());
+  const isInitializingRef = useRef(false);
+
+  // تحديث حالة المصادقة مع التحقق من التكرار
+  const updateAuthState = useCallback((newSession: Session | null, newUser: SupabaseUser | null, clearAll: boolean = false) => {
+
+    // التحقق من التكرار - تجنب تحديث الحالة إذا لم تتغير
+    if (!clearAll && session && newSession && user && newUser) {
+      if (session.access_token === newSession.access_token && user.id === newUser.id) {
+        return;
+      }
+    }
+
+    if (clearAll) {
+      setSession(null);
+      setUser(null);
+      setUserProfile(null);
+      setOrganization(null);
+      saveAuthState(null, null, true);
+      // مسح البيانات الإضافية
+      localStorage.removeItem('current_user_profile');
+      localStorage.removeItem('current_organization');
+    } else {
+      setSession(newSession);
+      setUser(newUser);
+      if (newSession && newUser) {
+        saveAuthState(newSession, newUser);
+      }
+    }
+  }, [session, user]);
+
+  // دالة تسجيل الخروج وحذف البيانات
+  const signOutAndClearState = useCallback(async () => {
+    setIsExplicitSignOut(true);
     
     try {
-      const orgDetails = await withCache<AuthContextType['organization'] | null>(
-        cacheKey,
-        async () => {
-          const supabaseClient = supabase;
-          let organizationData: any = null; 
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+      }
+    } catch (error) {
+    }
+    
+    updateAuthState(null, null, true);
+  }, [updateAuthState]);
 
-          if (!subdomain) {
-            const defaultOrgId = getDefaultOrganizationId();
-            if (defaultOrgId) {
-              const { data, error } = await supabaseClient
-                .from('organizations')
-                .select('id, name, subscription_tier, subscription_status, created_at')
-                .eq('id', defaultOrgId)
-                .single();
-              if (!error && data) {
-                organizationData = data;
-                localStorage.setItem('bazaar_organization_id', data.id);
-              } else if (error && error.code !== 'PGRST116') {
-              }
-            }
-          } else {
-            const { data, error } = await supabaseClient
-              .from('organizations')
-              .select('id, name, subscription_tier, subscription_status, created_at')
-              .eq('subdomain', subdomain)
-              .single();
-            if (!error && data) {
-              organizationData = data;
-              localStorage.setItem('bazaar_organization_id', data.id);
-            } else if (error && error.code !== 'PGRST116') {
-            }
-          }
+  // دالة تحديث البيانات
+  const refreshData = useCallback(async () => {
+    if (!user || !session) {
+      return;
+    }
 
-          if (!organizationData) {
-            const storedOrgId = localStorage.getItem('bazaar_organization_id');
-            if (storedOrgId) {
-              const { data, error } = await supabaseClient
-                .from('organizations')
-                .select('id, name, subscription_tier, subscription_status, created_at')
-                .eq('id', storedOrgId)
-                .single();
-              if (!error && data) {
-                organizationData = data;
-              } else if (error && error.code !== 'PGRST116') {
-              }
-            }
-          }
+    setIsLoading(true);
+    
+    try {
+      const profile = await getCurrentUserProfile();
+      setUserProfile(profile);
+      
+      // حفظ في localStorage للمرات القادمة
+      if (profile) {
+        localStorage.setItem('current_user_profile', JSON.stringify(profile));
+      }
 
-          if (organizationData) {
-            let subscription_id = null;
-            try {
-              const { data: subscriptionData } = await supabaseClient
-                .from('organization_subscriptions')
-                .select('id')
-                .eq('organization_id', organizationData.id)
-                .eq('status', 'active')
-                .limit(1)
-                .single();
-              if (subscriptionData) {
-                subscription_id = subscriptionData.id;
-              }
-            } catch (e: any) { 
-              if (e?.code !== 'PGRST116') {
-              }
-            }
-            
-            return {
-              id: organizationData.id,
-              name: organizationData.name,
-              subscription_tier: organizationData.subscription_tier || 'free',
-              subscription_status: organizationData.subscription_status || 'inactive',
-              subscription_id: subscription_id,
-              created_at: organizationData.created_at
-            };
-          }
-          return null; 
-        },
-        LONG_CACHE_TTL, 
-        true
-      );
-
-      if (orgDetails) {
-        setOrganization(orgDetails);
-        setIsTenant(true);
+      if (profile?.organization_id) {
+        const org = await getOrganizationById(profile.organization_id);
+        setOrganization(org);
+        
+        // حفظ في localStorage للمرات القادمة
+        if (org) {
+          localStorage.setItem('current_organization', JSON.stringify(org));
+        }
       } else {
         setOrganization(null);
-        setIsTenant(false);
+        localStorage.removeItem('current_organization');
       }
-      return !!orgDetails;
     } catch (error) {
-      setOrganization(null);
-      setIsTenant(false);
-      return false;
+      await signOutAndClearState();
     } finally {
-      setIsLoadingOrganization(false);
+      setIsLoading(false);
     }
-  }, []);
+  }, [user, session, signOutAndClearState]);
 
+  // تحميل البيانات المحفوظة للـ profile والـ organization
   useEffect(() => {
-    setLoading(true); // Set loading true when this effect runs
-    const getInitialSession = async () => {
+    if (savedAuthState.session && savedAuthState.user && initialLoadRef.current) {
+      
       try {
-        const { data: { session: initialSession }, error } = await supabase.auth.getSession();
-        if (error) {
-          // Potentially set user/session to null explicitly if error indicates auth failure
+        // تحميل user profile المحفوظ
+        const savedProfile = localStorage.getItem('current_user_profile');
+        if (savedProfile) {
+          const profile = JSON.parse(savedProfile);
+          setUserProfile(profile);
         }
-        // Update session and user states once after getting the initial session.
-        // onAuthStateChange will handle subsequent changes.
-        setSession(initialSession);
-        setUser(initialSession?.user ?? null);
+
+        // تحميل organization المحفوظة
+        const savedOrg = localStorage.getItem('current_organization');
+        if (savedOrg) {
+          const org = JSON.parse(savedOrg);
+          setOrganization(org);
+        }
       } catch (error) {
-      } finally {
-        // setLoading(false); // Defer this to onAuthStateChange INITIAL_SESSION or first SIGNED_IN
       }
-    };
+      
+      initialLoadRef.current = false;
+    }
+  }, [savedAuthState.session, savedAuthState.user]);
 
-    getInitialSession();
-
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        // Update user and session state based on auth events
-        setSession(session);
-        setUser(session?.user ?? null);
-
-        // Handle organization loading based on event and session state
-        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-          // INITIAL_SESSION is crucial for setting loading(false) after the first auth check
-          if (loading && (event === 'INITIAL_SESSION' || session?.user)) {
-             setLoading(false);
-          }
-          await loadOrganizationData(currentSubdomain);
-        } else if (event === 'SIGNED_OUT') {
-          setUserProfile(null); // Clear profile on sign out
-          await loadOrganizationData(currentSubdomain); // Re-check org for public view
-          if (loading) setLoading(false); // Also handle if initial load results in signed out
-        }
-        // If there's no session at all on initial check, ensure loading is false.
-        if (event === 'INITIAL_SESSION' && !session && loading) {
-            setLoading(false);
-        }
-      }
-    );
-
-    return () => {
-      authListener?.subscription?.unsubscribe();
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadOrganizationData, currentSubdomain]); // Removed loading from here as it caused loop
-  
-  // تنفيذ التحقق من النطاق الفرعي مرة واحدة فقط
   useEffect(() => {
-    let isActive = true;
-    
-    const validateSubdomain = async () => {
-      if (!currentSubdomain || !isActive) return;
 
-      if (currentSubdomain) {
+    // إضافة مراقب لتغيير visibility الصفحة مع debouncing
+    const handleVisibilityChange = () => {
+      const now = Date.now();
+      const wasVisible = pageVisibilityRef.current;
+      const isVisible = !document.hidden;
+      
+      // تجنب logging المتكرر إذا لم يتغير شيء
+      if (wasVisible === isVisible) {
+        return;
+      }
+      
+      pageVisibilityRef.current = isVisible;
+      lastVisibilityChangeRef.current = now;
+      
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    const initialize = async () => {
+      // منع التهيئة المتعددة المتزامنة
+      if (isInitializingRef.current) {
+        return;
+      }
+      
+      isInitializingRef.current = true;
+
+      // إذا كانت هناك جلسة محفوظة، قم بالتحقق من صحتها أولاً
+      if (savedAuthState.session) {
+        
         try {
+          // التحقق من صحة الجلسة المحفوظة
+          const isValid = await validateSessionPeriodically(savedAuthState.session);
+          if (isValid) {
+            // الجلسة صحيحة، يمكن بدء جلب البيانات في الخلفية
+            if (savedAuthState.user && !userProfile) {
+              refreshData();
+            }
+          } else {
+            updateAuthState(null, null, true);
+            setIsLoading(true);
+          }
+        } catch (error) {
+          updateAuthState(null, null, true);
+          setIsLoading(true);
+        }
+      } else {
+        setIsLoading(true);
+      }
+
+      // 1. Set up the listener with enhanced deduplication
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+        const sessionId = newSession?.access_token?.slice(-10) || null;
+        const now = Date.now();
+        
+        // تحسين نظام التحقق من التكرار مع مراعاة page visibility
+        if (lastEventRef.current) {
+          const { event: lastEvent, sessionId: lastSessionId, timestamp: lastTimestamp } = lastEventRef.current;
           
-          const organization = await getOrganizationBySubdomain(currentSubdomain);
-
-          // If the subdomain doesn't exist, redirect to the main domain
-          // Only redirect if we're in production and not on localhost
-          if (!organization && !window.location.hostname.includes('localhost')) {
-
-            // Only redirect if not in the middle of a login flow
-            // Check if current path is not login or auth related
-            const authPaths = ['/login', '/signup', '/tenant/signup', '/auth'];
-            const currentPath = window.location.pathname;
-            const isAuthPath = authPaths.some(path => currentPath.startsWith(path));
-            
-            // Check for redirect loop and prevent it
-            const lastRedirectTime = sessionStorage.getItem('lastSubdomainRedirect');
-            const currentTime = Date.now();
-            
-            // If we've redirected in the last 10 seconds, don't redirect again
-            if (lastRedirectTime && (currentTime - parseInt(lastRedirectTime)) < 10000) {
-              
+          // التحقق من أن الحدث لم يحدث بسبب page focus
+          const timeSinceVisibilityChange = now - lastVisibilityChangeRef.current;
+          const isRecentVisibilityChange = timeSinceVisibilityChange < 2000; // خلال ثانيتين من تغيير visibility
+          
+          // للأحداث SIGNED_IN: تجاهل التكرار لنفس الجلسة خلال 5 ثوانِ أو إذا كان بسبب page focus
+          if (event === 'SIGNED_IN' && lastEvent === 'SIGNED_IN' && lastSessionId === sessionId) {
+            if ((now - lastTimestamp) < 5000 || isRecentVisibilityChange) {
               return;
             }
+          }
+          
+          // للأحداث الأخرى: تجاهل التكرار خلال ثانية واحدة
+          if (lastEvent === event && lastSessionId === sessionId && (now - lastTimestamp) < 1000) {
+            return;
+          }
+        }
+
+        // حفظ الحدث الحالي بعد التحقق
+        lastEventRef.current = { event, sessionId, timestamp: now };
+
+        // إلغاء المعالجة السابقة
+        if (authEventTimeoutRef.current) {
+          clearTimeout(authEventTimeoutRef.current);
+          authEventTimeoutRef.current = null;
+        }
+
+        // معالجة فورية للأحداث الهامة، مع debouncing للأحداث المتكررة فقط
+        const processEvent = () => {
+          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            // للأحداث SIGNED_IN: تحقق إضافي من تغيير البيانات الفعلي
+            if (event === 'SIGNED_IN' && session && newSession) {
+              // إذا كان نفس access_token، تجاهل المعالجة
+              if (session.access_token === newSession.access_token) {
+                return;
+              }
+            }
             
-            if (!isAuthPath) {
-              // Store the redirect time to prevent loops
-              sessionStorage.setItem('lastSubdomainRedirect', currentTime.toString());
-              window.location.href = `${window.location.protocol}//${window.location.hostname.split('.').slice(1).join('.')}`;
+            updateAuthState(newSession, newSession?.user ?? null);
+            setIsExplicitSignOut(false);
+          } else if (event === 'SIGNED_OUT') {
+            if (isExplicitSignOut || (!user && !userProfile)) {
+              updateAuthState(null, null, true);
             } else {
-              
+              return;
+            }
+          } else if (event === 'INITIAL_SESSION') {
+            if (!isProcessingToken && !savedAuthState.session) {
+              updateAuthState(newSession, newSession?.user ?? null);
+            }
+          }
+        };
+
+        // معالجة فورية للأحداث الهامة، debouncing فقط للأحداث المتكررة
+        if (event === 'SIGNED_OUT' || event === 'INITIAL_SESSION') {
+          // معالجة فورية للأحداث الحرجة
+          processEvent();
+        } else {
+          // debouncing قصير للأحداث الأخرى (50ms)
+          authEventTimeoutRef.current = setTimeout(processEvent, 50);
+        }
+      });
+
+      // 2. Check for a session transfer token in the URL.
+      const urlParams = new URLSearchParams(window.location.search);
+      const authToken = urlParams.get('auth_token');
+
+      if (authToken) {
+        setIsProcessingToken(true);
+        window.history.replaceState({}, document.title, window.location.pathname);
+        
+        try {
+          const { session: decodedSession } = JSON.parse(atob(authToken));
+          if (decodedSession) {
+            const { data, error } = await supabase.auth.setSession({
+              access_token: decodedSession.access_token,
+              refresh_token: decodedSession.refresh_token,
+            });
+
+            if (error) {
+              setIsProcessingToken(false);
+              await signOutAndClearState();
+            } else if (data.session && data.user) {
+              updateAuthState(data.session, data.user);
+            } else {
+              setIsProcessingToken(false);
+              await signOutAndClearState();
             }
           }
         } catch (error) {
+          setIsProcessingToken(false);
+          await signOutAndClearState();
         }
+              } else if (!savedAuthState.session) {
+          // 3. If no token and no saved session, check for an existing session in storage.
+          const { data: { session: initialSession } } = await supabase.auth.getSession();
+          
+          if (!initialSession) {
+            setIsLoading(false);
+          }
+        }
+
+        // إنهاء التهيئة
+        isInitializingRef.current = false;
+
+      return () => {
+        isInitializingRef.current = false;
+        subscription.unsubscribe();
+        if (authEventTimeoutRef.current) {
+          clearTimeout(authEventTimeoutRef.current);
+        }
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
+    };
+
+    initialize();
+      }, [savedAuthState.session]); // فقط الجلسة المحفوظة كـ dependency
+
+  // Effect to fetch user profile and organization with debouncing
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (user && session) {
+        // منع multiple fetches في نفس الوقت
+        if (fetchingUserDataRef.current) {
+          return;
+        }
+
+        // إذا كانت البيانات محملة من localStorage، لا نحتاج لجلبها مرة أخرى فوراً
+        if (userProfile && organization && initialLoadRef.current === false) {
+          setIsLoading(false);
+          return;
+        }
+
+        fetchingUserDataRef.current = true;
+        setIsLoading(true);
+        
+        try {
+          const profile = await getCurrentUserProfile();
+          setUserProfile(profile);
+          
+          // حفظ في localStorage
+          if (profile) {
+            localStorage.setItem('current_user_profile', JSON.stringify(profile));
+          }
+
+          if (profile?.organization_id) {
+            const org = await getOrganizationById(profile.organization_id);
+            setOrganization(org);
+            
+            // حفظ في localStorage
+            if (org) {
+              localStorage.setItem('current_organization', JSON.stringify(org));
+            }
+          } else {
+             setOrganization(null);
+             localStorage.removeItem('current_organization');
+          }
+        } catch (error) {
+        } finally {
+          setIsLoading(false);
+          setIsProcessingToken(false);
+          fetchingUserDataRef.current = false;
+        }
+      } else {
+        if (isProcessingToken) {
+          return;
+        }
+
+        if (!isLoading) return;
+        setUserProfile(null);
+        setOrganization(null);
+        setIsLoading(false);
       }
     };
 
-    if (currentSubdomain) {
-      validateSubdomain();
-    }
+    fetchUserData();
+  }, [user, session, isProcessingToken, userProfile, organization]);
 
-    return () => {
-      isActive = false;
-    };
-  }, [currentSubdomain]);
-
-  // تحميل بيانات المؤسسة مرة واحدة عند تعيين النطاق الفرعي
-  useEffect(() => {
-    let isActive = true;
-    
-    // تحميل بيانات المؤسسة فقط بعد تعيين النطاق الفرعي وعند تغييره
-    const loadOrgData = async () => {
-      if (!isActive) return;
-      await loadOrganizationData(currentSubdomain);
-    };
-    
-    loadOrgData();
-    
-    return () => {
-      isActive = false;
-    };
-  }, [currentSubdomain, loadOrganizationData]);
-
-  // تحسين وظائف المصادقة باستخدام useCallback لمنع إعادة الإنشاء غير الضرورية
-  const refreshOrganizationData = useCallback(async (): Promise<boolean> => {
-    const success = await loadOrganizationData(currentSubdomain);
-    return success;
-  }, [loadOrganizationData, currentSubdomain]);
-
-  // تحديث معلومات المستخدم في Sentry
-  useEffect(() => {
-    if (user && userProfile) {
-      setUserContext({
-        id: user.id,
-        email: user.email,
-        role: userProfile.role,
-      });
+  const signIn = async (email: string, password: string) => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        setIsLoading(false);
+        return { success: false, error };
+      }
       
-      if (organization) {
-        setTag('organization_id', organization.id);
-        setTag('organization_name', organization.name);
-        setTag('subscription_tier', organization.subscription_tier);
+      if (data.session && data.user) {
+        updateAuthState(data.session, data.user);
       }
-    } else {
-      setUserContext(null);
-    }
-  }, [user, userProfile, organization]);
-
-  const signIn = useCallback(async (email: string, password: string) => {
-    setIsLoadingOrganization(true); // Indicate loading process starts
-    setLoading(true); 
-    try {
-      localStorage.removeItem('authSessionExists');
-      localStorage.removeItem('authSessionLastUpdated');
-      const supabaseClient = supabase;
-      const { data, error } = await supabaseClient.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (error) {
-        logError(error, { 
-          action: 'signIn',
-          email 
-        });
-        return { success: false, error };
-      }
-      // onAuthStateChange will handle setting user, session, and loading states.
-      // It will also trigger loadOrganizationData and loadUserProfile indirectly.
+      
       return { success: true, error: null };
     } catch (error) {
-      logError(error as Error, { 
-        action: 'signIn',
-        email 
-      });
+      setIsLoading(false);
       return { success: false, error: error as Error };
-    } finally {
-       // setLoading(false); // Let onAuthStateChange handle this
-       // setIsLoadingOrganization(false); // Let loadOrganizationData handle this
     }
-  }, []);
-
-  const signUp = useCallback(async (email: string, password: string, name: string) => {
-    setLoading(true);
-    setIsLoadingOrganization(true);
-    try {
-      const supabaseClient = supabase;
-      const role = currentSubdomain ? 'customer' : 'owner'; // Example: tenant signup = customer, main signup = owner
-      const { data, error } = await supabaseClient.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            name,
-            full_name: name,
-            role: role,
-          },
-        },
-      });
-      if (error) {
-        logError(error, {
-          action: 'signUp',
-          email
-        });
-        return { success: false, error };
-      }
-      // onAuthStateChange will handle setting user, session, and loading states.
-      return { success: true, error: null };
-    } catch (error) {
-      logError(error as Error, {
-        action: 'signUp',
-        email
-      });
-      return { success: false, error: error as Error };
-    } finally {
-       // setLoading(false);
-       // setIsLoadingOrganization(false);
-    }
-  }, [currentSubdomain]);
+  };
 
   const signOut = useCallback(async () => {
-    try {
-      await supabase.auth.signOut();
-      // Clear local states
-      setUser(null);
-      setSession(null);
-      setUserProfile(null);
-      // Organization might persist if it's a public tenant page, so reload it
-      await loadOrganizationData(currentSubdomain); 
-    } catch (error) {
-      // Optionally, handle sign-out errors (e.g., display a message to the user)
-    }
-  }, [loadOrganizationData, currentSubdomain]);
+    await signOutAndClearState();
+  }, [signOutAndClearState]);
 
-  // استخدام useMemo لمنع إعادة إنشاء سياق المصادقة في كل عملية رندر
-  const authContextValue = useMemo(() => ({
+  const value = useMemo(() => ({
     session,
     user,
     userProfile,
-    isLoadingUserProfile,
     organization,
+    isLoading,
     signIn,
-    signUp,
     signOut,
-    loading,
-    isLoadingOrganization,
-    isTenant,
-    currentSubdomain,
-    refreshOrganizationData,
-  }), [
-    session, user, userProfile, isLoadingUserProfile, organization,
-    signIn, signUp, signOut, loading, isLoadingOrganization,
-    isTenant, currentSubdomain, refreshOrganizationData
-  ]);
+    refreshData,
+  }), [session, user, userProfile, organization, isLoading, signIn, signOut, refreshData]);
 
-  // Ensure all states are updated before rendering children
-  if (loading || isLoadingUserProfile || isLoadingOrganization) {
-    // Optionally, render a global loading indicator or null
-    // For now, we'll let children render and handle their own loading states based on context
-    // return <GlobalLoadingScreen />; // Example if you have one
-  }
-
-  return (
-    <AuthContext.Provider value={authContextValue}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-export const useAuth = (): AuthContextType => {
+export function useAuth(): AuthContextType {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
+    throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-};
+}

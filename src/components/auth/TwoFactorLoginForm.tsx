@@ -37,7 +37,7 @@ export default function TwoFactorLoginForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!code.trim()) {
       setError('يرجى إدخال رمز المصادقة الثنائية');
       return;
@@ -53,9 +53,8 @@ export default function TwoFactorLoginForm({
 
     try {
       const result = await verify2FAForLogin(userId, code);
-
+      
       if (result.success) {
-        // نجح التحقق، يمكن المتابعة لتسجيل الدخول
         onSuccess();
       } else {
         const newAttempts = attempts + 1;
@@ -85,12 +84,10 @@ export default function TwoFactorLoginForm({
           <Shield className="h-6 w-6" />
           المصادقة الثنائية
         </CardTitle>
-        <CardDescription className="text-center">
-          <div className="space-y-2">
-            <div>مرحباً {userName}</div>
-            <div>يرجى إدخال رمز المصادقة الثنائية من تطبيق المصادقة</div>
-            <div className="text-xs text-muted-foreground">{email}</div>
-          </div>
+        <CardDescription className="text-center space-y-2">
+          <span className="block">مرحباً {userName}</span>
+          <span className="block">يرجى إدخال رمز المصادقة الثنائية من تطبيق المصادقة</span>
+          <span className="block text-xs text-muted-foreground">{email}</span>
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -176,9 +173,9 @@ export default function TwoFactorLoginForm({
           </div>
         )}
 
-        <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-          <h4 className="font-medium text-sm mb-2">نصائح:</h4>
-          <ul className="text-xs text-blue-800 space-y-1">
+        <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
+          <h4 className="font-medium text-sm mb-2 text-blue-900 dark:text-blue-100">نصائح:</h4>
+          <ul className="text-xs text-blue-800 dark:text-blue-200 space-y-1">
             <li>• تأكد من أن وقت جهازك صحيح</li>
             <li>• الرمز يتغير كل 30 ثانية</li>
             <li>• يمكنك استخدام backup code إذا لم يعمل الرمز</li>
@@ -187,4 +184,4 @@ export default function TwoFactorLoginForm({
       </CardContent>
     </Card>
   );
-} 
+}

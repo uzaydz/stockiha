@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
-import { Loader2, Save, Package } from 'lucide-react';
+import { Loader2, Save, Package, ArrowLeft, Eye, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Helmet } from 'react-helmet';
 
 // Custom Hooks
@@ -17,20 +17,49 @@ import Layout from '@/components/Layout';
 import ProductQuickInfoPanel from '@/components/product/form/ProductQuickInfoPanel';
 import ProductFormTabs from '@/components/product/form/ProductFormTabs';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Progress } from '@/components/ui/progress';
 
 // Types & API
-import { productSchema, ProductFormValues, ProductColor, WholesaleTier, productAdvancedSettingsSchema } from '@/types/product';
+import { 
+  productSchema, 
+  ProductFormValues, 
+  ProductColor, 
+  WholesaleTier, 
+  productAdvancedSettingsSchema 
+} from '@/types/product';
 import { createProduct, updateProduct, InsertProduct, UpdateProduct } from '@/lib/api/products';
 import { Category, Subcategory } from '@/lib/api/categories';
+import { cn } from '@/lib/utils';
 
-export default function ProductForm() {
+const ProductForm = () => {
   const { id: productId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { currentOrganization } = useTenant();
   const organizationIdFromTenant = currentOrganization?.id;
 
+  // Enhanced state management
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [autoSaveDrafts, setAutoSaveDrafts] = useState(true);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+
+  // Form state
+  const [additionalImages, setAdditionalImages] = useState<string[]>([]);
+  const [productColors, setProductColors] = useState<ProductColor[]>([]);
+  const [wholesaleTiers, setWholesaleTiers] = useState<WholesaleTier[]>([]);
+  const [useVariantPrices, setUseVariantPrices] = useState(false);
+  const [useSizes, setUseSizes] = useState(false);
+  const [hasVariantsState, setHasVariantsState] = useState(false);
+
+  // Enhanced form configuration
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
+    mode: 'onChange', // Enable real-time validation
     defaultValues: {
       name: '',
       description: '',
@@ -41,12 +70,12 @@ export default function ProductForm() {
       category_id: '',
       stock_quantity: 0,
       thumbnail_image: '',
-      organization_id: undefined, // Will be set by useProductFormInitialization
+      organization_id: undefined,
       has_variants: false,
       show_price_on_landing: true,
       is_featured: false,
       is_new: true,
-      advancedSettings: productAdvancedSettingsSchema.parse({}), // Initialize with default advanced settings
+      advancedSettings: productAdvancedSettingsSchema.parse({}),
       additional_images: [],
       colors: [],
       wholesale_tiers: [],
@@ -80,21 +109,22 @@ export default function ProductForm() {
     },
   });
 
-  // The useEffect that was setting organization_id directly in ProductForm has been REMOVED.
-  // Its logic is now handled within useProductFormInitialization.
+  // Watch form values
+  const watchedValues = form.watch();
+  const formErrors = form.formState.errors;
+  const isDirty = form.formState.isDirty;
+  const isValid = form.formState.isValid;
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [additionalImages, setAdditionalImages] = useState<string[]>([]);
-  const [productColors, setProductColors] = useState<ProductColor[]>([]);
-  const [wholesaleTiers, setWholesaleTiers] = useState<WholesaleTier[]>([]);
-  const [useVariantPrices, setUseVariantPrices] = useState(false);
-  const [useSizes, setUseSizes] = useState(false);
-  const [hasVariantsState, setHasVariantsState] = useState(false);
-
-  const { isLoading: isLoadingProduct, productNameForTitle, isEditMode, initialDataSet } = useProductFormInitialization({
+  // Hooks
+  const { 
+    isLoading: isLoadingProduct, 
+    productNameForTitle, 
+    isEditMode, 
+    initialDataSet 
+  } = useProductFormInitialization({
     id: productId,
     form,
-    organizationId: organizationIdFromTenant, // Pass organizationId here
+    organizationId: organizationIdFromTenant,
     setAdditionalImages,
     setProductColors,
     setWholesaleTiers,
@@ -106,46 +136,110 @@ export default function ProductForm() {
   const { hasPermission, isCheckingPermission } = useProductPermissions({ isEditMode });
 
   const watchCategoryId = form.watch('category_id');
-  const { categories, subcategories, handleCategoryCreated, handleSubcategoryCreated } = useCategoryData({
+  const { 
+    categories, 
+    subcategories, 
+    handleCategoryCreated, 
+    handleSubcategoryCreated 
+  } = useCategoryData({
     organizationId: organizationIdFromTenant,
     watchCategoryId,
   });
 
+  // Watched values for real-time updates
   const watchHasVariants = form.watch('has_variants', hasVariantsState);
   const watchPrice = form.watch('price');
   const watchPurchasePrice = form.watch('purchase_price');
   const watchThumbnailImage = form.watch('thumbnail_image');
+  const watchName = form.watch('name');
 
-  const onSubmit = async (data: ProductFormValues) => {
-    console.log('💾 [ProductForm] بدء حفظ المنتج:', {
-      productName: data.name,
-      shipping_provider_id: data.shipping_provider_id,
-      shipping_method_type: data.shipping_method_type,
-      use_shipping_clone: data.use_shipping_clone,
-      shipping_clone_id: data.shipping_clone_id,
-      isEditMode
+  // Calculate form progress
+  const calculateProgress = () => {
+    const requiredFields = ['name', 'description', 'price', 'category_id', 'thumbnail_image'];
+    const completedFields = requiredFields.filter(field => {
+      const value = form.getValues(field as keyof ProductFormValues);
+      return value !== undefined && value !== null && value !== '';
     });
-    
-    setIsSubmitting(true);
+    return Math.round((completedFields.length / requiredFields.length) * 100);
+  };
 
+  const progress = calculateProgress();
+
+  // Auto-save draft functionality
+  const saveDraft = useCallback(async () => {
+    if (!autoSaveDrafts || isEditMode || !organizationIdFromTenant) return;
+    
+    setIsSavingDraft(true);
+    try {
+      const draftData = {
+        formData: watchedValues,
+        timestamp: Date.now(),
+        additionalImages,
+        productColors,
+        wholesaleTiers
+      };
+      
+      localStorage.setItem(`product-draft-${organizationIdFromTenant}`, JSON.stringify(draftData));
+      setTimeout(() => setIsSavingDraft(false), 800);
+    } catch (error) {
+      console.error('Failed to save draft:', error);
+      setIsSavingDraft(false);
+    }
+  }, [autoSaveDrafts, isEditMode, organizationIdFromTenant, watchedValues, additionalImages, productColors, wholesaleTiers]);
+
+  // Auto-save effect
+  useEffect(() => {
+    if (isDirty && !isEditMode && autoSaveDrafts) {
+      const timeoutId = setTimeout(saveDraft, 2000);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [watchedValues, isDirty, isEditMode, autoSaveDrafts, saveDraft]);
+
+  // Load draft on component mount
+  useEffect(() => {
+    if (!isEditMode && autoSaveDrafts && organizationIdFromTenant) {
+      try {
+        const savedDraft = localStorage.getItem(`product-draft-${organizationIdFromTenant}`);
+        if (savedDraft) {
+          const draftData = JSON.parse(savedDraft);
+          const timeDiff = Date.now() - draftData.timestamp;
+          
+          if (timeDiff < 24 * 60 * 60 * 1000) {
+            Object.entries(draftData.formData).forEach(([key, value]) => {
+              if (value !== undefined && value !== null && value !== '') {
+                form.setValue(key as keyof ProductFormValues, value, { shouldDirty: false });
+              }
+            });
+            
+            setAdditionalImages(draftData.additionalImages || []);
+            setProductColors(draftData.productColors || []);
+            setWholesaleTiers(draftData.wholesaleTiers || []);
+            
+            toast.info('تم استرجاع المسودة المحفوظة');
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load draft:', error);
+      }
+    }
+  }, [isEditMode, autoSaveDrafts, organizationIdFromTenant, form]);
+
+  // Enhanced submit handler
+  const onSubmit = async (data: ProductFormValues) => {
     if (!organizationIdFromTenant && !data.organization_id) {
       toast.error("خطأ حرج: معرّف المؤسسة مفقود. لا يمكن إنشاء/تحديد المنتج.");
-      setIsSubmitting(false);
       return;
     }
 
-    const currentOrganizationId = data.organization_id || organizationIdFromTenant;
-    if (!currentOrganizationId) { // Double check, should be caught by above
-        toast.error("خطأ: لم يتم تحديد معرّف المؤسسة.");
-        setIsSubmitting(false);
-        return;
-    }
+    setIsSubmitting(true);
+    const loadingToast = toast.loading(isEditMode ? 'جاري تحديث المنتج...' : 'جاري إنشاء المنتج...');
 
     try {
+      const currentOrganizationId = data.organization_id || organizationIdFromTenant;
+      
       const imagesToSubmit = additionalImages.filter(url => typeof url === 'string' && url.length > 0);
       const colorsToSubmit = productColors.map(color => ({
         ...color,
-        // Ensure numeric fields are numbers, not strings from input
         quantity: Number(color.quantity),
         price: color.price !== undefined ? Number(color.price) : undefined,
         purchase_price: color.purchase_price !== undefined ? Number(color.purchase_price) : undefined,
@@ -154,15 +248,14 @@ export default function ProductForm() {
         ...tier,
         min_quantity: Number(tier.min_quantity),
         price_per_unit: Number(tier.price_per_unit),
-      })); 
+      }));
 
-      // Ensure organization_id is correctly populated in the data to be submitted
-      const submissionDataPrep = {
+      const submissionData = {
         ...data,
-        organization_id: currentOrganizationId, 
-        images: imagesToSubmit, 
-        colors: colorsToSubmit, 
-        wholesale_tiers: wholesaleTiersToSubmit, 
+        organization_id: currentOrganizationId,
+        images: imagesToSubmit,
+        colors: colorsToSubmit,
+        wholesale_tiers: wholesaleTiersToSubmit,
         price: Number(data.price),
         purchase_price: Number(data.purchase_price),
         stock_quantity: Number(data.stock_quantity),
@@ -194,163 +287,146 @@ export default function ProductForm() {
         features: data.features || [],
         specifications: data.specifications || {},
         slug: data.slug || `${data.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`,
-      };
-      
-      console.log('📦 [ProductForm] البيانات المحضرة للحفظ:', {
-        productName: submissionDataPrep.name,
-        shipping_provider_id: submissionDataPrep.shipping_provider_id,
-        shipping_method_type: submissionDataPrep.shipping_method_type,
-        use_shipping_clone: submissionDataPrep.use_shipping_clone,
-        shipping_clone_id: submissionDataPrep.shipping_clone_id,
-        organization_id: submissionDataPrep.organization_id
-      });
-      
-      let finalSubmissionData: any;
-
-      // Pass advancedSettings and marketingSettings as camelCase for both create and update
-      finalSubmissionData = {
-        ...submissionDataPrep,
-        // الإعدادات المتقدمة وإعدادات التسويق يتم تمريرها بشكل منفصل
         advancedSettings: data.advancedSettings || undefined,
         marketingSettings: data.marketingSettings || undefined,
-        // البيانات التي تُعالج بشكل منفصل
-        colors: colorsToSubmit,
-        wholesale_tiers: wholesaleTiersToSubmit,
         additional_images: imagesToSubmit,
       };
 
       if (!(isEditMode && productId)) {
-        delete finalSubmissionData.id; // Ensure no ID is sent for insert
+        delete (submissionData as any).id;
       }
-      
-      // Clean up fields not part of InsertProduct or UpdateProduct (fields used for form state but not direct DB columns for product table)
-      delete finalSubmissionData.is_sold_by_unit; 
-      delete finalSubmissionData.use_variant_prices;
-      // marketingSettings و advancedSettings يتم تمريرها بشكل منفصل للAPI
 
-      // DEBUGGING ADVANCED SETTINGS & MARKETING SETTINGS
-      // END DEBUGGING
+      // Clean up fields not part of schema
+      delete (submissionData as any).is_sold_by_unit;
+      delete (submissionData as any).use_variant_prices;
 
       let result;
-      try {
-        console.log('🚀 [ProductForm] إرسال البيانات للخادم:', {
-          isEditMode,
-          productId,
-          finalSubmissionData: {
-            name: finalSubmissionData.name,
-            shipping_provider_id: finalSubmissionData.shipping_provider_id,
-            shipping_method_type: finalSubmissionData.shipping_method_type,
-            use_shipping_clone: finalSubmissionData.use_shipping_clone,
-            shipping_clone_id: finalSubmissionData.shipping_clone_id,
-            organization_id: finalSubmissionData.organization_id
-          }
-        });
-        
-        if (isEditMode && productId) {
-          result = await updateProduct(productId, finalSubmissionData as UpdateProduct);
-        } else {
-          result = await createProduct(finalSubmissionData as InsertProduct);
-        }
-        
-        console.log('✅ [ProductForm] استجابة الخادم:', {
-          result,
-          productCreated: result?.id,
-          success: !!result
-        });
-      } catch (apiError: any) {
-        const message = apiError.message || 'فشل الاتصال بالخادم.';
-        toast.error(`فشل ${isEditMode ? 'تحديث' : 'إنشاء'} المنتج: ${message}`);
-        throw apiError; 
+      if (isEditMode && productId) {
+        result = await updateProduct(productId, submissionData as any);
+      } else {
+        result = await createProduct(submissionData as any);
       }
 
       if (result) {
+        toast.dismiss(loadingToast);
         toast.success(isEditMode ? 'تم تحديث المنتج بنجاح' : 'تم إنشاء المنتج بنجاح');
+
+        // Clear draft after successful submission
+        if (!isEditMode && autoSaveDrafts) {
+          localStorage.removeItem(`product-draft-${organizationIdFromTenant}`);
+        }
+
         if (!isEditMode && result.id) {
-          navigate('/dashboard/products'); // Navigate to dashboard products instead of store products
-        } else if (isEditMode) {
-          // Optionally, re-fetch data or handle UI update
+          navigate('/dashboard/products');
         }
       } else {
-        // This case might be rare if API call throws error on failure
-        toast.error(isEditMode ? 'فشل تحديث المنتج (لم يتم إرجاع نتيجة)' : 'فشل إنشاء المنتج (لم يتم إرجاع نتيجة)');
+        toast.dismiss(loadingToast);
+        toast.error(isEditMode ? 'فشل تحديث المنتج' : 'فشل إنشاء المنتج');
       }
     } catch (error: any) {
-      // Catch errors from API call or other logic
+      toast.dismiss(loadingToast);
+      const message = error.message || 'فشل الاتصال بالخادم.';
+      toast.error(`فشل ${isEditMode ? 'تحديث' : 'إنشاء'} المنتج: ${message}`);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const onInvalid = (errors: any) => {
-    // Log organization_id specific error if present
-    if (errors.organization_id) {
+  // Enhanced error handler
+  const onInvalid = useCallback((errors: any) => {
+    const errorCount = Object.keys(errors).length;
+    toast.error(`يرجى إصلاح ${errorCount} خطأ في النموذج`);
+    
+    // Focus on first error field
+    const firstError = Object.keys(errors)[0];
+    const element = document.querySelector(`[name="${firstError}"]`) as HTMLElement;
+    if (element) {
+      element.focus();
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-    toast.error('يرجى التحقق من الحقول المطلوبة أو إصلاح الأخطاء في النموذج.');
-  };
+  }, []);
 
+  // Optimized handlers
   const handleMainImageChange = useCallback((url: string) => {
     form.setValue('thumbnail_image', url, { shouldValidate: true, shouldDirty: true });
   }, [form]);
 
   const handleAdditionalImagesChange = useCallback((urls: string[]) => {
     setAdditionalImages(urls);
-    // form.setValue('additional_images', urls, { shouldValidate: true, shouldDirty: true }); // This form field is not directly part of productSchema for submission
-  }, []); // Removed form from deps as additional_images is not a direct form field in productSchema
+  }, []);
 
   const handleProductColorsChange = useCallback((colors: ProductColor[]) => {
     setProductColors(colors);
-    // form.setValue('colors', colors, { shouldValidate: true, shouldDirty: true }); // This form field is not directly part of productSchema for submission
-  }, []); // Removed form from deps
+  }, []);
 
   const handleWholesaleTiersChange = useCallback((tiers: WholesaleTier[]) => {
     setWholesaleTiers(tiers);
-    // form.setValue('wholesale_tiers', tiers, { shouldValidate: true, shouldDirty: true });// This form field is not directly part of productSchema for submission
-  }, []); // Removed form from deps
+  }, []);
 
   const handleHasVariantsChange = useCallback((hasVariantsValue: boolean) => {
     form.setValue('has_variants', hasVariantsValue, { shouldValidate: true, shouldDirty: true });
     setHasVariantsState(hasVariantsValue);
     if (!hasVariantsValue) {
       setProductColors([]);
-      // form.setValue('colors', [], { shouldValidate: true, shouldDirty: true });
       setUseVariantPrices(false);
-      // form.setValue('use_variant_prices', false, { shouldValidate: true, shouldDirty: true });
     }
   }, [form]);
 
   const handleUseVariantPricesChange = useCallback((use: boolean) => {
     setUseVariantPrices(use);
-    // form.setValue('use_variant_prices', use, { shouldValidate: true, shouldDirty: true });
-  }, []); // Removed form from deps
+  }, []);
 
   const handleUseSizesChange = useCallback((use: boolean) => {
     setUseSizes(use);
     form.setValue('use_sizes', use, { shouldValidate: true, shouldDirty: true });
   }, [form]);
 
-  // Enhanced Loading State Logic
+  // Enhanced loading states
+  const renderLoadingState = (message: string) => (
+    <Layout>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
+          <div className="space-y-2">
+            <h3 className="text-lg font-medium">{message}</h3>
+            <div className="flex items-center justify-center space-x-2">
+              <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+              <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+              <div className="w-2 h-2 bg-primary rounded-full animate-bounce"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Layout>
+  );
+
+  // Loading states
   if (isCheckingPermission) {
-    return (
-      <Layout><div className="flex items-center justify-center h-[80vh]"><Loader2 className="h-12 w-12 animate-spin text-primary" /><p className="ml-4 text-lg">جاري التحقق من الصلاحيات...</p></div></Layout>
-    );
-  }
-  if (!isEditMode && isLoadingProduct && !initialDataSet) { // For new product, initial data might not be "loading" but form hook is initializing
-     return (
-      <Layout><div className="flex items-center justify-center h-[80vh]"><Loader2 className="h-12 w-12 animate-spin text-primary" /><p className="ml-4 text-lg">جاري تهيئة النموذج...</p></div></Layout>
-    );
-  }
-  if (isEditMode && isLoadingProduct) { // For edit mode, explicitly loading product data
-     return (
-      <Layout><div className="flex items-center justify-center h-[80vh]"><Loader2 className="h-12 w-12 animate-spin text-primary" /><p className="ml-4 text-lg">جاري تحميل بيانات المنتج...</p></div></Layout>
-    );
+    return renderLoadingState('جاري التحقق من الصلاحيات...');
   }
 
+  if (!isEditMode && isLoadingProduct && !initialDataSet) {
+    return renderLoadingState('جاري تهيئة النموذج...');
+  }
+
+  if (isEditMode && isLoadingProduct) {
+    return renderLoadingState('جاري تحميل بيانات المنتج...');
+  }
+
+  // Permission check
   if (!hasPermission && !isCheckingPermission) {
     return (
       <Layout>
-        <div className="flex flex-col items-center justify-center h-[80vh]">
-          <p className="text-xl text-red-600">ليس لديك الصلاحية لعرض هذه الصفحة.</p>
-          <Button onClick={() => navigate('/dashboard/products')} className="mt-4">العودة إلى المنتجات</Button>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4">
+          <AlertCircle className="h-16 w-16 text-destructive" />
+          <div className="space-y-2">
+            <h3 className="text-xl font-semibold text-destructive">عدم وجود صلاحية</h3>
+            <p className="text-muted-foreground">ليس لديك الصلاحية لعرض هذه الصفحة</p>
+          </div>
+          <Button onClick={() => navigate('/dashboard/products')}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            العودة إلى المنتجات
+          </Button>
         </div>
       </Layout>
     );
@@ -359,7 +435,12 @@ export default function ProductForm() {
   return (
     <Layout>
       <Helmet>
-        <title>{isEditMode ? `تعديل: ${productNameForTitle || form.watch('name') || 'منتج'}` : 'إنشاء منتج جديد'} - سوق</title>
+        <title>
+          {isEditMode 
+            ? `تعديل: ${productNameForTitle || watchName || 'منتج'}` 
+            : 'إنشاء منتج جديد'
+          } - سوق
+        </title>
       </Helmet>
       
       <form
@@ -367,132 +448,267 @@ export default function ProductForm() {
           e.preventDefault();
           const currentOrgIdInFormState = form.getValues('organization_id');
           
-          // If organization_id is somehow not set in form state by this point,
-          // but we have it from tenant, try to set it one last time.
-          // This is a fallback, ideally it should be set by useProductFormInitialization.
           if (!currentOrgIdInFormState && organizationIdFromTenant) {
-              form.setValue('organization_id', organizationIdFromTenant, { shouldValidate: false, shouldDirty: false });
+            form.setValue('organization_id', organizationIdFromTenant, { 
+              shouldValidate: false, 
+              shouldDirty: false 
+            });
           }
           form.handleSubmit(onSubmit, onInvalid)(e);
         }}
-        className="container mx-auto px-6 py-6 max-w-7xl"
+        className="min-h-screen bg-muted/30"
       >
-        {/* Simplified Header */}
-        <div className="flex items-center justify-between mb-6 p-4 bg-card rounded-xl border">
-          <div>
-            <h1 className="text-2xl font-bold">
-              {isEditMode ? `تعديل: ${productNameForTitle || form.watch('name') || 'منتج'}` : 'إضافة منتج جديد'}
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              {isEditMode ? 'قم بتعديل تفاصيل المنتج' : 'أضف منتج جديد إلى متجرك'}
-            </p>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => navigate('/dashboard/products')}
-            disabled={isSubmitting}
-          >
-            العودة
-          </Button>
-        </div>
+        {/* Enhanced Header */}
+        <div className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="container mx-auto px-4 sm:px-6 py-3">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate('/dashboard/products')}
+                  disabled={isSubmitting}
+                  className="shrink-0"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+                <div className="min-w-0">
+                  <h1 className="text-lg sm:text-xl font-semibold truncate">
+                    {isEditMode 
+                      ? `تعديل: ${productNameForTitle || watchName || 'منتج'}` 
+                      : 'إضافة منتج جديد'
+                    }
+                  </h1>
+                  <p className="text-sm text-muted-foreground hidden sm:block">
+                    {isEditMode ? 'قم بتعديل تفاصيل المنتج' : 'أضف منتج جديد إلى متجرك'}
+                  </p>
+                </div>
+              </div>
 
-        {/* Welcome Message for New Products */}
-        {!isEditMode && (
-          <div className="mb-6 p-4 bg-primary/5 border border-primary/20 rounded-xl">
-            <div className="flex items-center gap-3">
-              <Package className="w-6 h-6 text-primary" />
-              <div>
-                <h2 className="font-semibold text-lg">إنشاء منتج جديد</h2>
-                <p className="text-muted-foreground text-sm">
-                  املأ جميع المعلومات المطلوبة لإنشاء منتج احترافي
-                </p>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                {/* Auto-save indicator */}
+                {autoSaveDrafts && !isEditMode && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    {isSavingDraft ? (
+                      <>
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <span className="hidden sm:inline">جاري الحفظ...</span>
+                      </>
+                    ) : isDirty ? (
+                      <>
+                        <div className="h-2 w-2 bg-amber-500 rounded-full animate-pulse" />
+                        <span className="hidden sm:inline">غير محفوظ</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="h-3 w-3 text-green-500" />
+                        <span className="hidden sm:inline">محفوظ</span>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
-          </div>
-        )}
 
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Quick Info Sidebar */}
-          <div className="lg:col-span-1">
-            <div className="sticky top-6">
-              <ProductQuickInfoPanel
+            {/* Progress indicator */}
+            <div className="mt-3 flex items-center gap-2">
+              <div className="flex-1 bg-muted rounded-full h-2">
+                <div 
+                  className="bg-primary h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                {progress}% مكتمل
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="container mx-auto px-4 sm:px-6 py-6">
+          {/* Welcome Message for New Products */}
+          {!isEditMode && (
+            <Alert className="mb-6 border-primary/20 bg-primary/5">
+              <Package className="h-4 w-4" />
+              <AlertTitle>إنشاء منتج جديد</AlertTitle>
+              <AlertDescription>
+                املأ جميع المعلومات المطلوبة لإنشاء منتج احترافي. سيتم حفظ مسودة تلقائياً أثناء الكتابة.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Form validation errors */}
+          {Object.keys(formErrors).length > 0 && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>يرجى إصلاح الأخطاء التالية:</AlertTitle>
+              <AlertDescription>
+                <ul className="list-disc list-inside space-y-1 mt-2">
+                  {Object.entries(formErrors).map(([field, error]) => (
+                    <li key={field} className="text-sm">
+                      {typeof error === 'object' && error?.message 
+                        ? error.message 
+                        : `خطأ في حقل ${field}`
+                      }
+                    </li>
+                  ))}
+                </ul>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Responsive Grid Layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Quick Info Sidebar */}
+            <div className="lg:col-span-1 space-y-6">
+              <div className="sticky top-24">
+                <ProductQuickInfoPanel
+                  form={form}
+                  isEditMode={isEditMode}
+                  productId={productId}
+                  thumbnailImage={watchThumbnailImage}
+                />
+                
+                {/* Enhanced Settings Panel */}
+                <Card className="mt-4">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      تقدم النموذج
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">مكتمل</span>
+                        <span className="font-medium">{progress}%</span>
+                      </div>
+                      <Progress value={progress} className="h-2" />
+                    </div>
+                    
+                    <Separator />
+                    
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="autosave" className="text-sm">
+                        الحفظ التلقائي
+                      </Label>
+                      <Switch
+                        id="autosave"
+                        checked={autoSaveDrafts}
+                        onCheckedChange={setAutoSaveDrafts}
+                        disabled={isEditMode}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label className="text-sm">حالة النموذج</Label>
+                      <div className="flex flex-wrap gap-1">
+                        <Badge variant={isValid ? 'default' : 'secondary'} className="text-xs">
+                          {isValid ? 'صحيح' : 'غير مكتمل'}
+                        </Badge>
+                        {isDirty && (
+                          <Badge variant="outline" className="text-xs">
+                            معدل
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+
+            {/* Main Form Content */}
+            <div className="lg:col-span-3 space-y-6">
+              <ProductFormTabs
                 form={form}
-                isEditMode={isEditMode}
+                organizationId={organizationIdFromTenant}
                 productId={productId}
-                thumbnailImage={watchThumbnailImage}
+                additionalImages={additionalImages}
+                productColors={productColors}
+                wholesaleTiers={wholesaleTiers}
+                categories={categories}
+                subcategories={subcategories}
+                useVariantPrices={useVariantPrices}
+                useSizes={useSizes}
+                watchHasVariants={watchHasVariants}
+                watchPrice={watchPrice}
+                watchPurchasePrice={watchPurchasePrice}
+                watchThumbnailImage={watchThumbnailImage}
+                onMainImageChange={handleMainImageChange}
+                onAdditionalImagesChange={handleAdditionalImagesChange}
+                onProductColorsChange={handleProductColorsChange}
+                onWholesaleTiersChange={handleWholesaleTiersChange}
+                onCategoryCreated={handleCategoryCreated}
+                onSubcategoryCreated={handleSubcategoryCreated}
+                onHasVariantsChange={handleHasVariantsChange}
+                onUseVariantPricesChange={handleUseVariantPricesChange}
+                onUseSizesChange={handleUseSizesChange}
               />
             </div>
           </div>
-
-          {/* Main Form Content */}
-          <div className="lg:col-span-3">
-            <ProductFormTabs
-              form={form}
-              organizationId={organizationIdFromTenant}
-              productId={productId}
-              additionalImages={additionalImages}
-              productColors={productColors}
-              wholesaleTiers={wholesaleTiers}
-              categories={categories}
-              subcategories={subcategories}
-              useVariantPrices={useVariantPrices}
-              useSizes={useSizes}
-              watchHasVariants={watchHasVariants}
-              watchPrice={watchPrice}
-              watchPurchasePrice={watchPurchasePrice}
-              watchThumbnailImage={watchThumbnailImage}
-              onMainImageChange={handleMainImageChange}
-              onAdditionalImagesChange={handleAdditionalImagesChange}
-              onProductColorsChange={handleProductColorsChange}
-              onWholesaleTiersChange={handleWholesaleTiersChange}
-              onCategoryCreated={handleCategoryCreated}
-              onSubcategoryCreated={handleSubcategoryCreated}
-              onHasVariantsChange={handleHasVariantsChange}
-              onUseVariantPricesChange={handleUseVariantPricesChange}
-              onUseSizesChange={handleUseSizesChange}
-            />
-          </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="mt-6 flex flex-col sm:flex-row justify-between items-center gap-4 p-4 bg-card rounded-xl border">
-          <div className="text-center sm:text-right">
-            <p className="text-sm text-muted-foreground">
-              {isEditMode ? 'تعديل المنتج' : 'إنشاء منتج جديد'}
-            </p>
-          </div>
-          
-          <div className="flex gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => navigate('/dashboard/products')}
-              disabled={isSubmitting}
-            >
-              إلغاء
-            </Button>
-            <Button
-              type="submit"
-              disabled={isSubmitting || !hasPermission || (!form.getValues('organization_id') && !organizationIdFromTenant)}
-              className="bg-primary hover:bg-primary/90"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-                  جاري المعالجة...
-                </>
-              ) : (
-                <>
-                  <Save className="ml-2 h-4 w-4" />
-                  {isEditMode ? 'حفظ التغييرات' : 'إنشاء المنتج'}
-                </>
-              )}
-            </Button>
+        {/* Enhanced Sticky Action Bar */}
+        <div className="sticky bottom-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="container mx-auto px-4 sm:px-6 py-4">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                {isDirty && (
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 w-2 bg-amber-500 rounded-full animate-pulse" />
+                    <span>لديك تغييرات غير محفوظة</span>
+                  </div>
+                )}
+                {isValid && (
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    <span>النموذج صحيح</span>
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex gap-3 w-full sm:w-auto">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => navigate('/dashboard/products')}
+                  disabled={isSubmitting}
+                  className="flex-1 sm:flex-none"
+                >
+                  إلغاء
+                </Button>
+                
+                <Button
+                  type="submit"
+                  disabled={
+                    isSubmitting || 
+                    !hasPermission || 
+                    (!form.getValues('organization_id') && !organizationIdFromTenant) ||
+                    !isValid
+                  }
+                  className="flex-1 sm:flex-none bg-primary hover:bg-primary/90"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      جاري المعالجة...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      {isEditMode ? 'حفظ التغييرات' : 'إنشاء المنتج'}
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </form>
     </Layout>
   );
-}
+};
+
+export default ProductForm;

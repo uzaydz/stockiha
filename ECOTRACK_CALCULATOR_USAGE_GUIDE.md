@@ -117,7 +117,7 @@ interface Props {
 - **golivri** - غوليفري
 - **mono_hub** - مونو هاب
 - **msm_go** - إم إس إم غو
-- **negmar_express** - نيغمار إكسبرس
+- **imir_express** - إمير إكسبرس
 - **packers** - باكرز
 - **prest** - بريست
 - **rb_livraison** - آر بي ليفريزون

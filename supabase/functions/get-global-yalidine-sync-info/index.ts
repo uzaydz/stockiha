@@ -36,7 +36,6 @@ serve(async (req: Request) => {
       if (error.code === 'PGRST116') { // PGRST116: Row count mismatch (0 or >1 rows)
          // This could mean the config row hasn't been created yet or there's an issue.
          // For a fresh setup, it's possible it doesn't exist, so we can return defaults or a specific status.
-        console.warn("Global Yalidine configuration row not found or multiple rows exist.");
         return new Response(JSON.stringify({
           apiKeysSet: false,
           lastGlobalProvincesSync: null,
@@ -48,7 +47,6 @@ serve(async (req: Request) => {
           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
         });
       }
-      console.error("Error fetching Yalidine sync info:", error);
       return new Response(JSON.stringify({ error: error.message }), {
         status: 500,
         headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
@@ -76,7 +74,6 @@ serve(async (req: Request) => {
       status: 200,
     });
   } catch (e) {
-    console.error("Unhandled error in get-global-yalidine-sync-info function:", e);
     return new Response(JSON.stringify({ error: "Internal Server Error: " + e.message }), {
       status: 500,
       headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },

@@ -32,6 +32,28 @@ interface EcotrackOrderParams {
 }
 
 // Helper function to get provider base URL
+/**
+ * Clean French text by removing special characters for Ecotrack API compatibility
+ */
+const cleanFrenchText = (text: string): string => {
+  return text
+    .replace(/ï/g, 'i')
+    .replace(/â/g, 'a')
+    .replace(/ê/g, 'e')
+    .replace(/ô/g, 'o')
+    .replace(/û/g, 'u')
+    .replace(/à/g, 'a')
+    .replace(/è/g, 'e')
+    .replace(/ù/g, 'u')
+    .replace(/ç/g, 'c')
+    .replace(/é/g, 'e')
+    .replace(/É/g, 'E')
+    .replace(/À/g, 'A')
+    .replace(/È/g, 'E')
+    .replace(/Ù/g, 'U')
+    .replace(/Ç/g, 'C');
+};
+
 const getProviderBaseUrl = (providerCode: string): string => {
   const providerUrls: { [key: string]: string } = {
     'ecotrack': 'https://api.ecotrack.dz',
@@ -47,7 +69,7 @@ const getProviderBaseUrl = (providerCode: string): string => {
     'golivri': 'https://golivri.ecotrack.dz',
     'mono_hub': 'https://mono.ecotrack.dz',
     'msm_go': 'https://msmgo.ecotrack.dz',
-    'negmar_express': 'https://negmar.ecotrack.dz',
+    'imir_express': 'https://imir.ecotrack.dz',
     'packers': 'https://packers.ecotrack.dz',
     'prest': 'https://prest.ecotrack.dz',
     'rb_livraison': 'https://rblivraison.ecotrack.dz',
@@ -78,7 +100,7 @@ const isEcotrackProvider = (providerCode: string): boolean => {
     'golivri',
     'mono_hub',
     'msm_go',
-    'negmar_express',
+    'imir_express',
     'packers',
     'prest',
     'rb_livraison',
@@ -109,7 +131,7 @@ const generateEcotrackTrackingNumber = (providerCode: string): string => {
     'golivri': 'GLV',
     'mono_hub': 'MON',
     'msm_go': 'MSM',
-    'negmar_express': 'NEG',
+    'imir_express': 'IMR',
     'packers': 'PAK',
     'prest': 'PRS',
     'rb_livraison': 'RBL',
@@ -141,6 +163,56 @@ const getProductsDescription = (orderItems: any[]): string => {
 };
 
 /**
+ * Map of common municipality name corrections for Ecotrack API
+ * Maps incorrect names to correct Ecotrack names
+ */
+const MUNICIPALITY_CORRECTIONS: Record<string, string> = {
+  // Tlemcen municipalities - All possible variations
+  'Ain Fetah': 'Ain Fettah',      // Common English spelling
+  'Aïn Fetah': 'Ain Fettah',      // French accented spelling (from DB)
+  'Ain Fetha': 'Ain Fettah',      // Alternative spelling
+  'Aïn Fetha': 'Ain Fettah',      // French accented alternative
+  'عين فتح': 'Ain Fettah',         // Arabic spelling
+  
+  // Other common corrections
+  'El Bayadh': 'El Bayadh',
+  'Sidi Bel Abbes': 'Sidi Bel Abbès',
+  'Bejaia': 'Béjaïa',
+  'Bechar': 'Béchar',
+  'Setif': 'Sétif',
+  'Saida': 'Saïda',
+  'Tizi Ouzou': 'Tizi Ouzou',
+  'Msila': "M'Sila",
+  'Ouargla': 'Ouargla'
+};
+
+/**
+ * Clean and correct municipality name for Ecotrack API
+ */
+const correctMunicipalityName = (municipalityName: string): string => {
+  
+  if (!municipalityName) return 'Alger';
+  
+  // First try exact match correction
+  if (MUNICIPALITY_CORRECTIONS[municipalityName]) {
+    const corrected = MUNICIPALITY_CORRECTIONS[municipalityName];
+    return corrected;
+  }
+  
+  // Try case-insensitive match
+  const lowerName = municipalityName.toLowerCase();
+  for (const [incorrect, correct] of Object.entries(MUNICIPALITY_CORRECTIONS)) {
+    if (incorrect.toLowerCase() === lowerName) {
+      return correct;
+    }
+  }
+  
+  // Clean the name for French API
+  const cleaned = cleanFrenchText(municipalityName);
+  return cleaned;
+};
+
+/**
  * Send order to Ecotrack provider
  */
 export async function sendOrderToEcotrackProvider(
@@ -149,11 +221,6 @@ export async function sendOrderToEcotrackProvider(
   organizationId: string
 ): Promise<EcotrackOrderResult> {
   try {
-    console.log('🌿 [EcotrackIntegration] بدء إرسال الطلب:', {
-      orderId,
-      providerCode,
-      organizationId
-    });
 
     // Check if provider is Ecotrack-based
     if (!isEcotrackProvider(providerCode)) {
@@ -163,7 +230,7 @@ export async function sendOrderToEcotrackProvider(
       };
     }
 
-    // Get order details with customer and address info
+    // Get order details with address info
     const { data: order, error: orderError } = await supabase
       .from('online_orders')
       .select(`
@@ -173,16 +240,13 @@ export async function sendOrderToEcotrackProvider(
           quantity,
           unit_price
         ),
-        customers!customer_id (
-          name,
-          phone,
-          email
-        ),
-        addresses!shipping_address_id (
+        addresses:shipping_address_id (
           street_address,
           city,
           state,
-          municipality
+          municipality,
+          name,
+          phone
         )
       `)
       .eq('id', orderId)
@@ -248,20 +312,41 @@ export async function sendOrderToEcotrackProvider(
     // Get products description
     const productsDescription = getProductsDescription(order.online_order_items || []);
 
-    // Get customer info
-    const customer = (order as any).customers;
+    // Get customer and address info
     const address = (order as any).addresses;
+    const formData = (order.form_data as any) || {};
     
-    // Extract info from notes if address is missing
+    // Extract customer data from form_data and address
+    let customerName = address?.name || formData?.fullName || 'العميل';
+    let customerPhone = address?.phone || formData?.phone || '0500000000';
+    let shippingAddress = address?.street_address || '';
+    let city = address?.city || formData?.municipality || '';
+    let state = address?.state || formData?.province || '';
+    // Get correct wilaya ID
+    let wilayaId = formData?.wilaya_id || address?.wilaya_id || address?.state || '16';
+    
+    // Convert municipality ID to name and clean for Ecotrack API
+    let municipalityName = '';
+    if (address?.municipality && !isNaN(parseInt(address.municipality))) {
+      // Municipality is stored as ID, convert to name
+      const { data: municipalityData } = await supabase
+        .from('yalidine_municipalities_global')
+        .select('name')
+        .eq('id', parseInt(address.municipality))
+        .single();
+      
+      const rawMunicipalityName = municipalityData?.name || 'Alger';
+      
+      // Apply correction for Ecotrack API
+      municipalityName = correctMunicipalityName(rawMunicipalityName);
+    } else {
+      municipalityName = correctMunicipalityName(city || 'Alger');
+    }
+
+    // Parse additional info from notes if needed
     const addressFromNotes = order.notes || '';
     const addressParts = addressFromNotes.split(' | ');
-    let customerName = customer?.name || 'العميل';
-    let customerPhone = customer?.phone || '0500000000';
-    let shippingAddress = address?.street_address || '';
-    let city = address?.city || '';
-    let state = address?.state || '';
     
-    // Parse notes for missing data
     for (const part of addressParts) {
       if (part.includes('الاسم:')) {
         customerName = part.replace('الاسم:', '').trim() || customerName;
@@ -273,11 +358,18 @@ export async function sendOrderToEcotrackProvider(
         const addressText = part.replace('العنوان:', '').trim();
         if (addressText.includes(' - ')) {
           const [cityFromNotes, addressFromNotesDetail] = addressText.split(' - ');
-          state = cityFromNotes || state;
+          municipalityName = cityFromNotes || municipalityName;
           shippingAddress = addressFromNotesDetail || shippingAddress;
         } else {
           shippingAddress = addressText || shippingAddress;
         }
+      }
+      if (part.includes('الولاية:')) {
+        state = part.replace('الولاية:', '').trim() || state;
+      }
+      if (part.includes('البلدية:')) {
+        const rawMunicipalityName = part.replace('البلدية:', '').trim();
+        municipalityName = rawMunicipalityName ? correctMunicipalityName(rawMunicipalityName) : municipalityName;
       }
     }
 
@@ -288,17 +380,15 @@ export async function sendOrderToEcotrackProvider(
       MobileA: customerPhone,
       MobileB: '',
       Adresse: shippingAddress || `${city || address?.municipality || 'غير محدد'}, ولاية ${state}`,
-      IDWilaya: '16', // Default to Alger, should be mapped properly
-      Commune: city || address?.municipality || 'غير محدد',
+      IDWilaya: wilayaId, // Wilaya ID (numeric)
+      Commune: municipalityName,
       Total: parseFloat(order.total?.toString() || '0').toString(),
       Note: order.notes || '',
-      TypeLivraison: order.shipping_option === 'desk' ? 1 : 0, // 0: Home, 1: Office
-      TypeColis: 0, // Normal package
+      TypeLivraison: order.shipping_option === 'desk' ? 2 : 1, // 1: Home, 2: Stop desk
+      TypeColis: 0, // 0: Livraison (normal delivery), 1: Échange (exchange/return) - القيم معكوسة في API!
       Confrimee: 1, // Confirmed
       TProd: productsDescription
     };
-
-    console.log('📦 [EcotrackIntegration] بيانات الطلب:', orderParams);
 
     // Create shipping order
     const result = await shippingService.createShippingOrder(orderParams);
@@ -325,11 +415,6 @@ export async function sendOrderToEcotrackProvider(
         .update(updateData)
         .eq('id', orderId);
 
-      console.log('✅ [EcotrackIntegration] تم إرسال الطلب بنجاح:', {
-        trackingNumber,
-        externalId: result.data?.id
-      });
-
       return {
         success: true,
         message: 'تم إرسال الطلب بنجاح',
@@ -345,7 +430,6 @@ export async function sendOrderToEcotrackProvider(
     };
 
   } catch (error) {
-    console.error('❌ [EcotrackIntegration] خطأ في إرسال الطلب:', error);
     return {
       success: false,
       message: 'حدث خطأ أثناء إرسال الطلب: ' + (error instanceof Error ? error.message : String(error))
@@ -403,7 +487,6 @@ async function sendOrderToYalidine(
     };
 
   } catch (error) {
-    console.error('❌ [YalidineIntegration] خطأ في إرسال الطلب:', error);
     return {
       success: false,
       message: 'حدث خطأ أثناء إرسال الطلب إلى ياليدين: ' + (error instanceof Error ? error.message : String(error))
@@ -461,7 +544,6 @@ async function sendOrderToZRExpress(
     };
 
   } catch (error) {
-    console.error('❌ [ZRExpressIntegration] خطأ في إرسال الطلب:', error);
     return {
       success: false,
       message: 'حدث خطأ أثناء إرسال الطلب إلى ZR Express: ' + (error instanceof Error ? error.message : String(error))
@@ -477,10 +559,6 @@ async function sendOrderToMaystroDelivery(
   organizationId: string
 ): Promise<EcotrackOrderResult> {
   try {
-    console.log('🚀 [MaystroDelivery] بدء إرسال الطلب:', {
-      orderId,
-      organizationId
-    });
 
     // Get order details
     const { data: order, error: orderError } = await supabase
@@ -605,8 +683,6 @@ async function sendOrderToMaystroDelivery(
       external_order_id: order.id
     };
 
-    console.log('📦 [MaystroDelivery] بيانات الطلب:', orderData);
-
     // Send to Maystro Delivery API
     const apiUrl = 'https://backend.maystro-delivery.com/api/stores/orders/';
     
@@ -622,7 +698,6 @@ async function sendOrderToMaystroDelivery(
     const result = await response.json();
 
     if (!response.ok) {
-      console.error('❌ [MaystroDelivery] خطأ في API:', result);
       return {
         success: false,
         message: result.message || `خطأ HTTP ${response.status}: ${response.statusText}`
@@ -652,7 +727,6 @@ async function sendOrderToMaystroDelivery(
       });
 
     if (shippingOrderError) {
-      console.warn('⚠️ [MaystroDelivery] تحذير: فشل في إنشاء سجل الشحن:', shippingOrderError);
     }
 
     // Update order status
@@ -664,11 +738,6 @@ async function sendOrderToMaystroDelivery(
       })
       .eq('id', orderId);
 
-    console.log('✅ [MaystroDelivery] تم إرسال الطلب بنجاح:', {
-      trackingNumber: result.tracking_number || trackingNumber,
-      externalId: result.id
-    });
-
     return {
       success: true,
       message: 'تم إرسال الطلب إلى Maystro Delivery بنجاح',
@@ -678,7 +747,6 @@ async function sendOrderToMaystroDelivery(
     };
 
   } catch (error) {
-    console.error('❌ [MaystroDelivery] خطأ في إرسال الطلب:', error);
     return {
       success: false,
       message: 'حدث خطأ أثناء إرسال الطلب إلى Maystro Delivery: ' + (error instanceof Error ? error.message : String(error))
@@ -695,11 +763,6 @@ export async function sendOrderToShippingProvider(
   organizationId: string
 ): Promise<EcotrackOrderResult> {
   try {
-    console.log('🚀 [UnifiedShipping] بدء إرسال الطلب:', {
-      orderId,
-      providerCode,
-      organizationId
-    });
 
     // توجيه ذكي حسب نوع الشركة
     switch (providerCode) {
@@ -724,10 +787,9 @@ export async function sendOrderToShippingProvider(
         };
     }
   } catch (error) {
-    console.error('❌ [UnifiedShipping] خطأ عام في إرسال الطلب:', error);
     return {
       success: false,
       message: 'حدث خطأ أثناء إرسال الطلب: ' + (error instanceof Error ? error.message : String(error))
     };
   }
-} 
+}

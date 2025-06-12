@@ -30,7 +30,7 @@
 | `golivri` | غوليفري | `https://golivri.ecotrack.dz/` |
 | `mono_hub` | Mono Hub | `https://monohub.ecotrack.dz/` |
 | `msm_go` | MSM Go | `https://msmgo.ecotrack.dz/` |
-| `negmar_express` | نيغمار إكسبرس | `https://negmar.ecotrack.dz/` |
+| `imir_express` | إمير إكسبرس | `https://imir.ecotrack.dz/` |
 | `packers` | باكرز | `https://packers.ecotrack.dz/` |
 | `prest` | بريست | `https://prest.ecotrack.dz/` |
 | `rb_livraison` | RB Livraison | `https://rb.ecotrack.dz/` |

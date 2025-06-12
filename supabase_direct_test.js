@@ -2,8 +2,6 @@
 // اختبار دالة قاعدة البيانات مباشرة - تشغيل في console المتصفح
 // ===================================================================
 
-console.log('🔧 البحث عن Supabase client والاختبار المباشر...');
-
 // محاولة العثور على Supabase client بطرق مختلفة
 const findSupabaseClient = () => {
   // البحث في المتغيرات العامة
@@ -12,12 +10,10 @@ const findSupabaseClient = () => {
   
   // البحث في React DevTools أو أي object آخر
   if (window.React && window.React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED) {
-    console.log('🔍 جاري البحث في React internals...');
   }
   
   // محاولة الوصول من خلال الشبكة المحلية
   if (window.fetch) {
-    console.log('✅ تم العثور على fetch، سنستخدم استدعاءات REST مباشرة');
     return 'fetch';
   }
   
@@ -37,14 +33,11 @@ const testDatabaseDirectly = async () => {
     try {
       const parsed = JSON.parse(authData);
       token = parsed.access_token;
-      console.log('✅ تم استخراج التوكن من localStorage');
     } catch (e) {
-      console.log('❌ فشل في استخراج التوكن:', e);
     }
   }
   
   if (!token) {
-    console.log('❌ لم يتم العثور على التوكن');
     return;
   }
   
@@ -79,13 +72,9 @@ const testDatabaseDirectly = async () => {
       }
     }
   ];
-  
-  console.log('\n🧪 بدء اختبار دالة calculate_shipping_fee:');
-  
+
   for (const testCase of testCases) {
     try {
-      console.log(`\n📋 اختبار: ${testCase.name}`);
-      console.log('📤 البيانات المُرسلة:', testCase.payload);
       
       const response = await fetch(restUrl, {
         method: 'POST',
@@ -94,15 +83,11 @@ const testDatabaseDirectly = async () => {
       });
       
       const result = await response.text();
-      console.log(`📥 النتيجة الخام: "${result}"`);
       
       if (response.ok) {
-        console.log(`✅ نجح الاختبار: ${result}`);
       } else {
-        console.log(`❌ فشل الاختبار: ${response.status} - ${result}`);
       }
     } catch (error) {
-      console.error(`❌ خطأ في الاختبار "${testCase.name}":`, error);
     }
   }
 };
@@ -120,7 +105,6 @@ const checkYalidineData = async () => {
       const parsed = JSON.parse(authData);
       token = parsed.access_token;
     } catch (e) {
-      console.log('❌ فشل في استخراج التوكن:', e);
       return;
     }
   }
@@ -132,26 +116,18 @@ const checkYalidineData = async () => {
   };
   
   try {
-    console.log('\n📊 فحص بيانات yalidine_fees:');
     
     // فحص للولاية 5، البلدية 515
     const url = `${restUrl}?from_wilaya_id=eq.40&to_wilaya_id=eq.5&commune_id=eq.515&select=*`;
-    console.log('🔗 الرابط:', url);
     
     const response = await fetch(url, { headers });
     const data = await response.json();
-    
-    console.log('📥 بيانات yalidine_fees للولاية 5، البلدية 515:', data);
-    
+
     if (data && data.length > 0) {
-      console.log(`✅ تم العثور على ${data.length} سجل`);
-      console.log('📋 أول سجل:', data[0]);
     } else {
-      console.log('❌ لم يتم العثور على بيانات');
     }
     
   } catch (error) {
-    console.error('❌ خطأ في فحص yalidine_fees:', error);
   }
 };
 
@@ -179,32 +155,25 @@ const checkYalidineSettings = async () => {
   };
   
   try {
-    console.log('\n⚙️ فحص إعدادات yalidine_settings_with_origin:');
     
     const url = `${restUrl}?organization_id=eq.fed872f9-1ade-4351-b020-5598fda976fe&select=*`;
-    console.log('🔗 الرابط:', url);
     
     const response = await fetch(url, { headers });
     const data = await response.json();
-    
-    console.log('📥 إعدادات yalidine_settings_with_origin:', data);
-    
+
   } catch (error) {
-    console.error('❌ خطأ في فحص yalidine_settings_with_origin:', error);
   }
 };
 
 // تشغيل جميع الاختبارات
 const runAllTests = async () => {
   const client = findSupabaseClient();
-  console.log('🔍 نتيجة البحث عن Supabase client:', client || 'لم يتم العثور عليه');
   
   await testDatabaseDirectly();
   await checkYalidineData();
   await checkYalidineSettings();
   
-  console.log('\n✅ انتهت جميع الاختبارات');
 };
 
 // تشغيل الاختبارات
-runAllTests(); 
+runAllTests();

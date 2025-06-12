@@ -82,8 +82,8 @@ const ProductsHeader = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2 w-full">
-        <div className="relative lg:col-span-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 w-full">
+        <div className="relative lg:col-span-3 order-1 lg:order-none">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="ابحث في المنتجات..."

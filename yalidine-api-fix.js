@@ -15,8 +15,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
  * Main fix function to correct the direction swapping issue
  */
 async function fixYalidineDirectionSwap() {
-  
-  
+
   try {
     // 1. Ensure the triggers are disabled
     await disableRedirectTrigger();
@@ -26,17 +25,14 @@ async function fixYalidineDirectionSwap() {
     const originWilayaId = await getOrganizationOriginWilaya(orgId);
     
     if (!originWilayaId) {
-      console.error('Could not determine origin wilaya for organization.');
       return false;
     }
     
     // 3. Correct existing data by swapping directions
     await swapDirectionsInExistingData(orgId, originWilayaId);
-    
-    
+
     return true;
   } catch (error) {
-    console.error('Error fixing Yalidine direction swap:', error);
     return false;
   }
 }
@@ -45,14 +41,12 @@ async function fixYalidineDirectionSwap() {
  * Disable the redirect trigger to prevent data from being moved to yalidine_fees_new
  */
 async function disableRedirectTrigger() {
-  
-  
+
   try {
     await supabase.rpc('disable_yalidine_redirect_trigger');
     
     return true;
   } catch (error) {
-    console.error('Error disabling redirect trigger:', error);
     
     // Try direct SQL approach as fallback
     try {
@@ -64,7 +58,6 @@ async function disableRedirectTrigger() {
       
       return true;
     } catch (sqlError) {
-      console.error('Failed to disable trigger using direct SQL:', sqlError);
       throw new Error('Could not disable redirect trigger.');
     }
   }
@@ -74,8 +67,7 @@ async function disableRedirectTrigger() {
  * Get the origin wilaya ID for an organization from settings
  */
 async function getOrganizationOriginWilaya(organizationId) {
-  
-  
+
   try {
     // Try to get the origin wilaya from settings
     const { data: settings, error } = await supabase
@@ -109,7 +101,6 @@ async function getOrganizationOriginWilaya(organizationId) {
     
     return 16;
   } catch (error) {
-    console.error('Error getting origin wilaya:', error);
     // Default to Algiers (16) in case of error
     return 16;
   }
@@ -119,8 +110,7 @@ async function getOrganizationOriginWilaya(organizationId) {
  * Swap the direction in existing data to correct the issue
  */
 async function swapDirectionsInExistingData(organizationId, originWilayaId) {
-  
-  
+
   try {
     // Get current data
     const { data: currentFees, error } = await supabase
@@ -134,9 +124,7 @@ async function swapDirectionsInExistingData(organizationId, originWilayaId) {
       
       return;
     }
-    
-    
-    
+
     // Process in batches to avoid overwhelming the database
     const batchSize = 50;
     const batches = [];
@@ -144,13 +132,10 @@ async function swapDirectionsInExistingData(organizationId, originWilayaId) {
     for (let i = 0; i < currentFees.length; i += batchSize) {
       batches.push(currentFees.slice(i, i + batchSize));
     }
-    
-    
-    
+
     for (let i = 0; i < batches.length; i++) {
       const batch = batches[i];
-      
-      
+
       // First, delete the existing records
       const idsToDelete = batch.map(fee => fee.id);
       
@@ -192,13 +177,10 @@ async function swapDirectionsInExistingData(organizationId, originWilayaId) {
         .insert(correctedFees);
       
       if (insertError) throw insertError;
-      
-      
+
     }
-    
-    
+
   } catch (error) {
-    console.error('Error swapping directions in existing data:', error);
     throw error;
   }
 }
@@ -217,14 +199,12 @@ if (isMainModule) {
           process.exit(0);
         }
       } else {
-        console.error('❌ Yalidine direction swap fix failed.');
         if (typeof process !== 'undefined' && process.exit) {
           process.exit(1);
         }
       }
     })
     .catch(error => {
-      console.error('❌ Uncaught error in Yalidine direction swap fix:', error);
       if (typeof process !== 'undefined' && process.exit) {
         process.exit(1);
       }
@@ -237,4 +217,4 @@ export {
   disableRedirectTrigger,
   getOrganizationOriginWilaya,
   swapDirectionsInExistingData
-}; 
+};

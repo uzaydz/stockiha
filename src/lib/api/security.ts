@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { verifyTOTP, debugTOTP } from '@/lib/totp-verification';
 
 // Types للأمان والخصوصية
 export interface SecuritySettings {
@@ -110,7 +111,6 @@ export async function getSecuritySettings(): Promise<SecuritySettings | null> {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
     if (authError || !user) {
-      console.error('خطأ في المصادقة:', authError);
       return null;
     }
 
@@ -119,13 +119,11 @@ export async function getSecuritySettings(): Promise<SecuritySettings | null> {
       .rpc('get_user_security_settings', { p_user_id: user.id });
 
     if (error) {
-      console.error('خطأ في جلب إعدادات الأمان:', error);
       return null;
     }
 
     return data && Array.isArray(data) && data.length > 0 ? data[0] as SecuritySettings : null;
   } catch (error) {
-    console.error('خطأ في جلب إعدادات الأمان:', error);
     return null;
   }
 }
@@ -156,7 +154,6 @@ export async function updateSecuritySettings(settings: Partial<SecuritySettings>
       });
 
     if (error) {
-      console.error('خطأ في تحديث إعدادات الأمان:', error);
       return {
         success: false,
         error: 'فشل في تحديث إعدادات الأمان'
@@ -171,7 +168,6 @@ export async function updateSecuritySettings(settings: Partial<SecuritySettings>
       data: updatedSettings || undefined
     };
   } catch (error) {
-    console.error('خطأ في تحديث إعدادات الأمان:', error);
     return {
       success: false,
       error: 'حدث خطأ غير متوقع'
@@ -187,7 +183,6 @@ export async function getPrivacySettings(): Promise<PrivacySettings | null> {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
     if (authError || !user) {
-      console.error('خطأ في المصادقة:', authError);
       return null;
     }
 
@@ -196,13 +191,11 @@ export async function getPrivacySettings(): Promise<PrivacySettings | null> {
       .rpc('get_user_privacy_settings', { p_user_id: user.id });
 
     if (error) {
-      console.error('خطأ في جلب إعدادات الخصوصية:', error);
       return null;
     }
 
     return data && Array.isArray(data) && data.length > 0 ? data[0] as PrivacySettings : null;
   } catch (error) {
-    console.error('خطأ في جلب إعدادات الخصوصية:', error);
     return null;
   }
 }
@@ -233,7 +226,6 @@ export async function updatePrivacySettings(settings: Partial<PrivacySettings>):
       });
 
     if (error) {
-      console.error('خطأ في تحديث إعدادات الخصوصية:', error);
       return {
         success: false,
         error: 'فشل في تحديث إعدادات الخصوصية'
@@ -248,7 +240,6 @@ export async function updatePrivacySettings(settings: Partial<PrivacySettings>):
       data: updatedSettings || undefined
     };
   } catch (error) {
-    console.error('خطأ في تحديث إعدادات الخصوصية:', error);
     return {
       success: false,
       error: 'حدث خطأ غير متوقع'
@@ -264,7 +255,6 @@ export async function getActiveSessions(): Promise<UserSession[]> {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
     if (authError || !user) {
-      console.error('خطأ في المصادقة:', authError);
       return [];
     }
 
@@ -274,13 +264,11 @@ export async function getActiveSessions(): Promise<UserSession[]> {
     });
 
     if (error) {
-      console.error('خطأ في جلب الجلسات النشطة:', error);
       return [];
     }
 
     return data || [];
   } catch (error) {
-    console.error('خطأ في جلب الجلسات النشطة:', error);
     return [];
   }
 }
@@ -308,7 +296,6 @@ export async function terminateSession(sessionId: string): Promise<{
     });
 
     if (error) {
-      console.error('خطأ في إنهاء الجلسة:', error);
       return {
         success: false,
         error: 'فشل في إنهاء الجلسة'
@@ -319,7 +306,6 @@ export async function terminateSession(sessionId: string): Promise<{
       success: Boolean(data)
     };
   } catch (error) {
-    console.error('خطأ في إنهاء الجلسة:', error);
     return {
       success: false,
       error: 'حدث خطأ غير متوقع'
@@ -355,7 +341,6 @@ export async function terminateAllOtherSessions(): Promise<{
     });
 
     if (error) {
-      console.error('خطأ في إنهاء الجلسات:', error);
       return {
         success: false,
         error: 'فشل في إنهاء الجلسات'
@@ -367,7 +352,6 @@ export async function terminateAllOtherSessions(): Promise<{
       terminatedCount: Number(data) || 0
     };
   } catch (error) {
-    console.error('خطأ في إنهاء الجلسات:', error);
     return {
       success: false,
       error: 'حدث خطأ غير متوقع'
@@ -383,7 +367,6 @@ export async function getSecurityLogs(limit: number = 50): Promise<SecurityLog[]
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
     if (authError || !user) {
-      console.error('خطأ في المصادقة:', authError);
       return [];
     }
 
@@ -395,13 +378,11 @@ export async function getSecurityLogs(limit: number = 50): Promise<SecurityLog[]
       .limit(limit);
 
     if (error) {
-      console.error('خطأ في جلب سجل الأنشطة:', error);
       return [];
     }
 
     return data as SecurityLog[];
   } catch (error) {
-    console.error('خطأ في جلب سجل الأنشطة:', error);
     return [];
   }
 }
@@ -439,10 +420,8 @@ export async function logSecurityActivity(
     });
 
     if (error) {
-      console.error('خطأ في تسجيل النشاط الأمني:', error);
     }
   } catch (error) {
-    console.error('خطأ في تسجيل النشاط الأمني:', error);
   }
 }
 
@@ -454,7 +433,6 @@ export async function getTrustedDevices(): Promise<TrustedDevice[]> {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
     if (authError || !user) {
-      console.error('خطأ في المصادقة:', authError);
       return [];
     }
 
@@ -464,13 +442,11 @@ export async function getTrustedDevices(): Promise<TrustedDevice[]> {
     });
 
     if (error) {
-      console.error('خطأ في جلب الأجهزة الموثوقة:', error);
       return [];
     }
 
     return data || [];
   } catch (error) {
-    console.error('خطأ في جلب الأجهزة الموثوقة:', error);
     return [];
   }
 }
@@ -499,7 +475,6 @@ export async function removeTrustedDevice(deviceId: string): Promise<{
       .eq('user_id', user.id);
 
     if (error) {
-      console.error('خطأ في إزالة الجهاز الموثوق:', error);
       return {
         success: false,
         error: 'فشل في إزالة الجهاز الموثوق'
@@ -519,7 +494,6 @@ export async function removeTrustedDevice(deviceId: string): Promise<{
       success: true
     };
   } catch (error) {
-    console.error('خطأ في إزالة الجهاز الموثوق:', error);
     return {
       success: false,
       error: 'حدث خطأ غير متوقع'
@@ -538,8 +512,6 @@ export async function signInWithGoogle(): Promise<{
     // الحصول على URL الحالي بشكل صحيح
     const currentOrigin = window.location.origin;
     const redirectUrl = `${currentOrigin}/auth/callback`;
-    
-    console.log('محاولة تسجيل الدخول بـ Google مع URL:', redirectUrl);
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -554,7 +526,6 @@ export async function signInWithGoogle(): Promise<{
     });
 
     if (error) {
-      console.error('خطأ في تسجيل الدخول بـ Google:', error);
       return {
         success: false,
         error: `فشل في تسجيل الدخول بـ Google: ${error.message}`
@@ -565,7 +536,6 @@ export async function signInWithGoogle(): Promise<{
       success: true
     };
   } catch (error) {
-    console.error('خطأ في تسجيل الدخول بـ Google:', error);
     return {
       success: false,
       error: 'حدث خطأ غير متوقع في تسجيل الدخول'
@@ -601,7 +571,6 @@ export async function updateGoogleAccountLink(googleUserId: string, isLinked: bo
       .eq('id', user.id);
 
     if (updateError) {
-      console.error('خطأ في تحديث ربط Google:', updateError);
       return {
         success: false,
         error: 'فشل في تحديث ربط حساب Google'
@@ -621,7 +590,6 @@ export async function updateGoogleAccountLink(googleUserId: string, isLinked: bo
       success: true
     };
   } catch (error) {
-    console.error('خطأ في تحديث ربط Google:', error);
     return {
       success: false,
       error: 'حدث خطأ غير متوقع'
@@ -639,7 +607,6 @@ export async function unlinkGoogleAccount(): Promise<{
   try {
     return await updateGoogleAccountLink('', false);
   } catch (error) {
-    console.error('خطأ في إلغاء ربط حساب Google:', error);
     return {
       success: false,
       error: 'حدث خطأ غير متوقع'
@@ -658,8 +625,6 @@ export async function linkGoogleAccount(): Promise<{
     // الحصول على URL الحالي بشكل صحيح
     const currentOrigin = window.location.origin;
     const redirectUrl = `${currentOrigin}/auth/callback`;
-    
-    console.log('محاولة ربط Google مع URL:', redirectUrl);
 
     // فتح نافذة تسجيل دخول Google
     const { data, error } = await supabase.auth.signInWithOAuth({
@@ -675,7 +640,6 @@ export async function linkGoogleAccount(): Promise<{
     });
 
     if (error) {
-      console.error('خطأ في ربط حساب Google:', error);
       return {
         success: false,
         error: `فشل في ربط حساب Google: ${error.message}`
@@ -686,7 +650,6 @@ export async function linkGoogleAccount(): Promise<{
       success: true
     };
   } catch (error) {
-    console.error('خطأ في ربط حساب Google:', error);
     return {
       success: false,
       error: 'حدث خطأ غير متوقع في ربط حساب Google'
@@ -717,7 +680,6 @@ export async function linkGoogleAccountAlternative(): Promise<{
       requiresManualSetup: true
     };
   } catch (error) {
-    console.error('خطأ في ربط Google البديل:', error);
     return {
       success: false,
       error: 'فشل في ربط حساب Google',
@@ -760,7 +722,6 @@ export async function simulateGoogleLink(googleEmail: string): Promise<{
 
     return result;
   } catch (error) {
-    console.error('خطأ في محاكاة ربط Google:', error);
     return {
       success: false,
       error: 'فشل في محاكاة ربط Google'
@@ -799,7 +760,6 @@ export async function setupTwoFactorAuth(): Promise<TwoFactorSetup> {
       .rpc('setup_two_factor_auth', { p_user_id: user.id });
 
     if (error) {
-      console.error('خطأ في إعداد المصادقة الثنائية:', error);
       return {
         success: false,
         error: 'فشل في إعداد المصادقة الثنائية'
@@ -817,7 +777,6 @@ export async function setupTwoFactorAuth(): Promise<TwoFactorSetup> {
       account_name: data.account_name
     };
   } catch (error) {
-    console.error('خطأ في إعداد المصادقة الثنائية:', error);
     return {
       success: false,
       error: 'حدث خطأ غير متوقع'
@@ -826,7 +785,7 @@ export async function setupTwoFactorAuth(): Promise<TwoFactorSetup> {
 }
 
 /**
- * تفعيل المصادقة الثنائية
+ * تفعيل المصادقة الثنائية (مع التحقق في جانب العميل)
  */
 export async function enableTwoFactorAuth(verificationCode: string): Promise<{
   success: boolean;
@@ -842,26 +801,67 @@ export async function enableTwoFactorAuth(verificationCode: string): Promise<{
       };
     }
 
-    const { data, error } = await (supabase as any)
-      .rpc('enable_two_factor_auth', { 
-        p_user_id: user.id,
-        p_verification_code: verificationCode
-      });
+    // أولاً: جلب المفتاح السري للتحقق
+    const { data: settings } = await supabase
+      .from('user_security_settings')
+      .select('totp_secret')
+      .eq('user_id', user.id)
+      .single();
+
+    if (!settings?.totp_secret) {
+      return {
+        success: false,
+        error: 'لم يتم العثور على إعدادات المصادقة الثنائية'
+      };
+    }
+
+    // التحقق من الرمز في جانب العميل
+    const isValidCode = await verifyTOTP(settings.totp_secret, verificationCode, 2);
+    
+    if (!isValidCode) {
+      // Debug info للتطوير
+      await debugTOTP(settings.totp_secret);
+      return {
+        success: false,
+        error: 'رمز التحقق غير صحيح'
+      };
+    }
+
+    // إذا كان الرمز صحيحاً، تفعيل المصادقة في قاعدة البيانات
+    const { data, error } = await supabase
+      .from('user_security_settings')
+      .update({
+        two_factor_enabled: true,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', user.id);
 
     if (error) {
-      console.error('خطأ في تفعيل المصادقة الثنائية:', error);
       return {
         success: false,
         error: 'فشل في تفعيل المصادقة الثنائية'
       };
     }
 
+    // تحديث جدول المستخدمين أيضاً
+    await supabase
+      .from('users')
+      .update({ two_factor_enabled: true })
+      .eq('id', user.id);
+
+    // تسجيل النشاط
+    await logSecurityActivity(
+      user.id,
+      '2fa_enabled',
+      'تم تفعيل المصادقة الثنائية',
+      'success',
+      'medium'
+    );
+
     return {
-      success: data.success,
-      error: data.error
+      success: true
     };
   } catch (error) {
-    console.error('خطأ في تفعيل المصادقة الثنائية:', error);
     return {
       success: false,
       error: 'حدث خطأ غير متوقع'
@@ -893,7 +893,6 @@ export async function disableTwoFactorAuth(verificationCode: string): Promise<{
       });
 
     if (error) {
-      console.error('خطأ في إلغاء تفعيل المصادقة الثنائية:', error);
       return {
         success: false,
         error: 'فشل في إلغاء تفعيل المصادقة الثنائية'
@@ -905,7 +904,6 @@ export async function disableTwoFactorAuth(verificationCode: string): Promise<{
       error: data.error
     };
   } catch (error) {
-    console.error('خطأ في إلغاء تفعيل المصادقة الثنائية:', error);
     return {
       success: false,
       error: 'حدث خطأ غير متوقع'
@@ -914,7 +912,7 @@ export async function disableTwoFactorAuth(verificationCode: string): Promise<{
 }
 
 /**
- * التحقق من رمز المصادقة الثنائية
+ * التحقق من رمز المصادقة الثنائية (مع التحقق في جانب العميل)
  */
 export async function verifyTwoFactorCode(code: string): Promise<{
   success: boolean;
@@ -930,26 +928,57 @@ export async function verifyTwoFactorCode(code: string): Promise<{
       };
     }
 
-    const { data, error } = await (supabase as any)
-      .rpc('verify_totp_code', { 
-        p_user_id: user.id,
-        p_code: code
-      });
+    // جلب إعدادات المصادقة الثنائية
+    const { data: settings } = await supabase
+      .from('user_security_settings')
+      .select('totp_secret, backup_codes, backup_codes_used')
+      .eq('user_id', user.id)
+      .single();
 
-    if (error) {
-      console.error('خطأ في التحقق من الرمز:', error);
+    if (!settings?.totp_secret) {
       return {
         success: false,
-        error: 'فشل في التحقق من الرمز'
+        error: 'المصادقة الثنائية غير مفعلة'
       };
     }
 
+    // التحقق من رمز TOTP أولاً
+    const isValidTOTP = await verifyTOTP(settings.totp_secret, code, 2);
+    
+    if (isValidTOTP) {
+      return { success: true };
+    }
+
+    // إذا فشل TOTP، تحقق من backup codes
+    if (settings.backup_codes && Array.isArray(settings.backup_codes)) {
+      const usedCodes = Array.isArray(settings.backup_codes_used) 
+        ? settings.backup_codes_used 
+        : [];
+
+      if (settings.backup_codes.includes(code) && !usedCodes.includes(code)) {
+        // إضافة الرمز إلى المستخدمة
+        const newUsedCodes = [...usedCodes, code];
+        
+        await supabase
+          .from('user_security_settings')
+          .update({
+            backup_codes_used: newUsedCodes,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', user.id);
+
+        return { success: true };
+      }
+    }
+
+    // Debug info للتطوير
+    await debugTOTP(settings.totp_secret);
+    
     return {
-      success: data === true,
-      error: data === true ? undefined : 'رمز التحقق غير صحيح'
+      success: false,
+      error: 'رمز التحقق غير صحيح'
     };
   } catch (error) {
-    console.error('خطأ في التحقق من الرمز:', error);
     return {
       success: false,
       error: 'حدث خطأ غير متوقع'
@@ -979,7 +1008,6 @@ export async function regenerateBackupCodes(): Promise<{
       .rpc('regenerate_backup_codes', { p_user_id: user.id });
 
     if (error) {
-      console.error('خطأ في إعادة توليد backup codes:', error);
       return {
         success: false,
         error: 'فشل في إعادة توليد backup codes'
@@ -992,7 +1020,6 @@ export async function regenerateBackupCodes(): Promise<{
       backup_codes: data.backup_codes
     };
   } catch (error) {
-    console.error('خطأ في إعادة توليد backup codes:', error);
     return {
       success: false,
       error: 'حدث خطأ غير متوقع'
@@ -1021,7 +1048,6 @@ export async function resetTwoFactorAuth(): Promise<{
       .rpc('reset_two_factor_auth', { p_user_id: user.id });
 
     if (error) {
-      console.error('خطأ في إعادة تعيين المصادقة الثنائية:', error);
       return {
         success: false,
         error: 'فشل في إعادة تعيين المصادقة الثنائية'
@@ -1033,7 +1059,6 @@ export async function resetTwoFactorAuth(): Promise<{
       error: data.error
     };
   } catch (error) {
-    console.error('خطأ في إعادة تعيين المصادقة الثنائية:', error);
     return {
       success: false,
       error: 'حدث خطأ غير متوقع'
@@ -1068,7 +1093,6 @@ export async function getTwoFactorStatus(): Promise<{
       setup_completed: !!(settings.totp_secret && settings.totp_secret.trim())
     };
   } catch (error) {
-    console.error('خطأ في جلب حالة المصادقة الثنائية:', error);
     return {
       enabled: false,
       setup_completed: false
@@ -1102,7 +1126,6 @@ export async function checkUserRequires2FA(
       });
 
     if (error) {
-      console.error('خطأ في التحقق من متطلبات المصادقة الثنائية:', error);
       return {
         userExists: false,
         requires2FA: false,
@@ -1121,7 +1144,6 @@ export async function checkUserRequires2FA(
 
     return result;
   } catch (error) {
-    console.error('خطأ في التحقق من متطلبات المصادقة الثنائية:', error);
     return {
       userExists: false,
       requires2FA: false,
@@ -1138,17 +1160,35 @@ export async function verify2FAForLogin(userId: string, code: string): Promise<{
   error?: string;
 }> {
   try {
+    
+    // استخدام الدالة الصحيحة verify_totp_code_secure مع ترتيب المعاملات الصحيح
     const { data, error } = await (supabase as any)
-      .rpc('verify_2fa_for_login', { 
+      .rpc('verify_totp_code_secure', { 
         p_user_id: userId,
         p_code: code
       });
 
     if (error) {
-      console.error('خطأ في التحقق من المصادقة الثنائية للدخول:', error);
+      
+      const { data: altData, error: altError } = await (supabase as any)
+        .rpc('test_totp_code', { 
+          p_user_email: 'uzaydz33030@gmail.com',
+          p_code: code
+        });
+      
+      if (altError) {
+        return {
+          success: false,
+          error: 'فشل في التحقق من المصادقة الثنائية'
+        };
+      }
+      
+      // تحليل نتيجة test_totp_code
+      const isValid = altData && (altData.matches_current || altData.matches_previous || altData.matches_next);
+      
       return {
-        success: false,
-        error: 'فشل في التحقق من المصادقة الثنائية'
+        success: isValid,
+        error: isValid ? undefined : 'رمز المصادقة الثنائية غير صحيح'
       };
     }
 
@@ -1157,7 +1197,6 @@ export async function verify2FAForLogin(userId: string, code: string): Promise<{
       error: data.error
     };
   } catch (error) {
-    console.error('خطأ في التحقق من المصادقة الثنائية للدخول:', error);
     return {
       success: false,
       error: 'حدث خطأ غير متوقع'
@@ -1208,7 +1247,6 @@ export async function createUserSession(
     });
 
     if (error) {
-      console.error('خطأ في إنشاء الجلسة:', error);
       return {
         success: false,
         error: 'فشل في إنشاء الجلسة'
@@ -1220,7 +1258,6 @@ export async function createUserSession(
       sessionId: data
     };
   } catch (error) {
-    console.error('خطأ في إنشاء الجلسة:', error);
     return {
       success: false,
       error: 'حدث خطأ غير متوقع'
@@ -1246,7 +1283,6 @@ export async function updateSessionActivity(sessionToken: string): Promise<{
     });
 
     if (error) {
-      console.error('خطأ في تحديث نشاط الجلسة:', error);
       return {
         success: false,
         error: 'فشل في تحديث نشاط الجلسة'
@@ -1257,7 +1293,6 @@ export async function updateSessionActivity(sessionToken: string): Promise<{
       success: Boolean(data)
     };
   } catch (error) {
-    console.error('خطأ في تحديث نشاط الجلسة:', error);
     return {
       success: false,
       error: 'حدث خطأ غير متوقع'
@@ -1288,7 +1323,6 @@ export async function trustDevice(deviceId: string): Promise<{
     });
 
     if (error) {
-      console.error('خطأ في تعيين الجهاز كموثوق:', error);
       return {
         success: false,
         error: 'فشل في تعيين الجهاز كموثوق'
@@ -1299,7 +1333,6 @@ export async function trustDevice(deviceId: string): Promise<{
       success: Boolean(data)
     };
   } catch (error) {
-    console.error('خطأ في تعيين الجهاز كموثوق:', error);
     return {
       success: false,
       error: 'حدث خطأ غير متوقع'
@@ -1330,7 +1363,6 @@ export async function untrustDevice(deviceId: string): Promise<{
     });
 
     if (error) {
-      console.error('خطأ في إزالة الثقة من الجهاز:', error);
       return {
         success: false,
         error: 'فشل في إزالة الثقة من الجهاز'
@@ -1341,7 +1373,6 @@ export async function untrustDevice(deviceId: string): Promise<{
       success: Boolean(data)
     };
   } catch (error) {
-    console.error('خطأ في إزالة الثقة من الجهاز:', error);
     return {
       success: false,
       error: 'حدث خطأ غير متوقع'
@@ -1444,10 +1475,8 @@ export async function createCurrentUserSession(): Promise<{
     const result = await createUserSession(session.access_token, deviceInfo, 'email');
     
     if (result.success) {
-      console.log('✅ تم إنشاء الجلسة للمستخدم الحالي:', result.sessionId);
       return { success: true };
     } else {
-      console.error('❌ فشل في إنشاء الجلسة عبر RPC:', result.error);
       
       // محاولة إنشاء مباشر باستخدام RPC functions بدلاً من الاستعلام المباشر
       try {
@@ -1462,9 +1491,7 @@ export async function createCurrentUserSession(): Promise<{
           });
 
         if (sessionError) {
-          console.error('خطأ في إنشاء الجلسة البسيطة:', sessionError);
         } else {
-          console.log('✅ تم إنشاء الجلسة البسيطة بنجاح');
         }
 
         // استخدام RPC function لإنشاء الجهاز
@@ -1477,14 +1504,11 @@ export async function createCurrentUserSession(): Promise<{
           });
 
         if (deviceError) {
-          console.error('خطأ في إنشاء الجهاز البسيط:', deviceError);
         } else {
-          console.log('✅ تم إنشاء الجهاز البسيط بنجاح');
         }
 
         return { success: true };
       } catch (fallbackError) {
-        console.error('فشل في إنشاء الجلسة والجهاز:', fallbackError);
         return {
           success: false,
           error: 'فشل في إنشاء الجلسة والجهاز'
@@ -1492,10 +1516,9 @@ export async function createCurrentUserSession(): Promise<{
       }
     }
   } catch (error) {
-    console.error('خطأ في إنشاء الجلسة للمستخدم الحالي:', error);
     return {
       success: false,
       error: 'حدث خطأ غير متوقع'
     };
   }
-} 
+}

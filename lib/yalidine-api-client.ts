@@ -38,7 +38,6 @@ export class YalidineApiClient {
         fromCache: true
       };
     } catch (error) {
-      console.error('Error fetching wilayas:', error);
       
       // في حالة فشل التخزين المؤقت، حاول استرجاع البيانات مباشرة من API
       return this.fetchWilayasDirectly();
@@ -65,7 +64,6 @@ export class YalidineApiClient {
         fromCache: true
       };
     } catch (error) {
-      console.error('Error fetching communes:', error);
       
       // في حالة فشل التخزين المؤقت، حاول استرجاع البيانات مباشرة من API
       return this.fetchCommunesDirectly(wilayaId);
@@ -98,7 +96,6 @@ export class YalidineApiClient {
         return this.fetchParcelDirectly(tracking);
       }
     } catch (error) {
-      console.error('Error fetching parcel:', error);
       
       // في حالة فشل التخزين المؤقت، حاول استرجاع البيانات مباشرة من API
       return this.fetchParcelDirectly(tracking);
@@ -132,7 +129,6 @@ export class YalidineApiClient {
         return this.fetchFeesDirectly(fromWilayaId, toWilayaId);
       }
     } catch (error) {
-      console.error('Error fetching shipping fees:', error);
       
       // في حالة فشل التخزين المؤقت، حاول استرجاع البيانات مباشرة من API
       return this.fetchFeesDirectly(fromWilayaId, toWilayaId);
@@ -211,7 +207,6 @@ export class YalidineApiClient {
         data: responseData
       };
     } catch (error) {
-      console.error('Error creating parcel:', error);
       return {
         success: false,
         error: error
@@ -250,7 +245,6 @@ export class YalidineApiClient {
         fromCache: true
       };
     } catch (error) {
-      console.error('Error fetching centers:', error);
       
       // في حالة فشل التخزين المؤقت، حاول استرجاع البيانات مباشرة من API
       return this.fetchCentersDirectly(communeId);
@@ -284,7 +278,6 @@ export class YalidineApiClient {
         fromCache: false
       };
     } catch (error) {
-      console.error('Error fetching wilayas directly:', error);
       return {
         success: false,
         error: error,
@@ -323,7 +316,6 @@ export class YalidineApiClient {
         fromCache: false
       };
     } catch (error) {
-      console.error('Error fetching communes directly:', error);
       return {
         success: false,
         error: error,
@@ -383,7 +375,6 @@ export class YalidineApiClient {
         fromCache: false
       };
     } catch (error) {
-      console.error('Error fetching parcel directly:', error);
       return {
         success: false,
         error: error,
@@ -434,7 +425,6 @@ export class YalidineApiClient {
         fromCache: false
       };
     } catch (error) {
-      console.error('Error fetching fees directly:', error);
       return {
         success: false,
         error: error,
@@ -473,7 +463,6 @@ export class YalidineApiClient {
         fromCache: false
       };
     } catch (error) {
-      console.error('Error fetching centers directly:', error);
       return {
         success: false,
         error: error,
@@ -493,4 +482,4 @@ export class YalidineApiClient {
 //   'your-yalidine-api-token'
 // );
 // 
-// yalidineClient.getWilayas().then(result =>  
+// yalidineClient.getWilayas().then(result =>

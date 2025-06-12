@@ -18,7 +18,7 @@
 - ديستازيرو (Distazero)
 - فريت دايركت (Fretdirect)
 - غوليفري (Golivri)
-- نيغمار إكسبرس (Negmar Express)
+- إمير إكسبرس (Imir Express)
 - باكرز (Packers)
 - بريست (Prest)
 - ريكس ليفريزون (Rex Livraison)

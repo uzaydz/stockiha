@@ -114,6 +114,25 @@ import { isElectron } from '@/lib/isElectron';
 import { useTenant } from '@/context/TenantContext';
 import { getCategoryById, getCategories } from '@/lib/api/categories';
 import PerformanceMonitor from './components/PerformanceMonitor';
+// import { CrossDomainSessionReceiver } from './components/auth/CrossDomainSessionReceiver'; // Disabled
+import { configureCrossDomainAuth } from '@/lib/cross-domain-auth';
+import { detectLoadingLoop, autoFixStorage } from '@/lib/utils/storage-helper';
+import { useDevtools } from '@/hooks/useDevtools';
+import { AuthDebugger } from './components/auth/AuthDebugger';
+import { LocalStorageMonitor } from './components/auth/LocalStorageMonitor';
+
+// فحص وإصلاح مشاكل التحميل المستمر
+if (typeof window !== 'undefined') {
+  // فحص حلقة التحميل
+  const hasLoadingLoop = detectLoadingLoop();
+  if (hasLoadingLoop) {
+  }
+  
+  // إصلاح البيانات المعطلة
+  const wasFixed = autoFixStorage();
+  if (wasFixed) {
+  }
+}
 
 // تحقق ما إذا كان التطبيق يعمل في بيئة Electron
 const isRunningInElectron = isElectron();
@@ -183,7 +202,13 @@ if (typeof window !== 'undefined') {
     } else {
       // تسجيل الابتعاد عن النافذة
       
-      queryClient.cancelQueries();
+      // إلغاء آمن للاستعلامات النشطة فقط
+      queryClient.cancelQueries({
+        predicate: (query) => {
+          const state = query.state;
+          return state.fetchStatus === 'fetching' || state.status === 'pending';
+        }
+      });
     }
   });
 }
@@ -217,10 +242,15 @@ const TabFocusHandler = ({ children }: { children: React.ReactNode }) => {
     },
     onBlur: () => {
       
-      // إيقاف أي طلبات قيد التنفيذ
+      // إيقاف أي طلبات قيد التنفيذ بشكل آمن
       const queryClient = (window as any).__REACT_QUERY_GLOBAL_CLIENT;
       if (queryClient) {
-        queryClient.cancelQueries();
+        queryClient.cancelQueries({
+          predicate: (query) => {
+            const state = query.state;
+            return state.fetchStatus === 'fetching' || state.status === 'pending';
+          }
+        });
       }
     },
     // اعتبار العودة خلال 5 دقائق عودة سريعة لا تتطلب إعادة تحميل
@@ -270,7 +300,6 @@ const CategoryRedirect = () => {
         }
         
       } catch (error) {
-        console.error('Error finding category:', error);
       } finally {
         setIsLoading(false);
       }
@@ -296,8 +325,17 @@ const CategoryRedirect = () => {
 };
 
 const App = () => {
+  // تفعيل مراقبة أخطاء التطوير والـ HMR
+  useDevtools();
+  
   useEffect(() => {
     syncCategoriesDataOnStartup();
+    configureCrossDomainAuth();
+    
+    // تهيئة معالج أخطاء Supabase Auth
+    import('@/lib/supabase/authErrorHandler').then(({ setupAuthErrorFiltering }) => {
+      setupAuthErrorFiltering();
+    }).catch(console.warn);
   }, []);
 
   return (
@@ -305,12 +343,13 @@ const App = () => {
       <TooltipProvider>
         <TabFocusHandler>
           <SupabaseProvider>
-            <SessionMonitor />
-            <ErrorMonitor />
-            <ShopProvider>
-              <HelmetProvider>
-                <Toaster />
-                <Sonner />
+            {/* <CrossDomainSessionReceiver> -- This component is now deprecated. Its logic has been integrated into AuthContext. */}
+              <SessionMonitor />
+              <ErrorMonitor />
+              <ShopProvider>
+                <HelmetProvider>
+                  <Toaster />
+                  <Sonner />
                 <Routes>
                   <Route path="/" element={<StoreRouter />} />
                   <Route path="/features" element={<FeaturesPage />} />
@@ -773,13 +812,20 @@ const App = () => {
                 </Routes>
                 <SyncManagerWrapper />
                 
-                {/* 🚀 PERFORMANCE MONITOR: Million.js Enhanced */}
-                <PerformanceMonitor 
-                  enabled={import.meta.env.DEV || window.location.search.includes('debug=performance')}
-                  logToConsole={import.meta.env.DEV}
-                />
+                {/* 🔍 AUTH DEBUGGER: مراقبة حالة المصادقة */}
+                {import.meta.env.DEV && <AuthDebugger />}
+                {import.meta.env.DEV && <LocalStorageMonitor />}
+                
+                {/* 🚀 PERFORMANCE MONITOR: Million.js Enhanced - مخفي في الإنتاج */}
+                {import.meta.env.DEV && (
+                  <PerformanceMonitor 
+                    enabled={true}
+                    logToConsole={true}
+                  />
+                )}
               </HelmetProvider>
             </ShopProvider>
+            {/* </CrossDomainSessionReceiver> */}
           </SupabaseProvider>
         </TabFocusHandler>
       </TooltipProvider>

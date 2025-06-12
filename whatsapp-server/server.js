@@ -75,7 +75,6 @@ app.post('/send-message', async (req, res) => {
       info: 'Message sent successfully'
     });
   } catch (error) {
-    console.error('Error sending message:', error);
     return res.status(500).json({ 
       success: false, 
       error: error.message || 'Error sending the message' 
@@ -93,6 +92,5 @@ app.get('/status', (req, res) => {
 
 // تشغيل الخادم
 app.listen(port, () => {
-  
-  
-}); 
+
+});

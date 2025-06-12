@@ -64,9 +64,7 @@ function bundleSizeOptimizer(): Plugin {
         if (chunk.type === 'chunk' && chunk.code) {
           const sizeKB = Math.round(chunk.code.length / 1024);
           if (sizeKB > 300) {
-            console.warn(`⚠️  حزمة كبيرة: ${fileName} (${sizeKB}KB)`);
           } else {
-            console.log(`✅ حزمة محسنة: ${fileName} (${sizeKB}KB)`);
           }
         }
       });
@@ -435,4 +433,4 @@ export default defineConfig(({ mode }: { mode: string }) => {
     // تحسين cache
     cacheDir: 'node_modules/.vite-advanced',
   }
-}); 
+});

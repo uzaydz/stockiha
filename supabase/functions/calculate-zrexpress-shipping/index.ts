@@ -52,11 +52,6 @@ serve(async (req) => {
     }
 
     // تسجيل المعلومات للتتبع
-    console.log('Calculating ZR Express shipping price:', {
-      organizationId,
-      wilayaId,
-      isHomeDelivery
-    })
 
     // إنشاء اتصال Supabase
     const supabaseClient = createClient(
@@ -102,7 +97,6 @@ serve(async (req) => {
 
     // معالجة الرد
     if (!response.ok) {
-      console.error('ZR Express API error:', response.status, await response.text())
       return new Response(JSON.stringify({
         success: false,
         price: 0,
@@ -114,7 +108,6 @@ serve(async (req) => {
     }
 
     const data = await response.json()
-    console.log('ZR Express API response:', data)
 
     // التحقق من تنسيق الرد
     if (!Array.isArray(data)) {
@@ -172,7 +165,6 @@ serve(async (req) => {
     })
 
   } catch (error) {
-    console.error('Error in calculate-zrexpress-shipping function:', error)
     return new Response(JSON.stringify({
       success: false,
       price: 0,
@@ -195,7 +187,6 @@ async function getZRExpressSettings(supabaseClient: any, organizationId: string)
       .single()
 
     if (providerError || !provider) {
-      console.error('Error fetching ZR Express provider:', providerError)
       return null
     }
 
@@ -208,7 +199,6 @@ async function getZRExpressSettings(supabaseClient: any, organizationId: string)
       .single()
 
     if (settingsError || !settings) {
-      console.error('Error fetching ZR Express settings:', settingsError)
       return null
     }
 
@@ -218,7 +208,6 @@ async function getZRExpressSettings(supabaseClient: any, organizationId: string)
       base_url: provider.base_url
     }
   } catch (error) {
-    console.error('Error in getZRExpressSettings:', error)
     return null
   }
-} 
+}
