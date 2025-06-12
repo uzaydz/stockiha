@@ -38,6 +38,7 @@ export interface AuthContextType {
   user: SupabaseUser | null;
   userProfile: UserProfile | null;
   organization: Organization | null;
+  currentSubdomain: string | null;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ success: boolean; error: Error | null }>;
   signOut: () => Promise<void>;
@@ -242,6 +243,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<SupabaseUser | null>(savedAuthState.user);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
+  const [currentSubdomain, setCurrentSubdomain] = useState<string | null>(extractSubdomain(window.location.hostname));
   const [isLoading, setIsLoading] = useState(!savedAuthState.session); // إذا كانت هناك جلسة محفوظة، نبدأ بـ false
   const [isProcessingToken, setIsProcessingToken] = useState(false);
   const [isExplicitSignOut, setIsExplicitSignOut] = useState(false);
@@ -624,11 +626,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user,
     userProfile,
     organization,
+    currentSubdomain,
     isLoading,
     signIn,
     signOut,
     refreshData,
-  }), [session, user, userProfile, organization, isLoading, signIn, signOut, refreshData]);
+  }), [session, user, userProfile, organization, currentSubdomain, isLoading, signIn, signOut, refreshData]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

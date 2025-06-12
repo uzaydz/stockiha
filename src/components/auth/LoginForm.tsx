@@ -84,7 +84,7 @@ const LoginForm = () => {
           subdomain = currentSubdomain;
         }
       } else {
-        // للنطاقات المخصصة
+        // للنطاقات المخصصة والعامة
         const publicDomains = ['ktobi.online', 'stockiha.com', 'bazaar.com', 'bazaar.dev'];
         const isPublicDomain = publicDomains.some(pd => hostname === pd || hostname === `www.${pd}`);
         
@@ -98,59 +98,51 @@ const LoginForm = () => {
             // نطاق مخصص (مثل: company.com)
             domain = hostname;
           }
-        } else if (currentSubdomain) {
-          // نطاق فرعي في النطاقات العامة
-          subdomain = currentSubdomain;
+        } else {
+          // نطاق عام - لا نمرر domain أو subdomain إلا إذا كان هناك subdomain صريح
+          if (currentSubdomain) {
+            subdomain = currentSubdomain;
+          }
+          // domain يبقى undefined للنطاقات العامة
         }
       }
 
       // الحصول على معرف المؤسسة من التخزين المحلي إذا كان متوفراً
       organizationId = localStorage.getItem('bazaar_organization_id') || undefined;
 
-      // أولاً، التحقق إذا كان المستخدم يحتاج للمصادقة الثنائية
-      const twoFactorCheck = await checkUserRequires2FA(email, organizationId, domain, subdomain);
+      // محاولة 1: التحقق مع جميع المعاملات
+      let twoFactorCheck = await checkUserRequires2FA(email, organizationId, domain, subdomain);
 
       if (!twoFactorCheck.userExists) {
-        // عرض رسالة الخطأ المخصصة إذا كانت موجودة
+        // محاولة 2: إذا لم يجد المستخدم مع organizationId، جرب بدون organizationId
+        if (organizationId) {
+          localStorage.removeItem('bazaar_organization_id'); // امسح organizationId الخاطئ
+          twoFactorCheck = await checkUserRequires2FA(email, undefined, domain, subdomain);
+          
+          if (!twoFactorCheck.userExists) {
+            // محاولة 3: جرب كنطاق عام (بدون أي معاملات نطاق)
+            twoFactorCheck = await checkUserRequires2FA(email, undefined, undefined, undefined);
+          }
+        } else {
+          // محاولة 2 بديلة: جرب كنطاق عام إذا لم يكن هناك organizationId من الأساس
+          twoFactorCheck = await checkUserRequires2FA(email, undefined, undefined, undefined);
+        }
+      }
+
+      // إذا فشلت جميع المحاولات
+      if (!twoFactorCheck.userExists) {
         if (twoFactorCheck.error) {
           toast.error(twoFactorCheck.error);
         } else {
-          // إذا لم يجد المستخدم مع organizationId، جرب بدون organizationId
-          if (organizationId) {
-            const retryCheck = await checkUserRequires2FA(email, undefined, domain, subdomain);
-            
-            if (retryCheck.userExists) {
-              // المستخدم موجود بدون organizationId، امسح القيمة الخاطئة من localStorage
-              localStorage.removeItem('bazaar_organization_id');
-              
-              // استخدم النتيجة الجديدة
-              if (retryCheck.requires2FA) {
-                setTwoFactorData({
-                  userId: retryCheck.userId!,
-                  userName: retryCheck.userName || 'المستخدم',
-                  email: email
-                });
-                setPendingCredentials({ email, password });
-                setShow2FA(true);
-                setIsLoading(false);
-                return;
-              }
-              
-              // متابعة تسجيل الدخول العادي
-              await proceedWithLogin(email, password);
-              return;
-            } else if (retryCheck.error) {
-              // عرض رسالة الخطأ من المحاولة الثانية
-              toast.error(retryCheck.error);
-              setIsLoading(false);
-              return;
-            }
-          }
-          
           toast.error('المستخدم غير موجود');
         }
         setIsLoading(false);
         return;
+      }
+
+      // حفظ معرف المؤسسة الصحيح إذا وُجد
+      if (twoFactorCheck.organizationId) {
+        localStorage.setItem('bazaar_organization_id', twoFactorCheck.organizationId);
       }
 
       if (twoFactorCheck.requires2FA) {
