@@ -275,127 +275,9 @@ export default defineConfig(({ command, mode }) => {
         },
         output: {
           format: 'esm' as ModuleFormat,
-          // تقسيم الحزم الذكي لتحسين الأداء
-          manualChunks: (id) => {
-            // Vendor chunks - مكتبات خارجية
-            if (id.includes('node_modules')) {
-              // React ecosystem - جمع React و ReactDOM معاً لتجنب مشاكل Dependencies
-              if (id.includes('react') && !id.includes('react-router')) {
-                return 'react-vendor';
-              }
-              
-              // UI Libraries
-              if (id.includes('@radix-ui') || id.includes('lucide-react') || id.includes('class-variance-authority')) {
-                return 'ui-vendor';
-              }
-              
-              // Routing & State Management
-              if (id.includes('react-router') || id.includes('@tanstack/react-query') || id.includes('zustand')) {
-                return 'routing-vendor';
-              }
-              
-              // Forms & Validation
-              if (id.includes('react-hook-form') || id.includes('zod') || id.includes('@hookform')) {
-                return 'forms-vendor';
-              }
-              
-              // Charts & Analytics - تحسين خاص لـ recharts
-              if (id.includes('recharts')) {
-                return 'recharts-vendor';
-              }
-              if (id.includes('chart.js') || id.includes('d3')) {
-                return 'charts-vendor';
-              }
-              
-              // Date & Time
-              if (id.includes('date-fns') || id.includes('moment') || id.includes('dayjs')) {
-                return 'date-vendor';
-              }
-              
-              // Supabase & Database
-              if (id.includes('@supabase') || id.includes('postgres')) {
-                return 'supabase-vendor';
-              }
-              
-              // PDF & File Processing
-              if (id.includes('jspdf') || id.includes('html2canvas') || id.includes('file-saver')) {
-                return 'pdf-vendor';
-              }
-              
-              // Other large vendors
-              if (id.includes('lodash') || id.includes('ramda')) {
-                return 'utils-vendor';
-              }
-              
-              // Default vendor chunk for smaller libraries
-              return 'vendor';
-            }
-            
-            // Application chunks - أجزاء التطبيق
-            
-            // Store & E-commerce
-            if (id.includes('/store/') || id.includes('/components/store/')) {
-              return 'store-chunk';
-            }
-            
-            // Dashboard & Admin
-            if (id.includes('/dashboard/') || id.includes('/admin/')) {
-              return 'dashboard-chunk';
-            }
-            
-            // POS System
-            if (id.includes('/pos/') || id.includes('POS')) {
-              return 'pos-chunk';
-            }
-            
-            // Authentication
-            if (id.includes('/auth/') || id.includes('/components/auth/')) {
-              return 'auth-chunk';
-            }
-            
-            // Forms & Builders
-            if (id.includes('/form/') || id.includes('/builder/') || id.includes('FormBuilder')) {
-              return 'forms-chunk';
-            }
-            
-            // Reports & Analytics
-            if (id.includes('/reports/') || id.includes('/analytics/') || id.includes('Analytics')) {
-              return 'analytics-chunk';
-            }
-            
-            // Settings & Configuration
-            if (id.includes('/settings/') || id.includes('Settings')) {
-              return 'settings-chunk';
-            }
-            
-            // Landing Pages & Marketing
-            if (id.includes('/landing/') || id.includes('Landing')) {
-              return 'landing-chunk';
-            }
-            
-            // Utils & Helpers
-            if (id.includes('/utils/') || id.includes('/lib/') || id.includes('/helpers/')) {
-              return 'utils-chunk';
-            }
-            
-            // Context & Providers
-            if (id.includes('/context/') || id.includes('Context') || id.includes('Provider')) {
-              return 'context-chunk';
-            }
-            
-            // Hooks
-            if (id.includes('/hooks/') || id.includes('use')) {
-              return 'hooks-chunk';
-            }
-          },
           
-          // تحسين أسماء الملفات
-          chunkFileNames: (chunkInfo) => {
-            const facadeModuleId = chunkInfo.facadeModuleId ? chunkInfo.facadeModuleId.split('/').pop() : 'chunk';
-            return `assets/js/[name]-[hash].js`;
-          },
-          
-          entryFileNames: 'assets/js/[name]-[hash].js',
+          entryFileNames: 'assets/[name]-[hash].js',
+          chunkFileNames: 'assets/[name]-[hash].js',
           assetFileNames: (assetInfo) => {
             const info = assetInfo.name.split('.');
             const ext = info[info.length - 1];
@@ -418,6 +300,14 @@ export default defineConfig(({ command, mode }) => {
         external: isProd ? [] : undefined,
         // تحسين خاص لـ Vercel
         preserveEntrySignatures: 'strict',
+        // تحسينات لحل مشاكل التهيئة
+        treeshake: {
+          preset: 'smallest',
+          propertyReadSideEffects: false,
+          tryCatchDeoptimization: false,
+        },
+        // ضمان ترتيب التحميل الصحيح
+        makeAbsoluteExternalsRelative: false,
       },
       // تحسين ضغط الصور
       assetsInlineLimit: 4096, // 4KB
@@ -426,10 +316,16 @@ export default defineConfig(({ command, mode }) => {
         include: [/node_modules/],
         transformMixedEsModules: true,
         requireReturnsDefault: 'auto',
+        // تحسين hoisting لتجنب مشاكل التهيئة
+        hoistTransitiveImports: false,
+        ignoreTryCatch: false,
+        strictRequires: false,
         // إصلاح مشكلة react-is و recharts و React context
         namedExports: {
-          'react': ['createContext', 'useContext', 'useState', 'useEffect', 'useMemo', 'useCallback', 'useRef', 'Suspense', 'lazy', 'Fragment', 'createElement', 'Children', 'Component', 'PureComponent', 'memo', 'forwardRef', 'useImperativeHandle', 'useLayoutEffect', 'useReducer', 'useDeferredValue', 'useTransition', 'startTransition'],
+          'react': ['createContext', 'useContext', 'useState', 'useEffect', 'useMemo', 'useCallback', 'useRef', 'Suspense', 'lazy', 'Fragment', 'createElement', 'Children', 'Component', 'PureComponent', 'memo', 'forwardRef', 'useImperativeHandle', 'useLayoutEffect', 'useReducer', 'useDeferredValue', 'useTransition', 'startTransition', 'cloneElement', 'isValidElement'],
           'react-dom': ['render', 'createRoot', 'hydrateRoot', 'findDOMNode', 'unmountComponentAtNode', 'createPortal', 'flushSync'],
+          'react-router': ['createBrowserRouter', 'createHashRouter', 'createMemoryRouter', 'RouterProvider', 'useNavigate', 'useLocation', 'useParams', 'useSearchParams', 'Outlet', 'Navigate', 'Link', 'NavLink'],
+          'react-router-dom': ['BrowserRouter', 'HashRouter', 'MemoryRouter', 'Routes', 'Route', 'Link', 'NavLink', 'useNavigate', 'useLocation', 'useParams', 'useSearchParams', 'Outlet', 'Navigate'],
           'react-is': ['isFragment', 'isValidElementType', 'isElement'],
           'recharts': ['ResponsiveContainer', 'LineChart', 'BarChart', 'PieChart', 'XAxis', 'YAxis', 'CartesianGrid', 'Tooltip', 'Legend', 'Line', 'Bar', 'Cell', 'RadialBarChart', 'RadialBar'],
         },
@@ -453,6 +349,8 @@ export default defineConfig(({ command, mode }) => {
         'react-dom',
         'react-dom/client',
         'react-router-dom',
+        'react-router',
+        '@remix-run/router',
         '@tanstack/react-query',
         '@supabase/supabase-js',
         'lucide-react',
@@ -537,6 +435,12 @@ export default defineConfig(({ command, mode }) => {
       legalComments: 'none',
       jsx: 'automatic',
       jsxImportSource: 'react',
+      // تحسينات لحل مشاكل التهيئة
+      keepNames: true,
+      treeShaking: true,
+      minifyIdentifiers: isProd,
+      minifySyntax: isProd,
+      minifyWhitespace: isProd,
     },
     worker: {
       format: 'es',

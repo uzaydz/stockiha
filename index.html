@@ -42,6 +42,20 @@
         window.require = function(name) { return {}; };
         window.require.main = window.module;
       }
+      
+      // 🔧 React Polyfill لحل مشكلة __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED
+      window.React = window.React || {};
+      if (typeof window.React === 'object' && !window.React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED) {
+        window.React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED = {
+          ReactCurrentDispatcher: { current: null },
+          ReactCurrentBatchConfig: { transition: null },
+          ReactCurrentOwner: { current: null },
+          ReactDebugCurrentFrame: { getCurrentStack: null },
+          ReactCurrentFiber: { current: null },
+          ReactCurrentActQueue: { current: null, isBatchingLegacy: false, didScheduleLegacyUpdate: false },
+        };
+        console.log('✅ React internals polyfill applied');
+      }
     </script>
     
     <!-- PERFORMANCE OPTIMIZATION: DNS prefetch & preconnect -->

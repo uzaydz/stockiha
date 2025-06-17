@@ -153,6 +153,15 @@ import { registerGlobalErrorHandler } from './lib/electron-errors';
 import type { ElectronAPI } from './types/electron';
 import { initializeReact } from './lib/react-init';
 import { SentryErrorBoundary } from './components/ErrorBoundary';
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import { initializeSupabaseUnified } from './lib/supabase-unified';
+import { enableRequestInterception } from './lib/requestInterceptor';
+import { AuthSingleton } from './lib/authSingleton';
+import { initializeRequestSystem } from './lib/requestSystemInitializer';
+
+// 🔍 تشخيص متطور للـ chunks
+import './utils/debugChunkLoader';
 
 // إضافة التعريفات اللازمة للمتغيرات العالمية
 declare global {
