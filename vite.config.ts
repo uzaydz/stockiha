@@ -303,8 +303,8 @@ export default defineConfig(({ command, mode }) => {
             'pos-optimization': [
               './src/context/POSDataContext.tsx',
               './src/lib/cache/deduplication.ts',
-              './src/utils/requestSystemInitializer.ts',
-              './src/utils/ultimateRequestController.ts'
+              './src/lib/requestSystemInitializer.ts',
+              './src/lib/ultimateRequestController.ts'
             ]
           }
         } as OutputOptions,
