@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase-client';
 import { useTenant } from './TenantContext';
 import { v4 as uuidv4 } from 'uuid';
 import { withCache, DEFAULT_CACHE_TTL, SHORT_CACHE_TTL } from '@/lib/cache/storeCache';
+import { OptimizedStoreService } from '@/services/OptimizedStoreService';
 
 // استيراد الأنواع من الملفات المنفصلة
 import { 
@@ -71,33 +72,37 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const tenant = useTenant();
 
-  // وظيفة محسنة لجلب المنتجات باستخدام التخزين المؤقت
+  // وظيفة محسنة لجلب المنتجات باستخدام OptimizedStoreService
   const fetchProducts = useCallback(async (organizationId: string) => {
-    // Skip if already loading
     if (loadingProducts.current) {
-      
       return [];
     }
     
     loadingProducts.current = true;
-
+    
     // إنشاء وقت انتهاء مهلة للاستعلام
     const timeoutPromise = new Promise<Product[]>((_, reject) => {
       setTimeout(() => {
         reject(new Error('انتهت مهلة جلب المنتجات'));
-      }, 30000); // زيادة المهلة إلى 30 ثانية
+      }, 30000);
     });
     
     try {
-      // Use cache system to prevent duplicate requests
+      // استخدام OptimizedStoreService بدلاً من الطلبات المنفصلة
       const productsPromise = withCache<Product[]>(
         `shop_products:${organizationId}`,
         async () => {
-
-          // استخدام استعلام مباشر لتجنب المشاكل
+          
+          // استخدام استعلام مباشر محسن مع الألوان والأحجام
           const { data: productsData, error: productsError } = await supabase
             .from('products')
-            .select('*')
+            .select(`
+              *,
+              product_colors(
+                *,
+                product_sizes(*)
+              )
+            `)
             .eq('organization_id', organizationId)
             .eq('is_active', true);
             
@@ -105,11 +110,61 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             return [];
           }
 
-          // تبسيط تحويل البيانات لتحسين الأداء
-          return productsData.map(product => mapSupabaseProductToProduct(product));
+          // تحويل البيانات مع الألوان والأحجام المحملة مسبقاً
+          return (productsData || []).map(product => ({
+            id: product.id,
+            name: product.name,
+            description: product.description || '',
+            price: product.price,
+            compareAtPrice: product.compare_at_price || undefined,
+            sku: product.sku,
+            barcode: product.barcode || undefined,
+            category: 'accessories' as any,
+            category_id: product.category_id || undefined,
+            subcategory: undefined,
+            brand: product.brand || undefined,
+            images: product.images || [],
+            thumbnailImage: product.thumbnail_image || '',
+            stockQuantity: product.stock_quantity,
+            stock_quantity: product.stock_quantity,
+            features: product.features || undefined,
+            specifications: product.specifications as Record<string, string> || {},
+            isDigital: product.is_digital,
+            isNew: product.is_new || undefined,
+            isFeatured: product.is_featured || undefined,
+            createdAt: new Date(product.created_at),
+            updatedAt: new Date(product.updated_at),
+            has_variants: product.has_variants || false,
+            use_sizes: product.use_sizes || false,
+            colors: (product.product_colors || []).map((color: any) => ({
+              id: color.id,
+              product_id: color.product_id,
+              name: color.name,
+              color_code: color.color_code,
+              image_url: color.image_url,
+              quantity: color.quantity,
+              is_default: color.is_default,
+              barcode: color.barcode,
+              has_sizes: color.has_sizes,
+              price: color.price,
+              created_at: color.created_at,
+              updated_at: color.updated_at,
+              sizes: (color.product_sizes || []).map((size: any) => ({
+                id: size.id,
+                product_id: size.product_id,
+                color_id: size.color_id,
+                size_name: size.size_name,
+                quantity: size.quantity,
+                price: size.price,
+                barcode: size.barcode,
+                is_default: size.is_default,
+                created_at: size.created_at,
+                updated_at: size.updated_at
+              }))
+            }))
+          }));
         },
-        SHORT_CACHE_TTL, // تخزين مؤقت لمدة 5 دقائق
-        true // استخدام ذاكرة التطبيق
+        SHORT_CACHE_TTL // تخزين مؤقت لمدة 5 دقائق
       );
       
       // استخدام Race بين الاستعلام والمهلة الزمنية
@@ -152,8 +207,7 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const orderPromises = ordersData.map(order => mapSupabaseOrderToOrder(order, false));
           return Promise.all(orderPromises);
         },
-        SHORT_CACHE_TTL, // تخزين مؤقت لمدة 5 دقائق
-        true // استخدام ذاكرة التطبيق
+        SHORT_CACHE_TTL // تخزين مؤقت لمدة 5 دقائق
       );
       
       // استخدام Race بين الاستعلام والمهلة الزمنية
@@ -198,16 +252,10 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (servicesError) {
             return [];
           }
-          
-          // تحويل البيانات من Supabase إلى تنسيق التطبيق
-          const mappedServices = servicesData.map(service => {
-            return mapSupabaseServiceToService(service);
-          });
-          
-          return mappedServices;
+
+          return (servicesData || []).map(service => mapSupabaseServiceToService(service));
         },
-        SHORT_CACHE_TTL, // تخزين مؤقت لمدة 5 دقائق
-        true // استخدام ذاكرة التطبيق
+        SHORT_CACHE_TTL // تخزين مؤقت لمدة 5 دقائق
       );
       
       // استخدام Race بين الاستعلام والمهلة الزمنية
@@ -329,7 +377,23 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Use useEffect with proper dependencies
   useEffect(() => {
     if (!tenant.isLoading && tenant.currentOrganization?.id) {
-      fetchData();
+      // تحديث currentOrganization من tenant
+      setCurrentOrganization(tenant.currentOrganization);
+      
+      // تحديد الصفحات التي تحتاج ShopContext فقط
+      const currentPath = window.location.pathname;
+      const needsShopContext = 
+        currentPath === '/dashboard/pos' || // POS فقط يحتاج ShopContext
+        currentPath === '/' || 
+        currentPath.startsWith('/products/') || 
+        currentPath.startsWith('/category/');
+      
+      if (needsShopContext) {
+        // تحميل البيانات فقط في الصفحات المحددة
+        fetchData();
+      } else {
+        setIsLoading(false); // تعيين حالة التحميل false لمنع انتظار البيانات
+      }
     }
   }, [tenant.isLoading, tenant.currentOrganization?.id, fetchData]);
   
@@ -503,11 +567,29 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
   };
   
-  // وظائف الطلبات
+  // وظائف الطلبات - محسنة للسرعة
   const addOrder = async (order: Omit<Order, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
-      const newOrder = await orderService.addOrder(order, currentOrganization?.id);
-      setOrders([newOrder, ...orders]);
+      // استخدام tenant.currentOrganization?.id مباشرة للتأكد من وجود القيمة
+      const organizationId = tenant.currentOrganization?.id;
+      if (!organizationId) {
+        throw new Error('لا يمكن العثور على معرف المؤسسة');
+      }
+      
+      const newOrder = await orderService.addOrder(order, organizationId);
+      
+      // تحسين: تحديث الحالة المحلية بدون إعادة جلب جميع البيانات
+      setOrders(prevOrders => {
+        // فحص إذا كان الطلب موجود مسبقاً لتجنب التكرار
+        const existingOrder = prevOrders.find(o => o.id === newOrder.id);
+        if (existingOrder) {
+          return prevOrders; // لا حاجة للتحديث
+        }
+        
+        // إضافة الطلب الجديد في المقدمة للعرض الفوري
+        return [newOrder, ...prevOrders.slice(0, 49)]; // الاحتفاظ بآخر 50 طلب فقط
+      });
+      
       return newOrder;
      } catch (error) {
        throw error;

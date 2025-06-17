@@ -1,18 +1,19 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { supabase } from '@/lib/supabase';
-import { checkUserRequires2FA } from '@/lib/api/security';
+import { supabase, getSupabaseClient } from '@/lib/supabase-unified';
+import { checkUserRequires2FA } from '@/lib/api/authHelpers';
 import TwoFactorLoginForm from './TwoFactorLoginForm';
 
 const LoginForm = () => {
   const { signIn, currentSubdomain } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -40,7 +41,7 @@ const LoginForm = () => {
 
       // في Electron، نضع قيم افتراضية للتطبيق
       if (isElectronApp) {
-        if (!email) setEmail('admin@bazaar.com');
+        if (!email) setEmail('admin@stockiha.com');
         if (!password) setPassword('password123');
       }
     };
@@ -52,10 +53,20 @@ const LoginForm = () => {
   useEffect(() => {
     const savedRedirectPath = sessionStorage.getItem('redirectAfterLogin');
     if (savedRedirectPath) {
-      
       setRedirectPath(savedRedirectPath);
     }
   }, []);
+
+  // 🎉 عرض رسالة الترحيب من التسجيل
+  useEffect(() => {
+    if (location.state?.message) {
+      setTimeout(() => {
+        toast.info(location.state.message);
+      }, 500);
+      // تنظيف الرسالة بعد عرضها
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,7 +96,7 @@ const LoginForm = () => {
         }
       } else {
         // للنطاقات المخصصة والعامة
-        const publicDomains = ['ktobi.online', 'stockiha.com', 'bazaar.com', 'bazaar.dev'];
+        const publicDomains = ['ktobi.online', 'stockiha.com'];
         const isPublicDomain = publicDomains.some(pd => hostname === pd || hostname === `www.${pd}`);
         
         if (!isPublicDomain) {
@@ -113,13 +124,13 @@ const LoginForm = () => {
       // محاولة 1: التحقق مع جميع المعاملات
       let twoFactorCheck = await checkUserRequires2FA(email, organizationId, domain, subdomain);
 
-      if (!twoFactorCheck.userExists) {
+      if (!twoFactorCheck.exists) {
         // محاولة 2: إذا لم يجد المستخدم مع organizationId، جرب بدون organizationId
         if (organizationId) {
           localStorage.removeItem('bazaar_organization_id'); // امسح organizationId الخاطئ
           twoFactorCheck = await checkUserRequires2FA(email, undefined, domain, subdomain);
           
-          if (!twoFactorCheck.userExists) {
+          if (!twoFactorCheck.exists) {
             // محاولة 3: جرب كنطاق عام (بدون أي معاملات نطاق)
             twoFactorCheck = await checkUserRequires2FA(email, undefined, undefined, undefined);
           }
@@ -130,9 +141,17 @@ const LoginForm = () => {
       }
 
       // إذا فشلت جميع المحاولات
-      if (!twoFactorCheck.userExists) {
+      if (!twoFactorCheck.exists) {
         if (twoFactorCheck.error) {
-          toast.error(twoFactorCheck.error);
+          // إذا كان هناك رسالة خطأ تتضمن "الوضع الآمن"، اعرضها كمعلومة وليس خطأ
+          if (twoFactorCheck.error.includes('الوضع الآمن')) {
+            toast.info(twoFactorCheck.error, { duration: 4000 });
+            // متابعة تسجيل الدخول مع الوضع الآمن
+            await proceedWithLogin(email, password);
+            return;
+          } else {
+            toast.error(twoFactorCheck.error);
+          }
         } else {
           toast.error('المستخدم غير موجود');
         }
@@ -141,15 +160,20 @@ const LoginForm = () => {
       }
 
       // حفظ معرف المؤسسة الصحيح إذا وُجد
-      if (twoFactorCheck.organizationId) {
-        localStorage.setItem('bazaar_organization_id', twoFactorCheck.organizationId);
+      if (twoFactorCheck.organization_id) {
+        localStorage.setItem('bazaar_organization_id', twoFactorCheck.organization_id);
       }
 
-      if (twoFactorCheck.requires2FA) {
+      // عرض رسالة إيجابية إذا كان هناك تحذير (الوضع الآمن)
+      if (twoFactorCheck.error && twoFactorCheck.error.includes('الوضع الآمن')) {
+        toast.info(twoFactorCheck.error, { duration: 4000 });
+      }
+
+      if (twoFactorCheck.requires_2fa) {
         // المستخدم يحتاج للمصادقة الثنائية
         setTwoFactorData({
-          userId: twoFactorCheck.userId!,
-          userName: twoFactorCheck.userName || 'المستخدم',
+          userId: twoFactorCheck.user_id!,
+          userName: twoFactorCheck.user_name || 'المستخدم',
           email: email
         });
         setPendingCredentials({ email, password });
@@ -168,26 +192,39 @@ const LoginForm = () => {
 
   const proceedWithLogin = async (loginEmail: string, loginPassword: string) => {
     try {
-      const { success, error } = await signIn(loginEmail, loginPassword);
+      // 🔧 استخدام النظام المحسن لتسجيل الدخول
+      const { signIn: improvedSignIn } = await import('@/lib/api/authHelpers');
+      const result = await improvedSignIn(loginEmail, loginPassword);
 
-      if (success) {
-        // Add an even longer delay to ensure authentication state is properly updated in context
-        await new Promise(resolve => setTimeout(resolve, 2000));
+      if (result.success) {
+        console.log('✅ [LoginForm] Sign in successful, proceeding...');
+        
+        // تأخير أقل مع التحقق من الجلسة
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // التحقق من صحة الجلسة قبل المتابعة
+        const client = await getSupabaseClient();
+        const { data: sessionCheck } = await client.auth.getSession();
+        
+        if (!sessionCheck.session) {
+          throw new Error('جلسة المصادقة غير صالحة');
+        }
         
         // بعد تسجيل الدخول، نتحقق إذا كان المستخدم مسؤول متعدد النطاقات
         await handleSuccessfulLogin();
       } else {
-        toast.error(`فشل تسجيل الدخول: ${error?.message || 'يرجى التحقق من بيانات الاعتماد الخاصة بك'}`);
+        console.error('❌ [LoginForm] Sign in failed:', result.error);
+        toast.error(result.error?.message || 'فشل تسجيل الدخول');
         setIsLoading(false);
       }
     } catch (error) {
+      console.error('❌ [LoginForm] Login process failed:', error);
       toast.error('حدث خطأ أثناء تسجيل الدخول');
       setIsLoading(false);
     }
   };
 
   const handleSuccessfulLogin = async () => {
-    
     const { data } = await supabase.auth.getUser();
     const user = data.user;
 
@@ -206,142 +243,8 @@ const LoginForm = () => {
       return;
     }
     
-    if (user && user.user_metadata.isTenant) {
-      
-      // الحصول على المؤسسة المرتبطة بالمستخدم
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('organization_id')
-        .eq('id', user.id)
-        .single();
-
-      if (!userError && userData?.organization_id) {
-        // الحصول على النطاق الفرعي للمؤسسة
-        
-        const { data: orgData, error: orgError } = await supabase
-          .from('organizations')
-          .select('subdomain')
-          .eq('id', userData.organization_id)
-          .single();
-
-        if (!orgError && orgData?.subdomain) {
-          // إعادة توجيه المستخدم إلى النطاق الفرعي الخاص به
-          const hostname = window.location.hostname;
-
-          // Check if we are already on the correct subdomain
-          let currentSubdomain = null;
-
-          // Detect subdomain in any format (works for both example.localhost and example.domain.com)
-          if (hostname.includes('.')) {
-            const parts = hostname.split('.');
-            // For localhost (example.localhost)
-            if (parts.length > 1 && parts[parts.length-1] === 'localhost') {
-              currentSubdomain = parts[0];
-            }
-            // For production (example.domain.com)
-            else if (parts.length > 2) {
-              currentSubdomain = parts[0];
-            }
-          }
-
-          // If already on the correct subdomain, just navigate to dashboard
-          if (currentSubdomain === orgData.subdomain) {
-            
-            toast.success('تم تسجيل الدخول بنجاح');
-            
-            // Explicitly check the dashboard path to avoid typos
-            let dashboardPath = '/dashboard';
-            if (redirectPath) {
-              // Fix any typos in the path
-              if (redirectPath.includes('/dashbord')) {
-                dashboardPath = redirectPath.replace('/dashbord', '/dashboard');
-                
-              } else {
-                dashboardPath = redirectPath;
-              }
-            }
-            
-            // Clear the redirect path from storage to prevent future issues
-            try {
-              if (typeof sessionStorage !== 'undefined') {
-                sessionStorage.removeItem('redirectAfterLogin');
-              }
-            } catch (error) {
-            }
-
-            setTimeout(() => {
-              setIsLoading(false);
-              navigate(dashboardPath);
-            }, 500);
-            return;
-          }
-          
-          // للتعامل مع عناوين محلية (localhost أو IP مثل 127.0.0.1)
-          const isLocalhostDomain = hostname === 'localhost' || hostname.endsWith('.localhost');
-          
-          if (isLocalhostDomain && orgData.subdomain) {
-
-              // التوجيه إلى النطاق الفرعي مع localhost مع نقل الجلسة
-              const { redirectWithSession, generateSubdomainUrl } = await import('@/lib/cross-domain-auth');
-              const targetUrl = generateSubdomainUrl(orgData.subdomain, '/dashboard');
-
-              setTimeout(() => {
-                setIsLoading(false);
-                redirectWithSession(targetUrl, sessionData.session);
-              }, 500);
-              return;  // إضافة return هنا
-          } else if (hostname.match(/^127\.\d+\.\d+\.\d+$/) || hostname.match(/^\d+\.\d+\.\d+\.\d+$/)) {
-
-            // استخدام localhost بدلاً من IP للتوجيه إلى النطاق الفرعي مع نقل الجلسة
-            const { redirectWithSession, generateSubdomainUrl } = await import('@/lib/cross-domain-auth');
-            const targetUrl = generateSubdomainUrl(orgData.subdomain, '/dashboard');
-
-            setTimeout(() => {
-              setIsLoading(false);
-              redirectWithSession(targetUrl, sessionData.session);
-            }, 500);
-          } else {
-            // للعناوين الأخرى، التحقق من النطاقات المدعومة للنطاقات الفرعية
-            const supportedDomainsForSubdomains = ['ktobi.online', 'stockiha.com', 'bazaar.com', 'bazaar.dev'];
-            let shouldRedirectToSubdomain = false;
-            let baseDomain = '';
-            
-            // تحديد النطاق الأساسي
-            for (const domain of supportedDomainsForSubdomains) {
-              if (hostname === domain || hostname === `www.${domain}`) {
-                shouldRedirectToSubdomain = true;
-                baseDomain = domain;
-                break;
-              }
-            }
-            
-            if (shouldRedirectToSubdomain && orgData.subdomain && baseDomain) {
-
-              // التوجيه إلى النطاق الفرعي مع نقل الجلسة
-              const { redirectWithSession, generateSubdomainUrl } = await import('@/lib/cross-domain-auth');
-              const targetUrl = generateSubdomainUrl(orgData.subdomain, '/dashboard');
-
-              setTimeout(() => {
-                setIsLoading(false);
-                redirectWithSession(targetUrl, sessionData.session);
-              }, 500);
-            } else {
-              // للعناوين الأخرى، نوجه المستخدم مباشرة إلى لوحة التحكم في نفس العنوان
-
-              // التوجيه مباشرة إلى لوحة التحكم في نفس العنوان
-              setTimeout(() => {
-                setIsLoading(false);
-                navigate('/dashboard');
-              }, 500);
-            }
-          }
-          return;
-        }
-      }
-    } else {
-    }
-    
-    // إذا وصلنا إلى هنا، فإننا نتعامل مع مستخدم عادي، أو أننا بالفعل في النطاق الفرعي الصحيح
+    // 🎯 التوجيه المحسن: /dashboard مباشرة لجميع المستخدمين
+    console.log('🎯 [Auth] Direct dashboard redirect for all users');
     
     toast.success('تم تسجيل الدخول بنجاح');
     
@@ -349,30 +252,30 @@ const LoginForm = () => {
     sessionStorage.removeItem('redirectAfterLogin');
     localStorage.removeItem('loginRedirectCount');
     
-    // Check if we have a saved redirect path
+    // التوجيه المباشر إلى /dashboard بدون أي تعقيدات
+    let dashboardPath = '/dashboard';
+    
     if (redirectPath) {
-
-      // Fix any typos in the path
-      let finalPath = redirectPath;
       if (redirectPath.includes('/dashbord')) {
-        finalPath = redirectPath.replace('/dashbord', '/dashboard');
+        dashboardPath = redirectPath.replace('/dashbord', '/dashboard');
+      } else {
+        dashboardPath = redirectPath;
       }
-      
-      // Double check that we're redirecting to a safe path
-      if (!finalPath.startsWith('/dashboard') && !finalPath.startsWith('/profile')) {
-        finalPath = '/dashboard';
-      }
-      
-      setTimeout(() => {
-        setIsLoading(false);
-        navigate(finalPath);
-      }, 500);
-    } else {
-      setTimeout(() => {
-        setIsLoading(false);
-        navigate('/dashboard');
-      }, 500);
     }
+    
+    // Clear redirect path
+    try {
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.removeItem('redirectAfterLogin');
+      }
+    } catch (error) {
+      // Silent fail
+    }
+
+    setTimeout(() => {
+      setIsLoading(false);
+      navigate(dashboardPath);
+    }, 500);
   };
 
   // دوال التعامل مع المصادقة الثنائية

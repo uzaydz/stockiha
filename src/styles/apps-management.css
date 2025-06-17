@@ -1,0 +1,365 @@
+/* تحسينات إدارة التطبيقات */
+
+/* متغيرات للألوان */
+:root {
+  --apps-primary: 220 38% 55%;
+  --apps-emerald: 142 76% 36%;
+  --apps-blue: 212 86% 64%;
+  --apps-purple: 258 90% 66%;
+  --apps-orange: 24 95% 53%;
+  --apps-gray: 220 13% 69%;
+}
+
+/* تحسينات للدارك مود */
+.dark {
+  --apps-primary: 220 38% 65%;
+  --apps-emerald: 142 76% 46%;
+  --apps-blue: 212 86% 74%;
+  --apps-purple: 258 90% 76%;
+  --apps-orange: 24 95% 63%;
+  --apps-gray: 220 13% 79%;
+}
+
+/* تأثيرات بصرية محسّنة */
+.app-card-gradient {
+  background: linear-gradient(135deg, var(--card) 0%, transparent 100%);
+  backdrop-filter: blur(10px);
+  border: 1px solid hsla(var(--border), 0.5);
+}
+
+.app-card-gradient:hover {
+  background: linear-gradient(135deg, var(--card) 0%, hsla(var(--primary), 0.05) 100%);
+  box-shadow: 0 10px 30px -10px hsla(var(--primary), 0.3);
+}
+
+/* تحسينات التحريك */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-4px); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 hsla(var(--primary), 0.5); }
+  50% { box-shadow: 0 0 20px 5px hsla(var(--primary), 0.2); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.float-animation {
+  animation: float 3s ease-in-out infinite;
+}
+
+.pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.shimmer-effect {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    hsla(var(--primary), 0.1),
+    transparent
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+/* تحسينات البطاقات */
+.app-card-enhanced {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.app-card-enhanced::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--primary), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none; /* منع تداخل مع الأزرار */
+  z-index: 0;
+}
+
+.app-card-enhanced:hover::before {
+  opacity: 1;
+}
+
+/* تحسينات الأيقونات */
+.app-icon-container {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.app-icon-container::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 14px;
+  background: linear-gradient(45deg, transparent, hsla(var(--primary), 0.2), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: -1;
+  pointer-events: none; /* منع تداخل مع الأزرار */
+}
+
+.app-icon-container:hover::before {
+  opacity: 1;
+}
+
+/* تحسينات الشارات */
+.status-badge {
+  position: relative;
+  overflow: hidden;
+}
+
+.status-badge::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s ease;
+}
+
+.status-badge:hover::before {
+  left: 100%;
+}
+
+/* تحسينات الإحصائيات */
+.stats-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.stats-card::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -50%;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle, hsla(var(--primary), 0.1) 0%, transparent 70%);
+  transform: scale(0);
+  transition: transform 0.3s ease;
+}
+
+.stats-card:hover::after {
+  transform: scale(1);
+}
+
+/* تحسينات البحث والفلترة */
+.search-container {
+  position: relative;
+}
+
+.search-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(45deg, hsla(var(--primary), 0.1), transparent, hsla(var(--primary), 0.1));
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.search-container:focus-within::before {
+  opacity: 1;
+}
+
+/* تأثيرات التحميل المحسّنة */
+.loading-pulse {
+  position: relative;
+  overflow: hidden;
+}
+
+.loading-pulse::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    45deg,
+    transparent 30%,
+    hsla(var(--primary), 0.1) 50%,
+    transparent 70%
+  );
+  animation: shimmer 2s infinite;
+}
+
+/* تحسينات الحالة النشطة */
+.app-enabled {
+  background: linear-gradient(135deg, 
+    hsla(var(--apps-emerald), 0.05) 0%, 
+    hsla(var(--apps-emerald), 0.02) 50%, 
+    transparent 100%);
+  border-color: hsla(var(--apps-emerald), 0.3);
+}
+
+.app-disabled {
+  background: linear-gradient(135deg, 
+    hsla(var(--apps-gray), 0.03) 0%, 
+    hsla(var(--apps-gray), 0.01) 50%, 
+    transparent 100%);
+  border-color: hsla(var(--apps-gray), 0.2);
+}
+
+/* تحسينات الفئات */
+.category-sales {
+  background: linear-gradient(135deg, hsla(var(--apps-emerald), 0.1), hsla(var(--apps-emerald), 0.05));
+  color: hsl(var(--apps-emerald));
+  border-color: hsla(var(--apps-emerald), 0.3);
+}
+
+.category-services {
+  background: linear-gradient(135deg, hsla(var(--apps-blue), 0.1), hsla(var(--apps-blue), 0.05));
+  color: hsl(var(--apps-blue));
+  border-color: hsla(var(--apps-blue), 0.3);
+}
+
+.category-digital {
+  background: linear-gradient(135deg, hsla(var(--apps-purple), 0.1), hsla(var(--apps-purple), 0.05));
+  color: hsl(var(--apps-purple));
+  border-color: hsla(var(--apps-purple), 0.3);
+}
+
+.category-financial {
+  background: linear-gradient(135deg, hsla(var(--apps-orange), 0.1), hsla(var(--apps-orange), 0.05));
+  color: hsl(var(--apps-orange));
+  border-color: hsla(var(--apps-orange), 0.3);
+}
+
+/* تحسينات الاستجابة */
+@media (max-width: 768px) {
+  .app-card-enhanced {
+    margin-bottom: 1rem;
+  }
+  
+  .stats-card {
+    margin-bottom: 1rem;
+  }
+  
+  .search-container {
+    margin-bottom: 1rem;
+  }
+}
+
+/* تحسينات الوضوح */
+@media (prefers-reduced-motion: reduce) {
+  .float-animation,
+  .pulse-glow,
+  .shimmer-effect {
+    animation: none;
+  }
+  
+  .app-card-enhanced,
+  .app-icon-container,
+  .status-badge,
+  .stats-card {
+    transition: none;
+  }
+}
+
+/* تحسينات التباين العالي */
+@media (prefers-contrast: high) {
+  .app-card-enhanced {
+    border-width: 2px;
+  }
+  
+  .status-badge {
+    font-weight: 600;
+  }
+  
+  .category-sales,
+  .category-services,
+  .category-digital,
+  .category-financial {
+    border-width: 2px;
+  }
+}
+
+/* تحسين النص */
+.app-title {
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+
+.app-description {
+  line-height: 1.6;
+  color: hsla(var(--foreground), 0.8);
+}
+
+.app-feature {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: hsla(var(--foreground), 0.7);
+}
+
+/* تحسينات الأزرار */
+.app-action-button {
+  position: relative;
+  overflow: hidden;
+  z-index: 10; /* ضمان أن الأزرار فوق العناصر الأخرى */
+}
+
+.app-action-button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(45deg, transparent, hsla(var(--primary), 0.1), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+  pointer-events: none; /* منع تداخل مع الأزرار */
+  z-index: -1;
+}
+
+.app-action-button:hover::before {
+  transform: translateX(100%);
+}
+
+/* تحسينات التركيز */
+.focus-ring {
+  outline: 2px solid hsla(var(--primary), 0.8);
+  outline-offset: 2px;
+}
+
+/* تحسينات الانتقالات */
+.smooth-transition {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.bounce-in {
+  animation: bounceIn 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+@keyframes bounceIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.3) rotate(-5deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05) rotate(1deg);
+  }
+  70% {
+    transform: scale(0.9) rotate(-0.5deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+} 

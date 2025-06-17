@@ -56,14 +56,9 @@ export function useReactQueryState() {
         const now = Date.now();
         const staleDuration = 5 * 60 * 1000; // 5 دقائق
         
-        // في Electron فقط، نسمح بالتحديث المحدود
-        if (now - lastStateTime < staleDuration) {
-          
-          queryClient.invalidateQueries({ type: 'active' });
-        } else {
-          
-          queryClient.invalidateQueries();
-        }
+        // تعطيل invalidateQueries بشكل كامل لمنع الطلبات المكررة
+        // React Query سيعيد استخدام البيانات المخزنة بدلاً من إجراء طلبات جديدة
+        console.log('🚫 React Query invalidation disabled to prevent duplicate requests');
       } catch (error) {
       }
     };

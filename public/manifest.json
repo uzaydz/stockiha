@@ -1,21 +1,25 @@
 {
-  "name": "بازار | منصة واحدة ذكية لإدارة وتنمية تجارتك",
-  "short_name": "بازار",
-  "description": "منصة واحدة ذكية تمكن التاجر من إدارة محله بالكامل، تقديم الخدمات باحترافية، متجر إلكتروني تلقائي، سوق إلكتروني عام، ونظام يعمل حتى بدون إنترنت.",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#ffffff",
+  "name": "سطوكيها - منصة إدارة المتاجر الذكية",
+  "short_name": "سطوكيها",
+  "description": "منصة إدارة المتاجر الذكية لإنشاء متجرك الإلكتروني وإدارة المبيعات والمخزون بكل سهولة",
   "theme_color": "#6b21a8",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/",
+  "start_url": "/",
   "icons": [
     {
-      "src": "/icons/icon-192x192.png",
+      "src": "/images/logo-new.webp",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/webp",
+      "purpose": "any"
     },
     {
-      "src": "/icons/icon-512x512.png",
+      "src": "/images/logo-new.webp", 
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/webp",
+      "purpose": "maskable"
     }
   ]
 } 

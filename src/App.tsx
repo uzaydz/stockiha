@@ -1,7 +1,7 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from '@tanstack/react-query';
 import queryClient from "./lib/config/queryClient";
 import { Routes, Route, useLocation, useParams, Navigate } from "react-router-dom";
 import { useEffect, useState } from 'react';
@@ -9,6 +9,7 @@ import { syncCategoriesDataOnStartup } from '@/lib/api/categories';
 import { ShopProvider } from "./context/ShopContext";
 import { HelmetProvider } from "react-helmet-async";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
+import PublicRoute from "./components/auth/PublicRoute";
 import SuperAdminRoute from "./components/auth/SuperAdminRoute";
 import SubscriptionCheck from "./components/subscription/SubscriptionCheck";
 import { SupabaseProvider } from "./context/SupabaseContext";
@@ -16,7 +17,7 @@ import SessionMonitor from "./components/SessionMonitor";
 import ErrorMonitor from "./components/ErrorMonitor";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
-import POS from "./pages/POS";
+import POSWrapper from "./components/pos/POSWrapper";
 import Features from "./pages/Features";
 import FeaturesPage from "./pages/landing/FeaturesPage";
 import OfflineFeatures from "./pages/OfflineFeatures";
@@ -34,8 +35,11 @@ import Products from "./pages/dashboard/Products";
 import Inventory from "./pages/dashboard/Inventory";
 import Categories from "@/pages/dashboard/Categories";
 import Sales from '@/pages/dashboard/Sales';
+import OptimizedSales from '@/pages/dashboard/OptimizedSales';
 import Orders from '@/pages/dashboard/Orders';
 import POSOrders from '@/pages/POSOrders';
+import POSOrdersOptimized from '@/pages/POSOrdersOptimized';
+import POSOrdersWrapper from '@/components/pos/POSOrdersWrapper';
 import Expenses from '@/pages/dashboard/Expenses';
 import Analytics from '@/pages/dashboard/Analytics';
 import ServiceTrackingPage from './pages/ServiceTrackingPage';
@@ -86,6 +90,22 @@ import OrderDistributionSettings from './pages/OrderDistributionSettings';
 import RepairServices from './pages/RepairServices';
 import RepairTrackingPage from './pages/RepairTrackingPage';
 import StoreEditorDemo from '@/pages/admin/StoreEditorDemo';
+import AppsManagement from './pages/AppsManagement';
+import { AppsProvider } from './context/AppsContext';
+import { StoreProvider } from './context/StoreContext';
+import { UnifiedDataProvider } from '@/components/UnifiedDataProvider';
+import ConditionalRoute from './components/ConditionalRoute';
+import CallCenterRoute from './components/auth/CallCenterRoute';
+import CallCenterLayout from './components/call-center/CallCenterLayout';
+import CallCenterDashboard from './pages/call-center/CallCenterDashboard';
+import AssignedOrders from './pages/call-center/orders/AssignedOrders';
+import RoleBasedRedirect from './components/auth/RoleBasedRedirect';
+
+// Call Center Admin Pages
+import AgentsManagementPage from './pages/admin/call-center/AgentsManagementPage';
+import DistributionSettingsPage from './pages/admin/call-center/DistributionSettingsPage';
+import ReportsPage from './pages/admin/call-center/ReportsPage';
+import MonitoringPage from './pages/admin/call-center/MonitoringPage';
 
 // Super Admin Pages
 import SuperAdminDashboard from '@/pages/super-admin/SuperAdminDashboard';
@@ -112,32 +132,61 @@ import useReactQueryState from './hooks/useReactQueryState';
 import { useSessionTracking } from './hooks/useSessionTracking';
 import { isElectron } from '@/lib/isElectron';
 import { useTenant } from '@/context/TenantContext';
-import { getCategoryById, getCategories } from '@/lib/api/categories';
+import { getCategoryById, getCategories } from '@/lib/api/unified-api';
 import PerformanceMonitor from './components/PerformanceMonitor';
-// import { CrossDomainSessionReceiver } from './components/auth/CrossDomainSessionReceiver'; // Disabled
 import { configureCrossDomainAuth } from '@/lib/cross-domain-auth';
 import { detectLoadingLoop, autoFixStorage } from '@/lib/utils/storage-helper';
 import { useDevtools } from '@/hooks/useDevtools';
 import { AuthDebugger } from './components/auth/AuthDebugger';
 import { LocalStorageMonitor } from './components/auth/LocalStorageMonitor';
+import { enableRequestInterception, setCurrentOrganizationId } from '@/lib/requestInterceptor';
+import '@/utils/auth-debug'; // أدوات التشخيص
+
+// تأخير تفعيل اعتراض الطلبات حتى يصبح النظام الموحد جاهزاً
+import { isSupabaseReady } from '@/lib/supabase-unified';
+
+// تفعيل اعتراض الطلبات بعد التحقق من جاهزية النظام الموحد
+setTimeout(() => {
+  let attempts = 0;
+  const tryEnableInterception = () => {
+    attempts++;
+    if (isSupabaseReady()) {
+      enableRequestInterception();
+    } else if (attempts < 50) {
+      setTimeout(tryEnableInterception, 100);
+    } else {
+      enableRequestInterception();
+    }
+  };
+  tryEnableInterception();
+}, 100);
+
+// 🚀 النظام الشامل الجديد والمتطور لمنع جميع الطلبات المكررة
+import { initializeRequestSystem } from '@/lib/requestSystemInitializer';
+import queryClient from "./lib/config/queryClient";
+
+// 📊 نظام مراقبة الأداء والتحليلات الشامل
+import { initializePerformanceAnalytics } from '@/lib/analytics/initializePerformanceAnalytics';
+import PerformanceWidget from '@/components/performance/PerformanceWidget';
+
+// تهيئة النظام الشامل للحماية من الطلبات المكررة
+initializeRequestSystem(queryClient);
+
+// تهيئة نظام مراقبة الأداء
+initializePerformanceAnalytics();
+
+// تعطيل النظام القديم لصالح النظام الجديد المتطور
+// import { enableAuthInterception } from '@/lib/authInterceptorV2';
+// enableAuthInterception(); // تم تعطيله لصالح UltimateRequestController
 
 // فحص وإصلاح مشاكل التحميل المستمر
 if (typeof window !== 'undefined') {
-  // فحص حلقة التحميل
   const hasLoadingLoop = detectLoadingLoop();
-  if (hasLoadingLoop) {
-  }
-  
-  // إصلاح البيانات المعطلة
   const wasFixed = autoFixStorage();
-  if (wasFixed) {
-  }
 }
 
 // تحقق ما إذا كان التطبيق يعمل في بيئة Electron
 const isRunningInElectron = isElectron();
-
-// تسجيل بيئة التطبيق بوضوح
 
 // وضع علامة عالمية على نوع البيئة
 if (typeof window !== 'undefined') {
@@ -145,7 +194,6 @@ if (typeof window !== 'undefined') {
   
   // منع المزامنة والتحديث التلقائي في المتصفح
   if (!isRunningInElectron) {
-    
     (window as any).__SYNC_DISABLED_IN_BROWSER = true;
     (window as any).__PREVENT_AUTO_REFRESH = true;
   }
@@ -346,8 +394,11 @@ const App = () => {
             {/* <CrossDomainSessionReceiver> -- This component is now deprecated. Its logic has been integrated into AuthContext. */}
               <SessionMonitor />
               <ErrorMonitor />
-              <ShopProvider>
-                <HelmetProvider>
+              <UnifiedDataProvider>
+                <ShopProvider>
+                  <StoreProvider>
+                  <AppsProvider>
+                  <HelmetProvider>
                   <Toaster />
                   <Sonner />
                 <Routes>
@@ -360,11 +411,26 @@ const App = () => {
                   <Route path="/pricing" element={<PricingPage />} />
                   <Route path="/contact" element={<ContactLandingPage />} />
                   <Route path="/contact-old" element={<ContactPage />} />
-                  <Route path="/login" element={<LoginForm />} />
+                  <Route path="/login" element={
+                    <PublicRoute>
+                      <LoginForm />
+                    </PublicRoute>
+                  } />
+                  
+                  {/* مسار افتراضي لتوجيه المستخدمين حسب أدوارهم بعد تسجيل الدخول */}
+                  <Route path="/redirect" element={<RoleBasedRedirect />} />
                   <Route path="/super-admin/login" element={<SuperAdminLogin />} />
                   <Route path="/signup" element={<NotFound />} />
-                  <Route path="/admin/signup" element={<AdminSignup />} />
-                  <Route path="/tenant/signup" element={<TenantSignup />} />
+                  <Route path="/admin/signup" element={
+                    <PublicRoute>
+                      <AdminSignup />
+                    </PublicRoute>
+                  } />
+                  <Route path="/tenant/signup" element={
+                    <PublicRoute>
+                      <TenantSignup />
+                    </PublicRoute>
+                  } />
                   
                   {/* Super Admin Routes - Protected with SuperAdminRoute */}
                   <Route element={<SuperAdminRoute />}>
@@ -384,6 +450,28 @@ const App = () => {
                     <Route path="/super-admin/payments" element={<SuperAdminDashboard />} />
                     <Route path="/super-admin/logs" element={<SuperAdminDashboard />} />
                     <Route path="/super-admin/permissions" element={<SuperAdminDashboard />} />
+                  </Route>
+                  
+                  {/* Call Center Routes - Protected with CallCenterRoute */}
+                  <Route element={<CallCenterRoute />}>
+                    <Route path="/call-center/*" element={<CallCenterLayout />}>
+                      <Route index element={<Navigate to="/call-center/dashboard" replace />} />
+                      <Route path="dashboard" element={<CallCenterDashboard />} />
+                      <Route path="orders" element={<Navigate to="/call-center/orders/assigned" replace />} />
+                      <Route path="orders/assigned" element={<AssignedOrders />} />
+                      <Route path="orders/pending" element={<div>Pending Orders - Coming Soon</div>} />
+                      <Route path="orders/completed" element={<div>Completed Orders - Coming Soon</div>} />
+                      <Route path="performance" element={<div>Performance Stats - Coming Soon</div>} />
+                      <Route path="profile" element={<div>Agent Profile - Coming Soon</div>} />
+                    </Route>
+                  </Route>
+                  
+                  {/* Call Center Supervisor Routes - Requires supervisor permissions */}
+                  <Route element={<CallCenterRoute requireSupervisor={true} />}>
+                    <Route path="/call-center/management" element={<div>Agent Management - Coming Soon</div>} />
+                    <Route path="/call-center/reports" element={<div>Call Center Reports - Coming Soon</div>} />
+                    <Route path="/call-center/settings" element={<div>Call Center Settings - Coming Soon</div>} />
+                    <Route path="/call-center/monitoring" element={<div>Live Monitoring - Coming Soon</div>} />
                   </Route>
                   
                   {/* صفحات عامة للزوار بدون تسجيل دخول */}
@@ -448,11 +536,13 @@ const App = () => {
                       
                       {/* صفحة خدمات الاشتراكات */}
                       <Route path="/dashboard/subscription-services" element={
-                        <SubscriptionCheck>
-                          <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
-                            <SubscriptionServices />
-                          </PermissionGuard>
-                        </SubscriptionCheck>
+                        <ConditionalRoute appId="subscription-services">
+                          <SubscriptionCheck>
+                            <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+                              <SubscriptionServices />
+                            </PermissionGuard>
+                          </SubscriptionCheck>
+                        </ConditionalRoute>
                       } />
                       
                       {/* صفحة إدارة التوصيل */}
@@ -460,6 +550,15 @@ const App = () => {
                         <SubscriptionCheck>
                           <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
                             <DeliveryManagement />
+                          </PermissionGuard>
+                        </SubscriptionCheck>
+                      } />
+                      
+                      {/* صفحة إدارة التطبيقات */}
+                      <Route path="/dashboard/apps" element={
+                        <SubscriptionCheck>
+                          <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+                            <AppsManagement />
                           </PermissionGuard>
                         </SubscriptionCheck>
                       } />
@@ -489,15 +588,17 @@ const App = () => {
                         </SubscriptionCheck>
                       } />
                       <Route path="/dashboard/repair-services" element={
-                        <SubscriptionCheck>
-                          <PermissionGuard requiredPermissions={['viewServices']}>
-                            <RepairServices />
-                          </PermissionGuard>
-                        </SubscriptionCheck>
+                        <ConditionalRoute appId="repair-services">
+                          <SubscriptionCheck>
+                            <PermissionGuard requiredPermissions={['viewServices']}>
+                              <RepairServices />
+                            </PermissionGuard>
+                          </SubscriptionCheck>
+                        </ConditionalRoute>
                       } />
                       <Route path="/dashboard/sales" element={
                         <SubscriptionCheck>
-                          <Sales />
+                          <OptimizedSales />
                         </SubscriptionCheck>
                       } />
                       <Route path="/dashboard/orders" element={
@@ -513,25 +614,33 @@ const App = () => {
                         </SubscriptionCheck>
                       } />
                       <Route path="/dashboard/pos-orders" element={
-                        <SubscriptionCheck>
-                          <PermissionGuard requiredPermissions={['accessPOS']}>
-                            <POSOrders />
-                          </PermissionGuard>
-                        </SubscriptionCheck>
+                        <ConditionalRoute appId="pos-system">
+                          <SubscriptionCheck>
+                            <PermissionGuard requiredPermissions={['accessPOS']}>
+                              <POSOrdersWrapper>
+                                <POSOrdersOptimized />
+                              </POSOrdersWrapper>
+                            </PermissionGuard>
+                          </SubscriptionCheck>
+                        </ConditionalRoute>
                       } />
                       <Route path="/dashboard/returns" element={
-                        <SubscriptionCheck>
-                          <PermissionGuard requiredPermissions={['accessPOS']}>
-                            <ProductReturns />
-                          </PermissionGuard>
-                        </SubscriptionCheck>
+                        <ConditionalRoute appId="pos-system">
+                          <SubscriptionCheck>
+                            <PermissionGuard requiredPermissions={['accessPOS']}>
+                              <ProductReturns />
+                            </PermissionGuard>
+                          </SubscriptionCheck>
+                        </ConditionalRoute>
                       } />
                       <Route path="/dashboard/losses" element={
-                        <SubscriptionCheck>
-                          <PermissionGuard requiredPermissions={['accessPOS']}>
-                            <LossDeclarations />
-                          </PermissionGuard>
-                        </SubscriptionCheck>
+                        <ConditionalRoute appId="pos-system">
+                          <SubscriptionCheck>
+                            <PermissionGuard requiredPermissions={['accessPOS']}>
+                              <LossDeclarations />
+                            </PermissionGuard>
+                          </SubscriptionCheck>
+                        </ConditionalRoute>
                       } />
                       <Route path="/dashboard/expenses" element={
                         <SubscriptionCheck>
@@ -553,14 +662,18 @@ const App = () => {
                         </SubscriptionCheck>
                       } />
                       <Route path="/dashboard/customer-debts" element={
-                        <SubscriptionCheck>
-                          <CustomerDebts />
-                        </SubscriptionCheck>
+                        <ConditionalRoute appId="pos-system">
+                          <SubscriptionCheck>
+                            <CustomerDebts />
+                          </SubscriptionCheck>
+                        </ConditionalRoute>
                       } />
                       <Route path="/dashboard/customer-debt-details/:customerId" element={
-                        <PermissionGuard requiredPermissions={['viewDebts']}>
-                          <CustomerDebtDetails />
-                        </PermissionGuard>
+                        <ConditionalRoute appId="pos-system">
+                          <PermissionGuard requiredPermissions={['viewDebts']}>
+                            <CustomerDebtDetails />
+                          </PermissionGuard>
+                        </ConditionalRoute>
                       } />
                       <Route path="/dashboard/payment-history" element={
                         <PermissionGuard requiredPermissions={['viewFinancialReports']}>
@@ -580,6 +693,44 @@ const App = () => {
                             <OrderDistributionSettings />
                           </PermissionGuard>
                         </SubscriptionCheck>
+                      } />
+                      
+                      {/* Call Center Management Routes for Admins */}
+                      <Route path="/dashboard/call-center/agents" element={
+                        <ConditionalRoute appId="call-center">
+                          <SubscriptionCheck>
+                            <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+                              <AgentsManagementPage />
+                            </PermissionGuard>
+                          </SubscriptionCheck>
+                        </ConditionalRoute>
+                      } />
+                      <Route path="/dashboard/call-center/distribution" element={
+                        <ConditionalRoute appId="call-center">
+                          <SubscriptionCheck>
+                            <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+                              <DistributionSettingsPage />
+                            </PermissionGuard>
+                          </SubscriptionCheck>
+                        </ConditionalRoute>
+                      } />
+                      <Route path="/dashboard/call-center/reports" element={
+                        <ConditionalRoute appId="call-center">
+                          <SubscriptionCheck>
+                            <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+                              <ReportsPage />
+                            </PermissionGuard>
+                          </SubscriptionCheck>
+                        </ConditionalRoute>
+                      } />
+                      <Route path="/dashboard/call-center/monitoring" element={
+                        <ConditionalRoute appId="call-center">
+                          <SubscriptionCheck>
+                            <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+                              <MonitoringPage />
+                            </PermissionGuard>
+                          </SubscriptionCheck>
+                        </ConditionalRoute>
                       } />
                       <Route path="/dashboard/organization" element={
                         <SubscriptionCheck>
@@ -605,27 +756,33 @@ const App = () => {
                           </PermissionGuard>
                         </SubscriptionCheck>
                       } />
-                      {/* مسارات صفحات الفليكسي والعملات الرقمية */}
+                      {/* مسارات صفحات الفليكسي والعملات الرقمية - مشروطة بتفعيل التطبيق */}
                       <Route path="/dashboard/flexi-management" element={
-                        <SubscriptionCheck>
-                          <PermissionGuard requiredPermissions={['manageFlexiAndDigitalCurrency']}>
-                            <FlexiManagement />
-                          </PermissionGuard>
-                        </SubscriptionCheck>
+                        <ConditionalRoute appId="flexi-crypto">
+                          <SubscriptionCheck>
+                            <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+                              <FlexiManagement />
+                            </PermissionGuard>
+                          </SubscriptionCheck>
+                        </ConditionalRoute>
                       } />
                       <Route path="/dashboard/flexi-sales" element={
-                        <SubscriptionCheck>
-                          <PermissionGuard requiredPermissions={['sellFlexiAndDigitalCurrency']}>
-                            <FlexiSales />
-                          </PermissionGuard>
-                        </SubscriptionCheck>
+                        <ConditionalRoute appId="flexi-crypto">
+                          <SubscriptionCheck>
+                            <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+                              <FlexiSales />
+                            </PermissionGuard>
+                          </SubscriptionCheck>
+                        </ConditionalRoute>
                       } />
                       <Route path="/dashboard/flexi-analytics" element={
-                        <SubscriptionCheck>
-                          <PermissionGuard requiredPermissions={['viewFlexiAndDigitalCurrencySales']}>
-                            <FlexiAnalytics />
-                          </PermissionGuard>
-                        </SubscriptionCheck>
+                        <ConditionalRoute appId="flexi-crypto">
+                          <SubscriptionCheck>
+                            <PermissionGuard requiredPermissions={['viewReports']}>
+                              <FlexiAnalytics />
+                            </PermissionGuard>
+                          </SubscriptionCheck>
+                        </ConditionalRoute>
                       } />
 
                       {/* مسارات إدارة الموردين */}
@@ -770,13 +927,15 @@ const App = () => {
                         </SubscriptionCheck>
                       } />
 
-                      {/* صفحة نقطة البيع */}
+                      {/* صفحة نقطة البيع المحسنة مع POSDataContext */}
                       <Route path="/dashboard/pos" element={
-                        <SubscriptionCheck>
-                          <PermissionGuard requiredPermissions={['accessPOS']}>
-                            <POS />
-                          </PermissionGuard>
-                        </SubscriptionCheck>
+                        <ConditionalRoute appId="pos-system">
+                          <SubscriptionCheck>
+                            <PermissionGuard requiredPermissions={['accessPOS']}>
+                              <POSWrapper />
+                            </PermissionGuard>
+                          </SubscriptionCheck>
+                        </ConditionalRoute>
                       } />
 
                       {/* صفحة طلبات الخدمات */}
@@ -823,8 +982,14 @@ const App = () => {
                     logToConsole={true}
                   />
                 )}
-              </HelmetProvider>
-            </ShopProvider>
+                
+                {/* 📊 PERFORMANCE ANALYTICS WIDGET: Widget مراقبة الأداء الشامل */}
+                {import.meta.env.DEV && <PerformanceWidget />}
+                  </HelmetProvider>
+                </AppsProvider>
+                </StoreProvider>
+              </ShopProvider>
+              </UnifiedDataProvider>
             {/* </CrossDomainSessionReceiver> */}
           </SupabaseProvider>
         </TabFocusHandler>

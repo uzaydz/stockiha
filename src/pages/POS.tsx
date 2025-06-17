@@ -5,6 +5,8 @@ import { Link } from 'react-router-dom';
 import { Product, Order, User as AppUser, Service, OrderItem, ServiceBooking } from '@/types';
 import { useShop } from '@/context/ShopContext';
 import { useAuth } from '@/context/AuthContext';
+import { usePOSData } from '@/context/POSDataContext';
+import { cn } from '@/lib/utils';
 import Layout from '@/components/Layout';
 import ProductCatalog from '@/components/pos/ProductCatalog';
 import Cart from '@/components/pos/Cart';
@@ -15,6 +17,7 @@ import PrintReceipt from '@/components/pos/PrintReceipt';
 import ProductVariantSelector from '@/components/pos/ProductVariantSelector';
 import POSSettings from '@/components/pos/settings/POSSettings';
 import RepairServiceDialog from '@/components/repair/RepairServiceDialog';
+import { useApps } from '@/context/AppsContext';
 import QuickReturnDialog from '@/components/pos/QuickReturnDialog';
 import {
   Dialog,
@@ -27,7 +30,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { ShoppingCart, Wrench, Settings2, CreditCard, RotateCcw } from 'lucide-react';
+import { ShoppingCart, Wrench, Settings2, CreditCard, RotateCcw, Package } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getProductPriceForQuantity } from '@/api/productService';
 import { Button } from '@/components/ui/button';
@@ -47,10 +50,21 @@ interface CartItem {
 const POS = () => {
   const { products: shopProducts, services, orders, addOrder, users, isLoading, refreshData } = useShop();
   const { user } = useAuth();
-  const [products, setProducts] = useState<Product[]>([]);
+  const { isAppEnabled } = useApps();
+  
+  // استخدام POSDataContext المحسن لمنع الطلبات المكررة
+  const { 
+    products, 
+    subscriptions, 
+    categories: subscriptionCategories, 
+    posSettings,
+    organizationApps,
+    isLoading: isPOSDataLoading,
+    errors,
+    refreshAll: refreshPOSData
+  } = usePOSData();
+  
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [subscriptions, setSubscriptions] = useState<any[]>([]);
-  const [subscriptionCategories, setSubscriptionCategories] = useState<any[]>([]);
   const [selectedSubscriptions, setSelectedSubscriptions] = useState<any[]>([]);
   const [activeView, setActiveView] = useState<'products' | 'subscriptions'>('products');
   const [selectedServices, setSelectedServices] = useState<(Service & { 
@@ -86,288 +100,20 @@ const POS = () => {
   // حالة نافذة الإرجاع السريع
   const [isQuickReturnOpen, setIsQuickReturnOpen] = useState(false);
 
-  // استماع عالمي لأحداث قارئ الباركود
-  useEffect(() => {
-    const handleKeyPress = (event: KeyboardEvent) => {
-      const currentTime = Date.now();
-      const timeDiff = currentTime - lastKeyTime;
-      
-      // إذا مرت أكثر من 200ms منذ آخر مفتاح، ابدأ باركود جديد
-      if (timeDiff > 200) {
-        setBarcodeBuffer('');
-      }
-      
-      // تجاهل المفاتيح الخاصة والتركيز على الحقول
-      if (event.ctrlKey || event.altKey || event.metaKey) {
-        return;
-      }
-      
-      // تجاهل إذا كان المستخدم يكتب في حقل إدخال
-      const target = event.target as HTMLElement;
-      if (target && (
-        target.tagName === 'INPUT' || 
-        target.tagName === 'TEXTAREA' || 
-        target.contentEditable === 'true' ||
-        target.closest('[contenteditable="true"]') ||
-        target.closest('input') ||
-        target.closest('textarea')
-      )) {
-        return;
-      }
-      
-      setLastKeyTime(currentTime);
-      
-      // إذا كان Enter، قم بمعالجة الباركود المتراكم
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        if (barcodeBuffer.length > 0) {
-          // استدعاء مباشر لتجنب مشكلة التبعية
-                     const barcode = barcodeBuffer.replace(/[^\w\d-]/g, '').trim();
-           if (barcode) {
-             const product = shopProducts.find(p => p.barcode === barcode || p.sku === barcode);
-             if (product) {
-               
-               // التحقق من المخزون والإضافة للسلة
-               if (product.stock_quantity <= 0) {
-                 toast.error(`المنتج "${product.name}" غير متوفر في المخزون`);
-               } else {
-                 // استخدام setCartItems مباشرة
-                 setCartItems(prevCart => {
-                   const existingItem = prevCart.find(item => item.product.id === product.id);
-                   if (existingItem) {
-                     if (existingItem.quantity >= product.stock_quantity) {
-                       toast.error(`لا يمكن إضافة المزيد من "${product.name}". الكمية المتاحة: ${product.stock_quantity}`);
-                       return prevCart;
-                     }
-                     toast.success(`تمت إضافة "${product.name}" إلى السلة`);
-                     return prevCart.map(item =>
-                       item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
-                     );
-                   } else {
-                     toast.success(`تمت إضافة "${product.name}" إلى السلة`);
-                     // صوت النجاح (اختياري)
-                     try {
-                       const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DvNBkAl9fy' );
-                       audio.volume = 0.3;
-                       audio.play().catch(() => {}); // تجاهل أخطاء الصوت
-                     } catch (e) {}
-                     return [...prevCart, { product, quantity: 1 }];
-                   }
-                 });
-               }
-             } else {
-               // البحث في متغيرات المنتجات
-               let foundVariant = false;
-               for (const prod of shopProducts) {
-                 if (prod.colors && prod.colors.length > 0) {
-                   const color = prod.colors.find(c => c.barcode === barcode);
-                   if (color) {
-                     // إضافة المتغير للسلة
-                     setCartItems(prevCart => [...prevCart, {
-                       product: prod,
-                       quantity: 1,
-                       colorId: color.id,
-                       colorName: color.name,
-                       colorCode: color.color_code,
-                       variantPrice: color.price,
-                       variantImage: color.image_url
-                     }]);
-                     toast.success(`تمت إضافة "${color.name} - ${prod.name}" إلى السلة`);
-                     foundVariant = true;
-                     break;
-                   }
-                 }
-               }
-               
-               if (!foundVariant) {
-                 toast.error(`لم يتم العثور على منتج بالباركود: ${barcode}`);
-               }
-             }
-           }
-          setBarcodeBuffer('');
-        }
-        return;
-      }
-      
-      // إضافة الحرف إلى buffer إذا كان صالحاً
-      if (event.key.length === 1) {
-        setBarcodeBuffer(prev => prev + event.key);
-      }
-    };
+  // ✅ لا حاجة لجلب البيانات يدوياً - POSDataContext يتولى كل شيء
+  // جلب البيانات يتم تلقائياً عبر POSDataContext مع منع الطلبات المكررة
+  
+  console.log('🎯 POS Component - Data Status:', {
+    productsCount: products?.length || 0,
+    subscriptionsCount: subscriptions?.length || 0,
+    categoriesCount: subscriptionCategories?.length || 0,
+    hasPOSSettings: !!posSettings,
+    isLoading: isPOSDataLoading,
+    errors
+  });
 
-    // إضافة مستمع الأحداث
-    document.addEventListener('keypress', handleKeyPress);
-    
-    // تنظيف buffer بعد فترة من عدم النشاط
-    const clearBufferTimeout = setTimeout(() => {
-      setBarcodeBuffer('');
-    }, 500);
-
-    return () => {
-      document.removeEventListener('keypress', handleKeyPress);
-      clearTimeout(clearBufferTimeout);
-    };
-  }, [barcodeBuffer, lastKeyTime]);
-
-  // تعديل: مباشرة تعيين المنتجات من متجر التطبيق
-  useEffect(() => {
-    if (shopProducts.length > 0) {
-      
-      setProducts(shopProducts);
-    }
-  }, [shopProducts]);
-
-  // جلب خدمات الاشتراك
-  useEffect(() => {
-    if (user?.email) {
-      fetchSubscriptions();
-      fetchSubscriptionCategories();
-    }
-  }, [user?.email]);
-
-  const fetchSubscriptions = async () => {
-    try {
-      if (!user?.email) {
-        return;
-      }
-
-      // جلب organization_id بطرق متعددة أكثر مرونة
-      let currentOrgId = null;
-      
-      // الطريقة الأولى: من user metadata
-      if (user?.user_metadata?.organization_id) {
-        currentOrgId = user.user_metadata.organization_id;
-      }
-      
-      // الطريقة الثانية: من localStorage
-      if (!currentOrgId) {
-        currentOrgId = localStorage.getItem('bazaar_organization_id');
-      }
-      
-      // الطريقة الثالثة: من جدول users (بدون single() للمرونة)
-      if (!currentOrgId) {
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('organization_id')
-          .eq('email', user.email)
-          .limit(1);
-
-        if (!userError && userData && userData.length > 0) {
-          currentOrgId = userData[0].organization_id;
-          
-          // حفظ في localStorage للمرات القادمة
-          if (currentOrgId) {
-            localStorage.setItem('bazaar_organization_id', currentOrgId);
-          }
-        } else {
-        }
-      }
-
-      if (!currentOrgId) {
-        return;
-      }
-      
-      // جلب الخدمات
-      const { data: servicesData, error: servicesError } = await supabase
-        .from('subscription_services')
-        .select(`
-          *,
-          category:subscription_categories(*)
-        `)
-        .eq('organization_id', currentOrgId)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
-
-      if (servicesError) {
-        throw servicesError;
-      }
-
-      // جلب أسعار كل خدمة
-      const servicesWithPricing = await Promise.all(
-        (servicesData || []).map(async (service) => {
-          const { data: pricingData } = await supabase
-            .from('subscription_service_pricing')
-            .select('*')
-            .eq('subscription_service_id', service.id)
-            .eq('is_active', true)
-            .gte('available_quantity', 0)
-            .order('display_order');
-
-          return {
-            ...service,
-            pricing_options: pricingData || []
-          };
-        })
-      );
-
-      // فقط الخدمات التي لديها أسعار (حتى لو نفد مخزونها)
-      const availableServices = servicesWithPricing.filter(service => 
-        service.pricing_options.length > 0
-      );
-
-      setSubscriptions(availableServices);
-      
-    } catch (error) {
-    }
-  };
-
-  const fetchSubscriptionCategories = async () => {
-    try {
-      if (!user?.email) {
-        return;
-      }
-
-      // جلب organization_id بطرق متعددة أكثر مرونة (نفس المنطق)
-      let currentOrgId = null;
-      
-      // الطريقة الأولى: من user metadata
-      if (user?.user_metadata?.organization_id) {
-        currentOrgId = user.user_metadata.organization_id;
-      }
-      
-      // الطريقة الثانية: من localStorage
-      if (!currentOrgId) {
-        currentOrgId = localStorage.getItem('bazaar_organization_id');
-      }
-      
-      // الطريقة الثالثة: من جدول users (بدون single() للمرونة)
-      if (!currentOrgId) {
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('organization_id')
-          .eq('email', user.email)
-          .limit(1);
-
-        if (!userError && userData && userData.length > 0) {
-          currentOrgId = userData[0].organization_id;
-          
-          // حفظ في localStorage للمرات القادمة
-          if (currentOrgId) {
-            localStorage.setItem('bazaar_organization_id', currentOrgId);
-          }
-        } else {
-        }
-      }
-
-      if (!currentOrgId) {
-        return;
-      }
-      
-      const { data, error } = await supabase
-        .from('subscription_categories')
-        .select('*')
-        .eq('organization_id', currentOrgId)
-        .order('name');
-
-      if (error) {
-        throw error;
-      }
-      
-      setSubscriptionCategories(data || []);
-      
-    } catch (error) {
-    }
-  };
+  // ✅ تمت إزالة fetchSubscriptions و fetchSubscriptionCategories 
+  // البيانات تُجلب تلقائياً عبر POSDataContext مع منع الطلبات المكررة
 
   // جلب الطلبات الأخيرة والمنتجات المفضلة
   useEffect(() => {
@@ -402,29 +148,17 @@ const POS = () => {
 
   // تعديل دالة إضافة منتج للسلة للتعامل مع المتغيرات
   const addItemToCart = (product: Product) => {
-    // تحقق خاص لمنتج "أسيمة قنطري"
-    if (product.name === 'أسيمة قنطري') {
-      
-    }
-    
-    // طباعة تشخيصية لبيانات المنتج
-
-    // تحقق محسن من متغيرات المنتج
-    if ((product.has_variants || product.use_sizes) || (product.colors && product.colors.length > 0)) {
-      
+    // التحقق من وجود ألوان أو مقاسات للمنتج
+    if (product.has_variants && product.colors && product.colors.length > 0) {
       // فتح نافذة اختيار المتغيرات
       setSelectedProductForVariant(product);
       setIsVariantDialogOpen(true);
       return;
     }
     
-    // المنتج بدون متغيرات، تابع كالمعتاد
-    if (product.stock_quantity <= 0) {
-      toast.error(`المنتج "${product.name}" غير متوفر في المخزون`);
-      return;
-    }
-    
+    // إذا لم يكن للمنتج متغيرات، أضفه مباشرة
     const existingItem = cartItems.find(item => item.product.id === product.id);
+    
     if (existingItem) {
       if (existingItem.quantity >= product.stock_quantity) {
         toast.error(`لا يمكن إضافة المزيد من "${product.name}". الكمية المتاحة: ${product.stock_quantity}`);
@@ -820,7 +554,7 @@ const POS = () => {
     toast.success(`تم فتح الطلب #${order.id}`);
   };
 
-  // Crear orden
+  // Crear orden محسن للسرعة مع رسائل تشخيصية
   const submitOrder = async (orderDetails: Partial<Order>): Promise<{orderId: string, customerOrderNumber: number}> => {
     
     if (cartItems.length === 0 && selectedServices.length === 0 && selectedSubscriptions.length === 0) {
@@ -828,53 +562,71 @@ const POS = () => {
       return;
     }
 
-    try {
-      // Get wholesale prices from Cart component
-      const cartItemsWithWholesale = await Promise.all(
-        cartItems.map(async (item) => {
-          const wholesalePrice = await getProductPriceForQuantity(item.product.id, item.quantity);
-          const isWholesale = wholesalePrice !== null && wholesalePrice < item.product.price;
-          
-          return {
-            ...item,
-            wholesalePrice: wholesalePrice !== null ? wholesalePrice : (item.variantPrice || item.product.price),
-            isWholesale
-          };
-        })
-      );
+    // إشارة بداية المعالجة
+    toast.info("جاري معالجة الطلب...", { duration: 1000 });
 
-      // Crear items de productos - تحسين إنشاء معرفات عناصر الطلب
-      const orderItems: OrderItem[] = cartItemsWithWholesale.map(item => {
-        const itemId = uuidv4();
-        const timestamp = new Date().getTime();
-        const randomSuffix = Math.floor(Math.random() * 1000);
+    try {
+      // تحسين #1: تجنب الحصول على أسعار الجملة إذا لم تكن مطلوبة
+      // إنشاء خريطة محلية للمنتجات لتجنب البحث المتكرر
+      const productMap = new Map(products.map(p => [p.id, p]));
+      
+      // تحسين #2: معالجة العناصر بدون استدعاءات API إضافية
+      const startProcessing = Date.now();
+      const cartItemsWithWholesale = cartItems.map(item => {
+        const product = productMap.get(item.product.id);
         
-        // استخدام سعر المتغير إذا كان موجوداً، وإلا استخدام سعر الجملة أو سعر المنتج العادي
+        // حساب محلي للسعر بدلاً من استدعاء API
+        let finalPrice = item.variantPrice || item.product.price;
+        let isWholesale = false;
+        
+        // فحص محلي لأسعار الجملة
+        if (product?.allow_wholesale && 
+            product.wholesale_price && 
+            product.min_wholesale_quantity && 
+            item.quantity >= product.min_wholesale_quantity) {
+          finalPrice = product.wholesale_price;
+          isWholesale = true;
+        } else if (product?.allow_partial_wholesale && 
+                   product.partial_wholesale_price && 
+                   product.min_partial_wholesale_quantity && 
+                   item.quantity >= product.min_partial_wholesale_quantity) {
+          finalPrice = product.partial_wholesale_price;
+          isWholesale = true;
+        }
+        
+        return {
+          ...item,
+          wholesalePrice: finalPrice,
+          isWholesale
+        };
+      });
+
+      // تحسين #3: تحسين إنشاء OrderItems
+      const orderItems: OrderItem[] = cartItemsWithWholesale.map((item, index) => {
+        const itemId = uuidv4();
+        const timestamp = Date.now();
+        
         const unitPrice = item.isWholesale 
           ? item.wholesalePrice 
           : (item.variantPrice || item.product.price);
         
-        // اسم المنتج مع إضافة معلومات اللون والمقاس
         const productName = item.colorName || item.sizeName
           ? `${item.product.name} ${item.colorName ? `- ${item.colorName}` : ''}${item.sizeName ? ` - ${item.sizeName}` : ''}`
           : item.product.name;
         
         return {
-          id: itemId, // استخدام UUID صالح دائماً
+          id: itemId,
           productId: item.product.id,
           productName: productName,
           quantity: item.quantity,
-          price: unitPrice, // استخدام price بدلاً من unitPrice
+          price: unitPrice,
           unitPrice: unitPrice,
           totalPrice: unitPrice * item.quantity,
           isDigital: item.product.isDigital,
-          // Store wholesale information
           isWholesale: item.isWholesale,
           originalPrice: item.product.price,
-          // إضافة حقول إضافية تحتاجها قاعدة البيانات
-          slug: `item-${timestamp}-${randomSuffix}`,
+          slug: `item-${timestamp}-${index}`,
           name: item.product.name,
-          // إضافة معلومات المتغيرات (الألوان والمقاسات)
           variant_info: {
             colorId: item.colorId,
             colorName: item.colorName,
@@ -886,129 +638,131 @@ const POS = () => {
         };
       });
       
-      // Crear reservas de servicios
+      // تحسين #4: تحسين إنشاء ServiceBookings
       const serviceBookings: ServiceBooking[] = selectedServices.map((service, index) => {
-        // إنشاء معرف UUID صالح
         const serviceId = uuidv4();
-        
-        // إنشاء كود تتبع عام ثابت لكل خدمة (للتأكد من توافقه مع قاعدة البيانات)
-        const orderPrefix = Math.floor(1000 + Math.random() * 9000).toString();
-        const serviceIndex = (1001 + index).toString();
+        const orderPrefix = Math.floor(1000 + Math.random() * 9000);
+        const serviceIndex = 1001 + index;
         const publicTrackingCode = `SRV-${orderPrefix}-${serviceIndex}`;
         
-        // تحديث الخدمة المحلية بكود التتبع الجديد لاستخدامه عند الطباعة
+        // تحديث محلي للخدمة
         service.public_tracking_code = publicTrackingCode;
         
+        // تحسين البحث عن اسم العميل
+        const customerName = service.customerId 
+          ? users.find(u => u.id === service.customerId)?.name || "زائر"
+          : (orderDetails.customerId && orderDetails.customerId !== 'walk-in' && orderDetails.customerId !== 'guest'
+              ? users.find(u => u.id === orderDetails.customerId)?.name || "زائر"
+              : "زائر");
+        
         return {
-          id: serviceId, // استخدام UUID بدلاً من كود التتبع كمعرف
+          id: serviceId,
           serviceId: service.id,
           serviceName: service.name,
           price: service.price,
           scheduledDate: service.scheduledDate,
           notes: service.notes,
           customerId: service.customerId || orderDetails.customerId,
-          customer_name: service.customerId 
-            ? users.find(u => u.id === service.customerId)?.name || "زائر"
-            : (orderDetails.customerId
-                ? users.find(u => u.id === orderDetails.customerId)?.name || "زائر"
-                : "زائر"),
+          customer_name: customerName,
           status: 'pending',
           assignedTo: user?.id || "",
-          public_tracking_code: publicTrackingCode, // إضافة كود التتبع العام
-          repair_location_id: service.repair_location_id // إضافة معرف مكان التصليح
+          public_tracking_code: publicTrackingCode,
+          repair_location_id: service.repair_location_id
         };
       });
       
-      // Calcular subtotal de productos
+      // تحسين #5: حساب المجاميع بكفاءة أعلى
       const productsSubtotal = cartItemsWithWholesale.reduce(
-        (sum, item) => sum + ((item.variantPrice || item.wholesalePrice) * item.quantity), 
+        (sum, item) => sum + (item.wholesalePrice * item.quantity), 
         0
       );
       
-      // Calcular subtotal de servicios
       const servicesSubtotal = selectedServices.reduce(
         (sum, service) => sum + service.price, 
         0
       );
       
-      // Calcular subtotal de اشتراكات
       const subscriptionsSubtotal = selectedSubscriptions.reduce(
         (sum, subscription) => sum + (subscription.final_price || subscription.selling_price || 0), 
         0
       );
       
-      // Subtotal total
       const subtotal = productsSubtotal + servicesSubtotal + subscriptionsSubtotal;
-      
-      // Tax calculation
-      const taxRate = 0; // إزالة الضريبة (تم تغييرها من 15% إلى 0%)
       const discountAmount = orderDetails.discount || 0;
       const taxableAmount = subtotal - discountAmount;
-      const tax = taxableAmount * taxRate;
-      
-      // Total
+      const tax = 0; // الضريبة صفر
       const total = taxableAmount + tax;
       
-      // إنشاء معاملات الاشتراكات
-      const subscriptionTransactions = await Promise.all(
-        selectedSubscriptions.map(async (subscription, index) => {
-          
-          // تم إزالة استدعاء set_config لأنه يسبب أخطاء
-          
-          // إدراج معاملة الاشتراك
-          const { data: transactionData, error: transactionError } = await supabase
-            .from('subscription_transactions')
-            .insert([{
-              service_id: subscription.id,
-              transaction_type: 'sale',
-              amount: subscription.final_price || subscription.selling_price || 0,
-              cost: subscription.selectedPricing?.purchase_price || subscription.purchase_price || 0,
-              customer_id: (orderDetails.customerId === 'walk-in' || orderDetails.customerId === 'guest') ? null : orderDetails.customerId,
-              customer_name: (orderDetails.customerId === 'walk-in' || orderDetails.customerId === 'guest') ? 'زائر' : users.find(u => u.id === orderDetails.customerId)?.name || 'غير محدد',
-              payment_method: orderDetails.paymentMethod || 'cash',
-              payment_status: orderDetails.paymentStatus === 'paid' ? 'completed' : orderDetails.paymentStatus || 'completed',
-              quantity: 1,
-              description: `${subscription.name} - ${subscription.duration_label}`,
-              notes: `كود التتبع: ${subscription.tracking_code}`,
-              processed_by: user?.id,
-              organization_id: user?.user_metadata?.organization_id || localStorage.getItem('bazaar_organization_id') || 'fed872f9-1ade-4351-b020-5598fda976fe'
-            }])
-            .select()
-            .single();
+      const processingTime = Date.now() - startProcessing;
+      
+      // إشارة معالجة الاشتراكات
+      if (selectedSubscriptions.length > 0) {
+        toast.info("جاري معالجة الاشتراكات...", { duration: 800 });
+      }
+      
+      // تحسين #6: معالجة الاشتراكات بالتوازي فقط إذا وُجدت
+      if (selectedSubscriptions.length > 0) {
+        // معالجة معاملات الاشتراكات بالتوازي
+        await Promise.all(
+          selectedSubscriptions.map(async (subscription) => {
+            try {
+              // إدراج معاملة الاشتراك
+              const { data: transactionData, error: transactionError } = await supabase
+                .from('subscription_transactions' as any)
+                .insert([{
+                  service_id: subscription.id,
+                  transaction_type: 'sale',
+                  amount: subscription.final_price || subscription.selling_price || 0,
+                  cost: subscription.selectedPricing?.purchase_price || subscription.purchase_price || 0,
+                  customer_id: (orderDetails.customerId === 'walk-in' || orderDetails.customerId === 'guest') ? null : orderDetails.customerId,
+                  customer_name: (orderDetails.customerId === 'walk-in' || orderDetails.customerId === 'guest') ? 'زائر' : users.find(u => u.id === orderDetails.customerId)?.name || 'غير محدد',
+                  payment_method: orderDetails.paymentMethod || 'cash',
+                  payment_status: orderDetails.paymentStatus === 'paid' ? 'completed' : orderDetails.paymentStatus || 'completed',
+                  quantity: 1,
+                  description: `${subscription.name} - ${subscription.duration_label}`,
+                  notes: `كود التتبع: ${subscription.tracking_code}`,
+                  processed_by: user?.id,
+                  organization_id: user?.user_metadata?.organization_id || localStorage.getItem('bazaar_organization_id') || 'fed872f9-1ade-4351-b020-5598fda976fe'
+                }])
+                .select()
+                .single();
 
-          if (transactionError) {
-            throw transactionError;
-          }
-
-          // تحديث المخزون إذا كان هناك خيار سعر محدد
-          if (subscription.selectedPricing?.id) {
-            // أولاً نحصل على القيم الحالية
-            const { data: currentPricing, error: fetchError } = await supabase
-              .from('subscription_service_pricing')
-              .select('available_quantity, sold_quantity')
-              .eq('id', subscription.selectedPricing.id)
-              .single();
-
-            if (!fetchError && currentPricing) {
-              // ثم نحدث القيم
-              const { error: inventoryError } = await supabase
-                .from('subscription_service_pricing')
-                .update({
-                  available_quantity: Math.max(0, currentPricing.available_quantity - 1),
-                  sold_quantity: (currentPricing.sold_quantity || 0) + 1
-                })
-                .eq('id', subscription.selectedPricing.id);
-
-              if (inventoryError) {
+              if (transactionError) {
+                throw transactionError;
               }
-            } else if (fetchError) {
+
+              // تحديث المخزون إذا لزم الأمر
+              if (subscription.selectedPricing?.id) {
+                const { data: currentPricing } = await supabase
+                  .from('subscription_service_pricing' as any)
+                  .select('available_quantity, sold_quantity')
+                  .eq('id', subscription.selectedPricing.id)
+                  .single();
+
+                if (currentPricing) {
+                  await supabase
+                    .from('subscription_service_pricing' as any)
+                    .update({
+                      available_quantity: Math.max(0, (currentPricing as any).available_quantity - 1),
+                      sold_quantity: ((currentPricing as any).sold_quantity || 0) + 1
+                    })
+                    .eq('id', subscription.selectedPricing.id);
+                }
+              }
+
+              return transactionData;
+            } catch (error) {
+              // تجاهل أخطاء الاشتراكات الفردية ومتابعة العملية
+              return null;
             }
-          }
+          })
+        );
+      }
 
-          return transactionData;
-        })
-      );
+      // إشارة حفظ الطلب
+      toast.info("جاري حفظ الطلب...", { duration: 800 });
 
+      // تحسين #7: إنشاء الطلب الأساسي
       const newOrder: Order = {
         id: uuidv4(),
         customerId: orderDetails.customerId || "walk-in",
@@ -1029,35 +783,155 @@ const POS = () => {
         updatedAt: new Date()
       };
 
-      // حفظ الطلب للاستخدام لاحقاً
+      // حفظ الطلب محلياً للمرجع
       setCurrentOrder(newOrder);
       
-      // هام: addOrder تقوم بتحديث المخزون تلقائيًا - أي وظيفة إضافية لتحديث المخزون ستؤدي إلى تحديثه مرتين
-      
+      // تحسين #8: إنشاء الطلب في قاعدة البيانات
       const createdOrder = await addOrder(newOrder);
       
-      // مسح الاشتراكات من السلة بعد إنشاء الطلب بنجاح
-      setSelectedSubscriptions([]);
+      // التحقق من نجاح إنشاء الطلب
+      if (!createdOrder) {
+        throw new Error('فشل في إنشاء الطلب');
+      }
       
-      // إعادة تحديث بيانات الاشتراكات لإظهار الكميات المحدثة
-      await fetchSubscriptions();
+      // تنظيف الاشتراكات المحلية
+      if (selectedSubscriptions.length > 0) {
+        setSelectedSubscriptions([]);
+        // تحديث الاشتراكات في الخلفية (غير متزامن)
+        refreshPOSData().catch(() => {
+          // تجاهل أخطاء التحديث
+        });
+      }
       
-      toast.success("تم إنشاء الطلب بنجاح");
+      const totalTime = Date.now() - startProcessing;
       
-      // إرجاع معرف الطلبية ورقم الطلبية
+      toast.success(`تم إنشاء الطلب بنجاح (${totalTime}ms)`);
+      
       return {
         orderId: createdOrder.id,
-        customerOrderNumber: createdOrder.customer_order_number || 0
+        customerOrderNumber: (createdOrder as any).customer_order_number || 0
       };
-      
-      // ملاحظة: تم إلغاء فتح نافذة الطباعة هنا لمنع ظهور نافذتين
-      // يتم فتح نافذة الطباعة في مكون Cart.tsx فقط
       
     } catch (error) {
       toast.error("حدث خطأ أثناء إنشاء الطلب");
-      throw error; // إعادة رمي الخطأ لمعالجته في Cart.tsx
+      throw error;
     }
   };
+
+  // استماع عالمي لأحداث قارئ الباركود
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      const currentTime = Date.now();
+      const timeDiff = currentTime - lastKeyTime;
+      
+      // إذا مرت أكثر من 200ms منذ آخر مفتاح، ابدأ باركود جديد
+      if (timeDiff > 200) {
+        setBarcodeBuffer('');
+      }
+      
+      // تجاهل المفاتيح الخاصة والتركيز على الحقول
+      if (event.ctrlKey || event.altKey || event.metaKey) {
+        return;
+      }
+      
+      // تجاهل إذا كان المستخدم يكتب في حقل إدخال
+      const target = event.target as HTMLElement;
+      if (target && (
+        target.tagName === 'INPUT' || 
+        target.tagName === 'TEXTAREA' || 
+        target.contentEditable === 'true' ||
+        target.closest('[contenteditable="true"]') ||
+        target.closest('input') ||
+        target.closest('textarea')
+      )) {
+        return;
+      }
+      
+      setLastKeyTime(currentTime);
+      
+      // إذا كان Enter، قم بمعالجة الباركود المتراكم
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        if (barcodeBuffer.length > 0) {
+          const barcode = barcodeBuffer.replace(/[^\w\d-]/g, '').trim();
+          if (barcode) {
+            const product = products.find(p => p.barcode === barcode || p.sku === barcode);
+            if (product) {
+              // التحقق من المخزون والإضافة للسلة
+              if (product.stock_quantity <= 0) {
+                toast.error(`المنتج "${product.name}" غير متوفر في المخزون`);
+              } else {
+                // استخدام setCartItems مباشرة
+                setCartItems(prevCart => {
+                  const existingItem = prevCart.find(item => item.product.id === product.id);
+                  if (existingItem) {
+                    if (existingItem.quantity >= product.stock_quantity) {
+                      toast.error(`لا يمكن إضافة المزيد من "${product.name}". الكمية المتاحة: ${product.stock_quantity}`);
+                      return prevCart;
+                    }
+                    toast.success(`تمت إضافة "${product.name}" إلى السلة`);
+                    return prevCart.map(item =>
+                      item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+                    );
+                  } else {
+                    toast.success(`تمت إضافة "${product.name}" إلى السلة`);
+                    return [...prevCart, { product, quantity: 1 }];
+                  }
+                });
+              }
+            } else {
+              // البحث في متغيرات المنتجات
+              let foundVariant = false;
+              for (const prod of products) {
+                if (prod.colors && prod.colors.length > 0) {
+                  const color = prod.colors.find(c => c.barcode === barcode);
+                  if (color) {
+                    // إضافة المتغير للسلة
+                    setCartItems(prevCart => [...prevCart, {
+                      product: prod,
+                      quantity: 1,
+                      colorId: color.id,
+                      colorName: color.name,
+                      colorCode: color.color_code,
+                      variantPrice: color.price,
+                      variantImage: color.image_url
+                    }]);
+                    toast.success(`تمت إضافة "${color.name} - ${prod.name}" إلى السلة`);
+                    foundVariant = true;
+                    break;
+                  }
+                }
+              }
+              
+              if (!foundVariant) {
+                toast.error(`لم يتم العثور على منتج بالباركود: ${barcode}`);
+              }
+            }
+          }
+          setBarcodeBuffer('');
+        }
+        return;
+      }
+      
+      // إضافة الحرف إلى buffer إذا كان صالحاً
+      if (event.key.length === 1) {
+        setBarcodeBuffer(prev => prev + event.key);
+      }
+    };
+
+    // إضافة مستمع الأحداث
+    document.addEventListener('keypress', handleKeyPress);
+    
+    // تنظيف buffer بعد فترة من عدم النشاط
+    const clearBufferTimeout = setTimeout(() => {
+      setBarcodeBuffer('');
+    }, 500);
+
+    return () => {
+      document.removeEventListener('keypress', handleKeyPress);
+      clearTimeout(clearBufferTimeout);
+    };
+  }, [barcodeBuffer, lastKeyTime, products]);
 
   return (
     <Layout>
@@ -1071,18 +945,21 @@ const POS = () => {
       ) : (
         <div className="mx-auto">
           <div className="flex justify-between items-center mb-4">
-            <div className="flex gap-2">
-              <Button 
-                size="sm" 
-                variant="outline" 
-                asChild
-              >
-                <Link to="/repair-services">
-                  <Wrench className="h-4 w-4 mr-2" />
-                  خدمات التصليح
-                </Link>
-              </Button>
-            </div>
+            {/* أزرار خدمات التصليح - تظهر فقط إذا كان التطبيق مفعّل */}
+            {isAppEnabled('repair-services') && (
+              <div className="flex gap-2">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  asChild
+                >
+                  <Link to="/repair-services">
+                    <Wrench className="h-4 w-4 mr-2" />
+                    خدمات التصليح
+                  </Link>
+                </Button>
+              </div>
+            )}
             
             <div className="flex gap-2">
               <Button 
@@ -1101,14 +978,17 @@ const POS = () => {
                 <Settings2 className="h-4 w-4 mr-2" />
                 الإعدادات
               </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setIsRepairDialogOpen(true)}
-              >
-                <Wrench className="h-4 w-4 mr-2" />
-                خدمة تصليح جديدة
-              </Button>
+              {/* زر خدمة تصليح جديدة - يظهر فقط إذا كان تطبيق التصليح مفعّل */}
+              {isAppEnabled('repair-services') && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setIsRepairDialogOpen(true)}
+                >
+                  <Wrench className="h-4 w-4 mr-2" />
+                  خدمة تصليح جديدة
+                </Button>
+              )}
             </div>
           </div>
           
@@ -1122,7 +1002,10 @@ const POS = () => {
                 className="flex-1 flex flex-col"
                 dir="rtl"
               >
-                <TabsList className="mb-4 w-full grid grid-cols-2 bg-muted/50 p-1 rounded-lg border">
+                <TabsList className={cn(
+                  "mb-4 w-full bg-muted/50 p-1 rounded-lg border",
+                  isAppEnabled('subscription-services') ? "grid grid-cols-2" : "grid grid-cols-1"
+                )}>
                   <TabsTrigger 
                     value="products" 
                     className="flex items-center gap-2 py-3 px-4 transition-all duration-200 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border/50"
@@ -1135,18 +1018,21 @@ const POS = () => {
                       </span>
                     )}
                   </TabsTrigger>
-                  <TabsTrigger 
-                    value="subscriptions" 
-                    className="flex items-center gap-2 py-3 px-4 transition-all duration-200 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border/50"
-                  >
-                    <CreditCard className="h-4 w-4" />
-                    <span className="font-medium">خدمات الاشتراك</span>
-                    {subscriptions.length > 0 && (
-                      <span className="ml-auto bg-green-500/10 text-green-600 text-xs px-2 py-0.5 rounded-full">
-                        {subscriptions.length}
-                      </span>
-                    )}
-                  </TabsTrigger>
+                  {/* تبويب خدمات الاشتراك - يظهر فقط إذا كان التطبيق مفعّل */}
+                  {isAppEnabled('subscription-services') && (
+                    <TabsTrigger 
+                      value="subscriptions" 
+                      className="flex items-center gap-2 py-3 px-4 transition-all duration-200 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border/50"
+                    >
+                      <CreditCard className="h-4 w-4" />
+                      <span className="font-medium">خدمات الاشتراك</span>
+                      {subscriptions.length > 0 && (
+                        <span className="ml-auto bg-green-500/10 text-green-600 text-xs px-2 py-0.5 rounded-full">
+                          {subscriptions.length}
+                        </span>
+                      )}
+                    </TabsTrigger>
+                  )}
                 </TabsList>
                 
                 <TabsContent value="products" className="flex-1 flex mt-0 data-[state=active]:block data-[state=inactive]:hidden">
@@ -1166,13 +1052,21 @@ const POS = () => {
                   )}
                 </TabsContent>
                 
-                <TabsContent value="subscriptions" className="flex-1 flex mt-0 data-[state=active]:block data-[state=inactive]:hidden">
-                  <SubscriptionCatalog 
-                    subscriptions={subscriptions}
-                    categories={subscriptionCategories}
-                    onAddToCart={handleAddSubscription}
-                  />
-                </TabsContent>
+                {/* محتوى خدمات الاشتراك - يظهر فقط إذا كان التطبيق مفعّل */}
+                {isAppEnabled('subscription-services') && (
+                  <TabsContent value="subscriptions" className="flex-1 flex mt-0 data-[state=active]:block data-[state=inactive]:hidden">
+                    <SubscriptionCatalog 
+                      subscriptions={subscriptions as any}
+                      categories={subscriptionCategories.map(cat => ({
+                        id: cat.id,
+                        name: cat.name,
+                        description: '',
+                        icon: 'package'
+                      }))}
+                      onAddToCart={handleAddSubscription}
+                    />
+                  </TabsContent>
+                )}
               </Tabs>
             </div>
             
@@ -1272,13 +1166,16 @@ const POS = () => {
       {/* نافذة اختيار المتغيرات */}
       <Dialog open={isVariantDialogOpen} onOpenChange={setIsVariantDialogOpen}>
         <DialogContent 
-          className="sm:max-w-md"
+          className="sm:max-w-2xl max-h-[85vh] overflow-y-auto"
           aria-describedby={undefined}
         >
-          <DialogHeader>
-            <DialogTitle>اختيار متغيرات المنتج</DialogTitle>
-            <DialogDescription>
-              اختر اللون والمقاس المناسب
+          <DialogHeader className="text-center pb-2">
+            <DialogTitle className="text-xl font-bold flex items-center justify-center gap-2">
+              <Package className="h-5 w-5 text-primary" />
+              اختيار متغيرات المنتج
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground">
+              اختر اللون والمقاس المناسب لإضافة المنتج إلى السلة
             </DialogDescription>
           </DialogHeader>
           
@@ -1303,15 +1200,17 @@ const POS = () => {
         onOpenChange={setIsPOSSettingsOpen}
       />
       
-      {/* نافذة خدمة التصليح */}
-      <RepairServiceDialog
-        isOpen={isRepairDialogOpen}
-        onClose={() => setIsRepairDialogOpen(false)}
-        onSuccess={(orderId) => {
-          setIsRepairDialogOpen(false);
-          toast.success('تم إنشاء طلبية تصليح جديدة بنجاح');
-        }}
-      />
+      {/* نافذة خدمة التصليح - تظهر فقط إذا كان التطبيق مفعّل */}
+      {isAppEnabled('repair-services') && (
+        <RepairServiceDialog
+          isOpen={isRepairDialogOpen}
+          onClose={() => setIsRepairDialogOpen(false)}
+          onSuccess={(orderId) => {
+            setIsRepairDialogOpen(false);
+            toast.success('تم إنشاء طلبية تصليح جديدة بنجاح');
+          }}
+        />
+      )}
 
       {/* نافذة الإرجاع السريع */}
       <QuickReturnDialog

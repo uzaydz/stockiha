@@ -196,4 +196,33 @@ ON orders(organization_id, is_online, created_at DESC);
 COMMENT ON VIEW pos_orders_with_returns_calculated IS 'عرض الطلبيات مع حسابات المرتجعات المفصلة';
 COMMENT ON VIEW pos_orders_summary IS 'عرض مبسط لطلبيات نقطة البيع مع المرتجعات';
 COMMENT ON FUNCTION get_pos_orders_stats_with_returns IS 'دالة لحساب إحصائيات الطلبيات مع المرتجعات';
-COMMENT ON FUNCTION get_pos_orders_with_returns IS 'دالة لجلب الطلبيات مع معلومات المرتجعات مع الترقيم'; 
+COMMENT ON FUNCTION get_pos_orders_with_returns IS 'دالة لجلب الطلبيات مع معلومات المرتجعات مع الترقيم';
+
+-- إضافة دالة محسنة لحساب عدد الطلبيات بسرعة
+CREATE OR REPLACE FUNCTION get_pos_orders_count_with_returns(
+    p_organization_id UUID
+)
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_count INTEGER := 0;
+BEGIN
+    -- استخدام فهرس محسن للحصول على العدد بسرعة
+    SELECT COUNT(*)
+    INTO v_count
+    FROM orders
+    WHERE organization_id = p_organization_id
+        AND is_online = false;
+    
+    RETURN COALESCE(v_count, 0);
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE LOG 'خطأ في get_pos_orders_count_with_returns: %', SQLERRM;
+        RETURN 0;
+END;
+$$;
+
+-- إضافة تعليق للدالة
+COMMENT ON FUNCTION get_pos_orders_count_with_returns(UUID) IS 'دالة محسنة لحساب عدد طلبيات نقطة البيع بسرعة'; 

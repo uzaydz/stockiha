@@ -1,255 +1,495 @@
-# 🚀 خطة التحسين الشاملة لصفحة المتجر
+# 🚀 خطة تحسين الأداء الشاملة - محرر المتجر وإعدادات المتجر
 
-## 📊 نتائج تحليل الأداء الحالي
+## 🔍 تحليل المشاكل المكتشفة
 
-### ✅ النقاط الإيجابية
-- **سرعة التحميل معقولة**: 263ms للـ onLoad و 367ms للتحميل الكامل
-- **استخدام التقنيات الحديثة**: ضغط Brotli، تنسيق WebP، HTTPS، Vercel CDN
-- **الأمان**: وجود security headers مناسبة
+### ❌ المشاكل الحرجة
 
-### ⚠️ المشاكل المكتشفة
-1. **ملف JavaScript ضخم**: 2.9MB مضغوط (مشكلة خطيرة)
-2. **طلبات مكررة**: الشعار يتم طلبه مرتين
-3. **cache headers سيئة**: `max-age=0` للملفات الثابتة
-4. **عدم وجود تحميل مؤجل فعال** للمكونات الثقيلة
+#### 1. **StoreSettings.tsx**
+- إعادة تحميل الصفحة بالكامل بعد كل حفظ
+- تحديثات DOM يدوية متكررة
+- عدم استخدام debouncing للحفظ
+- تنظيف cache غير ضروري
+- استعلامات متزامنة متعددة
+
+#### 2. **ImprovedStoreEditor.tsx**
+- حلقات لا نهائية في useEffect
+- حفظ المكونات واحد تلو الآخر (140 استعلام منفصل!)
+- مسح cache مفرط بعد كل تحديث
+- عدم استخدام batch operations
+- تحويلات نوع مكررة
+
+#### 3. **useOrganizationSettings Hook**
+- إدارة cache يدوية معقدة
+- debouncing غير فعال (300ms)
+- عدم استخدام React Query
+- استعلامات متكررة للبيانات نفسها
+
+#### 4. **useStoreComponents Hook**
+- تحويل أنواع المكونات عدة مرات
+- عدم استخدام optimistic updates
+- جلب جميع البيانات في كل مرة
+- عدم استخدام pagination
+
+#### 5. **قاعدة البيانات**
+- فهارس مكررة (5 فهارس على organization_id)
+- سجل واحد بحجم 427KB في settings
+- عدم تحسين الاستعلامات
+- عدم استخدام materialized views
 
 ---
 
-## 🎯 الحلول المطبقة في هذا التحسين
+## 🎯 الحلول المقترحة
 
-### 1. 🗄️ تحسين قاعدة البيانات
+### المرحلة 1: تحسين قاعدة البيانات (أولوية عالية)
 
-#### الفهارس المحسنة
+#### أ. تنظيف الفهارس المكررة
 ```sql
--- فهرس محسن للمنتجات المميزة
-CREATE INDEX idx_products_featured_active 
-ON products (organization_id, is_featured, is_active, created_at DESC) 
-WHERE is_featured = true AND is_active = true;
+-- حذف الفهارس المكررة
+DROP INDEX IF EXISTS idx_store_settings_org_id;
+DROP INDEX IF EXISTS idx_store_settings_organization_id;
 
--- فهرس محسن للفئات مع عدد المنتجات
-CREATE INDEX idx_categories_with_product_count 
-ON product_categories (organization_id, is_active) 
-INCLUDE (name, description, slug, icon, image_url);
+-- الاحتفاظ بالفهارس المحسنة فقط
+-- idx_store_settings_org_component (مركب)
+-- store_settings_org_component_unique (فريد)
+-- idx_store_settings_active_ordered (مشروط)
 ```
 
-#### دوال RPC محسنة
-- **`get_store_basic_data`**: جلب البيانات الأساسية فقط
-- **`get_store_categories`**: جلب الفئات مع العدد
-- **`get_store_featured_products`**: جلب المنتجات المميزة بحد أقصى
-- **`get_store_optimized_data`**: دالة شاملة محسنة
-
-### 2. 📦 تقسيم الحزم الذكي (Code Splitting)
-
-#### تكوين Vite المحسن
-```typescript
-// تقسيم الحزم بناءً على الاستخدام
-manualChunks: {
-  'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-  'ui-vendor': ['lucide-react', 'framer-motion', '@radix-ui/*'],
-  'database-vendor': ['@supabase/supabase-js'],
-  'store-components': ['./src/components/store/*']
-}
+#### ب. تحسين دالة get_store_settings
+```sql
+CREATE OR REPLACE FUNCTION get_store_settings_optimized(
+  p_organization_id UUID,
+  p_public_access BOOLEAN DEFAULT false,
+  p_component_types TEXT[] DEFAULT NULL
+)
+RETURNS TABLE (
+  id UUID,
+  component_type TEXT,
+  settings JSONB,
+  is_active BOOLEAN,
+  order_index INTEGER
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    ss.id,
+    ss.component_type,
+    -- ضغط البيانات الكبيرة
+    CASE 
+      WHEN octet_length(ss.settings::text) > 50000 THEN
+        jsonb_build_object('compressed', true, 'size', octet_length(ss.settings::text))
+      ELSE ss.settings
+    END as settings,
+    ss.is_active,
+    ss.order_index
+  FROM store_settings ss
+  WHERE ss.organization_id = p_organization_id
+    AND (p_public_access = false OR ss.is_active = true)
+    AND (p_component_types IS NULL OR ss.component_type = ANY(p_component_types))
+  ORDER BY ss.order_index ASC;
+END;
+$$ LANGUAGE plpgsql;
 ```
 
-#### النتائج المتوقعة
-- **تقليل حجم الحزمة الرئيسية** من 2.9MB إلى أقل من 500KB
-- **تحميل مؤجل للمكونات** غير الضرورية
-- **تحسين التخزين المؤقت** لكل حزمة على حدة
+#### ج. إنشاء materialized view للبيانات المتكررة
+```sql
+CREATE MATERIALIZED VIEW mv_organization_store_summary AS
+SELECT 
+  o.id as organization_id,
+  o.name as organization_name,
+  os.site_name,
+  os.logo_url,
+  os.theme_primary_color,
+  COUNT(ss.id) as components_count,
+  COUNT(CASE WHEN ss.is_active THEN 1 END) as active_components_count,
+  MAX(ss.updated_at) as last_component_update
+FROM organizations o
+LEFT JOIN organization_settings os ON o.id = os.organization_id
+LEFT JOIN store_settings ss ON o.id = ss.organization_id
+GROUP BY o.id, o.name, os.site_name, os.logo_url, os.theme_primary_color;
 
-### 3. 🖼️ تحسين الصور
+-- فهرس للعرض المادي
+CREATE UNIQUE INDEX ON mv_organization_store_summary (organization_id);
 
-#### مكون الصور المحسن
-- **تحميل مؤجل ذكي** مع Intersection Observer
-- **دعم تنسيقات حديثة** (WebP, AVIF)
-- **ضغط تلقائي** حسب جودة الشبكة
-- **placeholder animation** أثناء التحميل
-
-```typescript
-<OptimizedImage 
-  src="/product-image.jpg"
-  alt="المنتج"
-  width={300}
-  height={200}
-  quality={85}
-  priority={false} // تحميل مؤجل
-/>
+-- تحديث تلقائي
+CREATE OR REPLACE FUNCTION refresh_store_summary()
+RETURNS TRIGGER AS $$
+BEGIN
+  REFRESH MATERIALIZED VIEW CONCURRENTLY mv_organization_store_summary;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
 ```
 
-### 4. ⚡ التحميل التدريجي للبيانات
+### المرحلة 2: تحسين Hooks (أولوية عالية)
 
-#### استراتيجية التحميل الذكية
-1. **المرحلة الأولى**: البيانات الأساسية فقط (معلومات المتجر)
-2. **المرحلة الثانية**: المكونات المرئية (البانر، النافبار)
-3. **المرحلة الثالثة**: المحتوى الإضافي (المنتجات، الفئات)
-
-#### خدمة البيانات المحسنة
+#### أ. useOrganizationSettings محسن
 ```typescript
-// جلب البيانات الأساسية فوراً
-const basicData = await getStoreBasicDataOptimized(subdomain);
+// استخدام React Query بدلاً من إدارة cache يدوية
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-// تحميل البيانات الإضافية في الخلفية
-loadStoreDataLazily(orgId, subdomain);
-```
+export const useOrganizationSettingsOptimized = (organizationId: string) => {
+  const queryClient = useQueryClient();
+  
+  // جلب البيانات مع cache ذكي
+  const { data: settings, isLoading, error } = useQuery({
+    queryKey: ['organization-settings', organizationId],
+    queryFn: () => getOrganizationSettings(organizationId),
+    staleTime: 5 * 60 * 1000, // 5 دقائق
+    cacheTime: 10 * 60 * 1000, // 10 دقائق
+    refetchOnWindowFocus: false,
+    enabled: !!organizationId
+  });
 
-### 5. 💾 نظام التخزين المؤقت المتقدم
+  // تحديث محسن مع optimistic updates
+  const updateMutation = useMutation({
+    mutationFn: (updates: Partial<OrganizationSettings>) => 
+      updateOrganizationSettings(organizationId, updates),
+    onMutate: async (updates) => {
+      // إلغاء الاستعلامات الجارية
+      await queryClient.cancelQueries(['organization-settings', organizationId]);
+      
+      // حفظ البيانات السابقة
+      const previousSettings = queryClient.getQueryData(['organization-settings', organizationId]);
+      
+      // تحديث optimistic
+      queryClient.setQueryData(['organization-settings', organizationId], (old: any) => ({
+        ...old,
+        ...updates
+      }));
+      
+      return { previousSettings };
+    },
+    onError: (err, updates, context) => {
+      // استرجاع البيانات السابقة عند الخطأ
+      queryClient.setQueryData(['organization-settings', organizationId], context?.previousSettings);
+    },
+    onSettled: () => {
+      // إعادة جلب البيانات للتأكد من التزامن
+      queryClient.invalidateQueries(['organization-settings', organizationId]);
+    }
+  });
 
-#### إعدادات الكاش المحسنة
-- **البيانات الأساسية**: 15 دقيقة
-- **الفئات**: 30 دقيقة
-- **المنتجات المميزة**: 10 دقائق
-- **مكونات المتجر**: 20 دقيقة
-
-#### استراتيجية الكاش
-```typescript
-const CACHE_CONFIG = {
-  BASIC_DATA: { ttl: 15 * 60 * 1000 },
-  CATEGORIES: { ttl: 30 * 60 * 1000 },
-  FEATURED_PRODUCTS: { ttl: 10 * 60 * 1000 }
+  return {
+    settings,
+    isLoading,
+    error,
+    updateSetting: updateMutation.mutate,
+    isUpdating: updateMutation.isLoading
+  };
 };
 ```
 
----
-
-## 📈 النتائج المتوقعة
-
-### أداء التحميل
-- **تقليل الحجم الأولي**: من 2.9MB إلى ~400KB
-- **تحسين First Contentful Paint**: من 1.2s إلى ~600ms
-- **تحسين Largest Contentful Paint**: من 2.1s إلى ~900ms
-- **تحسين Time to Interactive**: من 3.2s إلى ~1.1s
-
-### تحسينات المستخدم
-- **تحميل فوري للمحتوى المهم**
-- **تجربة سلسة بدون انتظار**
-- **تحميل تدريجي للمحتوى الثانوي**
-- **استجابة سريعة للتفاعل**
-
-### تحسينات الشبكة
-- **تقليل عدد الطلبات الأولية** بنسبة 60%
-- **تحسين استخدام عرض النطاق** بنسبة 70%
-- **تقليل وقت تحميل الصور** بنسبة 50%
-
----
-
-## 🛠️ خطوات التطبيق
-
-### المرحلة الأولى: قاعدة البيانات (الأولوية العالية)
-```bash
-# 1. تطبيق تحسينات قاعدة البيانات
-psql -d your_database -f database_optimizations.sql
-
-# 2. تحليل الأداء
-EXPLAIN ANALYZE SELECT * FROM get_store_optimized_data('test-store');
-```
-
-### المرحلة الثانية: الفرونت إند (الأولوية العالية)
-```bash
-# 1. استبدال تكوين Vite
-cp vite.config.optimization.ts vite.config.ts
-
-# 2. بناء الإنتاج وفحص الأحجام
-npm run build
-npm run analyze
-```
-
-### المرحلة الثالثة: المكونات (الأولوية المتوسطة)
-```bash
-# 1. استبدال مكونات الصور
-# استخدام OptimizedImage بدلاً من img العادية
-
-# 2. تطبيق LazyLoading للمكونات الثقيلة
-# تحديث StorePage مع التحميل التدريجي
-```
-
-### المرحلة الرابعة: التحسينات الإضافية (الأولوية المنخفضة)
-```bash
-# 1. تفعيل Service Worker للتخزين المؤقت
-# 2. تحسين headers الخادم
-# 3. تفعيل Preloading للموارد المهمة
-```
-
----
-
-## 📊 طرق القياس والمتابعة
-
-### أدوات القياس
-1. **Lighthouse**: لتحليل الأداء العام
-2. **WebPageTest**: لاختبار الشبكات المختلفة
-3. **Chrome DevTools**: لتحليل التفصيلي
-4. **Bundle Analyzer**: لفحص أحجام الحزم
-
-### المؤشرات المهمة
-- **First Contentful Paint (FCP)**: < 1.2s
-- **Largest Contentful Paint (LCP)**: < 2.5s
-- **First Input Delay (FID)**: < 100ms
-- **Cumulative Layout Shift (CLS)**: < 0.1
-
-### مراقبة مستمرة
+#### ب. useStoreComponents محسن
 ```typescript
-// إضافة Web Vitals للمراقبة
-import { getCLS, getFID, getFCP, getLCP, getTTFB } from 'web-vitals';
+export const useStoreComponentsOptimized = (organizationId: string) => {
+  const queryClient = useQueryClient();
+  
+  // جلب المكونات مع pagination
+  const { data: components, isLoading } = useQuery({
+    queryKey: ['store-components', organizationId],
+    queryFn: () => getStoreComponentsPaginated(organizationId, { limit: 50 }),
+    staleTime: 2 * 60 * 1000, // دقيقتان
+    enabled: !!organizationId
+  });
 
-getCLS(console.log);
-getFID(console.log);
-getFCP(console.log);
-getLCP(console.log);
-getTTFB(console.log);
+  // تحديث batch للمكونات
+  const batchUpdateMutation = useMutation({
+    mutationFn: (updates: ComponentUpdate[]) => 
+      batchUpdateStoreComponents(organizationId, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['store-components', organizationId]);
+    }
+  });
+
+  // debounced batch update
+  const debouncedBatchUpdate = useMemo(
+    () => debounce((updates: ComponentUpdate[]) => {
+      batchUpdateMutation.mutate(updates);
+    }, 1000), // ثانية واحدة
+    [batchUpdateMutation]
+  );
+
+  return {
+    components,
+    isLoading,
+    batchUpdate: debouncedBatchUpdate,
+    isUpdating: batchUpdateMutation.isLoading
+  };
+};
+```
+
+### المرحلة 3: تحسين المكونات (أولوية متوسطة)
+
+#### أ. StoreSettings محسن
+```typescript
+const StoreSettingsOptimized = () => {
+  const { settings, updateSetting, isUpdating } = useOrganizationSettingsOptimized(organizationId);
+  const [localChanges, setLocalChanges] = useState({});
+  
+  // debounced save
+  const debouncedSave = useMemo(
+    () => debounce((changes: any) => {
+      updateSetting(changes);
+      setLocalChanges({});
+    }, 2000), // ثانيتان
+    [updateSetting]
+  );
+
+  const handleChange = (key: string, value: any) => {
+    const newChanges = { ...localChanges, [key]: value };
+    setLocalChanges(newChanges);
+    debouncedSave(newChanges);
+  };
+
+  // عدم إعادة تحميل الصفحة
+  const handleSave = async () => {
+    if (Object.keys(localChanges).length > 0) {
+      await updateSetting(localChanges);
+      setLocalChanges({});
+      // تحديث UI فقط بدون reload
+      toast({ title: "تم الحفظ بنجاح" });
+    }
+  };
+
+  return (
+    // UI محسن بدون DOM manipulation
+  );
+};
+```
+
+#### ب. ImprovedStoreEditor محسن
+```typescript
+const ImprovedStoreEditorOptimized = ({ organizationId }: Props) => {
+  const { components, batchUpdate, isUpdating } = useStoreComponentsOptimized(organizationId);
+  const [pendingChanges, setPendingChanges] = useState<ComponentUpdate[]>([]);
+
+  // تجميع التحديثات
+  const addPendingChange = useCallback((componentId: string, updates: any) => {
+    setPendingChanges(prev => {
+      const existing = prev.find(c => c.id === componentId);
+      if (existing) {
+        return prev.map(c => c.id === componentId ? { ...c, ...updates } : c);
+      }
+      return [...prev, { id: componentId, ...updates }];
+    });
+  }, []);
+
+  // حفظ batch كل 3 ثوان
+  useEffect(() => {
+    if (pendingChanges.length > 0) {
+      const timer = setTimeout(() => {
+        batchUpdate(pendingChanges);
+        setPendingChanges([]);
+      }, 3000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [pendingChanges, batchUpdate]);
+
+  return (
+    // UI محسن مع virtual scrolling للمكونات الكثيرة
+  );
+};
+```
+
+### المرحلة 4: تحسين API (أولوية متوسطة)
+
+#### أ. API endpoints محسنة
+```typescript
+// batch operations
+export const batchUpdateStoreComponents = async (
+  organizationId: string, 
+  updates: ComponentUpdate[]
+) => {
+  const { data, error } = await supabase.rpc('batch_update_store_components', {
+    p_organization_id: organizationId,
+    p_updates: updates
+  });
+  
+  if (error) throw error;
+  return data;
+};
+
+// pagination
+export const getStoreComponentsPaginated = async (
+  organizationId: string,
+  options: { limit?: number; offset?: number; types?: string[] } = {}
+) => {
+  const { limit = 20, offset = 0, types } = options;
+  
+  let query = supabase
+    .from('store_settings')
+    .select('*')
+    .eq('organization_id', organizationId)
+    .range(offset, offset + limit - 1)
+    .order('order_index');
+    
+  if (types?.length) {
+    query = query.in('component_type', types);
+  }
+  
+  const { data, error } = await query;
+  if (error) throw error;
+  return data;
+};
+```
+
+#### ب. دوال قاعدة البيانات محسنة
+```sql
+-- batch update function
+CREATE OR REPLACE FUNCTION batch_update_store_components(
+  p_organization_id UUID,
+  p_updates JSONB
+)
+RETURNS VOID AS $$
+DECLARE
+  update_item JSONB;
+BEGIN
+  FOR update_item IN SELECT * FROM jsonb_array_elements(p_updates)
+  LOOP
+    UPDATE store_settings 
+    SET 
+      settings = COALESCE((update_item->>'settings')::JSONB, settings),
+      is_active = COALESCE((update_item->>'is_active')::BOOLEAN, is_active),
+      order_index = COALESCE((update_item->>'order_index')::INTEGER, order_index),
+      updated_at = NOW()
+    WHERE id = (update_item->>'id')::UUID 
+      AND organization_id = p_organization_id;
+  END LOOP;
+  
+  -- تحديث العرض المادي
+  REFRESH MATERIALIZED VIEW CONCURRENTLY mv_organization_store_summary;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+### المرحلة 5: تحسين الواجهة (أولوية منخفضة)
+
+#### أ. Virtual Scrolling للمكونات الكثيرة
+```typescript
+import { FixedSizeList as List } from 'react-window';
+
+const ComponentsList = ({ components }: { components: StoreComponent[] }) => {
+  const Row = ({ index, style }: { index: number; style: any }) => (
+    <div style={style}>
+      <ComponentItem component={components[index]} />
+    </div>
+  );
+
+  return (
+    <List
+      height={600}
+      itemCount={components.length}
+      itemSize={80}
+      width="100%"
+    >
+      {Row}
+    </List>
+  );
+};
+```
+
+#### ب. Lazy Loading للمكونات الثقيلة
+```typescript
+const LazyComponentPreview = React.lazy(() => import('./ComponentPreview'));
+
+const ComponentWrapper = ({ component }: { component: StoreComponent }) => (
+  <Suspense fallback={<ComponentSkeleton />}>
+    <LazyComponentPreview component={component} />
+  </Suspense>
+);
 ```
 
 ---
 
-## 🚨 تحذيرات ونصائح
+## 📊 النتائج المتوقعة
 
-### ⚠️ احتياطات مهمة
-1. **اختبار شامل** قبل النشر في الإنتاج
-2. **نسخ احتياطية** من قاعدة البيانات قبل تطبيق التحسينات
-3. **مراقبة الأداء** لمدة أسبوع بعد التطبيق
-4. **اختبار على شبكات بطيئة** (3G simulation)
+### قبل التحسين
+- **وقت التحميل**: 8-15 ثانية
+- **وقت الحفظ**: 5-10 ثوان
+- **استعلامات قاعدة البيانات**: 140+ لكل حفظ
+- **حجم البيانات المنقولة**: 2-5 MB
+- **استهلاك الذاكرة**: عالي (تسريبات)
 
-### 💡 نصائح إضافية
-- **تجنب التحسين المبكر** - ركز على الاختناقات الحقيقية
-- **قياس دائم** - استخدم Real User Monitoring (RUM)
-- **تحسين تدريجي** - طبق التحسينات بالتدريج
-- **اختبار A/B** - لقياس تأثير التحسينات على المستخدمين
-
----
-
-## 📞 الدعم والمساعدة
-
-### الموارد المفيدة
-- [Web.dev Performance](https://web.dev/performance/)
-- [React Performance](https://react.dev/learn/render-and-commit)
-- [Vite Performance](https://vitejs.dev/guide/performance.html)
-
-### فريق التطوير
-- **مطور الفرونت إند**: تطبيق تحسينات React/Vite
-- **مطور الباك إند**: تحسين قاعدة البيانات وAPIس
-- **DevOps**: تحسين إعدادات الخادم والCDN
+### بعد التحسين
+- **وقت التحميل**: 1-3 ثوان (80% تحسن)
+- **وقت الحفظ**: 0.5-1 ثانية (90% تحسن)
+- **استعلامات قاعدة البيانات**: 1-3 لكل حفظ (98% تحسن)
+- **حجم البيانات المنقولة**: 200-500 KB (85% تحسن)
+- **استهلاك الذاكرة**: منخفض (بدون تسريبات)
 
 ---
 
-## ✅ خطة المتابعة
+## 🚀 خطة التنفيذ
 
-### الأسبوع الأول
-- [ ] تطبيق تحسينات قاعدة البيانات
-- [ ] تطبيق تقسيم الحزم
-- [ ] قياس النتائج الأولية
+### الأسبوع 1: قاعدة البيانات
+- [ ] تنظيف الفهارس المكررة
+- [ ] إنشاء الدوال المحسنة
+- [ ] إنشاء materialized views
+- [ ] اختبار الأداء
 
-### الأسبوع الثاني
-- [ ] تطبيق مكون الصور المحسن
-- [ ] تحسين التحميل التدريجي
+### الأسبوع 2: Hooks والAPI
+- [ ] تطبيق React Query
+- [ ] إنشاء batch operations
+- [ ] تحسين useOrganizationSettings
+- [ ] تحسين useStoreComponents
+
+### الأسبوع 3: المكونات
+- [ ] تحسين StoreSettings
+- [ ] تحسين ImprovedStoreEditor
+- [ ] إضافة debouncing
+- [ ] إزالة DOM manipulation
+
+### الأسبوع 4: الاختبار والتحسين
 - [ ] اختبار الأداء الشامل
-
-### الأسبوع الثالث
-- [ ] تحسين إعدادات الخادم
-- [ ] تفعيل مراقبة الأداء المستمرة
-- [ ] توثيق النتائج النهائية
-
-### متابعة شهرية
-- [ ] مراجعة مؤشرات الأداء
-- [ ] تحليل تجربة المستخدم
-- [ ] تحسينات إضافية حسب الحاجة
+- [ ] إضافة Virtual Scrolling
+- [ ] إضافة Lazy Loading
+- [ ] مراقبة الأداء
 
 ---
 
-**هدفنا**: الوصول إلى نقاط أداء 95+ في جميع مؤشرات Core Web Vitals لضمان تجربة مستخدم متميزة وتحسين ترتيب SEO. 
+## 🔧 أدوات المراقبة
+
+### مراقبة الأداء
+```typescript
+// Performance monitoring
+const usePerformanceMonitor = () => {
+  useEffect(() => {
+    const observer = new PerformanceObserver((list) => {
+      list.getEntries().forEach((entry) => {
+        if (entry.entryType === 'measure') {
+          console.log(`${entry.name}: ${entry.duration}ms`);
+        }
+      });
+    });
+    
+    observer.observe({ entryTypes: ['measure'] });
+    return () => observer.disconnect();
+  }, []);
+};
+
+// استخدام في المكونات
+performance.mark('store-load-start');
+// ... تحميل البيانات
+performance.mark('store-load-end');
+performance.measure('store-load-time', 'store-load-start', 'store-load-end');
+```
+
+### مراقبة قاعدة البيانات
+```sql
+-- إنشاء view لمراقبة الاستعلامات البطيئة
+CREATE VIEW slow_queries AS
+SELECT 
+  query,
+  calls,
+  total_time,
+  mean_time,
+  rows
+FROM pg_stat_statements 
+WHERE mean_time > 100 -- أكثر من 100ms
+ORDER BY mean_time DESC;
+```
+
+---
+
+**🎯 الهدف: تحسين الأداء بنسبة 80-90% وتوفير تجربة مستخدم سلسة وسريعة** 

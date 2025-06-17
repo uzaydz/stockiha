@@ -1,0 +1,134 @@
+/* Enhanced mobile styles for customers page */
+
+/* Container optimizations */
+.customers-container {
+  @apply p-2 md:p-6;
+}
+
+/* Card optimizations for mobile */
+.customers-card {
+  @apply shadow-sm border-0 md:border;
+}
+
+/* Mobile-first grid system */
+.customers-metrics-grid {
+  @apply grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3;
+}
+
+/* Responsive text sizes */
+.customers-title {
+  @apply text-xl sm:text-2xl md:text-3xl font-bold;
+}
+
+.customers-subtitle {
+  @apply text-sm sm:text-base text-muted-foreground;
+}
+
+/* Mobile-optimized tabs */
+.customers-tabs {
+  @apply w-full;
+}
+
+.customers-tab-trigger {
+  @apply text-xs sm:text-sm py-2 px-2 sm:px-4 flex-1;
+}
+
+/* Search and filter mobile layout */
+.customers-search-container {
+  @apply flex flex-col space-y-3 sm:space-y-0 sm:flex-row gap-3;
+}
+
+.customers-search-input {
+  @apply text-sm sm:text-base;
+}
+
+/* Progress bar mobile optimization */
+.customers-progress {
+  @apply h-1.5 sm:h-2;
+}
+
+/* Chart responsive container */
+.customers-chart-container {
+  @apply h-[200px] sm:h-[250px] md:h-[300px];
+}
+
+/* Mobile table optimizations */
+.customers-table-container {
+  @apply overflow-x-auto -mx-2 sm:mx-0;
+}
+
+/* Loading states */
+.customers-skeleton {
+  @apply animate-pulse bg-gray-200 rounded;
+}
+
+/* Touch-friendly buttons */
+.customers-button {
+  @apply min-h-[44px] touch-manipulation;
+}
+
+/* Improve touch targets */
+.customers-touch-target {
+  @apply min-w-[44px] min-h-[44px] flex items-center justify-center;
+}
+
+/* Mobile-specific spacing */
+.customers-mobile-spacing {
+  @apply space-y-3 sm:space-y-4 md:space-y-6;
+}
+
+/* Responsive padding */
+.customers-responsive-padding {
+  @apply p-3 sm:p-4 md:p-6;
+}
+
+/* Mobile typography scale */
+.customers-text-xs { @apply text-xs; }
+.customers-text-sm { @apply text-sm; }
+.customers-text-base { @apply text-base; }
+.customers-text-lg { @apply text-lg; }
+
+/* Mobile-first margins */
+.customers-mb-sm { @apply mb-2 sm:mb-3 md:mb-4; }
+.customers-mt-sm { @apply mt-2 sm:mt-3 md:mt-4; }
+
+/* Responsive flex layouts */
+.customers-flex-mobile {
+  @apply flex flex-col sm:flex-row gap-3 sm:gap-4;
+}
+
+/* Mobile drawer/modal styles */
+.customers-mobile-drawer {
+  @apply fixed inset-x-0 bottom-0 z-50 sm:relative sm:inset-auto;
+}
+
+/* Optimize for iOS safe areas */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .customers-safe-area {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Dark mode mobile optimizations */
+@media (prefers-color-scheme: dark) {
+  .customers-skeleton {
+    @apply bg-gray-700;
+  }
+}
+
+/* Performance optimizations */
+.customers-will-change {
+  will-change: transform;
+}
+
+.customers-gpu-accelerated {
+  transform: translateZ(0);
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .customers-animate {
+    animation: none !important;
+    transition: none !important;
+  }
+}

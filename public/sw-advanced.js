@@ -3,10 +3,10 @@
  * يحسن الأداء من خلال استراتيجيات التخزين المؤقت المتقدمة
  */
 
-const CACHE_NAME = 'stockiha-v1.2.0';
-const STATIC_CACHE = 'static-v1.2.0';
-const DYNAMIC_CACHE = 'dynamic-v1.2.0';
-const IMAGE_CACHE = 'images-v1.2.0';
+const CACHE_NAME = 'stockiha-v1.2.1';
+const STATIC_CACHE = 'static-v1.2.1';
+const DYNAMIC_CACHE = 'dynamic-v1.2.1';
+const IMAGE_CACHE = 'images-v1.2.1';
 
 // ملفات للتخزين المؤقت الفوري
 const STATIC_ASSETS = [
@@ -101,9 +101,10 @@ self.addEventListener('fetch', event => {
   // تجاهل طلبات Chrome extension
   if (url.protocol === 'chrome-extension:') return;
   
-  // تجاهل POST requests للـ Supabase RPC وSentry (لتجنب مشاكل الـ caching)
+  // تجاهل POST requests للـ Supabase RPC، Edge Functions وSentry (لتجنب مشاكل الـ caching)
   if (request.method === 'POST' && 
       (url.href.includes('supabase.co/rest/v1/rpc') || 
+       url.href.includes('supabase.co/functions/v1/') ||
        url.href.includes('sentry.io'))) {
     event.respondWith(fetch(request));
     return;

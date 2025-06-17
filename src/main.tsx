@@ -12,6 +12,9 @@ import './lib/module-polyfill';
 // تهيئة Sentry
 import './sentry';
 
+// تهيئة النظام الموحد مبكراً لتجنب العميل الطارئ
+import { getSupabaseClient } from './lib/supabase-unified';
+
 // تهيئة معالج أخطاء 406
 import { initializeHttp406Handler } from './lib/http406Handler';
 
@@ -40,6 +43,14 @@ const applyThemeWithRetry = () => {
 
 // تطبيق الثيم الفوري لمنع الوميض
 applyThemeWithRetry();
+
+// تهيئة النظام الموحد فوراً لمنع إنشاء العميل الطارئ
+if (typeof window !== 'undefined') {
+  // بدء تهيئة النظام الموحد بشكل غير متزامن
+  getSupabaseClient().catch(() => {
+    // تجاهل الأخطاء في المرحلة الأولية
+  });
+}
 
 // إضافة مستمع لحدث تحميل الصفحة لإعادة تطبيق الثيم
 if (typeof window !== 'undefined') {
@@ -397,3 +408,41 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
     }
   });
 }
+
+/**
+ * تهيئة مبكرة للنظام الموحد لمنع مشاكل Race Conditions
+ */
+async function initializeApp() {
+  try {
+    console.log('🚀 [Main] Starting application initialization...');
+    
+    // تهيئة مبكرة للنظام الموحد
+    const { getSupabaseClient } = await import('@/lib/supabase-unified');
+    
+    // بدء تهيئة الـ client في الخلفية
+    getSupabaseClient().then(() => {
+      console.log('✅ [Main] Supabase client initialized successfully');
+    }).catch((error) => {
+      console.warn('⚠️ [Main] Supabase client initialization warning:', error);
+      // لا نوقف التطبيق، فقط تحذير
+    });
+    
+    // تهيئة النظام الموحد للطلبات
+    try {
+      const { initializeRequestSystem } = await import('@/lib/requestSystemInitializer');
+      await initializeRequestSystem();
+      console.log('✅ [Main] Request system initialized');
+    } catch (requestError) {
+      console.warn('⚠️ [Main] Request system initialization warning:', requestError);
+    }
+    
+    console.log('✅ [Main] Application initialization completed');
+    
+  } catch (error) {
+    console.error('❌ [Main] Application initialization failed:', error);
+    // المتابعة رغم الأخطاء لضمان عمل التطبيق
+  }
+}
+
+// بدء التهيئة
+initializeApp();

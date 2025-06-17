@@ -1,5 +1,8 @@
 @import './components/landing-page-builder/styles/cta-button.css';
 
+/* استيراد تحسينات إدارة التطبيقات */
+@import './styles/apps-management.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -1171,4 +1174,289 @@ main {
 
 .hover\:scrollbar-thumb-primary\/50:hover::-webkit-scrollbar-thumb {
   background: hsl(var(--primary) / 0.5);
+}
+
+/* إصلاح مشكلة الهوفر للأزرار - الأولوية العالية */
+.hover\:bg-primary\/10:hover.hover\:text-primary:hover,
+.hover\:bg-primary\/5:hover.hover\:text-primary:hover,
+.group:hover .group-hover\:bg-primary\/10.group-hover\:text-primary,
+.group:hover .group-hover\:bg-primary\/5.group-hover\:text-primary {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح شامل لجميع حالات الهوفر المتضاربة */
+.hover\:bg-primary\/10:hover.hover\:text-primary:hover *,
+.hover\:bg-primary\/5:hover.hover\:text-primary:hover *,
+.group:hover .group-hover\:bg-primary\/10.group-hover\:text-primary *,
+.group:hover .group-hover\:bg-primary\/5.group-hover\:text-primary * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح الأيقونات والعناصر الفرعية */
+.hover\:bg-primary\/10:hover.hover\:text-primary:hover svg,
+.hover\:bg-primary\/5:hover.hover\:text-primary:hover svg,
+.group:hover .group-hover\:bg-primary\/10.group-hover\:text-primary svg,
+.group:hover .group-hover\:bg-primary\/5.group-hover\:text-primary svg {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح لـ navbar links */
+.navbar-link.group:hover {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+.navbar-link.group:hover * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح شامل لجميع الأزرار التي تحتوي على المشكلة */
+.group:hover .group-hover\:text-primary,
+.hover\:text-primary:hover {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح خاص للقوائم المنسدلة */
+.dropdown-item:hover {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+.dropdown-item:hover * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح لأزرار التنقل */
+.navbar-link:hover,
+.nav-link:hover {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+.navbar-link:hover *,
+.nav-link:hover * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح إضافي للعناصر التي تحتوي على كلاسات متضاربة */
+[class*="hover:bg-primary"][class*="hover:text-primary"]:hover {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+[class*="hover:bg-primary"][class*="hover:text-primary"]:hover * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح للعناصر التي تستخدم group */
+.group[class*="hover:bg-primary"]:hover [class*="group-hover:text-primary"],
+.group:hover [class*="group-hover:bg-primary"][class*="group-hover:text-primary"] {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح شامل للتأكد من أن النص مرئي */
+.group:hover [class*="group-hover:text-primary"] *,
+[class*="hover:text-primary"]:hover * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح خاص للأزرار في FeaturesSection */
+.feature-category-button:hover,
+[class*="bg-card"][class*="hover:bg-primary"]:hover {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+.feature-category-button:hover *,
+[class*="bg-card"][class*="hover:bg-primary"]:hover * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح خاص للبadges التي تحتوي على gradients */
+[class*="bg-gradient-to-r"][class*="text-primary"]:hover,
+[class*="hover:bg-gradient-to-r"][class*="text-primary"]:hover {
+  background: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+[class*="bg-gradient-to-r"][class*="text-primary"]:hover *,
+[class*="hover:bg-gradient-to-r"][class*="text-primary"]:hover * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح للعناصر التي تحتوي على من primary/10 إلى purple */
+[class*="from-primary/10"][class*="to-purple-500/10"][class*="text-primary"]:hover,
+[class*="hover:from-primary/20"][class*="hover:to-purple-500/20"]:hover {
+  background: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+[class*="from-primary/10"][class*="to-purple-500/10"][class*="text-primary"]:hover *,
+[class*="hover:from-primary/20"][class*="hover:to-purple-500/20"]:hover * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح شامل للبadges والعناصر المشابهة */
+.badge[class*="text-primary"]:hover,
+[class*="badge"][class*="text-primary"]:hover,
+[class*="px-4"][class*="py-2"][class*="text-primary"]:hover {
+  background: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+.badge[class*="text-primary"]:hover *,
+[class*="badge"][class*="text-primary"]:hover *,
+[class*="px-4"][class*="py-2"][class*="text-primary"]:hover * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح للعناصر التي تحتوي على border-primary مع text-primary */
+[class*="border-primary"][class*="text-primary"]:hover {
+  background: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+  border-color: hsl(var(--primary)) !important;
+}
+
+[class*="border-primary"][class*="text-primary"]:hover * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح الanimations المستمرة المزعجة */
+@media (prefers-reduced-motion: reduce) {
+  /* إيقاف جميع الanimations المستمرة للمستخدمين الذين يفضلون تقليل الحركة */
+  [data-framer-motion] {
+    animation: none !important;
+    transition: none !important;
+  }
+  
+  /* إيقاف framer motion animations */
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* تحكم في الanimations المستمرة - جعلها أقل تشتيتاً */
+[class*="rotate"] {
+  animation-duration: 8s !important; /* إبطاء الanimations */
+}
+
+/* تقليل شدة الrotation animations */
+@keyframes gentle-rotate {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(2deg); }
+  50% { transform: rotate(0deg); }
+  75% { transform: rotate(-2deg); }
+}
+
+/* إستبدال الrotations العدوانية بحركات أكثر هدوءاً */
+.gentle-animation {
+  animation: gentle-rotate 6s ease-in-out infinite;
+}
+
+/* إيقاف الanimations على الأزرار */
+.hero-button [data-framer-motion] {
+  animation: none !important;
+}
+
+/* إيقاف الanimations المستمرة في الأيقونات */
+.icon-no-animation {
+  animation: none !important;
+  transform: none !important;
+}
+
+/* إصلاح navbar links - إضافة خلفية عند الهوفر */
+.navbar a[class*="hover:text-primary"]:hover,
+.nav a[class*="hover:text-primary"]:hover,
+[class*="font-medium"][class*="hover:text-primary"]:hover {
+  background-color: hsl(var(--primary) / 0.1) !important;
+  color: hsl(var(--primary)) !important;
+  padding: 0.5rem 0.75rem !important;
+  border-radius: 0.5rem !important;
+  transition: all 0.3s ease !important;
+}
+
+/* إصلاح للnavbar الخاص بـ landing page */
+.landing-navbar a:hover,
+.navbar-link:hover {
+  background-color: hsl(var(--primary) / 0.1) !important;
+  color: hsl(var(--primary)) !important;
+  padding: 0.5rem 0.75rem !important;
+  border-radius: 0.5rem !important;
+  transition: all 0.3s ease !important;
+}
+
+/* إصلاح للروابط التي تحتوي على text-slate-600 */
+[class*="text-slate-600"][class*="hover:text-primary"]:hover,
+[class*="dark:text-slate-300"][class*="hover:text-primary"]:hover {
+  background-color: hsl(var(--primary) / 0.1) !important;
+  color: hsl(var(--primary)) !important;
+  padding: 0.5rem 0.75rem !important;
+  border-radius: 0.5rem !important;
+  transition: all 0.3s ease !important;
+}
+
+/* إصلاح شامل لجميع navbar links */
+nav a:hover,
+.navbar a:hover,
+.navigation a:hover {
+  background-color: hsl(var(--primary) / 0.1) !important;
+  color: hsl(var(--primary)) !important;
+  padding: 0.5rem 0.75rem !important;
+  border-radius: 0.5rem !important;
+  transition: all 0.3s ease !important;
+}
+
+/* تأكد من أن النص مرئي في الوضع الداكن */
+.dark nav a:hover,
+.dark .navbar a:hover,
+.dark .navigation a:hover {
+  background-color: hsl(var(--primary) / 0.15) !important;
+  color: hsl(var(--primary)) !important;
+}
+
+/* إصلاح مشكلة الأيقونات في group hover */
+.group:hover [class*="group-hover:text-primary-foreground"],
+.group:hover svg[class*="group-hover:text-primary-foreground"] {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح الأيقونات التي تحتوي على text-muted-foreground مع group-hover */
+.group:hover [class*="text-muted-foreground"][class*="group-hover:text-primary-foreground"],
+.group:hover svg[class*="text-muted-foreground"][class*="group-hover:text-primary-foreground"] {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح خاص للأيقونات في navbar */
+.group:hover .lucide[class*="group-hover:text-primary-foreground"],
+.navbar .group:hover svg[class*="group-hover:text-primary-foreground"],
+.nav .group:hover svg[class*="group-hover:text-primary-foreground"] {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح للأيقونات التي تستخدم currentColor */
+.group:hover svg[stroke="currentColor"][class*="group-hover:text-primary-foreground"],
+.group:hover svg[fill="currentColor"][class*="group-hover:text-primary-foreground"] {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح شامل للأيقونات في حالة hover */
+.group:hover svg.lucide,
+.group:hover .lucide {
+  color: inherit !important;
+}
+
+/* إصلاح للأيقونات في الأزرار */
+.group:hover button svg[class*="group-hover:text-primary-foreground"],
+button.group:hover svg[class*="group-hover:text-primary-foreground"] {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح للأيقونات في الروابط */
+.group:hover a svg[class*="group-hover:text-primary-foreground"],
+a.group:hover svg[class*="group-hover:text-primary-foreground"] {
+  color: hsl(var(--primary-foreground)) !important;
 }

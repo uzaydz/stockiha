@@ -1,0 +1,291 @@
+/* أنماط مخصصة لمركز الاتصالات */
+
+/* تأثيرات الانتقال السلسة */
+[data-call-center-theme="true"] * {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+/* تحسين تأثيرات Glass Morphism */
+.call-center-glass {
+  background: var(--call-center-glass-bg);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid var(--call-center-glass-border);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* تأثيرات الهوفر المحسنة */
+.call-center-hover {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.call-center-hover:hover {
+  transform: translateY(-1px);
+  box-shadow: 
+    0 10px 25px rgba(0, 0, 0, 0.1),
+    0 4px 10px rgba(0, 0, 0, 0.05);
+}
+
+/* أنماط الأزرار المحسنة */
+.call-center-btn-primary {
+  background: linear-gradient(135deg, 
+    hsl(var(--call-center-primary)) 0%, 
+    hsl(var(--call-center-secondary)) 100%);
+  border: none;
+  color: white;
+  font-weight: 600;
+  box-shadow: 
+    0 4px 14px rgba(37, 99, 235, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: all 0.2s ease;
+}
+
+.call-center-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 
+    0 6px 20px rgba(37, 99, 235, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.call-center-btn-primary:active {
+  transform: translateY(0);
+  box-shadow: 
+    0 2px 8px rgba(37, 99, 235, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* تحسين البطاقات */
+.call-center-card {
+  background: var(--call-center-card);
+  border: 1px solid var(--call-center-border);
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+}
+
+.call-center-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    hsl(var(--call-center-primary) / 0.3) 50%, 
+    transparent 100%);
+}
+
+/* تحسين النصوص */
+.call-center-text-primary {
+  color: hsl(var(--call-center-primary));
+  font-weight: 600;
+}
+
+.call-center-text-muted {
+  color: hsl(var(--call-center-foreground-muted));
+}
+
+/* تحسين الحدود */
+.call-center-border {
+  border-color: hsl(var(--call-center-border));
+}
+
+/* تأثيرات التركيز */
+.call-center-focus:focus {
+  outline: none;
+  ring: 2px;
+  ring-color: hsl(var(--call-center-primary) / 0.3);
+  ring-offset: 2px;
+  ring-offset-color: var(--call-center-bg);
+}
+
+/* تحسين القوائم المنسدلة */
+.call-center-dropdown {
+  background: var(--call-center-glass-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--call-center-glass-border);
+  border-radius: 8px;
+  box-shadow: 
+    0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* تحسين شريط التمرير */
+[data-call-center-theme="true"] ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+[data-call-center-theme="true"] ::-webkit-scrollbar-track {
+  background: var(--call-center-bg-muted);
+  border-radius: 4px;
+}
+
+[data-call-center-theme="true"] ::-webkit-scrollbar-thumb {
+  background: hsl(var(--call-center-primary) / 0.3);
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+[data-call-center-theme="true"] ::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--call-center-primary) / 0.5);
+}
+
+/* تحسين الإشعارات */
+.call-center-notification {
+  background: var(--call-center-glass-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--call-center-glass-border);
+  border-left: 4px solid hsl(var(--call-center-primary));
+  border-radius: 8px;
+  box-shadow: 
+    0 10px 25px rgba(0, 0, 0, 0.1),
+    0 4px 10px rgba(0, 0, 0, 0.05);
+}
+
+/* تحسين الجداول */
+.call-center-table {
+  background: var(--call-center-card);
+  border: 1px solid var(--call-center-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.call-center-table th {
+  background: var(--call-center-bg-muted);
+  color: var(--call-center-foreground);
+  font-weight: 600;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--call-center-border);
+}
+
+.call-center-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--call-center-border);
+  color: var(--call-center-foreground);
+}
+
+.call-center-table tr:hover {
+  background: var(--call-center-card-hover);
+}
+
+/* تحسين النماذج */
+.call-center-input {
+  background: var(--call-center-card);
+  border: 1px solid var(--call-center-border);
+  color: var(--call-center-foreground);
+  border-radius: 8px;
+  padding: 8px 12px;
+  transition: all 0.2s ease;
+}
+
+.call-center-input:focus {
+  border-color: hsl(var(--call-center-primary));
+  box-shadow: 0 0 0 3px hsl(var(--call-center-primary) / 0.1);
+  outline: none;
+}
+
+.call-center-input::placeholder {
+  color: var(--call-center-foreground-muted);
+}
+
+/* تحسين الشارات */
+.call-center-badge {
+  font-weight: 600;
+  font-size: 0.75rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.call-center-badge-success {
+  background: hsl(var(--call-center-success) / 0.1);
+  color: hsl(var(--call-center-success));
+  border: 1px solid hsl(var(--call-center-success) / 0.2);
+}
+
+.call-center-badge-warning {
+  background: hsl(var(--call-center-warning) / 0.1);
+  color: hsl(var(--call-center-warning));
+  border: 1px solid hsl(var(--call-center-warning) / 0.2);
+}
+
+.call-center-badge-error {
+  background: hsl(var(--call-center-error) / 0.1);
+  color: hsl(var(--call-center-error));
+  border: 1px solid hsl(var(--call-center-error) / 0.2);
+}
+
+.call-center-badge-info {
+  background: hsl(var(--call-center-info) / 0.1);
+  color: hsl(var(--call-center-info));
+  border: 1px solid hsl(var(--call-center-info) / 0.2);
+}
+
+/* تحسين الرسوم المتحركة */
+@keyframes call-center-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.call-center-pulse {
+  animation: call-center-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes call-center-bounce {
+  0%, 100% {
+    transform: translateY(-25%);
+    animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+  }
+  50% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+  }
+}
+
+.call-center-bounce {
+  animation: call-center-bounce 1s infinite;
+}
+
+/* تحسين الاستجابة للهواتف */
+@media (max-width: 768px) {
+  .call-center-glass {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  
+  .call-center-hover:hover {
+    transform: none;
+  }
+  
+  .call-center-btn-primary:hover {
+    transform: none;
+  }
+}
+
+/* تحسين الطباعة */
+@media print {
+  [data-call-center-theme="true"] {
+    background: white !important;
+    color: black !important;
+  }
+  
+  .call-center-glass {
+    background: white !important;
+    backdrop-filter: none !important;
+    border: 1px solid #e5e7eb !important;
+  }
+  
+  .call-center-btn-primary {
+    background: #2563eb !important;
+    color: white !important;
+  }
+} 

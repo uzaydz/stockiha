@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Clock, User, Receipt, QrCode, Hash } from 'lucide-react';
 import { POSSettings } from '@/types/posSettings';
+import { QRCodeSVG } from 'qrcode.react';
 
 interface ReceiptPreviewProps {
   settings: POSSettings | null;
@@ -100,7 +101,7 @@ const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({ settings }) => {
           width: `${settings.paper_width * 3}px`, // معاينة بمقياس 3:1
           ...getTemplateStyles(),
           margin: '0 auto',
-          fontFamily: 'monospace'
+          fontFamily: 'Tajawal, Arial, sans-serif'
         }}
       >
         {/* رأسية الوصل */}
@@ -272,14 +273,26 @@ const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({ settings }) => {
             {settings.receipt_footer_text}
           </p>
 
-          {/* رمز QR (عنصر بديل) */}
-          {settings.show_qr_code && (
-            <div className="flex justify-center mb-3">
-              <div className="flex flex-col items-center gap-1">
-                <div className="w-10 h-10 border-2 border-dashed border-border flex items-center justify-center">
-                  <QrCode className="h-6 w-6 text-muted-foreground" />
-                </div>
-                <span className="text-xs text-muted-foreground">QR Code</span>
+          {/* رمز QR */}
+          {settings.show_qr_code && settings.store_website && (
+            <div className="flex justify-center mb-4">
+              <div className="w-12 h-12 flex items-center justify-center">
+                <QRCodeSVG 
+                  value={settings.store_website}
+                  size={44}
+                  level="M"
+                  includeMargin={false}
+                  fgColor={settings?.text_color || '#000000'}
+                  bgColor={settings?.background_color || '#ffffff'}
+                />
+              </div>
+            </div>
+          )}
+          {/* عرض رمز QR فارغ إذا لم يكن هناك موقع */}
+          {settings.show_qr_code && !settings.store_website && (
+            <div className="flex justify-center mb-4">
+              <div className="w-10 h-10 border-2 border-dashed border-border flex items-center justify-center">
+                <QrCode className="h-6 w-6 text-muted-foreground" />
               </div>
             </div>
           )}

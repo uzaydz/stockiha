@@ -9,7 +9,19 @@ export const createPOSOrder = async (
   currentOrganizationId: string | undefined
 ): Promise<Order> => {
   try {
-
+    console.log('🔍 POS Order Debug - Organization ID:', currentOrganizationId);
+    console.log('🔍 POS Order Debug - Order details:', {
+      isOnline: order.isOnline,
+      total: order.total,
+      customerId: order.customerId,
+      items: order.items?.length
+    });
+    
+    // التحقق من وجود organization_id
+    if (!currentOrganizationId) {
+      throw new Error('Organization ID is required but was not provided');
+    }
+    
     // التحقق من وجود العميل وإنشائه إذا لم يكن موجودًا
     const customerId = await ensureCustomerExists(order.customerId, currentOrganizationId);
     
@@ -35,50 +47,19 @@ export const createPOSOrder = async (
       pos_order_type: 'pos',
       amount_paid: order.partialPayment?.amountPaid || order.total || 0,
       remaining_amount: order.partialPayment?.remainingAmount || 0,
-      consider_remaining_as_partial: order.partialPayment ? true : false,
+      consider_remaining_as_partial: order.considerRemainingAsPartial || false,
       completed_at: order.status === 'completed' ? new Date().toISOString() : null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
 
-    // محاولة استخدام الدالة المخزنة الآمنة أولاً
-    try {
-      const rpcParams = {
-        p_organization_id: currentOrganizationId,
-        p_customer_id: customerId,
-        p_items: order.items.map(item => ({
-          product_id: item.productId,
-          quantity: item.quantity,
-          price: item.unitPrice,
-          total: item.unitPrice * item.quantity
-        })),
-        p_total_amount: order.total,
-        p_employee_id: order.employeeId || null,
-        p_payment_method: order.paymentMethod || 'cash',
-        p_payment_status: order.paymentStatus || 'paid',
-        p_notes: order.notes || null
-      };
-      
-      const { data: rpcData, error: rpcError } = await supabase
-        .rpc('create_pos_order_safe', rpcParams);
+    console.log('🔍 Order data being inserted:', {
+      organization_id: orderData.organization_id,
+      customer_id: orderData.customer_id,
+      total: orderData.total
+    });
 
-      if (!rpcError && rpcData && typeof rpcData === 'object' && 'success' in rpcData && rpcData.success) {
-        const orderResult = rpcData as any;
-        return {
-          ...order,
-          id: orderResult.id,
-          customer_order_number: orderResult.customer_order_number,
-          slug: orderResult.slug,
-          createdAt: new Date(orderResult.created_at),
-          updatedAt: new Date(orderResult.updated_at)
-        };
-      } else if (rpcData && typeof rpcData === 'object' && 'error' in rpcData) {
-      } else if (rpcError) {
-      }
-    } catch (rpcErr) {
-    }
-
-    // إذا فشلت الدالة المخزنة، جرب الإدخال المباشر
+    // إنشاء الطلب مباشرة
     const { data: insertedOrder, error: orderError } = await supabase
       .from('orders')
       .insert(orderData)
@@ -86,42 +67,54 @@ export const createPOSOrder = async (
       .single();
       
     if (orderError) {
+      console.error('Error creating order:', orderError);
       throw new Error(`Error creating order: ${orderError.message}`);
     }
     
     const newOrderId = insertedOrder.id;
 
-    // إضافة عناصر الطلب
+    // إضافة عناصر الطلب بشكل منفصل وآمن
     if (order.items && order.items.length > 0) {
       try {
+        console.log('🔍 Order Items Debug - Organization ID:', currentOrganizationId);
         
-        const orderItems = order.items.map((item, index) => ({
-          order_id: newOrderId,
-          product_id: item.productId,
-          product_name: item.productName || item.name || 'منتج',
-          name: item.productName || item.name || 'منتج',
-          quantity: item.quantity,
-          unit_price: item.unitPrice,
-          total_price: item.unitPrice * item.quantity,
-          is_digital: item.isDigital || false,
-          organization_id: currentOrganizationId,
-          slug: `item-${Date.now()}-${index}`,
-          variant_info: item.variant_info || null
-        }));
+        // إدراج العناصر واحد تلو الآخر بالحقول الأساسية فقط
+        for (let index = 0; index < order.items.length; index++) {
+          const item = order.items[index];
+          
+          const itemData = {
+            order_id: newOrderId,
+            product_id: item.productId,
+            product_name: item.productName || item.name || 'منتج',
+            name: item.productName || item.name || 'منتج',
+            quantity: item.quantity,
+            unit_price: item.unitPrice,
+            total_price: item.unitPrice * item.quantity,
+            is_digital: item.isDigital || false,
+            organization_id: currentOrganizationId, // التأكد من أنه ليس null
+            slug: `item-${Date.now()}-${index}`
+          };
 
-        const { data: insertedItems, error: itemsError } = await supabase
-          .from('order_items')
-          .insert(orderItems)
-          .select();
+          console.log(`🔍 Order Item ${index + 1} data being inserted:`, {
+            organization_id: itemData.organization_id,
+            order_id: itemData.order_id,
+            product_name: itemData.product_name
+          });
 
-        if (itemsError) {
-          // لا نوقف العملية، نستمر حتى لو فشلت إضافة العناصر
-        } else {
+          const { error: itemError } = await supabase
+            .from('order_items')
+            .insert(itemData);
+
+          if (itemError) {
+            console.error('Error inserting order item:', itemError);
+            // نستمر في إضافة باقي العناصر حتى لو فشل أحدها
+          }
         }
 
         // تحديث المخزون
         await updateInventoryForOrder(order.items);
       } catch (error) {
+        console.error('Error processing order items:', error);
       }
     }
     
@@ -134,9 +127,10 @@ export const createPOSOrder = async (
     try {
       await addOrderTransaction(newOrderId, order, currentOrganizationId);
     } catch (error) {
+      console.error('Error adding transaction:', error);
     }
     
-    // إعادة الطلب المضاف مع البيانات الكاملة من قاعدة البيانات
+    // إعادة الطلب المضاف مع البيانات الكاملة
     return {
       ...order,
       id: newOrderId,
@@ -146,6 +140,7 @@ export const createPOSOrder = async (
       slug: insertedOrder.slug
     };
   } catch (error) {
+    console.error('Error in createPOSOrder:', error);
     throw error;
   }
 };
@@ -159,9 +154,8 @@ async function updateInventoryForOrder(items: OrderItem[]) {
         p_product_id: item.productId,
         p_quantity_sold: item.quantity
       });
-      
-      // يمكن إضافة تحديث مخزون المتغيرات لاحقاً إذا كان مطلوباً
     } catch (error) {
+      console.error('Error updating inventory:', error);
     }
   }
 }
@@ -199,8 +193,10 @@ async function addServiceBookings(
         .insert(serviceBookingData);
         
       if (serviceBookingError) {
+        console.error('Error adding service booking:', serviceBookingError);
       }
     } catch (error) {
+      console.error('Error in addServiceBookings:', error);
     }
   }
 }
@@ -212,8 +208,15 @@ async function addOrderTransaction(
   organizationId: string | undefined
 ) {
   try {
+    console.log('🔍 Transaction Debug - Organization ID:', organizationId);
+    
+    // التحقق من وجود organization_id
+    if (!organizationId) {
+      throw new Error('Organization ID is required for transaction but was not provided');
+    }
+    
+    // التأكد من وجود جميع الحقول المطلوبة فقط
     const transactionData = {
-      id: uuidv4(),
       order_id: orderId,
       amount: order.paymentStatus === 'paid' ? order.total : (order.partialPayment?.amountPaid || 0),
       type: 'sale',
@@ -222,17 +225,25 @@ async function addOrderTransaction(
         ? `Payment for POS order` 
         : `Partial payment for POS order`,
       employee_id: order.employeeId || null,
-      organization_id: organizationId,
-      created_at: new Date().toISOString(),
-      slug: `transaction-${Date.now()}-${Math.floor(Math.random() * 1000)}`
+      organization_id: organizationId
     };
+
+    console.log('🔍 Transaction data being inserted:', {
+      organization_id: transactionData.organization_id,
+      order_id: transactionData.order_id,
+      amount: transactionData.amount
+    });
 
     const { error } = await supabase
       .from('transactions')
       .insert(transactionData);
       
     if (error) {
+      console.error('Error adding transaction:', error);
+      throw error;
     }
   } catch (error) {
+    console.error('Error in addOrderTransaction:', error);
+    throw error;
   }
 }

@@ -1,4 +1,5 @@
-import { ProductColor } from '@/api/store';
+// تصدير أنواع مركز الاتصال
+export * from './callCenter';
 
 // Product Types
 export type ProductCategory = 
@@ -9,6 +10,28 @@ export type ProductCategory =
   | 'controllers' // وحدات تحكم
   | 'components' // قطع غيار
   | 'merchandise'; // منتجات تذكارية
+
+export interface ProductColor {
+  id: string;
+  name: string;
+  color_code: string;
+  image_url?: string;
+  quantity: number;
+  price?: number;
+  barcode?: string;
+  is_default: boolean;
+  has_sizes?: boolean;
+  sizes?: ProductSize[];
+}
+
+export interface ProductSize {
+  id: string;
+  size_name: string;
+  quantity: number;
+  price?: number;
+  barcode?: string;
+  is_default: boolean;
+}
 
 export interface Product {
   id: string;
@@ -40,6 +63,49 @@ export interface Product {
   has_variants?: boolean;
   use_sizes?: boolean;
   synced?: boolean; // حالة مزامنة المنتج مع الخادم
+  
+  // خصائص الجملة المحسنة
+  wholesale_price?: number;
+  partial_wholesale_price?: number;
+  min_wholesale_quantity?: number;
+  min_partial_wholesale_quantity?: number;
+  allow_retail?: boolean;
+  allow_wholesale?: boolean;
+  allow_partial_wholesale?: boolean;
+  
+  // خصائص إضافية من قاعدة البيانات
+  compare_at_price?: number;
+  purchase_price?: number;
+  subcategory_id?: string;
+  slug?: string;
+  show_price_on_landing?: boolean;
+  last_inventory_update?: string;
+  is_active?: boolean;
+  
+  // معلومات إضافية
+  has_fast_shipping?: boolean;
+  has_money_back?: boolean;
+  has_quality_guarantee?: boolean;
+  fast_shipping_text?: string;
+  money_back_text?: string;
+  quality_guarantee_text?: string;
+  
+  // معلومات الوحدة
+  is_sold_by_unit?: boolean;
+  unit_type?: string;
+  use_variant_prices?: boolean;
+  unit_purchase_price?: number;
+  unit_sale_price?: number;
+  
+  // إعدادات الشحن
+  shipping_clone_id?: number;
+  name_for_shipping?: string;
+  use_shipping_clone?: boolean;
+  shipping_method_type?: string;
+  
+  // تتبع المستخدم
+  created_by_user_id?: string;
+  updated_by_user_id?: string;
 }
 
 // Service Types
@@ -161,7 +227,7 @@ export interface Order {
 }
 
 // User Types
-export type UserRole = 'admin' | 'employee' | 'customer' | 'owner';
+export type UserRole = 'admin' | 'employee' | 'customer' | 'owner' | 'call_center_agent';
 
 export interface UserPermissions {
   manageProducts: boolean;
@@ -172,6 +238,30 @@ export interface UserPermissions {
   viewReports: boolean;
   accessPOS: boolean;
   processPayments: boolean;
+  
+  // صلاحيات مركز الاتصال
+  accessCallCenter?: boolean;           // الوصول لمركز الاتصال
+  viewAssignedOrders?: boolean;         // عرض الطلبيات المخصصة
+  updateCallStatus?: boolean;           // تحديث حالة المكالمة
+  addCallNotes?: boolean;               // إضافة ملاحظات المكالمة
+  scheduleCallbacks?: boolean;          // جدولة معاودة الاتصال
+  reassignOrders?: boolean;             // إعادة تخصيص الطلبيات
+  viewAllOrders?: boolean;              // عرض جميع الطلبيات (للمشرفين)
+  makeOutboundCalls?: boolean;          // إجراء مكالمات صادرة
+  receiveInboundCalls?: boolean;        // استقبال مكالمات واردة
+  transferCalls?: boolean;              // تحويل المكالمات
+  recordCalls?: boolean;                // تسجيل المكالمات
+  viewOwnPerformance?: boolean;         // عرض الأداء الشخصي
+  viewTeamPerformance?: boolean;        // عرض أداء الفريق
+  viewDetailedReports?: boolean;        // عرض التقارير المفصلة
+  exportReports?: boolean;              // تصدير التقارير
+  manageAgents?: boolean;               // إدارة الموظفين (للمشرفين)
+  assignOrdersToAgents?: boolean;       // تخصيص الطلبيات للموظفين
+  viewAgentSessions?: boolean;          // عرض جلسات الموظفين
+  manageWorkSchedules?: boolean;        // إدارة جداول العمل
+  manageCallCenterSettings?: boolean;   // إدارة إعدادات مركز الاتصال
+  viewSystemLogs?: boolean;             // عرض سجلات النظام
+  escalateToSupervisor?: boolean;       // التصعيد للمشرف
 }
 
 export interface User {
