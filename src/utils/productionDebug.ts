@@ -321,4 +321,53 @@ export const prodLog = (level: 'info' | 'warn' | 'error' | 'debug', message: str
   productionDebugger.logToStorage(level, message, data);
 };
 
-export default productionDebugger; 
+export default productionDebugger;
+
+// =================================================================
+// 🔍 Production Debug Utilities
+// =================================================================
+
+export const debugProduction = () => {
+  if (typeof window !== 'undefined') {
+    console.log('🔍 Production Debug Info:', {
+      environment: import.meta.env.MODE,
+      isDev: import.meta.env.DEV,
+      isProd: import.meta.env.PROD,
+      viteEnv: import.meta.env,
+      userAgent: navigator.userAgent,
+      location: window.location.href,
+      timestamp: new Date().toISOString(),
+    });
+    
+    // فحص وجود POSDataContext
+    setTimeout(() => {
+      const posDataElements = document.querySelectorAll('[data-pos-context]');
+      console.log('🎯 POSDataContext Elements Found:', posDataElements.length);
+      
+      // فحص وجود console logs من POSDataProvider
+      console.log('🎯 Checking POSDataProvider logs...');
+      
+      // إضافة معلومات للـ window للتشخيص
+      (window as any).__POS_DEBUG_INFO = {
+        contextElementsFound: posDataElements.length,
+        timestamp: new Date().toISOString(),
+        environment: import.meta.env.MODE,
+      };
+    }, 2000);
+  }
+};
+
+export const logPOSContextStatus = (status: string, data?: any) => {
+  console.log(`🎯 POSContext Status [${status}]:`, data);
+  
+  if (typeof window !== 'undefined') {
+    if (!(window as any).__POS_CONTEXT_LOGS) {
+      (window as any).__POS_CONTEXT_LOGS = [];
+    }
+    (window as any).__POS_CONTEXT_LOGS.push({
+      status,
+      data,
+      timestamp: new Date().toISOString(),
+    });
+  }
+}; 

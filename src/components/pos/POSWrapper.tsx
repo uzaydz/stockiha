@@ -8,9 +8,11 @@ import POS from '@/pages/POS';
 
 const POSWrapper: React.FC = () => {
   return (
-    <POSDataProvider>
-      <POS />
-    </POSDataProvider>
+    <div data-pos-context="wrapper">
+      <POSDataProvider>
+        <POS />
+      </POSDataProvider>
+    </div>
   );
 };
 

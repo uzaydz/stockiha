@@ -6,6 +6,7 @@ import { Product, Service } from '@/types';
 import { POSSettings } from '@/types/posSettings';
 import { deduplicateRequest } from '../lib/cache/deduplication';
 import { supabase } from '@/lib/supabase';
+import { logPOSContextStatus } from '@/utils/productionDebug';
 
 // =================================================================
 // 🎯 POSDataContext V2 - الحل الشامل مع تحليل قاعدة البيانات المعمق
@@ -587,6 +588,7 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
   const orgId = currentOrganization?.id;
 
   console.log('🎯 Enhanced POSDataProvider rendering with orgId:', orgId);
+  logPOSContextStatus('PROVIDER_INIT', { orgId, hasOrg: !!currentOrganization, hasUser: !!user });
 
   // React Query للمنتجات المحسنة مع المتغيرات والمخزون
   const {
@@ -908,6 +910,15 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
     appsCount: organizationApps.length,
     inventoryStats,
     isLoading
+  });
+
+  logPOSContextStatus('CONTEXT_VALUE_READY', {
+    productsCount: products.length,
+    subscriptionsCount: subscriptions.length,
+    categoriesCount: categories.length,
+    hasSettings: !!posSettings,
+    isLoading,
+    errors
   });
 
   return (

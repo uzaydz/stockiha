@@ -160,6 +160,8 @@ import { enableRequestInterception } from './lib/requestInterceptor';
 import { AuthSingleton } from './lib/authSingleton';
 import { initializeRequestSystem } from './lib/requestSystemInitializer';
 import { productionDebugger, prodLog } from './utils/productionDebug';
+import { debugProduction } from '@/utils/productionDebug';
+import { checkBuildIntegrity } from '@/utils/buildCheck';
 
 // 🔍 تشخيص متطور للـ chunks
 import './utils/debugChunkLoader';
@@ -465,3 +467,9 @@ async function initializeApp() {
 
 // بدء التهيئة
 initializeApp();
+
+// تشغيل تشخيص الإنتاج
+debugProduction();
+
+// فحص سلامة البناء
+checkBuildIntegrity();
