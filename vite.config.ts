@@ -279,14 +279,9 @@ export default defineConfig(({ command, mode }) => {
           manualChunks: (id) => {
             // Vendor chunks - مكتبات خارجية
             if (id.includes('node_modules')) {
-              // React Core - منفصل لضمان التحميل الصحيح
-              if (id.includes('react') && !id.includes('react-dom') && !id.includes('react-router')) {
-                return 'react-core';
-              }
-              
-              // React DOM - منفصل عن React Core
-              if (id.includes('react-dom')) {
-                return 'react-dom-vendor';
+              // React ecosystem - جمع React و ReactDOM معاً لتجنب مشاكل Dependencies
+              if (id.includes('react') && !id.includes('react-router')) {
+                return 'react-vendor';
               }
               
               // UI Libraries
@@ -421,6 +416,8 @@ export default defineConfig(({ command, mode }) => {
           },
         } as OutputOptions,
         external: isProd ? [] : undefined,
+        // تحسين خاص لـ Vercel
+        preserveEntrySignatures: 'strict',
       },
       // تحسين ضغط الصور
       assetsInlineLimit: 4096, // 4KB
@@ -428,10 +425,11 @@ export default defineConfig(({ command, mode }) => {
       commonjsOptions: {
         include: [/node_modules/],
         transformMixedEsModules: true,
+        requireReturnsDefault: 'auto',
         // إصلاح مشكلة react-is و recharts و React context
         namedExports: {
-          'react': ['createContext', 'useContext', 'useState', 'useEffect', 'useMemo', 'useCallback', 'useRef', 'Suspense', 'lazy', 'Fragment', 'createElement'],
-          'react-dom': ['render', 'createRoot'],
+          'react': ['createContext', 'useContext', 'useState', 'useEffect', 'useMemo', 'useCallback', 'useRef', 'Suspense', 'lazy', 'Fragment', 'createElement', 'Children', 'Component', 'PureComponent', 'memo', 'forwardRef', 'useImperativeHandle', 'useLayoutEffect', 'useReducer', 'useDeferredValue', 'useTransition', 'startTransition'],
+          'react-dom': ['render', 'createRoot', 'hydrateRoot', 'findDOMNode', 'unmountComponentAtNode', 'createPortal', 'flushSync'],
           'react-is': ['isFragment', 'isValidElementType', 'isElement'],
           'recharts': ['ResponsiveContainer', 'LineChart', 'BarChart', 'PieChart', 'XAxis', 'YAxis', 'CartesianGrid', 'Tooltip', 'Legend', 'Line', 'Bar', 'Cell', 'RadialBarChart', 'RadialBar'],
         },
@@ -440,6 +438,10 @@ export default defineConfig(({ command, mode }) => {
       
       // PERFORMANCE OPTIMIZATION: CSS code splitting
       cssCodeSplit: true,
+      // تحسين خاص لـ React في Vercel
+      modulePreload: {
+        polyfill: true
+      },
     },
     // تشغيل الشفرة في محتوى واحد في Electron
     optimizeDeps: {
