@@ -334,4 +334,12 @@ async function clearOldCaches() {
   );
 }
 
-console.log('[SW] Service Worker script loaded successfully!'); 
+console.log('[SW] Service Worker script loaded successfully!');
+
+// إضافة رسالة تشير لنظام التشخيص المتطور
+if (typeof globalThis !== 'undefined') {
+  globalThis.postMessage?.({
+    type: 'PRODUCTION_DEBUG_AVAILABLE',
+    message: 'Use prodDebug.stats() in console for performance data'
+  });
+} 

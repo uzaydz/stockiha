@@ -159,6 +159,7 @@ import { initializeSupabaseUnified } from './lib/supabase-unified';
 import { enableRequestInterception } from './lib/requestInterceptor';
 import { AuthSingleton } from './lib/authSingleton';
 import { initializeRequestSystem } from './lib/requestSystemInitializer';
+import { productionDebugger, prodLog } from './utils/productionDebug';
 
 // 🔍 تشخيص متطور للـ chunks
 import './utils/debugChunkLoader';
@@ -436,13 +437,22 @@ async function initializeApp() {
       // لا نوقف التطبيق، فقط تحذير
     });
     
+    // تهيئة Production Debug System
+    prodLog('info', '🚀 App initialization started', { 
+      timestamp: Date.now(),
+      userAgent: navigator.userAgent,
+      url: window.location.href
+    });
+    
     // تهيئة النظام الموحد للطلبات
     try {
       const { initializeRequestSystem } = await import('@/lib/requestSystemInitializer');
       await initializeRequestSystem();
       console.log('✅ [Main] Request system initialized');
+      prodLog('info', '✅ Request system initialized successfully');
     } catch (requestError) {
       console.warn('⚠️ [Main] Request system initialization warning:', requestError);
+      prodLog('warn', '⚠️ Request system initialization warning', { error: requestError.message });
     }
     
     console.log('✅ [Main] Application initialization completed');

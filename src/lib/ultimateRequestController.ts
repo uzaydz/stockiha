@@ -5,6 +5,7 @@
 
 import { QueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { productionDebugger, prodLog } from '@/utils/productionDebug';
 
 // إعلان نوع للـ global window object
 declare global {
@@ -244,6 +245,7 @@ class UltimateRequestController {
       // التحقق من طلبات Supabase
       if (url.includes('supabase.co/rest/v1/') || url.includes('supabase.co/auth/v1/')) {
         console.log(`🔍 Intercepting Supabase request: ${url}`);
+        prodLog('info', `🔍 Intercepting Supabase request`, { url });
         return controller.deduplicateSupabaseRequest(url, () => originalFetch(input, init));
       }
       
@@ -291,13 +293,25 @@ class UltimateRequestController {
       entry.lastAccess = Date.now();
       
       console.log(`🚫 BLOCKED DUPLICATE: ${cacheKey} (${entry.requestCount} times) - Original: ${new URL(url).pathname}`);
+      prodLog('info', `🚫 BLOCKED DUPLICATE`, { 
+        cacheKey, 
+        requestCount: entry.requestCount, 
+        originalPath: new URL(url).pathname,
+        url 
+      });
+      productionDebugger.trackRequest(url, 'GET', 0, 'blocked');
       return entry.promise;
     }
 
     // إنشاء طلب جديد
     console.log(`🆕 New request: ${cacheKey}`);
+    prodLog('info', `🆕 New request`, { cacheKey, url });
+    
+    const startTime = performance.now();
     const promise = fetchFunction()
       .then(async response => {
+        const duration = performance.now() - startTime;
+        
         if (response.ok && response.status === 200) {
           const data = await response.clone().json();
           
@@ -310,14 +324,19 @@ class UltimateRequestController {
           });
           
           console.log(`💾 Cached: ${cacheKey}`);
+          prodLog('info', `💾 Cached`, { cacheKey, duration, url });
+          productionDebugger.trackRequest(url, 'GET', duration, 'success');
         }
         
         this.activeRequests.delete(cacheKey);
         return response;
       })
       .catch(error => {
+        const duration = performance.now() - startTime;
         this.activeRequests.delete(cacheKey);
         console.error(`❌ Request failed: ${cacheKey}`, error);
+        prodLog('error', `❌ Request failed`, { cacheKey, error: error.message, duration, url });
+        productionDebugger.trackRequest(url, 'GET', duration, 'failed');
         throw error;
       });
 
