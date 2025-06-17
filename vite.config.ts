@@ -187,6 +187,8 @@ export default defineConfig(({ command, mode }) => {
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
+        'react': path.resolve(__dirname, './node_modules/react'),
+        'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
         stream: 'stream-browserify',
         path: 'path-browserify',
         util: 'util',
@@ -242,6 +244,8 @@ export default defineConfig(({ command, mode }) => {
       __DEV__: isDev,
       __PROD__: isProd,
       __VERSION__: JSON.stringify(process.env.npm_package_version || '1.0.0'),
+      // React environment variables
+      'process.env.NODE_ENV': JSON.stringify(isDev ? 'development' : 'production'),
     },
     build: {
       outDir: 'dist',
@@ -275,9 +279,14 @@ export default defineConfig(({ command, mode }) => {
           manualChunks: (id) => {
             // Vendor chunks - مكتبات خارجية
             if (id.includes('node_modules')) {
-              // React ecosystem
-              if (id.includes('react') || id.includes('react-dom')) {
-                return 'react-vendor';
+              // React Core - منفصل لضمان التحميل الصحيح
+              if (id.includes('react') && !id.includes('react-dom') && !id.includes('react-router')) {
+                return 'react-core';
+              }
+              
+              // React DOM - منفصل عن React Core
+              if (id.includes('react-dom')) {
+                return 'react-dom-vendor';
               }
               
               // UI Libraries
@@ -419,8 +428,10 @@ export default defineConfig(({ command, mode }) => {
       commonjsOptions: {
         include: [/node_modules/],
         transformMixedEsModules: true,
-        // إصلاح مشكلة react-is و recharts
+        // إصلاح مشكلة react-is و recharts و React context
         namedExports: {
+          'react': ['createContext', 'useContext', 'useState', 'useEffect', 'useMemo', 'useCallback', 'useRef', 'Suspense', 'lazy', 'Fragment', 'createElement'],
+          'react-dom': ['render', 'createRoot'],
           'react-is': ['isFragment', 'isValidElementType', 'isElement'],
           'recharts': ['ResponsiveContainer', 'LineChart', 'BarChart', 'PieChart', 'XAxis', 'YAxis', 'CartesianGrid', 'Tooltip', 'Legend', 'Line', 'Bar', 'Cell', 'RadialBarChart', 'RadialBar'],
         },
@@ -432,9 +443,13 @@ export default defineConfig(({ command, mode }) => {
     },
     // تشغيل الشفرة في محتوى واحد في Electron
     optimizeDeps: {
+      force: isDev,
       include: [
         'react',
+        'react/jsx-runtime',
+        'react/jsx-dev-runtime',
         'react-dom',
+        'react-dom/client',
         'react-router-dom',
         '@tanstack/react-query',
         '@supabase/supabase-js',
@@ -518,6 +533,8 @@ export default defineConfig(({ command, mode }) => {
       target: 'es2020',
       drop: isProd ? ['console', 'debugger'] : [],
       legalComments: 'none',
+      jsx: 'automatic',
+      jsxImportSource: 'react',
     },
     worker: {
       format: 'es',
