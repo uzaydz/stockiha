@@ -257,12 +257,15 @@ export default defineConfig(({ command, mode }) => {
       minify: isProd ? 'terser' as const : false, // تغيير إلى terser للضغط الأفضل
       terserOptions: isProd ? {
         compress: {
-          drop_console: true,
-          drop_debugger: true,
+          drop_console: false,
+          drop_debugger: false,
+          unused: false,
+          side_effects: false,
           pure_funcs: ['console.log', 'console.info', 'console.debug'],
         },
         mangle: {
           safari10: true,
+          keep_fnames: /^(deduplicateRequest|interceptFetch|POSDataProvider)$/
         },
         format: {
           safari10: true,
@@ -296,6 +299,14 @@ export default defineConfig(({ command, mode }) => {
             
             return `assets/[name]-[hash].${ext}`;
           },
+          manualChunks: {
+            'pos-optimization': [
+              './src/context/POSDataContext.tsx',
+              './src/lib/cache/deduplication.ts',
+              './src/utils/requestSystemInitializer.ts',
+              './src/utils/ultimateRequestController.ts'
+            ]
+          }
         } as OutputOptions,
         external: isProd ? [] : undefined,
         // تحسين خاص لـ Vercel
@@ -415,6 +426,8 @@ export default defineConfig(({ command, mode }) => {
         'lodash/cloneDeep',
         'lodash/debounce',
         'lodash/throttle',
+        './src/context/POSDataContext.tsx',
+        './src/lib/cache/deduplication.ts'
       ],
     },
     preview: {

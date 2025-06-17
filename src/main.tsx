@@ -473,3 +473,13 @@ debugProduction();
 
 // فحص سلامة البناء
 checkBuildIntegrity();
+
+// التأكد من تهيئة أنظمة التحسين فوراً
+console.log('🚀 [Main] Force loading optimization systems...');
+
+// تهيئة فورية لنظام deduplication
+import('./lib/requestSystemInitializer').then(() => {
+  console.log('✅ [Main] Request system initialized');
+}).catch(err => {
+  console.error('❌ [Main] Failed to initialize request system:', err);
+});
