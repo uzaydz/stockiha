@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense, lazy } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import { 
@@ -9,23 +9,6 @@ import {
   TableHeader, 
   TableRow 
 } from '../../components/ui/table';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
-  ResponsiveContainer,
-  PieChart, 
-  Pie, 
-  Cell,
-  RadialBarChart,
-  RadialBar,
-  LineChart,
-  Line
-} from 'recharts';
 import { RefreshCwIcon, TrendingUpIcon, Phone, EuroIcon } from 'lucide-react';
 import { useToast } from '../../components/ui/use-toast';
 import type { 
@@ -39,6 +22,23 @@ import { getCurrencySales, getCurrencyStats } from '../../api/currencyService';
 import { Button } from '../../components/ui/button';
 import Layout from '../../components/Layout';
 import { useAuth } from '../../context/AuthContext';
+
+// Lazy loading for charts components
+const LazyBarChart = lazy(() => import('recharts').then(module => ({ default: module.BarChart })));
+const LazyBar = lazy(() => import('recharts').then(module => ({ default: module.Bar })));
+const LazyXAxis = lazy(() => import('recharts').then(module => ({ default: module.XAxis })));
+const LazyYAxis = lazy(() => import('recharts').then(module => ({ default: module.YAxis })));
+const LazyCartesianGrid = lazy(() => import('recharts').then(module => ({ default: module.CartesianGrid })));
+const LazyTooltip = lazy(() => import('recharts').then(module => ({ default: module.Tooltip })));
+const LazyLegend = lazy(() => import('recharts').then(module => ({ default: module.Legend })));
+const LazyResponsiveContainer = lazy(() => import('recharts').then(module => ({ default: module.ResponsiveContainer })));
+const LazyPieChart = lazy(() => import('recharts').then(module => ({ default: module.PieChart })));
+const LazyPie = lazy(() => import('recharts').then(module => ({ default: module.Pie })));
+const LazyCell = lazy(() => import('recharts').then(module => ({ default: module.Cell })));
+const LazyRadialBarChart = lazy(() => import('recharts').then(module => ({ default: module.RadialBarChart })));
+const LazyRadialBar = lazy(() => import('recharts').then(module => ({ default: module.RadialBar })));
+const LazyLineChart = lazy(() => import('recharts').then(module => ({ default: module.LineChart })));
+const LazyLine = lazy(() => import('recharts').then(module => ({ default: module.Line })));
 
 // ألوان للمخططات - تحسين نظام الألوان ليكون أكثر أناقة
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316'];
@@ -236,40 +236,44 @@ export default function FlexiAnalytics() {
                       <RefreshCwIcon className="h-8 w-8 animate-spin text-primary" />
                     </div>
                   ) : (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <RadialBarChart 
-                        innerRadius="30%" 
-                        outerRadius="90%" 
-                        data={prepareFlexiChartData()}
-                        startAngle={0} 
-                        endAngle={360}
-                        barSize={20}
-                      >
-                        <RadialBar
-                          background
-                          dataKey="value"
-                          name="name"
-                          cornerRadius={10}
-                          label={false}
-                          className="dark:fill-opacity-80"
-                        />
-                        <Tooltip 
-                          formatter={(value) => `${Number(value).toLocaleString()} دج`}
-                          labelStyle={{ ...CHART_STYLE, color: '#374151' }}
-                          contentStyle={{ ...CHART_STYLE, borderRadius: '0.5rem', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)', backgroundColor: 'var(--background)', borderColor: 'var(--border)' }}
-                        />
-                        <Legend 
-                          layout="vertical" 
-                          verticalAlign="middle" 
-                          align="left"
-                          wrapperStyle={CHART_STYLE}
-                          formatter={(value, entry, index) => {
-                            const color = COLORS[index % COLORS.length];
-                            return <span style={{ color: color }} className="dark:text-gray-300">{value}</span>
-                          }}
-                        />
-                      </RadialBarChart>
-                    </ResponsiveContainer>
+                    <Suspense fallback={<div className="flex justify-center items-center h-full">
+                      <RefreshCwIcon className="h-8 w-8 animate-spin text-primary" />
+                    </div>}>
+                      <LazyResponsiveContainer width="100%" height="100%">
+                        <LazyRadialBarChart 
+                          innerRadius="30%" 
+                          outerRadius="90%" 
+                          data={prepareFlexiChartData()}
+                          startAngle={0} 
+                          endAngle={360}
+                          barSize={20}
+                        >
+                          <LazyRadialBar
+                            background
+                            dataKey="value"
+                            name="name"
+                            cornerRadius={10}
+                            label={false}
+                            className="dark:fill-opacity-80"
+                          />
+                          <LazyTooltip 
+                            formatter={(value) => `${Number(value).toLocaleString()} دج`}
+                            labelStyle={{ ...CHART_STYLE, color: '#374151' }}
+                            contentStyle={{ ...CHART_STYLE, borderRadius: '0.5rem', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)', backgroundColor: 'var(--background)', borderColor: 'var(--border)' }}
+                          />
+                          <LazyLegend 
+                            layout="vertical" 
+                            verticalAlign="middle" 
+                            align="left"
+                            wrapperStyle={CHART_STYLE}
+                            formatter={(value, entry, index) => {
+                              const color = COLORS[index % COLORS.length];
+                              return <span style={{ color: color }} className="dark:text-gray-300">{value}</span>
+                            }}
+                          />
+                        </LazyRadialBarChart>
+                      </LazyResponsiveContainer>
+                    </Suspense>
                   )}
                 </CardContent>
               </Card>
@@ -449,56 +453,60 @@ export default function FlexiAnalytics() {
                       <RefreshCwIcon className="h-8 w-8 animate-spin text-primary" />
                     </div>
                   ) : (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={currencyStats}
-                        margin={{ top: 20, right: 30, left: 20, bottom: 30 }}
-                        barCategoryGap="20%"
-                        barSize={40}
-                      >
-                        <defs>
-                          {currencyStats.map((entry, index) => (
-                            <linearGradient key={`gradient-${index}`} id={`colorGradient${index}`} x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor={COLORS[index % COLORS.length]} stopOpacity={0.9}/>
-                              <stop offset="95%" stopColor={COLORS[index % COLORS.length]} stopOpacity={0.3}/>
-                            </linearGradient>
-                          ))}
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} className="dark:stroke-gray-700" />
-                        <XAxis 
-                          dataKey="currency" 
-                          tick={{ fontSize: 12, fontFamily: "'Tajawal', sans-serif" }}
-                          tickLine={false}
-                          axisLine={{ stroke: '#E5E7EB' }}
-                          className="dark:text-gray-400 dark:[&>.recharts-cartesian-axis-line]:stroke-gray-700"
-                        />
-                        <YAxis 
-                          tick={{ fontSize: 12, fontFamily: "'Tajawal', sans-serif" }}
-                          tickLine={false}
-                          axisLine={{ stroke: '#E5E7EB' }}
-                          tickFormatter={(value) => value.toLocaleString()}
-                          className="dark:text-gray-400 dark:[&>.recharts-cartesian-axis-line]:stroke-gray-700"
-                        />
-                        <Tooltip 
-                          formatter={(value) => `${Number(value).toLocaleString()} دج`}
-                          labelStyle={{ ...CHART_STYLE, color: '#374151' }}
-                          contentStyle={{ ...CHART_STYLE, borderRadius: '0.5rem', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)', backgroundColor: 'var(--background)', borderColor: 'var(--border)' }}
-                        />
-                        <Legend 
-                          wrapperStyle={CHART_STYLE}
-                          formatter={(value) => <span style={{ color: '#4B5563' }}>{value}</span>}
-                        />
-                        <Bar 
-                          dataKey="total_sales_dinar" 
-                          name="المبيعات (دج)"
-                          radius={[5, 5, 0, 0]} 
+                    <Suspense fallback={<div className="flex justify-center items-center h-full">
+                      <RefreshCwIcon className="h-8 w-8 animate-spin text-primary" />
+                    </div>}>
+                      <LazyResponsiveContainer width="100%" height="100%">
+                        <LazyBarChart
+                          data={currencyStats}
+                          margin={{ top: 20, right: 30, left: 20, bottom: 30 }}
+                          barCategoryGap="20%"
+                          barSize={40}
                         >
-                          {currencyStats.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={`url(#colorGradient${index})`} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
+                          <defs>
+                            {currencyStats.map((entry, index) => (
+                              <linearGradient key={`gradient-${index}`} id={`colorGradient${index}`} x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor={COLORS[index % COLORS.length]} stopOpacity={0.9}/>
+                                <stop offset="95%" stopColor={COLORS[index % COLORS.length]} stopOpacity={0.3}/>
+                              </linearGradient>
+                            ))}
+                          </defs>
+                          <LazyCartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} className="dark:stroke-gray-700" />
+                          <LazyXAxis 
+                            dataKey="currency" 
+                            tick={{ fontSize: 12, fontFamily: "'Tajawal', sans-serif" }}
+                            tickLine={false}
+                            axisLine={{ stroke: '#E5E7EB' }}
+                            className="dark:text-gray-400 dark:[&>.recharts-cartesian-axis-line]:stroke-gray-700"
+                          />
+                          <LazyYAxis 
+                            tick={{ fontSize: 12, fontFamily: "'Tajawal', sans-serif" }}
+                            tickLine={false}
+                            axisLine={{ stroke: '#E5E7EB' }}
+                            tickFormatter={(value) => value.toLocaleString()}
+                            className="dark:text-gray-400 dark:[&>.recharts-cartesian-axis-line]:stroke-gray-700"
+                          />
+                          <LazyTooltip 
+                            formatter={(value) => `${Number(value).toLocaleString()} دج`}
+                            labelStyle={{ ...CHART_STYLE, color: '#374151' }}
+                            contentStyle={{ ...CHART_STYLE, borderRadius: '0.5rem', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)', backgroundColor: 'var(--background)', borderColor: 'var(--border)' }}
+                          />
+                          <LazyLegend 
+                            wrapperStyle={CHART_STYLE}
+                            formatter={(value) => <span style={{ color: '#4B5563' }}>{value}</span>}
+                          />
+                          <LazyBar 
+                            dataKey="total_sales_dinar" 
+                            name="المبيعات (دج)"
+                            radius={[5, 5, 0, 0]} 
+                          >
+                            {currencyStats.map((entry, index) => (
+                              <LazyCell key={`cell-${index}`} fill={`url(#colorGradient${index})`} />
+                            ))}
+                          </LazyBar>
+                        </LazyBarChart>
+                      </LazyResponsiveContainer>
+                    </Suspense>
                   )}
                 </CardContent>
               </Card>

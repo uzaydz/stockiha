@@ -295,8 +295,11 @@ export default defineConfig(({ command, mode }) => {
                 return 'forms-vendor';
               }
               
-              // Charts & Analytics
-              if (id.includes('recharts') || id.includes('chart.js') || id.includes('d3')) {
+              // Charts & Analytics - تحسين خاص لـ recharts
+              if (id.includes('recharts')) {
+                return 'recharts-vendor';
+              }
+              if (id.includes('chart.js') || id.includes('d3')) {
                 return 'charts-vendor';
               }
               
@@ -419,7 +422,7 @@ export default defineConfig(({ command, mode }) => {
         // إصلاح مشكلة react-is و recharts
         namedExports: {
           'react-is': ['isFragment', 'isValidElementType', 'isElement'],
-          'recharts': ['ResponsiveContainer', 'LineChart', 'BarChart', 'PieChart', 'XAxis', 'YAxis', 'CartesianGrid', 'Tooltip', 'Legend', 'Line', 'Bar', 'Cell'],
+          'recharts': ['ResponsiveContainer', 'LineChart', 'BarChart', 'PieChart', 'XAxis', 'YAxis', 'CartesianGrid', 'Tooltip', 'Legend', 'Line', 'Bar', 'Cell', 'RadialBarChart', 'RadialBar'],
         },
       },
       chunkSizeWarningLimit: 1000,
@@ -464,8 +467,16 @@ export default defineConfig(({ command, mode }) => {
         'lodash-es/throttle',
         // إضافة react-is للتحسين المسبق
         'react-is',
-        // إضافة recharts للتحسين المسبق
+        // إضافة recharts للتحسين المسبق مع تفاصيل أكثر
         'recharts',
+        'recharts/es6',
+        'recharts/es6/cartesian/CartesianGrid',
+        'recharts/es6/chart/BarChart',
+        'recharts/es6/chart/PieChart',
+        'recharts/es6/chart/RadialBarChart',
+        'recharts/es6/component/ResponsiveContainer',
+        'recharts/es6/component/Tooltip',
+        'recharts/es6/component/Legend',
       ],
       exclude: [
         // استبعاد المكتبات الثقيلة من التحسين المسبق
