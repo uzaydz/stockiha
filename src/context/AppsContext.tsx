@@ -235,17 +235,12 @@ export const AppsProvider: React.FC<AppsProviderProps> = ({ children }) => {
       // Fallback: جلب مباشر من Supabase إذا فشل النظام الموحد أو أعاد بيانات فارغة
       if (!fetchSuccess) {
         try {
-          console.log('🔄 [AppsContext] Fallback: Direct Supabase query (bypassing cache)...');
+          console.log('🔄 [AppsContext] Fallback: Direct Supabase query...');
           const { data: directData, error } = await supabase
             .from('organization_apps')
             .select('*')
             .eq('organization_id', organizationId)
-            .order('created_at', { ascending: false })
-            .context({
-              headers: {
-                'x-use-cache': 'false'
-              }
-            } as any);
+            .order('created_at', { ascending: false });
 
           if (!error && directData && Array.isArray(directData)) {
             data = directData;
