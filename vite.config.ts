@@ -258,17 +258,18 @@ export default defineConfig(({ command, mode }) => {
       terserOptions: isProd ? {
         compress: {
           drop_console: false,
-          drop_debugger: false,
+          drop_debugger: true,
           unused: false,
           side_effects: false,
-          pure_funcs: []
+          passes: 2,
         },
         mangle: {
           safari10: true,
-          keep_fnames: /^(deduplicateRequest|interceptFetch|POSDataProvider|console)$/,
-          reserved: ['console', 'log', 'warn', 'error', 'info']
+          keep_fnames: /^(deduplicateRequest|interceptFetch|POSDataProvider|DashboardDataContext|StoreDataContext|AuthSingleton|UnifiedRequestManager|initializeRequestSystems|checkUserRequires2FA|handleSuccessfulLogin|PerformanceTracker|UltimateRequestController)$/,
+          reserved: ['console', 'log', 'warn', 'error', 'info', 'require', 'exports', 'module']
         },
         format: {
+          comments: false,
           safari10: true,
         },
       } : undefined,
@@ -301,24 +302,33 @@ export default defineConfig(({ command, mode }) => {
             return `assets/[name]-[hash].${ext}`;
           },
           manualChunks: {
-            'pos-optimization': [
-              './src/context/POSDataContext.tsx',
+            'core-infra': [
               './src/lib/cache/deduplication.ts',
-              './src/lib/requestSystemInitializer.ts',
               './src/lib/ultimateRequestController.ts',
-              './src/utils/forceProductionInit.ts',
-              './src/utils/productionSystemCheck.ts'
+              './src/lib/requestSystemInitializer.ts',
+              './src/lib/authSingleton.ts',
+              './src/lib/performance-tracking.ts'
+            ],
+            'pos-logic': [
+              './src/context/POSDataContext.tsx',
+            ],
+            'dashboard-logic': [
+              './src/context/DashboardDataContext.tsx'
+            ],
+            'store-logic': [
+                './src/context/StoreContext.tsx'
             ]
           }
         } as OutputOptions,
         external: isProd ? [] : undefined,
         // تحسين خاص لـ Vercel
         preserveEntrySignatures: 'strict',
-        // تحسينات لحل مشاكل التهيئة
+        // تخفيف قوة tree-shaking لمنع حذف الأكواد المهمة
         treeshake: {
-          preset: 'smallest',
-          propertyReadSideEffects: false,
-          tryCatchDeoptimization: false,
+          preset: 'recommended',
+          moduleSideEffects: "no-external",
+          propertyReadSideEffects: true,
+          tryCatchDeoptimization: true,
         },
         // ضمان ترتيب التحميل الصحيح
         makeAbsoluteExternalsRelative: false,
@@ -447,7 +457,7 @@ export default defineConfig(({ command, mode }) => {
     },
     esbuild: {
       target: 'es2020',
-      drop: isProd ? ['console', 'debugger'] : [],
+      drop: isProd ? ['debugger'] : [],
       legalComments: 'none',
       jsx: 'automatic',
       jsxImportSource: 'react',
