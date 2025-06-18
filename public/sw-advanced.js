@@ -102,16 +102,15 @@ self.addEventListener('fetch', event => {
   if (url.protocol === 'chrome-extension:') return;
   
   // تجاهل طلبات Sentry بشكل كامل لتجنب التدخل والأخطاء
-  if (url.href.includes('sentry.io') || url.href.includes('ingest.')) {
-    return; // لا نتدخل في طلبات Sentry نهائياً
-  }
-  
-  // تجاهل طلبات Analytics وTracking
-  if (url.href.includes('google-analytics.com') || 
-      url.href.includes('googletagmanager.com') ||
-      url.href.includes('facebook.com') ||
-      url.href.includes('tiktok.com')) {
-    return; // لا نتدخل في طلبات التتبع
+  if (url.hostname.includes('sentry.io') || 
+    url.hostname.includes('ingest.sentry.io') ||
+    url.hostname.includes('supabase.co') ||
+    url.hostname.includes('supabase.in') ||
+    url.hostname.includes('segment.io') ||
+    url.hostname.includes('google-analytics.com') ||
+    url.hostname.includes('googletagmanager.com') ||
+    url.hostname.includes('vercel-insights.com')) {
+    return; // Laisser le navigateur gérer
   }
   
   // تجاهل POST requests للـ Supabase RPC، Edge Functions (لتجنب مشاكل الـ caching)
