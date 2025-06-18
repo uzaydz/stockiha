@@ -1,0 +1,116 @@
+{
+  "navbar": {
+    "home": "الرئيسية",
+    "products": "المنتجات",
+    "categories": "الفئات",
+    "about": "عن المتجر",
+    "contact": "اتصل بنا",
+    "cart": "العربة",
+    "search": "البحث",
+    "searchPlaceholder": "ابحث عن المنتجات...",
+    "menu": "القائمة",
+    "account": "الحساب",
+    "login": "تسجيل الدخول",
+    "register": "إنشاء حساب"
+  },
+  "banner": {
+    "welcomeTitle": "مرحباً بك في متجرنا",
+    "welcomeSubtitle": "اكتشف أفضل المنتجات بأسعار مميزة",
+    "shopNow": "تسوق الآن",
+    "learnMore": "اعرف المزيد",
+    "fastShipping": "شحن سريع",
+    "securePayment": "دفع آمن",
+    "qualityGuarantee": "ضمان الجودة",
+    "customerSupport": "دعم العملاء"
+  },
+  "categories": {
+    "title": "تسوق حسب الفئة",
+    "subtitle": "استكشف مجموعتنا المتنوعة من المنتجات",
+    "viewAll": "عرض الكل",
+    "productsCount": "منتج",
+    "noCategories": "لا توجد فئات متاحة حالياً"
+  },
+  "featuredProducts": {
+    "title": "منتجاتنا المميزة",
+    "subtitle": "اكتشف أفضل منتجاتنا المختارة بعناية",
+    "addToCart": "أضف للعربة",
+    "addToFavorites": "أضف للمفضلة",
+    "quickView": "عرض سريع",
+    "viewDetails": "عرض التفاصيل",
+    "outOfStock": "نفد من المخزون",
+    "onSale": "خصم",
+    "new": "جديد",
+    "noProducts": "لا توجد منتجات متاحة حالياً"
+  },
+  "testimonials": {
+    "title": "آراء عملائنا",
+    "subtitle": "اقرأ تجارب عملائنا السعداء معنا",
+    "rating": "التقييم",
+    "verified": "مشتري موثق",
+    "noTestimonials": "لا توجد آراء متاحة حالياً"
+  },
+  "about": {
+    "title": "عن متجرنا",
+    "subtitle": "نحن نقدم أفضل المنتجات والخدمات لعملائنا",
+    "yearsFounded": "سنة التأسيس",
+    "happyCustomers": "عميل سعيد",
+    "products": "منتج",
+    "branches": "فرع",
+    "ourFeatures": "مميزاتنا",
+    "quality": "جودة عالية",
+    "service": "خدمة متميزة",
+    "delivery": "توصيل سريع",
+    "support": "دعم مستمر"
+  },
+  "contact": {
+    "title": "تواصل معنا",
+    "subtitle": "نحن هنا للمساعدة والإجابة على استفساراتك",
+    "phone": "الهاتف",
+    "email": "البريد الإلكتروني",
+    "address": "العنوان",
+    "followUs": "تابعنا",
+    "sendMessage": "إرسال رسالة",
+    "yourName": "اسمك",
+    "yourEmail": "بريدك الإلكتروني",
+    "message": "الرسالة",
+    "send": "إرسال"
+  },
+  "services": {
+    "title": "خدماتنا",
+    "subtitle": "نقدم مجموعة شاملة من الخدمات المتميزة",
+    "freeShipping": "شحن مجاني",
+    "returnPolicy": "سياسة الإرجاع",
+    "warranty": "الضمان",
+    "customerService": "خدمة العملاء"
+  },
+  "footer": {
+    "aboutUs": "عن الشركة",
+    "quickLinks": "روابط سريعة",
+    "customerService": "خدمة العملاء",
+    "followUs": "تابعنا",
+    "newsletter": "النشرة الإخبارية",
+    "subscribeNewsletter": "اشترك في نشرتنا الإخبارية",
+    "enterEmail": "أدخل بريدك الإلكتروني",
+    "subscribe": "اشتراك",
+    "allRightsReserved": "جميع الحقوق محفوظة",
+    "privacyPolicy": "سياسة الخصوصية",
+    "termsOfService": "شروط الخدمة"
+  },
+  "common": {
+    "loading": "جاري التحميل...",
+    "error": "حدث خطأ",
+    "tryAgain": "حاول مرة أخرى",
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "edit": "تعديل",
+    "delete": "حذف",
+    "view": "عرض",
+    "close": "إغلاق",
+    "next": "التالي",
+    "previous": "السابق",
+    "search": "بحث",
+    "filter": "تصفية",
+    "sort": "ترتيب",
+    "currency": "ر.س"
+  }
+} 

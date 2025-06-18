@@ -130,10 +130,7 @@ class SupabaseUnifiedClient {
             'X-Client-Info': 'bazaar-unified-client',
             'Accept': 'application/json',
             'X-Client-Instance': 'unified-main',
-            'X-Creation-Time': Date.now().toString(),
-            // 🔧 إضافة header خاص لحل مشكلة RLS أثناء تسجيل الدخول
-            'X-Login-Context': 'pre-auth',
-            'X-RLS-Bypass': 'login-flow'
+            'X-Creation-Time': Date.now().toString()
           }
         },
         // تحسين إعدادات realtime مع تقليل الضغط
@@ -173,13 +170,11 @@ class SupabaseUnifiedClient {
       // تحديث الـ global client فوراً لمنع إنشاء عملاء إضافية
       globalClient = client;
 
-      // إضافة معالج للأخطاء مع حل مشكلة RLS
+      // إضافة معالج للأخطاء
       client.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_OUT') {
           this.handleSignOut();
         } else if (event === 'SIGNED_IN') {
-          // 🔧 تحديث headers بعد تسجيل الدخول الناجح
-          this.updateClientHeaders(client, true);
           console.log('✅ [Supabase Unified] User signed in successfully');
         } else if (event === 'TOKEN_REFRESHED') {
           console.log('🔄 [Supabase Unified] Token refreshed');
@@ -211,26 +206,6 @@ class SupabaseUnifiedClient {
   /**
    * تحديث headers الخاصة بـ client بعد المصادقة
    */
-  private updateClientHeaders(client: SupabaseClient<Database>, isAuthenticated: boolean): void {
-    try {
-      const headers = isAuthenticated ? {
-        'X-Login-Context': 'post-auth',
-        'X-RLS-Bypass': 'authenticated',
-        'X-Auth-Status': 'verified'
-      } : {
-        'X-Login-Context': 'pre-auth',
-        'X-RLS-Bypass': 'login-flow',
-        'X-Auth-Status': 'pending'
-      };
-
-      // تحديث headers إذا أمكن
-      if (client && (client as any).supabaseKey) {
-        Object.assign((client as any).headers || {}, headers);
-      }
-    } catch (error) {
-      console.warn('⚠️ [Supabase Unified] Could not update headers:', error);
-    }
-  }
 
   private async cleanup(): Promise<void> {
     if (this.client) {

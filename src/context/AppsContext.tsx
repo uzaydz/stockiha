@@ -212,6 +212,65 @@ export const AppsProvider: React.FC<AppsProviderProps> = ({ children }) => {
       setIsLoading(true);
       console.log('🔄 [AppsContext] Fetching apps for organization:', organizationId);
       
+      // تشخيص شامل للمشكلة
+      console.log('🔍 [AppsContext] Comprehensive debugging started...');
+      
+      // 1. فحص الـ authentication
+      const session = await supabase.auth.getSession();
+      console.log('🔐 [AppsContext] Auth status:', {
+        hasSession: !!session.data.session,
+        userId: session.data.session?.user?.id,
+        role: session.data.session?.user?.role
+      });
+      
+      // 2. فحص بدون شروط
+      try {
+        const { data: allApps, error: allError } = await supabase
+          .from('organization_apps')
+          .select('*');
+          
+        console.log('📊 [AppsContext] All apps (no filters):', {
+          count: allApps?.length || 0,
+          data: allApps,
+          error: allError
+        });
+      } catch (e) {
+        console.error('❌ [AppsContext] Failed to fetch all apps:', e);
+      }
+      
+      // 3. فحص مع organization_id فقط
+      try {
+        const { data: orgApps, error: orgError } = await supabase
+          .from('organization_apps')
+          .select('*')
+          .eq('organization_id', organizationId);
+          
+        console.log('🏢 [AppsContext] Apps for organization:', {
+          organizationId,
+          count: orgApps?.length || 0,
+          data: orgApps,
+          error: orgError
+        });
+      } catch (e) {
+        console.error('❌ [AppsContext] Failed to fetch org apps:', e);
+      }
+      
+      // 4. فحص مع count
+      try {
+        const { count, error: countError } = await supabase
+          .from('organization_apps')
+          .select('*', { count: 'exact', head: true })
+          .eq('organization_id', organizationId);
+          
+        console.log('🔢 [AppsContext] Count check:', {
+          organizationId,
+          totalCount: count,
+          error: countError
+        });
+      } catch (e) {
+        console.error('❌ [AppsContext] Failed to count:', e);
+      }
+      
       // محاولة جلب البيانات من UnifiedRequestManager أولاً
       let data: any[] = [];
       let fetchSuccess = false;
@@ -246,8 +305,17 @@ export const AppsProvider: React.FC<AppsProviderProps> = ({ children }) => {
             data = directData;
             fetchSuccess = true;
             console.log('✅ [AppsContext] Direct query success:', data.length, 'apps');
+            if (data.length === 0) {
+              console.log('📊 [AppsContext] No apps found in database for organization:', organizationId);
+            }
           } else if (error) {
-            console.error('❌ [AppsContext] Direct query failed:', error);
+            console.error('❌ [AppsContext] Direct query failed:', {
+              error: error.message,
+              code: error.code,
+              details: error.details,
+              hint: error.hint,
+              organizationId
+            });
           }
         } catch (directError) {
           console.error('❌ [AppsContext] Direct query failed with exception:', directError);
@@ -339,45 +407,95 @@ export const AppsProvider: React.FC<AppsProviderProps> = ({ children }) => {
       // محاولة حفظ في قاعدة البيانات
       try {
         // أولاً، محاولة تحديث إذا كان موجود
-        const { data: existingApp } = await supabase
+        console.log('🔍 [AppsContext] Checking if app exists in DB:', { organizationId, appId });
+        const { data: existingApp, error: selectError } = await supabase
           .from('organization_apps')
           .select('id')
           .eq('organization_id', organizationId)
           .eq('app_id', appId)
           .single();
+          
+        if (selectError && selectError.code !== 'PGRST116') { // PGRST116 = no rows found
+          console.error('❌ [AppsContext] Error checking existing app:', {
+            error: selectError.message,
+            code: selectError.code,
+            details: selectError.details
+          });
+        }
 
-        if (existingApp) {
-          // تحديث الموجود
-          const { error } = await supabase
+        if (existingApp && existingApp.id) {
+          // تحديث الموجود فقط إذا كان له ID صالح
+          console.log('🔄 [AppsContext] Updating existing app record:', { organizationId, appId, existingAppId: existingApp.id });
+          const { data: updateData, error } = await supabase
             .from('organization_apps')
             .update({ 
               is_enabled: true, 
               updated_at: new Date().toISOString() 
             })
             .eq('organization_id', organizationId)
-            .eq('app_id', appId);
+            .eq('app_id', appId)
+            .select();
 
           if (error) {
-            console.warn('⚠️ [AppsContext] Database update failed:', error);
+            console.error('❌ [AppsContext] Database update failed:', {
+              error: error.message,
+              code: error.code,
+              details: error.details,
+              hint: error.hint,
+              organizationId,
+              appId
+            });
+            
+            // إذا فشل التحديث، جرب الإدراج
+            console.log('🔄 [AppsContext] Update failed, trying insert...');
+            await insertNewApp();
           } else {
-            console.log('✅ [AppsContext] App enabled in database (updated)');
+            console.log('✅ [AppsContext] App enabled in database (updated):', updateData);
           }
         } else {
           // إنشاء جديد
-          const { error } = await supabase
+          await insertNewApp();
+        }
+        
+        // دالة مساعدة للإدراج
+        async function insertNewApp() {
+          console.log('🆕 [AppsContext] Creating new app record:', { organizationId, appId });
+          const newRecord = {
+            organization_id: organizationId,
+            app_id: appId,
+            is_enabled: true,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+          
+          const { data: insertData, error: insertError } = await supabase
             .from('organization_apps')
-            .insert({
-              organization_id: organizationId,
-              app_id: appId,
-              is_enabled: true,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            });
+            .insert(newRecord)
+            .select();
 
-          if (error) {
-            console.warn('⚠️ [AppsContext] Database insert failed:', error);
+          if (insertError) {
+            console.error('❌ [AppsContext] Database insert failed:', {
+              error: insertError.message,
+              code: insertError.code,
+              details: insertError.details,
+              hint: insertError.hint,
+              record: newRecord
+            });
+            
+            // محاولة أخيرة مع upsert
+            console.log('🔄 [AppsContext] Insert failed, trying upsert...');
+            const { data: upsertData, error: upsertError } = await supabase
+              .from('organization_apps')
+              .upsert(newRecord, { onConflict: 'organization_id,app_id' })
+              .select();
+              
+            if (upsertError) {
+              console.error('❌ [AppsContext] Upsert also failed:', upsertError);
+            } else {
+              console.log('✅ [AppsContext] App enabled via upsert:', upsertData);
+            }
           } else {
-            console.log('✅ [AppsContext] App enabled in database (inserted)');
+            console.log('✅ [AppsContext] App enabled in database (inserted):', insertData);
           }
         }
       } catch (dbError: any) {

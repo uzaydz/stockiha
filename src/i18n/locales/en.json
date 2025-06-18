@@ -1,0 +1,116 @@
+{
+  "navbar": {
+    "home": "Home",
+    "products": "Products",
+    "categories": "Categories",
+    "about": "About Store",
+    "contact": "Contact Us",
+    "cart": "Cart",
+    "search": "Search",
+    "searchPlaceholder": "Search for products...",
+    "menu": "Menu",
+    "account": "Account",
+    "login": "Login",
+    "register": "Register"
+  },
+  "banner": {
+    "welcomeTitle": "Welcome to Our Store",
+    "welcomeSubtitle": "Discover the best products at amazing prices",
+    "shopNow": "Shop Now",
+    "learnMore": "Learn More",
+    "fastShipping": "Fast Shipping",
+    "securePayment": "Secure Payment",
+    "qualityGuarantee": "Quality Guarantee",
+    "customerSupport": "Customer Support"
+  },
+  "categories": {
+    "title": "Shop by Category",
+    "subtitle": "Explore our diverse range of products",
+    "viewAll": "View All",
+    "productsCount": "product",
+    "noCategories": "No categories available at the moment"
+  },
+  "featuredProducts": {
+    "title": "Our Featured Products",
+    "subtitle": "Discover our best handpicked products",
+    "addToCart": "Add to Cart",
+    "addToFavorites": "Add to Favorites",
+    "quickView": "Quick View",
+    "viewDetails": "View Details",
+    "outOfStock": "Out of Stock",
+    "onSale": "On Sale",
+    "new": "New",
+    "noProducts": "No products available at the moment"
+  },
+  "testimonials": {
+    "title": "Customer Reviews",
+    "subtitle": "Read what our happy customers say about us",
+    "rating": "Rating",
+    "verified": "Verified Buyer",
+    "noTestimonials": "No reviews available at the moment"
+  },
+  "about": {
+    "title": "About Our Store",
+    "subtitle": "We provide the best products and services to our customers",
+    "yearsFounded": "Years Founded",
+    "happyCustomers": "Happy Customers",
+    "products": "Products",
+    "branches": "Branches",
+    "ourFeatures": "Our Features",
+    "quality": "High Quality",
+    "service": "Premium Service",
+    "delivery": "Fast Delivery",
+    "support": "Continuous Support"
+  },
+  "contact": {
+    "title": "Contact Us",
+    "subtitle": "We're here to help and answer your questions",
+    "phone": "Phone",
+    "email": "Email",
+    "address": "Address",
+    "followUs": "Follow Us",
+    "sendMessage": "Send Message",
+    "yourName": "Your Name",
+    "yourEmail": "Your Email",
+    "message": "Message",
+    "send": "Send"
+  },
+  "services": {
+    "title": "Our Services",
+    "subtitle": "We offer a comprehensive range of premium services",
+    "freeShipping": "Free Shipping",
+    "returnPolicy": "Return Policy",
+    "warranty": "Warranty",
+    "customerService": "Customer Service"
+  },
+  "footer": {
+    "aboutUs": "About Us",
+    "quickLinks": "Quick Links",
+    "customerService": "Customer Service",
+    "followUs": "Follow Us",
+    "newsletter": "Newsletter",
+    "subscribeNewsletter": "Subscribe to our newsletter",
+    "enterEmail": "Enter your email",
+    "subscribe": "Subscribe",
+    "allRightsReserved": "All Rights Reserved",
+    "privacyPolicy": "Privacy Policy",
+    "termsOfService": "Terms of Service"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error occurred",
+    "tryAgain": "Try Again",
+    "save": "Save",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "delete": "Delete",
+    "view": "View",
+    "close": "Close",
+    "next": "Next",
+    "previous": "Previous",
+    "search": "Search",
+    "filter": "Filter",
+    "sort": "Sort",
+    "currency": "SAR"
+  }
+} 

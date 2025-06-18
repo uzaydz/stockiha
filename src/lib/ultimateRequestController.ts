@@ -11,7 +11,6 @@ import { productionDebugger, prodLog } from '@/utils/productionDebug';
 declare global {
   interface Window {
     supabase?: any;
-    originalFetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
   }
 }
 
@@ -301,8 +300,11 @@ class UltimateRequestController {
       return fetchFunction();
     }
 
-    // التحقق من الكاش
-    if (this.dataCache.has(cacheKey)) {
+    // التحقق من طلب تجاوز الكاش
+    const bypassCache = init?.headers && new Headers(init.headers).get('x-bypass-cache') === 'true';
+    
+    // التحقق من الكاش (إلا إذا كان هناك طلب لتجاوزه)
+    if (!bypassCache && this.dataCache.has(cacheKey)) {
       const cached = this.dataCache.get(cacheKey)!;
       if (Date.now() - cached.timestamp < cached.ttl) {
         cached.accessCount++;
@@ -320,6 +322,8 @@ class UltimateRequestController {
           headers: headers
         });
       }
+    } else if (bypassCache) {
+      console.log(`⚡ Cache bypassed for: ${cacheKey}`);
     }
 
     // التحقق من الطلبات النشطة
@@ -356,22 +360,26 @@ class UltimateRequestController {
             if (responseText.trim()) {
               const data = JSON.parse(responseText);
               
-              // الشرط الجديد: لا تخزن إذا كانت البيانات فارغة أو مصفوفة فارغة
-              const shouldCache = data !== null && (!Array.isArray(data) || data.length > 0);
-
-              if (shouldCache) {
-                this.dataCache.set(cacheKey, {
-                  data,
-                  timestamp: Date.now(),
-                  ttl: this.config.DEFAULT_TTL,
-                  accessCount: 1
-                });
-                
-                console.log(`💾 Cached: ${cacheKey}`);
-                prodLog('info', `💾 Cached`, { cacheKey, duration, url });
+              // الشرط المحسّن: السماح بتخزين الاستجابات الفارغة مع TTL أقصر
+              const isEmpty = data === null || (Array.isArray(data) && data.length === 0);
+              
+              // تخزين جميع الاستجابات بما في ذلك الفارغة، مع TTL مختلف
+              const ttl = isEmpty ? 30 * 1000 : this.config.DEFAULT_TTL; // 30 ثانية للبيانات الفارغة
+              
+              // نخزن كل شيء، حتى الاستجابات الفارغة
+              this.dataCache.set(cacheKey, {
+                data,
+                timestamp: Date.now(),
+                ttl: ttl,
+                accessCount: 1
+              });
+              
+              if (isEmpty) {
+                console.log(`📦 Cached empty response: ${cacheKey} (TTL: ${ttl/1000}s)`);
+                prodLog('info', `📦 Cached empty response`, { cacheKey, duration, url, ttl, dataType: Array.isArray(data) ? 'empty array' : 'null' });
               } else {
-                console.log(`🚫 Bypassed empty response caching: ${cacheKey}`);
-                prodLog('info', `🚫 Bypassed empty response caching`, { cacheKey, duration, url });
+                console.log(`💾 Cached: ${cacheKey}`);
+                prodLog('info', `💾 Cached`, { cacheKey, duration, url, itemCount: Array.isArray(data) ? data.length : 1 });
               }
             } else {
               console.log(`🚫 Bypassed empty text response caching: ${cacheKey}`);
@@ -531,54 +539,6 @@ class UltimateRequestController {
         this.dataCache.delete(key);
       }
     }
-  }
-
-  public interceptFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    try {
-      const headersForLogging = this.headersToObject(new Headers(init?.headers));
-      console.log(`[REQUEST_INTERCEPTOR] Intercepting fetch for: ${(input as Request).url || input}`, {
-        method: init?.method || 'GET',
-        headers: headersForLogging,
-        body: init?.body ? 'present' : 'empty'
-      });
-
-      if (headersForLogging['accept']) {
-        console.log(`[REQUEST_INTERCEPTOR] Found 'Accept' header:`, headersForLogging['accept']);
-      } else {
-        console.warn(`[REQUEST_INTERCEPTOR] 'Accept' header is MISSING from initial request.`);
-      }
-
-      const request = new Request(input, init);
-      const url = request.url;
-
-      const response = await this.deduplicateSupabaseRequest(url, init, async () => {
-        const finalHeaders = this.headersToObject(request.headers);
-        console.log(`[REQUEST_INTERCEPTOR] Executing original fetch. Final headers being sent:`, finalHeaders);
-        if (finalHeaders['accept']) {
-          console.log(`[REQUEST_INTERCEPTOR] 'Accept' header is PRESENT before sending to Supabase.`);
-        } else {
-          console.error(`[REQUEST_INTERCEPTOR] 'Accept' header is MISSING right before sending to Supabase! This is the cause of 406 error.`);
-        }
-        return window.originalFetch(request);
-      });
-
-      const responseToReturn = response.clone();
-      const responseHeaders = this.headersToObject(responseToReturn.headers);
-      console.log('[REQUEST_INTERCEPTOR] Response received. Headers:', responseHeaders);
-
-      return responseToReturn;
-    } catch (error) {
-      console.error('[REQUEST_INTERCEPTOR] Critical error in interceptFetch:', error);
-      return window.originalFetch(input, init);
-    }
-  };
-
-  private headersToObject(headers: Headers): Record<string, string> {
-    const headersObject: Record<string, string> = {};
-    headers.forEach((value, key) => {
-      headersObject[key] = value;
-    });
-    return headersObject;
   }
 }
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Menu, ChevronDown, ArrowRightToLine, ArrowLeftToLine, Sparkles } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { NavbarLogo } from './NavbarLogo';
@@ -11,6 +12,7 @@ import { NavbarNotifications } from './NavbarNotifications';
 import { NavbarThemeToggle } from './NavbarThemeToggle';
 import { NavbarMobileMenu } from './NavbarMobileMenu';
 import { QuickNavLinks } from './QuickNavLinks';
+import LanguageSwitcher from '@/components/language/LanguageSwitcher';
 import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
 import { getOrganizationSettings } from '@/lib/api/settings';
@@ -37,7 +39,8 @@ export function NavbarMain({
   categories: propCategories,
   isMobile
 }: NavbarMainProps) {
-  const { user, userProfile, isLoadingUserProfile } = useAuth();
+  const { user, userProfile } = useAuth();
+  const { t } = useTranslation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isQuickLinksOpen, setIsQuickLinksOpen] = useState(false);
   const location = useLocation();
@@ -307,13 +310,13 @@ export function NavbarMain({
     }
   ];
 
-  if (isLoadingUserProfile && user) {
+  if (!userProfile && user) {
     return (
       <div className={cn(
         "flex items-center justify-between p-3 shadow-sm bg-background/90 backdrop-blur-md",
         className
       )}>
-        <NavbarLogo siteName="جاري التحميل..." />
+        <NavbarLogo siteName={t('common.loading')} />
         <div className="animate-pulse h-8 w-8 bg-muted rounded-full"></div>
       </div>
     );
@@ -330,7 +333,7 @@ export function NavbarMain({
             className="rounded-full bg-gradient-to-r from-primary/5 to-primary/10 backdrop-blur-sm border border-primary/20 shadow-sm hover:shadow-lg hover:from-primary/10 hover:to-primary/20 transition-all duration-300 px-3 text-xs font-medium group"
           >
             <Sparkles className="h-3.5 w-3.5 ml-1 text-primary/70 group-hover:text-primary transition-colors duration-300" />
-            <span className="text-sm">الأقسام</span>
+            <span className="text-sm">{t('navbar.categories')}</span>
             <ChevronDown className="h-3.5 w-3.5 mr-1 opacity-80 transition-transform duration-300" style={{ transform: isQuickLinksOpen ? 'rotate(180deg)' : 'rotate(0)' }} />
           </Button>
         </DropdownMenuTrigger>
@@ -389,7 +392,7 @@ export function NavbarMain({
                 "bg-gradient-to-br from-background/50 to-background/80 hover:from-primary/10 hover:to-primary/20",
                 "border border-border/30 hover:border-primary/30 shadow-sm hover:shadow-md"
               )}
-              aria-label={isSidebarOpen ? "طي القائمة الجانبية" : "توسيع القائمة الجانبية"}
+              aria-label={isSidebarOpen ? t('navbar.collapseSidebar') : t('navbar.expandSidebar')}
             >
               <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
               {isSidebarOpen ? (
@@ -450,6 +453,11 @@ export function NavbarMain({
           
           {/* Action buttons with enhanced styling */}
           <div className="flex items-center gap-2">
+            {/* مبدل اللغة */}
+            <div className="bg-gradient-to-r from-background/40 to-background/60 backdrop-blur-md rounded-full border border-border/20 shadow-sm">
+              <LanguageSwitcher className="px-2" variant="dropdown" showText={false} />
+            </div>
+            
             <div className="bg-gradient-to-r from-background/40 to-background/60 backdrop-blur-md rounded-full border border-border/20 shadow-sm p-1">
               <NavbarThemeToggle />
             </div>

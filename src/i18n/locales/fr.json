@@ -1,0 +1,116 @@
+{
+  "navbar": {
+    "home": "Accueil",
+    "products": "Produits",
+    "categories": "Catégories",
+    "about": "À propos",
+    "contact": "Contact",
+    "cart": "Panier",
+    "search": "Recherche",
+    "searchPlaceholder": "Rechercher des produits...",
+    "menu": "Menu",
+    "account": "Compte",
+    "login": "Connexion",
+    "register": "S'inscrire"
+  },
+  "banner": {
+    "welcomeTitle": "Bienvenue dans notre boutique",
+    "welcomeSubtitle": "Découvrez les meilleurs produits à des prix exceptionnels",
+    "shopNow": "Acheter maintenant",
+    "learnMore": "En savoir plus",
+    "fastShipping": "Livraison rapide",
+    "securePayment": "Paiement sécurisé",
+    "qualityGuarantee": "Garantie qualité",
+    "customerSupport": "Support client"
+  },
+  "categories": {
+    "title": "Acheter par catégorie",
+    "subtitle": "Explorez notre gamme variée de produits",
+    "viewAll": "Voir tout",
+    "productsCount": "produit",
+    "noCategories": "Aucune catégorie disponible pour le moment"
+  },
+  "featuredProducts": {
+    "title": "Nos produits vedettes",
+    "subtitle": "Découvrez nos meilleurs produits sélectionnés",
+    "addToCart": "Ajouter au panier",
+    "addToFavorites": "Ajouter aux favoris",
+    "quickView": "Aperçu rapide",
+    "viewDetails": "Voir les détails",
+    "outOfStock": "Rupture de stock",
+    "onSale": "En solde",
+    "new": "Nouveau",
+    "noProducts": "Aucun produit disponible pour le moment"
+  },
+  "testimonials": {
+    "title": "Avis clients",
+    "subtitle": "Lisez ce que nos clients satisfaits disent de nous",
+    "rating": "Note",
+    "verified": "Acheteur vérifié",
+    "noTestimonials": "Aucun avis disponible pour le moment"
+  },
+  "about": {
+    "title": "À propos de notre boutique",
+    "subtitle": "Nous offrons les meilleurs produits et services à nos clients",
+    "yearsFounded": "Année de fondation",
+    "happyCustomers": "Clients satisfaits",
+    "products": "Produits",
+    "branches": "Succursales",
+    "ourFeatures": "Nos atouts",
+    "quality": "Haute qualité",
+    "service": "Service premium",
+    "delivery": "Livraison rapide",
+    "support": "Support continu"
+  },
+  "contact": {
+    "title": "Contactez-nous",
+    "subtitle": "Nous sommes là pour vous aider et répondre à vos questions",
+    "phone": "Téléphone",
+    "email": "E-mail",
+    "address": "Adresse",
+    "followUs": "Suivez-nous",
+    "sendMessage": "Envoyer un message",
+    "yourName": "Votre nom",
+    "yourEmail": "Votre e-mail",
+    "message": "Message",
+    "send": "Envoyer"
+  },
+  "services": {
+    "title": "Nos services",
+    "subtitle": "Nous offrons une gamme complète de services premium",
+    "freeShipping": "Livraison gratuite",
+    "returnPolicy": "Politique de retour",
+    "warranty": "Garantie",
+    "customerService": "Service client"
+  },
+  "footer": {
+    "aboutUs": "À propos de nous",
+    "quickLinks": "Liens rapides",
+    "customerService": "Service client",
+    "followUs": "Suivez-nous",
+    "newsletter": "Newsletter",
+    "subscribeNewsletter": "Abonnez-vous à notre newsletter",
+    "enterEmail": "Entrez votre e-mail",
+    "subscribe": "S'abonner",
+    "allRightsReserved": "Tous droits réservés",
+    "privacyPolicy": "Politique de confidentialité",
+    "termsOfService": "Conditions de service"
+  },
+  "common": {
+    "loading": "Chargement...",
+    "error": "Erreur survenue",
+    "tryAgain": "Réessayer",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "view": "Voir",
+    "close": "Fermer",
+    "next": "Suivant",
+    "previous": "Précédent",
+    "search": "Rechercher",
+    "filter": "Filtrer",
+    "sort": "Trier",
+    "currency": "SAR"
+  }
+} 

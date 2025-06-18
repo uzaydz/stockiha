@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, Truck, ShieldCheck, Gem, Clock, Award, HeartHandshake, CheckCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 
 // أنماط أزرار متنوعة هادئة مع دعم الوضع الداكن
@@ -78,7 +79,25 @@ const getIconComponent = (iconName: string | React.ElementType) => {
   return iconMap[iconName] || Gem;
 };
 
-// بيانات الهيرو الافتراضية
+// دالة لإنشاء بيانات الهيرو الافتراضية بناءً على الترجمة
+const getDefaultHeroData = (t: any): HeroData => ({
+  imageUrl: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&w=2070&auto=format&fit=crop&crop=center',
+  title: t('banner.welcomeTitle'),
+  description: t('banner.welcomeSubtitle'),
+  primaryButtonText: t('banner.shopNow'),
+  primaryButtonLink: '/products',
+  primaryButtonStyle: 'primary',
+  secondaryButtonText: t('banner.learnMore'),
+  secondaryButtonLink: '/offers',
+  secondaryButtonStyle: 'primary',
+  trustBadges: [
+    { icon: Truck, text: t('banner.fastShipping') },
+    { icon: ShieldCheck, text: t('banner.securePayment') },
+    { icon: Gem, text: t('banner.qualityGuarantee') },
+  ],
+});
+
+// بيانات الهيرو الافتراضية (للتوافق مع النظام الحالي)
 const defaultHeroData: HeroData = {
   imageUrl: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&w=2070&auto=format&fit=crop&crop=center',
   title: 'أحدث المنتجات',
@@ -97,6 +116,7 @@ const defaultHeroData: HeroData = {
 };
 
 const StoreBanner = ({ heroData = defaultHeroData }: { heroData?: HeroData }) => {
+  const { t } = useTranslation();
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -114,15 +134,23 @@ const StoreBanner = ({ heroData = defaultHeroData }: { heroData?: HeroData }) =>
     visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } }
   };
   
+  // الحصول على البيانات الافتراضية المترجمة
+  const translatedDefaultData = getDefaultHeroData(t);
+  
   // استخدام قيم افتراضية في حالة عدم وجود الخصائص
   const primaryStyle = heroData.primaryButtonStyle || 'primary';
   const secondaryStyle = heroData.secondaryButtonStyle || 'primary';
   
-  // استخراج نصوص وروابط الأزرار من التنسيق الجديد أو القديم
-  const primaryButtonText = heroData.primaryButton?.text || heroData.primaryButtonText || defaultHeroData.primaryButtonText;
-  const primaryButtonLink = heroData.primaryButton?.link || heroData.primaryButtonLink || defaultHeroData.primaryButtonLink;
-  const secondaryButtonText = heroData.secondaryButton?.text || heroData.secondaryButtonText || defaultHeroData.secondaryButtonText;
-  const secondaryButtonLink = heroData.secondaryButton?.link || heroData.secondaryButtonLink || defaultHeroData.secondaryButtonLink;
+  // استخراج نصوص وروابط الأزرار من التنسيق الجديد أو القديم مع الترجمة
+  const primaryButtonText = heroData.primaryButton?.text || heroData.primaryButtonText || translatedDefaultData.primaryButtonText;
+  const primaryButtonLink = heroData.primaryButton?.link || heroData.primaryButtonLink || translatedDefaultData.primaryButtonLink;
+  const secondaryButtonText = heroData.secondaryButton?.text || heroData.secondaryButtonText || translatedDefaultData.secondaryButtonText;
+  const secondaryButtonLink = heroData.secondaryButton?.link || heroData.secondaryButtonLink || translatedDefaultData.secondaryButtonLink;
+  
+  // استخدام العنوان والوصف المترجم إذا لم يتم توفيرهما
+  const title = heroData.title || translatedDefaultData.title;
+  const description = heroData.description || translatedDefaultData.description;
+  const trustBadges = heroData.trustBadges || translatedDefaultData.trustBadges;
   
   return (
     <section className="w-full bg-gradient-to-b from-background to-muted/30 dark:to-muted/10 overflow-hidden">
@@ -141,14 +169,14 @@ const StoreBanner = ({ heroData = defaultHeroData }: { heroData?: HeroData }) =>
               variants={itemVariants}
               className="text-4xl sm:text-5xl lg:text-6xl font-extrabold mb-5 text-foreground leading-tight tracking-tight"
             >
-              {heroData.title}
+              {title}
             </motion.h1>
             
             <motion.p 
               variants={itemVariants}
               className="text-lg md:text-xl text-muted-foreground mb-8 max-w-xl mx-auto md:mx-0"
             >
-              {heroData.description}
+              {description}
             </motion.p>
             
             <motion.div 
@@ -189,12 +217,12 @@ const StoreBanner = ({ heroData = defaultHeroData }: { heroData?: HeroData }) =>
             </motion.div>
 
             {/* أيقونات الثقة */}
-            {heroData.trustBadges && heroData.trustBadges.length > 0 && (
+            {trustBadges && trustBadges.length > 0 && (
               <motion.div 
                 variants={itemVariants} 
                 className="flex flex-wrap justify-center md:justify-start gap-x-6 gap-y-3"
               >
-                {heroData.trustBadges.map((badge, index) => {
+                {trustBadges.map((badge, index) => {
                   const IconComponent = getIconComponent(badge.icon);
                   return (
                     <div key={index} className="flex items-center gap-2 text-sm text-muted-foreground">
