@@ -262,9 +262,28 @@ class UltimateRequestController {
 
   private async deduplicateSupabaseRequest(
     url: string,
-    init: RequestInit | undefined,
-    fetchFunction: () => Promise<Response>
+    initOrFetchFunction: RequestInit | undefined | (() => Promise<Response>),
+    optionalFetchFunction?: () => Promise<Response>
   ): Promise<Response> {
+
+    let init: RequestInit | undefined;
+    let fetchFunction: () => Promise<Response>;
+
+    // التوافق مع الإصدارات السابقة: التحقق من كيفية استدعاء الدالة
+    if (typeof initOrFetchFunction === 'function') {
+      // تم استدعاؤها بالطريقة القديمة: (url, fetchFunction)
+      init = undefined;
+      fetchFunction = initOrFetchFunction;
+    } else {
+      // تم استدعاؤها بالطريقة الجديدة: (url, init, fetchFunction)
+      init = initOrFetchFunction;
+      if (typeof optionalFetchFunction !== 'function') {
+        // هذا لا ينبغي أن يحدث أبدًا إذا تم استخدام الواجهة الجديدة بشكل صحيح
+        throw new Error('deduplicateSupabaseRequest: Invalid call signature.');
+      }
+      fetchFunction = optionalFetchFunction;
+    }
+    
     const cacheKey = this.createCacheKey(url);
     
     // التحقق من نوع الطلب من المعاملات بدلاً من URL
