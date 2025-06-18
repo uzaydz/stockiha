@@ -50,31 +50,19 @@ const LanguageSwitcher: React.FC<LanguageSwitcherProps> = ({
   
   const currentLanguage = languages.find(lang => lang.code === i18n.language) || languages[0];
   
-  // تحميل اللغة المحفوظة عند بدء التشغيل
+  // تحديث اتجاه الصفحة عند تغيير اللغة
   useEffect(() => {
-    const savedLanguage = localStorage.getItem('selectedLanguage');
-    if (savedLanguage && savedLanguage !== i18n.language) {
-      const selectedLanguage = languages.find(lang => lang.code === savedLanguage);
-      if (selectedLanguage) {
-        i18n.changeLanguage(savedLanguage);
-        document.documentElement.dir = selectedLanguage.direction;
-        document.documentElement.lang = savedLanguage;
-      }
+    const currentLang = languages.find(lang => lang.code === i18n.language);
+    if (currentLang) {
+      document.documentElement.dir = currentLang.direction;
+      document.documentElement.lang = i18n.language;
     }
-  }, [i18n]);
+  }, [i18n.language]);
   
   const handleLanguageChange = (languageCode: string) => {
     const selectedLanguage = languages.find(lang => lang.code === languageCode);
     if (selectedLanguage) {
       i18n.changeLanguage(languageCode);
-      
-      // تحديث اتجاه الصفحة
-      document.documentElement.dir = selectedLanguage.direction;
-      document.documentElement.lang = languageCode;
-      
-      // حفظ في localStorage
-      localStorage.setItem('selectedLanguage', languageCode);
-      
       setIsOpen(false);
     }
   };

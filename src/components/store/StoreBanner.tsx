@@ -144,16 +144,77 @@ const StoreBanner = ({ heroData }: { heroData?: HeroData }) => {
   const primaryStyle = currentHeroData.primaryButtonStyle || 'primary';
   const secondaryStyle = currentHeroData.secondaryButtonStyle || 'primary';
   
-  // استخراج نصوص وروابط الأزرار من التنسيق الجديد أو القديم مع الترجمة
-  const primaryButtonText = currentHeroData.primaryButton?.text || currentHeroData.primaryButtonText || translatedDefaultData.primaryButtonText;
+  // دالة مساعدة للتحقق من النصوص الافتراضية الثابتة
+  const isDefaultText = (text: string) => {
+    const defaultTexts = [
+      // نصوص الأزرار
+      'تسوق الآن', 'Shop Now', 'Acheter maintenant',
+      'معلومات أكثر', 'Learn More', 'En savoir plus',
+      'تصفح الكل', 'Browse All', 'Parcourir tout',
+      'العروض الخاصة', 'Special Offers', 'Offres spéciales',
+      
+      // نصوص أيقونات الثقة
+      'توصيل سريع', 'Fast Shipping', 'Livraison rapide',
+      'دفع آمن', 'Secure Payment', 'Paiement sécurisé',
+      'جودة عالية', 'Quality Guarantee', 'Garantie qualité',
+      'دعم العملاء', 'Customer Support', 'Support client',
+      
+      // نصوص العناوين الافتراضية
+      'أحدث المنتجات', 'Latest Products', 'Derniers produits',
+      'مرحباً بك في متجرنا', 'Welcome to Our Store', 'Bienvenue dans notre boutique'
+    ];
+    return defaultTexts.includes(text);
+  };
+
+  // استخراج نصوص وروابط الأزرار مع إعطاء الأولوية للترجمة عند وجود نصوص افتراضية
+  const getButtonText = (heroText?: string, translatedText?: string) => {
+    if (!heroText || isDefaultText(heroText)) {
+      return translatedText;
+    }
+    return heroText;
+  };
+
+  const primaryButtonText = getButtonText(
+    currentHeroData.primaryButton?.text || currentHeroData.primaryButtonText,
+    translatedDefaultData.primaryButtonText
+  );
   const primaryButtonLink = currentHeroData.primaryButton?.link || currentHeroData.primaryButtonLink || translatedDefaultData.primaryButtonLink;
-  const secondaryButtonText = currentHeroData.secondaryButton?.text || currentHeroData.secondaryButtonText || translatedDefaultData.secondaryButtonText;
+  
+  const secondaryButtonText = getButtonText(
+    currentHeroData.secondaryButton?.text || currentHeroData.secondaryButtonText,
+    translatedDefaultData.secondaryButtonText
+  );
   const secondaryButtonLink = currentHeroData.secondaryButton?.link || currentHeroData.secondaryButtonLink || translatedDefaultData.secondaryButtonLink;
   
-  // استخدام العنوان والوصف المترجم إذا لم يتم توفيرهما
-  const title = currentHeroData.title || translatedDefaultData.title;
-  const description = currentHeroData.description || translatedDefaultData.description;
-  const trustBadges = currentHeroData.trustBadges || translatedDefaultData.trustBadges;
+  // استخدام العنوان والوصف المترجم إذا لم يتم توفيرهما أو كانوا افتراضيين
+  const title = (!currentHeroData.title || isDefaultText(currentHeroData.title)) 
+    ? translatedDefaultData.title 
+    : currentHeroData.title;
+    
+  const description = (!currentHeroData.description || isDefaultText(currentHeroData.description))
+    ? translatedDefaultData.description 
+    : currentHeroData.description;
+    
+  // التحقق من نصوص أيقونات الثقة والاستعاضة بالترجمة إذا لزم الأمر
+  const trustBadges = currentHeroData.trustBadges?.map((badge, index) => {
+    // إذا كان النص افتراضياً، استخدم الترجمة
+    if (isDefaultText(badge.text)) {
+      // محاولة العثور على الترجمة المطابقة حسب الفهرس أو النوع
+      const translatedBadge = translatedDefaultData.trustBadges?.[index] || 
+                             translatedDefaultData.trustBadges?.find(tb => 
+                               tb.icon === badge.icon || 
+                               tb.text.includes('شحن') && badge.text.includes('توصيل') ||
+                               tb.text.includes('دفع') && badge.text.includes('دفع') ||
+                               tb.text.includes('جودة') && badge.text.includes('جودة')
+                             );
+      
+      return {
+        ...badge,
+        text: translatedBadge?.text || badge.text
+      };
+    }
+    return badge;
+  }) || translatedDefaultData.trustBadges;
   
   return (
     <section className="w-full bg-gradient-to-b from-background to-muted/30 dark:to-muted/10 overflow-hidden">

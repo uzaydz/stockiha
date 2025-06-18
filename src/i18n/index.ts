@@ -1,5 +1,6 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
+import LanguageDetector from 'i18next-browser-languagedetector';
 
 // ملفات الترجمة مضمنة
 const arTranslations = {
@@ -73,6 +74,41 @@ const arTranslations = {
     "filter": "تصفية",
     "sort": "ترتيب",
     "currency": "ر.س"
+  },
+  "app": {
+    "title": "stockiha",
+    "loading": "جاري التحميل...",
+    "error": "حدث خطأ",
+    "success": "تمت العملية بنجاح",
+    "welcome": "مرحبًا بك في بازار"
+  },
+  "nav": {
+    "home": "الرئيسية",
+    "products": "المنتجات",
+    "orders": "الطلبات",
+    "customers": "العملاء",
+    "dashboard": "لوحة التحكم",
+    "settings": "الإعدادات"
+  },
+  "button": {
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "add": "إضافة",
+    "submit": "إرسال",
+    "back": "رجوع",
+    "next": "التالي",
+    "login": "تسجيل الدخول",
+    "logout": "تسجيل الخروج"
+  },
+  "auth": {
+    "login": "تسجيل الدخول",
+    "signup": "إنشاء حساب",
+    "email": "البريد الإلكتروني",
+    "password": "كلمة المرور",
+    "forgotPassword": "نسيت كلمة المرور؟",
+    "invalidCredentials": "بيانات الاعتماد غير صحيحة"
   }
 };
 
@@ -147,6 +183,41 @@ const enTranslations = {
     "filter": "Filter",
     "sort": "Sort",
     "currency": "SAR"
+  },
+  "app": {
+    "title": "Bazaar Console",
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "success": "Operation successful",
+    "welcome": "Welcome to Bazaar"
+  },
+  "nav": {
+    "home": "Home",
+    "products": "Products",
+    "orders": "Orders",
+    "customers": "Customers",
+    "dashboard": "Dashboard",
+    "settings": "Settings"
+  },
+  "button": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "submit": "Submit",
+    "back": "Back",
+    "next": "Next",
+    "login": "Login",
+    "logout": "Logout"
+  },
+  "auth": {
+    "login": "Login",
+    "signup": "Sign Up",
+    "email": "Email",
+    "password": "Password",
+    "forgotPassword": "Forgot Password?",
+    "invalidCredentials": "Invalid credentials"
   }
 };
 
@@ -221,6 +292,41 @@ const frTranslations = {
     "filter": "Filtrer",
     "sort": "Trier",
     "currency": "SAR"
+  },
+  "app": {
+    "title": "Console Bazaar",
+    "loading": "Chargement...",
+    "error": "Une erreur s'est produite",
+    "success": "Opération réussie",
+    "welcome": "Bienvenue dans Bazaar"
+  },
+  "nav": {
+    "home": "Accueil",
+    "products": "Produits",
+    "orders": "Commandes",
+    "customers": "Clients",
+    "dashboard": "Tableau de bord",
+    "settings": "Paramètres"
+  },
+  "button": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "add": "Ajouter",
+    "submit": "Soumettre",
+    "back": "Retour",
+    "next": "Suivant",
+    "login": "Connexion",
+    "logout": "Déconnexion"
+  },
+  "auth": {
+    "login": "Connexion",
+    "signup": "S'inscrire",
+    "email": "Email",
+    "password": "Mot de passe",
+    "forgotPassword": "Mot de passe oublié?",
+    "invalidCredentials": "Identifiants invalides"
   }
 };
 
@@ -242,22 +348,27 @@ const getInitialLanguage = () => {
 };
 
 i18n
+  .use(LanguageDetector)
   .use(initReactI18next)
   .init({
     resources,
     lng: getInitialLanguage(),
     fallbackLng: 'ar',
-    debug: false,
+    debug: true, // تفعيل التتبع للتشخيص
     
     interpolation: {
       escapeValue: false,
     },
     
-    // إعدادات الكشف عن اللغة
+    // إعدادات كشف اللغة
     detection: {
       order: ['localStorage', 'navigator', 'htmlTag'],
-      caches: ['localStorage']
-    }
+      caches: ['localStorage'],
+      lookupLocalStorage: 'selectedLanguage'
+    },
+    
+    // قائمة اللغات المدعومة
+    supportedLngs: ['ar', 'en', 'fr']
   });
 
 // حفظ اللغة في localStorage عند تغييرها

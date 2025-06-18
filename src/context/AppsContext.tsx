@@ -244,6 +244,33 @@ export const AppsProvider: React.FC<AppsProviderProps> = ({ children }) => {
           error: allError
         });
         
+        // إذا وُجدت بيانات، عرض تفاصيلها للتشخيص
+        if (allApps && allApps.length > 0) {
+          console.log('🔍 [AppsContext] Found apps details:');
+          allApps.forEach((app, index) => {
+            console.log(`  ${index + 1}. App: ${app.app_id}, OrgID: ${app.organization_id}, Enabled: ${app.is_enabled}`);
+          });
+          
+          // التحقق من تطابق organization_id
+          const matchingApps = allApps.filter(app => app.organization_id === organizationId);
+          console.log(`🔍 [AppsContext] Apps matching current org (${organizationId}): ${matchingApps.length}`);
+          if (matchingApps.length > 0) {
+            matchingApps.forEach((app, index) => {
+              console.log(`  ✅ ${index + 1}. ${app.app_id} (enabled: ${app.is_enabled})`);
+            });
+          } else {
+            // إذا كانت البيانات موجودة لكن لمنظمة مختلفة، اعرض اقتراحاً
+            const differentOrgApps = allApps.filter(app => app.organization_id !== organizationId);
+            if (differentOrgApps.length > 0) {
+              console.warn('⚠️ [AppsContext] Found apps for different organizations:');
+              differentOrgApps.forEach((app, index) => {
+                console.warn(`  ${index + 1}. ${app.app_id} belongs to org: ${app.organization_id}`);
+              });
+              console.warn('💡 [AppsContext] Consider updating these apps to current organization or checking organization_id');
+            }
+          }
+        }
+        
         // فحص إضافي: محاولة باستخدام RPC
         if ((!allApps || allApps.length === 0) && !allError) {
           console.log('🔄 [AppsContext] Trying RPC approach...');

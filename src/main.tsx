@@ -142,7 +142,7 @@ import './polyfills';
 import './lib/register-components';
 
 // تهيئة نظام الترجمة
-import './i18n';
+import './i18n/index';
 
 import App from './App.tsx';
 import './index.css';
