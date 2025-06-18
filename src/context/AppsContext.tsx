@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useUser } from './UserContext';
 import { toast } from 'sonner';
 import { UnifiedRequestManager } from '@/lib/unifiedRequestManager';
+import { getSupabaseInstance } from '@/lib/supabase';
 
 // تعريف التطبيقات المتاحة
 export interface AppDefinition {
@@ -234,22 +235,27 @@ export const AppsProvider: React.FC<AppsProviderProps> = ({ children }) => {
       // Fallback: جلب مباشر من Supabase إذا فشل النظام الموحد أو أعاد بيانات فارغة
       if (!fetchSuccess) {
         try {
-          console.log('🔄 [AppsContext] Fallback: Direct Supabase query...');
+          console.log('🔄 [AppsContext] Fallback: Direct Supabase query (bypassing cache)...');
           const { data: directData, error } = await supabase
             .from('organization_apps')
             .select('*')
             .eq('organization_id', organizationId)
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: false })
+            .context({
+              headers: {
+                'x-use-cache': 'false'
+              }
+            } as any);
 
           if (!error && directData && Array.isArray(directData)) {
             data = directData;
             fetchSuccess = true;
             console.log('✅ [AppsContext] Direct query success:', data.length, 'apps');
           } else if (error) {
-            console.warn('⚠️ [AppsContext] Direct query failed:', error);
+            console.error('❌ [AppsContext] Direct query failed:', error);
           }
         } catch (directError) {
-          console.warn('⚠️ [AppsContext] Direct query failed with exception:', directError);
+          console.error('❌ [AppsContext] Direct query failed with exception:', directError);
         }
       }
 

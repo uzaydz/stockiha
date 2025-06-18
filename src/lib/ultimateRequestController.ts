@@ -322,26 +322,34 @@ class UltimateRequestController {
       .then(async response => {
         const duration = performance.now() - startTime;
         
-        if (response.ok && response.status === 200) {
+        if (response.ok) {
           try {
-            // التحقق من وجود محتوى قبل محاولة تحليل JSON
             const responseText = await response.clone().text();
+            
+            // التحقق الشامل قبل التخزين
             if (responseText.trim()) {
               const data = JSON.parse(responseText);
               
-              // حفظ في الكاش
-              this.dataCache.set(cacheKey, {
-                data,
-                timestamp: Date.now(),
-                ttl: this.config.DEFAULT_TTL,
-                accessCount: 1
-              });
-              
-              console.log(`💾 Cached: ${cacheKey}`);
-              prodLog('info', `💾 Cached`, { cacheKey, duration, url });
+              // الشرط الجديد: لا تخزن إذا كانت البيانات فارغة أو مصفوفة فارغة
+              const shouldCache = data !== null && (!Array.isArray(data) || data.length > 0);
+
+              if (shouldCache) {
+                this.dataCache.set(cacheKey, {
+                  data,
+                  timestamp: Date.now(),
+                  ttl: this.config.DEFAULT_TTL,
+                  accessCount: 1
+                });
+                
+                console.log(`💾 Cached: ${cacheKey}`);
+                prodLog('info', `💾 Cached`, { cacheKey, duration, url });
+              } else {
+                console.log(`🚫 Bypassed empty response caching: ${cacheKey}`);
+                prodLog('info', `🚫 Bypassed empty response caching`, { cacheKey, duration, url });
+              }
             } else {
-              console.log(`✅ Empty response cached: ${cacheKey}`);
-              prodLog('info', `✅ Empty response`, { cacheKey, duration, url });
+              console.log(`🚫 Bypassed empty text response caching: ${cacheKey}`);
+              prodLog('info', `🚫 Bypassed empty text response caching`, { cacheKey, duration, url });
             }
             productionDebugger.trackRequest(url, 'GET', duration, 'success');
           } catch (jsonError) {
