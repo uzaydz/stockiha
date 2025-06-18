@@ -101,11 +101,23 @@ self.addEventListener('fetch', event => {
   // تجاهل طلبات Chrome extension
   if (url.protocol === 'chrome-extension:') return;
   
-  // تجاهل POST requests للـ Supabase RPC، Edge Functions وSentry (لتجنب مشاكل الـ caching)
+  // تجاهل طلبات Sentry بشكل كامل لتجنب التدخل والأخطاء
+  if (url.href.includes('sentry.io') || url.href.includes('ingest.')) {
+    return; // لا نتدخل في طلبات Sentry نهائياً
+  }
+  
+  // تجاهل طلبات Analytics وTracking
+  if (url.href.includes('google-analytics.com') || 
+      url.href.includes('googletagmanager.com') ||
+      url.href.includes('facebook.com') ||
+      url.href.includes('tiktok.com')) {
+    return; // لا نتدخل في طلبات التتبع
+  }
+  
+  // تجاهل POST requests للـ Supabase RPC، Edge Functions (لتجنب مشاكل الـ caching)
   if (request.method === 'POST' && 
       (url.href.includes('supabase.co/rest/v1/rpc') || 
-       url.href.includes('supabase.co/functions/v1/') ||
-       url.href.includes('sentry.io'))) {
+       url.href.includes('supabase.co/functions/v1/'))) {
     event.respondWith(fetch(request));
     return;
   }

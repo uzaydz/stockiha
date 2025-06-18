@@ -16,18 +16,59 @@ if (!isDevelopment) {
   // إعدادات البيئة
   environment: process.env.NODE_ENV,
   
-  // نسبة أخذ العينات للأداء (تقليل إلى 0.1 لتقليل الضجيج)
-  tracesSampleRate: 0.1,
+  // نسبة أخذ العينات للأداء (تقليل إلى 0.05 لتقليل الضجيج أكثر)
+  tracesSampleRate: 0.05,
+  
+  // تقليل نسبة إرسال الأخطاء لتجنب الإفراط
+  sampleRate: 0.2,
   
   // تحديد المواقع التي سيتم تتبع الأداء لها
-  tracePropagationTargets: ["localhost", /^https:\/\/yourdomain\.com/],
+  tracePropagationTargets: ["localhost", "stockiha.com", "www.stockiha.com"],
   
   // تقليل ضجيج الكونسول من Sentry في البيئة التطويرية
   debug: false,
   
+  // تجاهل الأخطاء المتعلقة بالشبكة والتي لا نستطيع التحكم فيها
+  beforeSend(event) {
+    // تجاهل أخطاء الشبكة المعروفة
+    if (event.exception) {
+      const error = event.exception.values?.[0];
+      if (error?.type === 'TypeError' && error?.value?.includes('Failed to fetch')) {
+        return null; // لا ترسل هذا الخطأ
+      }
+      if (error?.type === 'NetworkError') {
+        return null; // لا ترسل أخطاء الشبكة
+      }
+    }
+    
+    // تجاهل الأخطاء المتعلقة بـ Service Worker
+    if (event.message?.includes('service worker') || event.message?.includes('sw-advanced')) {
+      return null;
+    }
+    
+    return event;
+  },
+  
+  // تجاهل أخطاء معينة غير مفيدة
+  ignoreErrors: [
+    'Failed to fetch',
+    'NetworkError',
+    'ERR_NETWORK',
+    'ERR_INTERNET_DISCONNECTED',
+    'Network request failed',
+    'Load failed',
+    'The Internet connection appears to be offline',
+    'Non-Error promise rejection captured',
+    'ChunkLoadError'
+  ],
+  
   // التكاملات
   integrations: [
-    browserTracingIntegration(),
+    browserTracingIntegration({
+      // تقليل عدد العمليات المتتبعة
+      enableInp: false,
+      enableLongTask: false,
+    }),
   ],
   });
 }
@@ -35,11 +76,21 @@ if (!isDevelopment) {
 // إضافة مراقبة الأخطاء غير المتوقعة (فقط في الإنتاج)
 if (!isDevelopment) {
   window.addEventListener('error', (event) => {
+    // تجاهل أخطاء الشبكة
+    if (event.error?.message?.includes('Failed to fetch') || 
+        event.error?.message?.includes('NetworkError')) {
+      return;
+    }
     Sentry.captureException(event.error);
   });
 
   // إضافة مراقبة الوعود غير المعالجة
   window.addEventListener('unhandledrejection', (event) => {
+    // تجاهل أخطاء الشبكة
+    if (event.reason?.message?.includes('Failed to fetch') || 
+        event.reason?.message?.includes('NetworkError')) {
+      return;
+    }
     Sentry.captureException(event.reason);
   });
 }
@@ -47,6 +98,12 @@ if (!isDevelopment) {
 // تصدير وظائف مساعدة لتتبع الأخطاء يدوياً (فقط في الإنتاج)
 export const logError = (error: Error, context: Record<string, any> = {}) => {
   if (!isDevelopment) {
+    // تجاهل أخطاء الشبكة
+    if (error.message?.includes('Failed to fetch') || 
+        error.message?.includes('NetworkError')) {
+      return;
+    }
+    
     Sentry.withScope((scope) => {
       scope.setExtras(context);
       Sentry.captureException(error);

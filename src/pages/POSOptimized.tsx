@@ -11,8 +11,8 @@ import '../lib/cache/deduplication';
 import '../lib/requestSystemInitializer';
 import '../lib/ultimateRequestController';
 
-// تحميل POS العادي
-import POS from './POS';
+// تحميل POSWrapper المحسن (يحتوي على POSDataProvider)
+import POSWrapper from '../components/pos/POSWrapper';
 
 const POSOptimized: React.FC = () => {
   const [systemsReady, setSystemsReady] = useState(false);
@@ -61,7 +61,7 @@ const POSOptimized: React.FC = () => {
     );
   }
 
-  return <POS />;
+  return <POSWrapper />;
 };
 
 export default POSOptimized; 
