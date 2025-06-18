@@ -261,11 +261,12 @@ export default defineConfig(({ command, mode }) => {
           drop_debugger: false,
           unused: false,
           side_effects: false,
-          pure_funcs: ['console.log', 'console.info', 'console.debug'],
+          pure_funcs: []
         },
         mangle: {
           safari10: true,
-          keep_fnames: /^(deduplicateRequest|interceptFetch|POSDataProvider)$/
+          keep_fnames: /^(deduplicateRequest|interceptFetch|POSDataProvider|console)$/,
+          reserved: ['console', 'log', 'warn', 'error', 'info']
         },
         format: {
           safari10: true,
@@ -304,7 +305,9 @@ export default defineConfig(({ command, mode }) => {
               './src/context/POSDataContext.tsx',
               './src/lib/cache/deduplication.ts',
               './src/lib/requestSystemInitializer.ts',
-              './src/lib/ultimateRequestController.ts'
+              './src/lib/ultimateRequestController.ts',
+              './src/utils/forceProductionInit.ts',
+              './src/utils/productionSystemCheck.ts'
             ]
           }
         } as OutputOptions,

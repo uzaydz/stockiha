@@ -477,9 +477,46 @@ checkBuildIntegrity();
 // التأكد من تهيئة أنظمة التحسين فوراً
 console.log('🚀 [Main] Force loading optimization systems...');
 
-// تهيئة فورية لنظام deduplication
-import('./lib/requestSystemInitializer').then(() => {
-  console.log('✅ [Main] Request system initialized');
-}).catch(err => {
-  console.error('❌ [Main] Failed to initialize request system:', err);
-});
+// تهيئة فورية وإجبارية لنظام deduplication
+const initializeOptimizationSystems = async () => {
+  try {
+    // تحميل جميع الأنظمة بشكل متوازي
+    const [
+      requestSystem,
+      deduplicationModule,
+      posDataContext
+    ] = await Promise.all([
+      import('./lib/requestSystemInitializer'),
+      import('./lib/cache/deduplication'),
+      import('./context/POSDataContext')
+    ]);
+
+    console.log('✅ [Main] All optimization systems loaded successfully');
+    
+    // تهيئة النظام فوراً
+    if (requestSystem && typeof requestSystem.initializeRequestSystem === 'function') {
+      await requestSystem.initializeRequestSystem();
+      console.log('✅ [Main] Request system initialized');
+    }
+    
+    console.log('✅ [Main] Application optimization completed');
+  } catch (error) {
+    console.error('❌ [Main] Failed to initialize optimization systems:', error);
+  }
+};
+
+// تشغيل التهيئة فوراً
+initializeOptimizationSystems();
+
+// =================================================================
+// 🚀 CRITICAL: Force Production Initialization FIRST
+// =================================================================
+import '@/utils/forceProductionInit';
+import '@/utils/productionSystemCheck';
+
+// Force import للتأكد من تحميل أنظمة التحسين في الإنتاج
+import './lib/requestSystemInitializer';
+import './lib/cache/deduplication';
+import './context/POSDataContext';
+import { debugProduction } from '@/utils/productionDebug';
+import { checkBuildIntegrity } from '@/utils/buildCheck';

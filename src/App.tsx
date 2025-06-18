@@ -17,7 +17,7 @@ import SessionMonitor from "./components/SessionMonitor";
 import ErrorMonitor from "./components/ErrorMonitor";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
-import POSWrapper from "./components/pos/POSWrapper";
+import POSOptimized from "./pages/POSOptimized";
 import Features from "./pages/Features";
 import FeaturesPage from "./pages/landing/FeaturesPage";
 import OfflineFeatures from "./pages/OfflineFeatures";
@@ -932,7 +932,7 @@ const App = () => {
                         <ConditionalRoute appId="pos-system">
                           <SubscriptionCheck>
                             <PermissionGuard requiredPermissions={['accessPOS']}>
-                              <POSWrapper />
+                              <POSOptimized />
                             </PermissionGuard>
                           </SubscriptionCheck>
                         </ConditionalRoute>
