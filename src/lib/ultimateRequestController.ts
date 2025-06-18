@@ -11,6 +11,7 @@ import { productionDebugger, prodLog } from '@/utils/productionDebug';
 declare global {
   interface Window {
     supabase?: any;
+    originalFetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
   }
 }
 
@@ -530,6 +531,54 @@ class UltimateRequestController {
         this.dataCache.delete(key);
       }
     }
+  }
+
+  public interceptFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    try {
+      const headersForLogging = this.headersToObject(new Headers(init?.headers));
+      console.log(`[REQUEST_INTERCEPTOR] Intercepting fetch for: ${(input as Request).url || input}`, {
+        method: init?.method || 'GET',
+        headers: headersForLogging,
+        body: init?.body ? 'present' : 'empty'
+      });
+
+      if (headersForLogging['accept']) {
+        console.log(`[REQUEST_INTERCEPTOR] Found 'Accept' header:`, headersForLogging['accept']);
+      } else {
+        console.warn(`[REQUEST_INTERCEPTOR] 'Accept' header is MISSING from initial request.`);
+      }
+
+      const request = new Request(input, init);
+      const url = request.url;
+
+      const response = await this.deduplicateSupabaseRequest(url, init, async () => {
+        const finalHeaders = this.headersToObject(request.headers);
+        console.log(`[REQUEST_INTERCEPTOR] Executing original fetch. Final headers being sent:`, finalHeaders);
+        if (finalHeaders['accept']) {
+          console.log(`[REQUEST_INTERCEPTOR] 'Accept' header is PRESENT before sending to Supabase.`);
+        } else {
+          console.error(`[REQUEST_INTERCEPTOR] 'Accept' header is MISSING right before sending to Supabase! This is the cause of 406 error.`);
+        }
+        return window.originalFetch(request);
+      });
+
+      const responseToReturn = response.clone();
+      const responseHeaders = this.headersToObject(responseToReturn.headers);
+      console.log('[REQUEST_INTERCEPTOR] Response received. Headers:', responseHeaders);
+
+      return responseToReturn;
+    } catch (error) {
+      console.error('[REQUEST_INTERCEPTOR] Critical error in interceptFetch:', error);
+      return window.originalFetch(input, init);
+    }
+  };
+
+  private headersToObject(headers: Headers): Record<string, string> {
+    const headersObject: Record<string, string> = {};
+    headers.forEach((value, key) => {
+      headersObject[key] = value;
+    });
+    return headersObject;
   }
 }
 
