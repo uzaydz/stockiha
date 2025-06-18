@@ -386,49 +386,21 @@ class UltimateRequestController {
   // ===================================================================
 
   private createCacheKey(url: string): string {
-    // إنشاء مفتاح كاش ذكي لتجميع الطلبات المتشابهة
+    // إنشاء مفتاح كاش قوي وموثوق لضمان عدم التضارب
     try {
       const urlObj = new URL(url);
-      let table = urlObj.pathname.split('/').pop() || '';
-      
-      // استخراج اسم الجدول بشكل أكثر ذكاءً
-      if (urlObj.pathname.includes('/rest/v1/')) {
-        const pathParts = urlObj.pathname.split('/rest/v1/');
-        table = pathParts[1]?.split('?')[0] || table;
-      }
-      
-      // معالجة خاصة للـ organization-specific queries
+      const path = urlObj.pathname;
       const params = new URLSearchParams(urlObj.search);
-      const orgId = params.get('organization_id');
       
-      // إنشاء مفتاح يجمع الطلبات المتشابهة
-      let baseKey = table;
+      // فرز المعلمات لضمان أن الترتيب لا يؤثر على المفتاح
+      // مثال: a=1&b=2 و b=2&a=1 يجب أن يكون لهما نفس المفتاح
+      params.sort();
       
-      if (orgId) {
-        baseKey += `_org_${orgId}`;
-        
-        // إضافة فلاتر مهمة فقط
-        const importantParams = ['status', 'is_active', 'limit'];
-        const keyParams: string[] = [];
-        
-        importantParams.forEach(param => {
-          const value = params.get(param);
-          if (value) {
-            keyParams.push(`${param}=${value}`);
-          }
-        });
-        
-        if (keyParams.length > 0) {
-          baseKey += `_${keyParams.join('&')}`;
-        }
-      } else {
-        // للطلبات بدون organization_id، استخدم hash كامل
-        baseKey += `_${this.hashString(urlObj.search)}`;
-      }
-      
-      return baseKey;
+      // استخدام المسار والمعلمات التي تم فرزها لإنشاء مفتاح فريد
+      return `${path}?${params.toString()}`;
     } catch {
-      return this.hashString(url);
+      // استخدام دالة hash قديمة كخطة بديلة في حالة وجود رابط غير صالح
+      return `fallback_hash_${this.hashString(url)}`;
     }
   }
 
