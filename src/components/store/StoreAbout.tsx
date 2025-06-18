@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Check, ArrowUpRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 interface StoreAboutProps {
   title?: string;
@@ -18,12 +19,11 @@ interface StoreAboutProps {
   };
 }
 
-const defaultFeatures = [
-  'منتجات أصلية بضمان الوكيل',
-  'شحن سريع لجميع ولايات الجزائر',
-  'دعم فني متخصص',
-  'خدمة ما بعد البيع'
-];
+// دالة للحصول على الميزات الافتراضية مع الترجمة
+const getDefaultFeatures = (t: any) => t('storeAbout.defaultFeatures', { returnObjects: true });
+
+// دالة للحصول على الوصف الافتراضي مع الترجمة
+const getDefaultDescription = (t: any) => t('storeAbout.description');
 
 const defaultStoreInfo = {
   yearFounded: 2010,
@@ -34,16 +34,21 @@ const defaultStoreInfo = {
 
 const defaultImage = 'https://images.unsplash.com/photo-1612690669207-fed642192c40?q=80&w=1740';
 
-const defaultDescription = 'تأسس متجرنا منذ أكثر من عشر سنوات بهدف تقديم أحدث منتجات التكنولوجيا بأسعار منافسة وجودة عالية. نحن نفخر بتوفير تجربة تسوق متميزة لعملائنا من خلال فريق متخصص يقدم المشورة والدعم الفني المستمر. نلتزم بتوفير منتجات أصلية بضمان الوكيل ونسعى دائماً لتلبية احتياجات عملائنا وتجاوز توقعاتهم.';
-
 const StoreAbout = ({
-  title = 'عن متجرنا',
-  subtitle = 'متجر إلكترونيات وتقنية متميز',
-  description = defaultDescription,
-  features = defaultFeatures,
+  title,
+  subtitle,
+  description,
+  features,
   image = defaultImage,
   storeInfo = defaultStoreInfo
 }: StoreAboutProps) => {
+  const { t } = useTranslation();
+  
+  // استخدام القيم المترجمة أو القيم المرسلة من props
+  const displayTitle = title || t('storeAbout.title');
+  const displaySubtitle = subtitle || t('storeAbout.subtitle');
+  const displayDescription = description || getDefaultDescription(t);
+  const displayFeatures = features || getDefaultFeatures(t);
   // تأثيرات الحركة
   const fadeIn = {
     hidden: { opacity: 0, y: 20 },
@@ -55,7 +60,7 @@ const StoreAbout = ({
   };
 
   // التأكد من أن description هو string وليس null أو undefined
-  const descriptionText = description || defaultDescription;
+  const descriptionText = displayDescription;
   const paragraphs = descriptionText.split('\n');
 
   return (
@@ -75,7 +80,7 @@ const StoreAbout = ({
             >
               <img 
                 src={image} 
-                alt="صورة المتجر" 
+                alt={t('storeAbout.imageAlt')} 
                 className="rounded-2xl shadow-xl w-full object-cover h-[500px]" 
               />
             </motion.div>
@@ -87,8 +92,8 @@ const StoreAbout = ({
             viewport={{ once: true, margin: "-100px" }}
             variants={fadeIn}
           >
-            <h3 className="text-primary font-semibold mb-4 text-lg">{title}</h3>
-            <h2 className="text-3xl font-bold mb-6">{subtitle}</h2>
+            <h3 className="text-primary font-semibold mb-4 text-lg">{displayTitle}</h3>
+            <h2 className="text-3xl font-bold mb-6">{displaySubtitle}</h2>
             
             <div className="space-y-4 text-muted-foreground mb-8">
               {paragraphs.map((paragraph, idx) => (
@@ -100,28 +105,28 @@ const StoreAbout = ({
               {storeInfo.yearFounded && (
                 <div className="flex flex-col p-4 rounded-lg bg-background shadow-sm">
                   <span className="text-3xl font-bold text-primary mb-1">{storeInfo.yearFounded}</span>
-                  <span className="text-sm text-muted-foreground">سنة التأسيس</span>
+                  <span className="text-sm text-muted-foreground">{t('storeAbout.stats.yearFounded')}</span>
                 </div>
               )}
               
               {storeInfo.customersCount && (
                 <div className="flex flex-col p-4 rounded-lg bg-background shadow-sm">
                   <span className="text-3xl font-bold text-primary mb-1">{storeInfo.customersCount}+</span>
-                  <span className="text-sm text-muted-foreground">عميل سعيد</span>
+                  <span className="text-sm text-muted-foreground">{t('storeAbout.stats.customersCount')}</span>
                 </div>
               )}
               
               {storeInfo.productsCount && (
                 <div className="flex flex-col p-4 rounded-lg bg-background shadow-sm">
                   <span className="text-3xl font-bold text-primary mb-1">{storeInfo.productsCount}+</span>
-                  <span className="text-sm text-muted-foreground">منتج متنوع</span>
+                  <span className="text-sm text-muted-foreground">{t('storeAbout.stats.productsCount')}</span>
                 </div>
               )}
               
               {storeInfo.branches && (
                 <div className="flex flex-col p-4 rounded-lg bg-background shadow-sm">
                   <span className="text-3xl font-bold text-primary mb-1">{storeInfo.branches}</span>
-                  <span className="text-sm text-muted-foreground">فروع في الجزائر</span>
+                  <span className="text-sm text-muted-foreground">{t('storeAbout.stats.branches')}</span>
                 </div>
               )}
             </div>
@@ -129,7 +134,7 @@ const StoreAbout = ({
             <Separator className="my-8" />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-10">
-              {features.map((feature, index) => (
+              {displayFeatures.map((feature: string, index: number) => (
                 <div key={index} className="flex items-center">
                   <div className="flex-shrink-0 h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center mr-3">
                     <Check className="h-3.5 w-3.5 text-primary" />
@@ -144,7 +149,7 @@ const StoreAbout = ({
                 className="group"
                 variant="default"
               >
-                <span>تعرف على المزيد عنا</span>
+                <span>{t('storeAbout.learnMore')}</span>
                 <ArrowUpRight className="mr-2 h-4 w-4 transition-transform group-hover:translate-x-1 rtl:group-hover:-translate-x-1" />
               </Button>
             </Link>

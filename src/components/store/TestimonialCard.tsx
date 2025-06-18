@@ -5,9 +5,10 @@ import {
 } from "@/components/ui/card";
 import { Star, StarHalf, ExternalLink } from "lucide-react";
 import { formatDistance } from "date-fns";
-import { ar } from "date-fns/locale";
+import { ar, enUS, fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
+import { useTranslation } from 'react-i18next';
 
 // تعريف واجهة شهادة العميل
 export interface Testimonial {
@@ -62,18 +63,41 @@ const renderStars = (rating: number) => {
   return stars;
 };
 
-// تنسيق التاريخ بصيغة عربية مناسبة
-const formatDate = (dateString?: string) => {
-  if (!dateString) return "تاريخ غير معروف";
+// تنسيق التاريخ مع دعم الترجمة المتعددة اللغات
+const formatDate = (dateString?: string, currentLanguage: string = 'ar') => {
+  if (!dateString) {
+    switch (currentLanguage) {
+      case 'en': return "Unknown date";
+      case 'fr': return "Date inconnue";
+      default: return "تاريخ غير معروف";
+    }
+  }
   
   try {
     const date = new Date(dateString);
+    let locale;
+    
+    switch (currentLanguage) {
+      case 'en':
+        locale = enUS;
+        break;
+      case 'fr':
+        locale = fr;
+        break;
+      default:
+        locale = ar;
+    }
+    
     return formatDistance(date, new Date(), {
       addSuffix: true,
-      locale: ar,
+      locale: locale,
     });
   } catch (error) {
-    return "تاريخ غير معروف";
+    switch (currentLanguage) {
+      case 'en': return "Unknown date";
+      case 'fr': return "Date inconnue";
+      default: return "تاريخ غير معروف";
+    }
   }
 };
 
@@ -82,6 +106,8 @@ interface TestimonialCardProps {
 }
 
 export default function TestimonialCard({ testimonial }: TestimonialCardProps) {
+  const { i18n } = useTranslation();
+  
   const {
     customerName,
     customerAvatar,
@@ -108,7 +134,8 @@ export default function TestimonialCard({ testimonial }: TestimonialCardProps) {
       )}
       <div className="flex-grow">
         <p className="text-sm text-gray-500 dark:text-gray-400 text-right">
-          المنتج المشترى
+          {i18n.language === 'en' ? 'Purchased Product' : 
+           i18n.language === 'fr' ? 'Produit Acheté' : 'المنتج المشترى'}
         </p>
         <h4 className={cn(
           "font-medium text-right flex items-center gap-1",
@@ -150,7 +177,7 @@ export default function TestimonialCard({ testimonial }: TestimonialCardProps) {
               <h3 className="font-medium">{customerName}</h3>
               {purchaseDate && (
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {formatDate(purchaseDate)}
+                  {formatDate(purchaseDate, i18n.language)}
                 </p>
               )}
             </div>
@@ -171,7 +198,9 @@ export default function TestimonialCard({ testimonial }: TestimonialCardProps) {
                   "block transition-colors rounded-md -mx-2 px-2 py-1",
                   "hover:bg-muted/40 active:bg-muted"
                 )}
-                title={`عرض تفاصيل المنتج: ${productName}`}
+                title={i18n.language === 'en' ? `View product details: ${productName}` : 
+                       i18n.language === 'fr' ? `Voir les détails du produit: ${productName}` : 
+                       `عرض تفاصيل المنتج: ${productName}`}
               >
                 <ProductContent />
               </Link>

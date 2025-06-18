@@ -224,7 +224,17 @@ const ProductForm = () => {
 
   // Enhanced submit handler
   const onSubmit = async (data: ProductFormValues) => {
+    console.log('🚀 [ProductForm] بدء إرسال النموذج...', {
+      isEditMode,
+      productId,
+      organizationIdFromTenant,
+      dataOrganizationId: data.organization_id,
+      hasPermission,
+      permissionWarning
+    });
+
     if (!organizationIdFromTenant && !data.organization_id) {
+      console.error('❌ [ProductForm] معرّف المؤسسة مفقود!');
       toast.error("خطأ حرج: معرّف المؤسسة مفقود. لا يمكن إنشاء/تحديد المنتج.");
       return;
     }
@@ -234,6 +244,13 @@ const ProductForm = () => {
 
     try {
       const currentOrganizationId = data.organization_id || organizationIdFromTenant;
+      console.log('📝 [ProductForm] معالجة البيانات...', {
+        currentOrganizationId,
+        productName: data.name,
+        hasVariants: data.has_variants,
+        colorsCount: productColors.length,
+        imagesCount: additionalImages.length
+      });
       
       const imagesToSubmit = additionalImages.filter(url => typeof url === 'string' && url.length > 0);
       const colorsToSubmit = productColors.map(color => {
@@ -335,11 +352,22 @@ const ProductForm = () => {
       delete (submissionData as any).use_variant_prices;
 
       let result;
+      console.log('📡 [ProductForm] إرسال البيانات إلى الخادم...', {
+        isEditMode,
+        productId,
+        submissionDataKeys: Object.keys(submissionData),
+        organizationId: submissionData.organization_id
+      });
+
       if (isEditMode && productId) {
+        console.log('🔄 [ProductForm] تحديث المنتج...');
         result = await updateProduct(productId, submissionData as any);
       } else {
+        console.log('➕ [ProductForm] إنشاء منتج جديد...');
         result = await createProduct(submissionData as any);
       }
+
+      console.log('📊 [ProductForm] نتيجة العملية:', result);
 
       if (result) {
         toast.dismiss(loadingToast);
@@ -359,13 +387,23 @@ const ProductForm = () => {
       }
     } catch (error: any) {
       toast.dismiss(loadingToast);
+      console.error('خطأ في إرسال النموذج:', error);
+      
       const message = error.message || 'فشل الاتصال بالخادم.';
       
-      // Check if it's a permission error
-      if (message.includes('permission') || message.includes('صلاحية') || message.includes('unauthorized')) {
-        toast.error(`ليس لديك صلاحية ${isEditMode ? 'تعديل' : 'إضافة'} المنتجات`);
+      // Enhanced error handling for different error types
+      if (message.includes('permission') || message.includes('صلاحية') || message.includes('unauthorized') || message.includes('403')) {
+        console.warn('🚨 خطأ صلاحيات:', message);
+        toast.error(`ليس لديك صلاحية ${isEditMode ? 'تعديل' : 'إضافة'} المنتجات - يرجى المحاولة مرة أخرى`);
         // Don't navigate away, let user try again or contact admin
+      } else if (message.includes('JWT') || message.includes('auth') || message.includes('session')) {
+        console.warn('🚨 خطأ مصادقة:', message);
+        toast.error('انتهت جلسة المصادقة - يرجى تسجيل الدخول مرة أخرى');
+      } else if (message.includes('organization_id') || message.includes('معرّف المؤسسة')) {
+        console.warn('🚨 خطأ معرف المؤسسة:', message);
+        toast.error('خطأ في معرّف المؤسسة - يرجى تحديث الصفحة والمحاولة مرة أخرى');
       } else {
+        console.warn('🚨 خطأ عام:', message);
         toast.error(`فشل ${isEditMode ? 'تحديث' : 'إنشاء'} المنتج: ${message}`);
       }
     } finally {

@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import TestimonialCard, { Testimonial } from "./TestimonialCard";
 import { getTestimonials } from "@/lib/api/testimonials";
+import { useTranslation } from 'react-i18next';
 
 interface CustomerTestimonialsProps {
   title?: string;
@@ -15,15 +16,58 @@ interface CustomerTestimonialsProps {
   testimonials?: Testimonial[];
 }
 
+// دالة للحصول على الشهادات الافتراضية مع الترجمة
+const getDefaultTestimonials = (t: any): Testimonial[] => {
+  const testimonialsData = t('customerTestimonials.defaultTestimonials', { returnObjects: true });
+  
+  return testimonialsData.map((testimonial: any, index: number) => ({
+    id: `${index + 1}`,
+    customerName: testimonial.customerName,
+    customerAvatar: [
+      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face",
+      "https://images.unsplash.com/photo-1494790108755-2616b612b412?w=150&h=150&fit=crop&crop=face",
+      "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face",
+      "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face",
+      "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop&crop=face",
+      "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&crop=face"
+    ][index] || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face",
+    rating: [5, 4.5, 5, 4, 5, 4.5][index] || 5,
+    comment: testimonial.comment,
+    verified: true,
+    productName: testimonial.productName,
+    productImage: [
+      "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&h=200&fit=crop",
+      "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=300&h=200&fit=crop",
+      "https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?w=300&h=200&fit=crop",
+      "https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?w=300&h=200&fit=crop",
+      "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=300&h=200&fit=crop",
+      "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=300&h=200&fit=crop"
+    ][index] || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&h=200&fit=crop",
+    purchaseDate: [
+      "2023-09-15T12:00:00Z",
+      "2023-08-20T09:30:00Z",
+      "2023-07-10T15:45:00Z",
+      "2023-10-05T11:20:00Z",
+      "2023-09-28T14:15:00Z",
+      "2023-10-10T08:30:00Z"
+    ][index] || "2023-09-15T12:00:00Z",
+  }));
+};
+
 export function CustomerTestimonials({
-  title = "آراء عملائنا",
-  description = "استمع إلى تجارب عملائنا الحقيقية مع منتجاتنا وخدماتنا",
+  title,
+  description,
   organizationId,
   visibleCount = 3,
   backgroundColor = 'default',
   cardStyle = 'default',
   testimonials: initialTestimonials,
 }: CustomerTestimonialsProps) {
+  const { t } = useTranslation();
+  
+  // استخدام القيم المترجمة أو القيم المرسلة من props
+  const displayTitle = title || t('customerTestimonials.title');
+  const displayDescription = description || t('customerTestimonials.description');
   const [activeIndex, setActiveIndex] = useState(0);
   const [displayedCount, setDisplayedCount] = useState(1);
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
@@ -72,88 +116,19 @@ export function CustomerTestimonials({
             productName: item.product_name,
             productImage: item.product_image,
           }));
-          setTestimonials(convertedData.length > 0 ? convertedData : defaultTestimonials);
+          setTestimonials(convertedData.length > 0 ? convertedData : getDefaultTestimonials(t));
         } else {
-          setTestimonials(defaultTestimonials);
+          setTestimonials(getDefaultTestimonials(t));
         }
       } catch (error) {
-        setTestimonials(defaultTestimonials);
+        setTestimonials(getDefaultTestimonials(t));
       } finally {
         setLoading(false);
       }
     };
 
     fetchTestimonials();
-  }, [initialTestimonials, organizationId]);
-
-  const defaultTestimonials: Testimonial[] = [
-    {
-      id: "1",
-      customerName: "أحمد بن يوسف",
-      customerAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face",
-      rating: 5,
-      comment: "منتج رائع جداً! لقد استخدمته لمدة شهر وأنا سعيد جداً بالنتائج. التوصيل كان سريعاً لولاية الجزائر والتغليف كان ممتازاً.",
-      verified: true,
-      productName: "سماعات بلوتوث لاسلكية",
-      productImage: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&h=200&fit=crop",
-      purchaseDate: "2023-09-15T12:00:00Z",
-    },
-    {
-      id: "2",
-      customerName: "فاطمة بن علي",
-      customerAvatar: "https://images.unsplash.com/photo-1494790108755-2616b612b412?w=150&h=150&fit=crop&crop=face",
-      rating: 4.5,
-      comment: "جودة المنتج ممتازة والسعر مناسب جداً مقارنة بالمنتجات المماثلة في السوق الجزائري. أنصح الجميع بتجربته!",
-      verified: true,
-      productName: "ساعة ذكية",
-      productImage: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=300&h=200&fit=crop",
-      purchaseDate: "2023-08-20T09:30:00Z",
-    },
-    {
-      id: "3",
-      customerName: "محمد سعيد",
-      customerAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face",
-      rating: 5,
-      comment: "خدمة العملاء ممتازة والرد سريع على الاستفسارات. المنتج وصل لولاية وهران بحالة ممتازة وبدون أي خدوش.",
-      verified: true,
-      productName: "تلفزيون ذكي 55 بوصة",
-      productImage: "https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?w=300&h=200&fit=crop",
-      purchaseDate: "2023-07-10T15:45:00Z",
-    },
-    {
-      id: "4",
-      customerName: "نورا عبد الرحمن",
-      customerAvatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face",
-      rating: 4,
-      comment: "المنتج جيد ولكن التوصيل تأخر قليلاً عن الموعد المحدد في ولاية قسنطينة. بشكل عام أنا راضية عن التجربة.",
-      verified: true,
-      productName: "مكنسة كهربائية روبوتية",
-      productImage: "https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?w=300&h=200&fit=crop",
-      purchaseDate: "2023-10-05T11:20:00Z",
-    },
-    {
-      id: "5",
-      customerName: "عمر حسان",
-      customerAvatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop&crop=face",
-      rating: 5,
-      comment: "من أفضل المنتجات التي اشتريتها على الإطلاق! الجودة عالية جداً والأداء ممتاز. سأشتري منه مرة أخرى بالتأكيد.",
-      verified: true,
-      productName: "لابتوب للألعاب",
-      productImage: "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=300&h=200&fit=crop",
-      purchaseDate: "2023-09-28T14:15:00Z",
-    },
-    {
-      id: "6",
-      customerName: "ليلى أحمد زهراني",
-      customerAvatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&crop=face",
-      rating: 4.5,
-      comment: "تجربة تسوق رائعة! المنتج مطابق للمواصفات المذكورة وسعره مناسب. التوصيل لولاية تيزي وزو كان سريعاً. أنصح به بشدة.",
-      verified: true,
-      productName: "آلة صنع القهوة",
-      productImage: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=300&h=200&fit=crop",
-      purchaseDate: "2023-10-10T08:30:00Z",
-    },
-  ];
+  }, [initialTestimonials, organizationId, t]);
 
   // تطبيق نمط البطاقة المحدد
   const getCardClassNames = () => {
@@ -209,7 +184,7 @@ export function CustomerTestimonials({
       <div className={cn("py-12 px-4", getSectionClassNames())}>
         <div className="text-center">
           <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
-          <p className="mt-4 text-muted-foreground">جاري تحميل آراء العملاء...</p>
+          <p className="mt-4 text-muted-foreground">{t('customerTestimonials.loading')}</p>
         </div>
       </div>
     );
@@ -219,12 +194,12 @@ export function CustomerTestimonials({
     <div className={cn("py-12 px-4", getSectionClassNames())} dir="rtl">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-10">
-          <h2 className="text-3xl font-bold mb-2">{title}</h2>
+          <h2 className="text-3xl font-bold mb-2">{displayTitle}</h2>
           <p className={cn(
             "max-w-2xl mx-auto",
             backgroundColor === 'dark' ? 'text-gray-300' : 'text-gray-600 dark:text-gray-400'
           )}>
-            {description}
+            {displayDescription}
           </p>
         </div>
 
@@ -235,7 +210,7 @@ export function CustomerTestimonials({
                 variant="ghost"
                 size="icon"
                 onClick={handlePrevious}
-                aria-label="العنصر السابق"
+                aria-label={t('customerTestimonials.previousItem')}
                 className="h-10 w-10 rounded-full"
                 disabled={testimonials.length <= displayedCount}
               >
@@ -245,7 +220,7 @@ export function CustomerTestimonials({
                 variant="ghost"
                 size="icon"
                 onClick={handleNext}
-                aria-label="العنصر التالي"
+                aria-label={t('customerTestimonials.nextItem')}
                 className="h-10 w-10 rounded-full"
                 disabled={testimonials.length <= displayedCount}
               >
@@ -282,7 +257,7 @@ export function CustomerTestimonials({
                           ? "bg-gray-700 hover:bg-gray-600"
                           : "bg-gray-300 dark:bg-gray-700 hover:bg-gray-400 dark:hover:bg-gray-600"
                     )}
-                    aria-label={`العنصر ${index + 1}`}
+                    aria-label={`${t('customerTestimonials.item')} ${index + 1}`}
                   />
                 ))}
               </div>
@@ -290,7 +265,7 @@ export function CustomerTestimonials({
           </div>
         ) : (
           <div className="text-center py-10 bg-muted/20 rounded-lg border border-dashed border-muted-foreground/30">
-            <p className="text-muted-foreground">لا توجد آراء للعملاء متاحة حالياً.</p>
+            <p className="text-muted-foreground">{t('customerTestimonials.noTestimonials')}</p>
           </div>
         )}
       </div>

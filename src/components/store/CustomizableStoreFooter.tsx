@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 
 interface FooterLink {
   id: string;
@@ -80,10 +81,31 @@ interface CustomizableStoreFooterProps {
   legalLinks?: FooterLink[];
 }
 
+// دالة للحصول على الميزات الافتراضية مع الترجمة
+const getDefaultFeatures = (t: any): Feature[] => {
+  const featuresData = t('storeFooter.defaultFeatures', { returnObjects: true });
+  
+  return featuresData.map((feature: any, index: number) => ({
+    id: `${index + 1}`,
+    icon: ['Truck', 'CreditCard', 'Heart', 'ShieldCheck'][index] || 'Heart',
+    title: feature.title,
+    description: feature.description,
+  }));
+};
+
+// دالة للحصول على إعدادات النشرة البريدية الافتراضية مع الترجمة
+const getDefaultNewsletterSettings = (t: any): NewsletterSettings => ({
+  enabled: true,
+  title: t('storeFooter.newsletter.title'),
+  description: t('storeFooter.newsletter.description'),
+  placeholder: t('storeFooter.newsletter.placeholder'),
+  buttonText: t('storeFooter.newsletter.buttonText'),
+});
+
 const CustomizableStoreFooter: React.FC<CustomizableStoreFooterProps> = ({
-  storeName = 'متجرنا',
+  storeName,
   logoUrl,
-  description = 'متجر إلكتروني متخصص في بيع أحدث المنتجات التقنية والإلكترونية بأفضل الأسعار وجودة عالية.',
+  description,
   socialLinks = [],
   contactInfo = {},
   footerSections = [],
@@ -93,17 +115,17 @@ const CustomizableStoreFooter: React.FC<CustomizableStoreFooterProps> = ({
   showContactInfo = true,
   showFeatures = true,
   showNewsletter = true,
-  newsletterSettings = {
-    enabled: true,
-    title: 'النشرة البريدية',
-    description: 'اشترك في نشرتنا البريدية للحصول على آخر العروض والتحديثات.',
-    placeholder: 'البريد الإلكتروني',
-    buttonText: 'اشتراك'
-  },
+  newsletterSettings,
   showPaymentMethods = true,
   paymentMethods = ['visa', 'mastercard', 'paypal'],
   legalLinks = []
 }) => {
+  const { t } = useTranslation();
+  
+  // استخدام القيم المترجمة أو القيم المرسلة من props
+  const displayStoreName = storeName || t('storeFooter.storeName');
+  const displayDescription = description || t('storeFooter.description');
+  const displayNewsletterSettings = newsletterSettings || getDefaultNewsletterSettings(t);
   const [email, setEmail] = useState('');
 
   const handleNewsletterSubmit = (e: React.FormEvent) => {
@@ -134,34 +156,7 @@ const CustomizableStoreFooter: React.FC<CustomizableStoreFooterProps> = ({
     }
   };
 
-  const defaultFeatures = [
-    {
-      id: '1',
-      icon: 'Truck',
-      title: 'شحن سريع',
-      description: 'توصيل مجاني للطلبات +5000 د.ج'
-    },
-    {
-      id: '2',
-      icon: 'CreditCard',
-      title: 'دفع آمن',
-      description: 'طرق دفع متعددة 100% آمنة'
-    },
-    {
-      id: '3',
-      icon: 'Heart',
-      title: 'ضمان الجودة',
-      description: 'منتجات عالية الجودة معتمدة'
-    },
-    {
-      id: '4',
-      icon: 'ShieldCheck',
-      title: 'دعم 24/7',
-      description: 'مساعدة متوفرة طول اليوم'
-    }
-  ];
-
-  const displayFeatures = features.length > 0 ? features : defaultFeatures;
+  const displayFeatures = features.length > 0 ? features : getDefaultFeatures(t);
 
   return (
     <footer className="bg-muted/30 border-t border-border/40 pt-16 pb-8">
@@ -197,23 +192,23 @@ const CustomizableStoreFooter: React.FC<CustomizableStoreFooterProps> = ({
                 <div className="h-12 w-12 rounded-xl overflow-hidden border border-border/40 bg-card">
                   <img 
                     src={logoUrl} 
-                    alt={`شعار ${storeName}`} 
+                    alt={`${t('storeFooter.logoAlt')} ${displayStoreName}`} 
                     className="w-full h-full object-contain"
                   />
                 </div>
               ) : (
                 <div className="h-12 w-12 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center">
                   <span className="text-xl font-bold text-primary">
-                    {storeName.charAt(0).toUpperCase()}
+                    {displayStoreName.charAt(0).toUpperCase()}
                   </span>
                 </div>
               )}
               <span className="text-xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
-                {storeName}
+                {displayStoreName}
               </span>
             </div>
             
-            <p className="text-muted-foreground mb-6">{description}</p>
+            <p className="text-muted-foreground mb-6">{displayDescription}</p>
             
             {/* وسائل التواصل الاجتماعي */}
             {showSocialLinks && socialLinks.length > 0 && (
@@ -296,11 +291,11 @@ const CustomizableStoreFooter: React.FC<CustomizableStoreFooterProps> = ({
           )}
         
           {/* النشرة البريدية */}
-          {showNewsletter && newsletterSettings.enabled && (
+          {showNewsletter && displayNewsletterSettings.enabled && (
             <div className="md:col-span-6 lg:col-span-3">
-              <h4 className="font-bold mb-4 text-lg">{newsletterSettings.title}</h4>
+              <h4 className="font-bold mb-4 text-lg">{displayNewsletterSettings.title}</h4>
               <p className="text-muted-foreground mb-4">
-                {newsletterSettings.description}
+                {displayNewsletterSettings.description}
               </p>
               <form onSubmit={handleNewsletterSubmit} className="mb-8">
                 <div className="flex">
@@ -309,7 +304,7 @@ const CustomizableStoreFooter: React.FC<CustomizableStoreFooterProps> = ({
                       type="email" 
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder={newsletterSettings.placeholder}
+                      placeholder={displayNewsletterSettings.placeholder}
                       className="pr-4 h-11 rounded-l-none rounded-r-lg border-r-0"
                       required
                     />
@@ -318,7 +313,7 @@ const CustomizableStoreFooter: React.FC<CustomizableStoreFooterProps> = ({
                     type="submit" 
                     className="rounded-r-none rounded-l-lg border-l-0"
                   >
-                    {newsletterSettings.buttonText}
+                    {displayNewsletterSettings.buttonText}
                     <ArrowRight className="h-4 w-4 mr-2" />
                   </Button>
                 </div>
@@ -327,7 +322,7 @@ const CustomizableStoreFooter: React.FC<CustomizableStoreFooterProps> = ({
               {/* وسائل الدفع */}
               {showPaymentMethods && paymentMethods.length > 0 && (
                 <div>
-                  <h4 className="font-bold mb-4 text-lg">وسائل الدفع</h4>
+                  <h4 className="font-bold mb-4 text-lg">{t('storeFooter.paymentMethods')}</h4>
                   <div className="flex gap-2 flex-wrap">
                     {paymentMethods.map((method) => (
                       <div 
@@ -349,7 +344,7 @@ const CustomizableStoreFooter: React.FC<CustomizableStoreFooterProps> = ({
       <div className="container px-4 mx-auto">
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-sm text-muted-foreground text-center md:text-right">
-            {copyrightText || `© ${new Date().getFullYear()} ${storeName}. جميع الحقوق محفوظة.`}
+            {copyrightText || `© ${new Date().getFullYear()} ${displayStoreName}. ${t('storeFooter.copyrightText')}`}
           </p>
           
           {legalLinks.length > 0 && (

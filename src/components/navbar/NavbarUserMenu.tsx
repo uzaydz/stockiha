@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuth, UserProfile } from '@/context/AuthContext';
+import { useTenant } from '@/context/TenantContext';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -22,11 +23,38 @@ interface NavbarUserMenuProps {
 
 export function NavbarUserMenu({ isAdminPage = false }: NavbarUserMenuProps) {
   const { user, userProfile, signOut } = useAuth();
+  const { currentOrganization } = useTenant();
   const [isOpen, setIsOpen] = useState(false);
   
   const isAdmin = userProfile?.role === 'admin';
   const isEmployee = userProfile?.role === 'employee';
   const isStaff = isAdmin || isEmployee;
+  
+  // دالة لتوليد رابط المتجر الصحيح
+  const getStoreUrl = () => {
+    if (!currentOrganization?.subdomain) {
+      return '/';
+    }
+    
+    // إذا كنا على localhost، استخدم النطاق الفرعي مع localhost
+    if (window.location.hostname.includes('localhost')) {
+      const port = window.location.port ? `:${window.location.port}` : '';
+      return `http://${currentOrganization.subdomain}.localhost${port}`;
+    }
+    
+    // إذا كنا على stockiha.com، استخدم النطاق الفرعي
+    if (window.location.hostname.includes('stockiha.com')) {
+      return `https://${currentOrganization.subdomain}.stockiha.com`;
+    }
+    
+    // إذا كنا على ktobi.online، استخدم النطاق الفرعي
+    if (window.location.hostname.includes('ktobi.online')) {
+      return `https://${currentOrganization.subdomain}.ktobi.online`;
+    }
+    
+    // احتياطي: عودة إلى الصفحة الرئيسية
+    return '/';
+  };
   
   const handleLogout = async () => {
     await signOut();
@@ -218,12 +246,12 @@ export function NavbarUserMenu({ isAdminPage = false }: NavbarUserMenuProps) {
               "focus:bg-gradient-to-r focus:from-primary/10 focus:to-primary/5",
               "border border-transparent hover:border-primary/20"
             )}>
-              <Link to="/" className="flex items-center">
+              <a href={getStoreUrl()} className="flex items-center" target="_blank" rel="noopener noreferrer">
                 <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-100 to-indigo-50 dark:from-indigo-900/20 dark:to-indigo-800/10 ml-3 group-hover:scale-110 transition-transform duration-300">
                   <Store className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
                 </div>
                 <span className="font-medium group-hover:text-primary transition-colors duration-300">واجهة المتجر</span>
-              </Link>
+              </a>
             </DropdownMenuItem>
           )}
         </DropdownMenuGroup>

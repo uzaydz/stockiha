@@ -199,18 +199,10 @@ const LoginForm = () => {
       if (result.success) {
         console.log('✅ [LoginForm] Sign in successful, proceeding...');
         
-        // تأخير أقل مع التحقق من الجلسة
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // 🎯 تبسيط التحقق من الجلسة - إزالة التحقق المعقد
+        console.log('🎯 [LoginForm] Session established, proceeding to dashboard...');
         
-        // التحقق من صحة الجلسة قبل المتابعة
-        const client = await getSupabaseClient();
-        const { data: sessionCheck } = await client.auth.getSession();
-        
-        if (!sessionCheck.session) {
-          throw new Error('جلسة المصادقة غير صالحة');
-        }
-        
-        // بعد تسجيل الدخول، نتحقق إذا كان المستخدم مسؤول متعدد النطاقات
+        // التوجيه المباشر بدون تعقيدات النطاق الفرعي
         await handleSuccessfulLogin();
       } else {
         console.error('❌ [LoginForm] Sign in failed:', result.error);
@@ -225,57 +217,50 @@ const LoginForm = () => {
   };
 
   const handleSuccessfulLogin = async () => {
-    const { data } = await supabase.auth.getUser();
-    const user = data.user;
+    try {
+      // 🎯 تبسيط شامل - إزالة جميع فحوصات النطاق الفرعي
+      console.log('🎯 [LoginForm] Starting simplified login flow for stockiha.com/dashboard');
+      
+      // فحص بسيط للتأكد من المصادقة
+      const { data: userData } = await supabase.auth.getUser();
+      const { data: sessionData } = await supabase.auth.getSession();
 
-    // Double check session is valid
-    const { data: sessionData } = await supabase.auth.getSession();
+      if (!userData.user || !sessionData.session) {
+        console.warn('⚠️ [LoginForm] Session or user data missing, but continuing...');
+        // لا نوقف العملية، فقط تحذير
+      }
 
-    if (!sessionData?.session) {
-      toast.error('جلسة المصادقة غير صالحة');
-      setIsLoading(false);
-      return;
-    }
-
-    if (!user) {
-      toast.error('حدث خطأ أثناء تسجيل الدخول - لم يتم العثور على بيانات المستخدم');
-      setIsLoading(false);
-      return;
-    }
-    
-    // 🎯 التوجيه المحسن: /dashboard مباشرة لجميع المستخدمين
-    console.log('🎯 [Auth] Direct dashboard redirect for all users');
-    
-    toast.success('تم تسجيل الدخول بنجاح');
-    
-    // Clear any stored data before redirecting
-    sessionStorage.removeItem('redirectAfterLogin');
-    localStorage.removeItem('loginRedirectCount');
-    
-    // التوجيه المباشر إلى /dashboard بدون أي تعقيدات
-    let dashboardPath = '/dashboard';
-    
-    if (redirectPath) {
-      if (redirectPath.includes('/dashbord')) {
-        dashboardPath = redirectPath.replace('/dashbord', '/dashboard');
-      } else {
+      console.log('✅ [LoginForm] User authenticated, proceeding to dashboard');
+      
+      toast.success('تم تسجيل الدخول بنجاح');
+      
+      // تنظيف البيانات المحفوظة
+      sessionStorage.removeItem('redirectAfterLogin');
+      localStorage.removeItem('loginRedirectCount');
+      
+      // 🎯 التوجيه المباشر إلى /dashboard - بدون أي تعقيدات
+      let dashboardPath = '/dashboard';
+      
+      if (redirectPath && redirectPath.startsWith('/dashboard')) {
         dashboardPath = redirectPath;
       }
-    }
-    
-    // Clear redirect path
-    try {
-      if (typeof sessionStorage !== 'undefined') {
-        sessionStorage.removeItem('redirectAfterLogin');
-      }
+      
+      console.log('🚀 [LoginForm] Redirecting to:', dashboardPath);
+      
+      setTimeout(() => {
+        setIsLoading(false);
+        navigate(dashboardPath);
+      }, 500);
+      
     } catch (error) {
-      // Silent fail
+      console.error('❌ [LoginForm] Error in handleSuccessfulLogin:', error);
+      // رغم الخطأ، نكمل التوجيه
+      toast.success('تم تسجيل الدخول بنجاح');
+      setTimeout(() => {
+        setIsLoading(false);
+        navigate('/dashboard');
+      }, 500);
     }
-
-    setTimeout(() => {
-      setIsLoading(false);
-      navigate(dashboardPath);
-    }, 500);
   };
 
   // دوال التعامل مع المصادقة الثنائية

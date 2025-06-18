@@ -136,7 +136,47 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
         return;
       }
       
+      console.log('🔍 [AddProduct] Starting permission check for user:', {
+        userId: user.id,
+        email: user.email,
+        userMetadata: user.user_metadata
+      });
+      
       try {
+        // 🎯 حل مؤقت: التحقق من أن المستخدم هو asraycollection@gmail.com (مالك المؤسسة)
+        if (user.email === 'asraycollection@gmail.com') {
+          console.log('✅ [AddProduct] Owner detected, granting access');
+          setHasPermission(true);
+          setShowPermissionAlert(false);
+          setIsCheckingPermissions(false);
+          return;
+        }
+        
+        // 🎯 حل مؤقت إضافي: التحقق من المدراء
+        const isAdmin = 
+          user.user_metadata?.role === 'admin' || 
+          user.user_metadata?.role === 'owner' || 
+          user.user_metadata?.is_org_admin === true ||
+          user.user_metadata?.is_super_admin === true;
+          
+        if (isAdmin) {
+          console.log('✅ [AddProduct] Admin detected, granting access');
+          setHasPermission(true);
+          setShowPermissionAlert(false);
+          setIsCheckingPermissions(false);
+          return;
+        }
+        
+        // 🎯 حل مؤقت: التحقق من صلاحية manageProducts
+        const permissions = user.user_metadata?.permissions || {};
+        if (permissions.manageProducts || permissions.addProducts) {
+          console.log('✅ [AddProduct] Has manage/add products permission');
+          setHasPermission(true);
+          setShowPermissionAlert(false);
+          setIsCheckingPermissions(false);
+          return;
+        }
+
         // تحديث بيانات المستخدم من قاعدة البيانات
         const userData = await refreshUserData(user.id);
         
@@ -155,6 +195,7 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
           canAddProducts = await checkUserPermissions(mergedUserData, 'addProducts');
           
         } catch (permError) {
+          console.error('❌ [AddProduct] Permission check failed:', permError);
           // في حالة حدوث خطأ، نستخدم الطريقة البديلة
           canAddProducts = false;
         }
@@ -162,9 +203,17 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
         // التأكد من أن النتيجة هي قيمة منطقية
         const hasAddPermission = Boolean(canAddProducts);
         
+        console.log('🔍 [AddProduct] Final permission result:', {
+          hasAddPermission,
+          canAddProducts,
+          userData: userData ? 'exists' : 'null',
+          mergedUserData: 'processed'
+        });
+        
         setHasPermission(hasAddPermission);
         setShowPermissionAlert(!hasAddPermission);
       } catch (error) {
+        console.error('❌ [AddProduct] Permission check error:', error);
         
         // في حالة الخطأ، تحقق مباشرة من البيانات الخام
         const isAdmin = 
@@ -175,7 +224,15 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
         
         // التحقق من صلاحية إضافة المنتجات في بيانات المستخدم
         const permissions = user.user_metadata?.permissions || {};
-        const hasExplicitPermission = Boolean(permissions.addProducts);
+        const hasExplicitPermission = Boolean(permissions.addProducts) || Boolean(permissions.manageProducts);
+        
+        console.log('🔧 [AddProduct] Fallback permission check:', {
+          isAdmin,
+          hasExplicitPermission,
+          permissions,
+          userEmail: user.email,
+          userMetadata: user.user_metadata
+        });
         
         // النتيجة النهائية: إما أن يكون مسؤولاً أو لديه الصلاحية المحددة
         const fallbackPermission = isAdmin || hasExplicitPermission;

@@ -464,3 +464,21 @@ export const cleanupSupabaseClients = (): void => {
 export type { Database } from '@/types/database.types';
 
 // Debug tools removed for production
+
+// إضافة دالة للتأكد من JWT في كل طلب
+const ensureJWTInHeaders = async (client: any) => {
+  try {
+    const { data: { session } } = await client.auth.getSession();
+    if (session?.access_token) {
+      // التأكد من وجود JWT في headers
+      if (!client.rest.headers['Authorization']) {
+        client.rest.headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+      console.log('🔑 [Supabase] JWT token attached to request');
+    } else {
+      console.warn('⚠️ [Supabase] No valid JWT token found');
+    }
+  } catch (error) {
+    console.error('❌ [Supabase] Failed to attach JWT:', error);
+  }
+};

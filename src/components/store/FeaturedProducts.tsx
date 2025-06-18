@@ -15,6 +15,7 @@ import {
 import { useTenant } from '@/context/TenantContext';
 import { useShop } from '@/context/ShopContext';
 import { getProducts } from '@/lib/api/products';
+import { useTranslation } from 'react-i18next';
 
 // مرجع ثابت لمصفوفة فارغة لتجنب إعادة الإنشاء غير الضروري
 const STABLE_EMPTY_ARRAY = Object.freeze([]);
@@ -50,53 +51,54 @@ interface FeaturedProductsProps {
   organizationId?: string;
 }
 
-const defaultProducts: Product[] = [
+// إنشاء المنتجات الافتراضية مع استخدام الترجمة
+const getDefaultProducts = (t: any): Product[] => [
   {
     id: '1',
-    name: 'سماعات لاسلكية احترافية',
+    name: t('featuredProducts.defaultProducts.headphones.name'),
     price: 299,
     discount_price: 199,
     imageUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470',
-    category: 'إلكترونيات',
+    category: t('productCategories.defaultCategories.electronics.name'),
     is_new: true,
     stock_quantity: 100,
     slug: 'wireless-headphones',
-    description: 'سماعات لاسلكية احترافية بجودة صوت عالية',
+    description: t('featuredProducts.defaultProducts.headphones.description'),
     rating: 4.5
   },
   {
     id: '2',
-    name: 'حاسوب محمول فائق السرعة',
+    name: t('featuredProducts.defaultProducts.laptop.name'),
     price: 1499,
     imageUrl: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?q=80&w=1471',
-    category: 'أجهزة كمبيوتر',
+    category: t('productCategories.defaultCategories.computers.name'),
     is_new: true,
     stock_quantity: 50,
     slug: 'high-speed-laptop',
-    description: 'حاسوب محمول فائق السرعة مع معالج قوي',
+    description: t('featuredProducts.defaultProducts.laptop.description'),
     rating: 5
   },
   {
     id: '3',
-    name: 'ساعة ذكية متطورة',
+    name: t('featuredProducts.defaultProducts.smartwatch.name'),
     price: 499,
     discount_price: 399,
     imageUrl: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=1399',
-    category: 'إكسسوارات',
+    category: t('productCategories.defaultCategories.accessories.name'),
     stock_quantity: 200,
     slug: 'smart-watch',
-    description: 'ساعة ذكية متطورة مع العديد من المميزات',
+    description: t('featuredProducts.defaultProducts.smartwatch.description'),
     rating: 4.2
   },
   {
     id: '4',
-    name: 'كاميرا احترافية عالية الدقة',
+    name: t('featuredProducts.defaultProducts.camera.name'),
     price: 899,
     imageUrl: 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?q=80&w=1470',
-    category: 'إلكترونيات',
+    category: t('productCategories.defaultCategories.electronics.name'),
     stock_quantity: 30,
     slug: 'professional-camera',
-    description: 'كاميرا احترافية عالية الدقة لالتقاط أفضل الصور',
+    description: t('featuredProducts.defaultProducts.camera.description'),
     rating: 4.8
   }
 ];
@@ -175,8 +177,8 @@ const convertDatabaseProductToStoreProduct = (dbProduct: DBProduct): Product => 
 };
 
 const FeaturedProducts = ({
-  title = 'منتجاتنا المميزة',
-  description = 'اكتشف أفضل منتجاتنا المختارة بعناية لتناسب احتياجاتك',
+  title,
+  description,
   products: initialProducts = [], // استخدام البيانات المحسنة من الخدمة
   selectionMethod = 'automatic',
   selectionCriteria = 'featured',
@@ -185,6 +187,7 @@ const FeaturedProducts = ({
   displayType = 'grid',
   organizationId
 }: FeaturedProductsProps) => {
+  const { t } = useTranslation();
   const [viewType, setViewType] = useState<'grid' | 'list'>(displayType);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -426,17 +429,21 @@ const FeaturedProducts = ({
         <div className="text-center mb-16">
           <div className="inline-block px-4 py-1.5 mb-6 bg-primary/10 rounded-full text-sm text-primary font-medium">
             <Sparkles className="w-4 h-4 inline-block mr-2" />
-            منتجات مميزة
+            {t('featuredProducts.featuredLabel')}
           </div>
-          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">{title}</h2>
-          <p className="max-w-2xl mx-auto text-muted-foreground">{description}</p>
+          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
+            {title || t('featuredProducts.title')}
+          </h2>
+          <p className="max-w-2xl mx-auto text-muted-foreground">
+            {description || t('featuredProducts.description')}
+          </p>
         </div>
         
         <div className="flex flex-wrap items-center justify-between mb-10 bg-card/50 backdrop-blur-sm rounded-xl p-4 border border-border/50 shadow-sm">
           <div className="flex items-center mb-4 md:mb-0">
             <TrendingUp className="h-5 w-5 text-primary mr-2" />
             <Link to="/products" className="text-primary font-medium text-sm hover:underline flex items-center group">
-              كل المنتجات
+              {t('featuredProducts.allProducts')}
               <ChevronRight className="h-4 w-4 ml-1 transition-transform group-hover:translate-x-1" />
             </Link>
           </div>
@@ -454,7 +461,7 @@ const FeaturedProducts = ({
                     <GripHorizontal className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>عرض شبكي</TooltipContent>
+                <TooltipContent>{t('featuredProducts.gridView')}</TooltipContent>
               </Tooltip>
             </TooltipProvider>
             
@@ -470,7 +477,7 @@ const FeaturedProducts = ({
                     <Layers className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>عرض قائمة</TooltipContent>
+                <TooltipContent>{t('featuredProducts.listView')}</TooltipContent>
               </Tooltip>
             </TooltipProvider>
           </div>
@@ -480,7 +487,7 @@ const FeaturedProducts = ({
           // عرض حالة التحميل
           <div className="text-center py-20">
             <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
-            <p className="mt-4 text-muted-foreground">جاري تحميل المنتجات...</p>
+            <p className="mt-4 text-muted-foreground">{t('featuredProducts.loading')}</p>
           </div>
         ) : displayedProducts && displayedProducts.length > 0 ? (
           <motion.div 
@@ -551,7 +558,7 @@ const FeaturedProducts = ({
                         )}
                         {product.is_new && (
                           <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-200 font-medium">
-                            جديد
+                            {t('featuredProducts.new')}
                           </Badge>
                         )}
                       </div>
@@ -602,15 +609,15 @@ const FeaturedProducts = ({
                         {product.discount_price ? (
                           <div className="flex flex-col">
                             <span className="text-base font-bold text-primary">
-                              {product.discount_price.toLocaleString()} د.ج
+                              {product.discount_price.toLocaleString()} {t('featuredProducts.currency')}
                             </span>
                             <span className="text-sm text-muted-foreground line-through">
-                              {product.price.toLocaleString()} د.ج
+                              {product.price.toLocaleString()} {t('featuredProducts.currency')}
                             </span>
                           </div>
                         ) : (
                           <span className="text-base font-bold text-primary">
-                            {product.price.toLocaleString()} د.ج
+                            {product.price.toLocaleString()} {t('featuredProducts.currency')}
                           </span>
                         )}
                         
@@ -619,9 +626,9 @@ const FeaturedProducts = ({
                           product.stock_quantity < 10 ? "bg-amber-100 text-amber-800" : 
                           "bg-green-100 text-green-800"
                         }`}>
-                          {product.stock_quantity <= 0 ? "نفذ" : 
-                           product.stock_quantity < 10 ? "كمية محدودة" : 
-                           "متوفر"}
+                          {product.stock_quantity <= 0 ? t('featuredProducts.stock.outOfStock') : 
+                           product.stock_quantity < 10 ? t('featuredProducts.stock.limitedQuantity') : 
+                           t('featuredProducts.stock.available')}
                         </div>
                       </div>
                     </CardContent>
@@ -629,7 +636,7 @@ const FeaturedProducts = ({
                     <CardFooter className="p-4 pt-0">
                       <Button asChild className="w-full" variant="outline">
                         <Link to={`/products/${product.slug}`} className="flex items-center justify-center gap-2">
-                          عرض المنتج
+                          {t('featuredProducts.viewProduct')}
                           <ChevronRight className="h-4 w-4" />
                         </Link>
                       </Button>
@@ -691,7 +698,7 @@ const FeaturedProducts = ({
                         )}
                         {product.is_new && (
                           <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-200 font-medium">
-                            جديد
+                            {t('featuredProducts.new')}
                           </Badge>
                         )}
                       </div>
@@ -728,15 +735,15 @@ const FeaturedProducts = ({
                           {product.discount_price ? (
                             <>
                               <span className="text-base font-bold text-primary">
-                                {product.discount_price.toLocaleString()} د.ج
+                                {product.discount_price.toLocaleString()} {t('featuredProducts.currency')}
                               </span>
                               <span className="text-sm text-muted-foreground line-through">
-                                {product.price.toLocaleString()} د.ج
+                                {product.price.toLocaleString()} {t('featuredProducts.currency')}
                               </span>
                             </>
                           ) : (
                             <span className="text-base font-bold text-primary">
-                              {product.price.toLocaleString()} د.ج
+                              {product.price.toLocaleString()} {t('featuredProducts.currency')}
                             </span>
                           )}
                         </div>
@@ -745,7 +752,7 @@ const FeaturedProducts = ({
                           <Button asChild variant="secondary" size="sm" className="h-9 rounded-lg">
                             <Link to={`/products/${product.slug}`} className="flex items-center gap-2">
                               <Eye className="h-4 w-4 mr-1" />
-                              عرض المنتج
+                              {t('featuredProducts.viewProduct')}
                             </Link>
                           </Button>
                           <Button 
@@ -770,15 +777,15 @@ const FeaturedProducts = ({
             <div className="inline-block p-3 bg-primary/10 rounded-full mb-4">
               <ShoppingCart className="w-6 h-6 text-primary" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">لا توجد منتجات متاحة</h3>
-            <p className="text-muted-foreground">لم يتم العثور على منتجات مميزة في هذا القسم.</p>
+            <h3 className="text-xl font-semibold mb-2">{t('featuredProducts.noProducts')}</h3>
+            <p className="text-muted-foreground">{t('featuredProducts.noProductsMessage')}</p>
           </div>
         )}
         
         <div className="text-center mt-16">
           <Button asChild variant="outline" size="lg" className="rounded-full px-8">
             <Link to="/products" className="flex items-center gap-2">
-              تصفح جميع المنتجات
+              {t('featuredProducts.browseAllProducts')}
               <ArrowRight className="h-4 w-4" />
             </Link>
           </Button>

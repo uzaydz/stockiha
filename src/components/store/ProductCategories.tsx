@@ -8,6 +8,7 @@ import type { Category as CategoryType } from '@/lib/api/categories';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
+import { useTranslation } from 'react-i18next';
 
 interface ProductCategoriesProps {
   title?: string;
@@ -52,11 +53,12 @@ const categoryIcons = {
   layers: Layers,
 };
 
-const defaultCategories: ExtendedCategory[] = [
+// إنشاء الفئات الافتراضية مع استخدام الترجمة
+const getDefaultCategories = (t: any): ExtendedCategory[] => [
   {
     id: '1',
-    name: 'إلكترونيات',
-    description: 'أحدث الأجهزة الإلكترونية والمنتجات التقنية',
+    name: t('productCategories.defaultCategories.electronics.name'),
+    description: t('productCategories.defaultCategories.electronics.description'),
     slug: 'electronics',
     imageUrl: 'https://images.unsplash.com/photo-1550009158-9ebf69173e03?q=80&w=1901',
     icon: 'devices',
@@ -65,8 +67,8 @@ const defaultCategories: ExtendedCategory[] = [
   },
   {
     id: '2',
-    name: 'أجهزة كمبيوتر',
-    description: 'حواسيب محمولة ومكتبية بأحدث المواصفات',
+    name: t('productCategories.defaultCategories.computers.name'),
+    description: t('productCategories.defaultCategories.computers.description'),
     slug: 'computers',
     imageUrl: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?q=80&w=1471',
     icon: 'laptops',
@@ -75,8 +77,8 @@ const defaultCategories: ExtendedCategory[] = [
   },
   {
     id: '3',
-    name: 'هواتف ذكية',
-    description: 'تشكيلة واسعة من أحدث الهواتف الذكية',
+    name: t('productCategories.defaultCategories.smartphones.name'),
+    description: t('productCategories.defaultCategories.smartphones.description'),
     slug: 'smartphones',
     imageUrl: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?q=80&w=1580',
     icon: 'phones',
@@ -85,8 +87,8 @@ const defaultCategories: ExtendedCategory[] = [
   },
   {
     id: '4',
-    name: 'سماعات',
-    description: 'سماعات سلكية ولاسلكية عالية الجودة',
+    name: t('productCategories.defaultCategories.headphones.name'),
+    description: t('productCategories.defaultCategories.headphones.description'),
     slug: 'headphones',
     imageUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470',
     icon: 'headphones',
@@ -95,8 +97,8 @@ const defaultCategories: ExtendedCategory[] = [
   },
   {
     id: '5',
-    name: 'شاشات',
-    description: 'شاشات بأحجام مختلفة ودقة عالية',
+    name: t('productCategories.defaultCategories.monitors.name'),
+    description: t('productCategories.defaultCategories.monitors.description'),
     slug: 'monitors',
     imageUrl: 'https://images.unsplash.com/photo-1527219525722-f9767a7f2884?q=80&w=1473',
     icon: 'monitors',
@@ -105,8 +107,8 @@ const defaultCategories: ExtendedCategory[] = [
   },
   {
     id: '6',
-    name: 'إكسسوارات',
-    description: 'ملحقات وإكسسوارات متنوعة للأجهزة الإلكترونية',
+    name: t('productCategories.defaultCategories.accessories.name'),
+    description: t('productCategories.defaultCategories.accessories.description'),
     slug: 'accessories',
     imageUrl: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=1399',
     icon: 'accessories',
@@ -116,7 +118,7 @@ const defaultCategories: ExtendedCategory[] = [
 ];
 
 // تحويل الفئات الحقيقية إلى الصيغة المطلوبة للعرض
-const mapRealCategoriesToExtended = (categories: any[]): ExtendedCategory[] => {
+const mapRealCategoriesToExtended = (categories: any[], t: any): ExtendedCategory[] => {
   return categories
     .filter(cat => cat.is_active !== false) // عرض الفئات النشطة فقط
     .map(category => {
@@ -131,7 +133,7 @@ const mapRealCategoriesToExtended = (categories: any[]): ExtendedCategory[] => {
       return {
         id: category.id,
         name: category.name,
-        description: category.description || 'تصفح المنتجات في هذه الفئة',
+        description: category.description || t('productCategories.fallbackDescription'),
         slug: category.slug,
         imageUrl: category.image_url || category.imageUrl || '', 
         icon: iconKey,
@@ -158,8 +160,8 @@ const getRandomGradient = (): string => {
 };
 
 const ProductCategories = ({
-  title = 'تصفح فئات منتجاتنا',
-  description = 'أفضل الفئات المختارة لتلبية احتياجاتك',
+  title,
+  description,
   categories: optimizedCategories = [], // استخدام البيانات المحسنة من الخدمة
   useRealCategories = true,
   selectedCategoryId = null,
@@ -177,6 +179,7 @@ const ProductCategories = ({
     _previewCategories: []
   }
 }: ProductCategoriesProps) => {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const urlCategoryId = searchParams.get('category');
   const [isLoading, setIsLoading] = useState(false);
@@ -188,13 +191,16 @@ const ProductCategories = ({
     
     // 🎯 إعطاء أولوية لبيانات المعاينة من المحرر
     let categoriesToUse = optimizedCategories;
-    if (settings._previewCategories && settings._previewCategories.length > 0) {
-      categoriesToUse = settings._previewCategories;
+    // إذا كانت هناك فئات معاينة، تصفية الفئات المحسنة حسب المعاينة
+    if (settings._previewCategories && settings._previewCategories.length > 0 && optimizedCategories.length > 0) {
+      categoriesToUse = optimizedCategories.filter(cat => 
+        settings._previewCategories!.includes(cat.id)
+      );
     }
     
     // إذا كانت هناك فئات محسنة، استخدمها مباشرة
     if (useRealCategories && categoriesToUse && categoriesToUse.length > 0) {
-      let processedCategories = mapRealCategoriesToExtended(categoriesToUse);
+      let processedCategories = mapRealCategoriesToExtended(categoriesToUse, t);
 
       // تطبيق الفلترة حسب الإعدادات
       if (settings.selectionMethod === 'manual' && settings.selectedCategories && settings.selectedCategories.length > 0) {
@@ -222,10 +228,10 @@ const ProductCategories = ({
     
     // استخدام الفئات الافتراضية كخيار أخير
     const displayCount = settings.displayCount || settings.maxCategories || 6;
-    const defaultResult = defaultCategories.slice(0, displayCount);
+    const defaultResult = getDefaultCategories(t).slice(0, displayCount);
     
     return defaultResult;
-  }, [optimizedCategories, useRealCategories, settings]);
+  }, [optimizedCategories, useRealCategories, settings, t]);
 
   // إزالة useEffect للطلبات الإضافية - نستخدم البيانات المحسنة فقط
   useEffect(() => {
@@ -280,7 +286,7 @@ const ProductCategories = ({
               variant="secondary" 
               className="absolute bottom-3 right-3 bg-background/80 backdrop-blur-sm text-foreground text-xs font-medium"
             >
-              {category.productsCount} منتج
+              {category.productsCount} {t('productCategories.products')}
             </Badge>
               )}
           </div>
@@ -301,7 +307,7 @@ const ProductCategories = ({
                 className="w-full justify-start text-primary opacity-80 group-hover:opacity-100 group-hover:bg-primary/10 transition-all duration-200 px-0 hover:px-2"
                 tabIndex={-1}
               >
-                تصفح الآن
+                {t('productCategories.browseNow')}
                 <ArrowRight className="h-4 w-4 mr-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
               </Button>
             </div>
@@ -340,13 +346,17 @@ const ProductCategories = ({
     <section className="py-12 md:py-16 lg:py-20 bg-muted/30 dark:bg-muted/10">
       <div className="container px-4 mx-auto">
         <div className="text-center mb-10 md:mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold mb-3 text-foreground">{title}</h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">{description}</p>
+          <h2 className="text-3xl md:text-4xl font-bold mb-3 text-foreground">
+            {title || t('productCategories.title')}
+          </h2>
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+            {description || t('productCategories.description')}
+          </p>
           {/* عرض رسالة توضيحية عند استخدام البيانات التجريبية */}
           {!isLoading && optimizedCategories.length === 0 && displayedCategories.length > 0 && (
             <div className="mt-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
               <p className="text-amber-800 dark:text-amber-200 text-sm">
-                <span className="font-medium">🌟 فئات تجريبية:</span> هذه فئات تجريبية للعرض. يمكنك إضافة فئاتك الخاصة من لوحة التحكم.
+                <span className="font-medium">{t('productCategories.demoMessage')}</span> {t('productCategories.demoDescription')}
               </p>
             </div>
           )}
