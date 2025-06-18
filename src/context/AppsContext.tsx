@@ -219,18 +219,19 @@ export const AppsProvider: React.FC<AppsProviderProps> = ({ children }) => {
         console.log('🔄 [AppsContext] Fetching apps via UnifiedRequestManager...');
         const unifiedData = await UnifiedRequestManager.getOrganizationApps(organizationId);
         
-        if (unifiedData && Array.isArray(unifiedData)) {
+        // التحقق من وجود بيانات صالحة
+        if (unifiedData && Array.isArray(unifiedData) && unifiedData.length > 0) {
           data = unifiedData;
           fetchSuccess = true;
           console.log('✅ [AppsContext] UnifiedRequestManager success:', data.length, 'apps');
         } else {
-          console.log('⚠️ [AppsContext] UnifiedRequestManager returned no data');
+          console.log('⚠️ [AppsContext] UnifiedRequestManager returned no data or empty array. Triggering fallback.');
         }
       } catch (unifiedError) {
         console.warn('⚠️ [AppsContext] UnifiedRequestManager failed:', unifiedError);
       }
 
-      // محاولة fallback عبر الجلب المباشر إذا فشل UnifiedRequestManager
+      // Fallback: جلب مباشر من Supabase إذا فشل النظام الموحد أو أعاد بيانات فارغة
       if (!fetchSuccess) {
         try {
           console.log('🔄 [AppsContext] Fallback: Direct Supabase query...');
@@ -244,11 +245,11 @@ export const AppsProvider: React.FC<AppsProviderProps> = ({ children }) => {
             data = directData;
             fetchSuccess = true;
             console.log('✅ [AppsContext] Direct query success:', data.length, 'apps');
-          } else {
+          } else if (error) {
             console.warn('⚠️ [AppsContext] Direct query failed:', error);
           }
         } catch (directError) {
-          console.warn('⚠️ [AppsContext] Direct query failed:', directError);
+          console.warn('⚠️ [AppsContext] Direct query failed with exception:', directError);
         }
       }
 
