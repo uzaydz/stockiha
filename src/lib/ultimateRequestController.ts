@@ -241,11 +241,12 @@ class UltimateRequestController {
     
     window.fetch = async function(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
       const url = typeof input === 'string' ? input : input.toString();
+      const method = init?.method || 'GET';
       
       // التحقق من طلبات Supabase
       if (url.includes('supabase.co/rest/v1/') || url.includes('supabase.co/auth/v1/')) {
-        console.log(`🔍 Intercepting Supabase request: ${url}`);
-        prodLog('info', `🔍 Intercepting Supabase request`, { url });
+        console.log(`🔍 Intercepting Supabase request (${method}): ${url}`);
+        prodLog('info', `🔍 Intercepting Supabase request`, { url, method });
         return controller.deduplicateSupabaseRequest(url, () => originalFetch(input, init));
       }
       
@@ -265,8 +266,17 @@ class UltimateRequestController {
   ): Promise<Response> {
     const cacheKey = this.createCacheKey(url);
     
-    // لا نطبق deduplication على POST/PUT/DELETE requests
-    if (url.includes('POST') || url.includes('PUT') || url.includes('DELETE')) {
+    // التحقق من نوع الطلب من المعاملات بدلاً من URL
+    const urlObj = new URL(url);
+    const isWriteOperation = urlObj.pathname.includes('upsert') || 
+                             urlObj.pathname.includes('insert') || 
+                             urlObj.pathname.includes('update') || 
+                             urlObj.pathname.includes('delete') ||
+                             urlObj.searchParams.has('on_conflict');
+    
+    // لا نطبق deduplication على طلبات الكتابة
+    if (isWriteOperation) {
+      console.log(`🔄 Write operation detected, bypassing cache: ${url}`);
       return fetchFunction();
     }
 
@@ -313,19 +323,32 @@ class UltimateRequestController {
         const duration = performance.now() - startTime;
         
         if (response.ok && response.status === 200) {
-          const data = await response.clone().json();
-          
-          // حفظ في الكاش
-          this.dataCache.set(cacheKey, {
-            data,
-            timestamp: Date.now(),
-            ttl: this.config.DEFAULT_TTL,
-            accessCount: 1
-          });
-          
-          console.log(`💾 Cached: ${cacheKey}`);
-          prodLog('info', `💾 Cached`, { cacheKey, duration, url });
-          productionDebugger.trackRequest(url, 'GET', duration, 'success');
+          try {
+            // التحقق من وجود محتوى قبل محاولة تحليل JSON
+            const responseText = await response.clone().text();
+            if (responseText.trim()) {
+              const data = JSON.parse(responseText);
+              
+              // حفظ في الكاش
+              this.dataCache.set(cacheKey, {
+                data,
+                timestamp: Date.now(),
+                ttl: this.config.DEFAULT_TTL,
+                accessCount: 1
+              });
+              
+              console.log(`💾 Cached: ${cacheKey}`);
+              prodLog('info', `💾 Cached`, { cacheKey, duration, url });
+            } else {
+              console.log(`✅ Empty response cached: ${cacheKey}`);
+              prodLog('info', `✅ Empty response`, { cacheKey, duration, url });
+            }
+            productionDebugger.trackRequest(url, 'GET', duration, 'success');
+          } catch (jsonError) {
+            console.warn(`⚠️ JSON parsing failed for ${cacheKey}:`, jsonError);
+            prodLog('warn', `⚠️ JSON parsing failed`, { cacheKey, error: jsonError.message, duration, url });
+            productionDebugger.trackRequest(url, 'GET', duration, 'success');
+          }
         }
         
         this.activeRequests.delete(cacheKey);

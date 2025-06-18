@@ -336,24 +336,49 @@ export const AppsProvider: React.FC<AppsProviderProps> = ({ children }) => {
 
       // محاولة حفظ في قاعدة البيانات
       try {
-        const { error } = await supabase
+        // أولاً، محاولة تحديث إذا كان موجود
+        const { data: existingApp } = await supabase
           .from('organization_apps')
-          .upsert({
-            organization_id: organizationId,
-            app_id: appId,
-            is_enabled: true,
-            updated_at: new Date().toISOString()
-          }, {
-            onConflict: 'organization_id,app_id'
-          });
+          .select('id')
+          .eq('organization_id', organizationId)
+          .eq('app_id', appId)
+          .single();
 
-        if (error) {
-          console.warn('⚠️ [AppsContext] Database save failed:', error);
-          // لا نُرجع false لأن الحالة المحلية تم تحديثها
+        if (existingApp) {
+          // تحديث الموجود
+          const { error } = await supabase
+            .from('organization_apps')
+            .update({ 
+              is_enabled: true, 
+              updated_at: new Date().toISOString() 
+            })
+            .eq('organization_id', organizationId)
+            .eq('app_id', appId);
+
+          if (error) {
+            console.warn('⚠️ [AppsContext] Database update failed:', error);
+          } else {
+            console.log('✅ [AppsContext] App enabled in database (updated)');
+          }
         } else {
-          console.log('✅ [AppsContext] App enabled in database successfully');
+          // إنشاء جديد
+          const { error } = await supabase
+            .from('organization_apps')
+            .insert({
+              organization_id: organizationId,
+              app_id: appId,
+              is_enabled: true,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            });
+
+          if (error) {
+            console.warn('⚠️ [AppsContext] Database insert failed:', error);
+          } else {
+            console.log('✅ [AppsContext] App enabled in database (inserted)');
+          }
         }
-      } catch (dbError) {
+      } catch (dbError: any) {
         console.warn('⚠️ [AppsContext] Database operation failed:', dbError);
       }
 
@@ -405,21 +430,19 @@ export const AppsProvider: React.FC<AppsProviderProps> = ({ children }) => {
       try {
         const { error } = await supabase
           .from('organization_apps')
-          .upsert({
-            organization_id: organizationId,
-            app_id: appId,
-            is_enabled: false,
-            updated_at: new Date().toISOString()
-          }, {
-            onConflict: 'organization_id,app_id'
-          });
+          .update({ 
+            is_enabled: false, 
+            updated_at: new Date().toISOString() 
+          })
+          .eq('organization_id', organizationId)
+          .eq('app_id', appId);
 
         if (error) {
-          console.warn('⚠️ [AppsContext] Database save failed:', error);
+          console.warn('⚠️ [AppsContext] Database update failed:', error);
         } else {
           console.log('✅ [AppsContext] App disabled in database successfully');
         }
-      } catch (dbError) {
+      } catch (dbError: any) {
         console.warn('⚠️ [AppsContext] Database operation failed:', dbError);
       }
 
