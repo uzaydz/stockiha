@@ -141,6 +141,9 @@ import './polyfills';
 // استيراد ملف تسجيل مكونات محرر المتجر
 import './lib/register-components';
 
+// تهيئة نظام الترجمة
+import './i18n';
+
 import App from './App.tsx';
 import './index.css';
 import { BrowserRouter } from 'react-router-dom';

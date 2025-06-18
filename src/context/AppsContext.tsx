@@ -217,11 +217,20 @@ export const AppsProvider: React.FC<AppsProviderProps> = ({ children }) => {
       
       // 1. فحص الـ authentication
       const session = await supabase.auth.getSession();
+      const hasAuth = !!session.data.session;
+      const userId = session.data.session?.user?.id;
+      
       console.log('🔐 [AppsContext] Auth status:', {
-        hasSession: !!session.data.session,
-        userId: session.data.session?.user?.id,
+        hasSession: hasAuth,
+        userId: userId,
         role: session.data.session?.user?.role
       });
+      
+      // تحذير حول RLS
+      if (!hasAuth) {
+        console.warn('⚠️ [AppsContext] No authenticated session found. This might cause RLS to block all queries.');
+        console.warn('💡 [AppsContext] Suggestion: Check if RLS policies allow anonymous access or if authentication is working properly.');
+      }
       
       // 2. فحص بدون شروط
       try {
@@ -234,6 +243,19 @@ export const AppsProvider: React.FC<AppsProviderProps> = ({ children }) => {
           data: allApps,
           error: allError
         });
+        
+        // فحص إضافي: محاولة باستخدام RPC
+        if ((!allApps || allApps.length === 0) && !allError) {
+          console.log('🔄 [AppsContext] Trying RPC approach...');
+          const { data: rpcData, error: rpcError } = await supabase
+            .rpc('get_organization_apps_debug', { org_id: organizationId });
+            
+          console.log('🔍 [AppsContext] RPC result:', {
+            hasData: !!rpcData,
+            count: rpcData?.length || 0,
+            error: rpcError
+          });
+        }
       } catch (e) {
         console.error('❌ [AppsContext] Failed to fetch all apps:', e);
       }
@@ -307,6 +329,24 @@ export const AppsProvider: React.FC<AppsProviderProps> = ({ children }) => {
             console.log('✅ [AppsContext] Direct query success:', data.length, 'apps');
             if (data.length === 0) {
               console.log('📊 [AppsContext] No apps found in database for organization:', organizationId);
+              
+              // تحذير مهم حول RLS إذا لم تكن هناك مصادقة
+              if (!hasAuth) {
+                console.error('🚨 [AppsContext] CRITICAL: No authentication session found!');
+                console.error('🔧 [AppsContext] SOLUTION: This is likely a Row Level Security (RLS) issue.');
+                console.error('📝 [AppsContext] To fix this, add this SQL policy in Supabase:');
+                console.error(`
+-- Allow authenticated users to access organization_apps
+CREATE POLICY IF NOT EXISTS "Users can access organization_apps" 
+ON organization_apps FOR ALL 
+USING (auth.role() = 'authenticated');
+
+-- Or allow public access (less secure):
+CREATE POLICY IF NOT EXISTS "Public read organization_apps" 
+ON organization_apps FOR SELECT 
+USING (true);
+                `);
+              }
             }
           } else if (error) {
             console.error('❌ [AppsContext] Direct query failed:', {
@@ -472,6 +512,23 @@ export const AppsProvider: React.FC<AppsProviderProps> = ({ children }) => {
             .from('organization_apps')
             .insert(newRecord)
             .select();
+            
+          // إذا نجح INSERT لكن لم يرجع بيانات، جرب جلبها مباشرة
+          if (!insertError && (!insertData || insertData.length === 0)) {
+            console.log('⚠️ [AppsContext] Insert succeeded but returned no data, fetching directly...');
+            const { data: fetchedData, error: fetchError } = await supabase
+              .from('organization_apps')
+              .select('*')
+              .eq('organization_id', organizationId)
+              .eq('app_id', appId)
+              .single();
+              
+            if (fetchedData) {
+              console.log('✅ [AppsContext] Fetched inserted data:', fetchedData);
+            } else if (fetchError) {
+              console.error('❌ [AppsContext] Failed to fetch inserted data:', fetchError);
+            }
+          }
 
           if (insertError) {
             console.error('❌ [AppsContext] Database insert failed:', {

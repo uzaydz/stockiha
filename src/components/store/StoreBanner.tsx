@@ -115,7 +115,7 @@ const defaultHeroData: HeroData = {
   ],
 };
 
-const StoreBanner = ({ heroData = defaultHeroData }: { heroData?: HeroData }) => {
+const StoreBanner = ({ heroData }: { heroData?: HeroData }) => {
   const { t } = useTranslation();
 
   const containerVariants = {
@@ -137,20 +137,23 @@ const StoreBanner = ({ heroData = defaultHeroData }: { heroData?: HeroData }) =>
   // الحصول على البيانات الافتراضية المترجمة
   const translatedDefaultData = getDefaultHeroData(t);
   
+  // استخدام البيانات المرسلة أو القيم الافتراضية المترجمة
+  const currentHeroData = heroData || translatedDefaultData;
+  
   // استخدام قيم افتراضية في حالة عدم وجود الخصائص
-  const primaryStyle = heroData.primaryButtonStyle || 'primary';
-  const secondaryStyle = heroData.secondaryButtonStyle || 'primary';
+  const primaryStyle = currentHeroData.primaryButtonStyle || 'primary';
+  const secondaryStyle = currentHeroData.secondaryButtonStyle || 'primary';
   
   // استخراج نصوص وروابط الأزرار من التنسيق الجديد أو القديم مع الترجمة
-  const primaryButtonText = heroData.primaryButton?.text || heroData.primaryButtonText || translatedDefaultData.primaryButtonText;
-  const primaryButtonLink = heroData.primaryButton?.link || heroData.primaryButtonLink || translatedDefaultData.primaryButtonLink;
-  const secondaryButtonText = heroData.secondaryButton?.text || heroData.secondaryButtonText || translatedDefaultData.secondaryButtonText;
-  const secondaryButtonLink = heroData.secondaryButton?.link || heroData.secondaryButtonLink || translatedDefaultData.secondaryButtonLink;
+  const primaryButtonText = currentHeroData.primaryButton?.text || currentHeroData.primaryButtonText || translatedDefaultData.primaryButtonText;
+  const primaryButtonLink = currentHeroData.primaryButton?.link || currentHeroData.primaryButtonLink || translatedDefaultData.primaryButtonLink;
+  const secondaryButtonText = currentHeroData.secondaryButton?.text || currentHeroData.secondaryButtonText || translatedDefaultData.secondaryButtonText;
+  const secondaryButtonLink = currentHeroData.secondaryButton?.link || currentHeroData.secondaryButtonLink || translatedDefaultData.secondaryButtonLink;
   
   // استخدام العنوان والوصف المترجم إذا لم يتم توفيرهما
-  const title = heroData.title || translatedDefaultData.title;
-  const description = heroData.description || translatedDefaultData.description;
-  const trustBadges = heroData.trustBadges || translatedDefaultData.trustBadges;
+  const title = currentHeroData.title || translatedDefaultData.title;
+  const description = currentHeroData.description || translatedDefaultData.description;
+  const trustBadges = currentHeroData.trustBadges || translatedDefaultData.trustBadges;
   
   return (
     <section className="w-full bg-gradient-to-b from-background to-muted/30 dark:to-muted/10 overflow-hidden">
@@ -245,8 +248,8 @@ const StoreBanner = ({ heroData = defaultHeroData }: { heroData?: HeroData }) =>
           >
             <div className="relative aspect-square rounded-xl overflow-hidden shadow-2xl shadow-primary/10 border-4 border-background dark:border-gray-800/50 group-hover:scale-[1.02] transition-transform duration-500 ease-out">
               <img
-                src={heroData.imageUrl}
-                alt={heroData.title}
+                src={currentHeroData.imageUrl}
+                alt={title}
                 className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
               />
               {/* تحسين بصري بطبقة تدرج خفيف */}

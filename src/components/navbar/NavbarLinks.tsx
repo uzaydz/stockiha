@@ -4,6 +4,7 @@ import {
   ChevronDown, Home, Tag, Settings, Truck, 
   Package, ShoppingCart, ShieldCheck, LayoutGrid, Sparkles, Wrench
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -48,6 +49,7 @@ export function NavbarLinks({
   orientation = 'horizontal',
   className
 }: NavbarLinksProps) {
+  const { t } = useTranslation();
   const location = useLocation();
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
   const [hoveredLink, setHoveredLink] = useState<string | null>(null);
@@ -56,41 +58,41 @@ export function NavbarLinks({
   const getLinks = (): NavLink[] => {
     if (isAdminPage) {
       return [
-        { name: 'لوحة التحكم', path: '/dashboard', icon: ShieldCheck },
-        { name: 'المنتجات', path: '/dashboard/products', icon: Package },
-        { name: 'الطلبات', path: '/dashboard/orders', icon: ShoppingCart },
+        { name: t('navbar.dashboard'), path: '/dashboard', icon: ShieldCheck },
+        { name: t('navbar.products'), path: '/dashboard/products', icon: Package },
+        { name: t('navbar.orders'), path: '/dashboard/orders', icon: ShoppingCart },
       ];
     } else if (categories.length > 0) {
       return [
-        { name: 'الرئيسية', path: '/', icon: Home },
+        { name: t('navbar.home'), path: '/', icon: Home },
         { 
-          name: 'المنتجات', 
+          name: t('navbar.products'), 
           path: '/products', 
           icon: Tag, 
           hasSubmenu: true, 
           submenuItems: categories
         },
-        { name: 'تتبع التصليح', path: '/repair-tracking', icon: Wrench },
+        { name: t('navbar.repairTracking'), path: '/repair-tracking', icon: Wrench },
       ];
     } else {
       // استخدام الواجهة الخاصة للعناصر الفرعية الافتراضية
       const defaultSubmenuItems: SubMenuItem[] = [
-        { name: 'أجهزة', id: 'consoles', path: '/category/consoles' },
-        { name: 'ألعاب', id: 'games', path: '/category/games' },
-        { name: 'إكسسوارات', id: 'accessories', path: '/category/accessories' },
+        { name: t('navbar.consoles'), id: 'consoles', path: '/category/consoles' },
+        { name: t('navbar.games'), id: 'games', path: '/category/games' },
+        { name: t('navbar.accessories'), id: 'accessories', path: '/category/accessories' },
       ];
       
       return [
-        { name: 'الرئيسية', path: '/', icon: Home },
+        { name: t('navbar.home'), path: '/', icon: Home },
         { 
-          name: 'المنتجات', 
+          name: t('navbar.products'), 
           path: '/products', 
           icon: Tag, 
           hasSubmenu: true, 
           submenuItems: defaultSubmenuItems
         },
-        { name: 'خدمات الإصلاح', path: '/services', icon: Settings },
-        { name: 'تتبع التصليح', path: '/repair-tracking', icon: Wrench },
+        { name: t('navbar.repairServices'), path: '/services', icon: Settings },
+        { name: t('navbar.repairTracking'), path: '/repair-tracking', icon: Wrench },
       ];
     }
   };
@@ -157,7 +159,7 @@ export function NavbarLinks({
                   onMouseLeave={() => setDropdownHovered(null)}
                 >
                   <DropdownMenuLabel className="text-xs font-medium text-muted-foreground px-2 py-1.5">
-                    تصفح {link.name}
+                    {t('navbar.browse')} {link.name}
                   </DropdownMenuLabel>
                   
                   <DropdownMenuItem asChild>
@@ -165,7 +167,7 @@ export function NavbarLinks({
                       to={link.path} 
                       className="flex items-center justify-between w-full rounded-lg p-2.5 transition-all duration-200 hover:bg-primary group"
                     >
-                      <span className="font-medium text-foreground/90 group-hover:text-primary-foreground transition-colors duration-200">تصفح كل المنتجات</span>
+                      <span className="font-medium text-foreground/90 group-hover:text-primary-foreground transition-colors duration-200">{t('navbar.browseAllProducts')}</span>
                       <Tag className="h-4 w-4 opacity-70 group-hover:opacity-100 group-hover:text-primary-foreground transition-all duration-200" />
                     </Link>
                   </DropdownMenuItem>
@@ -283,7 +285,7 @@ export function NavbarLinks({
                     to={link.path}
                     className="flex items-center py-2.5 px-4 text-sm hover:bg-primary/5 rounded-xl transition-colors duration-200"
                   >
-                    <span className="font-medium">تصفح كل المنتجات</span>
+                    <span className="font-medium">{t('navbar.browseAllProducts')}</span>
                   </Link>
                   
                   <div className="h-px bg-border/30 my-2 w-full"></div>

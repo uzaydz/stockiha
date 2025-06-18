@@ -17,7 +17,16 @@ const arTranslations = {
     "login": "تسجيل الدخول",
     "register": "إنشاء حساب",
     "collapseSidebar": "طي القائمة الجانبية",
-    "expandSidebar": "توسيع القائمة الجانبية"
+    "expandSidebar": "توسيع القائمة الجانبية",
+    "dashboard": "لوحة التحكم",
+    "orders": "الطلبات",
+    "repairTracking": "تتبع التصليح",
+    "consoles": "أجهزة",
+    "games": "ألعاب",
+    "accessories": "إكسسوارات",
+    "repairServices": "خدمات الإصلاح",
+    "browse": "تصفح",
+    "browseAllProducts": "تصفح كل المنتجات"
   },
   "banner": {
     "welcomeTitle": "مرحباً بك في متجرنا",
@@ -82,7 +91,16 @@ const enTranslations = {
     "login": "Login",
     "register": "Register",
     "collapseSidebar": "Collapse Sidebar",
-    "expandSidebar": "Expand Sidebar"
+    "expandSidebar": "Expand Sidebar",
+    "dashboard": "Dashboard",
+    "orders": "Orders",
+    "repairTracking": "Repair Tracking",
+    "consoles": "Consoles",
+    "games": "Games",
+    "accessories": "Accessories",
+    "repairServices": "Repair Services",
+    "browse": "Browse",
+    "browseAllProducts": "Browse All Products"
   },
   "banner": {
     "welcomeTitle": "Welcome to Our Store",
@@ -147,7 +165,16 @@ const frTranslations = {
     "login": "Connexion",
     "register": "S'inscrire",
     "collapseSidebar": "Réduire la barre latérale",
-    "expandSidebar": "Développer la barre latérale"
+    "expandSidebar": "Développer la barre latérale",
+    "dashboard": "Tableau de bord",
+    "orders": "Commandes",
+    "repairTracking": "Suivi des réparations",
+    "consoles": "Consoles",
+    "games": "Jeux",
+    "accessories": "Accessoires",
+    "repairServices": "Services de réparation",
+    "browse": "Parcourir",
+    "browseAllProducts": "Parcourir tous les produits"
   },
   "banner": {
     "welcomeTitle": "Bienvenue dans notre boutique",
@@ -203,17 +230,46 @@ const resources = {
   fr: { translation: frTranslations }
 };
 
+// تهيئة اللغة من localStorage أو الافتراضية
+const getInitialLanguage = () => {
+  if (typeof window !== 'undefined') {
+    const savedLanguage = localStorage.getItem('selectedLanguage');
+    if (savedLanguage && ['ar', 'en', 'fr'].includes(savedLanguage)) {
+      return savedLanguage;
+    }
+  }
+  return 'ar'; // العربية كلغة افتراضية
+};
+
 i18n
   .use(initReactI18next)
   .init({
     resources,
-    lng: 'ar', // العربية كلغة افتراضية
+    lng: getInitialLanguage(),
     fallbackLng: 'ar',
     debug: false,
     
     interpolation: {
       escapeValue: false,
+    },
+    
+    // إعدادات الكشف عن اللغة
+    detection: {
+      order: ['localStorage', 'navigator', 'htmlTag'],
+      caches: ['localStorage']
     }
   });
+
+// حفظ اللغة في localStorage عند تغييرها
+i18n.on('languageChanged', (lng) => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('selectedLanguage', lng);
+    
+    // تحديث اتجاه الصفحة
+    const language = lng === 'ar' ? 'rtl' : 'ltr';
+    document.documentElement.dir = language;
+    document.documentElement.lang = lng;
+  }
+});
 
 export default i18n; 

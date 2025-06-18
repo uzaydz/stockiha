@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronDownIcon, GlobeAltIcon } from '@heroicons/react/24/outline';
 
@@ -49,6 +49,19 @@ const LanguageSwitcher: React.FC<LanguageSwitcherProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   
   const currentLanguage = languages.find(lang => lang.code === i18n.language) || languages[0];
+  
+  // تحميل اللغة المحفوظة عند بدء التشغيل
+  useEffect(() => {
+    const savedLanguage = localStorage.getItem('selectedLanguage');
+    if (savedLanguage && savedLanguage !== i18n.language) {
+      const selectedLanguage = languages.find(lang => lang.code === savedLanguage);
+      if (selectedLanguage) {
+        i18n.changeLanguage(savedLanguage);
+        document.documentElement.dir = selectedLanguage.direction;
+        document.documentElement.lang = savedLanguage;
+      }
+    }
+  }, [i18n]);
   
   const handleLanguageChange = (languageCode: string) => {
     const selectedLanguage = languages.find(lang => lang.code === languageCode);
