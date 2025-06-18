@@ -247,7 +247,7 @@ class UltimateRequestController {
       if (url.includes('supabase.co/rest/v1/') || url.includes('supabase.co/auth/v1/')) {
         console.log(`🔍 Intercepting Supabase request (${method}): ${url}`);
         prodLog('info', `🔍 Intercepting Supabase request`, { url, method });
-        return controller.deduplicateSupabaseRequest(url, () => originalFetch(input, init));
+        return controller.deduplicateSupabaseRequest(url, init, () => originalFetch(input, init));
       }
       
       // للطلبات الأخرى، استخدم fetch العادي
@@ -262,6 +262,7 @@ class UltimateRequestController {
 
   private async deduplicateSupabaseRequest(
     url: string,
+    init: RequestInit | undefined,
     fetchFunction: () => Promise<Response>
   ): Promise<Response> {
     const cacheKey = this.createCacheKey(url);
@@ -288,10 +289,15 @@ class UltimateRequestController {
         
         console.log(`✅ Cache hit: ${cacheKey} (saved ${Date.now() - cached.timestamp}ms)`);
         
-        // إنشاء Response مزيف من البيانات المخزنة
+        // إنشاء Response مزيف مع الحفاظ على Headers الأصلية
+        const headers = new Headers(init?.headers);
+        if (!headers.has('Content-Type')) {
+            headers.set('Content-Type', 'application/json');
+        }
+
         return new Response(JSON.stringify(cached.data), {
           status: 200,
-          headers: { 'Content-Type': 'application/json' }
+          headers: headers
         });
       }
     }
