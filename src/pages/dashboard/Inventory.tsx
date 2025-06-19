@@ -155,7 +155,20 @@ const Inventory = () => {
         fetchUnsyncedCount();
       }
     } catch (error) {
-      toast.error('حدث خطأ أثناء تحميل بيانات المخزون');
+      console.error('❌ [Inventory Page] خطأ في تحميل المخزون:', error);
+      
+      // عرض رسالة خطأ أكثر تفصيلاً
+      const errorMessage = error instanceof Error ? error.message : 'خطأ غير معروف';
+      toast.error(`حدث خطأ أثناء تحميل بيانات المخزون: ${errorMessage}`);
+      
+      // تعيين قائمة فارغة لتجنب أخطاء العرض
+      setProducts([]);
+      setStats({
+        totalProducts: 0,
+        inStockProducts: 0,
+        lowStockProducts: 0,
+        outOfStockProducts: 0
+      });
     } finally {
       if (isInitialLoad) {
         setIsLoading(false);
@@ -331,16 +344,10 @@ const Inventory = () => {
   
   // وظيفة تحديث المخزون بعد تعديله
   const handleStockUpdated = async () => {
-    // منع التحديثات المتكررة باستخدام مؤقت للتأخير
-    if (refreshTimeoutRef.current) {
-      clearTimeout(refreshTimeoutRef.current);
-    }
+    console.log('🚫 [Inventory] DISABLED - Not refreshing products after stock update');
     
-    // تأخير التحديث قليلاً لإعطاء وقت للتحديثات الأخرى
-    refreshTimeoutRef.current = setTimeout(() => {
-      refreshProducts();
-      refreshTimeoutRef.current = null;
-    }, 500);
+    // منع أي تحديث تلقائي - فقط إظهار رسالة نجاح
+    toast.success('تم تحديث المخزون بنجاح');
     
     return Promise.resolve();
   };

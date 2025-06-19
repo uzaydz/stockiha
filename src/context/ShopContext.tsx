@@ -501,7 +501,7 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         note,
         currentUser?.id
       );
-      await refreshData();
+      console.log('🚫 [ShopContext] DISABLED - Not calling refreshData after service booking update');
     } catch (error) {
       throw error;
     }
@@ -514,7 +514,7 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   ) => {
     try {
       await serviceService.assignServiceBooking(orderId, serviceBookingId, employeeId);
-      await refreshData();
+      console.log('🚫 [ShopContext] DISABLED - Not calling refreshData after service assignment');
     } catch (error) {
       throw error;
     }

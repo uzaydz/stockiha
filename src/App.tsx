@@ -94,12 +94,14 @@ import AppsManagement from './pages/AppsManagement';
 import { AppsProvider } from './context/AppsContext';
 import { StoreProvider } from './context/StoreContext';
 import { UnifiedDataProvider } from '@/components/UnifiedDataProvider';
+import { UniversalDataUpdateProvider } from './context/UniversalDataUpdateContext';
 import ConditionalRoute from './components/ConditionalRoute';
 import CallCenterRoute from './components/auth/CallCenterRoute';
 import CallCenterLayout from './components/call-center/CallCenterLayout';
 import CallCenterDashboard from './pages/call-center/CallCenterDashboard';
 import AssignedOrders from './pages/call-center/orders/AssignedOrders';
 import RoleBasedRedirect from './components/auth/RoleBasedRedirect';
+// تم حذف نظام التحديث التلقائي - الملف غير موجود
 
 // Call Center Admin Pages
 import AgentsManagementPage from './pages/admin/call-center/AgentsManagementPage';
@@ -161,28 +163,48 @@ setTimeout(() => {
   tryEnableInterception();
 }, 100);
 
-// 🚀 النظام الشامل الجديد والمتطور لمنع جميع الطلبات المكررة
-import { initializeRequestSystem } from '@/lib/requestSystemInitializer';
-import queryClient from "./lib/config/queryClient";
+// تم حذف النظام الشامل لمنع الطلبات المكررة - الملف غير موجود
 
 // 📊 نظام مراقبة الأداء والتحليلات الشامل
 import { initializePerformanceAnalytics } from '@/lib/analytics/initializePerformanceAnalytics';
 import PerformanceWidget from '@/components/performance/PerformanceWidget';
 
-// تهيئة النظام الشامل للحماية من الطلبات المكررة
-initializeRequestSystem(queryClient);
+// ✨ نظام التحديث المتطور للبيانات
+import { setGlobalQueryClient } from '@/lib/data-refresh-helpers';
+
+// 🚫 REQUEST DEDUPLICATION DISABLED - No initialization
+console.log('🚫 [App.tsx] REQUEST DEDUPLICATION COMPLETELY DISABLED');
+// initializeRequestSystem(queryClient); // تعطيل مؤقت
+
+// ✅ تهيئة نظام التحديث المتطور
+setGlobalQueryClient(queryClient);
+
+// 🔧 تهيئة أداة تشخيص وحل مشاكل Cache
+import { initializeCacheDebugger } from '@/lib/cache/cache-debugger-init';
+initializeCacheDebugger();
 
 // تهيئة نظام مراقبة الأداء
 initializePerformanceAnalytics();
 
-// تعطيل النظام القديم لصالح النظام الجديد المتطور
-// import { enableAuthInterception } from '@/lib/authInterceptorV2';
-// enableAuthInterception(); // تم تعطيله لصالح UltimateRequestController
+// ✨ إضافة دوال التطوير للتحديث الفوري
+if (import.meta.env.DEV) {
+  // دوال سهلة الوصول للتطوير
+  (window as any).forceRefreshAfterMutation = (
+    dataType: 'products' | 'categories' | 'orders' | 'inventory' | 'settings' | 'subscriptions' | 'apps' | 'all' = 'all',
+    operation: 'create' | 'update' | 'delete' = 'update'
+  ) => {
+    import('@/lib/data-refresh-helpers').then(({ refreshAfterMutation }) => {
+      refreshAfterMutation(dataType, operation);
+    });
+  };
 
-// فحص وإصلاح مشاكل التحميل المستمر
-if (typeof window !== 'undefined') {
-  const hasLoadingLoop = detectLoadingLoop();
-  const wasFixed = autoFixStorage();
+  // دوال محددة للبيانات الشائعة
+  (window as any).refreshProducts = () => (window as any).forceRefreshAfterMutation('products', 'update');
+  (window as any).refreshCategories = () => (window as any).forceRefreshAfterMutation('categories', 'update');
+  (window as any).refreshOrders = () => (window as any).forceRefreshAfterMutation('orders', 'update');
+  (window as any).refreshInventory = () => (window as any).forceRefreshAfterMutation('inventory', 'update');
+  (window as any).refreshAll = () => (window as any).forceRefreshAfterMutation('all', 'update');
+
 }
 
 // تحقق ما إذا كان التطبيق يعمل في بيئة Electron
@@ -214,9 +236,9 @@ if (typeof window !== 'undefined') {
     queryClient.setDefaultOptions({
       queries: {
         ...queryClient.getDefaultOptions().queries,
-        refetchOnWindowFocus: false,
-        refetchOnMount: false,
-        refetchOnReconnect: false,
+                  refetchOnWindowFocus: false,
+                    refetchOnMount: true, // ✅ السماح بالتحديث عند تحميل المكون
+          refetchOnReconnect: true, // ✅ السماح بإعادة الاتصال
       }
     });
   }
@@ -237,13 +259,14 @@ if (typeof window !== 'undefined') {
         
         queryClient.resumePausedMutations();
         
-        // تأكيد تعطيل التحديث التلقائي في المتصفح
+        // تأكيد تعطيل التحديث التلقائي المفرط مع السماح بالتحديث الضروري
         queryClient.setDefaultOptions({
           queries: {
             refetchOnWindowFocus: false,
-            refetchOnMount: false,
-            refetchOnReconnect: false,
-            staleTime: Infinity,
+            refetchOnMount: true, // ✅ السماح بالتحديث عند تحميل المكون
+            refetchOnReconnect: true, // ✅ السماح بإعادة الاتصال
+            staleTime: 0, // 🚫 CACHE DISABLED - Always fresh
+            gcTime: 0, // 🚫 CACHE DISABLED - No cache retention
           }
         });
       }
@@ -377,6 +400,8 @@ const App = () => {
   useDevtools();
   
   useEffect(() => {
+    // تم حذف نظام التحديث التلقائي - الملف غير موجود
+    
     syncCategoriesDataOnStartup();
     configureCrossDomainAuth();
     
@@ -395,6 +420,7 @@ const App = () => {
               <SessionMonitor />
               <ErrorMonitor />
               <UnifiedDataProvider>
+                <UniversalDataUpdateProvider>
                 <ShopProvider>
                   <StoreProvider>
                   <AppsProvider>
@@ -989,6 +1015,7 @@ const App = () => {
                 </AppsProvider>
                 </StoreProvider>
               </ShopProvider>
+                </UniversalDataUpdateProvider>
               </UnifiedDataProvider>
             {/* </CrossDomainSessionReceiver> */}
           </SupabaseProvider>

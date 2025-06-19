@@ -289,7 +289,6 @@ const PerformanceWidget: React.FC = () => {
                   requestAnimationFrame(() => {
                     try {
                       const report = DuplicateRequestAnalyzer.generateReport(requests);
-                      console.log(report);
                       // إشعار سريع بدلاً من alert
                       const notification = document.createElement('div');
                       notification.innerHTML = '✅ تم إنشاء تقرير التحليل في الكونسول!';
@@ -303,7 +302,6 @@ const PerformanceWidget: React.FC = () => {
                       document.body.appendChild(notification);
                       setTimeout(() => notification.remove(), 3000);
                     } catch (error) {
-                      console.warn('خطأ في تحليل المكررات:', error);
                     }
                   });
                 }}
@@ -334,4 +332,4 @@ const PerformanceWidget: React.FC = () => {
   );
 };
 
-export default PerformanceWidget; 
+export default PerformanceWidget;

@@ -9,13 +9,6 @@ export const createPOSOrder = async (
   currentOrganizationId: string | undefined
 ): Promise<Order> => {
   try {
-    console.log('🔍 POS Order Debug - Organization ID:', currentOrganizationId);
-    console.log('🔍 POS Order Debug - Order details:', {
-      isOnline: order.isOnline,
-      total: order.total,
-      customerId: order.customerId,
-      items: order.items?.length
-    });
     
     // التحقق من وجود organization_id
     if (!currentOrganizationId) {
@@ -53,12 +46,6 @@ export const createPOSOrder = async (
       updated_at: new Date().toISOString()
     };
 
-    console.log('🔍 Order data being inserted:', {
-      organization_id: orderData.organization_id,
-      customer_id: orderData.customer_id,
-      total: orderData.total
-    });
-
     // إنشاء الطلب مباشرة
     const { data: insertedOrder, error: orderError } = await supabase
       .from('orders')
@@ -67,7 +54,6 @@ export const createPOSOrder = async (
       .single();
       
     if (orderError) {
-      console.error('Error creating order:', orderError);
       throw new Error(`Error creating order: ${orderError.message}`);
     }
     
@@ -76,7 +62,6 @@ export const createPOSOrder = async (
     // إضافة عناصر الطلب بشكل منفصل وآمن
     if (order.items && order.items.length > 0) {
       try {
-        console.log('🔍 Order Items Debug - Organization ID:', currentOrganizationId);
         
         // إدراج العناصر واحد تلو الآخر بالحقول الأساسية فقط
         for (let index = 0; index < order.items.length; index++) {
@@ -95,18 +80,11 @@ export const createPOSOrder = async (
             slug: `item-${Date.now()}-${index}`
           };
 
-          console.log(`🔍 Order Item ${index + 1} data being inserted:`, {
-            organization_id: itemData.organization_id,
-            order_id: itemData.order_id,
-            product_name: itemData.product_name
-          });
-
           const { error: itemError } = await supabase
             .from('order_items')
             .insert(itemData);
 
           if (itemError) {
-            console.error('Error inserting order item:', itemError);
             // نستمر في إضافة باقي العناصر حتى لو فشل أحدها
           }
         }
@@ -114,7 +92,6 @@ export const createPOSOrder = async (
         // تحديث المخزون
         await updateInventoryForOrder(order.items);
       } catch (error) {
-        console.error('Error processing order items:', error);
       }
     }
     
@@ -127,7 +104,6 @@ export const createPOSOrder = async (
     try {
       await addOrderTransaction(newOrderId, order, currentOrganizationId);
     } catch (error) {
-      console.error('Error adding transaction:', error);
     }
     
     // إعادة الطلب المضاف مع البيانات الكاملة
@@ -140,7 +116,6 @@ export const createPOSOrder = async (
       slug: insertedOrder.slug
     };
   } catch (error) {
-    console.error('Error in createPOSOrder:', error);
     throw error;
   }
 };
@@ -155,7 +130,6 @@ async function updateInventoryForOrder(items: OrderItem[]) {
         p_quantity_sold: item.quantity
       });
     } catch (error) {
-      console.error('Error updating inventory:', error);
     }
   }
 }
@@ -193,10 +167,8 @@ async function addServiceBookings(
         .insert(serviceBookingData);
         
       if (serviceBookingError) {
-        console.error('Error adding service booking:', serviceBookingError);
       }
     } catch (error) {
-      console.error('Error in addServiceBookings:', error);
     }
   }
 }
@@ -208,7 +180,6 @@ async function addOrderTransaction(
   organizationId: string | undefined
 ) {
   try {
-    console.log('🔍 Transaction Debug - Organization ID:', organizationId);
     
     // التحقق من وجود organization_id
     if (!organizationId) {
@@ -228,22 +199,14 @@ async function addOrderTransaction(
       organization_id: organizationId
     };
 
-    console.log('🔍 Transaction data being inserted:', {
-      organization_id: transactionData.organization_id,
-      order_id: transactionData.order_id,
-      amount: transactionData.amount
-    });
-
     const { error } = await supabase
       .from('transactions')
       .insert(transactionData);
       
     if (error) {
-      console.error('Error adding transaction:', error);
       throw error;
     }
   } catch (error) {
-    console.error('Error in addOrderTransaction:', error);
     throw error;
   }
 }

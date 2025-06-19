@@ -162,7 +162,6 @@ const POSOrdersDataContext = createContext<POSOrdersData | undefined>(undefined)
 
 const fetchPOSOrderStats = async (orgId: string): Promise<POSOrderStats> => {
   return deduplicateRequest(`pos-order-stats-${orgId}`, async () => {
-    console.log('🔄 Fetching POS order stats for org:', orgId);
     
     try {
       // جلب الإحصائيات الأساسية باستخدام RPC function
@@ -171,7 +170,6 @@ const fetchPOSOrderStats = async (orgId: string): Promise<POSOrderStats> => {
       });
 
       if (statsError) {
-        console.error('❌ Error fetching POS order stats:', statsError);
         throw statsError;
       }
 
@@ -244,10 +242,8 @@ const fetchPOSOrderStats = async (orgId: string): Promise<POSOrderStats> => {
         return_rate: returnRate
       };
 
-      console.log('✅ POS order stats fetched successfully:', finalStats);
       return finalStats;
     } catch (error) {
-      console.error('❌ Error in fetchPOSOrderStats:', error);
       // إرجاع قيم افتراضية في حالة الخطأ
       return {
         total_orders: 0,
@@ -283,7 +279,6 @@ const fetchPOSOrders = async (
   hasMore: boolean;
 }> => {
   return deduplicateRequest(`pos-orders-${orgId}-${page}-${JSON.stringify(filters)}`, async () => {
-    console.log('🔄 Fetching POS orders for org:', orgId, 'page:', page);
     
     try {
       // الحصول على العدد الإجمالي أولاً
@@ -349,7 +344,6 @@ const fetchPOSOrders = async (
       const { data: orders, error: ordersError } = await query;
 
       if (ordersError) {
-        console.error('❌ Error fetching POS orders:', ordersError);
         throw ordersError;
       }
 
@@ -398,15 +392,8 @@ const fetchPOSOrders = async (
         hasMore: (totalCount || 0) > page * limit
       };
 
-      console.log('✅ POS orders fetched successfully:', {
-        ordersCount: result.orders.length,
-        total: result.total,
-        hasMore: result.hasMore
-      });
-
       return result;
     } catch (error) {
-      console.error('❌ Error in fetchPOSOrders:', error);
       return {
         orders: [],
         total: 0,
@@ -418,7 +405,6 @@ const fetchPOSOrders = async (
 
 const fetchEmployees = async (orgId: string): Promise<Employee[]> => {
   return deduplicateRequest(`pos-employees-${orgId}`, async () => {
-    console.log('🔄 Fetching employees for org:', orgId);
     
     try {
       const { data, error } = await supabase
@@ -429,14 +415,11 @@ const fetchEmployees = async (orgId: string): Promise<Employee[]> => {
         .order('name');
 
       if (error) {
-        console.error('❌ Error fetching employees:', error);
         throw error;
       }
 
-      console.log('✅ Employees fetched successfully:', (data || []).length);
       return data || [];
     } catch (error) {
-      console.error('❌ Error in fetchEmployees:', error);
       return [];
     }
   });
@@ -444,7 +427,6 @@ const fetchEmployees = async (orgId: string): Promise<Employee[]> => {
 
 const fetchOrganizationSettings = async (orgId: string): Promise<any> => {
   return deduplicateRequest(`org-settings-${orgId}`, async () => {
-    console.log('🔄 Fetching organization settings for org:', orgId);
     
     try {
       const { data, error } = await supabase
@@ -454,14 +436,11 @@ const fetchOrganizationSettings = async (orgId: string): Promise<any> => {
         .maybeSingle();
 
       if (error) {
-        console.error('❌ Error fetching organization settings:', error);
         throw error;
       }
 
-      console.log('✅ Organization settings fetched successfully');
       return data;
     } catch (error) {
-      console.error('❌ Error in fetchOrganizationSettings:', error);
       return null;
     }
   });
@@ -469,7 +448,6 @@ const fetchOrganizationSettings = async (orgId: string): Promise<any> => {
 
 const fetchOrganizationSubscriptions = async (orgId: string): Promise<any[]> => {
   return deduplicateRequest(`org-subscriptions-${orgId}`, async () => {
-    console.log('🔄 Fetching organization subscriptions for org:', orgId);
     
     try {
       const { data, error } = await supabase
@@ -480,14 +458,11 @@ const fetchOrganizationSubscriptions = async (orgId: string): Promise<any[]> => 
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('❌ Error fetching organization subscriptions:', error);
         throw error;
       }
 
-      console.log('✅ Organization subscriptions fetched successfully:', (data || []).length);
       return data || [];
     } catch (error) {
-      console.error('❌ Error in fetchOrganizationSubscriptions:', error);
       return [];
     }
   });
@@ -495,7 +470,6 @@ const fetchOrganizationSubscriptions = async (orgId: string): Promise<any[]> => 
 
 const fetchPOSSettings = async (orgId: string): Promise<any> => {
   return deduplicateRequest(`pos-settings-${orgId}`, async () => {
-    console.log('🔄 Fetching POS settings for org:', orgId);
     
     try {
       // محاولة RPC function أولاً
@@ -503,7 +477,6 @@ const fetchPOSSettings = async (orgId: string): Promise<any> => {
         .rpc('get_pos_settings', { p_org_id: orgId });
 
       if (!rpcError && rpcData && Array.isArray(rpcData) && rpcData.length > 0) {
-        console.log('✅ POS settings fetched via RPC successfully');
         return rpcData[0];
       }
 
@@ -515,14 +488,11 @@ const fetchPOSSettings = async (orgId: string): Promise<any> => {
         .maybeSingle();
 
       if (directError) {
-        console.error('❌ Error fetching POS settings:', directError);
         throw directError;
       }
 
-      console.log('✅ POS settings fetched via direct query successfully');
       return directData;
     } catch (error) {
-      console.error('❌ Error in fetchPOSSettings:', error);
       return null;
     }
   });
@@ -540,12 +510,6 @@ const fetchPOSOrdersOptimized = async (
   hasMore: boolean;
 }> => {
   return deduplicateRequest(`pos-orders-optimized-${orgId}-${page}-${limit}-${JSON.stringify(filters)}`, async () => {
-    console.log('🔄 Fetching optimized POS orders:', {
-      orgId,
-      page,
-      limit,
-      filters
-    });
 
     try {
       // استخدام RPC function محسنة للحصول على عدد أسرع
@@ -555,7 +519,6 @@ const fetchPOSOrdersOptimized = async (
         });
 
       if (countError) {
-        console.error('❌ Error getting orders count:', countError);
       }
 
       const totalCount = countData || 0;
@@ -619,7 +582,6 @@ const fetchPOSOrdersOptimized = async (
       const { data: orders, error: ordersError } = await query;
 
       if (ordersError) {
-        console.error('❌ Error fetching optimized POS orders:', ordersError);
         throw ordersError;
       }
 
@@ -684,16 +646,8 @@ const fetchPOSOrdersOptimized = async (
         hasMore: (totalCount || 0) > page * limit
       };
 
-      console.log('✅ Optimized POS orders fetched successfully:', {
-        ordersCount: result.orders.length,
-        total: result.total,
-        hasMore: result.hasMore,
-        performanceGain: 'حقول أساسية فقط، lazy loading للعناصر'
-      });
-
       return result;
     } catch (error) {
-      console.error('❌ Error in fetchPOSOrdersOptimized:', error);
       return {
         orders: [],
         total: 0,
@@ -706,7 +660,6 @@ const fetchPOSOrdersOptimized = async (
 // دالة lazy loading لجلب تفاصيل الطلبية عند الحاجة
 const fetchOrderDetails = async (orderId: string): Promise<any[]> => {
   return deduplicateRequest(`order-details-${orderId}`, async () => {
-    console.log('🔄 Fetching order details for:', orderId);
     
     try {
       const { data: orderItems, error } = await supabase
@@ -730,18 +683,11 @@ const fetchOrderDetails = async (orderId: string): Promise<any[]> => {
         .order('created_at');
 
       if (error) {
-        console.error('❌ Error fetching order details:', error);
         return [];
       }
 
-      console.log('✅ Order details fetched successfully:', {
-        orderId,
-        itemsCount: orderItems?.length || 0
-      });
-
       return orderItems || [];
     } catch (error) {
-      console.error('❌ Error in fetchOrderDetails:', error);
       return [];
     }
   });
@@ -764,8 +710,6 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
   // حالة للفلاتر والصفحة
   const [filters, setFilters] = React.useState<POSOrderFilters>({});
   const [currentPage, setCurrentPage] = React.useState(1);
-
-  console.log('🎯 POSOrdersDataProvider rendering with orgId:', orgId);
 
   // React Query للإحصائيات
   const {
@@ -856,17 +800,14 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
 
   // دوال التحديث
   const refreshAll = useCallback(async () => {
-    console.log('🔄 Refreshing all POS orders data...');
     await queryClient.invalidateQueries({ queryKey: ['pos-orders'] });
   }, [queryClient]);
 
   const refreshStats = useCallback(async () => {
-    console.log('🔄 Refreshing POS orders stats...');
     await refetchStats();
   }, [refetchStats]);
 
   const refreshOrders = useCallback(async (page?: number, newFilters?: POSOrderFilters) => {
-    console.log('🔄 Refreshing POS orders...');
     if (page) setCurrentPage(page);
     if (newFilters) setFilters(newFilters);
     await refetchOrders();
@@ -889,17 +830,14 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
         .eq('id', orderId);
 
       if (error) {
-        console.error('❌ Error updating order status:', error);
         return false;
       }
 
       // إعادة تحميل البيانات
       await Promise.all([refetchStats(), refetchOrders()]);
       
-      console.log('✅ Order status updated successfully');
       return true;
     } catch (error) {
-      console.error('❌ Error in updateOrderStatus:', error);
       return false;
     }
   }, [refetchStats, refetchOrders]);
@@ -925,17 +863,14 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
         .eq('id', orderId);
 
       if (error) {
-        console.error('❌ Error updating payment status:', error);
         return false;
       }
 
       // إعادة تحميل البيانات
       await Promise.all([refetchStats(), refetchOrders()]);
       
-      console.log('✅ Payment status updated successfully');
       return true;
     } catch (error) {
-      console.error('❌ Error in updatePaymentStatus:', error);
       return false;
     }
   }, [refetchStats, refetchOrders]);
@@ -949,7 +884,6 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
         .eq('order_id', orderId);
 
       if (itemsError) {
-        console.error('❌ Error deleting order items:', itemsError);
         return false;
       }
 
@@ -960,17 +894,14 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
         .eq('id', orderId);
 
       if (orderError) {
-        console.error('❌ Error deleting order:', orderError);
         return false;
       }
 
       // إعادة تحميل البيانات
       await Promise.all([refetchStats(), refetchOrders()]);
       
-      console.log('✅ Order deleted successfully');
       return true;
     } catch (error) {
-      console.error('❌ Error in deleteOrder:', error);
       return false;
     }
   }, [refetchStats, refetchOrders]);
@@ -1046,15 +977,6 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
     updatePaymentStatus, deleteOrder
   ]);
 
-  console.log('🎯 POSOrdersDataContext value ready:', {
-    statsLoaded: !!stats,
-    ordersCount: ordersData?.orders?.length || 0,
-    employeesCount: employees.length,
-    totalOrders: ordersData?.total || 0,
-    currentPage,
-    isLoading
-  });
-
   return (
     <POSOrdersDataContext.Provider value={contextValue}>
       {children}
@@ -1074,4 +996,4 @@ export const usePOSOrdersData = (): POSOrdersData => {
   return context;
 };
 
-export default POSOrdersDataProvider; 
+export default POSOrdersDataProvider;

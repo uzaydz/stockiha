@@ -10,7 +10,6 @@ interface POSOrdersWrapperProps {
 }
 
 const POSOrdersWrapper: React.FC<POSOrdersWrapperProps> = ({ children }) => {
-  console.log('🎯 POSOrdersWrapper rendering...');
   
   return (
     <POSOrdersDataProvider>
@@ -19,4 +18,4 @@ const POSOrdersWrapper: React.FC<POSOrdersWrapperProps> = ({ children }) => {
   );
 };
 
-export default POSOrdersWrapper; 
+export default POSOrdersWrapper;

@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { updateCategory } from '@/lib/api/categories';
 import type { Category } from '@/lib/api/categories';
+import { useTenant } from '@/context/TenantContext';
 import {
   Dialog,
   DialogContent,
@@ -53,6 +54,7 @@ const EditCategoryDialog = ({
   onCategoryUpdated 
 }: EditCategoryDialogProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { currentOrganization } = useTenant();
   
   // Initialize form with react-hook-form and zod validation
   const form = useForm<CategoryFormValues>({
@@ -80,6 +82,21 @@ const EditCategoryDialog = ({
   }, [category, form]);
 
   const onSubmit = async (values: CategoryFormValues) => {
+    console.log('🎯 [EditCategoryDialog] بدء تحديث فئة من الواجهة:', {
+      categoryId: category.id,
+      formValues: values,
+      organizationId: currentOrganization?.id,
+      timestamp: new Date().toISOString()
+    });
+
+    if (!currentOrganization?.id) {
+      console.error('❌ [EditCategoryDialog] خطأ: معرف المؤسسة غير موجود');
+      toast.error('لم يتم العثور على معرف المؤسسة');
+      return;
+    }
+
+    console.log('✅ [EditCategoryDialog] تم التحقق من وجود المؤسسة:', currentOrganization.id);
+
     setIsSubmitting(true);
     try {
       const categoryData = {
@@ -90,12 +107,18 @@ const EditCategoryDialog = ({
         is_active: values.is_active,
       };
       
-      await updateCategory(category.id, categoryData);
+      console.log('📤 [EditCategoryDialog] استدعاء updateCategory مع organizationId:', currentOrganization.id);
+      
+      await updateCategory(category.id, categoryData, currentOrganization.id);
+      
+      console.log('✅ [EditCategoryDialog] تم تحديث الفئة بنجاح');
       
       toast.success('تم تحديث الفئة بنجاح');
       onOpenChange(false);
       onCategoryUpdated();
     } catch (error) {
+      console.error('❌ [EditCategoryDialog] خطأ في تحديث الفئة:', error);
+      
       // التحقق من خطأ تكرار اسم الفئة
       if (error instanceof Error && error.message.includes('duplicate key value violates unique constraint')) {
         toast.error('هذا الاسم موجود بالفعل في فئات مؤسستك، يرجى اختيار اسم آخر للفئة');

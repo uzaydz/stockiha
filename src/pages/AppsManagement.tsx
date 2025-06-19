@@ -101,7 +101,7 @@ const AppsManagement: React.FC = () => {
     refreshApps
   } = useApps();
 
-  // تشخيص useApps context
+
 
   const [selectedApp, setSelectedApp] = useState<AppDefinition | null>(null);
   const [isAppDetailsOpen, setIsAppDetailsOpen] = useState(false);
@@ -112,6 +112,8 @@ const AppsManagement: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [showOnlyEnabled, setShowOnlyEnabled] = useState(false);
+
+
 
   // فلترة التطبيقات
   const filteredApps = useMemo(() => {

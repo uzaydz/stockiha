@@ -163,20 +163,32 @@ export const getCategoryById = async (categoryId: string): Promise<Category | nu
 };
 
 export const createCategory = async (categoryData: Partial<Category>, organizationId: string): Promise<Category> => {
+  console.log('🎯 [createCategory] بدء إنشاء فئة جديدة:', {
+    categoryName: categoryData.name,
+    organizationId,
+    categoryData,
+    timestamp: new Date().toISOString()
+  });
+
   try {
     // التحقق من صحة organizationId
     if (!organizationId || organizationId.trim() === '') {
+      console.error('❌ [createCategory] خطأ: معرف المؤسسة مفقود');
       throw new Error('معرف المؤسسة مطلوب ولا يمكن أن يكون فارغًا');
     }
     
     // التحقق من أن organizationId هو UUID صالح
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(organizationId)) {
+      console.error('❌ [createCategory] خطأ: معرف المؤسسة غير صالح:', organizationId);
       throw new Error('معرف المؤسسة غير صالح - يجب أن يكون UUID صحيح');
     }
     
+    console.log('✅ [createCategory] تم التحقق من صحة البيانات');
+    
     // التحقق من حالة الاتصال
     if (!isOnline()) {
+      console.log('📴 [createCategory] وضع عدم الاتصال - إنشاء فئة محلياً');
 
       // إنشاء معرف مؤقت للفئة
       const tempId = `temp_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
@@ -196,6 +208,8 @@ export const createCategory = async (categoryData: Partial<Category>, organizati
         updated_at: new Date().toISOString()
       };
       
+      console.log('💾 [createCategory] إنشاء فئة محلية:', newCategory);
+      
       // تخزين الفئة الجديدة محليًا
       await categoriesStore.setItem(newCategory.id, newCategory);
       
@@ -206,34 +220,47 @@ export const createCategory = async (categoryData: Partial<Category>, organizati
       // إضافة الفئة إلى قائمة المزامنة للمزامنة لاحقًا
       await addCategoryToSyncQueue(newCategory);
 
+      console.log('✅ [createCategory] تم إنشاء الفئة محلياً بنجاح');
       return newCategory;
     }
+    
+    console.log('🌐 [createCategory] وضع الاتصال - إنشاء فئة في قاعدة البيانات');
     
     // Generate a unique slug by appending timestamp
     const timestamp = new Date().getTime();
     const baseSlug = categoryData.name?.toLowerCase().replace(/\s+/g, '-') || 'new-category';
     const uniqueSlug = `${baseSlug}-${timestamp}`;
     
+    console.log('🔗 [createCategory] إنشاء slug فريد:', uniqueSlug);
+    
     // إذا كان المستخدم متصل، استخدم السلوك الطبيعي
     const supabaseClient = supabase;
+    
+    const insertData = {
+      name: categoryData.name!,
+      description: categoryData.description,
+      slug: uniqueSlug,
+      icon: categoryData.icon,
+      image_url: categoryData.image_url,
+      is_active: categoryData.is_active !== undefined ? categoryData.is_active : true,
+      type: categoryData.type === 'service' ? 'service' : 'product',
+      organization_id: organizationId
+    };
+    
+    console.log('📤 [createCategory] إرسال البيانات إلى قاعدة البيانات:', insertData);
+    
     const { data, error } = await supabaseClient
       .from('product_categories')
-      .insert({
-        name: categoryData.name!,
-        description: categoryData.description,
-        slug: uniqueSlug,
-        icon: categoryData.icon,
-        image_url: categoryData.image_url,
-        is_active: categoryData.is_active !== undefined ? categoryData.is_active : true,
-        type: categoryData.type === 'service' ? 'service' : 'product',
-        organization_id: organizationId
-      })
+      .insert(insertData)
       .select()
       .single();
 
     if (error) {
+      console.error('❌ [createCategory] خطأ في قاعدة البيانات:', error);
       throw error;
     }
+
+    console.log('✅ [createCategory] تم إنشاء الفئة في قاعدة البيانات بنجاح:', data);
 
     const resultCategory = {
       ...data,
@@ -247,12 +274,34 @@ export const createCategory = async (categoryData: Partial<Category>, organizati
       updated_at: data.updated_at!
     } as Category;
 
+    console.log('🔄 [createCategory] تحديث التخزين المحلي...');
+    
     await categoriesStore.setItem(resultCategory.id, resultCategory);
     const categories = await getLocalCategories();
     await saveCategoriesToLocalStorage([...categories, resultCategory]);
 
+    console.log('✅ [createCategory] تم إنشاء الفئة بنجاح كاملاً:', resultCategory);
+    console.log('🔄 [createCategory] تحديث الواجهة فوراً...');
+    
+    // استخدام النظام الموحد - سطر واحد فقط! 🎉
+    const { autoRefreshSystem } = await import('@/lib/auto-refresh-system');
+    autoRefreshSystem.notifyChange({
+      entity: 'categories',
+      action: 'create',
+      data: resultCategory,
+      organizationId
+    });
+
+    console.log('✅ [createCategory] تم إرسال إشعارات التحديث');
+
     return resultCategory;
   } catch (error) {
+    console.error('❌ [createCategory] خطأ في إنشاء الفئة:', {
+      error,
+      categoryData,
+      organizationId,
+      timestamp: new Date().toISOString()
+    });
     throw error;
   }
 };
@@ -275,6 +324,13 @@ export const addCategoryToSyncQueue = async (category: Category): Promise<void> 
 
 export const updateCategory = async (id: string, categoryData: UpdateCategoryData, organizationId?: string): Promise<Category> => {
   try {
+    console.log('🎯 [updateCategory] بدء تحديث فئة:', {
+      categoryId: id,
+      categoryData,
+      organizationId,
+      timestamp: new Date().toISOString()
+    });
+
     const supabaseClient = supabase;
     
     // Prepare the update object, ensuring type safety for 'type'
@@ -286,6 +342,8 @@ export const updateCategory = async (id: string, categoryData: UpdateCategoryDat
         updatePayload.organization_id = organizationId;
     }
 
+    console.log('📤 [updateCategory] إرسال البيانات إلى قاعدة البيانات:', updatePayload);
+
     const { data, error } = await supabaseClient
       .from('product_categories')
       .update(updatePayload)
@@ -294,8 +352,11 @@ export const updateCategory = async (id: string, categoryData: UpdateCategoryDat
       .single();
 
     if (error) {
+      console.error('❌ [updateCategory] خطأ في قاعدة البيانات:', error);
       throw error;
     }
+
+    console.log('✅ [updateCategory] تم تحديث الفئة في قاعدة البيانات بنجاح:', data);
 
     const resultCategory = {
       ...data,
@@ -309,6 +370,8 @@ export const updateCategory = async (id: string, categoryData: UpdateCategoryDat
       updated_at: data.updated_at!
     } as Category;
     
+    console.log('🔄 [updateCategory] تحديث التخزين المحلي...');
+    
     // تحديث بيانات الفئة محليًا
     await categoriesStore.setItem(id, resultCategory);
     
@@ -317,14 +380,39 @@ export const updateCategory = async (id: string, categoryData: UpdateCategoryDat
     const updatedCategories = categories.map(cat => cat.id === id ? resultCategory : cat);
     await saveCategoriesToLocalStorage(updatedCategories);
 
+    console.log('✅ [updateCategory] تم تحديث التخزين المحلي');
+
+    console.log('🔄 [updateCategory] تحديث الواجهة فوراً...');
+    
+    // 🎯 استخدام النظام الموحد للتحديث التلقائي - مثل deleteCategory
+    const { autoRefreshSystem } = await import('@/lib/auto-refresh-system');
+    autoRefreshSystem.notifyChange({
+      entity: 'categories',
+      action: 'update',
+      data: { categoryId: id, updatedData: resultCategory },
+      organizationId: organizationId || resultCategory.organization_id
+    });
+
+    console.log('✅ [updateCategory] تم إرسال إشعارات التحديث');
+    console.log('✅ [updateCategory] تم تحديث الفئة بنجاح كاملاً');
+
     return resultCategory;
   } catch (error) {
+    console.error('❌ [updateCategory] خطأ في تحديث الفئة:', error);
     throw error;
   }
 };
 
-export const deleteCategory = async (id: string): Promise<void> => {
+export const deleteCategory = async (id: string, organizationId?: string): Promise<void> => {
+  console.log('🎯 [deleteCategory] بدء حذف فئة:', {
+    categoryId: id,
+    organizationId,
+    timestamp: new Date().toISOString()
+  });
+
   try {
+    console.log('📤 [deleteCategory] إرسال طلب الحذف إلى قاعدة البيانات...');
+    
     const supabaseClient = supabase;
     const { error } = await supabaseClient
       .from('product_categories')
@@ -332,9 +420,14 @@ export const deleteCategory = async (id: string): Promise<void> => {
       .eq('id', id);
 
     if (error) {
+      console.error('❌ [deleteCategory] خطأ في قاعدة البيانات:', error);
       throw error;
     }
 
+    console.log('✅ [deleteCategory] تم حذف الفئة من قاعدة البيانات بنجاح');
+
+    console.log('🔄 [deleteCategory] تحديث التخزين المحلي...');
+    
     // حذف الفئة من التخزين المحلي
     await categoriesStore.removeItem(id);
     
@@ -342,7 +435,25 @@ export const deleteCategory = async (id: string): Promise<void> => {
     const categories = await getLocalCategories();
     const updatedCategories = categories.filter(cat => cat.id !== id);
     await saveCategoriesToLocalStorage(updatedCategories);
+
+    console.log('✅ [deleteCategory] تم تحديث التخزين المحلي');
+
+    console.log('🔄 [deleteCategory] تحديث الواجهة فوراً...');
+    
+    // استخدام النظام الموحد - سطر واحد فقط! 🎉
+    const { autoRefreshSystem } = await import('@/lib/auto-refresh-system');
+    autoRefreshSystem.notifyChange({
+      entity: 'categories',
+      action: 'delete',
+      data: { categoryId: id },
+      organizationId: organizationId || 'unknown'
+    });
+
+    console.log('✅ [deleteCategory] تم إرسال إشعارات التحديث');
+    console.log('✅ [deleteCategory] تم حذف الفئة بنجاح كاملاً');
+
   } catch (error) {
+    console.error('❌ [deleteCategory] خطأ في حذف الفئة:', error);
     throw error;
   }
 };

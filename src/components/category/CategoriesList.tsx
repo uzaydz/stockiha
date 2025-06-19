@@ -104,19 +104,40 @@ const CategoriesList = ({ categories, onRefreshCategories }: CategoriesListProps
   const handleDeleteConfirm = async () => {
     if (!deleteConfirmCategory) return;
 
+    console.log('🎯 [CategoriesList] بدء حذف فئة من الواجهة:', {
+      categoryId: deleteConfirmCategory.id,
+      categoryName: deleteConfirmCategory.name,
+      organizationId: deleteConfirmCategory.organization_id,
+      timestamp: new Date().toISOString()
+    });
+
     if (hasSubcategories) {
+      console.warn('⚠️ [CategoriesList] منع حذف فئة تحتوي على فئات فرعية');
       setIsDeleteOpen(false);
       toast.error('لا يمكن حذف هذه الفئة لأنها تحتوي على فئات فرعية');
       return;
     }
 
+    console.log('✅ [CategoriesList] تم التحقق - لا توجد فئات فرعية');
+
     setIsLoading(true);
     try {
-      await deleteCategory(deleteConfirmCategory.id);
+      console.log('📤 [CategoriesList] استدعاء deleteCategory المحسن...');
+      
+      // استدعاء deleteCategory مع organizationId
+      await deleteCategory(deleteConfirmCategory.id, deleteConfirmCategory.organization_id);
+      
+      console.log('🎉 [CategoriesList] تم حذف الفئة بنجاح من قاعدة البيانات');
+      
       toast.success('تم حذف الفئة بنجاح');
       setIsDeleteOpen(false);
-      onRefreshCategories();
+      
+      console.log('🔄 [CategoriesList] استدعاء onRefreshCategories...');
+      await onRefreshCategories();
+      
+      console.log('🏁 [CategoriesList] انتهت عملية الحذف بنجاح');
     } catch (error) {
+      console.error('❌ [CategoriesList] خطأ في حذف الفئة:', error);
       toast.error('حدث خطأ أثناء حذف الفئة');
     } finally {
       setIsLoading(false);

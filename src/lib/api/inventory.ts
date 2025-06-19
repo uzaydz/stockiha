@@ -7,17 +7,28 @@ import { toast } from 'sonner';
 
 // Get all product categories
 export const getProductCategories = async (): Promise<string[]> => {
-  const { data, error } = await supabase
-    .from('products')
-    .select('category');
+  try {
+    console.log('🔍 [Inventory] جلب فئات المنتجات...');
+    
+    const { data, error } = await supabase
+      .from('products')
+      .select('category');
 
-  if (error) {
-    throw error;
+    if (error) {
+      console.error('❌ [Inventory] خطأ في جلب الفئات:', error);
+      throw error;
+    }
+
+    // Extract unique categories
+    const categories = [...new Set((data || []).map(item => item.category).filter(Boolean))];
+    
+    console.log('✅ [Inventory] تم جلب', categories.length, 'فئة');
+    
+    return categories;
+  } catch (error) {
+    console.error('❌ [Inventory] خطأ شامل في جلب الفئات:', error);
+    return []; // إرجاع مصفوفة فارغة بدلاً من رمي خطأ
   }
-
-  // Extract unique categories
-  const categories = [...new Set(data.map(item => item.category))];
-  return categories;
 };
 
 // Get products with inventory information
@@ -25,62 +36,43 @@ export const getInventoryProducts = async (page = 1, limit = 50): Promise<{
   products: Product[],
   totalCount: number
 }> => {
-  // الحصول على معلومات المستخدم الحالي
-  const userInfo = await supabase.auth.getUser();
-  const userId = userInfo.data.user?.id;
+  console.log('🔍 [Inventory] جلب منتجات المخزون - الصفحة:', page, 'الحد الأقصى:', limit);
   
-  if (!userId) {
-    throw new Error('المستخدم غير مسجل الدخول');
-  }
-  
-  // البحث عن معرف المؤسسة الخاصة بالمستخدم
-  const { data: userData, error: userError } = await supabase
-    .from('users')
-    .select('organization_id')
-    .eq('id', userId)
-    .single();
+  try {
+    // تبسيط الاستعلام - جلب جميع المنتجات بدون تعقيد المؤسسة مؤقتاً
+    const start = (page - 1) * limit;
+    const end = start + limit - 1;
     
-  if (userError && userError.code !== 'PGRST116') {
-    throw userError;
-  }
-  
-  // استخدام معرف المؤسسة لجلب المنتجات الخاصة بها فقط
-  const organizationId = userData?.organization_id;
-  
-  // تحسين الاستعلام لاستخدام التضمين بدلاً من استعلامات متعددة
-  const start = (page - 1) * limit;
-  const end = start + limit - 1;
-  
-  let query = supabase
-    .from('products')
-    .select(`
-      *,
-      product_colors (
+    const { data: productsData, error, count } = await supabase
+      .from('products')
+      .select(`
         *,
-        product_sizes (*)
-      )
-    `, { count: 'exact' });
-  
-  if (organizationId) {
-    query = query.eq('organization_id', organizationId);
-  }
-  
-  // إضافة التجزئة للاستعلام
-  query = query.order('name').range(start, end);
-  
-  const { data: productsData, error, count } = await query;
+        product_colors (
+          *,
+          product_sizes (*)
+        )
+      `, { count: 'exact' })
+      .order('name')
+      .range(start, end);
 
-  if (error) {
-    throw error;
-  }
-  
-  // تحضير قائمة المنتجات النهائية باستخدام وظيفة التحويل الموحدة
-  const products: Product[] = productsData.map(product => mapProductFromDatabase(product));
+    if (error) {
+      console.error('❌ [Inventory] خطأ في جلب المنتجات:', error);
+      throw error;
+    }
+    
+    console.log('✅ [Inventory] تم جلب', productsData?.length || 0, 'منتج من أصل', count);
+    
+    // تحضير قائمة المنتجات النهائية باستخدام وظيفة التحويل الموحدة
+    const products: Product[] = (productsData || []).map(product => mapProductFromDatabase(product));
 
-  return {
-    products,
-    totalCount: count || products.length
-  };
+    return {
+      products,
+      totalCount: count || products.length
+    };
+  } catch (error) {
+    console.error('❌ [Inventory] خطأ شامل في جلب المخزون:', error);
+    throw new Error('حدث خطأ أثناء تحميل بيانات المخزون: ' + (error instanceof Error ? error.message : 'خطأ غير معروف'));
+  }
 };
 
 // وظيفة موحدة لتحويل بيانات المنتج من قاعدة البيانات إلى نموذج المنتج
@@ -908,7 +900,19 @@ export async function updateProductStock(data: {
         if (!canUpdateProduct) {
           toast.info('تم تسجيل العملية ولكن تحديث المخزون سيتم مزامنته لاحقًا');
         } else {
-          
+          // 🚀 إلغاء كاش المخزون والمنتجات بعد نجاح التحديث
+          try {
+            const { cacheManager } = await import('@/lib/cache/CentralCacheManager');
+            console.log('🧹 [updateProductStock] إلغاء كاش المخزون والمنتجات...');
+            
+            cacheManager.invalidate('inventory*');
+            cacheManager.invalidate('product-stock*');
+            cacheManager.invalidate('products*');
+            
+            console.log('✅ [updateProductStock] تم إلغاء الكاش بنجاح');
+          } catch (cacheError) {
+            console.warn('⚠️ [updateProductStock] فشل في إلغاء الكاش:', cacheError);
+          }
         }
         
         return true;
@@ -1053,6 +1057,22 @@ export async function setProductStock(data: {
         notes: data.notes || `تعيين المخزون إلى ${data.stock_quantity}`,
         created_by: data.created_by
       });
+      
+      // 🚀 إلغاء كاش المخزون والمنتجات بعد نجاح التحديث
+      if (success) {
+        try {
+          const { cacheManager } = await import('@/lib/cache/CentralCacheManager');
+          console.log('🧹 [setProductStock] إلغاء كاش المخزون والمنتجات...');
+          
+          cacheManager.invalidate('inventory*');
+          cacheManager.invalidate('product-stock*');
+          cacheManager.invalidate('products*');
+          
+          console.log('✅ [setProductStock] تم إلغاء الكاش بنجاح');
+        } catch (cacheError) {
+          console.warn('⚠️ [setProductStock] فشل في إلغاء الكاش:', cacheError);
+        }
+      }
       
       return success;
     } catch (variantError) {

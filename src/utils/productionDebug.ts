@@ -220,7 +220,6 @@ class ProductionDebugger {
       recommendations: this.generateRecommendations()
     };
 
-    console.table(analysis.summary);
     return analysis;
   }
 
@@ -329,23 +328,12 @@ export default productionDebugger;
 
 export const debugProduction = () => {
   if (typeof window !== 'undefined') {
-    console.log('🔍 Production Debug Info:', {
-      environment: import.meta.env.MODE,
-      isDev: import.meta.env.DEV,
-      isProd: import.meta.env.PROD,
-      viteEnv: import.meta.env,
-      userAgent: navigator.userAgent,
-      location: window.location.href,
-      timestamp: new Date().toISOString(),
-    });
     
     // فحص وجود POSDataContext
     setTimeout(() => {
       const posDataElements = document.querySelectorAll('[data-pos-context]');
-      console.log('🎯 POSDataContext Elements Found:', posDataElements.length);
       
       // فحص وجود console logs من POSDataProvider
-      console.log('🎯 Checking POSDataProvider logs...');
       
       // إضافة معلومات للـ window للتشخيص
       (window as any).__POS_DEBUG_INFO = {
@@ -358,7 +346,6 @@ export const debugProduction = () => {
 };
 
 export const logPOSContextStatus = (status: string, data?: any) => {
-  console.log(`🎯 POSContext Status [${status}]:`, data);
   
   if (typeof window !== 'undefined') {
     if (!(window as any).__POS_CONTEXT_LOGS) {
@@ -370,4 +357,4 @@ export const logPOSContextStatus = (status: string, data?: any) => {
       timestamp: new Date().toISOString(),
     });
   }
-}; 
+};

@@ -109,7 +109,6 @@ export const logError = (error: Error, context: Record<string, any> = {}) => {
       Sentry.captureException(error);
     });
   } else {
-    console.error('Development Error:', error, context);
   }
 };
 
@@ -117,7 +116,6 @@ export const logMessage = (message: string, level: Sentry.SeverityLevel = 'info'
   if (!isDevelopment) {
     Sentry.captureMessage(message, level);
   } else {
-    console.log(`Development Message [${level}]:`, message);
   }
 };
 

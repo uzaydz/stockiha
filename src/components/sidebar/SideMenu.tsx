@@ -1,5 +1,5 @@
 import { useLocation } from 'react-router-dom';
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -92,7 +92,7 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
   const { signOut, user, userProfile } = useAuth();
   
   // استخدام سياق التطبيقات
-  const { isAppEnabled } = useApps();
+  const { isAppEnabled, organizationApps, isLoading } = useApps();
   
   const permissions = userPermissions || {};
   const isAdmin = userRole === 'admin';
@@ -260,7 +260,11 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
   };
   
   // تعريف عناصر القائمة - تعتمد على حالة التطبيقات
-  const navItems: NavGroup[] = [
+  const navItems: NavGroup[] = useMemo(() => {
+    console.log('SideMenu: Rebuilding navItems, organizationApps:', organizationApps.length);
+    console.log('SideMenu: Enabled apps:', organizationApps.filter(app => app.is_enabled).map(app => app.app_id));
+    
+    return [
     {
       group: 'الرئيسية',
       icon: Home,
@@ -711,7 +715,8 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
         },
       ]
     },
-  ];
+    ];
+  }, [organizationApps, isAppEnabled]);
   
   // تصفية المجموعات التي يملك المستخدم صلاحيات عرضها
   const filteredNavItems = navItems.filter(group => 
@@ -736,6 +741,12 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
       setActiveGroup(activeGroupByPath.group);
     }
   }, [activeGroup, activeGroupByPath]);
+
+  // مراقبة تغييرات التطبيقات وإعادة تحميل القائمة
+  useEffect(() => {
+    console.log('SideMenu: Apps state changed, organizationApps count:', organizationApps.length);
+    console.log('SideMenu: Enabled apps in effect:', organizationApps.filter(app => app.is_enabled).map(app => app.app_id));
+  }, [organizationApps]);
 
   // تكوين زر خاص بمجموعة عندما تكون القائمة مطوية
   const renderCollapsedGroupButton = (group: NavGroup, isActive: boolean, hasActiveItem: boolean) => {

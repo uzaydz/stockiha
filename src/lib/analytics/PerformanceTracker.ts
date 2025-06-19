@@ -254,7 +254,6 @@ class PerformanceTracker {
         
         this.observers.push(navObserver, paintObserver, lcpObserver);
       } catch (error) {
-        console.warn('Some performance observers not supported:', error);
       }
     }
   }
@@ -354,7 +353,6 @@ class PerformanceTracker {
     };
 
     this.addRequest(request);
-    console.log(`🚫 PerformanceTracker: Blocked request logged - ${requestInfo.url}`);
   }
 
   public handleCachedRequest(requestInfo: { url: string; method: string; originalDuration?: number }): void {
@@ -373,7 +371,6 @@ class PerformanceTracker {
     };
 
     this.addRequest(request);
-    console.log(`💾 PerformanceTracker: Cached request logged - ${requestInfo.url}`);
   }
 
   private getResponseSize(response: Response): number {
@@ -524,4 +521,4 @@ if (typeof window !== 'undefined') {
   (window as any).clearPerformanceData = () => performanceTracker.clearData();
 }
 
-export default performanceTracker; 
+export default performanceTracker;

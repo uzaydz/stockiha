@@ -256,7 +256,6 @@ const PrintReceipt: React.FC<PrintReceiptProps> = ({
           height: 60px !important;
           border: none !important;
         }
-        
 
       </style>
     `;
@@ -264,41 +263,11 @@ const PrintReceipt: React.FC<PrintReceiptProps> = ({
 
   // تسجيل معلومات الإعدادات للتشخيص
   useEffect(() => {
-    console.log('🖨️ PrintReceipt Debug:', {
-      organizationId: currentOrganization?.id,
-      settingsLoaded: !!settings,
-      isLoading,
-      error,
-      settings: settings ? {
-        store_name: settings.store_name,
-        receipt_template: settings.receipt_template,
-        paper_width: settings.paper_width,
-        font_size: settings.font_size,
-        primary_color: settings.primary_color,
-        currency_symbol: settings.currency_symbol,
-        currency_position: settings.currency_position,
-        header_style: settings.header_style,
-        footer_style: settings.footer_style,
-        item_display_style: settings.item_display_style,
-        price_position: settings.price_position,
-        show_store_logo: settings.show_store_logo,
-        show_store_info: settings.show_store_info,
-        show_date_time: settings.show_date_time,
-        show_employee_name: settings.show_employee_name,
-        show_customer_info: settings.show_customer_info,
-        show_qr_code: settings.show_qr_code
-      } : null
-    });
   }, [currentOrganization?.id, settings, isLoading, error]);
 
   // مراقبة تغييرات الإعدادات وإعادة تطبيقها فوراً
   useEffect(() => {
     if (settings && printRef.current) {
-      console.log('🖨️ تطبيق الإعدادات المحدثة على المعاينة:', {
-        paper_width: settings.paper_width,
-        font_size: settings.font_size,
-        template: settings.receipt_template
-      });
       
       // تحديث الأنماط المباشرة للعنصر
       const receiptElement = printRef.current;
@@ -334,7 +303,6 @@ const PrintReceipt: React.FC<PrintReceiptProps> = ({
   // طباعة الوصل مع تحسينات
   const handlePrint = () => {
     if (printRef.current) {
-      console.log('🖨️ بدء عملية الطباعة مع الإعدادات:', settings);
       
       const printWindow = window.open('', '_blank');
       if (printWindow) {
@@ -546,9 +514,7 @@ const PrintReceipt: React.FC<PrintReceiptProps> = ({
               height: 60px !important;
               border: none !important;
             }
-            
 
-            
             /* نص QR Code */
             .qr-text {
               font-family: 'Tajawal', 'Cairo', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
@@ -623,9 +589,7 @@ const PrintReceipt: React.FC<PrintReceiptProps> = ({
                 height: 45px !important;
                 border: none !important;
               }
-              
 
-              
               /* نص QR Code في الطباعة */
               .qr-text {
                 font-family: 'Tajawal', 'Cairo', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
@@ -818,8 +782,6 @@ ${paymentMethod ? `طريقة الدفع: ${paymentMethod}` : ''}
       onClose();
     }
   };
-
-
 
   // استخدام portal لضمان ظهور المودال في أعلى مستوى من DOM
   return createPortal(

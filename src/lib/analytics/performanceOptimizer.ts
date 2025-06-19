@@ -51,7 +51,6 @@ class PerformanceOptimizer {
 
     // إنذار فوري للطلبات الحرجة البطيئة
     if (duration > this.CRITICAL_THRESHOLD) {
-      console.warn(`🐌 CRITICAL SLOW REQUEST: ${endpoint} took ${duration}ms`);
       this.suggestImmediateOptimization(endpoint, duration);
     }
   }
@@ -126,11 +125,6 @@ class PerformanceOptimizer {
   private suggestImmediateOptimization(endpoint: string, duration: number): void {
     const solution = this.getSolutionForEndpoint(endpoint);
     
-    console.group(`🚨 تحسين عاجل مطلوب: ${endpoint}`);
-    console.log(`⏱️ وقت الاستجابة: ${duration}ms`);
-    console.log(`💡 الحل المقترح:`);
-    console.log(solution);
-    console.groupEnd();
   }
 
   public getSlowRequestsReport(): string {
@@ -155,7 +149,6 @@ class PerformanceOptimizer {
 
   public clearData(): void {
     this.slowRequests.clear();
-    console.log('🧹 تم مسح بيانات محسن الأداء');
   }
 }
 
@@ -168,4 +161,4 @@ declare global {
 
 window.performanceOptimizer = PerformanceOptimizer.getInstance();
 
-export default PerformanceOptimizer; 
+export default PerformanceOptimizer;

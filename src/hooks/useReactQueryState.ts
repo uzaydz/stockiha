@@ -13,15 +13,16 @@ export function useReactQueryState() {
   
   // عند تحميل المكون، نقوم بإعداد مستمعي الأحداث لمعالجة تبديل التبويبات
   useEffect(() => {
-    // منع التحديث التلقائي في بيئة المتصفح
+    // منع التحديث التلقائي المفرط مع السماح بالتحديث الضروري
     if (!isRunningInElectron) {
       
       queryClient.setDefaultOptions({
         queries: {
-          refetchOnMount: false,
+          refetchOnMount: true, // ✅ السماح بالتحديث عند تحميل المكون
           refetchOnWindowFocus: false,
-          refetchOnReconnect: false,
-          staleTime: Infinity, // تعتبر البيانات دائمًا حديثة
+          refetchOnReconnect: true, // ✅ السماح بإعادة الاتصال
+          staleTime: 2 * 60 * 1000, // دقيقتين للسماح بالتحديث الأسرع
+          gcTime: 10 * 60 * 1000, // 10 دقائق للتنظيف
         }
       });
     }
@@ -36,15 +37,16 @@ export function useReactQueryState() {
     
     // معالج لحدث تحميل الصفحة
     const handlePageLoad = () => {
-      // إذا كنا في متصفح، نمنع التحديث التلقائي
+      // إذا كنا في متصفح، نمنع التحديث التلقائي المفرط
       if (!isRunningInElectron) {
         
         queryClient.setDefaultOptions({
           queries: {
-            refetchOnMount: false,
+            refetchOnMount: true, // ✅ السماح بالتحديث عند تحميل المكون
             refetchOnWindowFocus: false,
-            refetchOnReconnect: false,
-            staleTime: Infinity,
+            refetchOnReconnect: true, // ✅ السماح بإعادة الاتصال
+            staleTime: 2 * 60 * 1000, // دقيقتين للسماح بالتحديث الأسرع
+            gcTime: 10 * 60 * 1000,
           }
         });
         return;
@@ -58,7 +60,6 @@ export function useReactQueryState() {
         
         // تعطيل invalidateQueries بشكل كامل لمنع الطلبات المكررة
         // React Query سيعيد استخدام البيانات المخزنة بدلاً من إجراء طلبات جديدة
-        console.log('🚫 React Query invalidation disabled to prevent duplicate requests');
       } catch (error) {
       }
     };

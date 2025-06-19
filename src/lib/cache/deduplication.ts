@@ -28,50 +28,10 @@ export async function deduplicateRequest<T>(
   requestFn: () => Promise<T>,
   ttl: number = DEFAULT_TTL
 ): Promise<T> {
-  const now = Date.now();
+  console.log('🚫 [Deduplication] DISABLED - Always executing fresh request for:', key);
   
-  // تنظيف Cache من البيانات المنتهية الصلاحية
-  Object.keys(activeRequestsCache).forEach(cacheKey => {
-    const entry = activeRequestsCache[cacheKey];
-    if (now - entry.timestamp > entry.ttl) {
-      delete activeRequestsCache[cacheKey];
-      console.log(`🧹 Cleaned expired cache entry: ${cacheKey}`);
-    }
-  });
-
-  // التحقق من وجود طلب نشط
-  if (activeRequestsCache[key]) {
-    const entry = activeRequestsCache[key];
-    // التحقق من انتهاء الصلاحية
-    if (now - entry.timestamp <= entry.ttl) {
-      console.log(`📋 Returning cached request for: ${key}`);
-      return entry.promise;
-    } else {
-      // إزالة البيانات المنتهية الصلاحية
-      delete activeRequestsCache[key];
-    }
-  }
-
-  console.log(`🚀 Creating new request for: ${key}`);
-  
-  // إنشاء طلب جديد
-  const promise = requestFn()
-    .finally(() => {
-      // إزالة من Cache بعد انتهاء الطلب (مع تأخير قصير)
-      setTimeout(() => {
-        delete activeRequestsCache[key];
-        console.log(`✨ Request completed and removed from cache: ${key}`);
-      }, 1000); // تأخير ثانية واحدة لضمان عدم التداخل
-    });
-
-  // حفظ في Cache
-  activeRequestsCache[key] = {
-    promise,
-    timestamp: now,
-    ttl
-  };
-
-  return promise;
+  // Always execute fresh request - no deduplication
+  return await requestFn();
 }
 
 /**
@@ -84,14 +44,12 @@ export function clearCache(pattern?: string): void {
     Object.keys(activeRequestsCache).forEach(key => {
       if (regex.test(key)) {
         delete activeRequestsCache[key];
-        console.log(`🧹 Manually cleared cache entry: ${key}`);
       }
     });
   } else {
     Object.keys(activeRequestsCache).forEach(key => {
       delete activeRequestsCache[key];
     });
-    console.log('🧹 Cleared all cache entries');
   }
 }
 
@@ -121,4 +79,4 @@ export function createPOSCacheKey(type: string, orgId: string, ...params: string
 }
 
 // تصدير default لسهولة الاستخدام
-export default deduplicateRequest; 
+export default deduplicateRequest;

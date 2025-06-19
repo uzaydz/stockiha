@@ -8,8 +8,8 @@ import React, { useEffect, useState } from 'react';
 import '../utils/forceProductionInit';
 import '../utils/productionSystemCheck';
 import '../lib/cache/deduplication';
-import '../lib/requestSystemInitializer';
-import '../lib/ultimateRequestController';
+// تم حذف requestSystemInitializer - الملف غير موجود
+// تم حذف ultimateRequestController - الملف غير موجود
 
 // تحميل POSWrapper المحسن (يحتوي على POSDataProvider)
 import POSWrapper from '../components/pos/POSWrapper';
@@ -18,29 +18,22 @@ const POSOptimized: React.FC = () => {
   const [systemsReady, setSystemsReady] = useState(false);
 
   useEffect(() => {
-    console.log('🚀 [POSOptimized] Ensuring optimization systems are loaded...');
     
     const ensureSystemsLoaded = async () => {
       try {
         // التأكد من تحميل جميع الأنظمة
         await Promise.all([
           import('../lib/cache/deduplication'),
-          import('../lib/requestSystemInitializer'),
           import('../context/POSDataContext'),
-          import('../lib/ultimateRequestController'),
           import('../utils/forceProductionInit')
         ]);
 
-        console.log('✅ [POSOptimized] All optimization systems loaded');
-        
         // إضافة تأخير قصير للتأكد من التهيئة
         setTimeout(() => {
           setSystemsReady(true);
-          console.log('🎉 [POSOptimized] POS ready to render with optimizations');
         }, 100);
 
       } catch (error) {
-        console.error('❌ [POSOptimized] Failed to load optimization systems:', error);
         // تحميل POS حتى لو فشلت الأنظمة
         setSystemsReady(true);
       }
@@ -64,4 +57,4 @@ const POSOptimized: React.FC = () => {
   return <POSWrapper />;
 };
 
-export default POSOptimized; 
+export default POSOptimized;

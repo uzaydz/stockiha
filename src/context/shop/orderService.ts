@@ -84,27 +84,62 @@ export const addOrder = async (
       // تحديث المخزون بالتوازي
       const inventoryUpdates = order.items.map(async (item) => {
         try {
+          console.log('Updating inventory for item:', item.productName, 'quantity:', item.quantity);
           const hasVariantInfo = item.variant_info && (item.variant_info.colorId || item.variant_info.sizeId);
           
-          if (hasVariantInfo) {
-            if (item.variant_info.sizeId) {
-              await supabase.rpc('decrement_size_quantity', {
-                size_id: item.variant_info.sizeId,
-                decrement_by: item.quantity
-              });
-            } else if (item.variant_info.colorId) {
-              await supabase.rpc('decrement_color_quantity', {
-                color_id: item.variant_info.colorId,
-                decrement_by: item.quantity
-              });
+                      if (hasVariantInfo) {
+              if (item.variant_info.sizeId) {
+                // جلب الكمية الحالية للمقاس وتحديثها
+                const { data: currentSize } = await supabase
+                  .from('product_sizes')
+                  .select('quantity')
+                  .eq('id', item.variant_info.sizeId)
+                  .single();
+                
+                if (currentSize) {
+                  const newQuantity = Math.max(0, currentSize.quantity - item.quantity);
+                  await supabase
+                    .from('product_sizes')
+                    .update({ quantity: newQuantity })
+                    .eq('id', item.variant_info.sizeId);
+                  console.log('Updated size quantity for:', item.variant_info.sizeId, 'from', currentSize.quantity, 'to', newQuantity);
+                }
+              } else if (item.variant_info.colorId) {
+                // جلب الكمية الحالية للون وتحديثها
+                const { data: currentColor } = await supabase
+                  .from('product_colors')
+                  .select('quantity')
+                  .eq('id', item.variant_info.colorId)
+                  .single();
+                
+                if (currentColor) {
+                  const newQuantity = Math.max(0, currentColor.quantity - item.quantity);
+                  await supabase
+                    .from('product_colors')
+                    .update({ quantity: newQuantity })
+                    .eq('id', item.variant_info.colorId);
+                  console.log('Updated color quantity for:', item.variant_info.colorId, 'from', currentColor.quantity, 'to', newQuantity);
+                }
+              }
+            } else {
+              // جلب الكمية الحالية للمنتج وتحديثها
+              const { data: currentProduct } = await supabase
+                .from('products')
+                .select('stock_quantity')
+                .eq('id', item.productId)
+                .single();
+              
+              if (currentProduct) {
+                const newQuantity = Math.max(0, currentProduct.stock_quantity - item.quantity);
+                await supabase
+                  .from('products')
+                  .update({ stock_quantity: newQuantity })
+                  .eq('id', item.productId);
+                console.log('Updated product quantity for:', item.productId, 'from', currentProduct.stock_quantity, 'to', newQuantity);
+              }
             }
-          } else {
-            await supabase.rpc('decrement_product_quantity', {
-              product_id: item.productId,
-              decrement_by: item.quantity
-            });
-          }
         } catch (error) {
+          console.error('Error updating inventory for item:', item.productName, error);
           return null;
         }
       });

@@ -102,15 +102,6 @@ const POS = () => {
 
   // ✅ لا حاجة لجلب البيانات يدوياً - POSDataContext يتولى كل شيء
   // جلب البيانات يتم تلقائياً عبر POSDataContext مع منع الطلبات المكررة
-  
-  console.log('🎯 POS Component - Data Status:', {
-    productsCount: products?.length || 0,
-    subscriptionsCount: subscriptions?.length || 0,
-    categoriesCount: subscriptionCategories?.length || 0,
-    hasPOSSettings: !!posSettings,
-    isLoading: isPOSDataLoading,
-    errors
-  });
 
   // ✅ تمت إزالة fetchSubscriptions و fetchSubscriptionCategories 
   // البيانات تُجلب تلقائياً عبر POSDataContext مع منع الطلبات المكررة
@@ -793,6 +784,65 @@ const POS = () => {
       if (!createdOrder) {
         throw new Error('فشل في إنشاء الطلب');
       }
+
+      // تحديث إضافي للمخزون محلياً (للتأكد)
+      cartItemsWithWholesale.forEach(async (item) => {
+        try {
+          console.log('POS: Manually updating inventory for:', item.product.name, 'quantity:', item.quantity);
+          
+          if (item.sizeId) {
+            // تحديث مقاس محدد
+            const { data: currentSize } = await supabase
+              .from('product_sizes')
+              .select('quantity')
+              .eq('id', item.sizeId)
+              .single();
+            
+            if (currentSize) {
+              const newQuantity = Math.max(0, currentSize.quantity - item.quantity);
+              await supabase
+                .from('product_sizes')
+                .update({ quantity: newQuantity })
+                .eq('id', item.sizeId);
+              console.log('POS: Updated size quantity from', currentSize.quantity, 'to', newQuantity);
+            }
+          } else if (item.colorId) {
+            // تحديث لون محدد
+            const { data: currentColor } = await supabase
+              .from('product_colors')
+              .select('quantity')
+              .eq('id', item.colorId)
+              .single();
+            
+            if (currentColor) {
+              const newQuantity = Math.max(0, currentColor.quantity - item.quantity);
+              await supabase
+                .from('product_colors')
+                .update({ quantity: newQuantity })
+                .eq('id', item.colorId);
+              console.log('POS: Updated color quantity from', currentColor.quantity, 'to', newQuantity);
+            }
+          } else {
+            // تحديث المنتج الأساسي
+            const { data: currentProduct } = await supabase
+              .from('products')
+              .select('stock_quantity')
+              .eq('id', item.product.id)
+              .single();
+            
+            if (currentProduct) {
+              const newQuantity = Math.max(0, currentProduct.stock_quantity - item.quantity);
+              await supabase
+                .from('products')
+                .update({ stock_quantity: newQuantity })
+                .eq('id', item.product.id);
+              console.log('POS: Updated product quantity from', currentProduct.stock_quantity, 'to', newQuantity);
+            }
+          }
+        } catch (error) {
+          console.error('POS: Error updating inventory:', error);
+        }
+      });
       
       // تنظيف الاشتراكات المحلية
       if (selectedSubscriptions.length > 0) {

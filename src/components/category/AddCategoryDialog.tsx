@@ -73,10 +73,19 @@ const AddCategoryDialog = ({ open, onOpenChange, onCategoryAdded }: AddCategoryD
   });
 
   const onSubmit = async (values: CategoryFormValues) => {
+    console.log('🎯 [AddCategoryDialog] بدء إضافة فئة من الواجهة:', {
+      formValues: values,
+      organizationId: currentOrganization?.id,
+      timestamp: new Date().toISOString()
+    });
+
     if (!currentOrganization?.id) {
+      console.error('❌ [AddCategoryDialog] خطأ: معرف المؤسسة غير موجود');
       toast.error('لم يتم العثور على معرف المؤسسة');
       return;
     }
+
+    console.log('✅ [AddCategoryDialog] تم التحقق من وجود المؤسسة:', currentOrganization.id);
 
     setIsSubmitting(true);
     try {
@@ -89,15 +98,31 @@ const AddCategoryDialog = ({ open, onOpenChange, onCategoryAdded }: AddCategoryD
         type: values.type,
       };
       
-      await createCategory(categoryData, currentOrganization.id);
+      console.log('📤 [AddCategoryDialog] إرسال بيانات الفئة للإنشاء:', categoryData);
+      
+      const createdCategory = await createCategory(categoryData, currentOrganization.id);
+      
+      console.log('✅ [AddCategoryDialog] تم إنشاء الفئة بنجاح:', createdCategory);
       
       toast.success('تم إضافة الفئة بنجاح');
       form.reset();
       onOpenChange(false);
+      
+      console.log('🔄 [AddCategoryDialog] استدعاء onCategoryAdded...');
       await onCategoryAdded();
+      console.log('✅ [AddCategoryDialog] تم استدعاء onCategoryAdded بنجاح');
+      
     } catch (error) {
+      console.error('❌ [AddCategoryDialog] خطأ في إضافة الفئة:', {
+        error,
+        values,
+        organizationId: currentOrganization?.id,
+        timestamp: new Date().toISOString()
+      });
+      
       // Check for duplicate category name error
       if (error instanceof Error && error.message.includes('duplicate key value violates unique constraint')) {
+        console.error('❌ [AddCategoryDialog] خطأ: اسم مكرر');
         toast.error('هذا الاسم موجود بالفعل في فئات مؤسستك، يرجى اختيار اسم آخر للفئة');
         form.setError('name', { 
           type: 'manual', 
@@ -108,6 +133,7 @@ const AddCategoryDialog = ({ open, onOpenChange, onCategoryAdded }: AddCategoryD
       }
     } finally {
       setIsSubmitting(false);
+      console.log('🏁 [AddCategoryDialog] انتهت عملية إضافة الفئة');
     }
   };
 

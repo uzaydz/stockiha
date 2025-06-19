@@ -161,13 +161,15 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { initializeSupabaseUnified } from './lib/supabase-unified';
 import { enableRequestInterception } from './lib/requestInterceptor';
 import { AuthSingleton } from './lib/authSingleton';
-import { initializeRequestSystem } from './lib/requestSystemInitializer';
 import { productionDebugger, prodLog } from './utils/productionDebug';
 import { debugProduction } from '@/utils/productionDebug';
 import { checkBuildIntegrity } from '@/utils/buildCheck';
 
 // 🔍 تشخيص متطور للـ chunks
 import './utils/debugChunkLoader';
+
+// 🛠️ أدوات تشخيص تحديث البيانات
+import './utils/debugDataRefresh';
 
 // إضافة التعريفات اللازمة للمتغيرات العالمية
 declare global {
@@ -429,16 +431,13 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
  */
 async function initializeApp() {
   try {
-    console.log('🚀 [Main] Starting application initialization...');
     
     // تهيئة مبكرة للنظام الموحد
     const { getSupabaseClient } = await import('@/lib/supabase-unified');
     
     // بدء تهيئة الـ client في الخلفية
     getSupabaseClient().then(() => {
-      console.log('✅ [Main] Supabase client initialized successfully');
     }).catch((error) => {
-      console.warn('⚠️ [Main] Supabase client initialization warning:', error);
       // لا نوقف التطبيق، فقط تحذير
     });
     
@@ -449,21 +448,9 @@ async function initializeApp() {
       url: window.location.href
     });
     
-    // تهيئة النظام الموحد للطلبات
-    try {
-      const { initializeRequestSystem } = await import('@/lib/requestSystemInitializer');
-      await initializeRequestSystem();
-      console.log('✅ [Main] Request system initialized');
-      prodLog('info', '✅ Request system initialized successfully');
-    } catch (requestError) {
-      console.warn('⚠️ [Main] Request system initialization warning:', requestError);
-      prodLog('warn', '⚠️ Request system initialization warning', { error: requestError.message });
-    }
-    
-    console.log('✅ [Main] Application initialization completed');
-    
+    // تم حذف تهيئة النظام الموحد للطلبات - الملف غير موجود
+
   } catch (error) {
-    console.error('❌ [Main] Application initialization failed:', error);
     // المتابعة رغم الأخطاء لضمان عمل التطبيق
   }
 }
@@ -478,33 +465,22 @@ debugProduction();
 checkBuildIntegrity();
 
 // التأكد من تهيئة أنظمة التحسين فوراً
-console.log('🚀 [Main] Force loading optimization systems...');
 
 // تهيئة فورية وإجبارية لنظام deduplication
 const initializeOptimizationSystems = async () => {
   try {
-    // تحميل جميع الأنظمة بشكل متوازي
+    // تحميل الأنظمة المتوفرة بشكل متوازي
     const [
-      requestSystem,
       deduplicationModule,
       posDataContext
     ] = await Promise.all([
-      import('./lib/requestSystemInitializer'),
       import('./lib/cache/deduplication'),
       import('./context/POSDataContext')
     ]);
 
-    console.log('✅ [Main] All optimization systems loaded successfully');
+    // تم حذف تهيئة requestSystem - الملف غير موجود
     
-    // تهيئة النظام فوراً
-    if (requestSystem && typeof requestSystem.initializeRequestSystem === 'function') {
-      await requestSystem.initializeRequestSystem();
-      console.log('✅ [Main] Request system initialized');
-    }
-    
-    console.log('✅ [Main] Application optimization completed');
   } catch (error) {
-    console.error('❌ [Main] Failed to initialize optimization systems:', error);
   }
 };
 
@@ -518,7 +494,6 @@ import '@/utils/forceProductionInit';
 import '@/utils/productionSystemCheck';
 
 // Force import للتأكد من تحميل أنظمة التحسين في الإنتاج
-import './lib/requestSystemInitializer';
 import './lib/cache/deduplication';
 import './context/POSDataContext';
 import { debugProduction } from '@/utils/productionDebug';

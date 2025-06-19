@@ -8,6 +8,8 @@ import { toast } from 'sonner';
 import { updateProduct } from '@/lib/api/products';
 import { updateProductStock, setProductStock } from '@/lib/api/inventory';
 import { supabase } from '@/lib/supabase';
+import { cacheManager } from '@/lib/cache/CentralCacheManager';
+import { refreshAfterInventoryOperation } from '@/lib/data-refresh-helpers';
 import {
   Dialog,
   DialogContent,
@@ -264,17 +266,33 @@ export function StockUpdateDialog({
     // 1. تحديث المنتج محلياً في الذاكرة (لتحديث واجهة المستخدم)
     updateProductLocally(newQuantity);
     
-    // 2. إغلاق الحوار
+    // 2. إلغاء كاش المخزون والمنتجات
+    try {
+      console.log('🧹 [StockUpdateDialog] إلغاء كاش المخزون والمنتجات...');
+      
+      // إلغاء كاش المخزون
+      cacheManager.invalidate('inventory*');
+      cacheManager.invalidate('product-stock*');
+      
+      // إلغاء كاش المنتجات أيضاً لأن المخزون جزء منها
+      cacheManager.invalidate('products*');
+      
+      // استخدام النظام المتطور لتحديث المخزون
+      await refreshAfterInventoryOperation('update', {
+        organizationId: product?.organization_id,
+        immediate: true
+      });
+      
+      console.log('✅ [StockUpdateDialog] تم إلغاء الكاش بنجاح');
+    } catch (cacheError) {
+      console.warn('⚠️ [StockUpdateDialog] فشل في إلغاء الكاش:', cacheError);
+    }
+    
+    // 3. إغلاق الحوار
     closeDialog();
     
-    // 3. تنفيذ دالة استدعاء التحديث لتحديث القوائم في واجهة المستخدم
-    try {
-      
-      // استخدام Promise.resolve لمنع الانتظار وتفادي إعادة الاستدعاء المتكرر
-      await Promise.resolve(onStockUpdated());
-      
-    } catch (successError) {
-    }
+    // 🚫 DISABLED - Not calling onStockUpdated to prevent refresh
+    console.log('🚫 [StockUpdateDialog] DISABLED - Not calling onStockUpdated to prevent data refresh');
   };
 
   // التغير في اختيار اللون

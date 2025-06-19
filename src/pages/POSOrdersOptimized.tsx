@@ -138,30 +138,18 @@ export const POSOrdersOptimized: React.FC = () => {
     showOrderActions: false
   });
 
-  console.log('🎯 POSOrdersOptimized rendering with data:', {
-    statsLoaded: !!stats,
-    ordersCount: orders.length,
-    employeesCount: employees.length,
-    totalOrders,
-    currentPage,
-    isLoading
-  });
-
   // معالج تغيير الفلاتر
   const handleFiltersChange = useCallback((newFilters: POSOrderFiltersType) => {
-    console.log('🔄 Filters changed:', newFilters);
     setFilters(newFilters);
   }, [setFilters]);
 
   // معالج تغيير الصفحة
   const handlePageChange = useCallback((page: number) => {
-    console.log('🔄 Page changed to:', page);
     setPage(page);
   }, [setPage]);
 
   // تحديث البيانات
   const handleRefresh = useCallback(async () => {
-    console.log('🔄 Manual refresh triggered');
     try {
       await refreshAll();
       toast.success('تم تحديث البيانات بنجاح');
@@ -172,7 +160,6 @@ export const POSOrdersOptimized: React.FC = () => {
 
   // عرض تفاصيل الطلبية
   const handleOrderView = useCallback((order: POSOrderWithDetails) => {
-    console.log('👁️ Viewing order:', order.id);
     setDialogState({ 
       selectedOrder: order, 
       showOrderDetails: true,
@@ -182,7 +169,6 @@ export const POSOrdersOptimized: React.FC = () => {
 
   // تعديل الطلبية (فتح صفحة الإجراءات)
   const handleOrderEdit = useCallback((order: POSOrderWithDetails) => {
-    console.log('✏️ Editing order:', order.id);
     setDialogState({ 
       selectedOrder: order, 
       showOrderActions: true,
@@ -192,7 +178,6 @@ export const POSOrdersOptimized: React.FC = () => {
 
   // حذف الطلبية
   const handleOrderDelete = useCallback(async (order: POSOrderWithDetails) => {
-    console.log('🗑️ Deleting order:', order.id);
     try {
       const success = await deleteOrder(order.id);
       if (success) {
@@ -205,14 +190,12 @@ export const POSOrdersOptimized: React.FC = () => {
         toast.error('فشل في حذف الطلبية');
       }
     } catch (error) {
-      console.error('❌ Error deleting order:', error);
       toast.error('حدث خطأ أثناء حذف الطلبية');
     }
   }, [deleteOrder, dialogState.selectedOrder, toast]);
 
   // طباعة الطلبية
   const handleOrderPrint = useCallback((order: POSOrderWithDetails) => {
-    console.log('🖨️ Printing order:', order.id);
     // هنا يمكن إضافة منطق الطباعة
     // مثلاً فتح نافذة جديدة مع قالب الطباعة
     toast.success('تم إرسال الطلبية للطباعة');
@@ -220,7 +203,6 @@ export const POSOrdersOptimized: React.FC = () => {
 
   // تحديث حالة الطلبية
   const handleStatusUpdate = useCallback(async (orderId: string, status: string, notes?: string) => {
-    console.log('📝 Updating order status:', { orderId, status, notes });
     try {
       const success = await updateOrderStatus(orderId, status, notes);
       if (success) {
@@ -231,7 +213,6 @@ export const POSOrdersOptimized: React.FC = () => {
         return false;
       }
     } catch (error) {
-      console.error('❌ Error updating order status:', error);
       toast.error('حدث خطأ أثناء تحديث الطلبية');
       return false;
     }
@@ -244,7 +225,6 @@ export const POSOrdersOptimized: React.FC = () => {
     amountPaid?: number, 
     paymentMethod?: string
   ) => {
-    console.log('💳 Updating payment status:', { orderId, paymentStatus, amountPaid, paymentMethod });
     try {
       const success = await updatePaymentStatus(orderId, paymentStatus, amountPaid);
       if (success) {
@@ -255,7 +235,6 @@ export const POSOrdersOptimized: React.FC = () => {
         return false;
       }
     } catch (error) {
-      console.error('❌ Error updating payment status:', error);
       toast.error('حدث خطأ أثناء تحديث الدفع');
       return false;
     }
@@ -263,7 +242,6 @@ export const POSOrdersOptimized: React.FC = () => {
 
   // تصدير البيانات
   const handleExport = useCallback(() => {
-    console.log('📤 Export triggered');
     // هنا يمكن إضافة منطق التصدير
     toast.info('ميزة التصدير قيد التطوير');
   }, []);

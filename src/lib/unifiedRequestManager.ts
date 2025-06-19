@@ -491,3 +491,64 @@ export const useUnifiedOrganizationApps = (orgId: string) => {
 
 // تصدير المدير للاستخدام المباشر
 export default UnifiedRequestManager;
+
+// =================================================================
+// 🎯 ENHANCED CACHE MANAGEMENT - إدارة cache محسنة
+// =================================================================
+
+/**
+ * مسح مفاتيح محددة من globalCache
+ */
+export const clearGlobalCacheKeys = (keys: string[]): void => {
+  console.log('🧹 [UnifiedRequestManager] مسح globalCache keys:', keys);
+  keys.forEach(key => {
+    if (globalCache.has(key)) {
+      globalCache.delete(key);
+      console.log(`✅ [UnifiedRequestManager] تم مسح key: ${key}`);
+    }
+  });
+  console.log('✅ [UnifiedRequestManager] تم مسح جميع المفاتيح المحددة من globalCache');
+};
+
+/**
+ * مسح جميع مفاتيح cache المرتبطة بمؤسسة معينة
+ */
+export const clearOrganizationGlobalCache = (organizationId: string): void => {
+  console.log('🧹 [UnifiedRequestManager] مسح cache المؤسسة:', organizationId);
+  
+  const keysToDelete: string[] = [];
+  
+  // البحث عن جميع المفاتيح المرتبطة بالمؤسسة
+  for (const key of globalCache.keys()) {
+    if (key.includes(organizationId)) {
+      keysToDelete.push(key);
+    }
+  }
+  
+  // مسح المفاتيح المكتشفة
+  keysToDelete.forEach(key => globalCache.delete(key));
+  
+  console.log(`✅ [UnifiedRequestManager] تم مسح ${keysToDelete.length} مفاتيح للمؤسسة ${organizationId}`);
+};
+
+// =================================================================
+// 🎯 إضافة دوال window للاستخدام العالمي
+// =================================================================
+
+if (typeof window !== 'undefined') {
+  // دالة لمسح مفاتيح محددة من globalCache
+  (window as any).clearUnifiedCache = clearGlobalCacheKeys;
+  
+  // دالة لمسح جميع cache المؤسسة
+  (window as any).clearOrganizationUnifiedCache = clearOrganizationGlobalCache;
+  
+  // دالة للحصول على حالة globalCache للتشخيص
+  (window as any).getUnifiedCacheStats = () => {
+    return {
+      size: globalCache.size,
+      keys: Array.from(globalCache.keys()),
+      activeRequests: globalActiveRequests.size,
+      activeRequestKeys: Array.from(globalActiveRequests.keys())
+    };
+  };
+}

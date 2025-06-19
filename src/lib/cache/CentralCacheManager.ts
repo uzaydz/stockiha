@@ -1,4 +1,4 @@
-import { LRUCache } from 'lru-cache';
+import LRUCache from 'lru-cache';
 
 // Types
 interface CacheEntry<T> {
@@ -73,7 +73,7 @@ class CentralCacheManager {
       ttl: 5 * 60 * 1000, // Default 5 minutes
       updateAgeOnGet: true,
       updateAgeOnHas: false,
-      stale: true, // Allow stale data
+      allowStale: true, // Allow stale data (updated from deprecated 'stale' option)
       noDeleteOnStaleGet: true,
       fetchMethod: async (key: string) => {
         // This will be overridden per request
@@ -94,103 +94,42 @@ class CentralCacheManager {
 
   /**
    * Get data with automatic caching and deduplication
+   * 🚫 CACHE DISABLED - Always fetch fresh data
    */
   async get<T>(
     key: string,
     fetcher: () => Promise<T>,
     options: CacheOptions = {}
   ): Promise<T> {
-    // Check if there's already a pending request for this key
-    const pending = this.pendingRequests.get(key);
-    if (pending) {
-      return pending as Promise<T>;
-    }
-
-    // Check memory cache first
-    const cached = this.memoryCache.get(key) as CacheEntry<T> | undefined;
+    console.log('🚫 [CacheManager] DISABLED - Fetching fresh data for:', key);
     
-    if (cached) {
-      const age = Date.now() - cached.timestamp;
-      const ttl = options.ttl || this.getDefaultTTL(key);
-      
-      if (age < ttl) {
-        // Fresh data
-        this.cacheStats.hits++;
-        return cached.data;
-      } else if (options.staleWhileRevalidate && age < ttl + options.staleWhileRevalidate) {
-        // Serve stale data and revalidate in background
-        this.cacheStats.staleHits++;
-        this.revalidateInBackground(key, fetcher, options);
-        return cached.data;
-      }
-    }
-
-    // Cache miss - fetch new data
-    this.cacheStats.misses++;
-    
+    // Always fetch fresh data - no caching
     try {
-      // Create promise and store it to prevent duplicate requests
-      const promise = fetcher();
-      this.pendingRequests.set(key, promise);
-      
-      const data = await promise;
-      
-      // Cache the result
-      this.set(key, data, options);
-      
+      const data = await fetcher();
+      console.log('✅ [CacheManager] Fresh data fetched for:', key);
       return data;
-    } finally {
-      // Remove from pending requests
-      this.pendingRequests.delete(key);
+    } catch (error) {
+      console.error('❌ [CacheManager] Error fetching data for:', key, error);
+      throw error;
     }
   }
 
   /**
    * Set data in cache
+   * 🚫 CACHE DISABLED - No data will be cached
    */
   set<T>(key: string, data: T, options: CacheOptions = {}): void {
-    const entry: CacheEntry<T> = {
-      data,
-      timestamp: Date.now(),
-      dependencies: options.dependencies,
-    };
-
-    const ttl = options.ttl || this.getDefaultTTL(key);
-    
-    this.memoryCache.set(key, entry, {
-      ttl,
-      size: JSON.stringify(data).length,
-    });
-
-    // Also store in session/local storage for persistence
-    this.persistToStorage(key, entry, CacheLayer.SESSION);
+    console.log('🚫 [CacheManager] DISABLED - Not caching data for:', key);
+    // Do nothing - cache is disabled
   }
 
   /**
    * Invalidate cache entries
+   * 🚫 CACHE DISABLED - No cache to invalidate
    */
   invalidate(patterns: string | string[]): void {
-    const patternsArray = Array.isArray(patterns) ? patterns : [patterns];
-    
-    for (const pattern of patternsArray) {
-      if (pattern.includes('*')) {
-        // Pattern matching
-        const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
-        for (const key of this.memoryCache.keys()) {
-          if (regex.test(key)) {
-            this.memoryCache.delete(key);
-            this.removeFromStorage(key);
-          }
-        }
-      } else {
-        // Exact match
-        this.memoryCache.delete(pattern);
-        this.removeFromStorage(pattern);
-        
-        // Also invalidate dependent caches
-        this.invalidateDependents(pattern);
-      }
-    }
+    console.log('🚫 [CacheManager] DISABLED - No cache to invalidate for patterns:', patterns);
+    // Do nothing - cache is disabled
   }
 
   /**

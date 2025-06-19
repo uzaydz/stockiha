@@ -32,7 +32,6 @@ const OrganizationDataContext = createContext<OrganizationDataContextType | unde
 
 // دوال جلب البيانات المحسنة مع deduplication
 const fetchOrganizationSettings = async (organizationId: string) => {
-  console.log('🔄 Fetching organization settings for:', organizationId);
   
   const { data, error } = await supabase
     .from('organization_settings')
@@ -44,12 +43,10 @@ const fetchOrganizationSettings = async (organizationId: string) => {
     throw error;
   }
   
-  console.log('✅ Organization settings fetched:', data);
   return data;
 };
 
 const fetchOrganizationSubscriptions = async (organizationId: string) => {
-  console.log('🔄 Fetching organization subscriptions for:', organizationId);
   
   const { data, error } = await supabase
     .from('organization_subscriptions')
@@ -63,12 +60,10 @@ const fetchOrganizationSubscriptions = async (organizationId: string) => {
   
   if (error) throw error;
   
-  console.log('✅ Organization subscriptions fetched:', data);
   return data || [];
 };
 
 const fetchOrganizationApps = async (organizationId: string) => {
-  console.log('🔄 Fetching organization apps for:', organizationId);
   
   const { data, error } = await supabase
     .from('organization_apps')
@@ -78,12 +73,10 @@ const fetchOrganizationApps = async (organizationId: string) => {
   
   if (error) throw error;
   
-  console.log('✅ Organization apps fetched:', data);
   return data || [];
 };
 
 const fetchProductCategories = async (organizationId: string) => {
-  console.log('🔄 Fetching product categories for:', organizationId);
   
   const { data, error } = await supabase
     .from('product_categories')
@@ -93,12 +86,10 @@ const fetchProductCategories = async (organizationId: string) => {
   
   if (error) throw error;
   
-  console.log('✅ Product categories fetched:', data);
   return data || [];
 };
 
 const fetchProducts = async (organizationId: string) => {
-  console.log('🔄 Fetching products for:', organizationId);
   
   const { data, error } = await supabase
     .from('products')
@@ -113,7 +104,6 @@ const fetchProducts = async (organizationId: string) => {
   
   if (error) throw error;
   
-  console.log('✅ Products fetched:', data);
   return data || [];
 };
 
@@ -134,10 +124,10 @@ export const OrganizationDataProvider: React.FC<{ children: ReactNode }> = ({ ch
     queryKey: ['organization-settings', organizationId],
     queryFn: () => fetchOrganizationSettings(organizationId!),
     enabled: !!organizationId,
-    staleTime: 10 * 60 * 1000, // 10 دقائق - الإعدادات تتغير قليلاً
+    staleTime: 2 * 60 * 1000, // 2 دقيقة - تحديث أسرع للإعدادات
     gcTime: 30 * 60 * 1000, // 30 دقيقة
     retry: 1,
-    refetchOnMount: false,
+    refetchOnMount: true, // السماح بالتحديث عند التحميل
     refetchOnWindowFocus: false,
   });
 
@@ -150,10 +140,10 @@ export const OrganizationDataProvider: React.FC<{ children: ReactNode }> = ({ ch
     queryKey: ['organization-subscriptions', organizationId],
     queryFn: () => fetchOrganizationSubscriptions(organizationId!),
     enabled: !!organizationId,
-    staleTime: 5 * 60 * 1000, // 5 دقائق - الاشتراكات قد تتغير
+    staleTime: 2 * 60 * 1000, // 2 دقيقة - تحديث أسرع للاشتراكات
     gcTime: 15 * 60 * 1000, // 15 دقيقة
     retry: 1,
-    refetchOnMount: false,
+    refetchOnMount: true, // السماح بالتحديث عند التحميل
     refetchOnWindowFocus: false,
   });
 
@@ -166,10 +156,10 @@ export const OrganizationDataProvider: React.FC<{ children: ReactNode }> = ({ ch
     queryKey: ['organization-apps', organizationId],
     queryFn: () => fetchOrganizationApps(organizationId!),
     enabled: !!organizationId,
-    staleTime: 15 * 60 * 1000, // 15 دقيقة - التطبيقات تتغير قليلاً
+    staleTime: 3 * 60 * 1000, // 3 دقائق - تحديث أسرع للتطبيقات
     gcTime: 45 * 60 * 1000, // 45 دقيقة
     retry: 1,
-    refetchOnMount: false,
+    refetchOnMount: true, // السماح بالتحديث عند التحميل
     refetchOnWindowFocus: false,
   });
 
@@ -182,10 +172,10 @@ export const OrganizationDataProvider: React.FC<{ children: ReactNode }> = ({ ch
     queryKey: ['product-categories', organizationId],
     queryFn: () => fetchProductCategories(organizationId!),
     enabled: !!organizationId,
-    staleTime: 20 * 60 * 1000, // 20 دقيقة - الفئات ثابتة نسبياً
+    staleTime: 1 * 60 * 1000, // 1 دقيقة - تحديث سريع للفئات
     gcTime: 60 * 60 * 1000, // ساعة واحدة
     retry: 1,
-    refetchOnMount: false,
+    refetchOnMount: true, // السماح بالتحديث عند التحميل
     refetchOnWindowFocus: false,
   });
 
@@ -198,10 +188,10 @@ export const OrganizationDataProvider: React.FC<{ children: ReactNode }> = ({ ch
     queryKey: ['products', organizationId],
     queryFn: () => fetchProducts(organizationId!),
     enabled: !!organizationId,
-    staleTime: 10 * 60 * 1000, // 10 دقائق - المنتجات قد تتغير
+    staleTime: 1 * 60 * 1000, // 1 دقيقة - تحديث سريع للمنتجات
     gcTime: 30 * 60 * 1000, // 30 دقيقة
     retry: 1,
-    refetchOnMount: false,
+    refetchOnMount: true, // السماح بالتحديث عند التحميل
     refetchOnWindowFocus: false,
   });
 
@@ -212,7 +202,6 @@ export const OrganizationDataProvider: React.FC<{ children: ReactNode }> = ({ ch
 
   // دالة لإعادة تحميل جميع البيانات
   const refetchAll = () => {
-    console.log('🔄 Refetching all organization data...');
     refetchSettings();
     refetchSubscriptions();
     refetchApps();
@@ -278,4 +267,4 @@ export const useProducts = () => {
   return { products, isLoading, error, refetch: refetchProducts };
 };
 
-export default OrganizationDataContext; 
+export default OrganizationDataContext;

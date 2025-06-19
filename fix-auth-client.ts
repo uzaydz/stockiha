@@ -7,7 +7,6 @@
 // =============================================================================
 
 // 1. وضع هذا الكود في Console للتشخيص السريع
-console.log('🔍 بدء تشخيص مشاكل المصادقة...');
 
 // فحص الإعدادات الحالية
 const diagnostics = {
@@ -33,14 +32,11 @@ const diagnostics = {
   }
 };
 
-console.log('📊 تشخيص النظام:', diagnostics);
-
 // =============================================================================
 // 2. دالة تنظيف شاملة للمصادقة
 // =============================================================================
 
 const cleanupAuth = () => {
-  console.log('🧹 تنظيف بيانات المصادقة...');
   
   // تنظيف localStorage
   const keysToRemove = Object.keys(localStorage).filter(key => 
@@ -52,7 +48,6 @@ const cleanupAuth = () => {
   
   keysToRemove.forEach(key => {
     localStorage.removeItem(key);
-    console.log(`❌ تم حذف: ${key}`);
   });
   
   // تنظيف sessionStorage
@@ -64,7 +59,6 @@ const cleanupAuth = () => {
   
   sessionKeysToRemove.forEach(key => {
     sessionStorage.removeItem(key);
-    console.log(`❌ تم حذف من sessionStorage: ${key}`);
   });
   
   // تنظيف المتغيرات العامة
@@ -72,7 +66,6 @@ const cleanupAuth = () => {
   delete (window as any).__BAZAAR_ADMIN_CLIENT_CREATED__;
   delete (window as any).__BAZAAR_PRIMARY_CLIENT__;
   
-  console.log('✅ تم تنظيف جميع بيانات المصادقة');
 };
 
 // =============================================================================
@@ -80,7 +73,6 @@ const cleanupAuth = () => {
 // =============================================================================
 
 const createTestSupabaseClient = () => {
-  console.log('🔧 إنشاء Supabase Client للاختبار...');
   
   // استيراد createClient (يحتاج تشغيل في السياق الصحيح)
   const { createClient } = require('@supabase/supabase-js');
@@ -103,7 +95,6 @@ const createTestSupabaseClient = () => {
     }
   });
   
-  console.log('✅ تم إنشاء Test Supabase Client');
   return testClient;
 };
 
@@ -112,32 +103,23 @@ const createTestSupabaseClient = () => {
 // =============================================================================
 
 const testConnection = async (client: any) => {
-  console.log('🔄 اختبار الاتصال...');
   
   try {
     // اختبار 1: فحص بيانات المستخدم الحالي
-    console.log('🧪 اختبار 1: getSession');
     const { data: sessionData, error: sessionError } = await client.auth.getSession();
-    console.log('Session result:', { data: sessionData, error: sessionError });
     
     // اختبار 2: فحص المستخدم
-    console.log('🧪 اختبار 2: getUser');
     const { data: userData, error: userError } = await client.auth.getUser();
-    console.log('User result:', { data: userData, error: userError });
     
     // اختبار 3: جلب بيانات عامة (بدون مصادقة)
-    console.log('🧪 اختبار 3: جلب بيانات عامة');
     const { data: orgData, error: orgError } = await client
       .from('organizations')
       .select('id, name')
       .limit(1);
-    console.log('Organizations result:', { data: orgData, error: orgError });
     
     // اختبار 4: استدعاء دالة بسيطة
-    console.log('🧪 اختبار 4: استدعاء دالة get_organization_apps_no_rls');
     const { data: appsData, error: appsError } = await client
       .rpc('get_organization_apps_no_rls');
-    console.log('Apps result:', { data: appsData, error: appsError });
     
     return {
       session: sessionData?.session,
@@ -149,7 +131,6 @@ const testConnection = async (client: any) => {
     };
     
   } catch (error) {
-    console.error('❌ خطأ في اختبار الاتصال:', error);
     return { error };
   }
 };
@@ -159,7 +140,6 @@ const testConnection = async (client: any) => {
 // =============================================================================
 
 const testSignIn = async (client: any, email: string = 'admin@test.com', password: string = 'password123') => {
-  console.log('🔐 اختبار تسجيل الدخول...');
   
   try {
     const { data, error } = await client.auth.signInWithPassword({
@@ -168,15 +148,12 @@ const testSignIn = async (client: any, email: string = 'admin@test.com', passwor
     });
     
     if (error) {
-      console.error('❌ خطأ في تسجيل الدخول:', error);
       return { error };
     }
     
-    console.log('✅ تم تسجيل الدخول بنجاح:', data);
     return { data };
     
   } catch (error) {
-    console.error('❌ خطأ غير متوقع في تسجيل الدخول:', error);
     return { error };
   }
 };
@@ -186,7 +163,6 @@ const testSignIn = async (client: any, email: string = 'admin@test.com', passwor
 // =============================================================================
 
 const emergencyAuthFix = async () => {
-  console.log('🚨 بدء الإصلاح العاجل للمصادقة...');
   
   try {
     // الخطوة 1: تنظيف البيانات القديمة
@@ -201,20 +177,16 @@ const emergencyAuthFix = async () => {
     // الخطوة 4: محاولة تسجيل الدخول إذا لم يكن مسجلاً
     let signInResult = null;
     if (!connectionResult.session) {
-      console.log('🔐 لا توجد جلسة، محاولة تسجيل الدخول...');
       signInResult = await testSignIn(testClient);
     }
     
     // الخطوة 5: اختبار نهائي بعد تسجيل الدخول
     if (signInResult && !signInResult.error) {
-      console.log('🔄 اختبار الاتصال بعد تسجيل الدخول...');
       const finalTest = await testConnection(testClient);
-      console.log('📊 النتيجة النهائية:', finalTest);
     }
     
     // تعيين العميل كعميل عام للاختبار
     (window as any).testSupabaseClient = testClient;
-    console.log('✅ تم حفظ testSupabaseClient في window للاختبار');
     
     return {
       success: true,
@@ -224,7 +196,6 @@ const emergencyAuthFix = async () => {
     };
     
   } catch (error) {
-    console.error('❌ فشل الإصلاح العاجل:', error);
     return {
       success: false,
       error,
@@ -241,7 +212,6 @@ const emergencyAuthFix = async () => {
 const getAppsWithTestClient = async (orgId?: string) => {
   const client = (window as any).testSupabaseClient;
   if (!client) {
-    console.error('❌ لا يوجد Test Client. قم بتشغيل emergencyAuthFix() أولاً');
     return null;
   }
   
@@ -251,15 +221,12 @@ const getAppsWithTestClient = async (orgId?: string) => {
     );
     
     if (error) {
-      console.error('❌ خطأ في جلب التطبيقات:', error);
       return null;
     }
     
-    console.log('📱 التطبيقات المتوفرة:', data);
     return data;
     
   } catch (error) {
-    console.error('❌ خطأ غير متوقع:', error);
     return null;
   }
 };
@@ -268,7 +235,6 @@ const getAppsWithTestClient = async (orgId?: string) => {
 const enableAppWithTestClient = async (orgId: string, appId: string) => {
   const client = (window as any).testSupabaseClient;
   if (!client) {
-    console.error('❌ لا يوجد Test Client. قم بتشغيل emergencyAuthFix() أولاً');
     return null;
   }
   
@@ -279,15 +245,12 @@ const enableAppWithTestClient = async (orgId: string, appId: string) => {
     });
     
     if (error) {
-      console.error('❌ خطأ في تفعيل التطبيق:', error);
       return null;
     }
     
-    console.log('✅ تم تفعيل التطبيق:', data);
     return data;
     
   } catch (error) {
-    console.error('❌ خطأ غير متوقع:', error);
     return null;
   }
 };
@@ -307,30 +270,7 @@ const enableAppWithTestClient = async (orgId: string, appId: string) => {
 // 9. رسائل المساعدة
 // =============================================================================
 
-console.log(`
-🚨 إصلاح مشاكل المصادقة - دليل الاستخدام:
-
-📋 الخطوات:
-1. تشغيل في Console: emergencyAuthFix()
-2. انتظر اكتمال الإصلاح
-3. اختبار: getAppsWithTestClient()
-4. تفعيل تطبيق: enableAppWithTestClient('org-id', 'app-id')
-
-🔧 دوال متاحة:
-- emergencyAuthFix() - الإصلاح الشامل
-- cleanupAuth() - تنظيف البيانات
-- getAppsWithTestClient() - جلب التطبيقات
-- enableAppWithTestClient(orgId, appId) - تفعيل تطبيق
-
-⚠️ ملاحظة: هذا حل مؤقت للاختبار فقط!
-بعد حل المشكلة، استخدم emergency-fix-rls.sql لإعادة الأمان.
-`);
-
 // تشغيل تلقائي للتشخيص
-console.log('🔍 تشخيص تلقائي...');
-console.log('📊 حالة localStorage:', diagnostics.localStorage);
-console.log('🌐 المتغيرات البيئية:', diagnostics.environment);
-console.log('🖼️ المتغيرات العامة:', diagnostics.global);
 
 export {
   emergencyAuthFix,
@@ -339,4 +279,4 @@ export {
   getAppsWithTestClient,
   enableAppWithTestClient,
   diagnostics
-}; 
+};

@@ -238,7 +238,6 @@ const POSDataContext = createContext<POSData | undefined>(undefined);
 
 const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWithVariants[]> => {
   return deduplicateRequest(`pos-products-enhanced-${orgId}`, async () => {
-    console.log('🔄 Fetching enhanced POS products with variants for org:', orgId);
     
     const { data, error } = await supabase
       .from('products')
@@ -261,12 +260,9 @@ const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWi
       .order('name');
 
     if (error) {
-      console.error('❌ Error fetching enhanced POS products:', error);
       throw error;
     }
 
-    console.log('✅ Enhanced POS products fetched successfully:', data?.length || 0);
-    
     // تحويل البيانات مع حساب المخزون الفعلي
     return (data || []).map(product => {
       const colors = (product.product_colors || []).map((color: any) => ({
@@ -384,7 +380,6 @@ const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWi
 
 const fetchPOSSubscriptionsEnhanced = async (orgId: string): Promise<SubscriptionService[]> => {
   return deduplicateRequest(`pos-subscriptions-enhanced-${orgId}`, async () => {
-    console.log('🔄 Fetching enhanced POS subscriptions for org:', orgId);
     
     const { data: servicesData, error: servicesError } = await supabase
       .from('subscription_services')
@@ -395,18 +390,15 @@ const fetchPOSSubscriptionsEnhanced = async (orgId: string): Promise<Subscriptio
       .order('created_at', { ascending: false });
 
     if (servicesError) {
-      console.error('❌ Error fetching enhanced subscription services:', servicesError);
       throw servicesError;
     }
 
-    console.log('✅ Enhanced POS subscriptions fetched successfully:', (servicesData || []).length);
     return servicesData || [];
   });
 };
 
 const fetchPOSCategoriesEnhanced = async (orgId: string): Promise<SubscriptionCategory[]> => {
   return deduplicateRequest(`pos-categories-enhanced-${orgId}`, async () => {
-    console.log('🔄 Fetching enhanced subscription categories for org:', orgId);
     
     // استخدام جدول product_categories كبديل
     const { data, error } = await supabase
@@ -417,11 +409,9 @@ const fetchPOSCategoriesEnhanced = async (orgId: string): Promise<SubscriptionCa
       .order('name');
 
     if (error) {
-      console.error('❌ Error fetching enhanced subscription categories:', error);
       throw error;
     }
 
-    console.log('✅ Enhanced subscription categories fetched successfully:', data?.length || 0);
     return (data || []).map(cat => ({
       id: cat.id,
       name: cat.name,
@@ -438,7 +428,6 @@ const fetchPOSCategoriesEnhanced = async (orgId: string): Promise<SubscriptionCa
 
 const fetchProductCategories = async (orgId: string): Promise<ProductCategory[]> => {
   return deduplicateRequest(`pos-product-categories-${orgId}`, async () => {
-    console.log('🔄 Fetching product categories for org:', orgId);
     
     const { data, error } = await supabase
       .from('product_categories')
@@ -448,18 +437,15 @@ const fetchProductCategories = async (orgId: string): Promise<ProductCategory[]>
       .order('name');
 
     if (error) {
-      console.error('❌ Error fetching product categories:', error);
       throw error;
     }
 
-    console.log('✅ Product categories fetched successfully:', data?.length || 0);
     return data || [];
   });
 };
 
 const fetchPOSSettingsEnhanced = async (orgId: string): Promise<any> => {
   return deduplicateRequest(`pos-settings-enhanced-${orgId}`, async () => {
-    console.log('🔄 Fetching enhanced POS settings for org:', orgId);
     
     try {
       // محاولة RPC function المحسنة أولاً
@@ -467,12 +453,9 @@ const fetchPOSSettingsEnhanced = async (orgId: string): Promise<any> => {
         .rpc('get_pos_settings', { p_organization_id: orgId });
 
       if (!rpcError && rpcData && Array.isArray(rpcData) && rpcData.length > 0) {
-        console.log('✅ Enhanced POS settings fetched via RPC successfully');
         return rpcData[0] as any;
       }
 
-      console.log('⚠️ RPC failed, trying direct enhanced query...');
-      
       // fallback للاستعلام المباشر المحسن
       const { data: directData, error: directError } = await supabase
         .from('pos_settings')
@@ -481,48 +464,38 @@ const fetchPOSSettingsEnhanced = async (orgId: string): Promise<any> => {
         .maybeSingle();
 
       if (directError) {
-        console.error('❌ Error with direct enhanced POS settings query:', directError);
         
               // إنشاء إعدادات افتراضية إذا لم توجد
-      console.log('🔧 Creating default POS settings...');
       try {
         const { data: newSettings, error: createError } = await supabase
           .rpc('initialize_pos_settings', { p_organization_id: orgId });
         
         if (!createError && newSettings && typeof newSettings === 'object') {
-          console.log('✅ Default POS settings created successfully');
           return newSettings as POSSettings;
         }
       } catch (createRpcError) {
-        console.log('⚠️ RPC create failed, creating manual defaults...');
       }
         
         throw directError;
       }
       
       if (directData) {
-        console.log('✅ Enhanced POS settings fetched via direct query successfully');
         return directData;
       }
 
-      console.log('ℹ️ No POS settings found, creating defaults...');
-      
       // إنشاء إعدادات افتراضية
       try {
         const { data: newSettings, error: createError } = await supabase
           .rpc('initialize_pos_settings', { p_organization_id: orgId });
         
         if (!createError && newSettings && typeof newSettings === 'object') {
-          console.log('✅ Default POS settings created successfully');
           return newSettings as POSSettings;
         }
       } catch (createRpcError) {
-        console.log('⚠️ RPC create failed, using default values...');
       }
       
       return null;
     } catch (error) {
-      console.error('❌ Error fetching enhanced POS settings:', error);
       return null;
     }
   });
@@ -530,7 +503,6 @@ const fetchPOSSettingsEnhanced = async (orgId: string): Promise<any> => {
 
 const fetchOrganizationAppsEnhanced = async (orgId: string): Promise<OrganizationApp[]> => {
   return deduplicateRequest(`pos-org-apps-enhanced-${orgId}`, async () => {
-    console.log('🔄 Fetching enhanced organization apps for org:', orgId);
     
     try {
       const { data, error } = await supabase
@@ -540,7 +512,6 @@ const fetchOrganizationAppsEnhanced = async (orgId: string): Promise<Organizatio
         .single();
 
       if (error || !data) {
-        console.log('⚠️ No organization apps data available');
         return [];
       }
 
@@ -564,10 +535,8 @@ const fetchOrganizationAppsEnhanced = async (orgId: string): Promise<Organizatio
         }
       ];
 
-      console.log('✅ Enhanced organization apps loaded successfully:', defaultApps.length);
       return defaultApps;
     } catch (error) {
-      console.error('❌ Error fetching enhanced organization apps:', error);
       return [];
     }
   });
@@ -587,7 +556,6 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
   const queryClient = useQueryClient();
   const orgId = currentOrganization?.id;
 
-  console.log('🎯 Enhanced POSDataProvider rendering with orgId:', orgId);
   logPOSContextStatus('PROVIDER_INIT', { orgId, hasOrg: !!currentOrganization, hasUser: !!user });
 
   // React Query للمنتجات المحسنة مع المتغيرات والمخزون
@@ -702,27 +670,22 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
 
   // دوال التحديث المحسنة
   const refreshAll = useCallback(async () => {
-    console.log('🔄 Refreshing all enhanced POS data...');
     await queryClient.invalidateQueries({ queryKey: ['pos'] });
   }, [queryClient]);
 
   const refreshProducts = useCallback(async () => {
-    console.log('🔄 Refreshing enhanced POS products...');
     await queryClient.invalidateQueries({ queryKey: ['pos-products-enhanced'] });
   }, [queryClient]);
 
   const refreshSubscriptions = useCallback(async () => {
-    console.log('🔄 Refreshing enhanced POS subscriptions...');
     await queryClient.invalidateQueries({ queryKey: ['pos-subscriptions-enhanced'] });
   }, [queryClient]);
 
   const refreshPOSSettings = useCallback(async () => {
-    console.log('🔄 Refreshing enhanced POS settings...');
     await queryClient.invalidateQueries({ queryKey: ['pos-settings-enhanced'] });
   }, [queryClient]);
 
   const refreshApps = useCallback(async () => {
-    console.log('🔄 Refreshing enhanced organization apps...');
     await queryClient.invalidateQueries({ queryKey: ['pos-organization-apps-enhanced'] });
   }, [queryClient]);
 
@@ -757,7 +720,6 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
     newQuantity: number
   ): Promise<boolean> => {
     try {
-      console.log('🔄 Updating product stock:', { productId, colorId, sizeId, newQuantity });
 
       if (sizeId && colorId) {
         // تحديث مخزون الحجم
@@ -791,10 +753,8 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
       // تحديث البيانات في cache
       await refreshProducts();
       
-      console.log('✅ Product stock updated successfully');
       return true;
     } catch (error) {
-      console.error('❌ Error updating product stock:', error);
       return false;
     }
   }, [refreshProducts]);
@@ -901,17 +861,6 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
     getProductStock, updateProductStock, checkLowStock, getProductPrice
   ]);
 
-  console.log('🎯 Enhanced POSDataContext value ready:', {
-    productsCount: products.length,
-    subscriptionsCount: subscriptions.length,
-    categoriesCount: categories.length,
-    productCategoriesCount: productCategories.length,
-    hasSettings: !!posSettings,
-    appsCount: organizationApps.length,
-    inventoryStats,
-    isLoading
-  });
-
   logPOSContextStatus('CONTEXT_VALUE_READY', {
     productsCount: products.length,
     subscriptionsCount: subscriptions.length,
@@ -940,4 +889,4 @@ export const usePOSData = (): POSData => {
   return context;
 };
 
-export default POSDataProvider; 
+export default POSDataProvider;

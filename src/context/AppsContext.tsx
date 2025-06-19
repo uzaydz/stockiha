@@ -3,7 +3,6 @@ import { supabase } from '@/lib/supabase-unified';
 import { useUser } from '@/context/UserContext';
 import { toast } from 'sonner';
 import { UnifiedRequestManager } from '@/lib/unifiedRequestManager';
-import { getSupabaseInstance } from '@/lib/supabase';
 
 // تعريف التطبيقات المتاحة
 export interface AppDefinition {
@@ -174,7 +173,6 @@ const saveToLocalStorage = (organizationId: string, apps: OrganizationApp[]) => 
   try {
     localStorage.setItem(`${LOCAL_STORAGE_KEY}_${organizationId}`, JSON.stringify(apps));
   } catch (error) {
-    console.warn('Failed to save apps to localStorage:', error);
   }
 };
 
@@ -183,7 +181,6 @@ const loadFromLocalStorage = (organizationId: string): OrganizationApp[] => {
     const stored = localStorage.getItem(`${LOCAL_STORAGE_KEY}_${organizationId}`);
     return stored ? JSON.parse(stored) : [];
   } catch (error) {
-    console.warn('Failed to load apps from localStorage:', error);
     return [];
   }
 };
@@ -194,85 +191,102 @@ interface AppsProviderProps {
   children: React.ReactNode;
 }
 
-export const AppsProvider: React.FC<AppsProviderProps> = ({ children }) => {
+export function AppsProvider({ children }: AppsProviderProps) {
   const { organizationId } = useUser();
   const [availableApps] = useState<AppDefinition[]>(AVAILABLE_APPS);
   const [organizationApps, setOrganizationApps] = useState<OrganizationApp[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // جلب التطبيقات المثبتة للمنظمة مع معالجة شاملة للأخطاء
+  // تحميل فوري للبيانات المحلية عند بداية المكون
+  useEffect(() => {
+    if (organizationId) {
+      console.log('AppsProvider: Initial load for organization:', organizationId);
+      const cachedApps = loadFromLocalStorage(organizationId);
+      if (cachedApps.length > 0) {
+        console.log('AppsProvider: Found cached apps:', cachedApps.length);
+        setOrganizationApps(cachedApps);
+        setIsLoading(false); // إيقاف التحميل لأن لدينا بيانات محلية
+      }
+    }
+  }, [organizationId]);
+
+
+
+  // جلب التطبيقات - نسخة مبسطة وفعالة
   const fetchOrganizationApps = async () => {
     if (!organizationId) {
-      setOrganizationApps([]);
+      // إنشاء قائمة افتراضية عندما لا يوجد organizationId
+      const defaultApps: OrganizationApp[] = AVAILABLE_APPS.map(app => ({
+        id: `default_${app.id}`,
+        organization_id: '',
+        app_id: app.id,
+        is_enabled: false,
+        installed_at: new Date().toISOString(),
+        configuration: {},
+        app: app
+      }));
+      setOrganizationApps(defaultApps);
       setIsLoading(false);
       return;
     }
 
     try {
       setIsLoading(true);
-      console.log('🔄 [AppsContext] Fetching apps for organization (simplified):', organizationId);
 
-      let data: any[] = [];
-      let fetchSuccess = false;
+      // محاولة جلب البيانات من قاعدة البيانات
+      // @ts-ignore - تجاهل أخطاء TypeScript مؤقتاً
+      const { data, error } = await supabase
+        .from('organization_apps')
+        .select('*')
+        .eq('organization_id', organizationId);
 
-      // 🎯 استعلام مباشر آمن بدلاً من RPC المعقدة
-      try {
-        console.log('🚀 [AppsContext] Using direct query...');
-        // @ts-ignore - جدول organization_apps موجود في قاعدة البيانات وسيتم تحديث Types لاحقاً
-        const { data: directData, error } = await supabase
-          .from('organization_apps')
-          .select('*')
-          .eq('organization_id', organizationId)
-          .order('created_at', { ascending: false });
-
-        if (!error && directData && Array.isArray(directData)) {
-          data = directData;
-          fetchSuccess = true;
-          console.log('✅ [AppsContext] Direct query success:', data.length, 'apps');
-        } else {
-          console.warn('⚠️ [AppsContext] Direct query failed:', error);
+      let organizationAppsData: any[] = [];
+      
+      // إذا نجح الاستعلام واسترجعنا بيانات
+      if (!error && data) {
+        organizationAppsData = data;
+      } else {
+        // محاولة استخدام البيانات المحلية
+        const localData = loadFromLocalStorage(organizationId);
+        if (localData.length > 0) {
+          setOrganizationApps(localData);
+          setIsLoading(false);
+          return;
         }
-      } catch (directError) {
-        console.error('❌ [AppsContext] Direct query exception:', directError);
       }
 
-      // إنشاء قائمة كاملة من التطبيقات المتاحة مع حالة التفعيل
+      // إنشاء قائمة شاملة للتطبيقات - مع الحفاظ على البيانات المحلية المفعلة
+      const localApps = loadFromLocalStorage(organizationId);
       const allApps: OrganizationApp[] = AVAILABLE_APPS.map(app => {
-        // البحث عن التطبيق في البيانات المجلبة
-        const existingApp = data.find((item: any) => 
-          item && (item.app_id === app.id || item.appId === app.id)
-        );
-
+        const existingApp = organizationAppsData.find(item => item.app_id === app.id);
+        const localApp = localApps.find(item => item.app_id === app.id);
+        
+        // أولوية للبيانات المحلية إذا كانت التطبيق مفعل محلياً
+        const isEnabledFromDB = existingApp ? Boolean(existingApp.is_enabled) : false;
+        const isEnabledFromLocal = localApp ? Boolean(localApp.is_enabled) : false;
+        
         return {
           id: existingApp?.id || `default_${app.id}`,
           organization_id: organizationId,
           app_id: app.id,
-          is_enabled: existingApp ? Boolean(existingApp.is_enabled) : false,
-          installed_at: existingApp?.installed_at || existingApp?.created_at || new Date().toISOString(),
-          configuration: existingApp?.configuration || {},
+          is_enabled: isEnabledFromLocal || isEnabledFromDB, // أولوية للمحلي
+          installed_at: existingApp?.installed_at || new Date().toISOString(),
+          configuration: localApp?.configuration || existingApp?.configuration || {},
           app: app
         };
       });
 
-      console.log('✅ [AppsContext] Final simplified apps:', {
-        total: allApps.length,
-        enabled: allApps.filter(app => app.is_enabled).length,
-        apps: allApps.map(app => ({ id: app.app_id, enabled: app.is_enabled }))
-      });
-       
+      console.log('AppsContext: Merged apps with local priority:', allApps.filter(app => app.is_enabled).map(app => app.app_id));
+
       setOrganizationApps(allApps);
       saveToLocalStorage(organizationId, allApps);
 
     } catch (error) {
-      console.error('❌ [AppsContext] Critical error:', error);
-      
-      // محاولة أخيرة لاستخدام البيانات المحلية
+      // في حالة الخطأ، استخدم البيانات المحلية أو قائمة افتراضية
       const localData = loadFromLocalStorage(organizationId);
       if (localData.length > 0) {
-        console.log('📱 [AppsContext] Using localStorage fallback:', localData.length, 'apps');
         setOrganizationApps(localData);
       } else {
-        // إنشاء قائمة افتراضية من التطبيقات
         const defaultApps: OrganizationApp[] = AVAILABLE_APPS.map(app => ({
           id: `default_${app.id}`,
           organization_id: organizationId,
@@ -282,8 +296,6 @@ export const AppsProvider: React.FC<AppsProviderProps> = ({ children }) => {
           configuration: {},
           app: app
         }));
-        
-        console.log('🔧 [AppsContext] Using default apps:', defaultApps.length);
         setOrganizationApps(defaultApps);
       }
     } finally {
@@ -291,130 +303,67 @@ export const AppsProvider: React.FC<AppsProviderProps> = ({ children }) => {
     }
   };
 
-  // تفعيل تطبيق - نسخة محسنة وآمنة
+  // تفعيل تطبيق - نسخة مبسطة
   const enableApp = async (appId: string): Promise<boolean> => {
     if (!organizationId) {
       toast.error('معرف المنظمة غير متوفر');
       return false;
     }
 
+    const appDefinition = availableApps.find(app => app.id === appId);
+    if (!appDefinition) {
+      toast.error('التطبيق غير موجود');
+      return false;
+    }
+
     try {
-      console.log('🟢 [AppsContext] Enabling app (simplified):', appId);
+      // تحديث الحالة المحلية فوراً
+      setOrganizationApps(prev => 
+        prev.map(app => 
+          app.app_id === appId ? { ...app, is_enabled: true } : app
+        )
+      );
 
-      // التحقق من وجود التطبيق
-      const appDefinition = availableApps.find(app => app.id === appId);
-      if (!appDefinition) {
-        toast.error('التطبيق غير موجود');
-        return false;
+      // حفظ في قاعدة البيانات
+      // @ts-ignore - تجاهل أخطاء TypeScript مؤقتاً
+      const { error } = await supabase
+        .from('organization_apps')
+        .upsert({
+          organization_id: organizationId,
+          app_id: appId,
+          is_enabled: true,
+          installed_at: new Date().toISOString(),
+          configuration: {}
+        }, { onConflict: 'organization_id,app_id' });
+
+      if (error) {
+        throw error;
       }
 
-      // تحديث الحالة المحلية فوراً للاستجابة السريعة
-      setOrganizationApps(prev => {
-        return prev.map(app => 
-          app.app_id === appId 
-            ? { ...app, is_enabled: true } 
-            : app
-        );
+      toast.success(`تم تفعيل تطبيق ${appDefinition.name} بنجاح`);
+      
+      // حفظ في التخزين المحلي - استخدم البيانات المحدثة
+      setOrganizationApps(updatedApps => {
+        saveToLocalStorage(organizationId, updatedApps);
+        return updatedApps;
       });
-
-      // 🎯 استخدام upsert مباشر آمن
-      try {
-        console.log('🚀 [AppsContext] Using direct upsert...');
-        // @ts-ignore - جدول organization_apps موجود في قاعدة البيانات وسيتم تحديث Types لاحقاً
-        const { data, error } = await supabase
-          .from('organization_apps')
-          .upsert({
-            organization_id: organizationId,
-            app_id: appId,
-            is_enabled: true,
-            installed_at: new Date().toISOString(),
-            configuration: {},
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }, { 
-            onConflict: 'organization_id,app_id',
-            ignoreDuplicates: false 
-          })
-          .select();
-
-        if (error) {
-          throw error;
-        }
-
-        console.log('✅ [AppsContext] App enabled successfully via direct upsert');
-        toast.success(`تم تفعيل تطبيق ${appDefinition.name} بنجاح`);
         
-        // 🔧 مسح Cache بقوة لضمان تحديث البيانات
-        console.log('🗑️ [AppsContext] Clearing cache to ensure fresh data...');
-        
-        // مسح جميع أنواع Cache المختلفة
-        if (typeof window !== 'undefined') {
-          // مسح ultimateRequestController cache
-          if ((window as any).performanceAnalytics?.clearSpecificCache) {
-            (window as any).performanceAnalytics.clearSpecificCache('organization_apps');
-            (window as any).performanceAnalytics.clearSpecificCache('get_organization_apps_simple');
-          }
-          
-          // مسح requestSystemInitializer cache
-          if ((window as any).globalRequestDeduplicator) {
-            Object.keys((window as any).globalRequestDeduplicator).forEach(key => {
-              if (key.includes('organization_apps') || key.includes('get_organization_apps_simple')) {
-                delete (window as any).globalRequestDeduplicator[key];
-              }
-            });
-          }
-          
-          // مسح أي cache إضافي
-          if ((window as any).requestCache) {
-            Object.keys((window as any).requestCache).forEach(key => {
-              if (key.includes('organization_apps') || key.includes('get_organization_apps_simple')) {
-                delete (window as any).requestCache[key];
-              }
-            });
-          }
-        }
-        
-        // إعادة تحميل البيانات بعد التأكد من مسح Cache
-        setTimeout(() => {
-          refreshApps();
-        }, 100);
-        
-        return true;
-
-      } catch (dbError: any) {
-        console.error('❌ [AppsContext] Database operation failed:', dbError);
-        
-        // إعادة الحالة في حالة فشل قاعدة البيانات
-        setOrganizationApps(prev => {
-          return prev.map(app => 
-            app.app_id === appId 
-              ? { ...app, is_enabled: false } 
-              : app
-          );
-        });
-        
-        toast.error(`فشل في تفعيل التطبيق: ${dbError.message}`);
-        return false;
-      }
+      return true;
 
     } catch (error: any) {
-      console.error('❌ [AppsContext] Failed to enable app:', error);
+      // إعادة الحالة في حالة الخطأ
+      setOrganizationApps(prev => 
+        prev.map(app => 
+          app.app_id === appId ? { ...app, is_enabled: false } : app
+        )
+      );
       
-      // إعادة الحالة في حالة فشل قاعدة البيانات
-      setOrganizationApps(prev => {
-        return prev.map(app => 
-          app.app_id === appId 
-            ? { ...app, is_enabled: false } 
-            : app
-        );
-      });
-      
-      toast.error(`فشل في تفعيل التطبيق: ${error.message}`);
+      toast.error(`فشل في تفعيل التطبيق: ${error.message || 'خطأ غير محدد'}`);
       return false;
     }
   };
 
-  // إلغاء تفعيل تطبيق - نسخة محسنة وآمنة
+  // إلغاء تفعيل تطبيق - نسخة مبسطة
   const disableApp = async (appId: string): Promise<boolean> => {
     if (!organizationId) {
       toast.error('معرف المنظمة غير متوفر');
@@ -422,112 +371,44 @@ export const AppsProvider: React.FC<AppsProviderProps> = ({ children }) => {
     }
 
     try {
-      console.log('🔴 [AppsContext] Disabling app:', appId);
-
-      // مسح Cache أولاً لضمان الحصول على بيانات حديثة
-      if (typeof UnifiedRequestManager?.clearCache === 'function') {
-        UnifiedRequestManager.clearCache(`unified_org_apps_${organizationId}`);
-        UnifiedRequestManager.clearCache(`organization_apps`);
-        UnifiedRequestManager.clearCache(`apps`);
-      }
-      
-      // مسح Cache الخاص بـ ultimateRequestController أيضاً
-      if (typeof window !== 'undefined' && (window as any).performanceAnalytics?.clearSpecificCache) {
-        (window as any).performanceAnalytics.clearSpecificCache('organization_apps');
-      }
-
       // تحديث الحالة المحلية فوراً
-      setOrganizationApps(prev => {
-        return prev.map(app => 
-          app.app_id === appId 
-            ? { ...app, is_enabled: false } 
-            : app
-        );
+      setOrganizationApps(prev => 
+        prev.map(app => 
+          app.app_id === appId ? { ...app, is_enabled: false } : app
+        )
+      );
+
+      // حفظ في قاعدة البيانات
+      // @ts-ignore - تجاهل أخطاء TypeScript مؤقتاً
+      const { error } = await supabase
+        .from('organization_apps')
+        .update({ is_enabled: false })
+        .eq('organization_id', organizationId)
+        .eq('app_id', appId);
+
+      if (error) {
+        throw error;
+      }
+
+      toast.success('تم إلغاء تفعيل التطبيق بنجاح');
+      
+      // حفظ في التخزين المحلي - استخدم البيانات المحدثة
+      setOrganizationApps(updatedApps => {
+        saveToLocalStorage(organizationId, updatedApps);
+        return updatedApps;
       });
-
-      let dbOperationSuccess = false;
-
-      // محاولة حفظ في قاعدة البيانات
-      try {
-        console.log('🔍 [AppsContext] Starting database operation to disable app:', { organizationId, appId });
-        
-        // 🎯 استخدام update مباشر آمن
-        console.log('🚀 [AppsContext] Using direct update to disable app...');
-        // @ts-ignore - جدول organization_apps موجود في قاعدة البيانات وسيتم تحديث Types لاحقاً
-        const { data: updateData, error } = await supabase
-          .from('organization_apps')
-          .update({ 
-            is_enabled: false, 
-            updated_at: new Date().toISOString() 
-          })
-          .eq('organization_id', organizationId)
-          .eq('app_id', appId)
-          .select();
-
-        if (error) {
-          console.error('❌ [AppsContext] Update failed:', error);
-          throw new Error(`Database update failed: ${error.message}`);
-        } else {
-          console.log('✅ [AppsContext] App disabled successfully:', updateData);
-          dbOperationSuccess = true;
-        }
-
-      } catch (dbError: any) {
-        console.error('❌ [AppsContext] Database operation failed:', dbError);
-        dbOperationSuccess = false;
-        
-        // إعادة الحالة في حالة فشل قاعدة البيانات
-        setOrganizationApps(prev => {
-          return prev.map(app => 
-            app.app_id === appId 
-              ? { ...app, is_enabled: true } 
-              : app
-          );
-        });
-        
-        toast.error(`فشل في حفظ إلغاء التفعيل في قاعدة البيانات: ${dbError.message}`);
-        return false;
-      }
-
-      // مسح Cache مرة أخرى بعد العملية
-      if (typeof UnifiedRequestManager?.clearCache === 'function') {
-        UnifiedRequestManager.clearCache(`unified_org_apps_${organizationId}`);
-        UnifiedRequestManager.clearCache(`organization_apps`);
-        UnifiedRequestManager.clearCache(`apps`);
-      }
       
-      // مسح Cache الخاص بـ ultimateRequestController أيضاً
-      if (typeof window !== 'undefined' && (window as any).performanceAnalytics?.clearSpecificCache) {
-        (window as any).performanceAnalytics.clearSpecificCache('organization_apps');
-      }
+      return true;
 
-      if (dbOperationSuccess) {
-        toast.success('تم إلغاء تفعيل التطبيق بنجاح');
-        
-        // إعادة تحميل البيانات للتأكد من التزامن
-        setTimeout(() => {
-          refreshApps();
-        }, 1000);
-        
-        return true;
-      } else {
-        toast.error('فشل في إلغاء تفعيل التطبيق في قاعدة البيانات');
-        return false;
-      }
-
-    } catch (error) {
-      console.error('❌ [AppsContext] Disable app error:', error);
-      toast.error(`فشل في إلغاء تفعيل التطبيق: ${error.message || 'خطأ غير محدد'}`);
-      
+    } catch (error: any) {
       // إعادة الحالة في حالة الخطأ
-      setOrganizationApps(prev => {
-        return prev.map(app => 
-          app.app_id === appId 
-            ? { ...app, is_enabled: true } 
-            : app
-        );
-      });
+      setOrganizationApps(prev => 
+        prev.map(app => 
+          app.app_id === appId ? { ...app, is_enabled: true } : app
+        )
+      );
       
+      toast.error(`فشل في إلغاء تفعيل التطبيق: ${error.message || 'خطأ غير محدد'}`);
       return false;
     }
   };
@@ -535,7 +416,8 @@ export const AppsProvider: React.FC<AppsProviderProps> = ({ children }) => {
   // التحقق من تفعيل التطبيق
   const isAppEnabled = (appId: string): boolean => {
     const app = organizationApps.find(app => app.app_id === appId);
-    return app?.is_enabled || false;
+    const isEnabled = app?.is_enabled || false;
+    return isEnabled;
   };
 
   // الحصول على إعدادات التطبيق
@@ -574,9 +456,7 @@ export const AppsProvider: React.FC<AppsProviderProps> = ({ children }) => {
                })
                .eq('organization_id', organizationId)
                .eq('app_id', appId);
-             console.log('✅ [AppsContext] Config saved to database');
            } catch (dbError) {
-             console.warn('⚠️ [AppsContext] Config save to database failed:', dbError);
              // لا مشكلة، البيانات محفوظة محلياً
            }
          }, 100);
@@ -586,62 +466,25 @@ export const AppsProvider: React.FC<AppsProviderProps> = ({ children }) => {
       
       return false;
     } catch (error) {
-      console.error('❌ [AppsContext] Update config error:', error);
       return false;
     }
   };
 
-  // إعادة تحميل البيانات
+  // إعادة تحميل البيانات - نسخة مبسطة
   const refreshApps = async () => {
-    console.log('🔄 [AppsContext] Refreshing apps...');
-    
-    // تنظيف cache التطبيقات شامل
-    if (organizationId && typeof window !== 'undefined') {
-      // مسح ultimateRequestController cache
-      if ((window as any).performanceAnalytics?.clearSpecificCache) {
-        (window as any).performanceAnalytics.clearSpecificCache('organization_apps');
-        (window as any).performanceAnalytics.clearSpecificCache('get_organization_apps_simple');
-      }
-      
-      // مسح requestSystemInitializer cache
-      if ((window as any).globalRequestDeduplicator) {
-        Object.keys((window as any).globalRequestDeduplicator).forEach(key => {
-          if (key.includes('organization_apps') || key.includes('get_organization_apps_simple')) {
-            delete (window as any).globalRequestDeduplicator[key];
-          }
-        });
-      }
-      
-      // مسح أي cache إضافي
-      if ((window as any).requestCache) {
-        Object.keys((window as any).requestCache).forEach(key => {
-          if (key.includes('organization_apps') || key.includes('get_organization_apps_simple')) {
-            delete (window as any).requestCache[key];
-          }
-        });
-      }
-    }
-    
-    // إعادة تحميل البيانات مع إجبار طلب جديد
     await fetchOrganizationApps();
   };
 
-  // جلب البيانات عند تغيير المنظمة
+  // جلب البيانات عند تغيير المنظمة أو عند التشغيل الأولي
   useEffect(() => {
     if (organizationId) {
-      console.log('🔄 [AppsContext] Organization changed, fetching apps...');
-      fetchOrganizationApps();
+      console.log('AppsContext: Loading apps for organization:', organizationId);
+      // تأخير قليل للسماح بتحميل البيانات المحلية أولاً
+      setTimeout(() => {
+        fetchOrganizationApps();
+      }, 100);
     }
   }, [organizationId]);
-
-  // مراقبة تغييرات organizationApps للتشخيص
-  useEffect(() => {
-    console.log('📊 [AppsContext] Organization apps updated:', {
-      total: organizationApps.length,
-      enabled: organizationApps.filter(app => app.is_enabled).length,
-      apps: organizationApps.map(app => ({ id: app.app_id, enabled: app.is_enabled }))
-    });
-  }, [organizationApps]);
 
   const value: AppsContextType = {
     availableApps,
@@ -660,13 +503,12 @@ export const AppsProvider: React.FC<AppsProviderProps> = ({ children }) => {
       {children}
     </AppsContext.Provider>
   );
-};
+}
 
-// Hook لاستخدام السياق
-export const useApps = (): AppsContextType => {
+// Hook لاستخدام السياق - تصدير ثابت لـ Fast Refresh
+export function useApps(): AppsContextType {
   const context = useContext(AppsContext);
   if (context === undefined) {
-    console.warn('⚠️ [AppsContext] useApps used outside of AppsProvider, returning defaults');
     // بدلاً من رمي خطأ، نوفر قيم افتراضية
     return {
       availableApps: AVAILABLE_APPS,
@@ -681,4 +523,8 @@ export const useApps = (): AppsContextType => {
     };
   }
   return context;
-};
+}
+
+// تصدير واضح لجميع المكونات
+export { AppsContext, AVAILABLE_APPS };
+export type { AppDefinition, OrganizationApp, AppsContextType };

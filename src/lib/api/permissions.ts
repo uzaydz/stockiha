@@ -16,39 +16,28 @@ import {
  * تحديث بيانات المستخدم من Supabase
  */
 export const refreshUserData = async (userId: string) => {
-  console.log('🔄 [refreshUserData] بدء تحديث بيانات المستخدم...', { userId });
   
   // أولاً تحقق من التخزين المؤقت
   const cachedPermissions = getCachedPermissions();
   if (cachedPermissions) {
-    console.log('📦 [refreshUserData] فحص بيانات التخزين المؤقت:', {
-      role: cachedPermissions.role,
-      is_org_admin: cachedPermissions.is_org_admin,
-      permissions: cachedPermissions.permissions
-    });
     
     // إذا كانت البيانات المخزنة تحتوي على role = 'authenticated' فقط، امسحها وأعد التحميل
     if (cachedPermissions.role === 'authenticated' && !cachedPermissions.is_org_admin && !cachedPermissions.permissions) {
-      console.log('🗑️ [refreshUserData] البيانات المخزنة غير مكتملة، مسح التخزين المؤقت...');
       clearPermissionsCache();
     } else {
-      console.log('📦 [refreshUserData] استخدام بيانات صحيحة من التخزين المؤقت');
       return cachedPermissions;
     }
     
     // إضافة أمر console عالمي لمسح التخزين المؤقت
     if (typeof window !== 'undefined') {
       (window as any).clearUserCache = () => {
-        console.log('🗑️ [Console Command] مسح التخزين المؤقت للمستخدم...');
         clearPermissionsCache();
-        console.log('✅ [Console Command] تم مسح التخزين المؤقت. قم بإعادة تحميل الصفحة.');
       };
     }
   }
   
   try {
     // محاولة الحصول على البيانات من users table أولاً
-    console.log('📡 [refreshUserData] محاولة جلب من users table...');
     const { data: userData, error: userError } = await supabase
       .from('users')
       .select('*')
@@ -56,14 +45,6 @@ export const refreshUserData = async (userId: string) => {
       .single();
       
     if (userData) {
-      console.log('✅ [refreshUserData] بيانات من users table:', {
-        id: userData.id,
-        email: userData.email,
-        role: userData.role,
-        is_org_admin: userData.is_org_admin,
-        is_super_admin: userData.is_super_admin,
-        permissions: userData.permissions
-      });
       
       // تخزين بيانات المستخدم في التخزين المؤقت
       cachePermissions(userData);
@@ -71,23 +52,13 @@ export const refreshUserData = async (userId: string) => {
     }
     
     // إذا لم توجد البيانات في users table، جرب auth.getUser()
-    console.log('⚠️ [refreshUserData] لم توجد بيانات في users table، محاولة auth.getUser()...');
     const { data: authData, error: authError } = await supabase.auth.getUser();
     
     if (authError) {
-      console.error('❌ [refreshUserData] خطأ في auth.getUser():', authError);
       return null;
     }
     
     if (authData?.user) {
-      console.log('✅ [refreshUserData] بيانات من auth.getUser():', {
-        id: authData.user.id,
-        email: authData.user.email,
-        role: authData.user.user_metadata?.role,
-        is_org_admin: authData.user.user_metadata?.is_org_admin,
-        is_super_admin: authData.user.user_metadata?.is_super_admin,
-        permissions: authData.user.user_metadata?.permissions
-      });
       
       // تحويل بيانات auth إلى تنسيق مناسب
       const transformedData = {
@@ -102,7 +73,6 @@ export const refreshUserData = async (userId: string) => {
       };
       
       // محاولة جلب البيانات الحقيقية من users table باستخدام email
-      console.log('🔍 [refreshUserData] محاولة جلب البيانات باستخدام email...');
       try {
         const { data: userByEmail, error: emailError } = await supabase
           .from('users')
@@ -111,13 +81,6 @@ export const refreshUserData = async (userId: string) => {
           .single();
           
         if (userByEmail && !emailError) {
-          console.log('✅ [refreshUserData] بيانات حقيقية من users table:', {
-            email: userByEmail.email,
-            role: userByEmail.role,
-            is_org_admin: userByEmail.is_org_admin,
-            is_super_admin: userByEmail.is_super_admin,
-            permissions: userByEmail.permissions
-          });
           
           // دمج البيانات الحقيقية
           transformedData.role = userByEmail.role || transformedData.role;
@@ -125,30 +88,18 @@ export const refreshUserData = async (userId: string) => {
           transformedData.is_super_admin = userByEmail.is_super_admin ?? transformedData.is_super_admin;
           transformedData.permissions = userByEmail.permissions || transformedData.permissions;
         } else {
-          console.log('⚠️ [refreshUserData] لم توجد بيانات في users table باستخدام email');
         }
       } catch (emailSearchError) {
-        console.log('⚠️ [refreshUserData] خطأ في البحث بـ email:', emailSearchError);
       }
-      
-      console.log('🔄 [refreshUserData] بيانات محولة:', {
-        email: transformedData.email,
-        role: transformedData.role,
-        is_org_admin: transformedData.is_org_admin,
-        is_super_admin: transformedData.is_super_admin,
-        permissions: transformedData.permissions
-      });
-      
+
       // تخزين البيانات المحولة في التخزين المؤقت
       cachePermissions(transformedData);
       return transformedData;
     }
     
-    console.error('❌ [refreshUserData] لم يتم العثور على بيانات المستخدم');
     return null;
     
   } catch (error) {
-    console.error('❌ [refreshUserData] خطأ غير متوقع:', error);
     return null;
   }
 };
@@ -430,16 +381,6 @@ export const checkUserPermissions = async (
       isOrganizationOwner ||
       isOrgAdmin ||
       isSuperAdmin;
-
-    console.log('🔍 [Permissions] addProducts check:', {
-      canAdd,
-      hasAddProducts: Boolean(permissions['addProducts']),
-      hasManageProducts: Boolean(permissions['manageProducts']),
-      isOrganizationOwner,
-      isOrgAdmin,
-      isSuperAdmin,
-      userEmail: userToCheck?.email
-    });
 
     return canAdd;
   }

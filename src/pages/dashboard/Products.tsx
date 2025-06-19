@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo, useCallback, memo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useState, useEffect, useMemo, useCallback, memo, useRef } from 'react';
+import { useSearchParams, useLocation } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import { toast } from 'sonner';
 import { getProducts, getProductsPaginated } from '@/lib/api/products'; // Direct import from products API
@@ -27,6 +27,11 @@ type ViewMode = 'grid' | 'list';
 const Products = memo(() => {
   const { currentOrganization } = useTenant();
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  
+  // ✅ Race Conditions Prevention
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const isLoadingRef = useRef(false);
   
   // استخدام URL search params لحفظ الحالة
   const [products, setProducts] = useState<Product[]>([]);
@@ -117,17 +122,43 @@ const Products = memo(() => {
     return cats;
   }, [allProductsForCategories]);
 
-  // Optimized products fetching
+  // Optimized products fetching with Race Conditions prevention
   const fetchProductsPaginated = useCallback(async (
     page: number = currentPage,
     forceRefresh: boolean = false
   ) => {
-    if (!currentOrganization?.id) {
-      setProducts([]);
-      setIsLoading(false);
+    // منع Race Conditions - إلغاء الطلب السابق
+    if (abortControllerRef.current) {
+      console.log('🚫 [Products Fetch] إلغاء الطلب السابق...');
+      abortControllerRef.current.abort();
+    }
+
+    // منع الطلبات المتزامنة
+    if (isLoadingRef.current && !forceRefresh) {
+      console.log('⏳ [Products Fetch] طلب قيد التنفيذ، تجاهل الطلب الجديد');
       return;
     }
 
+    if (!currentOrganization?.id) {
+      setProducts([]);
+      setIsLoading(false);
+      isLoadingRef.current = false;
+      return;
+    }
+
+    // إنشاء AbortController جديد
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
+    console.log('🚀 [Products Fetch] بدء جلب المنتجات:', {
+      page,
+      forceRefresh,
+      organizationId: currentOrganization.id,
+      timestamp: new Date().toISOString()
+    });
+
+    // تعيين حالة التحميل
+    isLoadingRef.current = true;
     if (forceRefresh) {
       setIsRefreshing(true);
     } else {
@@ -150,6 +181,18 @@ const Products = memo(() => {
         }
       );
 
+      // التحقق من عدم إلغاء الطلب
+      if (signal.aborted) {
+        console.log('🚫 [Products Fetch] تم إلغاء الطلب');
+        return;
+      }
+
+      console.log('✅ [Products Fetch] تم جلب المنتجات بنجاح:', {
+        productsCount: result.products.length,
+        totalCount: result.totalCount,
+        currentPage: result.currentPage
+      });
+
       setProducts(result.products);
       setTotalCount(result.totalCount);
       setTotalPages(result.totalPages);
@@ -167,12 +210,26 @@ const Products = memo(() => {
         stock: stockFilter,
       });
       
-    } catch (error) {
+    } catch (error: any) {
+      // تجاهل أخطاء الإلغاء
+      if (error.name === 'AbortError' || signal.aborted) {
+        console.log('🚫 [Products Fetch] تم إلغاء الطلب (AbortError)');
+        return;
+      }
+
+      console.error('❌ [Products Fetch] خطأ في جلب المنتجات:', error);
       setLoadError('حدث خطأ أثناء تحميل المنتجات');
       toast.error('حدث خطأ أثناء تحميل المنتجات');
     } finally {
+      // تنظيف الحالة
+      isLoadingRef.current = false;
       setIsLoading(false);
       setIsRefreshing(false);
+      
+      // تنظيف AbortController
+      if (abortControllerRef.current && !abortControllerRef.current.signal.aborted) {
+        abortControllerRef.current = null;
+      }
     }
   }, [
     currentOrganization?.id,
@@ -185,29 +242,76 @@ const Products = memo(() => {
     updateSearchParams
   ]);
 
-  // Effect for initial load and organization change
+  // ✅ UNIFIED EFFECT - حل مشكلة useEffect المتضاربة
   useEffect(() => {
-    if (currentOrganization?.id) {
-      fetchCategories();
-      fetchProductsPaginated(1);
+    // منع التحميل إذا لم يكن لدينا معرف المؤسسة
+    if (!currentOrganization?.id) {
+      setProducts([]);
+      setIsLoading(false);
+      return;
     }
-  }, [currentOrganization?.id]);
 
-  // Effect for filter changes (reset to page 1)
-  useEffect(() => {
-    if (currentOrganization?.id) {
-      const newPage = 1;
-      setCurrentPage(newPage);
-      fetchProductsPaginated(newPage);
-    }
-  }, [debouncedSearchQuery, categoryFilter, sortOption, stockFilter, pageSize]);
+    console.log('🎯 [Products Unified Effect] بدء تحميل المنتجات:', {
+      organizationId: currentOrganization.id,
+      currentPage,
+      debouncedSearchQuery,
+      categoryFilter,
+      stockFilter,
+      sortOption,
+      pageSize,
+      timestamp: new Date().toISOString()
+    });
 
-  // Effect for page changes only
-  useEffect(() => {
-    if (currentOrganization?.id && currentPage > 1) {
-      fetchProductsPaginated(currentPage);
+    // تحديد الصفحة المطلوبة
+    let targetPage = currentPage;
+    
+    // إعادة تعيين إلى الصفحة الأولى عند تغيير الفلاتر
+    const isFilterChange = debouncedSearchQuery || categoryFilter || stockFilter !== 'all' || sortOption !== 'newest';
+    if (isFilterChange && currentPage > 1) {
+      targetPage = 1;
+      setCurrentPage(1);
     }
-  }, [currentPage]);
+
+    // تحميل المنتجات والفئات معاً
+    const loadData = async () => {
+      try {
+        console.log('📦 [Products Unified Effect] تحميل البيانات للصفحة:', targetPage);
+        
+        // تحميل متوازي للمنتجات والفئات
+        await Promise.all([
+          fetchProductsPaginated(targetPage),
+          fetchCategories()
+        ]);
+        
+        console.log('✅ [Products Unified Effect] تم تحميل البيانات بنجاح');
+      } catch (error) {
+        console.error('❌ [Products Unified Effect] خطأ في تحميل البيانات:', error);
+      }
+    };
+
+    loadData();
+  }, [
+    currentOrganization?.id,
+    currentPage,
+    debouncedSearchQuery,
+    categoryFilter,
+    stockFilter,
+    sortOption,
+    pageSize
+  ]);
+
+  // ✅ Cleanup effect - تنظيف عند إلغاء تحميل المكون
+  useEffect(() => {
+    return () => {
+      // إلغاء أي طلبات نشطة عند إلغاء تحميل المكون
+      if (abortControllerRef.current) {
+        console.log('🧹 [Products Cleanup] إلغاء الطلبات النشطة...');
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      isLoadingRef.current = false;
+    };
+  }, []);
 
   // Optimized handlers with useCallback
   const handlePageChange = useCallback((page: number) => {
@@ -330,6 +434,223 @@ const Products = memo(() => {
       </Button>
     </div>
   ), [debouncedSearchQuery, categoryFilter, stockFilter, handleAddProduct]);
+
+  // 🚀 مراقبة التحديثات من navigate state (عند العودة من تعديل المنتج)
+  useEffect(() => {
+    const locationState = location.state as { refreshData?: boolean; updatedProductId?: string; timestamp?: number } | null;
+    
+    if (locationState?.refreshData && locationState?.timestamp) {
+      console.log('🔄 [Products Page] تحديث مطلوب من ProductForm:', locationState);
+      
+      // تحديث البيانات فوراً بدون تأخير
+      fetchProductsPaginated(currentPage, true);
+      
+      // مسح state بعد الاستخدام لتجنب التحديث المتكرر
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+  }, [location.state, currentPage, fetchProductsPaginated]);
+
+  // استمع للتحديثات الفورية للمنتجات
+  useEffect(() => {
+    console.log('🎧 [Products Page] بدء الاستماع للتحديثات الفورية للمنتجات...');
+    
+    const handleProductsUpdated = (event: CustomEvent) => {
+      console.log('📢 [Products Page] تم استلام إشعار تحديث منتجات:', event.detail);
+      
+      // تحديث فوري للقائمة
+      if (event.detail?.operation === 'delete') {
+        console.log('🗑️ [Products Page] معالجة حذف منتج - تحديث شامل...');
+        
+        // تحديث شامل للمنتجات بعد الحذف
+        setTimeout(() => {
+          console.log('🔄 [Products Page] تحديث متأخر للمنتجات بعد الحذف...');
+          refreshProducts();
+        }, 200);
+      }
+      
+      // تحديث فوري للحالة
+      refreshProducts();
+    };
+
+    // إضافة مستمع الأحداث
+    window.addEventListener('products-updated', handleProductsUpdated);
+    console.log('✅ [Products Page] تم تسجيل مستمع الأحداث للمنتجات');
+
+    // تنظيف عند إلغاء التحميل
+    return () => {
+      window.removeEventListener('products-updated', handleProductsUpdated);
+      console.log('🧹 [Products Page] إزالة مستمع الأحداث للمنتجات');
+    };
+  }, [refreshProducts]);
+
+  // تحسين refreshProducts مع console.log
+  const refreshProductsWithLog = useCallback(async () => {
+    console.log('🎯 [Products Page] بدء تحديث المنتجات بعد العملية...');
+    
+    if (!currentOrganization?.id) {
+      console.error('❌ [Products Page] معرف المؤسسة غير موجود');
+      return;
+    }
+
+    console.log('✅ [Products Page] معرف المؤسسة:', currentOrganization.id);
+    console.log('🔄 [Products Page] تحديث شامل لـ React Query cache...');
+    
+    try {
+      // استخدام النظام المتطور للتحديث
+      const { refreshAfterProductOperation } = await import('@/lib/data-refresh-helpers');
+      
+      console.log('🚀 [Products Page] استخدام refreshAfterProductOperation للتحديث...');
+      
+      await refreshAfterProductOperation('delete', { 
+        organizationId: currentOrganization.id, 
+        immediate: true 
+      });
+      
+      console.log('✅ [Products Page] تم تحديث React Query cache');
+      
+      // التحديث الأساسي
+      await fetchProductsPaginated(currentPage, true);
+      
+      console.log('✅ [Products Page] تم جلب البيانات الجديدة');
+      console.log('🎉 [Products Page] تم تحديث قائمة المنتجات بنجاح بعد العملية!');
+      
+    } catch (error) {
+      console.error('❌ [Products Page] خطأ في تحديث المنتجات:', error);
+    }
+  }, [currentOrganization?.id, currentPage, fetchProductsPaginated]);
+
+  // ✅ Development debugging tools
+  useEffect(() => {
+    if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+      (window as any).debugProducts = {
+        currentState: () => ({
+          products: products.length,
+          isLoading,
+          isRefreshing,
+          loadError,
+          currentPage,
+          totalCount,
+          totalPages,
+          organizationId: currentOrganization?.id,
+          filters: {
+            searchQuery: debouncedSearchQuery,
+            categoryFilter,
+            stockFilter,
+            sortOption
+          }
+        }),
+        forceRefresh: () => {
+          console.log('🔧 [Debug] إجبار تحديث المنتجات...');
+          fetchProductsPaginated(currentPage, true);
+        },
+        clearCache: () => {
+          console.log('🧹 [Debug] مسح cache المنتجات...');
+          if (typeof window !== 'undefined' && (window as any).emergencyFixCache) {
+            (window as any).emergencyFixCache(currentOrganization?.id);
+          }
+        },
+        // 🆕 اختبار مباشر لفلتر "الأحدث"
+        testNewestFilter: async () => {
+          if (!currentOrganization?.id) {
+            console.error('❌ [Debug] معرف المؤسسة غير موجود');
+            return;
+          }
+          
+          console.log('🧪 [Debug] اختبار فلتر الأحدث مباشرة...');
+          
+          try {
+            // استيراد getProductsPaginated مباشرة
+            const { getProductsPaginated } = await import('@/lib/api/products');
+            
+            const result = await getProductsPaginated(
+              currentOrganization.id,
+              1,
+              10,
+              {
+                includeInactive: false,
+                searchQuery: '',
+                categoryFilter: '',
+                stockFilter: 'all',
+                sortOption: 'newest'
+              }
+            );
+            
+            console.log('✅ [Debug] نتيجة اختبار فلتر الأحدث:', result);
+            return result;
+          } catch (error) {
+            console.error('❌ [Debug] خطأ في اختبار فلتر الأحدث:', error);
+            return null;
+          }
+        },
+        // 🆕 اختبار مقارنة الفلاتر
+        compareFilters: async () => {
+          if (!currentOrganization?.id) {
+            console.error('❌ [Debug] معرف المؤسسة غير موجود');
+            return;
+          }
+          
+          console.log('🧪 [Debug] مقارنة جميع الفلاتر...');
+          
+          try {
+            const { getProductsPaginated } = await import('@/lib/api/products');
+            
+            const filters = ['newest', 'oldest', 'name-asc', 'price-high'];
+            const results: any = {};
+            
+            for (const filter of filters) {
+              const result = await getProductsPaginated(
+                currentOrganization.id,
+                1,
+                10,
+                {
+                  includeInactive: false,
+                  searchQuery: '',
+                  categoryFilter: '',
+                  stockFilter: 'all',
+                  sortOption: filter
+                }
+              );
+              
+              results[filter] = {
+                count: result.products.length,
+                totalCount: result.totalCount,
+                sampleProducts: result.products.slice(0, 2).map(p => ({
+                  id: p.id,
+                  name: p.name,
+                  created_at: p.created_at
+                }))
+              };
+            }
+            
+            console.log('📊 [Debug] نتائج مقارنة الفلاتر:', results);
+            return results;
+          } catch (error) {
+            console.error('❌ [Debug] خطأ في مقارنة الفلاتر:', error);
+            return null;
+          }
+        }
+      };
+      
+      console.log(`
+🔧 أدوات تشخيص المنتجات متوفرة:
+
+📊 عرض الحالة الحالية:
+debugProducts.currentState()
+
+🔄 إجبار تحديث:
+debugProducts.forceRefresh()
+
+🧹 مسح cache:
+debugProducts.clearCache()
+
+🧪 اختبار فلتر الأحدث:
+debugProducts.testNewestFilter()
+
+📊 مقارنة جميع الفلاتر:
+debugProducts.compareFilters()
+      `);
+    }
+  }, [products.length, isLoading, currentPage, currentOrganization?.id]);
 
   return (
     <Layout>

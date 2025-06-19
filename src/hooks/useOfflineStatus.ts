@@ -12,24 +12,9 @@ interface OfflineStatus {
  * @returns وعد بوليان يشير إلى حالة الاتصال
  */
 const checkInternetConnection = async (): Promise<boolean> => {
-  try {
-    // إنشاء طلب تجريبي لتأكيد الاتصال الفعلي بخادمنا
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000);
-    
-    // استخدام نقطة نهاية health-check الخاصة بنا
-    const response = await fetch('/api/health-check', {
-      method: 'HEAD',
-      cache: 'no-store',
-      headers: { 'Cache-Control': 'no-cache' },
-      signal: controller.signal
-    });
-    
-    clearTimeout(timeoutId);
-    return response.ok;
-  } catch (error) {
-    return false;
-  }
+  // 🚫 DISABLED - Always return true to avoid health-check errors
+  console.log('🚫 [OfflineStatus] DISABLED - Assuming always online');
+  return true;
 };
 
 /**

@@ -197,20 +197,16 @@ const LoginForm = () => {
       const result = await improvedSignIn(loginEmail, loginPassword);
 
       if (result.success) {
-        console.log('✅ [LoginForm] Sign in successful, proceeding...');
         
         // 🎯 تبسيط التحقق من الجلسة - إزالة التحقق المعقد
-        console.log('🎯 [LoginForm] Session established, proceeding to dashboard...');
         
         // التوجيه المباشر بدون تعقيدات النطاق الفرعي
         await handleSuccessfulLogin();
       } else {
-        console.error('❌ [LoginForm] Sign in failed:', result.error);
         toast.error(result.error?.message || 'فشل تسجيل الدخول');
         setIsLoading(false);
       }
     } catch (error) {
-      console.error('❌ [LoginForm] Login process failed:', error);
       toast.error('حدث خطأ أثناء تسجيل الدخول');
       setIsLoading(false);
     }
@@ -219,19 +215,15 @@ const LoginForm = () => {
   const handleSuccessfulLogin = async () => {
     try {
       // 🎯 تبسيط شامل - إزالة جميع فحوصات النطاق الفرعي
-      console.log('🎯 [LoginForm] Starting simplified login flow for stockiha.com/dashboard');
       
       // فحص بسيط للتأكد من المصادقة
       const { data: userData } = await supabase.auth.getUser();
       const { data: sessionData } = await supabase.auth.getSession();
 
       if (!userData.user || !sessionData.session) {
-        console.warn('⚠️ [LoginForm] Session or user data missing, but continuing...');
         // لا نوقف العملية، فقط تحذير
       }
 
-      console.log('✅ [LoginForm] User authenticated, proceeding to dashboard');
-      
       toast.success('تم تسجيل الدخول بنجاح');
       
       // تنظيف البيانات المحفوظة
@@ -244,16 +236,13 @@ const LoginForm = () => {
       if (redirectPath && redirectPath.startsWith('/dashboard')) {
         dashboardPath = redirectPath;
       }
-      
-      console.log('🚀 [LoginForm] Redirecting to:', dashboardPath);
-      
+
       setTimeout(() => {
         setIsLoading(false);
         navigate(dashboardPath);
       }, 500);
       
     } catch (error) {
-      console.error('❌ [LoginForm] Error in handleSuccessfulLogin:', error);
       // رغم الخطأ، نكمل التوجيه
       toast.success('تم تسجيل الدخول بنجاح');
       setTimeout(() => {

@@ -4,7 +4,7 @@
  */
 
 import { performanceTracker } from './PerformanceTracker';
-import { ultimateRequestController } from '../ultimateRequestController';
+// تم حذف UltimateRequestController
 import DuplicateRequestAnalyzer from './DuplicateRequestAnalyzer';
 import PerformanceOptimizer from './performanceOptimizer';
 
@@ -27,7 +27,6 @@ export const initializePerformanceAnalytics = (): void => {
       generateReport: (requests?: any[]) => {
         const requestData = requests || performanceTracker.getDetailedRequests(100);
         const report = DuplicateRequestAnalyzer.generateReport(requestData);
-        console.log(report);
         return report;
       },
       clearAll: () => {
@@ -36,20 +35,12 @@ export const initializePerformanceAnalytics = (): void => {
       },
       analyzeSlowRequests: () => {
         const report = PerformanceOptimizer.getInstance().getSlowRequestsReport();
-        console.log(report);
         return PerformanceOptimizer.getInstance().generateOptimizationReport();
       },
       optimizationSuggestions: () => {
         const suggestions = PerformanceOptimizer.getInstance().generateOptimizationReport();
-        console.group('🚀 اقتراحات تحسين الأداء');
         suggestions.forEach(suggestion => {
-          console.log(`\n${suggestion.priority === 'high' ? '🔴' : '🟡'} ${suggestion.endpoint}`);
-          console.log(`المشكلة: ${suggestion.issue}`);
-          console.log(`الحل:`);
-          console.log(suggestion.solution);
-          console.log(`التحسين المتوقع: ${suggestion.expectedImprovement}`);
         });
-        console.groupEnd();
         return suggestions;
       },
       exportAll: () => ({
@@ -74,7 +65,6 @@ export const initializePerformanceAnalytics = (): void => {
       if (e.ctrlKey && e.shiftKey && e.key === 'C') {
         e.preventDefault();
         (window as any).performanceAnalytics.clearAll();
-        console.log('🧹 تم مسح جميع بيانات المراقبة');
       }
 
       // Ctrl + Shift + E = تصدير البيانات
@@ -88,38 +78,10 @@ export const initializePerformanceAnalytics = (): void => {
         a.download = `complete-analytics-${new Date().toISOString().split('T')[0]}.json`;
         a.click();
         URL.revokeObjectURL(url);
-        console.log('📊 تم تصدير التحليلات الكاملة');
       }
     });
 
-    console.log(`
-🚀 نظام مراقبة الأداء الشامل والمتطور جاهز!
-
-📊 الأوامر المتاحة في الكونسول:
-  • performanceAnalytics.getStats() - الإحصائيات الحالية
-  • performanceAnalytics.getRequests() - آخر الطلبات
-  • performanceAnalytics.analyzeDuplicates() - تحليل الطلبات المكررة
-  • performanceAnalytics.generateReport() - تقرير مفصل بالحلول
-  • performanceAnalytics.analyzeSlowRequests() - تحليل الطلبات البطيئة
-  • performanceAnalytics.optimizationSuggestions() - اقتراحات تحسين مفصلة
-  • performanceAnalytics.exportAll() - تصدير جميع البيانات
-  • performanceAnalytics.clearAll() - مسح جميع البيانات
-
-⌨️ اختصارات لوحة المفاتيح:
-  • Ctrl + Shift + P - إظهار/إخفاء Widget
-  • Ctrl + Shift + C - مسح جميع البيانات
-  • Ctrl + Shift + E - تصدير البيانات
-
-🔍 تحليل ذكي متطور:
-  • يكشف الطلبات المهدرة والمكررة
-  • يقترح حلول محددة لكل endpoint
-  • يحسب الوقت والبيانات المحفوظة
-  • ينذر فوراً للطلبات البطيئة الحرجة (>1000ms)
-  • يوفر اقتراحات تحسين مخصصة لكل طلب
-
-✨ Widget المراقبة يظهر في أعلى يمين الشاشة ويمكن سحبه وتحريكه!
-    `);
   }
 };
 
-export default initializePerformanceAnalytics; 
+export default initializePerformanceAnalytics;

@@ -16,4 +16,4 @@ const POSWrapper: React.FC = () => {
   );
 };
 
-export default POSWrapper; 
+export default POSWrapper;

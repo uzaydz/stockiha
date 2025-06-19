@@ -3,6 +3,7 @@ import type { Database, TablesInsert, TablesUpdate } from '@/types/database.type
 import { toast } from 'react-hot-toast';
 import { ProductFormValues } from '@/types/product';
 import { updateProductStockQuantity } from './productVariants';
+import { cacheManager } from '@/lib/cache/CentralCacheManager';
 
 export interface TimerConfig {
   enabled: boolean;
@@ -311,19 +312,43 @@ export const getProductsPaginated = async (
       }
     }
 
-    // إضافة الترتيب
+    // إضافة الترتيب مع diagnostic logging
+    console.log('🔍 [getProductsPaginated] تطبيق الترتيب:', {
+      sortOption,
+      organizationId,
+      searchQuery,
+      categoryFilter,
+      stockFilter,
+      timestamp: new Date().toISOString()
+    });
+
     if (sortOption === 'newest') {
+      console.log('📅 [getProductsPaginated] ترتيب حسب الأحدث (created_at DESC)');
       query = query.order('created_at', { ascending: false });
     } else if (sortOption === 'oldest') {
+      console.log('📅 [getProductsPaginated] ترتيب حسب الأقدم (created_at ASC)');
       query = query.order('created_at', { ascending: true });
     } else if (sortOption === 'price-high') {
+      console.log('💰 [getProductsPaginated] ترتيب حسب السعر الأعلى');
       query = query.order('price', { ascending: false });
     } else if (sortOption === 'price-low') {
+      console.log('💰 [getProductsPaginated] ترتيب حسب السعر الأقل');
       query = query.order('price', { ascending: true });
     } else if (sortOption === 'name-asc') {
+      console.log('🔤 [getProductsPaginated] ترتيب حسب الاسم تصاعدي');
       query = query.order('name', { ascending: true });
     } else if (sortOption === 'name-desc') {
+      console.log('🔤 [getProductsPaginated] ترتيب حسب الاسم تنازلي');
       query = query.order('name', { ascending: false });
+    } else {
+      console.log('🔤 [getProductsPaginated] ترتيب افتراضي حسب الاسم');
+      query = query.order('name', { ascending: true });
+    }
+
+    // إضافة fallback ordering لضمان ترتيب ثابت
+    if (sortOption === 'newest' || sortOption === 'oldest') {
+      // إضافة ترتيب ثانوي حسب ID لضمان التسلسل
+      query = query.order('id', { ascending: false });
     }
 
     // تطبيق الـ pagination
@@ -332,8 +357,26 @@ export const getProductsPaginated = async (
     const { data, error, count } = await query;
 
     if (error) {
+      console.error('❌ [getProductsPaginated] خطأ في قاعدة البيانات:', error);
       throw error;
     }
+
+    // 🔍 Diagnostic logging للمساعدة في تشخيص مشكلة فلتر "الأحدث"
+    console.log('📊 [getProductsPaginated] استجابة قاعدة البيانات:', {
+      sortOption,
+      organizationId,
+      dataLength: data?.length || 0,
+      totalCount: count,
+      sampleData: data?.slice(0, 2).map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        created_at: item.created_at,
+        price: item.price,
+        is_active: item.is_active
+      })) || [],
+      allCreatedAtValues: data?.map((item: any) => item.created_at) || [],
+      timestamp: new Date().toISOString()
+    });
 
     const totalCount = count || 0;
     const totalPages = Math.ceil(totalCount / limit);
@@ -918,6 +961,31 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
     purchase_page_config: createdProduct.purchase_page_config ? JSON.parse(JSON.stringify(createdProduct.purchase_page_config)) : null,
   };
 
+  console.log('🔄 [createProduct] تحديث الواجهة فوراً بعد إنشاء المنتج...');
+    
+  // 🎯 استخدام النظام الموحد للتحديث التلقائي - مثل updateProduct
+  try {
+    const { autoRefreshSystem } = await import('@/lib/auto-refresh-system');
+    autoRefreshSystem.notifyChange({
+      entity: 'products',
+      action: 'create',
+      data: { productId: finalProductData.id, createdData: finalProductData },
+      organizationId: finalProductData.organization_id
+    });
+
+    console.log('✅ [createProduct] تم إرسال إشعارات التحديث بعد الإنشاء');
+  } catch (error) {
+    console.error('❌ [createProduct] خطأ في إرسال إشعارات التحديث:', error);
+  }
+  
+  console.log('✅ [createProduct] تم إنشاء المنتج بنجاح كاملاً');
+
+  toast.success("تم إنشاء المنتج بنجاح!");
+
+  // 🎯 الحل: إلغاء صلاحية كاش المنتجات
+  cacheManager.invalidate('products*');
+  console.log('🧹 [Cache] تم إلغاء صلاحية كاش المنتجات بعد الإنشاء');
+
   return finalProductData;
 };
 
@@ -1254,12 +1322,45 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
     additional_images: updatedProductData.product_images?.map(img => img.image_url) || [],
     purchase_page_config: updatedProductData.purchase_page_config ? JSON.parse(JSON.stringify(updatedProductData.purchase_page_config)) : null,
   };
+
+  console.log('🔄 [updateProduct] تحديث الواجهة فوراً...');
+    
+  // 🎯 استخدام النظام الموحد للتحديث التلقائي - مثل deleteProduct
+  try {
+    const { autoRefreshSystem } = await import('@/lib/auto-refresh-system');
+    autoRefreshSystem.notifyChange({
+      entity: 'products',
+      action: 'update',
+      data: { productId: id, updatedData: resultProduct },
+      organizationId: resultProduct.organization_id
+    });
+
+    console.log('✅ [updateProduct] تم إرسال إشعارات التحديث');
+  } catch (error) {
+    console.error('❌ [updateProduct] خطأ في إرسال إشعارات التحديث:', error);
+  }
+  
+  console.log('✅ [updateProduct] تم تحديث المنتج بنجاح كاملاً');
+
   toast.success("تم تحديث المنتج بنجاح!");
+
+  // 🎯 الحل: إلغاء صلاحية كاش المنتجات
+  cacheManager.invalidate('products*');
+  console.log('🧹 [Cache] تم إلغاء صلاحية كاش المنتجات بعد التحديث');
+
   return resultProduct;
 };
 
 export const deleteProduct = async (id: string, forceDisable: boolean = false): Promise<void> => {
+  console.log('🎯 [deleteProduct] بدء حذف منتج:', {
+    productId: id,
+    forceDisable,
+    timestamp: new Date().toISOString()
+  });
+
   try {
+    console.log('🔍 [deleteProduct] البحث عن طلبات مرتبطة بالمنتج...');
+    
     const { data: orderItems, error: orderItemsError } = await supabase
       .from('order_items')
       .select('id')
@@ -1267,16 +1368,24 @@ export const deleteProduct = async (id: string, forceDisable: boolean = false): 
       .limit(1);
 
     if (orderItemsError) {
+      console.error('❌ [deleteProduct] خطأ في البحث عن الطلبات:', orderItemsError);
       throw orderItemsError;
     }
 
+    console.log('✅ [deleteProduct] نتائج البحث عن الطلبات:', {
+      orderItemsCount: orderItems?.length || 0,
+      hasOrderItems: orderItems && orderItems.length > 0
+    });
+
     if ((orderItems && orderItems.length > 0) && forceDisable) {
-      
+      console.log('🔄 [deleteProduct] المنتج مرتبط بطلبات - تعطيل بدلاً من الحذف...');
       await disableProduct(id);
+      console.log('✅ [deleteProduct] تم تعطيل المنتج بنجاح');
       return;
     }
     
     if (orderItems && orderItems.length > 0) {
+      console.warn('⚠️ [deleteProduct] لا يمكن حذف المنتج - مرتبط بطلبات');
       const error = {
         code: 'PRODUCT_IN_USE',
         message: 'لا يمكن حذف هذا المنتج لأنه مستخدم في طلبات. يمكنك تعطيل المنتج بدلاً من حذفه.',
@@ -1286,17 +1395,62 @@ export const deleteProduct = async (id: string, forceDisable: boolean = false): 
       throw error;
     }
 
+    console.log('🗑️ [deleteProduct] المنتج غير مرتبط بطلبات - المتابعة مع الحذف...');
+
     const { error } = await supabase
       .from('products')
       .delete()
       .eq('id', id);
 
     if (error) {
+      console.error('❌ [deleteProduct] خطأ في حذف المنتج من قاعدة البيانات:', error);
       throw error;
     }
+
+    console.log('✅ [deleteProduct] تم حذف المنتج من قاعدة البيانات بنجاح');
+    
+    // تحديث الواجهة فوراً
+    console.log('🔄 [deleteProduct] تحديث الواجهة فوراً...');
+    
+    // استخدام نظام التحديث المتطور
+    console.log('🚀 [deleteProduct] استخدام نظام التحديث المتطور');
+    
+    // الحصول على معرف المؤسسة من المنتج المحذوف
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData.user?.id;
+    
+    if (userId) {
+      const { data: userInfo } = await supabase
+        .from('users')
+        .select('organization_id')
+        .eq('id', userId)
+        .single();
+        
+      const organizationId = userInfo?.organization_id;
+      
+      if (organizationId) {
+        console.log('🔄 [deleteProduct] تحديث تلقائي للمنتجات...');
+        
+        // استخدام دالة التحديث التلقائي من data-refresh-helpers
+        const { refreshAfterProductOperation } = await import('../data-refresh-helpers');
+        await refreshAfterProductOperation('delete', { organizationId, immediate: true });
+        
+        console.log('✅ [deleteProduct] تم تحديث المنتجات تلقائياً');
+      }
+    }
+    
+    console.log('🎉 [deleteProduct] تم حذف المنتج بنجاح كاملاً');
+    
   } catch (error) {
+    console.error('❌ [deleteProduct] خطأ في حذف المنتج:', error);
     throw error;
   }
+
+  // 🎯 الحل: إلغاء صلاحية كاش المنتجات
+  cacheManager.invalidate('products*');
+  console.log('🧹 [Cache] تم إلغاء صلاحية كاش المنتجات بعد الحذف');
+
+  return true;
 };
 
 export const getCategories = async (): Promise<Category[]> => {

@@ -90,7 +90,6 @@ export const signIn = async (email: string, password: string): Promise<SignInRes
   
   while (attempts < maxAttempts) {
     try {
-      console.log(`🔐 [Auth] Attempting sign in (${attempts + 1}/${maxAttempts})...`);
       
       // التأكد من جاهزية Supabase Client
       const client = await getSupabaseClient();
@@ -106,7 +105,6 @@ export const signIn = async (email: string, password: string): Promise<SignInRes
       });
 
       if (error) {
-        console.error('❌ [Auth] Sign in error:', error);
         
         // معالجة أخطاء محددة
         if (error.message?.includes('Invalid login credentials')) {
@@ -139,12 +137,9 @@ export const signIn = async (email: string, password: string): Promise<SignInRes
       // 🔧 التحقق من صحة الجلسة
       const sessionValidation = await validateSession(client, data.session);
       if (!sessionValidation.valid) {
-        console.warn('⚠️ [Auth] Session validation failed, but continuing:', sessionValidation.error);
         // لا نوقف العملية، فقط تحذير
       }
 
-      console.log('✅ [Auth] Sign in successful');
-      
       return {
         success: true,
         session: data.session,
@@ -152,13 +147,11 @@ export const signIn = async (email: string, password: string): Promise<SignInRes
       };
 
     } catch (error) {
-      console.error(`❌ [Auth] Sign in attempt ${attempts + 1} failed:`, error);
       attempts++;
       
       if (attempts < maxAttempts) {
         // انتظار متزايد قبل إعادة المحاولة
         const delay = Math.min(1000 * Math.pow(2, attempts), 5000);
-        console.log(`🔄 [Auth] Retrying in ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
@@ -207,7 +200,6 @@ export const checkUserRequires2FA = async (
   subdomain?: string
 ): Promise<UserExistsResult & { error?: string }> => {
   try {
-    console.log('🔍 [Auth] Checking 2FA requirements for:', email);
     
     const client = await getSupabaseClient();
     
@@ -222,7 +214,6 @@ export const checkUserRequires2FA = async (
       });
 
       if (error) {
-        console.warn('⚠️ [Auth] RPC function failed with first parameter format:', error);
         
         // تجربة صيغة المعاملات الثانية
         try {
@@ -234,13 +225,11 @@ export const checkUserRequires2FA = async (
           });
 
           if (error2) {
-            console.warn('⚠️ [Auth] RPC function failed with second parameter format:', error2);
             throw error2;
           }
 
           if (data2 && typeof data2 === 'object') {
             const result = data2 as any;
-            console.log('✅ [Auth] 2FA check successful via RPC (second format)');
             return {
               exists: result.user_exists || false,
               user_id: result.user_id,
@@ -250,14 +239,12 @@ export const checkUserRequires2FA = async (
             };
           }
         } catch (secondError) {
-          console.warn('⚠️ [Auth] Both RPC formats failed:', secondError);
           throw error; // استخدام الخطأ الأول
         }
       }
 
       if (data && typeof data === 'object') {
         const result = data as any;
-        console.log('✅ [Auth] 2FA check successful via RPC (first format)');
         return {
           exists: result.user_exists || false,
           user_id: result.user_id,
@@ -267,7 +254,6 @@ export const checkUserRequires2FA = async (
         };
       }
     } catch (rpcError) {
-      console.warn('⚠️ [Auth] RPC failed completely, using smart fallback:', rpcError);
       
       // 🔧 Smart Fallback: محاولة البحث في public.users مباشرة
       try {
@@ -279,7 +265,6 @@ export const checkUserRequires2FA = async (
 
         if (!publicError && publicUsers && publicUsers.length > 0) {
           const publicUser = publicUsers[0];
-          console.log('✅ [Auth] User found via public.users fallback');
           
           return {
             exists: true,
@@ -289,14 +274,11 @@ export const checkUserRequires2FA = async (
             requires_2fa: publicUser.two_factor_enabled || false
           };
         } else {
-          console.warn('⚠️ [Auth] Public.users fallback also failed:', publicError);
         }
       } catch (fallbackError) {
-        console.warn('⚠️ [Auth] Public.users fallback error:', fallbackError);
       }
       
       // 🔧 Final Fallback: افتراض وجود المستخدم للمتابعة
-      console.log('⚠️ [Auth] Using final fallback - assuming user exists');
       return {
         exists: true,
         requires_2fa: false,
@@ -310,7 +292,6 @@ export const checkUserRequires2FA = async (
     };
 
   } catch (error) {
-    console.error('❌ [Auth] Check 2FA failed completely:', error);
     
     // في حالة الفشل الكامل، نفترض وجود المستخدم للمتابعة
     return {
@@ -326,13 +307,11 @@ export const checkUserRequires2FA = async (
  */
 export const signOut = async (): Promise<{ success: boolean; error?: string }> => {
   try {
-    console.log('🔓 [Auth] Signing out...');
     
     const client = await getSupabaseClient();
     const { error } = await client.auth.signOut();
     
     if (error) {
-      console.error('❌ [Auth] Sign out error:', error);
       return { success: false, error: error.message };
     }
 
@@ -340,11 +319,9 @@ export const signOut = async (): Promise<{ success: boolean; error?: string }> =
     localStorage.removeItem('bazaar_organization_id');
     sessionStorage.clear();
     
-    console.log('✅ [Auth] Sign out successful');
     return { success: true };
     
   } catch (error) {
-    console.error('❌ [Auth] Sign out failed:', error);
     return { success: false, error: 'فشل في تسجيل الخروج' };
   }
 };
@@ -371,7 +348,6 @@ export const getCurrentUserWithValidation = async (): Promise<{ user: any; sessi
     return { user: userData.user, session: sessionData.session };
     
   } catch (error) {
-    console.error('❌ [Auth] Get current user failed:', error);
     return { user: null, session: null, error: 'فشل في الحصول على بيانات المستخدم' };
   }
 };
@@ -394,7 +370,6 @@ export const updatePassword = async (newPassword: string): Promise<{ success: bo
     return { success: true };
     
   } catch (error) {
-    console.error('❌ [Auth] Update password failed:', error);
     return { success: false, error: 'فشل في تحديث كلمة المرور' };
   }
 };
@@ -417,7 +392,6 @@ export const resetPassword = async (email: string): Promise<{ success: boolean; 
     return { success: true };
     
   } catch (error) {
-    console.error('❌ [Auth] Reset password failed:', error);
     return { success: false, error: 'فشل في إرسال رابط إعادة التعيين' };
   }
 };

@@ -140,57 +140,84 @@ const DeleteProductDialog = ({ product, open, onOpenChange, onProductDeleted }: 
   }
 
   const handleDelete = async () => {
+    console.log('🎯 [DeleteProductDialog] بدء حذف منتج من الواجهة:', {
+      productId: product.id,
+      productName: product.name,
+      hasPermission,
+      timestamp: new Date().toISOString()
+    });
+
     // التحقق مرة أخرى من الصلاحيات قبل محاولة الحذف
     if (!hasPermission) {
-      
+      console.error('❌ [DeleteProductDialog] فشل التحقق من الصلاحيات');
       setShowPermissionAlert(true);
       return;
     }
-    
+
+    console.log('✅ [DeleteProductDialog] تم التحقق من الصلاحيات بنجاح');
+
     setIsDeleting(true);
     try {
+      console.log('📤 [DeleteProductDialog] استدعاء deleteProductEnhanced...');
+      
       // استخدام الدالة المحسنة للحصول على تشخيص أفضل
       const result = await deleteProductEnhanced(product.id);
       
+      console.log('📊 [DeleteProductDialog] نتيجة deleteProductEnhanced:', result);
+      
       if (result.success) {
+        console.log('✅ [DeleteProductDialog] تم حذف المنتج بنجاح');
         toast.success(`تم حذف المنتج "${product.name}" بنجاح`);
         onOpenChange(false);
+        
+        console.log('🔄 [DeleteProductDialog] استدعاء onProductDeleted...');
         await onProductDeleted();
+        console.log('✅ [DeleteProductDialog] تم استدعاء onProductDeleted بنجاح');
       } else {
         // معالجة الأخطاء بناءً على الكود
+        console.error('❌ [DeleteProductDialog] فشل حذف المنتج:', result.error);
         
         switch (result.error?.code) {
           case 'PRODUCT_IN_USE':
+            console.log('⚠️ [DeleteProductDialog] المنتج مستخدم في طلبات - عرض خيار التعطيل');
             setShowDisableOption(true);
             toast.error(result.error.message);
             break;
             
           case 'PERMISSION_DENIED':
+            console.log('⚠️ [DeleteProductDialog] رفض الصلاحيات');
             setShowPermissionAlert(true);
             toast.error(result.error.message);
             // عرض تفاصيل إضافية في وحدة التحكم للتشخيص
             if (result.error.details) {
+              console.error('تفاصيل خطأ الصلاحيات:', result.error.details);
             }
             break;
             
           case 'FOREIGN_KEY_VIOLATION':
+            console.log('⚠️ [DeleteProductDialog] خطأ مفتاح خارجي - عرض خيار التعطيل');
             setShowDisableOption(true);
             toast.error('لا يمكن حذف المنتج لأنه مرتبط ببيانات أخرى. يمكنك تعطيله بدلاً من حذفه.');
             break;
             
           case 'AUTH_REQUIRED':
+            console.log('⚠️ [DeleteProductDialog] خطأ المصادقة');
             toast.error('يجب تسجيل الدخول لحذف المنتج');
             break;
             
           default:
+            console.error('❌ [DeleteProductDialog] خطأ غير معروف:', result.error);
             toast.error(result.error?.message || 'حدث خطأ أثناء حذف المنتج');
             // طباعة تفاصيل الخطأ للتشخيص
+            console.error('تفاصيل الخطأ:', result.error);
         }
       }
     } catch (error: any) {
+      console.error('❌ [DeleteProductDialog] خطأ غير متوقع:', error);
       toast.error('حدث خطأ غير متوقع أثناء حذف المنتج');
     } finally {
       setIsDeleting(false);
+      console.log('🏁 [DeleteProductDialog] انتهت عملية حذف المنتج');
     }
   };
 

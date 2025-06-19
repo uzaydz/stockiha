@@ -44,35 +44,14 @@ const isCacheValid = (cache: AuthCacheData | null): boolean => {
  * الحصول على بيانات المصادقة مع cache ذكي
  */
 export const getCachedAuth = async (): Promise<{ user: User | null; session: Session | null }> => {
-  // التحقق من الـ cache أولاً
-  if (isCacheValid(authCache)) {
-    return {
-      user: authCache!.user,
-      session: authCache!.session
-    };
-  }
-
-  // إذا كان هناك طلب جاري، انتظره
-  if (pendingAuthRequest) {
-    const result = await pendingAuthRequest;
-    return {
-      user: result.user,
-      session: result.session
-    };
-  }
-
-  // إنشاء طلب جديد
-  pendingAuthRequest = fetchAuthData();
-
-  try {
-    const result = await pendingAuthRequest;
-    return {
-      user: result.user,
-      session: result.session
-    };
-  } finally {
-    pendingAuthRequest = null;
-  }
+  console.log('🚫 [AuthCache] DISABLED - Always fetching fresh auth data');
+  
+  // Always fetch fresh auth data - no caching
+  const result = await fetchAuthData();
+  return {
+    user: result.user,
+    session: result.session
+  };
 };
 
 /**

@@ -1,0 +1,1077 @@
+import React, { createContext, useContext, useCallback, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTenant } from './TenantContext';
+import { useAuth } from './AuthContext';
+import { deduplicateRequest } from '../lib/cache/deduplication';
+import { supabase } from '@/lib/supabase';
+
+// =================================================================
+// 🎯 POSOrdersDataContext - الحل الشامل للطلبات المكررة
+// =================================================================
+
+// واجهات البيانات المحسنة بناءً على تحليل قاعدة البيانات
+interface POSOrderWithDetails {
+  id: string;
+  organization_id: string;
+  customer_id?: string;
+  employee_id?: string;
+  slug?: string;
+  customer_order_number?: number;
+  status: string;
+  payment_status: string;
+  payment_method: string;
+  total: number;
+  subtotal: number;
+  tax: number;
+  discount?: number;
+  amount_paid?: number;
+  remaining_amount?: number;
+  is_online: boolean;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+  
+  // Relations
+  customer?: {
+    id: string;
+    name: string;
+    email?: string;
+    phone?: string;
+  };
+  employee?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  order_items: {
+    id: string;
+    product_id: string;
+    product_name?: string;
+    name: string;
+    quantity: number;
+    unit_price: number;
+    total_price: number;
+    is_wholesale: boolean;
+    variant_info?: any;
+    color_id?: string;
+    size_id?: string;
+    color_name?: string;
+    size_name?: string;
+  }[];
+  
+  // حقول محسوبة للمرتجعات
+  items_count: number;
+  effective_status?: string;
+  effective_total?: number;
+  original_total?: number;
+  has_returns?: boolean;
+  is_fully_returned?: boolean;
+  total_returned_amount?: number;
+}
+
+interface POSOrderStats {
+  total_orders: number;
+  total_revenue: number;
+  completed_orders: number;
+  pending_orders: number;
+  pending_payment_orders: number;
+  cancelled_orders: number;
+  cash_orders: number;
+  card_orders: number;
+  avg_order_value: number;
+  today_orders: number;
+  today_revenue: number;
+  // إحصائيات المرتجعات
+  fully_returned_orders?: number;
+  partially_returned_orders?: number;
+  total_returned_amount?: number;
+  effective_revenue?: number;
+  return_rate?: number;
+}
+
+interface POSOrderFilters {
+  status?: string;
+  payment_method?: string;
+  payment_status?: string;
+  employee_id?: string;
+  customer_id?: string;
+  date_from?: string;
+  date_to?: string;
+  search?: string;
+}
+
+interface Employee {
+  id: string;
+  name: string;
+  email: string;
+}
+
+interface POSOrdersData {
+  // البيانات الأساسية
+  stats: POSOrderStats | null;
+  orders: POSOrderWithDetails[];
+  employees: Employee[];
+  
+  // بيانات pagination
+  totalOrders: number;
+  currentPage: number;
+  totalPages: number;
+  hasMore: boolean;
+  
+  // بيانات إضافية
+  organizationSettings: any;
+  organizationSubscriptions: any[];
+  posSettings: any;
+  
+  // حالات التحميل
+  isLoading: boolean;
+  isStatsLoading: boolean;
+  isOrdersLoading: boolean;
+  isEmployeesLoading: boolean;
+  
+  // الأخطاء
+  errors: {
+    stats?: string;
+    orders?: string;
+    employees?: string;
+  };
+  
+  // دوال التحديث
+  refreshAll: () => Promise<void>;
+  refreshStats: () => Promise<void>;
+  refreshOrders: (page?: number, filters?: POSOrderFilters) => Promise<void>;
+  
+  // دوال الفلترة والصفحات
+  setFilters: (filters: POSOrderFilters) => void;
+  setPage: (page: number) => void;
+  
+  // دوال العمليات
+  updateOrderStatus: (orderId: string, status: string, notes?: string) => Promise<boolean>;
+  updatePaymentStatus: (orderId: string, paymentStatus: string, amountPaid?: number) => Promise<boolean>;
+  deleteOrder: (orderId: string) => Promise<boolean>;
+  
+  // دوال lazy loading
+  fetchOrderDetails: (orderId: string) => Promise<any[]>;
+}
+
+const POSOrdersDataContext = createContext<POSOrdersData | undefined>(undefined);
+
+// =================================================================
+// 🔧 دوال جلب البيانات المحسنة مع منع التكرار
+// =================================================================
+
+const fetchPOSOrderStats = async (orgId: string): Promise<POSOrderStats> => {
+  return deduplicateRequest(`pos-order-stats-${orgId}`, async () => {
+    console.log('🔄 Fetching POS order stats for org:', orgId);
+    
+    try {
+      // جلب الإحصائيات الأساسية باستخدام RPC function
+      const { data: statsData, error: statsError } = await supabase.rpc('get_pos_order_stats', {
+        p_organization_id: orgId
+      });
+
+      if (statsError) {
+        console.error('❌ Error fetching POS order stats:', statsError);
+        throw statsError;
+      }
+
+      // البيانات تأتي كمصفوفة، نأخذ العنصر الأول
+      const stats = Array.isArray(statsData) ? statsData[0] : statsData;
+
+      // جلب إحصائيات المرتجعات إذا لزم الأمر
+      const { data: returnsData } = await supabase
+        .from('orders')
+        .select('id, total')
+        .eq('organization_id', orgId)
+        .eq('is_online', false);
+
+      const orderIds = (returnsData || []).map(order => order.id);
+      let totalReturnedAmount = 0;
+      let fullyReturnedCount = 0;
+      let partiallyReturnedCount = 0;
+
+      if (orderIds.length > 0) {
+        const { data: returns } = await supabase
+          .from('returns')
+          .select('original_order_id, status, refund_amount')
+          .in('original_order_id', orderIds)
+          .eq('status', 'approved');
+
+        if (returns && returns.length > 0) {
+          const orderReturnsMap = new Map<string, number>();
+          returns.forEach(returnItem => {
+            const orderId = returnItem.original_order_id;
+            const currentTotal = orderReturnsMap.get(orderId) || 0;
+            orderReturnsMap.set(orderId, currentTotal + parseFloat(returnItem.refund_amount || '0'));
+          });
+
+          for (const [orderId, returnedAmount] of orderReturnsMap) {
+            const order = returnsData?.find(o => o.id === orderId);
+            if (order) {
+              const originalTotal = parseFloat(order.total);
+              totalReturnedAmount += returnedAmount;
+              
+              if (returnedAmount >= originalTotal) {
+                fullyReturnedCount++;
+              } else if (returnedAmount > 0) {
+                partiallyReturnedCount++;
+              }
+            }
+          }
+        }
+      }
+
+      const totalRevenue = parseFloat(String(stats?.total_revenue || '0'));
+      const effectiveRevenue = totalRevenue - totalReturnedAmount;
+      const returnRate = totalRevenue > 0 ? (totalReturnedAmount / totalRevenue) * 100 : 0;
+
+      const finalStats: POSOrderStats = {
+        total_orders: stats?.total_orders || 0,
+        total_revenue: totalRevenue,
+        completed_orders: stats?.completed_orders || 0,
+        pending_orders: stats?.pending_orders || 0,
+        pending_payment_orders: stats?.pending_payment_orders || 0,
+        cancelled_orders: stats?.cancelled_orders || 0,
+        cash_orders: stats?.cash_orders || 0,
+        card_orders: stats?.card_orders || 0,
+        avg_order_value: parseFloat(String(stats?.avg_order_value || '0')),
+        today_orders: stats?.today_orders || 0,
+        today_revenue: parseFloat(String(stats?.today_revenue || '0')),
+        fully_returned_orders: fullyReturnedCount,
+        partially_returned_orders: partiallyReturnedCount,
+        total_returned_amount: totalReturnedAmount,
+        effective_revenue: effectiveRevenue,
+        return_rate: returnRate
+      };
+
+      console.log('✅ POS order stats fetched successfully:', finalStats);
+      return finalStats;
+    } catch (error) {
+      console.error('❌ Error in fetchPOSOrderStats:', error);
+      // إرجاع قيم افتراضية في حالة الخطأ
+      return {
+        total_orders: 0,
+        total_revenue: 0,
+        completed_orders: 0,
+        pending_orders: 0,
+        pending_payment_orders: 0,
+        cancelled_orders: 0,
+        cash_orders: 0,
+        card_orders: 0,
+        avg_order_value: 0,
+        today_orders: 0,
+        today_revenue: 0,
+        fully_returned_orders: 0,
+        partially_returned_orders: 0,
+        total_returned_amount: 0,
+        effective_revenue: 0,
+        return_rate: 0
+      };
+    }
+  });
+};
+
+// الدالة الأصلية للحفاظ على التوافق مع الكود الموجود
+const fetchPOSOrders = async (
+  orgId: string,
+  page: number = 1,
+  limit: number = 20,
+  filters: POSOrderFilters = {}
+): Promise<{
+  orders: POSOrderWithDetails[];
+  total: number;
+  hasMore: boolean;
+}> => {
+  return deduplicateRequest(`pos-orders-${orgId}-${page}-${JSON.stringify(filters)}`, async () => {
+    console.log('🔄 Fetching POS orders for org:', orgId, 'page:', page);
+    
+    try {
+      // الحصول على العدد الإجمالي أولاً
+      const { count: totalCount } = await supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('organization_id', orgId)
+        .eq('is_online', false);
+
+      let query = supabase
+        .from('orders')
+        .select(`
+          *,
+          customer:customers!orders_customer_id_fkey(*),
+          employee:users!orders_employee_id_fkey(*),
+          order_items(
+            id,
+            product_id,
+            product_name,
+            name,
+            quantity,
+            unit_price,
+            total_price,
+            is_wholesale,
+            variant_info,
+            color_id,
+            color_name,
+            size_id,
+            size_name
+          )
+        `)
+        .eq('organization_id', orgId)
+        .eq('is_online', false)
+        .order('created_at', { ascending: false });
+
+      // تطبيق الفلاتر
+      if (filters.status) {
+        query = query.eq('status', filters.status);
+      }
+      if (filters.payment_method) {
+        query = query.eq('payment_method', filters.payment_method);
+      }
+      if (filters.payment_status) {
+        query = query.eq('payment_status', filters.payment_status);
+      }
+      if (filters.employee_id) {
+        query = query.eq('employee_id', filters.employee_id);
+      }
+      if (filters.customer_id) {
+        query = query.eq('customer_id', filters.customer_id);
+      }
+      if (filters.date_from) {
+        query = query.gte('created_at', filters.date_from);
+      }
+      if (filters.date_to) {
+        query = query.lte('created_at', filters.date_to);
+      }
+
+      // تطبيق pagination
+      const offset = (page - 1) * limit;
+      query = query.range(offset, offset + limit - 1);
+
+      const { data: orders, error: ordersError } = await query;
+
+      if (ordersError) {
+        console.error('❌ Error fetching POS orders:', ordersError);
+        throw ordersError;
+      }
+
+      // جلب بيانات المرتجعات للطلبيات المُحمّلة
+      const orderIds = (orders || []).map(order => order.id);
+      let returnsData: any[] = [];
+
+      if (orderIds.length > 0) {
+        const { data: returns } = await supabase
+          .from('returns')
+          .select('original_order_id, status, refund_amount, return_items!inner(return_quantity)')
+          .in('original_order_id', orderIds)
+          .eq('status', 'approved');
+
+        returnsData = returns || [];
+      }
+
+      // معالجة البيانات وحساب الإحصائيات
+      const processedOrders = (orders || []).map(order => {
+        const orderReturns = returnsData.filter(ret => ret.original_order_id === order.id);
+        const totalReturnedAmount = orderReturns.reduce((sum, ret) => sum + parseFloat(ret.refund_amount || '0'), 0);
+        const originalTotal = parseFloat(order.total);
+        const effectiveTotal = originalTotal - totalReturnedAmount;
+        
+        // حساب عدد العناصر
+        const itemsCount = (order.order_items || []).reduce((sum: number, item: any) => {
+          return sum + (parseInt(item.quantity?.toString() || '0') || 0);
+        }, 0);
+
+        return {
+          ...order,
+          items_count: itemsCount,
+          effective_status: totalReturnedAmount >= originalTotal ? 'fully_returned' : 
+                           totalReturnedAmount > 0 ? 'partially_returned' : order.status,
+          effective_total: effectiveTotal,
+          original_total: originalTotal,
+          has_returns: totalReturnedAmount > 0,
+          is_fully_returned: totalReturnedAmount >= originalTotal,
+          total_returned_amount: totalReturnedAmount
+        };
+      }) as POSOrderWithDetails[];
+
+      const result = {
+        orders: processedOrders,
+        total: totalCount || 0,
+        hasMore: (totalCount || 0) > page * limit
+      };
+
+      console.log('✅ POS orders fetched successfully:', {
+        ordersCount: result.orders.length,
+        total: result.total,
+        hasMore: result.hasMore
+      });
+
+      return result;
+    } catch (error) {
+      console.error('❌ Error in fetchPOSOrders:', error);
+      return {
+        orders: [],
+        total: 0,
+        hasMore: false
+      };
+    }
+  });
+};
+
+const fetchEmployees = async (orgId: string): Promise<Employee[]> => {
+  return deduplicateRequest(`pos-employees-${orgId}`, async () => {
+    console.log('🔄 Fetching employees for org:', orgId);
+    
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, name, email')
+        .eq('organization_id', orgId)
+        .eq('is_active', true)
+        .order('name');
+
+      if (error) {
+        console.error('❌ Error fetching employees:', error);
+        throw error;
+      }
+
+      console.log('✅ Employees fetched successfully:', (data || []).length);
+      return data || [];
+    } catch (error) {
+      console.error('❌ Error in fetchEmployees:', error);
+      return [];
+    }
+  });
+};
+
+const fetchOrganizationSettings = async (orgId: string): Promise<any> => {
+  return deduplicateRequest(`org-settings-${orgId}`, async () => {
+    console.log('🔄 Fetching organization settings for org:', orgId);
+    
+    try {
+      const { data, error } = await supabase
+        .from('organization_settings')
+        .select('*')
+        .eq('organization_id', orgId)
+        .maybeSingle();
+
+      if (error) {
+        console.error('❌ Error fetching organization settings:', error);
+        throw error;
+      }
+
+      console.log('✅ Organization settings fetched successfully');
+      return data;
+    } catch (error) {
+      console.error('❌ Error in fetchOrganizationSettings:', error);
+      return null;
+    }
+  });
+};
+
+const fetchOrganizationSubscriptions = async (orgId: string): Promise<any[]> => {
+  return deduplicateRequest(`org-subscriptions-${orgId}`, async () => {
+    console.log('🔄 Fetching organization subscriptions for org:', orgId);
+    
+    try {
+      const { data, error } = await supabase
+        .from('organization_subscriptions')
+        .select('*, plan:plan_id(id, name, code)')
+        .eq('organization_id', orgId)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ Error fetching organization subscriptions:', error);
+        throw error;
+      }
+
+      console.log('✅ Organization subscriptions fetched successfully:', (data || []).length);
+      return data || [];
+    } catch (error) {
+      console.error('❌ Error in fetchOrganizationSubscriptions:', error);
+      return [];
+    }
+  });
+};
+
+const fetchPOSSettings = async (orgId: string): Promise<any> => {
+  return deduplicateRequest(`pos-settings-${orgId}`, async () => {
+    console.log('🔄 Fetching POS settings for org:', orgId);
+    
+    try {
+      // محاولة RPC function أولاً
+      const { data: rpcData, error: rpcError } = await supabase
+        .rpc('get_pos_settings', { p_org_id: orgId });
+
+      if (!rpcError && rpcData && Array.isArray(rpcData) && rpcData.length > 0) {
+        console.log('✅ POS settings fetched via RPC successfully');
+        return rpcData[0];
+      }
+
+      // fallback للاستعلام المباشر
+      const { data: directData, error: directError } = await supabase
+        .from('pos_settings')
+        .select('*')
+        .eq('organization_id', orgId)
+        .maybeSingle();
+
+      if (directError) {
+        console.error('❌ Error fetching POS settings:', directError);
+        throw directError;
+      }
+
+      console.log('✅ POS settings fetched via direct query successfully');
+      return directData;
+    } catch (error) {
+      console.error('❌ Error in fetchPOSSettings:', error);
+      return null;
+    }
+  });
+};
+
+// دالة محسنة لجلب الطلبيات مع حقول أساسية فقط
+const fetchPOSOrdersOptimized = async (
+  orgId: string,
+  page: number = 1,
+  limit: number = 10,
+  filters: POSOrderFilters = {}
+): Promise<{
+  orders: POSOrderWithDetails[];
+  total: number;
+  hasMore: boolean;
+}> => {
+  return deduplicateRequest(`pos-orders-optimized-${orgId}-${page}-${limit}-${JSON.stringify(filters)}`, async () => {
+    console.log('🔄 Fetching optimized POS orders:', {
+      orgId,
+      page,
+      limit,
+      filters
+    });
+
+    try {
+      // استخدام RPC function محسنة للحصول على عدد أسرع
+      const { data: countData, error: countError } = await supabase
+        .rpc('get_pos_orders_count_with_returns', {
+          p_organization_id: orgId
+        });
+
+      if (countError) {
+        console.error('❌ Error getting orders count:', countError);
+      }
+
+      const totalCount = countData || 0;
+
+      // جلب الطلبيات مع حقول أساسية فقط (بدون order_items)
+      let query = supabase
+        .from('orders')
+        .select(`
+          id,
+          slug,
+          customer_order_number,
+          status,
+          payment_status,
+          payment_method,
+          total,
+          created_at,
+          updated_at,
+          customer_id,
+          employee_id,
+          customer:customers!orders_customer_id_fkey(
+            id,
+            name,
+            phone
+          ),
+          employee:users!orders_employee_id_fkey(
+            id,
+            name
+          )
+        `)
+        .eq('organization_id', orgId)
+        .eq('is_online', false)
+        .order('created_at', { ascending: false });
+
+      // تطبيق الفلاتر
+      if (filters.status) {
+        query = query.eq('status', filters.status);
+      }
+      if (filters.payment_method) {
+        query = query.eq('payment_method', filters.payment_method);
+      }
+      if (filters.payment_status) {
+        query = query.eq('payment_status', filters.payment_status);
+      }
+      if (filters.employee_id) {
+        query = query.eq('employee_id', filters.employee_id);
+      }
+      if (filters.customer_id) {
+        query = query.eq('customer_id', filters.customer_id);
+      }
+      if (filters.date_from) {
+        query = query.gte('created_at', filters.date_from);
+      }
+      if (filters.date_to) {
+        query = query.lte('created_at', filters.date_to);
+      }
+
+      // تطبيق pagination
+      const offset = (page - 1) * limit;
+      query = query.range(offset, offset + limit - 1);
+
+      const { data: orders, error: ordersError } = await query;
+
+      if (ordersError) {
+        console.error('❌ Error fetching optimized POS orders:', ordersError);
+        throw ordersError;
+      }
+
+      // جلب عدد العناصر لكل طلبية بشكل منفصل ومحسن
+      const orderIds = (orders || []).map(order => order.id);
+      let itemsCounts: { [key: string]: number } = {};
+
+      if (orderIds.length > 0) {
+        const { data: itemsData } = await supabase
+          .from('order_items')
+          .select('order_id, quantity')
+          .in('order_id', orderIds);
+
+        // حساب عدد العناصر لكل طلبية
+        (itemsData || []).forEach(item => {
+          if (!itemsCounts[item.order_id]) {
+            itemsCounts[item.order_id] = 0;
+          }
+          itemsCounts[item.order_id] += item.quantity || 0;
+        });
+      }
+
+      // جلب بيانات المرتجعات للطلبيات المُحمّلة (مبسطة)
+      let returnsData: any[] = [];
+      if (orderIds.length > 0) {
+        const { data: returns } = await supabase
+          .from('returns')
+          .select('original_order_id, refund_amount')
+          .in('original_order_id', orderIds)
+          .eq('status', 'approved');
+
+        returnsData = returns || [];
+      }
+
+      // معالجة البيانات المحسنة
+      const processedOrders = (orders || []).map(order => {
+        const orderReturns = returnsData.filter(ret => ret.original_order_id === order.id);
+        const totalReturnedAmount = orderReturns.reduce((sum, ret) => sum + parseFloat(ret.refund_amount || '0'), 0);
+        const originalTotal = parseFloat(order.total);
+        const effectiveTotal = originalTotal - totalReturnedAmount;
+        
+        // عدد العناصر من الحساب المنفصل
+        const itemsCount = itemsCounts[order.id] || 0;
+
+        return {
+          ...order,
+          order_items: [], // سيتم جلبها عند الحاجة فقط
+          items_count: itemsCount,
+          effective_status: totalReturnedAmount >= originalTotal ? 'fully_returned' : 
+                           totalReturnedAmount > 0 ? 'partially_returned' : order.status,
+          effective_total: effectiveTotal,
+          original_total: originalTotal,
+          has_returns: totalReturnedAmount > 0,
+          is_fully_returned: totalReturnedAmount >= originalTotal,
+          total_returned_amount: totalReturnedAmount
+        };
+      }) as POSOrderWithDetails[];
+
+      const result = {
+        orders: processedOrders,
+        total: totalCount || 0,
+        hasMore: (totalCount || 0) > page * limit
+      };
+
+      console.log('✅ Optimized POS orders fetched successfully:', {
+        ordersCount: result.orders.length,
+        total: result.total,
+        hasMore: result.hasMore,
+        performanceGain: 'حقول أساسية فقط، lazy loading للعناصر'
+      });
+
+      return result;
+    } catch (error) {
+      console.error('❌ Error in fetchPOSOrdersOptimized:', error);
+      return {
+        orders: [],
+        total: 0,
+        hasMore: false
+      };
+    }
+  });
+};
+
+// دالة lazy loading لجلب تفاصيل الطلبية عند الحاجة
+const fetchOrderDetails = async (orderId: string): Promise<any[]> => {
+  return deduplicateRequest(`order-details-${orderId}`, async () => {
+    console.log('🔄 Fetching order details for:', orderId);
+    
+    try {
+      const { data: orderItems, error } = await supabase
+        .from('order_items')
+        .select(`
+          id,
+          product_id,
+          product_name,
+          name,
+          quantity,
+          unit_price,
+          total_price,
+          is_wholesale,
+          variant_info,
+          color_id,
+          color_name,
+          size_id,
+          size_name
+        `)
+        .eq('order_id', orderId)
+        .order('created_at');
+
+      if (error) {
+        console.error('❌ Error fetching order details:', error);
+        return [];
+      }
+
+      console.log('✅ Order details fetched successfully:', {
+        orderId,
+        itemsCount: orderItems?.length || 0
+      });
+
+      return orderItems || [];
+    } catch (error) {
+      console.error('❌ Error in fetchOrderDetails:', error);
+      return [];
+    }
+  });
+};
+
+// =================================================================
+// 🎯 POSOrdersDataProvider Component
+// =================================================================
+
+interface POSOrdersDataProviderProps {
+  children: React.ReactNode;
+}
+
+export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ children }) => {
+  const { currentOrganization } = useTenant();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const orgId = currentOrganization?.id;
+
+  // حالة للفلاتر والصفحة
+  const [filters, setFilters] = React.useState<POSOrderFilters>({});
+  const [currentPage, setCurrentPage] = React.useState(1);
+
+  console.log('🎯 POSOrdersDataProvider rendering with orgId:', orgId);
+
+  // React Query للإحصائيات
+  const {
+    data: stats,
+    isLoading: isStatsLoading,
+    error: statsError,
+    refetch: refetchStats
+  } = useQuery({
+    queryKey: ['pos-orders-stats', orgId],
+    queryFn: () => fetchPOSOrderStats(orgId!),
+    enabled: !!orgId,
+    staleTime: 2 * 60 * 1000, // دقيقتان للإحصائيات (بيانات ديناميكية)
+    gcTime: 10 * 60 * 1000, // 10 دقائق
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
+  });
+
+  // React Query للطلبيات
+  const {
+    data: ordersData,
+    isLoading: isOrdersLoading,
+    error: ordersError,
+    refetch: refetchOrders
+  } = useQuery({
+    queryKey: ['pos-orders', orgId, currentPage, filters],
+    queryFn: () => fetchPOSOrdersOptimized(orgId!, currentPage, 10, filters),
+    enabled: !!orgId,
+    staleTime: 1 * 60 * 1000, // دقيقة واحدة للطلبيات (بيانات ديناميكية)
+    gcTime: 5 * 60 * 1000, // 5 دقائق
+    keepPreviousData: true,
+    retry: 2,
+    retryDelay: 1500,
+  });
+
+  // React Query للموظفين
+  const {
+    data: employees = [],
+    isLoading: isEmployeesLoading,
+    error: employeesError
+  } = useQuery({
+    queryKey: ['pos-employees', orgId],
+    queryFn: () => fetchEmployees(orgId!),
+    enabled: !!orgId,
+    staleTime: 10 * 60 * 1000, // 10 دقائق (بيانات ثابتة نسبياً)
+    gcTime: 30 * 60 * 1000, // 30 دقيقة
+    retry: 2,
+    retryDelay: 1000,
+  });
+
+  // React Query لإعدادات المؤسسة
+  const {
+    data: organizationSettings
+  } = useQuery({
+    queryKey: ['organization-settings', orgId],
+    queryFn: () => fetchOrganizationSettings(orgId!),
+    enabled: !!orgId,
+    staleTime: 30 * 60 * 1000, // 30 دقيقة
+    gcTime: 2 * 60 * 60 * 1000, // ساعتان
+    retry: 2,
+    retryDelay: 1000,
+  });
+
+  // React Query لاشتراكات المؤسسة
+  const {
+    data: organizationSubscriptions = []
+  } = useQuery({
+    queryKey: ['organization-subscriptions', orgId],
+    queryFn: () => fetchOrganizationSubscriptions(orgId!),
+    enabled: !!orgId,
+    staleTime: 15 * 60 * 1000, // 15 دقيقة
+    gcTime: 60 * 60 * 1000, // ساعة
+    retry: 2,
+    retryDelay: 1000,
+  });
+
+  // React Query لإعدادات نقطة البيع
+  const {
+    data: posSettings
+  } = useQuery({
+    queryKey: ['pos-settings', orgId],
+    queryFn: () => fetchPOSSettings(orgId!),
+    enabled: !!orgId,
+    staleTime: 20 * 60 * 1000, // 20 دقيقة
+    gcTime: 2 * 60 * 60 * 1000, // ساعتان
+    retry: 2,
+    retryDelay: 1000,
+  });
+
+  // دوال التحديث
+  const refreshAll = useCallback(async () => {
+    console.log('🔄 Refreshing all POS orders data...');
+    await queryClient.invalidateQueries({ queryKey: ['pos-orders'] });
+  }, [queryClient]);
+
+  const refreshStats = useCallback(async () => {
+    console.log('🔄 Refreshing POS orders stats...');
+    await refetchStats();
+  }, [refetchStats]);
+
+  const refreshOrders = useCallback(async (page?: number, newFilters?: POSOrderFilters) => {
+    console.log('🔄 Refreshing POS orders...');
+    if (page) setCurrentPage(page);
+    if (newFilters) setFilters(newFilters);
+    await refetchOrders();
+  }, [refetchOrders]);
+
+  // دوال العمليات
+  const updateOrderStatus = useCallback(async (
+    orderId: string, 
+    status: string, 
+    notes?: string
+  ): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ 
+          status, 
+          notes: notes || undefined,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', orderId);
+
+      if (error) {
+        console.error('❌ Error updating order status:', error);
+        return false;
+      }
+
+      // إعادة تحميل البيانات
+      await Promise.all([refetchStats(), refetchOrders()]);
+      
+      console.log('✅ Order status updated successfully');
+      return true;
+    } catch (error) {
+      console.error('❌ Error in updateOrderStatus:', error);
+      return false;
+    }
+  }, [refetchStats, refetchOrders]);
+
+  const updatePaymentStatus = useCallback(async (
+    orderId: string, 
+    paymentStatus: string, 
+    amountPaid?: number
+  ): Promise<boolean> => {
+    try {
+      const updateData: any = { 
+        payment_status: paymentStatus,
+        updated_at: new Date().toISOString()
+      };
+
+      if (amountPaid !== undefined) {
+        updateData.amount_paid = amountPaid;
+      }
+
+      const { error } = await supabase
+        .from('orders')
+        .update(updateData)
+        .eq('id', orderId);
+
+      if (error) {
+        console.error('❌ Error updating payment status:', error);
+        return false;
+      }
+
+      // إعادة تحميل البيانات
+      await Promise.all([refetchStats(), refetchOrders()]);
+      
+      console.log('✅ Payment status updated successfully');
+      return true;
+    } catch (error) {
+      console.error('❌ Error in updatePaymentStatus:', error);
+      return false;
+    }
+  }, [refetchStats, refetchOrders]);
+
+  const deleteOrder = useCallback(async (orderId: string): Promise<boolean> => {
+    try {
+      // حذف عناصر الطلبية أولاً
+      const { error: itemsError } = await supabase
+        .from('order_items')
+        .delete()
+        .eq('order_id', orderId);
+
+      if (itemsError) {
+        console.error('❌ Error deleting order items:', itemsError);
+        return false;
+      }
+
+      // حذف الطلبية
+      const { error: orderError } = await supabase
+        .from('orders')
+        .delete()
+        .eq('id', orderId);
+
+      if (orderError) {
+        console.error('❌ Error deleting order:', orderError);
+        return false;
+      }
+
+      // إعادة تحميل البيانات
+      await Promise.all([refetchStats(), refetchOrders()]);
+      
+      console.log('✅ Order deleted successfully');
+      return true;
+    } catch (error) {
+      console.error('❌ Error in deleteOrder:', error);
+      return false;
+    }
+  }, [refetchStats, refetchOrders]);
+
+  // دوال الفلترة والصفحات
+  const handleSetFilters = useCallback((newFilters: POSOrderFilters) => {
+    setFilters(newFilters);
+    setCurrentPage(1); // إعادة تعيين الصفحة للأولى عند تغيير الفلاتر
+  }, []);
+
+  const handleSetPage = useCallback((page: number) => {
+    setCurrentPage(page);
+  }, []);
+
+  // حساب حالة التحميل الإجمالية
+  const isLoading = isStatsLoading || isOrdersLoading || isEmployeesLoading;
+
+  // جمع الأخطاء
+  const errors = useMemo(() => ({
+    stats: statsError?.message,
+    orders: ordersError?.message,
+    employees: employeesError?.message,
+  }), [statsError, ordersError, employeesError]);
+
+  // قيمة Context
+  const contextValue = useMemo<POSOrdersData>(() => ({
+    // البيانات
+    stats: stats || null,
+    orders: ordersData?.orders || [],
+    employees,
+    
+    // pagination
+    totalOrders: ordersData?.total || 0,
+    currentPage,
+    totalPages: Math.ceil((ordersData?.total || 0) / 10),
+    hasMore: ordersData?.hasMore || false,
+    
+    // بيانات إضافية
+    organizationSettings,
+    organizationSubscriptions,
+    posSettings,
+    
+    // حالات التحميل
+    isLoading,
+    isStatsLoading,
+    isOrdersLoading,
+    isEmployeesLoading,
+    
+    // الأخطاء
+    errors,
+    
+    // دوال التحديث
+    refreshAll,
+    refreshStats,
+    refreshOrders,
+    
+    // دوال الفلترة والصفحات
+    setFilters: handleSetFilters,
+    setPage: handleSetPage,
+    
+    // دوال العمليات
+    updateOrderStatus,
+    updatePaymentStatus,
+    deleteOrder,
+    
+    // دوال lazy loading
+    fetchOrderDetails,
+  }), [
+    stats, ordersData, employees, currentPage, organizationSettings, 
+    organizationSubscriptions, posSettings, isLoading, isStatsLoading, 
+    isOrdersLoading, isEmployeesLoading, errors, refreshAll, refreshStats, 
+    refreshOrders, handleSetFilters, handleSetPage, updateOrderStatus, 
+    updatePaymentStatus, deleteOrder
+  ]);
+
+  console.log('🎯 POSOrdersDataContext value ready:', {
+    statsLoaded: !!stats,
+    ordersCount: ordersData?.orders?.length || 0,
+    employeesCount: employees.length,
+    totalOrders: ordersData?.total || 0,
+    currentPage,
+    isLoading
+  });
+
+  return (
+    <POSOrdersDataContext.Provider value={contextValue}>
+      {children}
+    </POSOrdersDataContext.Provider>
+  );
+};
+
+// =================================================================
+// 🎯 Custom Hook لاستخدام POSOrdersData
+// =================================================================
+
+export const usePOSOrdersData = (): POSOrdersData => {
+  const context = useContext(POSOrdersDataContext);
+  if (!context) {
+    throw new Error('usePOSOrdersData must be used within a POSOrdersDataProvider');
+  }
+  return context;
+};
+
+export default POSOrdersDataProvider; 

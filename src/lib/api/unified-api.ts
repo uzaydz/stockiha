@@ -16,15 +16,24 @@ export type { OrganizationSettings } from '@/lib/api/settings';
  * جلب فئات المنتجات - موحد بدون تكرار
  */
 export const getCategories = async (organizationId?: string) => {
+  console.log('🎯 [Unified API] بدء جلب الفئات:', {
+    organizationId,
+    timestamp: new Date().toISOString()
+  });
   
   if (!organizationId) {
+    console.log('🔍 [Unified API] لا يوجد معرف مؤسسة، جلب من المستخدم...');
+    
     // الحصول على معرف المؤسسة من المستخدم الحالي
     const userInfo = await supabase.auth.getUser();
     const userId = userInfo.data.user?.id;
     
     if (!userId) {
+      console.warn('⚠️ [Unified API] لا يوجد معرف مستخدم');
       return [];
     }
+    
+    console.log('✅ [Unified API] معرف المستخدم:', userId);
     
     const { data: userData } = await supabase
       .from('users')
@@ -33,13 +42,22 @@ export const getCategories = async (organizationId?: string) => {
       .single();
       
     if (!userData?.organization_id) {
+      console.warn('⚠️ [Unified API] لا يوجد معرف مؤسسة للمستخدم');
       return [];
     }
     
     organizationId = userData.organization_id;
+    console.log('✅ [Unified API] تم العثور على معرف المؤسسة من المستخدم:', organizationId);
   }
   
+  console.log('📞 [Unified API] استدعاء UnifiedRequestManager.getProductCategories...');
+  
   const categories = await UnifiedRequestManager.getProductCategories(organizationId);
+  
+  console.log('📊 [Unified API] البيانات المسترجعة من UnifiedRequestManager:', {
+    count: categories?.length || 0,
+    categories: categories?.map(c => ({ id: c.id, name: c.name })) || []
+  });
   
   // تحويل البيانات لتناسب النوع المطلوب
   const mappedCategories = (categories || []).map((item: any) => ({
@@ -47,6 +65,11 @@ export const getCategories = async (organizationId?: string) => {
     type: item.type === 'service' ? 'service' : 'product',
     product_count: item.product_count || 0
   }));
+  
+  console.log('🔄 [Unified API] تم تحويل البيانات:', {
+    count: mappedCategories.length,
+    mapped: mappedCategories.map(c => ({ id: c.id, name: c.name, type: c.type }))
+  });
   
   return mappedCategories;
 };

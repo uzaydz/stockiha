@@ -379,7 +379,8 @@ const storeCache = new MultiLevelCache();
  * Get data from cache
  */
 export async function getCacheData<T>(key: string): Promise<T | null> {
-  return await storeCache.get<T>(key);
+  console.log('🚫 [StoreCache] DISABLED - Not returning cached data for:', key);
+  return null; // Always return null - no cache
 }
 
 /**
@@ -390,7 +391,8 @@ export async function setCacheData<T>(
   data: T, 
   ttl: number = CACHE_CONFIG.TTL.STORE_DATA
 ): Promise<void> {
-  await storeCache.set(key, data, ttl);
+  console.log('🚫 [StoreCache] DISABLED - Not caching data for:', key);
+  // Do nothing - cache is disabled
 }
 
 /**
@@ -562,18 +564,10 @@ export async function withCache<T>(
   fetchFunction: () => Promise<T>,
   ttl: number = DEFAULT_CACHE_TTL
 ): Promise<T> {
-  // Try to get from cache first
-  const cached = await getCacheData<T>(key);
-  if (cached !== null) {
-    return cached;
-  }
-
-  // If not in cache, fetch the data
+  console.log('🚫 [StoreCache] DISABLED - Always fetching fresh data for:', key);
+  
+  // Always fetch fresh data - no caching
   const data = await fetchFunction();
-  
-  // Store in cache
-  await setCacheData(key, data, ttl);
-  
   return data;
 }
 
@@ -589,3 +583,193 @@ export const DEFAULT_CACHE_TTL = CACHE_CONFIG.TTL.ORGANIZATION; // 10 minutes
 // =================================================================
 export { CACHE_CONFIG };
 export default storeCache;
+
+// =================================================================
+// 🎯 ENHANCED CACHE INVALIDATION - نظام مسح محسن للعمليات CRUD
+// =================================================================
+
+/**
+ * مسح كامل وفوري لجميع أنواع cache المرتبطة بنوع معين من البيانات
+ * يتم استدعاؤها فوراً بعد العمليات CRUD
+ */
+export async function forceInvalidateAllCacheTypes(
+  entityType: 'categories' | 'products' | 'orders' | 'settings' | 'apps' | 'subscriptions',
+  organizationId: string,
+  options: { subdomain?: string; categoryId?: string } = {}
+): Promise<void> {
+  console.log('🧹 [Enhanced Cache Invalidation] بدء مسح شامل لجميع أنواع cache:', {
+    entityType,
+    organizationId,
+    options,
+    timestamp: new Date().toISOString()
+  });
+
+  const { subdomain, categoryId } = options;
+
+  // 1. مسح storeCache (هذا الملف)
+  const storeCacheKeys = generateStoreCacheKeys(entityType, organizationId, { subdomain, categoryId });
+  console.log('🔄 [Enhanced Cache Invalidation] مسح storeCache keys:', storeCacheKeys);
+  await Promise.all(storeCacheKeys.map(key => clearCacheItem(key)));
+
+  // 2. مسح globalCache من UnifiedRequestManager
+  if (typeof window !== 'undefined' && (window as any).clearUnifiedCache) {
+    const unifiedKeys = generateUnifiedCacheKeys(entityType, organizationId);
+    console.log('🔄 [Enhanced Cache Invalidation] مسح globalCache keys:', unifiedKeys);
+    (window as any).clearUnifiedCache(unifiedKeys);
+  }
+
+  // 3. مسح centralRequestManager cache
+  if (typeof window !== 'undefined' && (window as any).centralRequestManager) {
+    console.log('🔄 [Enhanced Cache Invalidation] مسح centralRequestManager cache...');
+    await (window as any).centralRequestManager.clearOrganizationCache(organizationId, subdomain);
+  }
+
+  // 4. مسح أي cache إضافي في الذاكرة
+  if (typeof window !== 'undefined') {
+    // مسح localStorage cache إذا وجد
+    const localStorageKeys = [`${entityType}_${organizationId}`, `cache_${entityType}_${organizationId}`];
+    localStorageKeys.forEach(key => {
+      try {
+        localStorage.removeItem(key);
+      } catch (error) {
+        // تجاهل أخطاء localStorage
+      }
+    });
+
+    // مسح sessionStorage cache إذا وجد
+    localStorageKeys.forEach(key => {
+      try {
+        sessionStorage.removeItem(key);
+      } catch (error) {
+        // تجاهل أخطاء sessionStorage
+      }
+    });
+  }
+
+  console.log('✅ [Enhanced Cache Invalidation] تم مسح جميع أنواع cache بنجاح');
+}
+
+/**
+ * توليد مفاتيح storeCache للمسح
+ */
+function generateStoreCacheKeys(
+  entityType: string,
+  organizationId: string,
+  options: { subdomain?: string; categoryId?: string } = {}
+): string[] {
+  const { subdomain, categoryId } = options;
+  const keys: string[] = [];
+
+  switch (entityType) {
+    case 'categories':
+      keys.push(
+        `categories:${organizationId}`,
+        `org:${organizationId}`,
+        `components:${organizationId}`,
+        `settings:${organizationId}`
+      );
+      if (subdomain) {
+        keys.push(`store:${subdomain}`);
+      }
+      break;
+    
+    case 'products':
+      keys.push(
+        `products:${organizationId}`,
+        `categories:${organizationId}`,
+        `org:${organizationId}`
+      );
+      if (categoryId) {
+        keys.push(`products:${organizationId}:${categoryId}`);
+      }
+      if (subdomain) {
+        keys.push(`store:${subdomain}`);
+      }
+      break;
+    
+    case 'settings':
+      keys.push(
+        `settings:${organizationId}`,
+        `org:${organizationId}`,
+        `components:${organizationId}`
+      );
+      if (subdomain) {
+        keys.push(`store:${subdomain}`);
+      }
+      break;
+    
+    case 'apps':
+      keys.push(
+        `apps:${organizationId}`,
+        `org:${organizationId}`,
+        `settings:${organizationId}`
+      );
+      break;
+    
+    default:
+      keys.push(`${entityType}:${organizationId}`, `org:${organizationId}`);
+      break;
+  }
+
+  return keys;
+}
+
+/**
+ * توليد مفاتيح UnifiedRequestManager للمسح
+ */
+function generateUnifiedCacheKeys(entityType: string, organizationId: string): string[] {
+  const keys: string[] = [];
+
+  switch (entityType) {
+    case 'categories':
+      keys.push(
+        `unified_categories_${organizationId}`,
+        `categories_${organizationId}`,
+        `subcategories_${organizationId}`
+      );
+      break;
+    
+    case 'products':
+      keys.push(
+        `unified_products_${organizationId}`,
+        `products_${organizationId}`,
+        `featured_products_${organizationId}`
+      );
+      break;
+    
+    case 'settings':
+      keys.push(
+        `unified_settings_${organizationId}`,
+        `org_settings_${organizationId}`,
+        `store_settings_${organizationId}`
+      );
+      break;
+    
+    case 'apps':
+      keys.push(
+        `unified_apps_${organizationId}`,
+        `org_apps_${organizationId}`
+      );
+      break;
+    
+    default:
+      keys.push(`unified_${entityType}_${organizationId}`);
+      break;
+  }
+
+  return keys;
+}
+
+// =================================================================
+// 🎯 إضافة دالة window للاستخدام العالمي
+// =================================================================
+
+if (typeof window !== 'undefined') {
+  // دالة لمسح cache فوري بعد العمليات CRUD
+  (window as any).forceInvalidateAllCache = forceInvalidateAllCacheTypes;
+  
+  // دالة مساعدة لمسح cache محدد
+  (window as any).clearSpecificCache = async (keys: string[]) => {
+    await Promise.all(keys.map(key => clearCacheItem(key)));
+  };
+}

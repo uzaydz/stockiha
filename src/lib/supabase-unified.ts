@@ -78,7 +78,6 @@ class SupabaseUnifiedClient {
     
     // 🔒 Mutex protection لمنع التداخل
     if (initializationMutex) {
-      console.log('🔄 [Supabase Unified] Waiting for initialization mutex...');
       let attempts = 0;
       while (initializationMutex && attempts < 100) {
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -91,7 +90,6 @@ class SupabaseUnifiedClient {
     
     // Additional protection against concurrent creation
     if (clientCreationInProgress) {
-      console.log('🔄 [Supabase Unified] Client creation in progress, waiting...');
       let attempts = 0;
       while (clientCreationInProgress && attempts < 50) {
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -110,8 +108,6 @@ class SupabaseUnifiedClient {
 
       // تنظيف شامل لجميع مفاتيح Supabase في localStorage
       this.cleanupDuplicateStorageKeys();
-
-      console.log('🚀 [Supabase Unified] Creating new client...');
 
       const client = (originalCreateClient as typeof createClient)<Database>(supabaseUrl, supabaseAnonKey, {
         auth: {
@@ -151,9 +147,7 @@ class SupabaseUnifiedClient {
           client.from('organizations').select('id').limit(1),
           new Promise((_, reject) => setTimeout(() => reject(new Error('Connection timeout')), 5000))
         ]);
-        console.log('✅ [Supabase Unified] Connection test successful');
       } catch (testError) {
-        console.warn('⚠️ [Supabase Unified] Connection test failed:', testError);
         // المتابعة رغم فشل الاختبار
       }
 
@@ -175,23 +169,18 @@ class SupabaseUnifiedClient {
         if (event === 'SIGNED_OUT') {
           this.handleSignOut();
         } else if (event === 'SIGNED_IN') {
-          console.log('✅ [Supabase Unified] User signed in successfully');
         } else if (event === 'TOKEN_REFRESHED') {
-          console.log('🔄 [Supabase Unified] Token refreshed');
         }
       });
 
       // تسجيل نجاح التهيئة
-      console.log('✅ [Supabase Unified] Client initialized successfully');
 
       return client;
     } catch (error) {
-      console.error('❌ [Supabase Unified] Failed to create client:', error);
       this.initializationAttempts++;
       
       // 🔄 إعادة المحاولة مع تأخير
       if (this.initializationAttempts < this.maxInitializationAttempts) {
-        console.log(`🔄 [Supabase Unified] Retrying initialization (${this.initializationAttempts}/${this.maxInitializationAttempts})...`);
         await new Promise(resolve => setTimeout(resolve, 1000 * this.initializationAttempts));
         return this.createSupabaseClient();
       }
@@ -221,13 +210,11 @@ class SupabaseUnifiedClient {
         // تنظيف المراجع
         this.client = null;
       } catch (error) {
-        console.warn('⚠️ [Supabase Unified] Cleanup warning:', error);
       }
     }
   }
 
   private handleSignOut(): void {
-    console.log('🔓 [Supabase Unified] User signed out, cleaning up...');
     this.cleanup();
   }
 
@@ -276,10 +263,8 @@ class SupabaseUnifiedClient {
       });
 
       if (removedCount > 0) {
-        console.log(`🧹 [Supabase Unified] Cleaned ${removedCount} duplicate storage keys`);
       }
     } catch (error) {
-      console.warn('⚠️ [Supabase Unified] Storage cleanup warning:', error);
     }
   }
 
@@ -305,7 +290,6 @@ class SupabaseUnifiedClient {
           return this.client;
         }
       } catch (timeoutError) {
-        console.warn('⚠️ [Supabase Unified] Initialization timeout, creating new instance');
         this.initializationPromise = null;
       }
     }
@@ -326,7 +310,6 @@ class SupabaseUnifiedClient {
 
   private async performInitialization(): Promise<void> {
     try {
-      console.log('🚀 [Supabase Unified] Starting initialization...');
       this.isInitialized = true;
       this.client = await this.createSupabaseClient();
       
@@ -335,9 +318,7 @@ class SupabaseUnifiedClient {
         (window as any).supabase = this.client;
       }
 
-      console.log('✅ [Supabase Unified] Initialization completed successfully');
     } catch (error) {
-      console.error('❌ [Supabase Unified] Initialization failed:', error);
       this.isInitialized = false;
       this.client = null;
       throw error;
@@ -351,7 +332,6 @@ class SupabaseUnifiedClient {
   }
 
   public async reset(): Promise<void> {
-    console.log('🔄 [Supabase Unified] Resetting client...');
     this.isInitialized = false;
     this.initializationPromise = null;
     this.initializationAttempts = 0;
@@ -401,7 +381,6 @@ export const supabase = new Proxy({} as SupabaseClient<Database>, {
 
     // 🔧 إنشاء عميل طارئ محدود فقط عند الضرورة القصوى
     if (!globalClient) {
-      console.warn('⚠️ [Supabase Unified] Creating minimal emergency client...');
       
       globalClient = (originalCreateClient as typeof createClient)(supabaseUrl, supabaseAnonKey, {
         auth: {
@@ -429,14 +408,12 @@ export const supabase = new Proxy({} as SupabaseClient<Database>, {
             const unified = SupabaseUnifiedClient.getInstance();
             if ((unified as any).client && (unified as any).client.__BAZAAR_PRIMARY_CLIENT__) {
               globalClient = (unified as any).client;
-              console.log('✅ [Supabase Unified] Emergency client replaced with unified client');
               return;
             }
             await new Promise(resolve => setTimeout(resolve, 100));
             attempts++;
           }
         } catch (error) {
-          console.warn('⚠️ [Supabase Unified] Failed to replace emergency client:', error);
         }
       });
     }
@@ -474,11 +451,8 @@ const ensureJWTInHeaders = async (client: any) => {
       if (!client.rest.headers['Authorization']) {
         client.rest.headers['Authorization'] = `Bearer ${session.access_token}`;
       }
-      console.log('🔑 [Supabase] JWT token attached to request');
     } else {
-      console.warn('⚠️ [Supabase] No valid JWT token found');
     }
   } catch (error) {
-    console.error('❌ [Supabase] Failed to attach JWT:', error);
   }
 };

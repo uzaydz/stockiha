@@ -48,19 +48,8 @@ export function usePOSSettings({ organizationId }: UsePOSSettingsProps): UsePOSS
   }, [userProfile]);
 
   const fetchSettings = useCallback(async () => {
-    console.log('🔧 POSSettings: جاري جلب الإعدادات...', {
-      organizationId,
-      userProfile: userProfile ? {
-        id: userProfile.id,
-        email: userProfile.email,
-        is_org_admin: userProfile.is_org_admin,
-        is_super_admin: userProfile.is_super_admin,
-        organization_id: userProfile.organization_id
-      } : null
-    });
 
     if (!organizationId) {
-        console.log('❌ POSSettings: معرف المؤسسة مفقود');
         setIsLoading(false);
         setError('معرف المؤسسة مفقود');
         return;
@@ -70,52 +59,39 @@ export function usePOSSettings({ organizationId }: UsePOSSettingsProps): UsePOSS
     setError(null);
 
     try {
-        console.log('🔧 POSSettings: محاولة جلب الإعدادات من RPC مع المعامل:', { p_org_id: organizationId });
         
         const { data, error: rpcError } = await supabase
             .rpc('get_pos_settings', { p_org_id: organizationId } as any);
 
-        console.log('🔧 POSSettings: نتيجة RPC:', { data, error: rpcError });
-
         if (rpcError) {
-            console.log('❌ POSSettings: خطأ في RPC:', rpcError);
             
             // إذا فشل RPC، جرب الوصول المباشر للجدول
-            console.log('🔧 POSSettings: جاري المحاولة بالوصول المباشر للجدول...');
             const { data: directData, error: directError } = await supabase
                 .from('pos_settings')
                 .select('*')
                 .eq('organization_id', organizationId)
                 .limit(1);
-                
-            console.log('🔧 POSSettings: نتيجة الوصول المباشر:', { data: directData, error: directError });
-            
+
             if (directError) {
-                console.log('❌ POSSettings: خطأ في الوصول المباشر:', directError);
                 throw directError;
             }
             
             if (directData && directData.length > 0) {
-                console.log('✅ POSSettings: تم جلب الإعدادات بالوصول المباشر:', directData[0]);
                 setSettings(directData[0] as POSSettings);
                 return;
             } else {
-                console.log('🔧 POSSettings: لا توجد إعدادات، سيتم إنشاؤها...');
                 await initializeSettings();
                 return;
             }
         }
         
         if (data && data.length > 0) {
-            console.log('✅ POSSettings: تم جلب الإعدادات بنجاح من RPC:', data[0]);
             const fetchedSettings = data[0] as unknown as POSSettingsRow;
             setSettings(fetchedSettings as POSSettings);
         } else {
-            console.log('🔧 POSSettings: البيانات فارغة من RPC، سيتم إنشاء إعدادات افتراضية...');
             await initializeSettings();
         }
     } catch (err: any) {
-        console.error('❌ POSSettings: خطأ عام في جلب الإعدادات:', err);
         
         // كخطة احتياطية أخيرة، استخدام الإعدادات الافتراضية مع organization_id صحيح
         const fallbackSettings = {
@@ -123,7 +99,6 @@ export function usePOSSettings({ organizationId }: UsePOSSettingsProps): UsePOSS
             organization_id: organizationId
         };
         
-        console.log('🔧 POSSettings: استخدام الإعدادات الافتراضية:', fallbackSettings);
         setSettings(fallbackSettings);
         
         // عرض رسالة تحذير بدلاً من خطأ
@@ -139,21 +114,16 @@ export function usePOSSettings({ organizationId }: UsePOSSettingsProps): UsePOSS
 
   const initializeSettings = useCallback(async () => {
     if (!organizationId) {
-        console.log('❌ initializeSettings: معرف المؤسسة مفقود');
         return;
     }
     
     try {
-        console.log('🔧 POSSettings: محاولة إنشاء إعدادات جديدة للمؤسسة:', organizationId);
         
         // جرب RPC أولاً
         const { data: initData, error: initError } = await supabase
             .rpc('initialize_pos_settings', { p_organization_id: organizationId });
-        
-        console.log('🔧 POSSettings: نتيجة initialize_pos_settings:', { data: initData, error: initError });
-        
+
         if (initError) {
-            console.log('❌ POSSettings: فشل RPC، جاري المحاولة بالإدراج المباشر...');
             
             // إذا فشل RPC، جرب الإدراج المباشر
             const newSettings = {
@@ -166,30 +136,24 @@ export function usePOSSettings({ organizationId }: UsePOSSettingsProps): UsePOSS
                 .insert([newSettings])
                 .select()
                 .single();
-                
-            console.log('🔧 POSSettings: نتيجة الإدراج المباشر:', { data: insertData, error: insertError });
-            
+
             if (insertError) {
-                console.log('❌ POSSettings: فشل الإدراج المباشر:', insertError);
                 // استخدام الإعدادات الافتراضية محلياً
                 setSettings(newSettings);
                 return;
             }
             
             if (insertData) {
-                console.log('✅ POSSettings: تم إنشاء الإعدادات بالإدراج المباشر:', insertData);
                 setSettings(insertData as POSSettings);
                 return;
             }
         }
         
         if (initData) {
-            console.log('✅ POSSettings: تم إنشاء الإعدادات بـ RPC، جاري جلبها...');
             // بعد الإنشاء، جلب الإعدادات المحدثة
             await fetchSettings();
         }
     } catch (err: any) {
-        console.error('❌ POSSettings: خطأ في إنشاء الإعدادات:', err);
         
         // استخدام الإعدادات الافتراضية كخطة احتياطية
         const fallbackSettings = {
@@ -208,19 +172,16 @@ export function usePOSSettings({ organizationId }: UsePOSSettingsProps): UsePOSS
 
   // تحسين useEffect لضمان تحديث الإعدادات عند تغيير organizationId أو userProfile
   useEffect(() => {
-    console.log('🔧 POSSettings useEffect triggered:', { organizationId, userProfile: !!userProfile });
     
     if (organizationId) {
         fetchSettings();
     } else {
-        console.log('❌ POSSettings: لا يوجد organizationId، استخدام الإعدادات الافتراضية');
         setSettings({ ...defaultPOSSettings, organization_id: '' });
         setIsLoading(false);
     }
   }, [organizationId, userProfile]); // إضافة userProfile للاعتماديات
 
   const updateSettings = useCallback(async (newSettings: Partial<POSSettings>): Promise<boolean> => {
-    console.log('🔧 POSSettings: تحديث الإعدادات محلياً:', newSettings);
     setSettings(prev => ({ ...prev, ...newSettings }));
     return true;
   }, []);
@@ -248,7 +209,6 @@ export function usePOSSettings({ organizationId }: UsePOSSettingsProps): UsePOSS
     setSaveSuccess(false);
 
     try {
-        console.log('🔧 POSSettings: حفظ الإعدادات:', { organizationId, settings });
         
         const { error } = await supabase
             .rpc('upsert_pos_settings', {
@@ -257,12 +217,10 @@ export function usePOSSettings({ organizationId }: UsePOSSettingsProps): UsePOSS
             });
 
         if (error) {
-            console.log('❌ POSSettings: خطأ في حفظ الإعدادات:', error);
             throw error;
         }
 
         setSaveSuccess(true);
-        console.log('✅ POSSettings: تم حفظ الإعدادات بنجاح');
         
         toast({
             title: 'تم الحفظ بنجاح',
@@ -274,7 +232,6 @@ export function usePOSSettings({ organizationId }: UsePOSSettingsProps): UsePOSS
         await fetchSettings();
 
     } catch (err: any) {
-        console.error('❌ POSSettings: فشل في حفظ الإعدادات:', err);
         toast({
             title: 'فشل الحفظ',
             description: err.message || 'حدث خطأ أثناء حفظ الإعدادات',
