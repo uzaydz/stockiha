@@ -41,11 +41,11 @@ const localStoragePersister = createSyncStoragePersister({
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // 🚫 CACHE DISABLED - Always fetch fresh data
-      staleTime: 0, // 0 seconds - Always consider data stale
+      // Stale time: how long before data is considered stale
+      staleTime: 5 * 60 * 1000, // 5 minutes
       
-      // 🚫 CACHE DISABLED - No cache retention
-      gcTime: 0, // 0 seconds - Don't cache data
+      // Cache time: how long to keep data in cache after component unmounts
+      gcTime: 30 * 60 * 1000, // 30 minutes (formerly cacheTime)
       
       // Retry configuration
       retry: (failureCount, error: any) => {
@@ -79,22 +79,42 @@ export const queryClient = new QueryClient({
   },
 });
 
-// 🚫 CACHE DISABLED - No persistence
-// if (typeof window !== 'undefined') {
-//   persistQueryClient({
-//     queryClient,
-//     persister: localStoragePersister,
-//     maxAge: 24 * 60 * 60 * 1000, // 24 hours
-//     hydrateOptions: {},
-//     dehydrateOptions: {
-//       shouldDehydrateQuery: (query) => {
-//         return false; // Don't persist anything
-//       },
-//     },
-//   });
-// }
+// Setup persistence
+if (typeof window !== 'undefined') {
+  persistQueryClient({
+    queryClient,
+    persister: localStoragePersister,
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    hydrateOptions: {},
+    dehydrateOptions: {
+      // Improved dehydration logic to handle cancelled queries
+      shouldDehydrateQuery: (query) => {
+        const state = query.state;
+        const queryKey = query.queryKey as unknown[];
+        
+        // Skip cancelled or pending queries to avoid CancelledError
+        if (state.status === 'pending' && state.fetchStatus === 'idle') {
+          return false;
+        }
+        
+        // Skip error states including cancelled errors
+        if (state.status === 'error') {
+          return false;
+        }
+        
+        // Don't persist auth-related queries
+        if (queryKey.includes('auth') || queryKey.includes('session')) {
+          return false;
+        }
+        
+        // Only persist successful queries with data
+        return state.status === 'success' && state.data !== undefined;
+      },
+    },
+  });
+}
 
-console.log('🚫 [QueryClient] CACHE DISABLED - No persistence, always fresh data');
+console.log('✅ [QueryClient] CACHE ENABLED - Persistence is active.');
 
 // Garbage collection for old cache entries
 export function cleanupQueryCache() {

@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTenant } from '@/context/TenantContext';
+import { useTranslation } from 'react-i18next';
 import type { Product, UpsellDownsellItem } from '@/lib/api/products';
 import React from 'react';
 
@@ -52,6 +53,7 @@ const ProductPurchase = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const { currentOrganization, isLoading: isOrganizationLoading } = useTenant();
+  const { t } = useTranslation();
   
   // حالة إعدادات الفوتر المخصص
   const [footerSettings, setFooterSettings] = React.useState<any>(null);
@@ -388,7 +390,7 @@ const ProductPurchase = () => {
                 
                 {shouldShowFullContent && (
                   <div ref={orderFormRef} className="bg-card/95 backdrop-blur-md p-6 rounded-xl shadow-lg border border-border/30 mb-8">
-                    <h2 className="text-2xl font-bold mb-4 text-foreground">طلب المنتج</h2>
+                    <h2 className="text-2xl font-bold mb-4 text-foreground">{t('productPurchase.orderProduct')}</h2>
                     <Suspense fallback={<SuspenseFallback />}>
                       <OrderForm
                         productId={effectiveProduct?.id || product.id}
@@ -415,7 +417,7 @@ const ProductPurchase = () => {
                   <div className="mt-4 mb-8">
                     <h2 className="text-xl font-semibold mb-4 text-foreground flex items-center">
                       <span className="inline-block w-1.5 h-6 bg-primary ml-2 rounded-sm"></span>
-                      عروض مميزة لك
+                      {t('productPurchase.specialOffers')}
                     </h2>
                     <Suspense fallback={<SuspenseFallback />}>
                       <UpsellDownsellDisplay 
@@ -432,7 +434,7 @@ const ProductPurchase = () => {
                   <div className="mt-4 mb-8">
                     <h2 className="text-xl font-semibold mb-4 text-foreground flex items-center">
                       <span className="inline-block w-1.5 h-6 bg-primary ml-2 rounded-sm"></span>
-                      خيارات بديلة قد تهمك
+                      {t('productPurchase.alternativeOptions')}
                     </h2>
                     <Suspense fallback={<SuspenseFallback />}>
                       <UpsellDownsellDisplay 
@@ -446,7 +448,7 @@ const ProductPurchase = () => {
                 )}
                 
                 <div className="mb-12 bg-card/95 backdrop-blur-md p-6 rounded-xl shadow-lg border border-border/30">
-                  <h2 className="text-2xl font-bold mb-4 text-foreground">وصف المنتج</h2>
+                  <h2 className="text-2xl font-bold mb-4 text-foreground">{t('productPurchase.productDescription')}</h2>
                   <ProductDescription
                     description={product.description}
                   />

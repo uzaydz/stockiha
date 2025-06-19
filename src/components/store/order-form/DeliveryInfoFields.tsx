@@ -21,6 +21,7 @@ import { Home, Building, Truck, AlertCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ShippingProviderSettings } from "./types";
+import { useTranslation } from 'react-i18next';
 import React, { useEffect } from "react";
 
 export function DeliveryInfoFields({ 
@@ -36,6 +37,8 @@ export function DeliveryInfoFields({
   yalidineCenters = [],
   isLoadingYalidineCenters = false,
 }: DeliveryInfoFieldsProps) {
+  const { t } = useTranslation();
+  
   // +++ Log Entry Point +++
   
   // إضافة مراقبة للتغييرات في إعدادات مزود الشحن
@@ -84,7 +87,7 @@ export function DeliveryInfoFields({
   // حقول معلومات التوصيل
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold border-b border-border pb-2 mb-4">معلومات التوصيل</h3>
+      <h3 className="text-lg font-semibold border-b border-border pb-2 mb-4">{t('orderForm.deliveryInfo')}</h3>
       
       {/* حقل خيار التوصيل - تم تقديمه للأعلى */}
       <FormField
@@ -95,7 +98,7 @@ export function DeliveryInfoFields({
           
           return (
             <FormItem className="space-y-2">
-              <FormLabel>خيار التوصيل *</FormLabel>
+              <FormLabel>{t('orderForm.deliveryOption')} {t('orderForm.required')}</FormLabel>
               <FormControl>
                 <RadioGroup
                   onValueChange={(value) => {
@@ -182,7 +185,7 @@ export function DeliveryInfoFields({
           
           return (
             <FormItem className="space-y-2">
-              <FormLabel>الولاية *</FormLabel>
+              <FormLabel>{t('orderForm.province')} {t('orderForm.required')}</FormLabel>
               <Select
                 onValueChange={(value) => {
                   field.onChange(value);
@@ -199,7 +202,7 @@ export function DeliveryInfoFields({
               >
                 <FormControl>
                   <SelectTrigger disabled={isLoadingWilayas}>
-                    <SelectValue placeholder="اختر الولاية" />
+                    <SelectValue placeholder={t('orderForm.selectProvince')} />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
@@ -242,7 +245,7 @@ export function DeliveryInfoFields({
               name="municipality"
               render={({ field }) => (
                 <FormItem className="space-y-2">
-                  <FormLabel>البلدية *</FormLabel>
+                  <FormLabel>{t('orderForm.municipality')} {t('orderForm.required')}</FormLabel>
                   {hasShippingIntegration && form.watch('province') ? (
                     <Select
                       onValueChange={field.onChange}
@@ -253,10 +256,10 @@ export function DeliveryInfoFields({
                         <SelectTrigger>
                           <SelectValue placeholder={
                             isLoadingCommunes 
-                              ? "جاري تحميل البلديات..." 
+                              ? t('orderForm.loadingMunicipalities')
                               : (municipalities && municipalities.length > 0 
-                                ? "اختر البلدية" 
-                                : "لا توجد بلديات متاحة للتوصيل المنزلي")
+                                ? t('orderForm.selectMunicipality')
+                                : t('orderForm.noMunicipalitiesAvailable'))
                           } />
                         </SelectTrigger>
                       </FormControl>
@@ -275,7 +278,7 @@ export function DeliveryInfoFields({
                           ))
                         ) : (
                           <SelectItem disabled value="no_municipalities">
-                            لا توجد بلديات متاحة للتوصيل المنزلي
+                            {t('orderForm.noMunicipalitiesAvailable')}
                           </SelectItem>
                         )}
                       </SelectContent>
@@ -283,7 +286,7 @@ export function DeliveryInfoFields({
                   ) : (
                     <FormControl>
                       <Input
-                        placeholder="أدخل اسم البلدية"
+                        placeholder={t('orderForm.enterMunicipalityName')}
                         {...field}
                         className="rtl:text-right"
                       />
@@ -310,7 +313,7 @@ export function DeliveryInfoFields({
               name="municipality"
               render={({ field }) => (
                 <FormItem className="space-y-2">
-                  <FormLabel>البلدية للاستلام منها *</FormLabel>
+                  <FormLabel>{t('orderForm.municipalityForPickup')} {t('orderForm.required')}</FormLabel>
                   {form.watch('province') ? (
                     <Select
                       onValueChange={field.onChange}
@@ -321,10 +324,10 @@ export function DeliveryInfoFields({
                         <SelectTrigger>
                           <SelectValue placeholder={
                             isLoadingCommunes
-                              ? "جاري تحميل البلديات..."
+                              ? t('orderForm.loadingMunicipalities')
                               : (municipalities && municipalities.length > 0
-                                ? "اختر البلدية للاستلام منها"
-                                : "لا توجد بلديات متاحة لهذه الولاية")
+                                ? t('orderForm.selectMunicipalityForPickup')
+                                : t('orderForm.noMunicipalitiesForProvince'))
                           } />
                         </SelectTrigger>
                       </FormControl>
@@ -343,22 +346,22 @@ export function DeliveryInfoFields({
                           ))
                         ) : (
                           <SelectItem disabled value="no_municipalities_available">
-                            لا توجد بلديات متاحة
+                            {t('orderForm.noMunicipalitiesAvailable')}
                           </SelectItem>
                         )}
                       </SelectContent>
                     </Select>
                   ) : (
                     <p className="text-sm text-muted-foreground">
-                      الرجاء اختيار الولاية أولاً لعرض البلديات.
+                      {t('orderForm.selectProvinceFirst')}
                     </p>
                   )}
                   <FormMessage>
-                    {!field.value && form.formState.isSubmitted && "يرجى اختيار البلدية"}
+                    {!field.value && form.formState.isSubmitted && t('orderForm.pleaseSelectMunicipality')}
                   </FormMessage>
                   <p className="text-xs text-muted-foreground">
                     <AlertCircle className="inline-block w-3 h-3 ml-1" />
-                    مهم: اختر البلدية المناسبة للاستلام منها
+                    {t('orderForm.importantSelectMunicipality')}
                   </p>
                 </FormItem>
               )}

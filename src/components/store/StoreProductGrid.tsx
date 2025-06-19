@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { AlertCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import type { Product } from '@/lib/api/products';
 import ProductCard from './ProductCard';
@@ -16,6 +17,7 @@ const StoreProductGrid = ({
   view,
   gridColumns
 }: StoreProductGridProps) => {
+  const { t } = useTranslation();
   const [wishlist, setWishlist] = useState<string[]>([]);
   
   const toggleWishlist = (productId: string) => {
@@ -52,9 +54,9 @@ const StoreProductGrid = ({
         <div className="bg-muted/30 w-24 h-24 rounded-full flex items-center justify-center mb-6">
           <AlertCircle className="h-12 w-12 text-muted-foreground/50" />
         </div>
-        <h3 className="text-2xl font-semibold mb-4">لا توجد منتجات</h3>
+        <h3 className="text-2xl font-semibold mb-4">{t('productCard.noProducts')}</h3>
         <p className="text-muted-foreground text-center max-w-md">
-          لم يتم العثور على منتجات تطابق معايير البحث الخاصة بك. يرجى تجربة معايير بحث مختلفة.
+          {t('productCard.noProductsMessage')}
         </p>
       </motion.div>
     );

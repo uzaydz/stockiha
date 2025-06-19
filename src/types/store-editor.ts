@@ -184,22 +184,22 @@ export const defaultComponentSettings = {
     footerSections: [
       {
         id: '1',
-        title: 'روابط سريعة',
+        title: 'Quick Links',
         links: [
-          { id: '1-1', text: 'الصفحة الرئيسية', url: '/', isExternal: false },
-          { id: '1-2', text: 'المنتجات', url: '/products', isExternal: false },
-          { id: '1-3', text: 'العروض', url: '/offers', isExternal: false },
-          { id: '1-4', text: 'اتصل بنا', url: '/contact', isExternal: false }
+          { id: '1-1', text: 'Home', url: '/', isExternal: false },
+          { id: '1-2', text: 'Products', url: '/products', isExternal: false },
+          { id: '1-3', text: 'Offers', url: '/offers', isExternal: false },
+          { id: '1-4', text: 'Contact Us', url: '/contact', isExternal: false }
         ]
       },
       {
         id: '2',
-        title: 'خدمة العملاء',
+        title: 'Customer Service',
         links: [
-          { id: '2-1', text: 'مركز المساعدة', url: '/help', isExternal: false },
-          { id: '2-2', text: 'سياسة الشحن', url: '/shipping-policy', isExternal: false },
-          { id: '2-3', text: 'سياسة الإرجاع', url: '/return-policy', isExternal: false },
-          { id: '2-4', text: 'الأسئلة الشائعة', url: '/faq', isExternal: false }
+          { id: '2-1', text: 'Help Center', url: '/help', isExternal: false },
+          { id: '2-2', text: 'Shipping Policy', url: '/shipping-policy', isExternal: false },
+          { id: '2-3', text: 'Return Policy', url: '/return-policy', isExternal: false },
+          { id: '2-4', text: 'FAQ', url: '/faq', isExternal: false }
         ]
       }
     ],

@@ -96,14 +96,35 @@ const StoreSettings = () => {
     try {
       const saveStartTime = Date.now();
       
+      console.log('🔄 بدء حفظ الإعدادات:', { 
+        default_language: settings.default_language,
+        site_name: settings.site_name 
+      });
+      
       await saveSettings();
       
       const saveEndTime = Date.now();
       
+      console.log('✅ تم حفظ الإعدادات بنجاح');
+      
+      // مسح الكاش لضمان جلب البيانات الجديدة
+      if (typeof window !== 'undefined') {
+        // مسح كاش المتصفح
+        localStorage.removeItem(`organization_settings_${currentOrganization?.id}`);
+        sessionStorage.removeItem(`settings_cache_${currentOrganization?.id}`);
+        
+        // مسح كاش React Query إذا كان موجوداً
+        if ((window as any).queryClient) {
+          (window as any).queryClient.invalidateQueries(['organization_settings']);
+        }
+      }
+      
       // تحديث الإعدادات في الذاكرة بدلاً من مسح الكاش
       try {
         await refreshOrganizationData();
+        console.log('🔄 تم تحديث بيانات المؤسسة');
       } catch (refreshError) {
+        console.error('خطأ في تحديث البيانات:', refreshError);
       }
       
       // تطبيق التغييرات مباشرة بدون إعادة تحميل الصفحة
@@ -117,6 +138,7 @@ const StoreSettings = () => {
           faviconUrl: settings.favicon_url,
           displayTextWithLogo: settings.display_text_with_logo,
           primaryColor: settings.theme_primary_color,
+          defaultLanguage: settings.default_language, // إضافة اللغة الافتراضية
           timestamp: Date.now()
         },
         bubbles: true
@@ -151,6 +173,7 @@ const StoreSettings = () => {
       
     } catch (error) {
       const totalTime = Date.now() - startTime;
+      console.error('❌ خطأ في حفظ الإعدادات:', error);
       
       toast({
         title: "خطأ في الحفظ",

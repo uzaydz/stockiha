@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { SubscriptionService } from '@/lib/subscription-service';
 import { supabase } from '@/lib/supabase';
+import { useOrganizationSubscriptions } from '@/contexts/OrganizationDataContext';
 import { 
   cacheSubscriptionStatus,
   getCachedSubscriptionStatus,
@@ -41,10 +42,18 @@ interface SubscriptionInfo {
 const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
   const { organization, refreshOrganizationData } = useAuth();
   const navigate = useNavigate();
+  
+  // استخدام البيانات من السياق المركزي بدلاً من جلبها مباشرة
+  const { subscriptions: cachedSubscriptions, isLoading: subscriptionsLoading } = useOrganizationSubscriptions();
 
   useEffect(() => {
     // تجاهل التحقق إذا كان المستخدم في صفحة الاشتراك بالفعل
     if (window.location.pathname.includes('/dashboard/subscription')) {
+      return;
+    }
+
+    // انتظار تحميل البيانات من السياق
+    if (subscriptionsLoading) {
       return;
     }
 
@@ -92,22 +101,8 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
           message: 'لا يوجد اشتراك نشط'
         };
 
-        // البحث عن اشتراك نشط للمؤسسة
-        
-        const { data: activeSubscriptions, error: subsError } = await supabase
-          .from('organization_subscriptions')
-          .select(`
-            *,
-            plan:plan_id (id, name, code)
-          `)
-          .eq('organization_id', org.id)
-          .eq('status', 'active')
-          .gt('end_date', new Date().toISOString())
-          .order('created_at', { ascending: false })
-          .limit(1);
-
-        if (subsError) {
-        }
+        // استخدام البيانات المحملة مسبقاً من السياق بدلاً من جلبها مرة أخرى
+        const activeSubscriptions = cachedSubscriptions || [];
 
         let hasValidSubscription = false;
         
@@ -245,7 +240,7 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
     };
 
     checkSubscription();
-  }, [organization, navigate, refreshOrganizationData]);
+  }, [organization, navigate, refreshOrganizationData, cachedSubscriptions, subscriptionsLoading]);
 
   return <>{children}</>;
 };

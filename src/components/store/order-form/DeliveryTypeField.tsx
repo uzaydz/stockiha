@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Home, Building, Truck, Check, AlertCircle } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { DeliveryTypeFieldProps } from "./types";
 
 export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
@@ -12,6 +13,7 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
   updateValue,
   shippingProviderSettings,
 }) => {
+  const { t } = useTranslation();
   // يستخدم هذا المرجع للتحكم في تنفيذ useEffect مرة واحدة فقط بعد تحميل الإعدادات
   const settingsProcessedRef = useRef(false);
   const initializationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -58,7 +60,7 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
   };
   
   // تهيئة حالة المكون
-  const [selectedDeliveryType, setSelectedDeliveryType] = useState(getDefaultValue());
+  const [selectedDeliveryType, setSelectedDeliveryType] = useState<string>('home');
   const { homeEnabled, deskEnabled } = detectDeliveryOptions();
   const [isHomeDeliveryEnabled, setIsHomeDeliveryEnabled] = useState(homeEnabled);
   const [isDeskDeliveryEnabled, setIsDeskDeliveryEnabled] = useState(deskEnabled);
@@ -211,10 +213,10 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
           <div className="flex items-center p-4 border border-primary rounded-lg bg-primary/10">
             <Home className="ml-3 h-5 w-5 text-primary" />
             <div>
-              <span className="font-medium block text-foreground">توصيل للمنزل</span>
-              <span className="text-xs text-muted-foreground block mt-1">سيتم توصيل الطلب إلى عنوانك</span>
+              <span className="font-medium block text-foreground">{t('orderForm.homeDelivery')}</span>
+              <span className="text-xs text-muted-foreground block mt-1">{t('orderForm.homeDeliveryDesc')}</span>
               {isFreeHomeDelivery && (
-                <span className="text-xs text-green-600 font-medium block mt-1">شحن مجاني!</span>
+                <span className="text-xs text-green-600 font-medium block mt-1">{t('orderForm.freeShipping')}</span>
               )}
             </div>
           </div>
@@ -237,10 +239,10 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
           <div className="flex items-center p-4 border border-primary rounded-lg bg-primary/10">
             <Building className="ml-3 h-5 w-5 text-primary" />
             <div>
-              <span className="font-medium block text-foreground">استلام من مكتب شركة التوصيل</span>
-              <span className="text-xs text-muted-foreground block mt-1">استلام الطلب من مكتب شركة التوصيل</span>
+              <span className="font-medium block text-foreground">{t('orderForm.officePickup')}</span>
+              <span className="text-xs text-muted-foreground block mt-1">{t('orderForm.officePickupDesc')}</span>
               {isFreeDeskDelivery && (
-                <span className="text-xs text-green-600 font-medium block mt-1">شحن مجاني!</span>
+                <span className="text-xs text-green-600 font-medium block mt-1">{t('orderForm.freeShipping')}</span>
               )}
             </div>
           </div>
@@ -284,10 +286,10 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
               <div className="flex items-center">
                 <Home className="ml-3 h-5 w-5 text-primary" />
                 <div>
-                  <span className="font-medium block text-foreground">توصيل للمنزل</span>
-                  <span className="text-xs text-muted-foreground block mt-1">توصيل الطلب مباشرة إلى عنوانك</span>
+                  <span className="font-medium block text-foreground">{t('orderForm.homeDelivery')}</span>
+                  <span className="text-xs text-muted-foreground block mt-1">{t('orderForm.homeDeliveryDesc')}</span>
                   {isFreeHomeDelivery && (
-                    <span className="text-xs text-green-600 font-medium block mt-1">شحن مجاني!</span>
+                    <span className="text-xs text-green-600 font-medium block mt-1">{t('orderForm.freeShipping')}</span>
                   )}
                 </div>
               </div>
@@ -318,10 +320,10 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
               <div className="flex items-center">
                 <Building className="ml-3 h-5 w-5 text-primary" />
                 <div>
-                  <span className="font-medium block text-foreground">استلام من مكتب شركة التوصيل</span>
-                  <span className="text-xs text-muted-foreground block mt-1">استلام الطلب من مكتب شركة التوصيل</span>
+                  <span className="font-medium block text-foreground">{t('orderForm.officePickup')}</span>
+                  <span className="text-xs text-muted-foreground block mt-1">{t('orderForm.officePickupDesc')}</span>
                   {isFreeDeskDelivery && (
-                    <span className="text-xs text-green-600 font-medium block mt-1">شحن مجاني!</span>
+                    <span className="text-xs text-green-600 font-medium block mt-1">{t('orderForm.freeShipping')}</span>
                   )}
                 </div>
               </div>

@@ -74,7 +74,7 @@ export const updateDomainVerificationStatus = async (
   errorMessage?: string
 ): Promise<boolean> => {
   try {
-    const supabase = await getSupabaseClient();
+    const supabase = getSupabaseClient();
     
     // التحقق من وجود سجل للنطاق
     const { data: existingRecord } = await supabase

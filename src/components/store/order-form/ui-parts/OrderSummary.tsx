@@ -1,5 +1,6 @@
 import React from 'react';
 import { ShippingProviderSettings } from '../types'; // Assuming types.ts is one level up
+import { useTranslation } from 'react-i18next';
 
 interface OrderSummaryProps {
   productId: string;
@@ -35,6 +36,8 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
   deliveryType,
   shippingProviderSettings,
 }) => {
+  const { t } = useTranslation();
+  
   return (
     <div className="bg-gradient-to-br from-primary/5 via-transparent to-primary/5 rounded-2xl p-6 space-y-4">
       {/* عنوان ملخص الطلب */}
@@ -44,7 +47,7 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
           </svg>
         </div>
-        <h3 className="text-lg font-semibold">ملخص الطلب</h3>
+        <h3 className="text-lg font-semibold">{t('orderForm.orderSummary')}</h3>
       </div>
 
       {/* تفاصيل المنتج */}
@@ -52,13 +55,13 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
         <div className="bg-background/50 rounded-xl p-4 space-y-2">
           {productColorName && (
             <div className="flex items-center gap-2 text-sm">
-              <span className="text-muted-foreground">اللون:</span>
+              <span className="text-muted-foreground">{t('orderForm.color')}</span>
               <span className="font-medium">{productColorName}</span>
             </div>
           )}
           {productSizeName && (
             <div className="flex items-center gap-2 text-sm">
-              <span className="text-muted-foreground">الحجم:</span>
+              <span className="text-muted-foreground">{t('orderForm.size')}</span>
               <span className="font-medium">{productSizeName}</span>
             </div>
           )}
@@ -69,8 +72,8 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
       <div className="space-y-3">
         {/* سعر المنتج */}
         <div className="flex justify-between items-center">
-          <span className="text-muted-foreground">المنتج ({quantity} قطعة)</span>
-          <span className="font-medium">{basePrice * quantity} دج</span>
+          <span className="text-muted-foreground">{t('orderForm.product', { count: quantity })}</span>
+          <span className="font-medium">{basePrice * quantity} {t('orderForm.currency')}</span>
         </div>
 
         {/* الخصم */}
@@ -84,10 +87,10 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
         {/* رسوم التوصيل */}
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <span className="text-muted-foreground">رسوم التوصيل</span>
+            <span className="text-muted-foreground">{t('orderForm.deliveryFees')}</span>
             {deliveryType && (
               <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
-                {deliveryType === 'home' ? 'للمنزل' : 'للمكتب'}
+                {deliveryType === 'home' ? t('orderForm.toHome') : 'للمكتب'}
               </span>
             )}
           </div>
@@ -101,7 +104,7 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
               مجاني
             </span>
           ) : (
-            <span className="font-medium">{deliveryFee} دج</span>
+            <span className="font-medium">{deliveryFee} {t('orderForm.currency')}</span>
           )}
         </div>
 
@@ -119,10 +122,10 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
 
       {/* المجموع الكلي */}
       <div className="flex justify-between items-center">
-        <span className="text-lg font-semibold">المجموع الكلي</span>
+        <span className="text-lg font-semibold">{t('orderForm.totalAmount')}</span>
         <div className="text-right">
           <span className="text-2xl font-bold text-primary">{total}</span>
-          <span className="text-lg font-semibold text-primary mr-1">دج</span>
+          <span className="text-lg font-semibold text-primary mr-1">{t('orderForm.currency')}</span>
         </div>
       </div>
     </div>

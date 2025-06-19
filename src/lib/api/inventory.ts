@@ -4,11 +4,12 @@ import type { InventoryLog, InventoryLogType } from '@/types';
 import { fetchWithAuth } from '@/lib/api/fetchWithAuth';
 import * as inventoryDB from '@/lib/db/inventoryDB';
 import { toast } from 'sonner';
+import { queryClient } from '@/lib/config/queryClient';
 
-// Get all product categories
+// Get all product categories for current organization
 export const getProductCategories = async (): Promise<string[]> => {
   try {
-    console.log('🔍 [Inventory] جلب فئات المنتجات...');
+    console.log('🔍 [Inventory] جلب فئات المنتجات باستخدام RLS...');
     
     const { data, error } = await supabase
       .from('products')
@@ -22,7 +23,7 @@ export const getProductCategories = async (): Promise<string[]> => {
     // Extract unique categories
     const categories = [...new Set((data || []).map(item => item.category).filter(Boolean))];
     
-    console.log('✅ [Inventory] تم جلب', categories.length, 'فئة');
+    console.log('✅ [Inventory] تم جلب', categories.length, 'فئة باستخدام RLS');
     
     return categories;
   } catch (error) {
@@ -39,9 +40,11 @@ export const getInventoryProducts = async (page = 1, limit = 50): Promise<{
   console.log('🔍 [Inventory] جلب منتجات المخزون - الصفحة:', page, 'الحد الأقصى:', limit);
   
   try {
-    // تبسيط الاستعلام - جلب جميع المنتجات بدون تعقيد المؤسسة مؤقتاً
     const start = (page - 1) * limit;
     const end = start + limit - 1;
+    
+    // جرب أولاً الاعتماد على RLS فقط - دع قاعدة البيانات تفلتر حسب المؤسسة
+    console.log('🔍 [Inventory] جلب المنتجات باستخدام RLS...');
     
     const { data: productsData, error, count } = await supabase
       .from('products')
@@ -60,7 +63,7 @@ export const getInventoryProducts = async (page = 1, limit = 50): Promise<{
       throw error;
     }
     
-    console.log('✅ [Inventory] تم جلب', productsData?.length || 0, 'منتج من أصل', count);
+    console.log('✅ [Inventory] تم جلب', productsData?.length || 0, 'منتج من أصل', count, 'باستخدام RLS');
     
     // تحضير قائمة المنتجات النهائية باستخدام وظيفة التحويل الموحدة
     const products: Product[] = (productsData || []).map(product => mapProductFromDatabase(product));
@@ -928,6 +931,32 @@ export async function updateProductStock(data: {
     toast.error('حدث خطأ أثناء تحديث المخزون');
     return false;
   }
+
+  // =================================================================
+  // 🚀 CACHE INVALIDATION
+  // =================================================================
+  try {
+    const { data: product } = await supabase
+      .from('products')
+      .select('organization_id')
+      .eq('id', data.product_id)
+      .single();
+
+    if (product?.organization_id) {
+      const { organization_id } = product;
+      // Invalidate products list for the organization
+      await queryClient.invalidateQueries({ queryKey: ['products', organization_id] });
+      // Invalidate the specific product
+      await queryClient.invalidateQueries({ queryKey: ['product', data.product_id] });
+      // Invalidate inventory data
+      await queryClient.invalidateQueries({ queryKey: ['inventory', organization_id] });
+      await queryClient.invalidateQueries({ queryKey: ['dashboard-data', organization_id] });
+    }
+  } catch (cacheError) {
+    console.warn('⚠️ [updateProductStock] فشل في إلغاء الكاش:', cacheError);
+  }
+
+  return true;
 }
 
 /**

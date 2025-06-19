@@ -1,7 +1,9 @@
-import React from "react";
-import { Home, Building, MapPin, Phone, Mail, User, MessageSquare, ChevronDown } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Check, AlertCircle, Home, Building, MapPin, User, Mail, Phone, Calendar, Clock, FileText, Hash, Percent, MessageSquare, ChevronDown } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTranslation } from 'react-i18next';
 import type { ExtendedFormField } from "./types";
+import algeria from "@/data/algeria-provinces";
 
 // مكون حقل النص العام
 export const TextField = ({ 
@@ -13,10 +15,12 @@ export const TextField = ({
   className?: string,
   updateValue?: (name: string, value: string) => void
 }) => {
+  const { t } = useTranslation();
+  
   // تغيير نص placeholder للهاتف
   let placeholderText = field.placeholder;
-  if (field.type === 'tel' && placeholderText === "أدخل رقم الهاتف") {
-    placeholderText = "الهاتف رقم أدخل";
+  if (field.type === 'tel' && (placeholderText === "أدخل رقم الهاتف" || placeholderText === "الهاتف رقم أدخل")) {
+    placeholderText = t('orderForm.phoneNumberPlaceholder');
   }
   
   // تحديد الصنف CSS بناءً على نوع الحقل
@@ -35,7 +39,7 @@ export const TextField = ({
       <label htmlFor={field.id} className="block text-sm font-medium mb-2 text-foreground flex items-center">
         {getFieldIcon(field.type)}
         {field.label}
-        {field.required && <span className="text-red-500 mr-1">*</span>}
+        {field.required && <span className="text-red-500 mr-1">{t('orderForm.required')}</span>}
       </label>
       <input
         type={field.type === 'number' ? 'number' : field.type}
@@ -79,32 +83,36 @@ export const TextAreaField = ({
   field: ExtendedFormField, 
   className?: string,
   updateValue?: (name: string, value: string) => void
-}) => (
-  <div className={`mb-4 ${className}`}>
-    <label htmlFor={field.id} className="block text-sm font-medium mb-2 text-foreground flex items-center">
-      <MessageSquare className="w-4 h-4 ml-2 text-primary" />
-      {field.label}
-      {field.required && <span className="text-red-500 mr-1">*</span>}
-    </label>
-    <textarea
-      name={field.name}
-      id={field.id}
-      placeholder={field.placeholder}
-      defaultValue={field.value || field.defaultValue}
-      required={field.required}
-      rows={4}
-      className="w-full px-4 py-3 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 bg-background text-foreground shadow-sm hover:border-muted-foreground"
-      onChange={(e) => {
-        if (updateValue && field.name) {
-          updateValue(field.name, e.target.value);
-        }
-      }}
-    />
-    {field.description && (
-      <p className="mt-1 text-xs text-muted-foreground">{field.description}</p>
-    )}
-  </div>
-);
+}) => {
+  const { t } = useTranslation();
+  
+  return (
+    <div className={`mb-4 ${className}`}>
+      <label htmlFor={field.id} className="block text-sm font-medium mb-2 text-foreground flex items-center">
+        <MessageSquare className="w-4 h-4 ml-2 text-primary" />
+        {field.label}
+        {field.required && <span className="text-red-500 mr-1">{t('orderForm.required')}</span>}
+      </label>
+      <textarea
+        name={field.name}
+        id={field.id}
+        placeholder={field.placeholder}
+        defaultValue={field.value || field.defaultValue}
+        required={field.required}
+        rows={4}
+        className="w-full px-4 py-3 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 bg-background text-foreground shadow-sm hover:border-muted-foreground"
+        onChange={(e) => {
+          if (updateValue && field.name) {
+            updateValue(field.name, e.target.value);
+          }
+        }}
+      />
+      {field.description && (
+        <p className="mt-1 text-xs text-muted-foreground">{field.description}</p>
+      )}
+    </div>
+  );
+};
 
 // مكون حقل القائمة المنسدلة
 export const SelectField = ({ 
@@ -115,44 +123,48 @@ export const SelectField = ({
   field: ExtendedFormField, 
   className?: string,
   updateValue?: (name: string, value: string) => void
-}) => (
-  <div className={`mb-4 ${className}`}>
-    <label htmlFor={field.id} className="block text-sm font-medium mb-2 text-foreground flex items-center">
-      <ChevronDown className="w-4 h-4 ml-2 text-primary" />
-      {field.label}
-      {field.required && <span className="text-red-500 mr-1">*</span>}
-    </label>
-    <div className="relative">
-      <select
-        name={field.name}
-        id={field.id}
-        defaultValue={field.value || field.defaultValue || ''}
-        required={field.required}
-        className="w-full px-4 py-3 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 bg-background text-foreground shadow-sm appearance-none hover:border-muted-foreground"
-        onChange={(e) => {
-          if (updateValue && field.name) {
-            updateValue(field.name, e.target.value);
-          }
-        }}
-      >
-        <option value="" disabled>
-          {field.placeholder || "اختر..."}
-        </option>
-        {field.options?.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
+}) => {
+  const { t } = useTranslation();
+  
+  return (
+    <div className={`mb-4 ${className}`}>
+      <label htmlFor={field.id} className="block text-sm font-medium mb-2 text-foreground flex items-center">
+        <ChevronDown className="w-4 h-4 ml-2 text-primary" />
+        {field.label}
+        {field.required && <span className="text-red-500 mr-1">{t('orderForm.required')}</span>}
+      </label>
+      <div className="relative">
+        <select
+          name={field.name}
+          id={field.id}
+          defaultValue={field.value || field.defaultValue || ''}
+          required={field.required}
+          className="w-full px-4 py-3 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 bg-background text-foreground shadow-sm appearance-none hover:border-muted-foreground"
+          onChange={(e) => {
+            if (updateValue && field.name) {
+              updateValue(field.name, e.target.value);
+            }
+          }}
+        >
+          <option value="" disabled>
+            {field.placeholder || t('orderForm.selectOption')}
           </option>
-        ))}
-      </select>
-      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center px-3 text-muted-foreground">
-        <ChevronDown className="h-4 w-4" />
+          {field.options?.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center px-3 text-muted-foreground">
+          <ChevronDown className="h-4 w-4" />
+        </div>
       </div>
+      {field.description && (
+        <p className="mt-1 text-xs text-muted-foreground">{field.description}</p>
+      )}
     </div>
-    {field.description && (
-      <p className="mt-1 text-xs text-muted-foreground">{field.description}</p>
-    )}
-  </div>
-);
+  );
+};
 
 // مكون حقل الولاية
 export const ProvinceField = ({ 
@@ -166,6 +178,7 @@ export const ProvinceField = ({
   className?: string,
   updateValue?: (name: string, value: string) => void
 }) => {
+  const { t } = useTranslation();
   const municipalityFieldId = field.linkedFields?.municipalityField;
   
   return (
@@ -173,7 +186,7 @@ export const ProvinceField = ({
       <label htmlFor={field.id} className="block text-sm font-medium mb-2 text-foreground flex items-center">
         <MapPin className="w-4 h-4 ml-2 text-primary" />
         {field.label}
-        {field.required && <span className="text-red-500 mr-1">*</span>}
+        {field.required && <span className="text-red-500 mr-1">{t('orderForm.required')}</span>}
       </label>
       <div className="relative">
         <select
@@ -193,7 +206,7 @@ export const ProvinceField = ({
           }}
         >
           <option value="" disabled>
-            {field.placeholder || "اختر الولاية..."}
+            {field.placeholder || t('orderForm.selectProvince')}
           </option>
           {field.provinces?.map(province => (
             <option key={province.id} value={province.id.toString()}>
@@ -230,6 +243,7 @@ export const MunicipalityField = ({
   className?: string,
   updateValue?: (name: string, value: string) => void
 }) => {
+  const { t } = useTranslation();
   let provinceId = '';
   const provinceFieldId = field.linkedFields?.provinceField;
   
@@ -249,7 +263,7 @@ export const MunicipalityField = ({
       <label htmlFor={field.id} className="block text-sm font-medium mb-2 text-foreground flex items-center">
         <MapPin className="w-4 h-4 ml-2 text-primary" />
         {field.label}
-        {field.required && <span className="text-red-500 mr-1">*</span>}
+        {field.required && <span className="text-red-500 mr-1">{t('orderForm.required')}</span>}
       </label>
       
       {field.isLoading ? (
@@ -300,7 +314,7 @@ export const MunicipalityField = ({
             }}
           >
             <option value="" disabled>
-              {field.placeholder || "اختر البلدية..."}
+              {field.placeholder || t('orderForm.selectMunicipality')}
             </option>
             {field.municipalities?.map(municipality => (
               <option key={municipality.id} value={municipality.id.toString()}>
@@ -318,7 +332,7 @@ export const MunicipalityField = ({
       )}
       {field.municipalities && field.municipalities.length === 0 && !field.isLoading && (
         <p className="text-sm text-yellow-600 mt-2">
-          يجب تحديد الولاية أولاً
+          {t('orderForm.selectProvinceFirst')}
         </p>
       )}
     </div>
@@ -343,6 +357,8 @@ export const RadioField = ({
   updateValue?: (name: string, value: string) => void,
   shippingProviderSettings?: any
 }) => {
+  const { t } = useTranslation();
+  
   // التحقق مما إذا كان هذا الحقل خاص بنوع التوصيل الثابت
   const isDeliveryTypeField = field.name === 'fixedDeliveryType' || field.description?.includes('حقل نوع التوصيل الثابت');
   
@@ -466,9 +482,9 @@ export const RadioField = ({
               </div>
               <label htmlFor={`${field.name}-${option.value}`} className="text-sm">
                 <div>
-                  {option.value === 'home' ? 'توصيل للمنزل' : 'استلام من مكتب شركة التوصيل'}
+                  {option.value === 'home' ? t('orderForm.homeDelivery') : t('orderForm.officePickup')}
                   <div className="text-xs mt-1 text-muted-foreground">
-                    {option.value === 'home' ? 'توصيل الطلب مباشرة إلى عنوانك' : 'استلام الطلب من مكتب شركة التوصيل'}
+                    {option.value === 'home' ? t('orderForm.homeDeliveryDesc') : t('orderForm.officePickupDesc')}
                   </div>
                   <div className="text-xs mt-1 text-blue-600">
                     {priceText}
@@ -566,7 +582,7 @@ export const RadioField = ({
                         {option.value === 'home' ? 'توصيل للمنزل' : 'استلام من مكتب شركة التوصيل'}
                       </span>
                       <span className="text-xs text-muted-foreground block mt-1">
-                        {option.value === 'home' ? 'توصيل الطلب مباشرة إلى عنوانك' : 'استلام الطلب من مكتب شركة التوصيل'}
+                        {option.value === 'home' ? t('orderForm.homeDelivery') : t('orderForm.officePickup')}
                       </span>
                       <span className={`text-xs font-medium block mt-1 ${
                         option.value === 'home' ? 

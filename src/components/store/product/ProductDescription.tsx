@@ -1,10 +1,13 @@
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 
 interface ProductDescriptionProps {
   description: string;
 }
 
 const ProductDescription = ({ description }: ProductDescriptionProps) => {
+  const { t } = useTranslation();
+  
   if (!description) return null;
   
   return (
@@ -17,7 +20,7 @@ const ProductDescription = ({ description }: ProductDescriptionProps) => {
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center justify-center mb-8">
           <div className="h-px flex-1 bg-border"></div>
-          <h2 className="text-xl font-medium text-foreground mx-4">تفاصيل المنتج</h2>
+          <h2 className="text-xl font-medium text-foreground mx-4">{t("تفاصيل المنتج")}</h2>
           <div className="h-px flex-1 bg-border"></div>
         </div>
         

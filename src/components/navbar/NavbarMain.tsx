@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { NavbarLogo } from './NavbarLogo';
-import { NavbarSearch } from './NavbarSearch';
 import { NavbarLinks } from './NavbarLinks';
 import { NavbarUserMenu } from './NavbarUserMenu';
 import { NavbarNotifications } from './NavbarNotifications';
@@ -15,9 +14,11 @@ import { QuickNavLinks } from './QuickNavLinks';
 import LanguageSwitcher from '@/components/language/LanguageSwitcher';
 import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
+import { useApps } from '@/context/AppsContext';
 import { getOrganizationSettings } from '@/lib/api/settings';
 import { getProductCategories } from '@/api/store';
 import type { Category } from '@/api/store';
+import { getSupabaseClient } from '@/lib/supabase';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,6 +46,15 @@ export function NavbarMain({
   const [isQuickLinksOpen, setIsQuickLinksOpen] = useState(false);
   const location = useLocation();
   const { currentOrganization } = useTenant();
+  const { isAppEnabled } = useApps();
+  
+  // فحص تفعيل تطبيق التصليحات
+  const isRepairServicesEnabled = isAppEnabled('repair-services');
+  
+  // إضافة logging للتطوير
+  if (import.meta.env.DEV) {
+    console.log('Repair Services App Status:', isRepairServicesEnabled);
+  }
   
   const cacheKey = useRef<string>(`org_settings_${window.location.hostname}`);
   const [orgLogo, setOrgLogo] = useState<string>('');
@@ -112,8 +122,7 @@ export function NavbarMain({
     
     try {
       // الحصول على عميل supabase بطريقة صحيحة
-      const { getSupabaseClient } = await import('@/lib/supabase');
-      const supabaseClient = await getSupabaseClient();
+      const supabaseClient = getSupabaseClient();
       
       // التحقق من صحة client
       if (!supabaseClient || typeof supabaseClient.from !== 'function') {
@@ -282,8 +291,6 @@ export function NavbarMain({
     fetchCategories();
   }, [currentOrganization?.id, propCategories]);
 
-  const handleSearch = (query: string) => {
-  };
   
   // Enhanced notification sample data
   const sampleNotifications = [
@@ -442,21 +449,15 @@ export function NavbarMain({
             </div>
           )}
           
-          {/* Search with glass morphism effect */}
-          {!isAdminPage && (
-            <div className="hidden lg:block">
-              <div className="bg-gradient-to-r from-background/30 to-background/50 backdrop-blur-md rounded-xl border border-border/20 shadow-sm">
-                <NavbarSearch variant="minimal" onSearch={handleSearch} />
-              </div>
-            </div>
-          )}
           
           {/* Action buttons with enhanced styling */}
           <div className="flex items-center gap-2">
-            {/* مبدل اللغة */}
-            <div className="bg-gradient-to-r from-background/40 to-background/60 backdrop-blur-md rounded-full border border-border/20 shadow-sm">
-              <LanguageSwitcher className="px-2" variant="dropdown" showText={false} />
-            </div>
+            {/* مبدل اللغة - يظهر فقط إذا كان تطبيق التصليحات (repair-services) مفعل في قاعدة البيانات */}
+            {isRepairServicesEnabled && (
+              <div className="bg-gradient-to-r from-background/40 to-background/60 backdrop-blur-md rounded-full border border-border/20 shadow-sm">
+                <LanguageSwitcher className="px-2" variant="dropdown" showText={false} />
+              </div>
+            )}
             
             <div className="bg-gradient-to-r from-background/40 to-background/60 backdrop-blur-md rounded-full border border-border/20 shadow-sm p-1">
               <NavbarThemeToggle />

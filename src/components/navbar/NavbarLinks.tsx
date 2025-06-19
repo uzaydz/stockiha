@@ -5,6 +5,7 @@ import {
   Package, ShoppingCart, ShieldCheck, LayoutGrid, Sparkles, Wrench
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useApps } from '@/context/AppsContext';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -51,9 +52,13 @@ export function NavbarLinks({
 }: NavbarLinksProps) {
   const { t } = useTranslation();
   const location = useLocation();
+  const { isAppEnabled } = useApps();
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
   const [hoveredLink, setHoveredLink] = useState<string | null>(null);
   const [dropdownHovered, setDropdownHovered] = useState<string | null>(null);
+  
+  // فحص تفعيل تطبيق التصليحات
+  const isRepairServicesEnabled = isAppEnabled('repair-services');
   
   const getLinks = (): NavLink[] => {
     if (isAdminPage) {
@@ -63,7 +68,7 @@ export function NavbarLinks({
         { name: t('navbar.orders'), path: '/dashboard/orders', icon: ShoppingCart },
       ];
     } else if (categories.length > 0) {
-      return [
+      const links = [
         { name: t('navbar.home'), path: '/', icon: Home },
         { 
           name: t('navbar.products'), 
@@ -72,8 +77,14 @@ export function NavbarLinks({
           hasSubmenu: true, 
           submenuItems: categories
         },
-        { name: t('navbar.repairTracking'), path: '/repair-tracking', icon: Wrench },
       ];
+      
+      // إضافة رابط تتبع التصليح فقط إذا كان التطبيق مفعل
+      if (isRepairServicesEnabled) {
+        links.push({ name: t('navbar.repairTracking'), path: '/repair-tracking', icon: Wrench });
+      }
+      
+      return links;
     } else {
       // استخدام الواجهة الخاصة للعناصر الفرعية الافتراضية
       const defaultSubmenuItems: SubMenuItem[] = [
@@ -82,7 +93,7 @@ export function NavbarLinks({
         { name: t('navbar.accessories'), id: 'accessories', path: '/category/accessories' },
       ];
       
-      return [
+      const links = [
         { name: t('navbar.home'), path: '/', icon: Home },
         { 
           name: t('navbar.products'), 
@@ -91,9 +102,17 @@ export function NavbarLinks({
           hasSubmenu: true, 
           submenuItems: defaultSubmenuItems
         },
-        { name: t('navbar.repairServices'), path: '/services', icon: Settings },
-        { name: t('navbar.repairTracking'), path: '/repair-tracking', icon: Wrench },
       ];
+      
+      // إضافة روابط التصليح فقط إذا كان التطبيق مفعل
+      if (isRepairServicesEnabled) {
+        links.push(
+          { name: t('navbar.repairServices'), path: '/services', icon: Settings },
+          { name: t('navbar.repairTracking'), path: '/repair-tracking', icon: Wrench }
+        );
+      }
+      
+      return links;
     }
   };
   

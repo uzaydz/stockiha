@@ -125,7 +125,7 @@ export interface StoreData {
 // جلب معلومات المتجر الأساسية
 export async function getStoreInfoBySubdomain(subdomain: string): Promise<OrganizationSettings | null> {
   try {
-    const supabaseClient = await getSupabaseClient();
+    const supabaseClient = getSupabaseClient();
     const { data: organization, error: orgError } = await supabaseClient
       .from('organizations')
       .select('id')
@@ -160,7 +160,7 @@ export async function getFeaturedProducts(organizationId: string): Promise<Produ
     }
     
     // استعلام بسيط جداً للتأكد من عمله - إضافة شرط is_active = true
-    const supabaseClient = await getSupabaseClient();
+    const supabaseClient = getSupabaseClient();
     const { data: productsRaw, error } = await supabaseClient
       .from('products')
       .select('id, name, description, price, compare_at_price, thumbnail_image, thumbnail_url, images, stock_quantity, created_at, is_featured, is_active, slug, is_new')
@@ -522,7 +522,7 @@ export async function getFullStoreData(subdomain: string): Promise<StoreData | n
     
     const startTime = Date.now();
     
-    const supabaseClient = await getSupabaseClient();
+    const supabaseClient = getSupabaseClient();
     
     // 1. الحصول على معرف المؤسسة من اسم النطاق الفرعي
     const { data: organization, error: orgError } = await supabaseClient
@@ -687,7 +687,7 @@ export async function getProductBySlug(organizationId: string, slug: string): Pr
     // البحث 1: محاولة البحث بواسطة slug (الطريقة الافتراضية)
     let slugSearchSuccess = false;
     try {
-      const supabaseClient = await getSupabaseClient();
+      const supabaseClient = getSupabaseClient();
       const { data: slugData, error: slugError } = await supabaseClient
         .from('products')
         .select('*')
@@ -707,7 +707,7 @@ export async function getProductBySlug(organizationId: string, slug: string): Pr
     // البحث 2: إذا فشل البحث الأول وكان الـ slug يبدو كـ UUID، جرب البحث باستخدام id
     if (!slugSearchSuccess && isUuid) {
       try {
-        const supabaseClient = await getSupabaseClient();
+        const supabaseClient = getSupabaseClient();
         const { data: idData, error: idError } = await supabaseClient
           .from('products')
           .select('*')
@@ -764,7 +764,7 @@ export async function getProductBySlug(organizationId: string, slug: string): Pr
     }
     
     // جلب بيانات الألوان المتاحة للمنتج
-    const supabaseClient = await getSupabaseClient();
+    const supabaseClient = getSupabaseClient();
     const { data: colorData, error: colorError } = await supabaseClient
       .from('product_colors')
       .select('*')
@@ -837,7 +837,7 @@ export async function getProductNameById(productId: string): Promise<string> {
       return '';
     }
     
-    const supabaseClient = await getSupabaseClient();
+    const supabaseClient = getSupabaseClient();
     const { data, error } = await supabaseClient
       .from('products')
       .select('name')
@@ -912,7 +912,7 @@ export async function processOrder(
   } = orderData;
 
   try {
-    const supabaseClient = await getSupabaseClient();
+    const supabaseClient = getSupabaseClient();
     
     // استخدام التحويل الصريح (type casting) لتجاوز تدقيق المعاملات
     const params = {

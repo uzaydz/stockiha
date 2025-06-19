@@ -20,6 +20,8 @@ import type { OrganizationSettings } from '@/types/settings';
 import { Helmet } from 'react-helmet-async';
 import { StoreComponent, ComponentType } from '@/types/store-editor';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
+import { getDefaultFooterSettings, mergeFooterSettings } from '@/lib/footerSettings';
 
 interface OptimizedStorePageProps {
   storeData?: Partial<StoreInitializationData>;
@@ -131,6 +133,7 @@ const OptimizedStorePage = React.memo(({
 }: OptimizedStorePageProps) => {
   const { currentSubdomain } = useAuth();
   const { currentOrganization } = useTenant();
+  const { t } = useTranslation();
   
   // =================================================================
   // State Management محسن
@@ -844,7 +847,15 @@ const OptimizedStorePage = React.memo(({
           threshold={0.1}
           rootMargin="100px"
         >
-          <LazyStoreFooter {...footerSettings} />
+          {React.useMemo(() => {
+            // إعدادات افتراضية للفوتر باستخدام الدالة المشتركة
+            const defaultFooterSettings = getDefaultFooterSettings(storeName, storeData, t);
+
+            // دمج الإعدادات المخصصة مع الافتراضية
+            const finalFooterSettings = mergeFooterSettings(defaultFooterSettings, footerSettings);
+
+            return <LazyStoreFooter {...finalFooterSettings} />;
+          }, [footerSettings, storeName, storeData, t])}
         </LazySection>
       </div>
       

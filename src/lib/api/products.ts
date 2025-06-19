@@ -4,6 +4,7 @@ import { toast } from 'react-hot-toast';
 import { ProductFormValues } from '@/types/product';
 import { updateProductStockQuantity } from './productVariants';
 import { cacheManager } from '@/lib/cache/CentralCacheManager';
+import { queryClient } from '@/lib/config/queryClient';
 
 export interface TimerConfig {
   enabled: boolean;
@@ -56,6 +57,7 @@ export interface ProductColor {
   price?: number | null;
   created_at?: string;
   updated_at?: string;
+  sizes?: ProductSize[]; // Added sizes to ProductColor
 }
 
 export interface ProductSize {
@@ -195,9 +197,11 @@ export type Category = Database['public']['Tables']['product_categories']['Row']
 export type Subcategory = Database['public']['Tables']['product_subcategories']['Row'];
 
 export const getProducts = async (organizationId?: string, includeInactive: boolean = false): Promise<Product[]> => {
+  console.log('🔍 getProducts called with:', { organizationId, includeInactive });
 
   try {
     if (!organizationId) {
+      console.log('🔍 getProducts - No organization ID provided');
       return [];
     }
 
@@ -220,14 +224,24 @@ export const getProducts = async (organizationId?: string, includeInactive: bool
       query = query.eq('is_active', true);
     }
 
+    console.log('🔍 getProducts - Executing query for organization:', organizationId);
     const { data, error } = await query;
     
     if (error) {
+      console.error('🔍 getProducts - Query error:', error);
+      console.error('🔍 getProducts - Full error details:', JSON.stringify(error, null, 2));
       return [];
     }
 
+    console.log('🔍 getProducts - Query result:', { 
+      dataLength: data?.length || 0, 
+      sampleData: data?.slice(0, 2) || [],
+      fullData: data
+    });
+
     return (data as any) || [];
   } catch (error) {
+    console.error('🔍 getProducts - Caught error:', error);
     return []; // Return empty array to prevent UI from hanging
   }
 };
@@ -354,6 +368,7 @@ export const getProductsPaginated = async (
     // تطبيق الـ pagination
     query = query.range(from, to);
 
+    console.log('🔍 [getProductsPaginated] About to execute final query with all filters and pagination');
     const { data, error, count } = await query;
 
     if (error) {
@@ -981,6 +996,22 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
   cacheManager.invalidate('products*');
   console.log('🧹 [Cache] تم إلغاء صلاحية كاش المنتجات بعد الإنشاء');
 
+  // Invalidate relevant queries
+  const organizationId = createdProduct.organization_id;
+  if (organizationId) {
+    await queryClient.invalidateQueries({ queryKey: ['products', organizationId] });
+    await queryClient.invalidateQueries({ queryKey: ['product-categories', organizationId] });
+    await queryClient.invalidateQueries({ queryKey: ['dashboard-data', organizationId] });
+  } else {
+    await queryClient.invalidateQueries({ queryKey: ['products'] });
+    await queryClient.invalidateQueries({ queryKey: ['categories'] });
+  }
+
+  // 🎯 استخدام النظام الموحد للتحديث التلقائي
+  if (window.unifiedUpdate) {
+    // ... existing code ...
+  }
+
   return finalProductData;
 };
 
@@ -1338,109 +1369,83 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
   cacheManager.invalidate('products*');
   console.log('🧹 [Cache] تم إلغاء صلاحية كاش المنتجات بعد التحديث');
 
-  return resultProduct;
+  // تحديث مخزون المنتج الرئيسي
+  await updateProductStockQuantity(id);
+
+  const finalProduct = {
+    ...updatedProductData,
+    product_advanced_settings: currentAdvancedSettings,
+    product_marketing_settings: currentMarketingSettings,
+  };
+  
+  // =================================================================
+  // 🚀  CACHE INVALIDATION - تحديث الواجهة فوراً
+  // =================================================================
+  try {
+    const organizationId = updatedProductData.organization_id;
+
+    if (organizationId) {
+      // إلغاء صلاحية جميع استعلامات المنتجات لهذه المؤسسة
+      await queryClient.invalidateQueries({ queryKey: ['products', organizationId] });
+      
+      // إلغاء صلاحية استعلام منتج معين إذا كان مستخدماً
+      await queryClient.invalidateQueries({ queryKey: ['product', id] });
+      
+      // إلغاء صلاحية الفئات لأن عدد المنتجات قد يتغير
+      await queryClient.invalidateQueries({ queryKey: ['product-categories', organizationId] });
+      await queryClient.invalidateQueries({ queryKey: ['categories'] });
+      
+      // إلغاء صلاحية لوحة التحكم الرئيسية التي قد تعرض بيانات مجمعة
+      await queryClient.invalidateQueries({ queryKey: ['dashboard-data', organizationId] });
+    } else {
+      // إذا لم يكن هناك ID للمؤسسة، يتم إلغاء صلاحية جميع المنتجات كإجراء احترازي
+      await queryClient.invalidateQueries({ queryKey: ['products'] });
+      await queryClient.invalidateQueries({ queryKey: ['categories'] });
+    }
+  } catch (error) {
+    console.error('❌ [updateProduct] خطأ في إرسال إشعارات التحديث:', error);
+  }
+  
+  toast.success('تم تحديث المنتج بنجاح');
+  return finalProduct as unknown as Product;
 };
 
 export const deleteProduct = async (id: string, forceDisable: boolean = false): Promise<void> => {
-  console.log('🎯 [deleteProduct] بدء حذف منتج:', {
-    productId: id,
-    forceDisable,
-    timestamp: new Date().toISOString()
-  });
+  const { data: product, error: fetchError } = await supabase
+    .from('products')
+    .select('organization_id')
+    .eq('id', id)
+    .single();
 
-  try {
-    console.log('🔍 [deleteProduct] البحث عن طلبات مرتبطة بالمنتج...');
-    
-    const { data: orderItems, error: orderItemsError } = await supabase
-      .from('order_items')
-      .select('id')
-      .eq('product_id', id)
-      .limit(1);
-
-    if (orderItemsError) {
-      console.error('❌ [deleteProduct] خطأ في البحث عن الطلبات:', orderItemsError);
-      throw orderItemsError;
-    }
-
-    console.log('✅ [deleteProduct] نتائج البحث عن الطلبات:', {
-      orderItemsCount: orderItems?.length || 0,
-      hasOrderItems: orderItems && orderItems.length > 0
-    });
-
-    if ((orderItems && orderItems.length > 0) && forceDisable) {
-      console.log('🔄 [deleteProduct] المنتج مرتبط بطلبات - تعطيل بدلاً من الحذف...');
-      await disableProduct(id);
-      console.log('✅ [deleteProduct] تم تعطيل المنتج بنجاح');
-      return;
-    }
-    
-    if (orderItems && orderItems.length > 0) {
-      console.warn('⚠️ [deleteProduct] لا يمكن حذف المنتج - مرتبط بطلبات');
-      const error = {
-        code: 'PRODUCT_IN_USE',
-        message: 'لا يمكن حذف هذا المنتج لأنه مستخدم في طلبات. يمكنك تعطيل المنتج بدلاً من حذفه.',
-        details: 'المنتج مرتبط بطلبات سابقة ويجب الاحتفاظ به للحفاظ على سجلات الطلبات سليمة.',
-        canDisable: true
-      };
-      throw error;
-    }
-
-    console.log('🗑️ [deleteProduct] المنتج غير مرتبط بطلبات - المتابعة مع الحذف...');
-
-    const { error } = await supabase
-      .from('products')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      console.error('❌ [deleteProduct] خطأ في حذف المنتج من قاعدة البيانات:', error);
-      throw error;
-    }
-
-    console.log('✅ [deleteProduct] تم حذف المنتج من قاعدة البيانات بنجاح');
-    
-    // تحديث الواجهة فوراً
-    console.log('🔄 [deleteProduct] تحديث الواجهة فوراً...');
-    
-    // استخدام نظام التحديث المتطور
-    console.log('🚀 [deleteProduct] استخدام نظام التحديث المتطور');
-    
-    // الحصول على معرف المؤسسة من المنتج المحذوف
-    const { data: userData } = await supabase.auth.getUser();
-    const userId = userData.user?.id;
-    
-    if (userId) {
-      const { data: userInfo } = await supabase
-        .from('users')
-        .select('organization_id')
-        .eq('id', userId)
-        .single();
-        
-      const organizationId = userInfo?.organization_id;
-      
-      if (organizationId) {
-        console.log('🔄 [deleteProduct] تحديث تلقائي للمنتجات...');
-        
-        // استخدام دالة التحديث التلقائي من data-refresh-helpers
-        const { refreshAfterProductOperation } = await import('../data-refresh-helpers');
-        await refreshAfterProductOperation('delete', { organizationId, immediate: true });
-        
-        console.log('✅ [deleteProduct] تم تحديث المنتجات تلقائياً');
-      }
-    }
-    
-    console.log('🎉 [deleteProduct] تم حذف المنتج بنجاح كاملاً');
-    
-  } catch (error) {
-    console.error('❌ [deleteProduct] خطأ في حذف المنتج:', error);
-    throw error;
+  if (fetchError || !product) {
+    throw new Error('Product not found for invalidation.');
   }
 
-  // 🎯 الحل: إلغاء صلاحية كاش المنتجات
-  cacheManager.invalidate('products*');
-  console.log('🧹 [Cache] تم إلغاء صلاحية كاش المنتجات بعد الحذف');
+  const organizationId = product.organization_id;
 
-  return true;
+  if (forceDisable) {
+    const { error } = await supabase
+      .from('products')
+      .update({ is_active: false, is_featured: false })
+      .eq('id', id);
+
+    if (error) throw error;
+  } else {
+    const { error } = await supabase.from('products').delete().eq('id', id);
+    if (error) throw error;
+  }
+
+  // Invalidate relevant queries
+  if (organizationId) {
+    await queryClient.invalidateQueries({ queryKey: ['products', organizationId] });
+    await queryClient.invalidateQueries({ queryKey: ['product-categories', organizationId] });
+     await queryClient.invalidateQueries({ queryKey: ['dashboard-data', organizationId] });
+  } else {
+    await queryClient.invalidateQueries({ queryKey: ['products'] });
+    await queryClient.invalidateQueries({ queryKey: ['categories'] });
+  }
+
+  toast.success('تم حذف المنتج بنجاح');
 };
 
 export const getCategories = async (): Promise<Category[]> => {
@@ -1491,6 +1496,10 @@ export const createCategory = async (category: {
   if (error) {
     throw error;
   }
+
+  // Invalidate categories queries
+  await queryClient.invalidateQueries({ queryKey: ['product-categories', category.organization_id] });
+  await queryClient.invalidateQueries({ queryKey: ['categories'] });
 
   return data;
 };
@@ -1968,4 +1977,25 @@ export const getProductReviews = async (productId: string): Promise<Review[]> =>
     return [];
   }
   return data as Review[];
+};
+
+export const updateReview = async (
+  reviewId: string,
+  is_approved: boolean,
+  comment?: string
+): Promise<boolean> => {
+  const { data, error } = await supabase
+    .from('product_reviews')
+    .update({ 
+      is_approved,
+      comment: comment || undefined,
+      rating 
+    })
+    .eq('id', reviewId);
+
+  if (error) {
+    toast.error(`Error updating review: ${error.message}`);
+    return false;
+  }
+  return true;
 };

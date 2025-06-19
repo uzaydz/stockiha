@@ -202,7 +202,6 @@ AS $$
     FROM products p
     WHERE p.slug = p_slug
       AND p.organization_id = p_org_id
-      AND p.is_active = true
     LIMIT 1
   ) product_details;
 $$;

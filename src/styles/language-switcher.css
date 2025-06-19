@@ -1,0 +1,170 @@
+/* تحسينات إضافية لمبدل اللغة */
+
+/* تحسين الانتقالات والتأثيرات */
+.language-switcher-button {
+  @apply transform transition-all duration-200 ease-in-out;
+}
+
+.language-switcher-button:hover {
+  @apply scale-105 shadow-sm;
+}
+
+.language-switcher-button:active {
+  @apply scale-95;
+}
+
+/* تحسين الوضع المظلم */
+.dark .language-switcher-dropdown {
+  @apply bg-gray-900/95 border-gray-700/40;
+  backdrop-filter: blur(8px);
+}
+
+.dark .language-switcher-item {
+  @apply hover:bg-gray-800/50 focus:bg-gray-800/50;
+}
+
+.dark .language-switcher-item.active {
+  @apply bg-gray-800/30;
+}
+
+/* تحسين الوضع الفاتح */
+.light .language-switcher-dropdown {
+  @apply bg-white/95 border-gray-200/40;
+  backdrop-filter: blur(8px);
+}
+
+.light .language-switcher-item {
+  @apply hover:bg-gray-50/50 focus:bg-gray-50/50;
+}
+
+.light .language-switcher-item.active {
+  @apply bg-gray-50/30;
+}
+
+/* تأثيرات الرسوم المتحركة */
+@keyframes flagWave {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-2deg); }
+  75% { transform: rotate(2deg); }
+}
+
+.language-flag:hover {
+  animation: flagWave 0.5s ease-in-out;
+}
+
+/* تحسين الاستجابة للشاشات الصغيرة */
+@media (max-width: 640px) {
+  .language-switcher-dropdown {
+    @apply w-48 text-sm;
+  }
+  
+  .language-switcher-inline {
+    @apply flex-col gap-2;
+  }
+  
+  .language-switcher-compact {
+    @apply scale-90;
+  }
+}
+
+/* تحسين الوضع العالي التباين */
+@media (prefers-contrast: high) {
+  .language-switcher-button {
+    @apply border-2;
+  }
+  
+  .language-switcher-item.active {
+    @apply bg-primary/20 border border-primary/40;
+  }
+}
+
+/* تحسين للمستخدمين الذين يفضلون تقليل الحركة */
+@media (prefers-reduced-motion: reduce) {
+  .language-switcher-button,
+  .language-switcher-item,
+  .language-flag {
+    @apply transition-none;
+    animation: none !important;
+  }
+}
+
+/* دعم RTL */
+.rtl .language-switcher-dropdown {
+  @apply text-right;
+}
+
+.rtl .language-flag {
+  @apply ml-2 mr-0;
+}
+
+.rtl .language-switcher-button .lucide-chevron-down {
+  @apply mr-2 ml-0;
+}
+
+/* تحسينات الوضوح للنصوص */
+.language-switcher-text {
+  @apply font-medium tracking-wide;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* تحسين الأيقونات */
+.language-switcher-icon {
+  @apply transition-all duration-200;
+}
+
+.language-switcher-button:hover .language-switcher-icon {
+  @apply text-foreground;
+}
+
+/* تأثير التركيز المحسن */
+.language-switcher-button:focus-visible {
+  @apply ring-2 ring-primary/30 ring-offset-2 ring-offset-background;
+  outline: none;
+}
+
+/* تحسين الظلال */
+.language-switcher-dropdown {
+  box-shadow: 
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06),
+    0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+
+.dark .language-switcher-dropdown {
+  box-shadow: 
+    0 4px 6px -1px rgba(0, 0, 0, 0.3),
+    0 2px 4px -1px rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+/* تحسين التدرجات */
+.language-switcher-gradient {
+  background: linear-gradient(135deg, transparent 0%, rgba(var(--primary), 0.05) 100%);
+}
+
+.dark .language-switcher-gradient {
+  background: linear-gradient(135deg, transparent 0%, rgba(255, 255, 255, 0.03) 100%);
+}
+
+/* تحسين الحدود المتحركة */
+.language-switcher-border {
+  position: relative;
+  overflow: hidden;
+}
+
+.language-switcher-border::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(var(--primary), 0.4), transparent);
+  transition: left 0.5s ease;
+}
+
+.language-switcher-border:hover::before {
+  left: 100%;
+} 

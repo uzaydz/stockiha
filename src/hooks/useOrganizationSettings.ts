@@ -383,6 +383,8 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
 
   // تحديث قيمة في الإعدادات مع منع تطبيق الثيم المتكرر
   const updateSetting = useCallback((key: keyof OrganizationSettings, value: any) => {
+    console.log(`🔄 تحديث ${key} إلى:`, value);
+    
     setSettings((prev) => ({
       ...prev,
       [key]: value,
@@ -392,6 +394,11 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
     if (key === 'theme_mode' && value !== settings.theme_mode) {
       const themeMode = value === 'auto' ? 'system' : value;
       setTheme(themeMode);
+    }
+    
+    // تسجيل تغيير اللغة الافتراضية
+    if (key === 'default_language') {
+      console.log(`🌐 تحديث اللغة الافتراضية إلى: ${value}`);
     }
   }, [settings.theme_mode, setTheme]);
 
@@ -406,11 +413,17 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
     }));
   }, []);
   
-  // دالة محسنة لحفظ الإعدادات
+  // دالة محسنة لحفظ الإعدادات مع إعادة جلب فورية
   const saveSettings = useCallback(async (): Promise<void> => {
     if (!organizationId || isSaving) {
       return;
     }
+
+    console.log('🔄 بدء حفظ الإعدادات:', { 
+      organizationId, 
+      default_language: settings.default_language,
+      site_name: settings.site_name 
+    });
 
     setIsSaving(true);
     setSaveSuccess(false);
@@ -423,22 +436,114 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
 
       const updatedSettings = {
         ...settings,
-        custom_js: JSON.stringify(customJsData)
+        custom_js: JSON.stringify(customJsData),
+        updated_at: new Date().toISOString()
       };
       
-      // حفظ محسن باستخدام upsert
-      const { error } = await supabase
+      console.log('💾 حفظ الإعدادات:', { 
+        default_language: updatedSettings.default_language,
+        site_name: updatedSettings.site_name 
+      });
+      
+      // استخدام UPDATE بدلاً من upsert لتجنب مشاكل RLS
+      const { data: savedData, error } = await supabase
         .from('organization_settings')
-        .upsert(updatedSettings, {
-          onConflict: 'organization_id'
-        });
+        .update({
+          theme_primary_color: updatedSettings.theme_primary_color,
+          theme_secondary_color: updatedSettings.theme_secondary_color,
+          theme_mode: updatedSettings.theme_mode,
+          site_name: updatedSettings.site_name,
+          custom_css: updatedSettings.custom_css,
+          logo_url: updatedSettings.logo_url,
+          favicon_url: updatedSettings.favicon_url,
+          default_language: updatedSettings.default_language,
+          custom_js: updatedSettings.custom_js,
+          custom_header: updatedSettings.custom_header,
+          custom_footer: updatedSettings.custom_footer,
+          enable_registration: updatedSettings.enable_registration,
+          enable_public_site: updatedSettings.enable_public_site,
+          display_text_with_logo: updatedSettings.display_text_with_logo,
+          updated_at: new Date().toISOString()
+        })
+        .eq('organization_id', organizationId)
+        .select()
+        .single();
+        
+      // إذا تم تحديث اللغة الافتراضية، إرسال إشعار للمتجر العام
+      if (!error && savedData && settings.default_language !== updatedSettings.default_language) {
+        console.log('🔔 تم تحديث اللغة الافتراضية - إرسال إشعار للمتجر العام');
+        
+        // إرسال حدث للمتجر العام عبر localStorage
+        try {
+          const languageUpdateEvent = {
+            type: 'language_updated',
+            organization_id: organizationId,
+            old_language: settings.default_language,
+            new_language: updatedSettings.default_language,
+            timestamp: Date.now()
+          };
           
-          if (error) {
-            throw error;
-          }
+          localStorage.setItem(`language_update_${organizationId}`, JSON.stringify(languageUpdateEvent));
+          
+          // إرسال حدث عبر window للمكونات الأخرى
+          window.dispatchEvent(new CustomEvent('organization_language_updated', {
+            detail: languageUpdateEvent
+          }));
+          
+          console.log('🔔 تم إرسال إشعار تحديث اللغة بنجاح');
+        } catch (notificationError) {
+          console.warn('تحذير: فشل في إرسال الإشعار:', notificationError);
+        }
+      }
+          
+      if (error) {
+        console.error('❌ خطأ في الحفظ:', error);
+        
+                          // إذا فشل UPDATE، أخبر المستخدم بالخطأ بشكل واضح
+         console.error('❌ فشل في تحديث الإعدادات - مشكلة صلاحيات:', error);
+         
+         // رسالة واضحة للمستخدم
+         throw new Error(
+           `فشل في حفظ الإعدادات. المشكلة: ${error.message || 'خطأ في الصلاحيات'}\n\n` +
+           'الحلول المؤقتة:\n' +
+           '1. تحديث الصفحة وإعادة المحاولة\n' +
+           '2. تسجيل الخروج وإعادة الدخول\n' +
+           '3. التواصل مع الدعم الفني'
+         );
+      } else {
+        console.log('✅ تم الحفظ بنجاح:', { 
+          default_language: savedData?.default_language,
+          site_name: savedData?.site_name 
+        });
 
-      // تحديث الكاش فوراً
-      setCachedSettings(organizationId, updatedSettings);
+        // تحديث الإعدادات المحلية بالبيانات المحفوظة فعلياً
+        if (savedData) {
+          setSettings(savedData as OrganizationSettings);
+          setCachedSettings(organizationId, savedData as OrganizationSettings);
+        }
+      }
+      
+      // إعادة جلب البيانات من قاعدة البيانات للتأكد (مع صلاحيات أقل تقييداً)
+      setTimeout(async () => {
+        try {
+          const { data: refreshedData, error: refreshError } = await supabase
+            .from('organization_settings')
+            .select('*')
+            .eq('organization_id', organizationId)
+            .single(); // العودة إلى single
+            
+          if (!refreshError && refreshedData) {
+            console.log('🔄 البيانات المحدثة:', { 
+              default_language: refreshedData.default_language,
+              site_name: refreshedData.site_name 
+            });
+            setSettings(refreshedData as OrganizationSettings);
+            setCachedSettings(organizationId, refreshedData as OrganizationSettings);
+          }
+        } catch (refreshError) {
+          console.error('خطأ في إعادة الجلب:', refreshError);
+        }
+      }, 500);
       
       setSaveSuccess(true);
       
@@ -446,6 +551,7 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
       setTimeout(() => setSaveSuccess(false), 3000);
 
     } catch (error: any) {
+      console.error('❌ خطأ عام في الحفظ:', error);
       throw error;
     } finally {
       setIsSaving(false);

@@ -129,7 +129,6 @@
     "@sentry/replay": "^7.116.0",
     "@sentry/tracing": "^7.0.0",
     "@supabase/auth-helpers-react": "^0.5.0",
-    "@supabase/mcp-server-supabase": "^0.4.1",
     "@supabase/realtime-js": "^2.11.5",
     "@supabase/supabase-js": "^2.49.4",
     "@tanstack/query-sync-storage-persister": "^5.74.9",
@@ -226,6 +225,7 @@
   "devDependencies": {
     "@eslint/js": "^9.9.0",
     "@rollup/plugin-commonjs": "^28.0.5",
+    "@supabase/mcp-server-supabase": "^0.4.4",
     "@tailwindcss/typography": "^0.5.15",
     "@types/node": "^22.15.18",
     "@types/react": "^18.3.3",

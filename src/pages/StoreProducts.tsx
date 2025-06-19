@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'rea
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { getProductsPaginated } from '@/lib/api/products';
 import { getCategories, Category } from '@/lib/api/unified-api';
 import StoreProductGrid from '@/components/store/StoreProductGrid';
@@ -127,13 +128,20 @@ const useProductsData = (organizationId: string | undefined, filters: FilterStat
   
   // Memoize the fetch function with stable dependencies
   const fetchProducts = useCallback(async (orgId: string, page: number, filterState: FilterState) => {
-    if (!orgId) return;
+    console.log('🏪 useProductsData - fetchProducts called:', { orgId, page, filterState });
+    
+    if (!orgId) {
+      console.log('🏪 useProductsData - No organization ID provided, skipping fetch');
+      return;
+    }
     
     const cacheKey = cache.generateCacheKey(orgId, page, filterState);
+    console.log('🏪 useProductsData - Cache key:', cacheKey);
 
     // Check cache first
     const cachedData = cache.get(cacheKey);
     if (cachedData) {
+      console.log('🏪 useProductsData - Using cached data:', cachedData);
       setData(cachedData);
       setIsLoading(false);
           return;
@@ -141,6 +149,7 @@ const useProductsData = (organizationId: string | undefined, filters: FilterStat
           
     setIsLoading(true);
     setError(null);
+    console.log('🏪 useProductsData - Fetching fresh data from API');
     
     try {
       const result = await getProductsPaginated(orgId, page, PRODUCTS_PER_PAGE, {
@@ -150,10 +159,13 @@ const useProductsData = (organizationId: string | undefined, filters: FilterStat
         sortOption: filterState.sortOption,
       });
       
+      console.log('🏪 useProductsData - API result:', result);
+      
       // Cache the result
       cache.set(cacheKey, result);
       setData(result);
     } catch (err) {
+      console.error('🏪 useProductsData - API error:', err);
       setError('حدث خطأ أثناء تحميل المنتجات');
       } finally {
         setIsLoading(false);
@@ -210,6 +222,7 @@ const PaginationControls = ({
   onPageChange: (page: number) => void;
   isLoading: boolean;
 }) => {
+  const { t } = useTranslation();
   const pageNumbers = useMemo(() => {
     const pages = [];
     const start = Math.max(1, currentPage - 2);
@@ -233,7 +246,7 @@ const PaginationControls = ({
         className="gap-2"
       >
         <ChevronRight className="h-4 w-4" />
-        السابق
+        {t('storeProducts.pagination.previous')}
       </Button>
       
       <div className="flex items-center gap-1">
@@ -258,7 +271,7 @@ const PaginationControls = ({
         disabled={!hasNextPage || isLoading}
         className="gap-2"
       >
-        التالي
+        {t('storeProducts.pagination.next')}
         <ChevronLeft className="h-4 w-4" />
       </Button>
     </div>
@@ -319,6 +332,7 @@ const ProductsSkeleton = () => (
 );
 
 const StoreProducts = () => {
+  const { t } = useTranslation();
   const { currentOrganization } = useTenant();
   const { filters, updateFilter, resetFilters } = useProductFilters();
   const [categories, setCategories] = useState<Category[]>([]);
@@ -331,16 +345,55 @@ const StoreProducts = () => {
     process.env.NODE_ENV === 'development'
   );
 
+  // استخدام معرف المؤسسة من مصادر متعددة
+  const organizationId = useMemo(() => {
+    console.log('🏪 StoreProducts - Organization ID resolution started');
+    console.log('🏪 Current organization from context:', currentOrganization);
+    
+    // 1. محاولة الحصول عليه من TenantContext
+    if (currentOrganization?.id) {
+      console.log('🏪 StoreProducts - Using organization ID from context:', currentOrganization.id);
+      return currentOrganization.id;
+    }
+    
+    // 2. محاولة الحصول عليه من localStorage
+    const storedOrgId = localStorage.getItem('bazaar_organization_id');
+    if (storedOrgId) {
+      console.log('🏪 StoreProducts - Using organization ID from localStorage:', storedOrgId);
+      return storedOrgId;
+    }
+    
+    // 3. إذا كان النطاق الفرعي "asraycollection"، استخدم المعرف المعروف
+    const hostname = window.location.hostname;
+    if (hostname.includes('asraycollection')) {
+      console.log('🏪 StoreProducts - Using hardcoded organization ID for asraycollection');
+      return '560e2c06-d13c-4853-abcf-d41f017469cf';
+    }
+    
+    console.log('🏪 StoreProducts - No organization ID found!');
+    return null;
+  }, [currentOrganization?.id]);
+
   // Use custom hook for products data
   const { data: paginationData, isLoading, error, cache } = useProductsData(
-    currentOrganization?.id, 
+    organizationId, 
     filters, 
     currentPage
   );
 
+  // Debug logging for products data
+  useEffect(() => {
+    console.log('🏪 StoreProducts - Products data updated:', {
+      organizationId,
+      productsCount: paginationData.products.length,
+      totalCount: paginationData.totalCount,
+      isLoading,
+      error,
+      filters
+    });
+  }, [organizationId, paginationData, isLoading, error, filters]);
+
   // Fetch categories with stable reference
-  const organizationId = currentOrganization?.id;
-  
   useEffect(() => {
     if (!organizationId) return;
     
@@ -359,7 +412,7 @@ const StoreProducts = () => {
         }
       } catch (error) {
         if (!isCancelled) {
-          toast.error('حدث خطأ أثناء تحميل الفئات');
+          toast.error(t('storeProducts.states.error.categoriesError'));
         }
       } finally {
         if (!isCancelled) {
@@ -421,11 +474,11 @@ const StoreProducts = () => {
           <div className="bg-destructive/10 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
             <X className="h-12 w-12 text-destructive" />
           </div>
-          <h3 className="text-2xl font-semibold mb-4">حدث خطأ</h3>
+          <h3 className="text-2xl font-semibold mb-4">{t('storeProducts.states.error.title')}</h3>
           <p className="text-muted-foreground mb-6">{error}</p>
           <Button onClick={() => window.location.reload()} variant="outline">
             <RotateCcw className="h-4 w-4 ml-2" />
-            إعادة المحاولة
+            {t('storeProducts.states.error.retry')}
           </Button>
         </div>
       </StoreLayout>
@@ -446,10 +499,10 @@ const StoreProducts = () => {
               <ShoppingBag className="h-8 w-8 text-primary" />
             </div>
             <h1 className="text-3xl md:text-4xl font-bold mb-4 bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-              متجر المنتجات
+              {t('storeProducts.title')}
             </h1>
             <p className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto">
-              اكتشف مجموعة واسعة من المنتجات عالية الجودة بأفضل الأسعار
+              {t('storeProducts.subtitle')}
             </p>
             
             {/* Stats */}
@@ -458,19 +511,21 @@ const StoreProducts = () => {
                 <div className="text-xl md:text-2xl font-bold text-primary">
                   {paginationData.totalCount}
                 </div>
-                <div className="text-xs md:text-sm text-muted-foreground">منتج متاح</div>
+                <div className="text-xs md:text-sm text-muted-foreground">{t('storeProducts.stats.productsAvailable')}</div>
               </div>
               <Separator orientation="vertical" className="h-6 md:h-8" />
               <div className="text-center">
                 <div className="text-xl md:text-2xl font-bold text-primary">{categories.length}</div>
-                <div className="text-xs md:text-sm text-muted-foreground">فئة</div>
+                <div className="text-xs md:text-sm text-muted-foreground">
+                  {categories.length === 1 ? t('storeProducts.stats.category') : t('storeProducts.stats.categories')}
+                </div>
               </div>
               <Separator orientation="vertical" className="h-6 md:h-8" />
               <div className="text-center">
                 <div className="text-xl md:text-2xl font-bold text-primary">
                   {paginationData.products.length}
                 </div>
-                <div className="text-xs md:text-sm text-muted-foreground">في الصفحة الحالية</div>
+                <div className="text-xs md:text-sm text-muted-foreground">{t('storeProducts.stats.currentPage')}</div>
               </div>
             </div>
           </motion.div>
@@ -488,7 +543,7 @@ const StoreProducts = () => {
                   <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     type="text"
-                    placeholder="ابحث عن المنتجات..."
+                    placeholder={t('storeProducts.search.placeholder')}
                     value={filters.searchQuery}
                     onChange={(e) => updateFilter('searchQuery', e.target.value)}
                     className="pr-10 pl-10 h-12 text-lg border-primary/20 focus:border-primary"
@@ -508,7 +563,7 @@ const StoreProducts = () => {
                 {/* Quick Filters */}
                 <div className="flex flex-wrap items-center gap-3 mb-4">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-muted-foreground">فلترة سريعة:</span>
+                    <span className="text-sm font-medium text-muted-foreground">{t('storeProducts.search.quickFilter')}</span>
                   </div>
                   
                   {/* Category Quick Filter */}
@@ -518,10 +573,10 @@ const StoreProducts = () => {
                     disabled={categoriesLoading}
                   >
                     <SelectTrigger className="w-40 h-9">
-                      <SelectValue placeholder="الفئة" />
+                      <SelectValue placeholder={t('storeProducts.filters.category.label')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">كل الفئات</SelectItem>
+                      <SelectItem value="all">{t('storeProducts.filters.category.all')}</SelectItem>
                       {categories.map((category) => (
                         <SelectItem key={category.id} value={category.id}>
                           {category.name}
@@ -533,27 +588,27 @@ const StoreProducts = () => {
                   {/* Sort Filter */}
                   <Select value={filters.sortOption} onValueChange={(value) => updateFilter('sortOption', value)}>
                     <SelectTrigger className="w-40 h-9">
-                      <SelectValue placeholder="ترتيب" />
+                      <SelectValue placeholder={t('storeProducts.filters.sort.label')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="newest">الأحدث</SelectItem>
-                      <SelectItem value="price-low">السعر: من الأقل للأعلى</SelectItem>
-                      <SelectItem value="price-high">السعر: من الأعلى للأقل</SelectItem>
-                      <SelectItem value="name-asc">الاسم: أ-ي</SelectItem>
-                      <SelectItem value="name-desc">الاسم: ي-أ</SelectItem>
+                      <SelectItem value="newest">{t('storeProducts.filters.sort.newest')}</SelectItem>
+                      <SelectItem value="price-low">{t('storeProducts.filters.sort.priceLow')}</SelectItem>
+                      <SelectItem value="price-high">{t('storeProducts.filters.sort.priceHigh')}</SelectItem>
+                      <SelectItem value="name-asc">{t('storeProducts.filters.sort.nameAsc')}</SelectItem>
+                      <SelectItem value="name-desc">{t('storeProducts.filters.sort.nameDesc')}</SelectItem>
                     </SelectContent>
                   </Select>
 
                   {/* Stock Filter */}
                   <Select value={filters.stockFilter} onValueChange={(value) => updateFilter('stockFilter', value)}>
                     <SelectTrigger className="w-32 h-9">
-                      <SelectValue placeholder="التوفر" />
+                      <SelectValue placeholder={t('storeProducts.filters.stock.label')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">الكل</SelectItem>
-                      <SelectItem value="in-stock">متوفر</SelectItem>
-                      <SelectItem value="out-of-stock">غير متوفر</SelectItem>
-                      <SelectItem value="low-stock">مخزون قليل</SelectItem>
+                      <SelectItem value="all">{t('storeProducts.filters.stock.all')}</SelectItem>
+                      <SelectItem value="in-stock">{t('storeProducts.filters.stock.inStock')}</SelectItem>
+                      <SelectItem value="out-of-stock">{t('storeProducts.filters.stock.outOfStock')}</SelectItem>
+                      <SelectItem value="low-stock">{t('storeProducts.filters.stock.lowStock')}</SelectItem>
                     </SelectContent>
                   </Select>
 
@@ -561,7 +616,7 @@ const StoreProducts = () => {
                   {activeFiltersCount > 0 && (
                     <Button variant="ghost" onClick={resetFilters} className="h-9 text-muted-foreground">
                       <X className="h-4 w-4 ml-2" />
-                      إعادة تعيين ({activeFiltersCount})
+                      {t('storeProducts.filters.reset', { count: activeFiltersCount })}
                     </Button>
                   )}
                 </div>
@@ -570,10 +625,16 @@ const StoreProducts = () => {
                 <div className="flex items-center justify-between pt-4 border-t">
                   <div className="flex items-center gap-4">
                     <span className="text-sm text-muted-foreground">
-                      عرض {paginationData.products.length} من أصل {paginationData.totalCount} منتج
+                      {t('storeProducts.search.resultsInfo', { 
+                        showing: paginationData.products.length, 
+                        total: paginationData.totalCount 
+                      })}
                       {paginationData.totalPages > 1 && (
                         <span className="mr-2">
-                          (صفحة {paginationData.currentPage} من {paginationData.totalPages})
+                          {t('storeProducts.search.pageInfo', { 
+                            current: paginationData.currentPage, 
+                            total: paginationData.totalPages 
+                          })}
                         </span>
                       )}
                     </span>
@@ -581,22 +642,23 @@ const StoreProducts = () => {
                     {/* Active Filters Display */}
                     {activeFiltersCount > 0 && (
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">الفلاتر النشطة:</span>
+                        <span className="text-xs text-muted-foreground">{t('storeProducts.search.activeFilters')}</span>
                         <div className="flex gap-1">
                           {filters.searchQuery && (
                             <Badge variant="secondary" className="text-xs">
-                              بحث: {filters.searchQuery}
+                              {t('storeProducts.search.searchFilter', { query: filters.searchQuery })}
                             </Badge>
                           )}
                           {filters.categoryFilter && (
                             <Badge variant="secondary" className="text-xs">
-                              فئة: {selectedCategoryName}
+                              {t('storeProducts.search.categoryFilter', { category: selectedCategoryName })}
                             </Badge>
                           )}
                           {filters.stockFilter !== 'all' && (
                             <Badge variant="secondary" className="text-xs">
-                              {filters.stockFilter === 'in-stock' ? 'متوفر' : 
-                               filters.stockFilter === 'out-of-stock' ? 'غير متوفر' : 'مخزون قليل'}
+                              {filters.stockFilter === 'in-stock' ? t('storeProducts.filters.stock.inStock') : 
+                               filters.stockFilter === 'out-of-stock' ? t('storeProducts.filters.stock.outOfStock') : 
+                               t('storeProducts.filters.stock.lowStock')}
                             </Badge>
                           )}
                         </div>
@@ -655,7 +717,7 @@ const StoreProducts = () => {
               <div className="absolute inset-0 bg-background/50 backdrop-blur-sm z-10 flex items-center justify-center rounded-lg">
                 <div className="flex items-center gap-2 bg-background px-4 py-2 rounded-lg shadow-lg">
                   <Loader2 className="h-5 w-5 animate-spin" />
-                  <span>جاري التحميل...</span>
+                  <span>{t('storeProducts.states.loading')}</span>
                 </div>
               </div>
             )}
@@ -672,13 +734,13 @@ const StoreProducts = () => {
                   <div className="bg-muted/30 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
                     <ShoppingBag className="h-12 w-12 text-muted-foreground/50" />
                   </div>
-                  <h3 className="text-2xl font-semibold mb-4">لا توجد منتجات مطابقة</h3>
+                  <h3 className="text-2xl font-semibold mb-4">{t('storeProducts.states.empty.title')}</h3>
                   <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                    لم نتمكن من العثور على منتجات تطابق معايير البحث الحالية. جرب تعديل الفلاتر أو البحث بكلمات مختلفة.
+                    {t('storeProducts.states.empty.message')}
                   </p>
                   <Button onClick={resetFilters} variant="outline">
                     <Filter className="h-4 w-4 ml-2" />
-                    إعادة تعيين الفلاتر
+                    {t('storeProducts.states.empty.resetFilters')}
                   </Button>
                 </motion.div>
               ) : (

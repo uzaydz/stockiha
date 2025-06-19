@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ChevronRight, ChevronLeft, Minus, Plus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useTranslation } from 'react-i18next';
 import ProductColorSelector from '@/components/store/ProductColorSelector';
 import ProductSizeSelector from '@/components/store/ProductSizeSelector';
 import type { ProductColor, ProductSize } from '@/lib/api/products';
@@ -33,6 +34,7 @@ const ProductOptions = ({
   loadingSizes = false,
   useSizes = false
 }: ProductOptionsProps) => {
+  const { t } = useTranslation();
   
   return (
     <div className="space-y-6">
@@ -46,7 +48,7 @@ const ProductOptions = ({
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-medium text-foreground flex items-center">
               <span className="inline-block w-1 h-4 bg-primary rounded-full ml-2"></span>
-              اللون
+              {t('productOptions.color')}
             </h3>
             {selectedColor && (
               <span className="text-xs text-primary font-medium px-3 py-1 bg-primary/5 rounded-full">
@@ -74,7 +76,7 @@ const ProductOptions = ({
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-medium text-foreground flex items-center">
               <span className="inline-block w-1 h-4 bg-primary rounded-full ml-2"></span>
-              المقاس
+              {t('productOptions.size')}
             </h3>
             {selectedSize && (
               <span className="text-xs text-primary font-medium px-3 py-1 bg-primary/5 rounded-full">
@@ -86,7 +88,7 @@ const ProductOptions = ({
           {loadingSizes ? (
             <div className="flex items-center justify-center py-8 bg-card rounded-xl border border-border shadow-sm">
               <Loader2 className="h-5 w-5 animate-spin text-primary ml-2" />
-              <span className="text-sm text-muted-foreground">جاري تحميل المقاسات...</span>
+              <span className="text-sm text-muted-foreground">{t('productOptions.loadingSizes')}</span>
             </div>
           ) : sizes.length > 0 ? (
             <div className="bg-card p-4 rounded-xl border border-border shadow-sm">
@@ -98,7 +100,7 @@ const ProductOptions = ({
             </div>
           ) : (
             <div className="text-center py-6 bg-card rounded-xl border border-border shadow-sm text-muted-foreground text-sm">
-              لا توجد مقاسات متاحة لهذا اللون
+              {t('productOptions.noSizesAvailable')}
             </div>
           )}
         </motion.div>
@@ -113,10 +115,10 @@ const ProductOptions = ({
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-medium text-foreground flex items-center">
             <span className="inline-block w-1 h-4 bg-primary rounded-full ml-2"></span>
-            الكمية
+            {t('productOptions.quantity')}
           </h3>
           <span className="text-xs text-primary font-medium px-3 py-1 bg-primary/5 rounded-full">
-            {maxQuantity > 0 ? `متوفر: ${maxQuantity} قطعة` : 'غير متوفر'}
+            {maxQuantity > 0 ? t('productOptions.available', { count: maxQuantity }) : t('productOptions.unavailable')}
           </span>
         </div>
         <div className="bg-card p-4 rounded-xl border border-border shadow-sm">
@@ -150,7 +152,7 @@ const ProductOptions = ({
             </div>
 
             <div className="text-muted-foreground text-sm text-center w-full border-t border-border pt-3 mt-1">
-              السعر الإجمالي: <span className="font-bold text-foreground">{(quantity * (selectedSize?.price || selectedColor?.price || 0)).toLocaleString()} د.ج</span>
+              {t('productOptions.totalPrice', { price: (quantity * (selectedSize?.price || selectedColor?.price || 0)).toLocaleString() })}
             </div>
           </div>
         </div>

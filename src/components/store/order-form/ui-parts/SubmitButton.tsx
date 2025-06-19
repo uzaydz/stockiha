@@ -1,5 +1,6 @@
 import React from "react";
 import { Loader2, CreditCard } from "lucide-react";
+import { useTranslation } from 'react-i18next';
 
 interface SubmitButtonProps {
   isSubmitting: boolean;
@@ -11,9 +12,14 @@ interface SubmitButtonProps {
 export const SubmitButton: React.FC<SubmitButtonProps> = ({
   isSubmitting,
   onClick,
-  text = "إرسال الطلب",
-  submittingText = "جاري إرسال الطلب...",
+  text,
+  submittingText,
 }) => {
+  const { t } = useTranslation();
+  
+  const defaultText = text || t("إرسال الطلب");
+  const defaultSubmittingText = submittingText || t("جاري إرسال الطلب...");
+
   return (
     <div className="flex justify-center mt-6">
       <div className="relative w-full max-w-md">
@@ -37,14 +43,14 @@ export const SubmitButton: React.FC<SubmitButtonProps> = ({
                 <div className="p-1 bg-white/20 rounded-full">
                   <Loader2 className="w-5 h-5 text-white animate-spin" />
                 </div>
-                <span className="text-lg text-white">{submittingText}</span>
+                <span className="text-lg text-white">{defaultSubmittingText}</span>
               </>
             ) : (
               <>
                 <div className="p-1 bg-white/20 rounded-full">
                   <CreditCard className="w-5 h-5 text-white" />
                 </div>
-                <span className="text-lg text-white">{text}</span>
+                <span className="text-lg text-white">{defaultText}</span>
                 <div className="flex items-center gap-1">
                   <div className="w-1 h-1 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                   <div className="w-1 h-1 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />

@@ -5,7 +5,7 @@
 
 import React, { createContext, useContext, ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useTenant } from './TenantContext';
+import { useTenant } from '../context/TenantContext';
 import { supabase } from '@/lib/supabase';
 
 // أنواع البيانات الموحدة
@@ -124,10 +124,10 @@ export const OrganizationDataProvider: React.FC<{ children: ReactNode }> = ({ ch
     queryKey: ['organization-settings', organizationId],
     queryFn: () => fetchOrganizationSettings(organizationId!),
     enabled: !!organizationId,
-    staleTime: 2 * 60 * 1000, // 2 دقيقة - تحديث أسرع للإعدادات
+    staleTime: 5 * 60 * 1000, // 5 دقائق - تحديث أقل تكراراً للإعدادات
     gcTime: 30 * 60 * 1000, // 30 دقيقة
     retry: 1,
-    refetchOnMount: true, // السماح بالتحديث عند التحميل
+    refetchOnMount: false, // منع التحديث التلقائي عند التحميل
     refetchOnWindowFocus: false,
   });
 
@@ -140,10 +140,10 @@ export const OrganizationDataProvider: React.FC<{ children: ReactNode }> = ({ ch
     queryKey: ['organization-subscriptions', organizationId],
     queryFn: () => fetchOrganizationSubscriptions(organizationId!),
     enabled: !!organizationId,
-    staleTime: 2 * 60 * 1000, // 2 دقيقة - تحديث أسرع للاشتراكات
+    staleTime: 10 * 60 * 1000, // 10 دقائق - تحديث أقل تكراراً للاشتراكات
     gcTime: 15 * 60 * 1000, // 15 دقيقة
     retry: 1,
-    refetchOnMount: true, // السماح بالتحديث عند التحميل
+    refetchOnMount: false, // منع التحديث التلقائي عند التحميل
     refetchOnWindowFocus: false,
   });
 
@@ -156,10 +156,10 @@ export const OrganizationDataProvider: React.FC<{ children: ReactNode }> = ({ ch
     queryKey: ['organization-apps', organizationId],
     queryFn: () => fetchOrganizationApps(organizationId!),
     enabled: !!organizationId,
-    staleTime: 3 * 60 * 1000, // 3 دقائق - تحديث أسرع للتطبيقات
+    staleTime: 15 * 60 * 1000, // 15 دقيقة - تحديث أقل تكراراً للتطبيقات
     gcTime: 45 * 60 * 1000, // 45 دقيقة
     retry: 1,
-    refetchOnMount: true, // السماح بالتحديث عند التحميل
+    refetchOnMount: false, // منع التحديث التلقائي عند التحميل
     refetchOnWindowFocus: false,
   });
 
@@ -172,10 +172,10 @@ export const OrganizationDataProvider: React.FC<{ children: ReactNode }> = ({ ch
     queryKey: ['product-categories', organizationId],
     queryFn: () => fetchProductCategories(organizationId!),
     enabled: !!organizationId,
-    staleTime: 1 * 60 * 1000, // 1 دقيقة - تحديث سريع للفئات
+    staleTime: 5 * 60 * 1000, // 5 دقائق - تحديث معقول للفئات
     gcTime: 60 * 60 * 1000, // ساعة واحدة
     retry: 1,
-    refetchOnMount: true, // السماح بالتحديث عند التحميل
+    refetchOnMount: false, // منع التحديث التلقائي عند التحميل
     refetchOnWindowFocus: false,
   });
 
@@ -188,10 +188,10 @@ export const OrganizationDataProvider: React.FC<{ children: ReactNode }> = ({ ch
     queryKey: ['products', organizationId],
     queryFn: () => fetchProducts(organizationId!),
     enabled: !!organizationId,
-    staleTime: 1 * 60 * 1000, // 1 دقيقة - تحديث سريع للمنتجات
+    staleTime: 3 * 60 * 1000, // 3 دقائق - تحديث معقول للمنتجات
     gcTime: 30 * 60 * 1000, // 30 دقيقة
     retry: 1,
-    refetchOnMount: true, // السماح بالتحديث عند التحميل
+    refetchOnMount: false, // منع التحديث التلقائي عند التحميل
     refetchOnWindowFocus: false,
   });
 

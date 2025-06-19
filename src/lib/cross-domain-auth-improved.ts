@@ -22,29 +22,16 @@ const EXPIRY_TIMES = {
 } as const;
 
 // دالة مساعدة للتأكد من جاهزية Supabase client
-const ensureSupabaseReady = async (maxWaitTime = 5000) => {
-  const startTime = Date.now();
-  
-  while (Date.now() - startTime < maxWaitTime) {
-    try {
-      // محاولة الوصول لـ auth
-      if (supabase && supabase.auth && typeof supabase.auth.getSession === 'function') {
-        return supabase;
-      }
-      
-      // محاولة الحصول على client من الدالة الموحدة
-      const client = await getSupabaseClient();
-      if (client && client.auth && typeof client.auth.getSession === 'function') {
-        return client;
-      }
-      
-      await new Promise(resolve => setTimeout(resolve, 100));
-    } catch (error) {
-      // Continue trying
+const ensureSupabaseReady = () => {
+  try {
+    const client = getSupabaseClient();
+    if (client && client.auth && typeof client.auth.getSession === 'function') {
+      return client;
     }
+  } catch (error) {
+    // Fall through to throw error
   }
-  
-  throw new Error('Supabase client not ready within timeout');
+  throw new Error('Supabase client not available or not ready.');
 };
 
 interface SessionData {
@@ -205,7 +192,7 @@ class CrossDomainAuthManager {
       }
 
       // تطبيق الجلسة - التأكد من جاهزية Client أولاً
-      const client = await ensureSupabaseReady();
+      const client = ensureSupabaseReady();
       const { data, error } = await client.auth.setSession({
         access_token: tokenData.access_token,
         refresh_token: tokenData.refresh_token
@@ -233,7 +220,7 @@ class CrossDomainAuthManager {
       }
 
       const sessionData = transferPayload.session;
-      const client = await ensureSupabaseReady();
+      const client = ensureSupabaseReady();
       const { data, error } = await client.auth.setSession({
         access_token: sessionData.access_token,
         refresh_token: sessionData.refresh_token
@@ -253,50 +240,33 @@ class CrossDomainAuthManager {
    * توجيه مع نقل الجلسة
    */
   public async redirectWithSession(targetUrl: string, session?: Session | null): Promise<void> {
-    if (this.transferInProgress) {
-      return;
-    }
-
+    if (this.transferInProgress) return;
     this.transferInProgress = true;
     
     try {
-      // الحصول على الجلسة الحالية إذا لم يتم تمريرها
-      if (!session) {
-        const client = await ensureSupabaseReady();
-        const { data: { session: currentSession } } = await client.auth.getSession();
-        session = currentSession;
+      const currentSession = session || (await ensureSupabaseReady().auth.getSession()).data.session;
+
+      if (!currentSession) {
+        window.location.href = targetUrl;
+        return;
       }
 
-      let finalUrl = targetUrl;
-
-      if (session) {
-        // حفظ الجلسة
-        const encodedSession = await this.saveSessionForTransfer(session);
-        
-        // إضافة معاملات URL
-        const urlParams = new URLSearchParams();
-        urlParams.set('transfer_session', 'true');
-        urlParams.set('timestamp', Date.now().toString());
-        
-        // إضافة token في URL إذا لم يكن طويلاً جداً
-        if (encodedSession && encodedSession.length < 1500) {
-          urlParams.set('auth_token', encodedSession);
-        }
-
-        const separator = targetUrl.includes('?') ? '&' : '?';
-        finalUrl = `${targetUrl}${separator}${urlParams.toString()}`;
-      }
+      const sessionData: SessionData = {
+        access_token: currentSession.access_token,
+        refresh_token: currentSession.refresh_token,
+        user_id: currentSession.user.id,
+        expires_at: currentSession.expires_at
+      };
       
-      // إضافة تأخير قصير لضمان حفظ البيانات
-      setTimeout(() => {
-        window.location.replace(finalUrl);
-      }, 100);
+      const authToken = this.encodeSessionData(sessionData);
+      const url = new URL(targetUrl);
+      url.searchParams.set('auth_token', authToken);
 
+      window.location.href = url.toString();
     } catch (error) {
-      // في حالة الفشل، توجه مباشرة
-      window.location.replace(targetUrl);
+      window.location.href = targetUrl; // Fallback
     } finally {
-      this.transferInProgress = false;
+      setTimeout(() => { this.transferInProgress = false; }, EXPIRY_TIMES.DEBOUNCE);
     }
   }
 
@@ -304,52 +274,45 @@ class CrossDomainAuthManager {
    * فحص وتطبيق الجلسة المنقولة عند تحميل الصفحة
    */
   public async checkAndApplyTransferredSession(): Promise<boolean> {
-    try {
-      const urlParams = new URLSearchParams(window.location.search);
-      const hasTransferSession = urlParams.get('transfer_session') === 'true';
-      const authToken = urlParams.get('auth_token');
+    const debounceKey = 'last_session_apply_attempt';
+    const now = Date.now();
+    const lastAttempt = parseInt(localStorage.getItem(debounceKey) || '0', 10);
 
-      if (!hasTransferSession) {
-        return false;
-      }
-
-      let applied = false;
-
-      // محاولة استخدام auth_token من URL
-      if (authToken) {
-        applied = await this.applyTokenFromUrl(authToken);
-      }
-
-      // fallback: استخدام localStorage
-      if (!applied) {
-        applied = await this.applyTransferredSession();
-      }
-
-      if (applied) {
-        // تنظيف URL من المعاملات
-        this.cleanupUrl();
-      }
-
-      return applied;
-    } catch (error) {
+    if (now - lastAttempt < EXPIRY_TIMES.DEBOUNCE) {
       return false;
     }
+    localStorage.setItem(debounceKey, now.toString());
+    
+    // 1. Check for URL token first
+    const urlParams = new URLSearchParams(window.location.search);
+    const authToken = urlParams.get('auth_token');
+    
+    if (authToken) {
+      const success = await this.applyTokenFromUrl(authToken);
+      this.cleanupUrl();
+      if (success) {
+        ensureSupabaseReady().auth.getSession(); // Refresh session
+        return true;
+      }
+    }
+
+    // 2. Check for localStorage transfer
+    const transferred = await this.applyTransferredSession();
+    if (transferred) {
+      this.cleanupTransferredSession();
+      ensureSupabaseReady().auth.getSession(); // Refresh session
+    }
+    return transferred;
   }
 
   /**
    * تنظيف URL من معاملات النقل
    */
   private cleanupUrl(): void {
-    try {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('transfer_session');
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('auth_token')) {
       url.searchParams.delete('auth_token');
-      url.searchParams.delete('timestamp');
-      
-      // تحديث URL بدون إعادة تحميل
-      window.history.replaceState({}, '', url.toString());
-    } catch (error) {
-      // Silent cleanup
+      window.history.replaceState({}, document.title, url.toString());
     }
   }
 
@@ -357,18 +320,20 @@ class CrossDomainAuthManager {
    * إعداد مستقبل الجلسة المنقولة
    */
   private setupTransferReceiver(): void {
-    // تحقق من وجود جلسة منقولة عند تحميل الصفحة
-    if (typeof window !== 'undefined') {
-      // انتظار تحميل DOM
-      const initReceiver = () => {
-        this.checkAndApplyTransferredSession();
-      };
+    if(typeof window === 'undefined') return;
 
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initReceiver);
-      } else {
-        setTimeout(initReceiver, 100);
-      }
+    const initReceiver = () => {
+      window.addEventListener('storage', async (event) => {
+        if (event.key === STORAGE_KEYS.TRANSFER_FLAG && event.newValue) {
+          await this.checkAndApplyTransferredSession();
+        }
+      });
+    };
+    
+    if (document.readyState === 'complete') {
+      initReceiver();
+    } else {
+      window.addEventListener('load', initReceiver);
     }
   }
 
@@ -377,17 +342,15 @@ class CrossDomainAuthManager {
    */
   public async validateCurrentSession(): Promise<boolean> {
     try {
-      const client = await ensureSupabaseReady();
-      const { data: { session }, error } = await client.auth.getSession();
-      
-      if (error || !session) {
+      const client = ensureSupabaseReady();
+      const { data, error } = await client.auth.getUser();
+
+      if (error || !data.user) {
         return false;
       }
-
-      // فحص إضافي للمستخدم
-      const { data: user, error: userError } = await client.auth.getUser();
       
-      return !userError && !!user;
+      // The session is valid if we can get user data
+      return true;
     } catch (error) {
       return false;
     }

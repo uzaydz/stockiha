@@ -1,6 +1,7 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
+import { getSupabaseClient } from '@/lib/supabase';
 
 // ملفات الترجمة مضمنة
 const arTranslations = {
@@ -217,7 +218,181 @@ const arTranslations = {
         "title": "دعم 24/7",
         "description": "مساعدة متوفرة طول اليوم"
       }
-    ]
+    ],
+    "quickLinks": "روابط سريعة",
+    "customerService": "خدمة العملاء",
+    "helpCenter": "مركز المساعدة",
+    "shippingPolicy": "سياسة الشحن",
+    "faq": "الأسئلة الشائعة",
+    "home": "الصفحة الرئيسية",
+    "products": "المنتجات",
+    "contact": "اتصل بنا",
+    "offers": "العروض"
+  },
+  "storeProducts": {
+    "title": "متجر المنتجات",
+    "subtitle": "اكتشف مجموعة واسعة من المنتجات عالية الجودة بأفضل الأسعار",
+    "stats": {
+      "productsAvailable": "منتج متاح",
+      "category": "فئة",
+      "categories": "فئات",
+      "currentPage": "في الصفحة الحالية"
+    },
+    "search": {
+      "placeholder": "ابحث عن المنتجات...",
+      "clear": "مسح البحث",
+      "quickFilter": "فلترة سريعة:",
+      "resultsInfo": "عرض {showing} من أصل {total} منتج",
+      "pageInfo": "(صفحة {current} من {total})",
+      "activeFilters": "الفلاتر النشطة:",
+      "searchFilter": "بحث: {query}",
+      "categoryFilter": "فئة: {category}"
+    },
+    "filters": {
+      "category": {
+        "label": "الفئة",
+        "all": "كل الفئات",
+        "placeholder": "اختر الفئة"
+      },
+      "sort": {
+        "label": "ترتيب",
+        "placeholder": "اختر الترتيب",
+        "newest": "الأحدث",
+        "priceLow": "السعر: من الأقل للأعلى",
+        "priceHigh": "السعر: من الأعلى للأقل",
+        "nameAsc": "الاسم: أ-ي",
+        "nameDesc": "الاسم: ي-أ"
+      },
+      "stock": {
+        "label": "التوفر",
+        "placeholder": "حالة المخزون",
+        "all": "الكل",
+        "inStock": "متوفر",
+        "outOfStock": "غير متوفر",
+        "lowStock": "مخزون قليل"
+      },
+      "reset": "إعادة تعيين ({count})",
+      "clear": "مسح الفلاتر"
+    },
+    "view": {
+      "grid": "عرض شبكي",
+      "list": "عرض قائمة",
+      "columns": "أعمدة"
+    },
+    "pagination": {
+      "previous": "السابق",
+      "next": "التالي",
+      "page": "صفحة {page}",
+      "loading": "جاري التحميل..."
+    },
+    "states": {
+      "loading": "جاري التحميل...",
+      "error": {
+        "title": "حدث خطأ",
+        "message": "حدث خطأ أثناء تحميل المنتجات",
+        "retry": "إعادة المحاولة",
+        "categoriesError": "حدث خطأ أثناء تحميل الفئات"
+      },
+      "empty": {
+        "title": "لا توجد منتجات مطابقة",
+        "message": "لم نتمكن من العثور على منتجات تطابق معايير البحث الحالية. جرب تعديل الفلاتر أو البحث بكلمات مختلفة.",
+        "resetFilters": "إعادة تعيين الفلاتر"
+      }
+    }
+  },
+  "productCard": {
+    "buyNow": "شراء الآن",
+    "outOfStock": "نفذ من المخزن",
+    "quickView": "عرض سريع",
+    "new": "جديد",
+    "limited": "كمية محدودة",
+    "available": "متوفر",
+    "addedToWishlist": "تم إضافة المنتج للمفضلة",
+    "removedFromWishlist": "تم إزالة المنتج من المفضلة",
+    "buyingProduct": "جاري الانتقال لشراء {productName}",
+    "noProducts": "لا توجد منتجات",
+    "noProductsMessage": "لم يتم العثور على منتجات تطابق معايير البحث الخاصة بك. يرجى تجربة معايير بحث مختلفة."
+  },
+  "productInfo": {
+    "new": "جديد",
+    "discount": "خصم {percentage}%",
+    "available": "متوفر",
+    "unavailable": "غير متوفر",
+    "rating": "{rating} ({count} تقييم)",
+    "purchaseCount": "لقد اشترى {count} شخص هذا المنتج من الجزائر.",
+    "currency": "د.ج",
+    "inStock": "متوفر في المخزون",
+    "pieces": "قطعة",
+    "outOfStock": "غير متوفر حالياً",
+    "productDescription": "وصف المنتج",
+    "customerReviews": "تقييمات العملاء ({count})",
+    "verifiedPurchase": "شراء موثوق"
+  },
+  "productOptions": {
+    "color": "اللون",
+    "size": "المقاس",
+    "quantity": "الكمية",
+    "loadingSizes": "جاري تحميل المقاسات...",
+    "noSizesAvailable": "لا توجد مقاسات متاحة لهذا اللون",
+    "available": "متوفر: {{count}} قطعة",
+    "unavailable": "غير متوفر",
+    "totalPrice": "السعر الإجمالي: {{price}} د.ج"
+  },
+  "productPurchase": {
+    "orderProduct": "طلب المنتج",
+    "specialOffers": "عروض مميزة لك",
+    "alternativeOptions": "خيارات بديلة قد تهمك",
+    "productDescription": "وصف المنتج"
+  },
+  "orderForm": {
+    "orderInfo": "معلومات الطلب",
+    "submittingOrder": "جاري إرسال الطلب...",
+    "submitOrder": "إرسال الطلب",
+    "completeOrder": "إتمام الطلب",
+    "fillDetails": "املأ البيانات التالية لإتمام طلبك",
+    "fullName": "الاسم واللقب",
+    "fullNamePlaceholder": "أدخل الاسم واللقب",
+    "phoneNumber": "رقم الهاتف",
+    "phoneNumberPlaceholder": "أدخل رقم الهاتف",
+    "deliveryType": "نوع التوصيل",
+    "homeDelivery": "توصيل للمنزل",
+    "homeDeliveryDesc": "توصيل الطلب مباشرة إلى عنوانك",
+    "officePickup": "استلام من مكتب شركة التوصيل",
+    "officePickupDesc": "استلام الطلب من مكتب شركة التوصيل",
+    "state": "الولاية",
+    "orderSummary": "ملخص الطلب",
+    "color": "اللون:",
+    "size": "الحجم:",
+    "product": "المنتج ({{count}} قطعة)",
+    "deliveryFees": "رسوم التوصيل",
+    "toHome": "للمنزل",
+    "totalAmount": "المجموع الكلي",
+    "currency": "دج",
+    "required": "*",
+    "fixedDeliveryType": "نوع التوصيل الثابت",
+    "selectMunicipalityForPickup": "اختر البلدية للاستلام منها",
+    "importantSelectMunicipality": "مهم: اختر البلدية المناسبة للاستلام منها",
+    "deliveryInfo": "معلومات التوصيل",
+    "deliveryOption": "خيار التوصيل",
+    "province": "الولاية",
+    "municipality": "البلدية",
+    "selectProvince": "اختر الولاية",
+    "selectMunicipality": "اختر البلدية",
+    "selectOption": "اختر...",
+    "loadingMunicipalities": "جاري تحميل البلديات...",
+    "noMunicipalitiesAvailable": "لا توجد بلديات متاحة للتوصيل المنزلي",
+    "enterMunicipalityName": "أدخل اسم البلدية",
+    "municipalityForPickup": "البلدية للاستلام منها",
+    "noMunicipalitiesForProvince": "لا توجد بلديات متاحة لهذه الولاية",
+    "selectProvinceFirst": "الرجاء اختيار الولاية أولاً لعرض البلديات",
+    "pleaseSelectMunicipality": "يرجى اختيار البلدية",
+    "loadingDeliveryOptions": "جاري تحميل خيارات التوصيل...",
+    "deliveryMethod": "طريقة التوصيل",
+    "freeShipping": "شحن مجاني!",
+    "shippingPrice": "سعر الشحن",
+    "orderInfo": "معلومات الطلب",
+    "submittingOrder": "جاري إرسال الطلب...",
+    "deliveryOptions": "خيارات التوصيل"
   },
   "common": {
     "loading": "جاري التحميل...",
@@ -270,7 +445,10 @@ const arTranslations = {
     "password": "كلمة المرور",
     "forgotPassword": "نسيت كلمة المرور؟",
     "invalidCredentials": "بيانات الاعتماد غير صحيحة"
-  }
+  },
+  "إرسال الطلب": "إرسال الطلب",
+  "جاري إرسال الطلب...": "جاري إرسال الطلب...",
+  "تفاصيل المنتج": "تفاصيل المنتج"
 };
 
 const enTranslations = {
@@ -487,7 +665,168 @@ const enTranslations = {
         "title": "24/7 Support",
         "description": "Help available all day long"
       }
-    ]
+    ],
+    "quickLinks": "Quick Links",
+    "customerService": "Customer Service",
+    "helpCenter": "Help Center",
+    "shippingPolicy": "Shipping Policy",
+    "faq": "FAQ",
+    "home": "Home",
+    "products": "Products",
+    "contact": "Contact Us",
+    "offers": "Offers"
+  },
+  "storeProducts": {
+    "title": "Products Store",
+    "subtitle": "Discover a wide range of high-quality products at the best prices",
+    "stats": {
+      "productsAvailable": "products available",
+      "category": "category",
+      "categories": "categories",
+      "currentPage": "on current page"
+    },
+    "search": {
+      "placeholder": "Search for products...",
+      "clear": "Clear search",
+      "quickFilter": "Quick filter:",
+      "resultsInfo": "Showing {showing} of {total} products",
+      "pageInfo": "(page {current} of {total})",
+      "activeFilters": "Active filters:",
+      "searchFilter": "Search: {query}",
+      "categoryFilter": "Category: {category}"
+    },
+    "filters": {
+      "category": {
+        "label": "Category",
+        "all": "All Categories",
+        "placeholder": "Choose category"
+      },
+      "sort": {
+        "label": "Sort",
+        "placeholder": "Choose sorting",
+        "newest": "Newest",
+        "priceLow": "Price: Low to High",
+        "priceHigh": "Price: High to Low",
+        "nameAsc": "Name: A-Z",
+        "nameDesc": "Name: Z-A"
+      },
+      "stock": {
+        "label": "Availability",
+        "placeholder": "Stock status",
+        "all": "All",
+        "inStock": "In Stock",
+        "outOfStock": "Out of Stock",
+        "lowStock": "Low Stock"
+      },
+      "reset": "Reset ({count})",
+      "clear": "Clear filters"
+    },
+    "view": {
+      "grid": "Grid view",
+      "list": "List view",
+      "columns": "columns"
+    },
+    "pagination": {
+      "previous": "Previous",
+      "next": "Next",
+      "page": "Page {page}",
+      "loading": "Loading..."
+    },
+    "states": {
+      "loading": "Loading...",
+      "error": {
+        "title": "An error occurred",
+        "message": "An error occurred while loading products",
+        "retry": "Try again",
+        "categoriesError": "An error occurred while loading categories"
+      },
+      "empty": {
+        "title": "No matching products",
+        "message": "We couldn't find products matching the current search criteria. Try adjusting the filters or searching with different keywords.",
+        "resetFilters": "Reset filters"
+      }
+    }
+  },
+  "productCard": {
+    "buyNow": "Buy Now",
+    "outOfStock": "Out of Stock",
+    "quickView": "Quick View",
+    "new": "New",
+    "limited": "Limited Quantity",
+    "available": "Available",
+    "addedToWishlist": "Product added to wishlist",
+    "removedFromWishlist": "Product removed from wishlist",
+    "buyingProduct": "Redirecting to purchase {productName}",
+    "noProducts": "No products",
+    "noProductsMessage": "No products found matching your search criteria. Please try different search criteria."
+  },
+  "productInfo": {
+    "new": "New",
+    "discount": "{percentage}% Off",
+    "available": "Available",
+    "unavailable": "Unavailable",
+    "rating": "{rating} ({count} reviews)",
+    "purchaseCount": "{count} people have purchased this product from Algeria.",
+    "currency": "DZD",
+    "inStock": "In Stock",
+    "pieces": "pieces",
+    "outOfStock": "Currently Out of Stock",
+    "productDescription": "Product Description",
+    "customerReviews": "Customer Reviews ({count})",
+    "verifiedPurchase": "Verified Purchase"
+  },
+  "productOptions": {
+    "color": "Color",
+    "size": "Size",
+    "quantity": "Quantity",
+    "loadingSizes": "Loading sizes...",
+    "noSizesAvailable": "No sizes available for this color",
+    "available": "Available: {{count}} pieces",
+    "unavailable": "Unavailable",
+    "totalPrice": "Total Price: {{price}} DZD"
+  },
+  "productPurchase": {
+    "orderProduct": "Order Product",
+    "specialOffers": "Special Offers for You",
+    "alternativeOptions": "Alternative Options You Might Like",
+    "productDescription": "Product Description"
+  },
+  "orderForm": {
+    "orderInfo": "Order Information",
+    "submittingOrder": "Submitting order...",
+    "submitOrder": "Submit Order",
+    "completeOrder": "Complete Order",
+    "fillDetails": "Fill in the following details to complete your order",
+    "fullName": "Full Name",
+    "fullNamePlaceholder": "Enter full name",
+    "phoneNumber": "Phone Number",
+    "phoneNumberPlaceholder": "Enter phone number",
+    "deliveryType": "Delivery Type",
+    "homeDelivery": "Home Delivery",
+    "homeDeliveryDesc": "Deliver the order directly to your address",
+    "officePickup": "Pickup from Shipping Company Office",
+    "officePickupDesc": "Pick up the order from the shipping company office",
+    "state": "State",
+    "municipality": "Municipality",
+    "selectMunicipality": "Select Municipality",
+    "selectProvince": "Select Province",
+    "selectMunicipalityForPickup": "Select Municipality for Pickup",
+    "province": "Province",
+    "fixedDeliveryType": "Fixed Delivery Type",
+    "loadingDeliveryOptions": "Loading delivery options...",
+    "deliveryMethod": "Delivery Method",
+    "freeShipping": "Free Shipping!",
+    "shippingPrice": "Shipping Price",
+    "deliveryOptions": "Delivery Options",
+    "orderSummary": "Order Summary",
+    "color": "Color:",
+    "size": "Size:",
+    "product": "Product ({{count}} piece)",
+    "deliveryFees": "Delivery Fees",
+    "toHome": "To Home",
+    "totalAmount": "Total Amount",
+    "currency": "DZD",
+    "required": "*"
   },
   "common": {
     "loading": "Loading...",
@@ -540,7 +879,10 @@ const enTranslations = {
     "password": "Password",
     "forgotPassword": "Forgot Password?",
     "invalidCredentials": "Invalid credentials"
-  }
+  },
+  "إرسال الطلب": "Submit Order",
+  "جاري إرسال الطلب...": "Submitting Order...",
+  "تفاصيل المنتج": "Product Details"
 };
 
 const frTranslations = {
@@ -757,7 +1099,170 @@ const frTranslations = {
         "title": "Support 24/7",
         "description": "Aide disponible toute la journée"
       }
-    ]
+    ],
+    "quickLinks": "Liens Rapides",
+    "customerService": "Service Client",
+    "helpCenter": "Centre d'Aide",
+    "shippingPolicy": "Politique d'Expédition",
+    "faq": "FAQ",
+    "home": "Accueil",
+    "products": "Produits",
+    "contact": "Contactez-nous",
+    "offers": "Offres"
+  },
+  "storeProducts": {
+    "title": "Magasin de Produits",
+    "subtitle": "Découvrez une large gamme de produits de haute qualité aux meilleurs prix",
+    "stats": {
+      "productsAvailable": "produits disponibles",
+      "category": "catégorie",
+      "categories": "catégories",
+      "currentPage": "sur la page actuelle"
+    },
+    "search": {
+      "placeholder": "Rechercher des produits...",
+      "clear": "Effacer la recherche",
+      "quickFilter": "Filtre rapide:",
+      "resultsInfo": "Affichage de {showing} sur {total} produits",
+      "pageInfo": "(page {current} sur {total})",
+      "activeFilters": "Filtres actifs:",
+      "searchFilter": "Recherche: {query}",
+      "categoryFilter": "Catégorie: {category}"
+    },
+    "filters": {
+      "category": {
+        "label": "Catégorie",
+        "all": "Toutes les Catégories",
+        "placeholder": "Choisir une catégorie"
+      },
+      "sort": {
+        "label": "Trier",
+        "placeholder": "Choisir le tri",
+        "newest": "Plus récent",
+        "priceLow": "Prix: Croissant",
+        "priceHigh": "Prix: Décroissant",
+        "nameAsc": "Nom: A-Z",
+        "nameDesc": "Nom: Z-A"
+      },
+      "stock": {
+        "label": "Disponibilité",
+        "placeholder": "État du stock",
+        "all": "Tous",
+        "inStock": "En Stock",
+        "outOfStock": "Rupture de Stock",
+        "lowStock": "Stock Faible"
+      },
+      "reset": "Réinitialiser ({count})",
+      "clear": "Effacer les filtres"
+    },
+    "view": {
+      "grid": "Vue grille",
+      "list": "Vue liste",
+      "columns": "colonnes"
+    },
+    "pagination": {
+      "previous": "Précédent",
+      "next": "Suivant",
+      "page": "Page {page}",
+      "loading": "Chargement..."
+    },
+    "states": {
+      "loading": "Chargement...",
+      "error": {
+        "title": "Une erreur s'est produite",
+        "message": "Une erreur s'est produite lors du chargement des produits",
+        "retry": "Réessayer",
+        "categoriesError": "Une erreur s'est produite lors du chargement des catégories"
+      },
+      "empty": {
+        "title": "Aucun produit correspondant",
+        "message": "Nous n'avons pas trouvé de produits correspondant aux critères de recherche actuels. Essayez d'ajuster les filtres ou de rechercher avec des mots-clés différents.",
+        "resetFilters": "Réinitialiser les filtres"
+      }
+    }
+  },
+  "productCard": {
+    "buyNow": "Acheter Maintenant",
+    "outOfStock": "Rupture de Stock",
+    "quickView": "Aperçu Rapide",
+    "new": "Nouveau",
+    "limited": "Quantité Limitée",
+    "available": "Disponible",
+    "addedToWishlist": "Produit ajouté à la liste de souhaits",
+    "removedFromWishlist": "Produit retiré de la liste de souhaits",
+    "buyingProduct": "Redirection vers l'achat de {productName}",
+    "noProducts": "Aucun produit",
+    "noProductsMessage": "Aucun produit trouvé correspondant à vos critères de recherche. Veuillez essayer différents critères de recherche."
+  },
+  "productInfo": {
+    "new": "Nouveau",
+    "discount": "{percentage}% de Réduction",
+    "available": "Disponible",
+    "unavailable": "Indisponible",
+    "rating": "{rating} ({count} avis)",
+    "purchaseCount": "{count} personnes ont acheté ce produit depuis l'Algérie.",
+    "currency": "DZD",
+    "inStock": "En Stock",
+    "pieces": "pièces",
+    "outOfStock": "Actuellement en Rupture de Stock",
+    "productDescription": "Description du Produit",
+    "customerReviews": "Avis Clients ({count})",
+    "verifiedPurchase": "Achat Vérifié"
+  },
+  "productOptions": {
+    "color": "Couleur",
+    "size": "Taille",
+    "quantity": "Quantité",
+    "loadingSizes": "Chargement des tailles...",
+    "noSizesAvailable": "Aucune taille disponible pour cette couleur",
+    "available": "Disponible: {{count}} pièces",
+    "unavailable": "Indisponible",
+    "totalPrice": "Prix Total: {{price}} DZD"
+  },
+  "productPurchase": {
+    "orderProduct": "Commander le Produit",
+    "specialOffers": "Offres Spéciales pour Vous",
+    "alternativeOptions": "Options Alternatives qui Pourraient Vous Intéresser",
+    "productDescription": "Description du Produit"
+  },
+  "orderForm": {
+    "orderInfo": "Informations de Commande",
+    "submittingOrder": "Envoi de la commande...",
+    "submitOrder": "Envoyer la Commande",
+    "completeOrder": "Finaliser la Commande",
+    "fillDetails": "Remplissez les détails suivants pour finaliser votre commande",
+    "fullName": "Nom Complet",
+    "fullNamePlaceholder": "Entrez le nom complet",
+    "phoneNumber": "Numéro de Téléphone",
+    "phoneNumberPlaceholder": "Entrez le numéro de téléphone",
+    "deliveryType": "Type de Livraison",
+    "homeDelivery": "Livraison à Domicile",
+    "homeDeliveryDesc": "Livrer la commande directement à votre adresse",
+    "officePickup": "Retrait au Bureau de la Compagnie de Livraison",
+    "officePickupDesc": "Retirer la commande au bureau de la compagnie de livraison",
+    "state": "État",
+    "municipality": "Municipalité",
+    "selectMunicipality": "Sélectionner la Municipalité",
+    "selectProvince": "Sélectionner la Province",
+    "selectMunicipalityForPickup": "Sélectionner la Municipalité pour le Retrait",
+    "province": "Province",
+    "fixedDeliveryType": "Type de Livraison Fixe",
+    "loadingDeliveryOptions": "Chargement des options de livraison...",
+    "deliveryMethod": "Méthode de Livraison",
+    "freeShipping": "Livraison Gratuite!",
+    "shippingPrice": "Prix de Livraison",
+    "deliveryOptions": "Options de Livraison",
+    "orderInfo": "Informations de Commande",
+    "submittingOrder": "Envoi de la commande...",
+    "orderSummary": "Résumé de la Commande",
+    "color": "Couleur:",
+    "size": "Taille:",
+    "product": "Produit ({{count}} pièce)",
+    "deliveryFees": "Frais de Livraison",
+    "toHome": "À Domicile",
+    "totalAmount": "Montant Total",
+    "currency": "DZD",
+    "required": "*"
   },
   "common": {
     "loading": "Chargement...",
@@ -810,7 +1315,10 @@ const frTranslations = {
     "password": "Mot de passe",
     "forgotPassword": "Mot de passe oublié?",
     "invalidCredentials": "Identifiants invalides"
-  }
+  },
+  "إرسال الطلب": "Envoyer la Commande",
+  "جاري إرسال الطلب...": "Envoi en cours...",
+  "تفاصيل المنتج": "Détails du Produit"
 };
 
 const resources = {
@@ -819,15 +1327,112 @@ const resources = {
   fr: { translation: frTranslations }
 };
 
-// تهيئة اللغة من localStorage أو الافتراضية
+// جلب اللغة الافتراضية من قاعدة البيانات
+const getDefaultLanguageFromDatabase = async () => {
+  try {
+    // الحصول على subdomain من URL الحالي
+    const currentHost = window.location.hostname;
+    let subdomain = currentHost.split('.')[0];
+    
+    // للتطوير المحلي، استخدم subdomain ثابت للاختبار
+    if (subdomain === 'localhost' || subdomain === '127' || currentHost.includes('localhost')) {
+      subdomain = 'testfinalfinalvhio'; // subdomain للاختبار
+      console.log('🌐 وضع التطوير المحلي - استخدام subdomain للاختبار:', subdomain);
+    }
+    
+    const supabase = getSupabaseClient();
+    
+    // جلب معرف المؤسسة من subdomain
+    const { data: orgData, error: orgError } = await supabase
+      .from('organizations')
+      .select('id')
+      .eq('subdomain', subdomain)
+      .single();
+    
+    if (orgError || !orgData) {
+      console.log('🌐 لم يتم العثور على المؤسسة للـ subdomain:', subdomain);
+      return 'ar';
+    }
+    
+    console.log('🌐 تم العثور على المؤسسة:', orgData.id);
+    
+    // جلب اللغة الافتراضية للمؤسسة مباشرة من organizations table
+    const { data: orgWithSettings, error: orgSettingsError } = await supabase
+      .from('organizations')
+      .select('id, organization_settings(default_language)')
+      .eq('id', orgData.id)
+      .single();
+    
+    console.log('🌐 نتيجة استعلام إعدادات المؤسسة:', { orgWithSettings, orgSettingsError });
+    console.log('🌐 تفاصيل البيانات الكاملة:', JSON.stringify(orgWithSettings, null, 2));
+    
+    if (orgSettingsError || !orgWithSettings) {
+      console.log('🌐 خطأ في جلب إعدادات المؤسسة:', orgSettingsError);
+      // fallback: محاولة الوصول المباشر
+      try {
+        const { data: directData, error: directError } = await supabase
+          .from('organization_settings')
+          .select('default_language')
+          .eq('organization_id', orgData.id)
+          .limit(1);
+        
+        console.log('🌐 نتيجة الوصول المباشر:', { directData, directError });
+        
+        if (!directError && directData && directData.length > 0) {
+          console.log('🌐 تم جلب اللغة الافتراضية بالوصول المباشر:', directData[0].default_language);
+          return directData[0].default_language || 'ar';
+        }
+      } catch (fallbackError) {
+        console.log('🌐 فشل الوصول المباشر أيضاً:', fallbackError);
+      }
+      return 'ar';
+    }
+    
+    // استخراج اللغة الافتراضية
+    const organizationSettings = (orgWithSettings as any).organization_settings;
+    console.log('🌐 إعدادات المؤسسة المستخرجة:', organizationSettings);
+    console.log('🌐 نوع البيانات:', typeof organizationSettings, Array.isArray(organizationSettings));
+    
+    if (!organizationSettings || (Array.isArray(organizationSettings) && organizationSettings.length === 0)) {
+      console.log('🌐 لم يتم العثور على إعدادات المؤسسة:', orgData.id);
+      return 'ar';
+    }
+    
+    let defaultLanguage;
+    if (Array.isArray(organizationSettings)) {
+      defaultLanguage = organizationSettings[0]?.default_language;
+    } else {
+      defaultLanguage = organizationSettings?.default_language;
+    }
+    
+    console.log('🌐 تم جلب اللغة الافتراضية من قاعدة البيانات:', defaultLanguage);
+    return defaultLanguage || 'ar';
+    
+  } catch (error) {
+    console.error('خطأ في جلب اللغة الافتراضية:', error);
+    return 'ar'; // fallback للعربية
+  }
+};
+
+// تهيئة اللغة - بدء بالعربية ثم التحديث من قاعدة البيانات
 const getInitialLanguage = () => {
   if (typeof window !== 'undefined') {
-    const savedLanguage = localStorage.getItem('selectedLanguage');
-    if (savedLanguage && ['ar', 'en', 'fr'].includes(savedLanguage)) {
-      return savedLanguage;
+    // فحص إذا كان المستخدم اختار لغة خلال آخر ساعة
+    const savedLanguage = localStorage.getItem('i18nextLng');
+    const languageTimestamp = localStorage.getItem('i18nextLng_timestamp');
+    
+    if (savedLanguage && languageTimestamp) {
+      const timeSinceManualChange = Date.now() - parseInt(languageTimestamp);
+      // إذا اختار المستخدم لغة خلال آخر ساعة، احترم اختياره
+      if (timeSinceManualChange < 3600000 && ['ar', 'en', 'fr'].includes(savedLanguage)) {
+        console.log('🌐 استخدام اللغة المحفوظة من المستخدم:', savedLanguage);
+        return savedLanguage;
+      }
     }
   }
-  return 'ar'; // العربية كلغة افتراضية
+  
+  // ابدأ بالعربية كافتراضية، ثم سيتم التحديث من قاعدة البيانات
+  return 'ar';
 };
 
 i18n
@@ -847,7 +1452,7 @@ i18n
     detection: {
       order: ['localStorage', 'navigator', 'htmlTag'],
       caches: ['localStorage'],
-      lookupLocalStorage: 'selectedLanguage'
+      lookupLocalStorage: 'i18nextLng'
     },
     
     // قائمة اللغات المدعومة
@@ -857,7 +1462,10 @@ i18n
 // حفظ اللغة في localStorage عند تغييرها
 i18n.on('languageChanged', (lng) => {
   if (typeof window !== 'undefined') {
-    localStorage.setItem('selectedLanguage', lng);
+    localStorage.setItem('i18nextLng', lng);
+    
+    // إزالة المفاتيح القديمة للتوحيد
+    localStorage.removeItem('selectedLanguage');
     
     // تحديث اتجاه الصفحة
     const language = lng === 'ar' ? 'rtl' : 'ltr';
@@ -865,5 +1473,41 @@ i18n.on('languageChanged', (lng) => {
     document.documentElement.lang = lng;
   }
 });
+
+// تحديث اللغة من قاعدة البيانات بعد التهيئة
+const updateLanguageFromDatabase = async () => {
+  if (typeof window !== 'undefined') {
+    try {
+      const defaultLanguage = await getDefaultLanguageFromDatabase();
+      
+      // فحص إذا كان المستخدم اختار لغة يدوياً مؤخراً
+      const savedLanguage = localStorage.getItem('i18nextLng');
+      const languageTimestamp = localStorage.getItem('i18nextLng_timestamp');
+      
+      let shouldUseDefaultLanguage = true;
+      
+      if (savedLanguage && languageTimestamp) {
+        const timeSinceManualChange = Date.now() - parseInt(languageTimestamp);
+        // إذا اختار المستخدم لغة خلال آخر ساعة، احترم اختياره
+        if (timeSinceManualChange < 3600000) {
+          shouldUseDefaultLanguage = false;
+          console.log('🌐 احترام اختيار المستخدم الحديث:', savedLanguage);
+        }
+      }
+      
+      // تطبيق اللغة الافتراضية إذا لزم الأمر
+      if (shouldUseDefaultLanguage && defaultLanguage !== i18n.language) {
+        console.log('🌐 تطبيق اللغة الافتراضية من قاعدة البيانات:', defaultLanguage);
+        await i18n.changeLanguage(defaultLanguage);
+      }
+      
+    } catch (error) {
+      console.error('خطأ في تحديث اللغة من قاعدة البيانات:', error);
+    }
+  }
+};
+
+// تشغيل تحديث اللغة بعد تهيئة i18n
+setTimeout(updateLanguageFromDatabase, 100);
 
 export default i18n;

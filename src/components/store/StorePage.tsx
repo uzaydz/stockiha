@@ -37,6 +37,8 @@ import type { OrganizationSettings } from '@/types/settings';
 import { Helmet } from 'react-helmet-async';
 import { StoreComponent, ComponentType } from '@/types/store-editor';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
+import { getDefaultFooterSettings, mergeFooterSettings } from '@/lib/footerSettings';
 
 interface StorePageProps {
   storeData?: Partial<StoreInitializationData>;
@@ -45,6 +47,7 @@ interface StorePageProps {
 const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
   const { currentSubdomain } = useAuth();
   const { currentOrganization } = useTenant();
+  const { t } = useTranslation();
   const [storeSettings, setStoreSettings] = useState<any>(null);
   const [dataLoading, setDataLoading] = useState(true);
   const [storeData, setStoreData] = useState<Partial<StoreInitializationData> | null>(initialStoreData && Object.keys(initialStoreData).length > 0 ? initialStoreData : null);
@@ -372,29 +375,70 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
   const navBarProps: NavbarProps = {
   };
 
-  // تحميل إعدادات الفوتر من قاعدة البيانات
+  // تحميل إعدادات الفوتر من قاعدة البيانات مع مراقبة التغييرات
   useEffect(() => {
-    const fetchFooterSettings = async () => {
-      if (!storeData?.organization_details?.id) return;
-      
-      try {
-        const supabase = getSupabaseClient();
-        const { data: footerData, error } = await supabase
-          .from('store_settings')
-          .select('settings')
-          .eq('organization_id', storeData.organization_details.id)
-          .eq('component_type', 'footer')
-          .eq('is_active', true)
-          .maybeSingle();
+    if (!storeData?.organization_details?.id) return;
 
-        if (!error && footerData?.settings) {
-          setFooterSettings(footerData.settings);
+    const initializeFooterSettings = async () => {
+      const supabase = await getSupabaseClient();
+      
+      const fetchFooterSettings = async () => {
+        try {
+          const { data: footerData, error } = await supabase
+            .from('store_settings')
+            .select('settings')
+            .eq('organization_id', storeData.organization_details.id)
+            .eq('component_type', 'footer')
+            .eq('is_active', true)
+            .maybeSingle();
+
+          if (!error && footerData?.settings) {
+            console.log('🎪 StorePage - Footer settings loaded from database:', footerData.settings);
+            setFooterSettings(footerData.settings);
+          } else {
+            console.log('🎪 StorePage - No footer settings found in database, using defaults');
+          }
+        } catch (error) {
+          console.error('🎪 StorePage - Error fetching footer settings:', error);
         }
-      } catch (error) {
-      }
+      };
+
+      // جلب الإعدادات للمرة الأولى
+      await fetchFooterSettings();
+
+      // إعداد مراقب للتغييرات في الوقت الفعلي
+      const subscription = supabase
+        .channel('footer-settings-changes')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'store_settings',
+          filter: `organization_id=eq.${storeData.organization_details.id} AND component_type=eq.footer`
+        }, (payload) => {
+          console.log('🎪 StorePage - Footer settings changed:', payload);
+          // إعادة جلب الإعدادات عند حدوث تغيير
+          fetchFooterSettings();
+        })
+        .subscribe();
+
+      // إرجاع دالة التنظيف
+      return () => {
+        subscription.unsubscribe();
+      };
     };
 
-    fetchFooterSettings();
+    let cleanup: (() => void) | undefined;
+    
+    initializeFooterSettings().then((cleanupFn) => {
+      cleanup = cleanupFn;
+    });
+
+    // تنظيف المراقب عند انتهاء المكون
+    return () => {
+      if (cleanup) {
+        cleanup();
+      }
+    };
   }, [storeData?.organization_details?.id]);
 
   return (
@@ -539,13 +583,62 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
                               };
                             };
 
-                            // تحويل المنتجات المميزة
-                            const convertedProducts = (storeData?.featured_products || []).map(convertDatabaseProductToStoreProduct);
+                            // تحديد المنتجات بناءً على طريقة الاختيار
+                            let convertedProducts = [];
+                            
+                            console.log('🎪 StorePage - FeaturedProducts component processing:', {
+                              componentSettings: component.settings,
+                              featuredProductsFromStoreData: storeData?.featured_products?.length || 0,
+                              storeDataKeys: Object.keys(storeData || {})
+                            });
+                            
+                            // إذا كان الاختيار يدوياً واحتوت الإعدادات على منتجات محددة
+                            if (component.settings?.selectionMethod === 'manual' && component.settings?.selectedProducts?.length > 0) {
+                              // تمرير قائمة فارغة - سيقوم مكون FeaturedProducts بجلب المنتجات المحددة يدوياً بنفسه
+                              console.log('🎪 StorePage - Manual selection detected, will fetch products inside component');
+                              convertedProducts = [];
+                            } else {
+                              // استخدام المنتجات المميزة الافتراضية
+                              const rawFeaturedProducts = storeData?.featured_products || [];
+                              console.log('🎪 StorePage - Using automatic selection, raw featured products:', rawFeaturedProducts);
+                              convertedProducts = rawFeaturedProducts.map(convertDatabaseProductToStoreProduct);
+                              console.log('🎪 StorePage - Converted products:', convertedProducts.length);
+                            }
+
+                            // تحديد معرف المؤسسة الصحيح
+                            const getOrganizationId = () => {
+                              // 1. محاولة الحصول عليه من storeData
+                              if (storeData?.organization_details?.id) {
+                                return storeData.organization_details.id;
+                              }
+                              
+                              // 2. محاولة الحصول عليه من localStorage
+                              const storedOrgId = localStorage.getItem('bazaar_organization_id');
+                              if (storedOrgId) {
+                                return storedOrgId;
+                              }
+                              
+                              // 3. إذا كان النطاق الفرعي "asraycollection"، استخدم المعرف المعروف
+                              const hostname = window.location.hostname;
+                              if (hostname.includes('asraycollection')) {
+                                return '560e2c06-d13c-4853-abcf-d41f017469cf';
+                              }
+                              
+                              return null;
+                            };
+
+                            const finalOrgId = getOrganizationId();
+                            console.log('🎪 StorePage - Final props for FeaturedProducts:', {
+                              organizationId: finalOrgId,
+                              productsCount: convertedProducts.length,
+                              displayCount: convertedProducts.length || component.settings?.displayCount || 4,
+                              settings: component.settings
+                            });
 
                             return (
                               <LazyFeaturedProducts 
                                 {...(component.settings as any)} 
-                                organizationId={storeData.organization_details?.id}
+                                organizationId={finalOrgId}
                                 products={convertedProducts}
                                 displayCount={convertedProducts.length || component.settings?.displayCount || 4}
                               />
@@ -578,94 +671,16 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
         
         {/* الفوتر مع إعدادات ديناميكية من قاعدة البيانات */}
         {React.useMemo(() => {
-          // إعدادات افتراضية للفوتر
-          const defaultFooterSettings = {
-            storeName: storeName,
-            logoUrl: storeData?.organization_details?.logo_url,
-            description: storeData?.organization_details?.description,
-            showSocialLinks: true,
-            showContactInfo: true,
-            showFeatures: true,
-            showNewsletter: true,
-            showPaymentMethods: true,
-            socialLinks: [
-              { platform: 'facebook', url: 'https://facebook.com' },
-              { platform: 'instagram', url: 'https://instagram.com' }
-            ],
-            contactInfo: {
-              phone: '+213 123 456 789',
-              email: storeData?.organization_details?.contact_email || 'info@store.com',
-              address: '123 شارع المتجر، الجزائر العاصمة، الجزائر'
-            },
-            footerSections: [
-              {
-                id: '1',
-                title: 'روابط سريعة',
-                links: [
-                  { id: '1-1', text: 'الصفحة الرئيسية', url: '/', isExternal: false },
-                  { id: '1-2', text: 'المنتجات', url: '/products', isExternal: false },
-                  { id: '1-3', text: 'اتصل بنا', url: '/contact', isExternal: false }
-                ]
-              },
-              {
-                id: '2',
-                title: 'خدمة العملاء',
-                links: [
-                  { id: '2-1', text: 'مركز المساعدة', url: '/help', isExternal: false },
-                  { id: '2-2', text: 'سياسة الشحن', url: '/shipping-policy', isExternal: false },
-                  { id: '2-3', text: 'الأسئلة الشائعة', url: '/faq', isExternal: false }
-                ]
-              }
-            ],
-            features: [
-              {
-                id: '1',
-                icon: 'Truck',
-                title: 'شحن سريع',
-                description: 'توصيل مجاني للطلبات +5000 د.ج'
-              },
-              {
-                id: '2',
-                icon: 'CreditCard',
-                title: 'دفع آمن',
-                description: 'طرق دفع متعددة 100% آمنة'
-              },
-              {
-                id: '3',
-                icon: 'Heart',
-                title: 'ضمان الجودة',
-                description: 'منتجات عالية الجودة معتمدة'
-              },
-              {
-                id: '4',
-                icon: 'ShieldCheck',
-                title: 'دعم 24/7',
-                description: 'مساعدة متوفرة طول اليوم'
-              }
-            ],
-            newsletterSettings: {
-              enabled: true,
-              title: 'النشرة البريدية',
-              description: 'اشترك في نشرتنا البريدية للحصول على آخر العروض والتحديثات.',
-              placeholder: 'البريد الإلكتروني',
-              buttonText: 'اشتراك'
-            },
-            paymentMethods: ['visa', 'mastercard', 'paypal'],
-            legalLinks: [
-              { id: 'legal-1', text: 'شروط الاستخدام', url: '/terms', isExternal: false },
-              { id: 'legal-2', text: 'سياسة الخصوصية', url: '/privacy', isExternal: false }
-            ]
-          };
+          // إعدادات افتراضية للفوتر باستخدام الدالة المشتركة
+          const defaultFooterSettings = getDefaultFooterSettings(storeName, storeData, t);
 
           // دمج الإعدادات المخصصة مع الافتراضية
-          const finalFooterSettings = footerSettings 
-            ? { ...defaultFooterSettings, ...footerSettings } 
-            : defaultFooterSettings;
+          const finalFooterSettings = mergeFooterSettings(defaultFooterSettings, footerSettings);
 
           return (
             <LazyStoreFooter {...finalFooterSettings} />
           );
-        }, [footerSettings, storeName, storeData?.organization_details])}
+        }, [footerSettings, storeName, storeData, t])}
       </div>
       {storeSettings?.custom_js_footer && (
         <script dangerouslySetInnerHTML={{ __html: storeSettings.custom_js_footer }} />

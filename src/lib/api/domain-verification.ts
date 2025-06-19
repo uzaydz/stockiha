@@ -157,7 +157,7 @@ export const updateOrganizationDomain = async (organizationId: string, domain: s
       }
     }
     
-    const supabase = await getSupabaseClient();
+    const supabase = getSupabaseClient();
     const updateData = { 
       domain: cleanDomain,
       updated_at: new Date().toISOString()
@@ -204,7 +204,7 @@ export const checkDomainAvailability = async (domain: string, currentOrganizatio
     // تنظيف النطاق من أي بروتوكول أو مسارات
     const cleanDomain = domain.replace(/^https?:\/\//i, '').split('/')[0];
     
-    const supabase = await getSupabaseClient();
+    const supabase = getSupabaseClient();
     
     // إنشاء استعلام للتحقق من وجود النطاق
     let query = supabase

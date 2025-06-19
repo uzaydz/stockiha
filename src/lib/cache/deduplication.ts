@@ -28,10 +28,45 @@ export async function deduplicateRequest<T>(
   requestFn: () => Promise<T>,
   ttl: number = DEFAULT_TTL
 ): Promise<T> {
-  console.log('🚫 [Deduplication] DISABLED - Always executing fresh request for:', key);
+  const now = Date.now();
   
-  // Always execute fresh request - no deduplication
-  return await requestFn();
+  // تنظيف Cache من البيانات المنتهية الصلاحية
+  Object.keys(activeRequestsCache).forEach(cacheKey => {
+    const entry = activeRequestsCache[cacheKey];
+    if (now - entry.timestamp > entry.ttl) {
+      delete activeRequestsCache[cacheKey];
+    }
+  });
+
+  // التحقق من وجود طلب نشط
+  if (activeRequestsCache[key]) {
+    const entry = activeRequestsCache[key];
+    // التحقق من انتهاء الصلاحية
+    if (now - entry.timestamp <= entry.ttl) {
+      return entry.promise;
+    } else {
+      // إزالة البيانات المنتهية الصلاحية
+      delete activeRequestsCache[key];
+    }
+  }
+  
+  // إنشاء طلب جديد
+  const promise = requestFn()
+    .finally(() => {
+      // إزالة من Cache بعد انتهاء الطلب (مع تأخير قصير)
+      setTimeout(() => {
+        delete activeRequestsCache[key];
+      }, 1000); // تأخير ثانية واحدة لضمان عدم التداخل
+    });
+
+  // حفظ في Cache
+  activeRequestsCache[key] = {
+    promise,
+    timestamp: now,
+    ttl
+  };
+
+  return promise;
 }
 
 /**

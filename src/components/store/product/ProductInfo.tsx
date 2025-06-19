@@ -2,6 +2,7 @@ import { Star } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
 import { z } from 'zod';
+import { useTranslation } from 'react-i18next';
 import { productMarketingSettingsSchema } from '@/types/product';
 
 // Infer the type from the Zod schema
@@ -43,8 +44,8 @@ interface ProductInfoProps {
 }
 
 const ProductInfo = ({ product, currentPrice }: ProductInfoProps) => {
-  // Log received product prop safely
-
+  const { t } = useTranslation();
+  
   const {
     name,
     price,
@@ -89,16 +90,16 @@ const ProductInfo = ({ product, currentPrice }: ProductInfoProps) => {
         <div className="flex flex-wrap gap-2 mt-3">
           {isNew && (
             <Badge className="bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 rounded-full px-3 py-1">
-              جديد
+              {t('productInfo.new')}
             </Badge>
           )}
           {hasDiscount && (
             <Badge className="bg-red-500/10 text-red-600 hover:bg-red-500/20 rounded-full px-3 py-1">
-              خصم {discountPercentage}%
+              {t('productInfo.discount', { percentage: discountPercentage })}
             </Badge>
           )}
           <Badge className={`${stock_quantity > 0 ? 'bg-green-500/10 text-green-600 hover:bg-green-500/20' : 'bg-red-500/10 text-red-600 hover:bg-red-500/20'} rounded-full px-3 py-1`}>
-            {stock_quantity > 0 ? 'متوفر' : 'غير متوفر'}
+            {stock_quantity > 0 ? t('productInfo.available') : t('productInfo.unavailable')}
           </Badge>
         </div>
       </div>
@@ -120,14 +121,14 @@ const ProductInfo = ({ product, currentPrice }: ProductInfoProps) => {
               ))}
             </div>
             <span className="mr-2 text-sm text-muted-foreground">
-              {finalRating.toFixed(1)} ({finalRatingCount} تقييم)
+              {t('productInfo.rating', { rating: finalRating.toFixed(1), count: finalRatingCount })}
             </span>
           </div>
 
           {/* Fake Purchase Counter */}
           {marketingSettings?.enable_fake_purchase_counter && marketingSettings.fake_purchase_count != null && (
             <p className="mt-1 text-sm text-muted-foreground">
-              لقد اشترى {marketingSettings.fake_purchase_count} شخص هذا المنتج من الجزائر.
+              {t('productInfo.purchaseCount', { count: marketingSettings.fake_purchase_count })}
             </p>
           )}
         </div>
@@ -141,11 +142,11 @@ const ProductInfo = ({ product, currentPrice }: ProductInfoProps) => {
       >
         <div className="flex items-baseline gap-3">
           <span className="text-3xl font-bold text-foreground">
-            {displayPrice.toLocaleString()} د.ج
+            {displayPrice.toLocaleString()} {t('productInfo.currency')}
           </span>
           {hasDiscount && (
             <span className="text-base text-muted-foreground line-through">
-              {price.toLocaleString()} د.ج
+              {price.toLocaleString()} {t('productInfo.currency')}
             </span>
           )}
         </div>
@@ -153,14 +154,14 @@ const ProductInfo = ({ product, currentPrice }: ProductInfoProps) => {
           {stock_quantity > 0 ? (
             <div className="flex items-center text-green-600">
               <span className="inline-block w-2 h-2 bg-green-500 rounded-full ml-2"></span>
-              متوفر في المخزون
+              {t('productInfo.inStock')}
               <span className="font-medium mx-1">({stock_quantity})</span>
-              قطعة
+              {t('productInfo.pieces')}
             </div>
           ) : (
             <div className="flex items-center text-red-600">
               <span className="inline-block w-2 h-2 bg-red-500 rounded-full ml-2"></span>
-              غير متوفر حالياً
+              {t('productInfo.outOfStock')}
             </div>
           )}
         </div>
@@ -169,7 +170,7 @@ const ProductInfo = ({ product, currentPrice }: ProductInfoProps) => {
       {/* Product Description */}
       {description && (
         <div className="prose prose-sm max-w-none text-muted-foreground leading-relaxed pt-4">
-          <h2 className="text-lg font-semibold text-foreground mb-2">وصف المنتج</h2>
+          <h2 className="text-lg font-semibold text-foreground mb-2">{t('productInfo.productDescription')}</h2>
           {description}
         </div>
       )}
@@ -178,7 +179,7 @@ const ProductInfo = ({ product, currentPrice }: ProductInfoProps) => {
       {reviewsEnabled && reviews && reviews.length > 0 && (
         <div className="mt-8 pt-6 border-t">
           <h3 className="text-xl font-semibold text-foreground mb-4">
-            تقييمات العملاء ({reviews.length})
+            {t('productInfo.customerReviews', { count: reviews.length })}
           </h3>
           <div className="space-y-6">
             {reviews.map((review) => (
@@ -198,7 +199,7 @@ const ProductInfo = ({ product, currentPrice }: ProductInfoProps) => {
                   </div>
                   {marketingSettings?.reviews_verify_purchase && review.is_verified_purchase && (
                     <Badge variant="outline" className="mr-2 text-xs border-green-500 text-green-600 py-0.5 px-1.5">
-                      شراء موثوق
+                      {t('productInfo.verifiedPurchase')}
                     </Badge>
                   )}
                 </div>

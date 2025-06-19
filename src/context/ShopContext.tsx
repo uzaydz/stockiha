@@ -427,7 +427,12 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // وظائف المنتجات
   const addProduct = async (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
-      const newProduct = await productService.addProduct(product);
+      const organizationId = tenant.currentOrganization?.id;
+      if (!organizationId) {
+        throw new Error('لم يتم العثور على معرف المنظمة عند إضافة المنتج');
+      }
+      const newProductFromService = await productService.addProduct({ ...product, organizationId });
+      const newProduct = mapSupabaseProductToProduct(newProductFromService);
       setProducts([...products, newProduct]);
       return newProduct;
     } catch (error) {
@@ -437,9 +442,10 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   
   const updateProduct = async (product: Product) => {
     try {
-      const updatedProduct = await productService.updateProduct(product);
-      setProducts(products.map(p => p.id === product.id ? updatedProduct : p));
-      return updatedProduct;
+      const updatedProductFromService = await productService.updateProduct(product);
+      const mappedProduct = mapSupabaseProductToProduct(updatedProductFromService);
+      setProducts(products.map(p => p.id === product.id ? mappedProduct : p));
+      return mappedProduct;
     } catch (error) {
       throw error;
     }

@@ -45,7 +45,7 @@ export const getOrganizationById = async (
     cacheKey,
     async () => {
       try {
-        const supabaseClient = await getSupabaseClient();
+        const supabaseClient = getSupabaseClient();
         const { data, error } = await supabaseClient
           .from('organizations')
           .select('*') // Consider selecting specific fields
@@ -62,8 +62,7 @@ export const getOrganizationById = async (
         return null;
       }
     },
-    ttl, // استخدام الـ TTL الممرر أو الافتراضي للدالة
-    true
+    ttl // استخدام الـ TTL الممرر أو الافتراضي للدالة
   );
 };
 

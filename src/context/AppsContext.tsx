@@ -150,6 +150,25 @@ const AVAILABLE_APPS: AppDefinition[] = [
       'نظام التنبيهات والإشعارات'
     ],
     permissions: ['manageCallCenter', 'viewCallCenterReports', 'manageCallCenterAgents', 'viewCallCenterMonitoring']
+  },
+  {
+    id: 'game-downloads',
+    name: 'تحميل الألعاب',
+    description: 'نظام متكامل لإدارة طلبات تحميل الألعاب وتتبعها',
+    icon: 'Gamepad2',
+    category: 'خدمات رقمية',
+    version: '1.0.0',
+    features: [
+      'كتالوج شامل للألعاب',
+      'نظام طلبات مع رقم تتبع فريد',
+      'إدارة حالات الطلبات',
+      'واجهة عامة للعملاء',
+      'إشعارات تلقائية للعملاء',
+      'تقارير وإحصائيات الطلبات',
+      'إعدادات مخصصة للمتجر',
+      'دعم منصات متعددة (PC, PlayStation, Xbox, Mobile)'
+    ],
+    permissions: ['manageGameDownloads', 'viewGameOrders', 'manageGameCatalog', 'viewGameReports']
   }
 ];
 

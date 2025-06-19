@@ -1,6 +1,7 @@
 import React from 'react';
 import { Loader2, ShoppingCart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import type { Product } from '@/lib/api/products';
 import ProductInfo from '@/components/store/product/ProductInfo';
 import ProductGallery from '@/components/store/product/ProductGallery';
@@ -193,41 +194,45 @@ export const ErrorState = ({ error, onBack }: { error: string, onBack: () => voi
 );
 
 // مكون للزر اللاصق
-export const StickyButton = ({ onClick }: { onClick: () => void }) => (
-  <motion.div
-    initial={{ y: 100, opacity: 0 }}
-    animate={{ y: 0, opacity: 1 }}
-    exit={{ y: 100, opacity: 0 }}
-    className="fixed bottom-4 left-4 right-4 z-50 md:hidden"
-    transition={{ type: "spring", stiffness: 100, damping: 15 }}
-  >
-    <div className="relative">
-      {/* تأثير التوهج في الخلفية */}
-      <div className="absolute inset-0 bg-gradient-to-r from-primary/20 via-primary/30 to-primary/20 rounded-xl blur-lg animate-pulse" />
-      
-      <button
-        onClick={onClick}
-        className="relative w-full flex items-center justify-center gap-3 py-4 px-6 bg-gradient-to-r from-primary to-primary-darker text-primary-foreground rounded-xl shadow-2xl hover:shadow-primary/25 transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] overflow-hidden group"
-      >
-        {/* تأثير الموجة عند الضغط */}
-        <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 transform -skew-x-12 group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
+export const StickyButton = ({ onClick }: { onClick: () => void }) => {
+  const { t } = useTranslation();
+  
+  return (
+    <motion.div
+      initial={{ y: 100, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      exit={{ y: 100, opacity: 0 }}
+      className="fixed bottom-4 left-4 right-4 z-50 md:hidden"
+      transition={{ type: "spring", stiffness: 100, damping: 15 }}
+    >
+      <div className="relative">
+        {/* تأثير التوهج في الخلفية */}
+        <div className="absolute inset-0 bg-gradient-to-r from-primary/20 via-primary/30 to-primary/20 rounded-xl blur-lg animate-pulse" />
         
-        {/* محتوى الزر */}
-        <div className="relative flex items-center gap-3">
-          <div className="p-1 bg-white/20 rounded-full">
-            <ShoppingCart className="w-5 h-5 text-white" />
+        <button
+          onClick={onClick}
+          className="relative w-full flex items-center justify-center gap-3 py-4 px-6 bg-gradient-to-r from-primary to-primary-darker text-primary-foreground rounded-xl shadow-2xl hover:shadow-primary/25 transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] overflow-hidden group"
+        >
+          {/* تأثير الموجة عند الضغط */}
+          <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 transform -skew-x-12 group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
+          
+          {/* محتوى الزر */}
+          <div className="relative flex items-center gap-3">
+            <div className="p-1 bg-white/20 rounded-full">
+              <ShoppingCart className="w-5 h-5 text-white" />
+            </div>
+            <span className="text-lg font-bold text-white">{t("إرسال الطلب")}</span>
+            <div className="flex items-center gap-1">
+              <div className="w-1 h-1 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+              <div className="w-1 h-1 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+              <div className="w-1 h-1 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+            </div>
           </div>
-          <span className="text-lg font-bold text-white">إرسال الطلب</span>
-          <div className="flex items-center gap-1">
-            <div className="w-1 h-1 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-            <div className="w-1 h-1 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-            <div className="w-1 h-1 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-          </div>
-        </div>
-        
-        {/* تأثير الحدود المتحركة */}
-        <div className="absolute inset-0 rounded-xl border-2 border-white/30 animate-pulse" />
-      </button>
-    </div>
-  </motion.div>
-);
+          
+          {/* تأثير الحدود المتحركة */}
+          <div className="absolute inset-0 rounded-xl border-2 border-white/30 animate-pulse" />
+        </button>
+      </div>
+    </motion.div>
+  );
+};

@@ -379,8 +379,7 @@ const storeCache = new MultiLevelCache();
  * Get data from cache
  */
 export async function getCacheData<T>(key: string): Promise<T | null> {
-  console.log('🚫 [StoreCache] DISABLED - Not returning cached data for:', key);
-  return null; // Always return null - no cache
+  return storeCache.get(key);
 }
 
 /**
@@ -391,8 +390,7 @@ export async function setCacheData<T>(
   data: T, 
   ttl: number = CACHE_CONFIG.TTL.STORE_DATA
 ): Promise<void> {
-  console.log('🚫 [StoreCache] DISABLED - Not caching data for:', key);
-  // Do nothing - cache is disabled
+  storeCache.set(key, data, ttl);
 }
 
 /**
@@ -564,11 +562,15 @@ export async function withCache<T>(
   fetchFunction: () => Promise<T>,
   ttl: number = DEFAULT_CACHE_TTL
 ): Promise<T> {
-  console.log('🚫 [StoreCache] DISABLED - Always fetching fresh data for:', key);
-  
-  // Always fetch fresh data - no caching
-  const data = await fetchFunction();
-  return data;
+  const cachedData = await getCacheData<T>(key);
+  if (cachedData) {
+    return cachedData;
+  }
+
+  const freshData = await fetchFunction();
+  await setCacheData(key, freshData, ttl);
+
+  return freshData;
 }
 
 // =================================================================

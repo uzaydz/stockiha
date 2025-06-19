@@ -56,7 +56,8 @@ import {
   AlertTriangle,
   Grid3X3,
   Smartphone,
-  CreditCard
+  CreditCard,
+  Gamepad2
 } from 'lucide-react';
 
 // استيراد سياق التطبيقات
@@ -450,6 +451,21 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
           icon: BarChart3,
           href: '/dashboard/call-center/monitoring',
           requiredPermission: 'manageOrganizationSettings',
+          badge: 'جديد'
+        },
+      ]
+    }] : []),
+    // مجموعة تطبيق تحميل الألعاب - تظهر فقط إذا كان التطبيق مفعّل
+    ...(isAppEnabled('game-downloads') ? [{
+      group: 'تحميل الألعاب',
+      icon: Gamepad2,
+      requiredPermission: 'manageGameDownloads',
+      items: [
+        {
+          title: 'إدارة تحميل الألعاب',
+          icon: Gamepad2,
+          href: '/dashboard/game-downloads',
+          requiredPermission: 'manageGameDownloads',
           badge: 'جديد'
         },
       ]

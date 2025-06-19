@@ -10,6 +10,7 @@ import CustomizableStoreFooter from '@/components/store/CustomizableStoreFooter'
 import { useTenant } from '@/context/TenantContext';
 import { useAuth } from '@/context/AuthContext';
 import { getSupabaseClient } from '@/lib/supabase';
+import { useTranslation } from 'react-i18next';
 
 interface CustomPage {
   id: string;
@@ -47,6 +48,7 @@ const CustomPageView: React.FC = () => {
   const navigate = useNavigate();
   const { currentOrganization } = useTenant();
   const { currentSubdomain } = useAuth();
+  const { t } = useTranslation();
   const [page, setPage] = useState<CustomPage | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -152,20 +154,20 @@ const CustomPageView: React.FC = () => {
     footerSections: [
       {
         id: '1',
-        title: 'روابط سريعة',
+        title: t('storeFooter.quickLinks'),
         links: [
-          { id: '1-1', text: 'الصفحة الرئيسية', url: '/', isExternal: false },
-          { id: '1-2', text: 'المنتجات', url: '/products', isExternal: false },
-          { id: '1-3', text: 'اتصل بنا', url: '/contact', isExternal: false }
+          { id: '1-1', text: t('storeFooter.home'), url: '/', isExternal: false },
+          { id: '1-2', text: t('storeFooter.products'), url: '/products', isExternal: false },
+          { id: '1-3', text: t('storeFooter.contact'), url: '/contact', isExternal: false }
         ]
       },
       {
         id: '2',
-        title: 'خدمة العملاء',
+        title: t('storeFooter.customerService'),
         links: [
-          { id: '2-1', text: 'مركز المساعدة', url: '/help', isExternal: false },
-          { id: '2-2', text: 'سياسة الشحن', url: '/shipping-policy', isExternal: false },
-          { id: '2-3', text: 'الأسئلة الشائعة', url: '/faq', isExternal: false }
+          { id: '2-1', text: t('storeFooter.helpCenter'), url: '/help', isExternal: false },
+          { id: '2-2', text: t('storeFooter.shippingPolicy'), url: '/shipping-policy', isExternal: false },
+          { id: '2-3', text: t('storeFooter.faq'), url: '/faq', isExternal: false }
         ]
       }
     ],
@@ -197,10 +199,10 @@ const CustomPageView: React.FC = () => {
     ],
     newsletterSettings: {
       enabled: true,
-      title: 'النشرة البريدية',
-      description: 'اشترك في نشرتنا البريدية للحصول على آخر العروض والتحديثات.',
-      placeholder: 'البريد الإلكتروني',
-      buttonText: 'اشتراك'
+      title: t('storeFooter.newsletter.title'),
+      description: t('storeFooter.newsletter.description'),
+      placeholder: t('storeFooter.newsletter.placeholder'),
+      buttonText: t('storeFooter.newsletter.buttonText')
     },
     paymentMethods: ['visa', 'mastercard', 'paypal'],
     legalLinks: [

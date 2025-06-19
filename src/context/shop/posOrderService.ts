@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 import { Order, OrderItem, OrderStatus } from '../../types';
 import { v4 as uuidv4 } from 'uuid';
 import { ensureCustomerExists } from '@/lib/fallback_customer';
+import { queryClient } from '@/lib/config/queryClient';
 
 // دالة محسنة لإنشاء طلبية نقطة البيع
 export const createPOSOrder = async (
@@ -104,6 +105,21 @@ export const createPOSOrder = async (
     try {
       await addOrderTransaction(newOrderId, order, currentOrganizationId);
     } catch (error) {
+    }
+    
+    // =================================================================
+    // 🚀 CACHE INVALIDATION
+    // =================================================================
+    try {
+      if (currentOrganizationId) {
+        // Invalidate orders, products, and dashboard data
+        await queryClient.invalidateQueries({ queryKey: ['pos-orders', currentOrganizationId] });
+        await queryClient.invalidateQueries({ queryKey: ['pos-orders-stats', currentOrganizationId] });
+        await queryClient.invalidateQueries({ queryKey: ['products', currentOrganizationId] });
+        await queryClient.invalidateQueries({ queryKey: ['dashboard-data', currentOrganizationId] });
+      }
+    } catch (cacheError) {
+      console.error('Error invalidating cache for POS order:', cacheError);
     }
     
     // إعادة الطلب المضاف مع البيانات الكاملة

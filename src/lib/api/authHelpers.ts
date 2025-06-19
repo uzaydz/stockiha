@@ -92,7 +92,7 @@ export const signIn = async (email: string, password: string): Promise<SignInRes
     try {
       
       // التأكد من جاهزية Supabase Client
-      const client = await getSupabaseClient();
+      const client = getSupabaseClient();
       
       if (!client) {
         throw new Error('Supabase client not available');
@@ -201,7 +201,7 @@ export const checkUserRequires2FA = async (
 ): Promise<UserExistsResult & { error?: string }> => {
   try {
     
-    const client = await getSupabaseClient();
+    const client = getSupabaseClient();
     
     // 🔧 محاولة استخدام دالة check_user_requires_2fa مع المعاملات الصحيحة
     try {
@@ -308,7 +308,7 @@ export const checkUserRequires2FA = async (
 export const signOut = async (): Promise<{ success: boolean; error?: string }> => {
   try {
     
-    const client = await getSupabaseClient();
+    const client = getSupabaseClient();
     const { error } = await client.auth.signOut();
     
     if (error) {
@@ -331,7 +331,7 @@ export const signOut = async (): Promise<{ success: boolean; error?: string }> =
  */
 export const getCurrentUserWithValidation = async (): Promise<{ user: any; session: any; error?: string }> => {
   try {
-    const client = await getSupabaseClient();
+    const client = getSupabaseClient();
     
     const { data: sessionData, error: sessionError } = await client.auth.getSession();
     
@@ -357,7 +357,7 @@ export const getCurrentUserWithValidation = async (): Promise<{ user: any; sessi
  */
 export const updatePassword = async (newPassword: string): Promise<{ success: boolean; error?: string }> => {
   try {
-    const client = await getSupabaseClient();
+    const client = getSupabaseClient();
     
     const { error } = await client.auth.updateUser({
       password: newPassword
@@ -379,10 +379,10 @@ export const updatePassword = async (newPassword: string): Promise<{ success: bo
  */
 export const resetPassword = async (email: string): Promise<{ success: boolean; error?: string }> => {
   try {
-    const client = await getSupabaseClient();
+    const client = getSupabaseClient();
     
     const { error } = await client.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`
+      redirectTo: `${window.location.origin}/update-password`
     });
     
     if (error) {

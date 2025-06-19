@@ -46,10 +46,17 @@ applyThemeWithRetry();
 
 // تهيئة النظام الموحد فوراً لمنع إنشاء العميل الطارئ
 if (typeof window !== 'undefined') {
-  // بدء تهيئة النظام الموحد بشكل غير متزامن
-  getSupabaseClient().catch(() => {
+  try {
+    // تهيئة العميل المتزامن الآن - سيتم استيراده ديناميكياً لاحقاً
+    import('./lib/supabase-unified').then(({ getSupabaseClient }) => {
+      getSupabaseClient();
+    }).catch((error) => {
+      console.warn('تحذير: فشل في تهيئة Supabase client:', error);
+    });
+  } catch (error) {
     // تجاهل الأخطاء في المرحلة الأولية
-  });
+    console.warn('تحذير: فشل في تهيئة Supabase client:', error);
+  }
 }
 
 // إضافة مستمع لحدث تحميل الصفحة لإعادة تطبيق الثيم
@@ -157,13 +164,10 @@ import type { ElectronAPI } from './types/electron';
 import { initializeReact } from './lib/react-init';
 import { SentryErrorBoundary } from './components/ErrorBoundary';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { initializeSupabaseUnified } from './lib/supabase-unified';
+// import { ReactQueryDevtools } from "@tanstack/react-query-devtools"; // تم تعطيلها مؤقتاً
 import { enableRequestInterception } from './lib/requestInterceptor';
-import { AuthSingleton } from './lib/authSingleton';
+import { authSingleton } from './lib/authSingleton';
 import { productionDebugger, prodLog } from './utils/productionDebug';
-import { debugProduction } from '@/utils/productionDebug';
-import { checkBuildIntegrity } from '@/utils/buildCheck';
 
 // 🔍 تشخيص متطور للـ chunks
 import './utils/debugChunkLoader';
@@ -432,14 +436,7 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
 async function initializeApp() {
   try {
     
-    // تهيئة مبكرة للنظام الموحد
-    const { getSupabaseClient } = await import('@/lib/supabase-unified');
-    
-    // بدء تهيئة الـ client في الخلفية
-    getSupabaseClient().then(() => {
-    }).catch((error) => {
-      // لا نوقف التطبيق، فقط تحذير
-    });
+    // تم إزالة تهيئة Supabase client هنا لتجنب التكرار
     
     // تهيئة Production Debug System
     prodLog('info', '🚀 App initialization started', { 
@@ -458,11 +455,7 @@ async function initializeApp() {
 // بدء التهيئة
 initializeApp();
 
-// تشغيل تشخيص الإنتاج
-debugProduction();
-
-// فحص سلامة البناء
-checkBuildIntegrity();
+// تم تجميد وظائف التشخيص مؤقتاً لحل تعارضات الاستيراد
 
 // التأكد من تهيئة أنظمة التحسين فوراً
 
@@ -496,5 +489,6 @@ import '@/utils/productionSystemCheck';
 // Force import للتأكد من تحميل أنظمة التحسين في الإنتاج
 import './lib/cache/deduplication';
 import './context/POSDataContext';
-import { debugProduction } from '@/utils/productionDebug';
-import { checkBuildIntegrity } from '@/utils/buildCheck';
+
+// ✅ تفعيل نظام منع التكرار العالمي أولاً قبل أي شيء
+import './lib/requestDeduplicationGlobal';

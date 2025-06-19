@@ -196,6 +196,14 @@ const FeaturedProducts = ({
 
   // جلب المنتجات المحددة يدوياً إذا لم تكن البيانات مُمررة
   useEffect(() => {
+    console.log('🎯 FeaturedProducts - useEffect triggered', {
+      selectionMethod,
+      selectedProductsLength: selectedProducts.length,
+      initialProductsLength: initialProducts.length,
+      organizationId,
+      shouldFetch: selectionMethod === 'manual' && selectedProducts.length > 0 && initialProducts.length === 0 && organizationId
+    });
+
     const fetchSelectedProducts = async () => {
       if (
         selectionMethod === 'manual' && 
@@ -203,18 +211,24 @@ const FeaturedProducts = ({
         initialProducts.length === 0 && 
         organizationId
       ) {
+        console.log('🎯 FeaturedProducts - Starting manual products fetch for:', selectedProducts);
         setLoading(true);
         try {
           const allProducts = await getProducts(organizationId);
+          console.log('🎯 FeaturedProducts - All products fetched:', allProducts.length);
           const filteredProducts = allProducts.filter(product => 
             selectedProducts.includes(product.id)
           );
+          console.log('🎯 FeaturedProducts - Filtered products:', filteredProducts.length);
           setFetchedProducts(filteredProducts.map(convertDatabaseProductToStoreProduct));
         } catch (error) {
+          console.error('🎯 FeaturedProducts - Error fetching products:', error);
           setFetchedProducts([]);
         } finally {
           setLoading(false);
         }
+      } else {
+        console.log('🎯 FeaturedProducts - Skipping fetch due to conditions not met');
       }
     };
 
@@ -223,11 +237,24 @@ const FeaturedProducts = ({
 
   // 🚀 استخدام البيانات المحسنة مباشرة بدلاً من طلبات API إضافية
   const displayedProducts = useMemo(() => {
+    console.log('🎯 FeaturedProducts - displayedProducts calculation started');
+    console.log('🎯 Props received:', {
+      initialProducts: initialProducts?.length || 0,
+      selectionMethod,
+      selectionCriteria,
+      selectedProducts: selectedProducts?.length || 0,
+      displayCount,
+      organizationId
+    });
     
     // فحص بيانات الصور في المنتجات المستلمة
     if (initialProducts && initialProducts.length > 0) {
+      console.log('🎯 FeaturedProducts - Initial products found:', initialProducts.length);
+      console.log('🎯 FeaturedProducts - Sample initial products:', initialProducts.slice(0, 2));
       initialProducts.slice(0, 3).forEach((product, index) => {
       });
+    } else {
+      console.log('🎯 FeaturedProducts - No initial products provided');
     }
     
     // تحديد مصدر البيانات - تجنب استخدام ShopContext إلا في الحالات الضرورية
@@ -235,12 +262,15 @@ const FeaturedProducts = ({
     
     if (initialProducts && initialProducts.length > 0) {
       // استخدام البيانات المُمررة (من المتجر الحقيقي)
+      console.log('🎯 FeaturedProducts - Using initial products as source');
       sourceProducts = initialProducts;
     } else if (fetchedProducts.length > 0) {
       // استخدام البيانات المجلبة (من محرر المتجر)
+      console.log('🎯 FeaturedProducts - Using fetched products as source:', fetchedProducts.length);
       sourceProducts = fetchedProducts;
     } else if (selectionMethod === 'automatic' && shopProducts && shopProducts.length > 0 && !organizationId) {
       // استخدام بيانات ShopContext فقط للاختيار التلقائي وعندما لا تتوفر بيانات أخرى ولا يوجد organizationId
+      console.log('🎯 FeaturedProducts - Using shop context products:', shopProducts.length);
       sourceProducts = shopProducts.map(product => ({
         id: product.id,
         name: product.name,
@@ -257,28 +287,46 @@ const FeaturedProducts = ({
         slug: product.name.toLowerCase().replace(/\s+/g, '-'),
         rating: 4.5 // قيمة افتراضية
       }));
+    } else {
+      console.log('🎯 FeaturedProducts - No products source found');
+      console.log('🎯 Debug info:', {
+        hasInitialProducts: initialProducts?.length > 0,
+        fetchedProductsCount: fetchedProducts.length,
+        selectionMethod,
+        hasShopProducts: shopProducts?.length > 0,
+        organizationId,
+        shopProductsCondition: selectionMethod === 'automatic' && shopProducts && shopProducts.length > 0 && !organizationId
+      });
     }
     
     if (sourceProducts.length > 0) {
+      console.log('🎯 FeaturedProducts - Source products found:', sourceProducts.length);
       let filteredProducts = [...sourceProducts];
       
       // تطبيق الفلترة حسب طريقة الاختيار
       if (selectionMethod === 'manual') {
         // إذا كان الاختيار يدوي، فالمنتجات المُمررة هي بالفعل المنتجات المحددة
         // لا نحتاج لفلترة إضافية
+        console.log('🎯 FeaturedProducts - Manual selection, no filtering needed');
       } else if (selectionMethod === 'automatic') {
+        console.log('🎯 FeaturedProducts - Applying automatic filtering for criteria:', selectionCriteria);
+        const originalCount = filteredProducts.length;
         switch (selectionCriteria) {
           case 'featured':
             filteredProducts = filteredProducts.filter(p => p.is_featured);
+            console.log('🎯 FeaturedProducts - Featured filter applied:', originalCount, '->', filteredProducts.length);
             break;
           case 'newest':
             filteredProducts = filteredProducts.filter(p => p.is_new);
+            console.log('🎯 FeaturedProducts - Newest filter applied:', originalCount, '->', filteredProducts.length);
             break;
           case 'discounted':
             filteredProducts = filteredProducts.filter(p => p.discount_price && p.discount_price < p.price);
+            console.log('🎯 FeaturedProducts - Discounted filter applied:', originalCount, '->', filteredProducts.length);
             break;
           case 'best_selling':
             // يمكن إضافة منطق للمنتجات الأكثر مبيعاً هنا
+            console.log('🎯 FeaturedProducts - Best selling filter (no implementation yet)');
             break;
         }
       }
@@ -289,11 +337,14 @@ const FeaturedProducts = ({
         : displayCount;
       
       const finalProducts = filteredProducts.slice(0, finalDisplayCount);
+      console.log('🎯 FeaturedProducts - Final products to display:', finalProducts.length);
+      console.log('🎯 FeaturedProducts - Final products sample:', finalProducts.slice(0, 2));
       return finalProducts;
     }
     
     // إذا لم تتوفر أي بيانات، إرجاع مصفوفة فارغة بدلاً من المنتجات الافتراضية
     // هذا يمنع عرض منتجات وهمية عندما لا تتوفر بيانات حقيقية
+    console.log('🎯 FeaturedProducts - No source products, returning empty array');
     return [];
   }, [initialProducts, fetchedProducts, shopProducts, selectionMethod, selectionCriteria, selectedProducts, displayCount]);
 

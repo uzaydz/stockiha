@@ -56,7 +56,7 @@ export const getOrganizationBySubdomain = async (subdomain: string): Promise<Org
     async () => {
       try {
         
-        const supabaseClient = await getSupabaseClient();
+        const supabaseClient = getSupabaseClient();
         
         // البحث عن المنظمة بواسطة النطاق الفرعي
         const { data, error } = await supabaseClient
@@ -109,7 +109,7 @@ export const getOrganizationByDomain = async (domain: string): Promise<Organizat
     cacheKey,
     async () => {
       try {
-        const supabaseClient = await getSupabaseClient();
+        const supabaseClient = getSupabaseClient();
         
         // Attempt 1: Direct match on the cleaned domain
         const { data: directMatchData, error: directMatchError } = await supabaseClient
@@ -166,7 +166,7 @@ export const getOrganizationById = async (organizationId: string): Promise<Organ
     cacheKey,
     async () => {
       try {
-        const supabaseClient = await getSupabaseClient();
+        const supabaseClient = getSupabaseClient();
         const { data, error } = await supabaseClient
           .from('organizations')
           .select('*') // Consider selecting specific fields

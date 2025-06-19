@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTenant } from "@/context/TenantContext";
 import { CreditCard } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 // استيراد ملف التنسيقات
 import "../form.css";
@@ -29,6 +30,7 @@ export const CustomFormFields: React.FC<CustomFormProps> = ({
   onFieldChange,
 }): JSX.Element => {
   const { currentOrganization } = useTenant();
+  const { t } = useTranslation();
   const { watch, setValue, getValues, reset } = useForm(); 
 
   const [extendedFields, setExtendedFields] = useState<ExtendedFormField[]>([]);
@@ -103,7 +105,7 @@ export const CustomFormFields: React.FC<CustomFormProps> = ({
   const content = (
     <div className="space-y-6">
       <div className="bg-card p-6 rounded-lg border border-border shadow-sm">
-        <h2 className="text-xl font-semibold mb-6 text-foreground border-b border-border pb-3">معلومات الطلب</h2>
+        <h2 className="text-xl font-semibold mb-6 text-foreground border-b border-border pb-3">{t('orderForm.orderInfo')}</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
           {uniqueFields.map(field => (
             <FormFieldRenderer
@@ -139,12 +141,12 @@ export const CustomFormFields: React.FC<CustomFormProps> = ({
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                جاري إرسال الطلب...
+                {t('orderForm.submittingOrder')}
               </>
             ) : (
               <>
                 <CreditCard className="ml-2 h-5 w-5" /> 
-                إرسال الطلب
+                {t('orderForm.submitOrder')}
               </>
             )}
           </button>

@@ -91,10 +91,13 @@ import RepairServices from './pages/RepairServices';
 import RepairTrackingPage from './pages/RepairTrackingPage';
 import StoreEditorDemo from '@/pages/admin/StoreEditorDemo';
 import AppsManagement from './pages/AppsManagement';
+import GameDownloadsPage from './pages/GameDownloadsPage';
+import PublicGameStorePage from './pages/PublicGameStorePage';
 import { AppsProvider } from './context/AppsContext';
 import { StoreProvider } from './context/StoreContext';
 import { UnifiedDataProvider } from '@/components/UnifiedDataProvider';
 import { UniversalDataUpdateProvider } from './context/UniversalDataUpdateContext';
+import { OrganizationDataProvider } from './contexts/OrganizationDataContext';
 import ConditionalRoute from './components/ConditionalRoute';
 import CallCenterRoute from './components/auth/CallCenterRoute';
 import CallCenterLayout from './components/call-center/CallCenterLayout';
@@ -142,6 +145,7 @@ import { useDevtools } from '@/hooks/useDevtools';
 import { AuthDebugger } from './components/auth/AuthDebugger';
 import { LocalStorageMonitor } from './components/auth/LocalStorageMonitor';
 import { enableRequestInterception, setCurrentOrganizationId } from '@/lib/requestInterceptor';
+import RequestMonitor from './components/debug/RequestMonitor';
 import '@/utils/auth-debug'; // أدوات التشخيص
 
 // تأخير تفعيل اعتراض الطلبات حتى يصبح النظام الموحد جاهزاً
@@ -172,9 +176,19 @@ import PerformanceWidget from '@/components/performance/PerformanceWidget';
 // ✨ نظام التحديث المتطور للبيانات
 import { setGlobalQueryClient } from '@/lib/data-refresh-helpers';
 
-// 🚫 REQUEST DEDUPLICATION DISABLED - No initialization
-console.log('🚫 [App.tsx] REQUEST DEDUPLICATION COMPLETELY DISABLED');
-// initializeRequestSystem(queryClient); // تعطيل مؤقت
+// ✅ REQUEST DEDUPLICATION RE-ENABLED
+console.log('✅ [App.tsx] REQUEST DEDUPLICATION SYSTEM ENABLED');
+
+// تفعيل نظام منع الطلبات المكررة
+if (typeof window !== 'undefined') {
+  import('@/lib/cache/deduplication').then(({ deduplicateRequest, clearCache }) => {
+    (window as any).deduplicateRequest = deduplicateRequest;
+    (window as any).clearRequestCache = clearCache;
+    console.log('✅ [App.tsx] Deduplication functions available globally');
+  }).catch(() => {
+    console.warn('⚠️ [App.tsx] Failed to load deduplication system');
+  });
+}
 
 // ✅ تهيئة نظام التحديث المتطور
 setGlobalQueryClient(queryClient);
@@ -421,10 +435,12 @@ const App = () => {
               <ErrorMonitor />
               <UnifiedDataProvider>
                 <UniversalDataUpdateProvider>
+                <OrganizationDataProvider>
                 <ShopProvider>
                   <StoreProvider>
                   <AppsProvider>
                   <HelmetProvider>
+                  <RequestMonitor />
                   <Toaster />
                   <Sonner />
                 <Routes>
@@ -524,6 +540,10 @@ const App = () => {
                   <Route path="/services" element={<PublicServiceTrackingPage />} />
                   <Route path="/repair-tracking" element={<RepairTrackingPage />} />
                   <Route path="/repair-tracking/:trackingCode" element={<RepairTrackingPage />} />
+
+                  {/* صفحة متجر تحميل الألعاب العامة */}
+                  <Route path="/games" element={<PublicGameStorePage />} />
+                  <Route path="/games/:organizationId" element={<PublicGameStorePage />} />
 
                   {/* صفحات التوثيق */}
                   <Route path="/docs/custom-domains" element={<CustomDomainsDocPage />} />
@@ -811,6 +831,15 @@ const App = () => {
                         </ConditionalRoute>
                       } />
 
+                      {/* مسارات تطبيق تحميل الألعاب */}
+                      <Route path="/dashboard/game-downloads" element={
+                        <ConditionalRoute appId="game-downloads">
+                          <SubscriptionCheck>
+                            <GameDownloadsPage />
+                          </SubscriptionCheck>
+                        </ConditionalRoute>
+                      } />
+
                       {/* مسارات إدارة الموردين */}
                       <Route path="/dashboard/suppliers" element={
                         <SubscriptionCheck>
@@ -1011,12 +1040,16 @@ const App = () => {
                 
                 {/* 📊 PERFORMANCE ANALYTICS WIDGET: Widget مراقبة الأداء الشامل */}
                 {import.meta.env.DEV && <PerformanceWidget />}
-                  </HelmetProvider>
-                </AppsProvider>
-                </StoreProvider>
-              </ShopProvider>
+                
+                {/* 📊 REQUEST MONITOR: مراقب الطلبات المطور */}
+                {import.meta.env.DEV && <RequestMonitor />}
+                                    </HelmetProvider>
+                  </AppsProvider>
+                  </StoreProvider>
+                  </ShopProvider>
+                </OrganizationDataProvider>
                 </UniversalDataUpdateProvider>
-              </UnifiedDataProvider>
+                </UnifiedDataProvider>
             {/* </CrossDomainSessionReceiver> */}
           </SupabaseProvider>
         </TabFocusHandler>

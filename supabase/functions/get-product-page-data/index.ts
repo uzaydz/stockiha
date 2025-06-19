@@ -29,10 +29,14 @@ Deno.serve(async (req: Request) => {
       });
     }
     
-    const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: { Authorization: req.headers.get('Authorization')! },
-      },
+    // Use the service role key to create a Supabase client with admin privileges
+    // This is secure because this key is only available on the server-side
+    const supabaseAdmin: SupabaseClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
+      auth: {
+        // Automatically authenticate as a service role user
+        autoRefreshToken: false,
+        persistSession: false
+      }
     });
 
     // --- Extract slug and organization_id from request body ---
@@ -66,7 +70,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // --- Call the RPC function ---
-    const { data: rpcData, error: rpcError } = await supabase.rpc('get_complete_product_data', {
+    const { data: rpcData, error: rpcError } = await supabaseAdmin.rpc('get_complete_product_data', {
       p_slug: productSlug,
       p_org_id: organizationId,
     });

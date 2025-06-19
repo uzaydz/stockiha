@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type { Database } from '@/types/database.types';
+import { queryClient } from '@/lib/config/queryClient';
 
 export type Order = Database['public']['Tables']['orders']['Row'];
 export type InsertOrder = Database['public']['Tables']['orders']['Insert'];
@@ -101,10 +102,26 @@ export const createOrder = async (
     throw itemsError;
   }
 
+  // Invalidate orders queries
+  if (newOrder.organization_id) {
+    await queryClient.invalidateQueries({ queryKey: ['orders', newOrder.organization_id] });
+    await queryClient.invalidateQueries({ queryKey: ['dashboard-data', newOrder.organization_id] });
+  }
+
   return { order: newOrder, items: newItems };
 };
 
 export const updateOrderStatus = async (orderId: string, status: string): Promise<void> => {
+  const { data: order, error: fetchError } = await supabase
+    .from('orders')
+    .select('organization_id')
+    .eq('id', orderId)
+    .single();
+
+  if (fetchError || !order) {
+    throw new Error('Order not found or could not be fetched for update.');
+  }
+
   const { error } = await supabase
     .from('orders')
     .update({ status })
@@ -113,9 +130,26 @@ export const updateOrderStatus = async (orderId: string, status: string): Promis
   if (error) {
     throw error;
   }
+
+  // Invalidate orders queries
+  if (order.organization_id) {
+    await queryClient.invalidateQueries({ queryKey: ['orders', order.organization_id] });
+    await queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+    await queryClient.invalidateQueries({ queryKey: ['dashboard-data', order.organization_id] });
+  }
 };
 
 export const deleteOrder = async (id: string): Promise<void> => {
+  const { data: order, error: fetchError } = await supabase
+    .from('orders')
+    .select('organization_id')
+    .eq('id', id)
+    .single();
+
+  if (fetchError || !order) {
+    throw new Error('Order not found or could not be fetched for deletion.');
+  }
+
   // Due to cascade deletion set up in the database,
   // this will also delete associated order items
   const { error } = await supabase
@@ -125,5 +159,11 @@ export const deleteOrder = async (id: string): Promise<void> => {
 
   if (error) {
     throw error;
+  }
+
+  // Invalidate orders queries
+  if (order.organization_id) {
+    await queryClient.invalidateQueries({ queryKey: ['orders', order.organization_id] });
+    await queryClient.invalidateQueries({ queryKey: ['dashboard-data', order.organization_id] });
   }
 };

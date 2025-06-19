@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Eye, Heart, Star, Package, Sparkles, ShoppingCart } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -26,6 +27,7 @@ const ProductCard = React.memo(({
   onWishlistToggle,
   isWishlisted = false 
 }: ProductCardProps) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   // المتغيرات تم حذفها لأن OptimizedImage تدير الصور تلقائياً
   const [isVisible, setIsVisible] = useState(false);
@@ -57,14 +59,14 @@ const ProductCard = React.memo(({
     e.stopPropagation();
     onWishlistToggle?.(product.id);
     toast.success(
-      isWishlisted ? 'تم إزالة المنتج من المفضلة' : 'تم إضافة المنتج للمفضلة'
+      isWishlisted ? t('productCard.removedFromWishlist') : t('productCard.addedToWishlist')
     );
   };
 
   const handleBuyNow = (e: React.MouseEvent) => {
     e.stopPropagation();
     navigate(`/products/${product.slug}?buy=true`);
-    toast.success(`جاري الانتقال لشراء ${product.name}`);
+    toast.success(t('productCard.buyingProduct', { productName: product.name }));
   };
 
   const handleViewProduct = () => {
@@ -78,9 +80,9 @@ const ProductCard = React.memo(({
 
   // تحديد حالة المخزون
   const getStockStatus = () => {
-    if (product.stock_quantity <= 0) return { status: 'out', label: 'نفذ', color: 'bg-red-100 text-red-800' };
-    if (product.stock_quantity < 10) return { status: 'low', label: 'كمية محدودة', color: 'bg-amber-100 text-amber-800' };
-    return { status: 'in', label: 'متوفر', color: 'bg-green-100 text-green-800' };
+    if (product.stock_quantity <= 0) return { status: 'out', label: t('productCard.outOfStock'), color: 'bg-red-100 text-red-800' };
+    if (product.stock_quantity < 10) return { status: 'low', label: t('productCard.limited'), color: 'bg-amber-100 text-amber-800' };
+    return { status: 'in', label: t('productCard.available'), color: 'bg-green-100 text-green-800' };
   };
 
   const stockStatus = getStockStatus();
@@ -119,7 +121,7 @@ const ProductCard = React.memo(({
                 {product.is_new && (
                   <Badge className="bg-green-500 hover:bg-green-600 text-xs">
                     <Sparkles className="h-3 w-3 ml-1" />
-                    جديد
+                    {t('productCard.new')}
                   </Badge>
                 )}
                 {discountPercentage > 0 && (
@@ -175,7 +177,7 @@ const ProductCard = React.memo(({
                   className="flex-1 gap-2"
                 >
                   <ShoppingCart className="h-4 w-4" />
-                  {stockStatus.status === 'out' ? 'نفذ من المخزن' : 'شراء الآن'}
+                  {stockStatus.status === 'out' ? t('productCard.outOfStock') : t('productCard.buyNow')}
                 </Button>
                 <Button variant="outline" onClick={(e) => { e.stopPropagation(); handleViewProduct(); }}>
                   <Eye className="h-4 w-4" />
@@ -221,7 +223,7 @@ const ProductCard = React.memo(({
             {product.is_new && (
               <Badge className="bg-green-500 hover:bg-green-600 text-xs">
                 <Sparkles className="h-3 w-3 ml-1" />
-                جديد
+                {t('productCard.new')}
               </Badge>
             )}
             {discountPercentage > 0 && (
@@ -249,7 +251,7 @@ const ProductCard = React.memo(({
               className="gap-2"
             >
               <Eye className="h-4 w-4" />
-              عرض سريع
+              {t('productCard.quickView')}
             </Button>
           </div>
         </div>
@@ -289,7 +291,7 @@ const ProductCard = React.memo(({
             size="sm"
           >
             <ShoppingCart className="h-4 w-4" />
-            {stockStatus.status === 'out' ? 'نفذ من المخزن' : 'شراء الآن'}
+            {stockStatus.status === 'out' ? t('productCard.outOfStock') : t('productCard.buyNow')}
           </Button>
         </CardContent>
       </Card>

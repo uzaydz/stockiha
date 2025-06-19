@@ -1,7 +1,8 @@
 import React, { useMemo, useState, useCallback, useEffect } from "react";
 import { Form } from "@/components/ui/form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2 } from "lucide-react"; // Keep Loader2 if still needed for a general loading state, though SubmitButton has its own
+import { Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next"; // Keep Loader2 if still needed for a general loading state, though SubmitButton has its own
 import { UseFormReturn } from "react-hook-form";
 import { NavigateFunction } from "react-router-dom";
 
@@ -60,6 +61,8 @@ const OrderForm: React.FC<OrderFormProps> = ({
   productColorName = null,
   productSizeName = null,
 }) => {
+  const { t } = useTranslation();
+  
   // --- Initial Setup & Derived Values ---
   const [selectedDeliveryType, setSelectedDeliveryType] = useState<'home' | 'desk'>('home');
 
@@ -217,10 +220,10 @@ const OrderForm: React.FC<OrderFormProps> = ({
         <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 rounded-t-3xl animate-gradient" />
         <div className="relative px-6 py-8 md:px-8 md:py-10">
           <h2 className="text-2xl md:text-3xl font-bold text-center text-foreground mb-2 animate-in fade-in-0 slide-in-from-top-4 duration-700">
-            إتمام الطلب
+            {t('orderForm.completeOrder')}
           </h2>
           <p className="text-center text-muted-foreground animate-in fade-in-0 slide-in-from-top-4 duration-700 delay-100">
-            املأ البيانات التالية لإتمام طلبك
+            {t('orderForm.fillDetails')}
           </p>
         </div>
       </div>

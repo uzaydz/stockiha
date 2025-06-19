@@ -1,5 +1,4 @@
 export * from './NavbarLogo';
-export * from './NavbarSearch';
 export * from './NavbarLinks';
 export * from './NavbarUserMenu';
 export * from './NavbarNotifications';

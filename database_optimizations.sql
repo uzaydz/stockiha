@@ -105,15 +105,41 @@ END;
 $$;
 
 -- =================================================================
--- دالة محسنة لجلب المنتجات المميزة
+-- دالة محسنة لجلب المنتجات المميزة مع دعم طرق الاختيار المختلفة
 -- =================================================================
 CREATE OR REPLACE FUNCTION get_store_featured_products(org_id UUID, limit_count INTEGER DEFAULT 4)
 RETURNS JSON
 LANGUAGE plpgsql
 AS $$
+DECLARE
+    v_featured_products_settings JSONB;
+    v_selection_method TEXT;
+    v_selection_criteria TEXT;
+    v_selected_products UUID[];
+    v_result JSON;
 BEGIN
-    RETURN (
+    -- جلب إعدادات المنتجات المميزة للمؤسسة
+    SELECT settings INTO v_featured_products_settings
+    FROM store_settings
+    WHERE organization_id = org_id
+    AND component_type = 'featuredproducts'
+    AND is_active = true
+    LIMIT 1;
+    
+    -- تحديد طريقة الاختيار (افتراضية: automatic)
+    v_selection_method := COALESCE(v_featured_products_settings->>'selectionMethod', 'automatic');
+    v_selection_criteria := COALESCE(v_featured_products_settings->>'selectionCriteria', 'featured');
+    
+    -- إذا كان الاختيار يدوياً ولديه منتجات محددة
+    IF v_selection_method = 'manual' AND v_featured_products_settings->'selectedProducts' IS NOT NULL THEN
+        -- استخراج معرفات المنتجات المحددة يدوياً
+        SELECT array_agg(elem::UUID)
+        INTO v_selected_products
+        FROM jsonb_array_elements_text(v_featured_products_settings->'selectedProducts') AS elem;
+        
+        -- جلب المنتجات المحددة يدوياً
         SELECT COALESCE(json_agg(product_data ORDER BY product_data->>'created_at' DESC), '[]'::json)
+        INTO v_result
         FROM (
             SELECT json_build_object(
                 'id', p.id,
@@ -133,12 +159,167 @@ BEGIN
             FROM products p
             LEFT JOIN product_categories c ON p.category_id = c.id
             WHERE p.organization_id = org_id 
-            AND p.is_featured = true 
+            AND p.id = ANY(v_selected_products)
             AND p.is_active = true
             ORDER BY p.created_at DESC
-            LIMIT limit_count
-        ) products
-    );
+        ) products;
+        
+        RETURN v_result;
+    END IF;
+    
+    -- الاختيار التلقائي أو عدم وجود إعدادات يدوية
+    IF v_selection_method = 'automatic' OR v_selection_method IS NULL THEN
+        -- بناء الاستعلام حسب معيار الاختيار
+        IF v_selection_criteria = 'featured' THEN
+            -- جلب المنتجات المميزة، وإذا لم توجد، جلب أحدث المنتجات
+            SELECT COALESCE(json_agg(product_data ORDER BY product_data->>'created_at' DESC), '[]'::json)
+            INTO v_result
+            FROM (
+                SELECT json_build_object(
+                    'id', p.id,
+                    'name', p.name,
+                    'description', p.description,
+                    'price', p.price,
+                    'compare_at_price', p.compare_at_price,
+                    'sku', p.sku,
+                    'slug', p.slug,
+                    'thumbnail_url', p.thumbnail_image,
+                    'stock_quantity', p.stock_quantity,
+                    'is_featured', p.is_featured,
+                    'category_name', c.name,
+                    'category_slug', c.slug,
+                    'created_at', p.created_at
+                ) as product_data
+                FROM products p
+                LEFT JOIN product_categories c ON p.category_id = c.id
+                WHERE p.organization_id = org_id 
+                AND p.is_active = true
+                ORDER BY 
+                    CASE WHEN p.is_featured = true THEN 0 ELSE 1 END,
+                    p.created_at DESC
+                LIMIT limit_count
+            ) products;
+            
+        ELSIF v_selection_criteria = 'newest' THEN
+            -- جلب أحدث المنتجات
+            SELECT COALESCE(json_agg(product_data ORDER BY product_data->>'created_at' DESC), '[]'::json)
+            INTO v_result
+            FROM (
+                SELECT json_build_object(
+                    'id', p.id,
+                    'name', p.name,
+                    'description', p.description,
+                    'price', p.price,
+                    'compare_at_price', p.compare_at_price,
+                    'sku', p.sku,
+                    'slug', p.slug,
+                    'thumbnail_url', p.thumbnail_image,
+                    'stock_quantity', p.stock_quantity,
+                    'is_featured', p.is_featured,
+                    'category_name', c.name,
+                    'category_slug', c.slug,
+                    'created_at', p.created_at
+                ) as product_data
+                FROM products p
+                LEFT JOIN product_categories c ON p.category_id = c.id
+                WHERE p.organization_id = org_id 
+                AND p.is_active = true
+                ORDER BY p.created_at DESC
+                LIMIT limit_count
+            ) products;
+            
+        ELSIF v_selection_criteria = 'discounted' THEN
+            -- جلب المنتجات المخفضة
+            SELECT COALESCE(json_agg(product_data ORDER BY product_data->>'created_at' DESC), '[]'::json)
+            INTO v_result
+            FROM (
+                SELECT json_build_object(
+                    'id', p.id,
+                    'name', p.name,
+                    'description', p.description,
+                    'price', p.price,
+                    'compare_at_price', p.compare_at_price,
+                    'sku', p.sku,
+                    'slug', p.slug,
+                    'thumbnail_url', p.thumbnail_image,
+                    'stock_quantity', p.stock_quantity,
+                    'is_featured', p.is_featured,
+                    'category_name', c.name,
+                    'category_slug', c.slug,
+                    'created_at', p.created_at
+                ) as product_data
+                FROM products p
+                LEFT JOIN product_categories c ON p.category_id = c.id
+                WHERE p.organization_id = org_id 
+                AND p.is_active = true
+                AND p.compare_at_price IS NOT NULL
+                AND p.compare_at_price > p.price
+                ORDER BY p.created_at DESC
+                LIMIT limit_count
+            ) products;
+            
+        ELSE
+            -- معيار افتراضي: جلب أحدث المنتجات مع تفضيل المميزة
+            SELECT COALESCE(json_agg(product_data ORDER BY product_data->>'created_at' DESC), '[]'::json)
+            INTO v_result
+            FROM (
+                SELECT json_build_object(
+                    'id', p.id,
+                    'name', p.name,
+                    'description', p.description,
+                    'price', p.price,
+                    'compare_at_price', p.compare_at_price,
+                    'sku', p.sku,
+                    'slug', p.slug,
+                    'thumbnail_url', p.thumbnail_image,
+                    'stock_quantity', p.stock_quantity,
+                    'is_featured', p.is_featured,
+                    'category_name', c.name,
+                    'category_slug', c.slug,
+                    'created_at', p.created_at
+                ) as product_data
+                FROM products p
+                LEFT JOIN product_categories c ON p.category_id = c.id
+                WHERE p.organization_id = org_id 
+                AND p.is_active = true
+                ORDER BY 
+                    CASE WHEN p.is_featured = true THEN 0 ELSE 1 END,
+                    p.created_at DESC
+                LIMIT limit_count
+            ) products;
+        END IF;
+        
+        RETURN v_result;
+    END IF;
+    
+    -- في حالة عدم تطابق أي شرط، إرجاع أحدث المنتجات
+    SELECT COALESCE(json_agg(product_data ORDER BY product_data->>'created_at' DESC), '[]'::json)
+    INTO v_result
+    FROM (
+        SELECT json_build_object(
+            'id', p.id,
+            'name', p.name,
+            'description', p.description,
+            'price', p.price,
+            'compare_at_price', p.compare_at_price,
+            'sku', p.sku,
+            'slug', p.slug,
+            'thumbnail_url', p.thumbnail_image,
+            'stock_quantity', p.stock_quantity,
+            'is_featured', p.is_featured,
+            'category_name', c.name,
+            'category_slug', c.slug,
+            'created_at', p.created_at
+        ) as product_data
+        FROM products p
+        LEFT JOIN product_categories c ON p.category_id = c.id
+        WHERE p.organization_id = org_id 
+        AND p.is_active = true
+        ORDER BY p.created_at DESC
+        LIMIT limit_count
+    ) products;
+    
+    RETURN v_result;
 END;
 $$;
 
