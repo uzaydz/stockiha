@@ -965,13 +965,8 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
     
   // 🎯 استخدام النظام الموحد للتحديث التلقائي - مثل updateProduct
   try {
-    const { autoRefreshSystem } = await import('@/lib/auto-refresh-system');
-    autoRefreshSystem.notifyChange({
-      entity: 'products',
-      action: 'create',
-      data: { productId: finalProductData.id, createdData: finalProductData },
-      organizationId: finalProductData.organization_id
-    });
+    const { refreshAfterProductOperation } = await import('@/lib/data-refresh-helpers');
+    refreshAfterProductOperation('create', { organizationId: finalProductData.organization_id });
 
     console.log('✅ [createProduct] تم إرسال إشعارات التحديث بعد الإنشاء');
   } catch (error) {
@@ -1327,13 +1322,8 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
     
   // 🎯 استخدام النظام الموحد للتحديث التلقائي - مثل deleteProduct
   try {
-    const { autoRefreshSystem } = await import('@/lib/auto-refresh-system');
-    autoRefreshSystem.notifyChange({
-      entity: 'products',
-      action: 'update',
-      data: { productId: id, updatedData: resultProduct },
-      organizationId: resultProduct.organization_id
-    });
+    const { refreshAfterProductOperation } = await import('@/lib/data-refresh-helpers');
+    refreshAfterProductOperation('update', { organizationId: resultProduct.organization_id });
 
     console.log('✅ [updateProduct] تم إرسال إشعارات التحديث');
   } catch (error) {

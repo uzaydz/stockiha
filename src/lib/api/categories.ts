@@ -284,13 +284,8 @@ export const createCategory = async (categoryData: Partial<Category>, organizati
     console.log('🔄 [createCategory] تحديث الواجهة فوراً...');
     
     // استخدام النظام الموحد - سطر واحد فقط! 🎉
-    const { autoRefreshSystem } = await import('@/lib/auto-refresh-system');
-    autoRefreshSystem.notifyChange({
-      entity: 'categories',
-      action: 'create',
-      data: resultCategory,
-      organizationId
-    });
+    const { refreshAfterCategoryOperation } = await import('@/lib/data-refresh-helpers');
+    refreshAfterCategoryOperation('create', { organizationId });
 
     console.log('✅ [createCategory] تم إرسال إشعارات التحديث');
 
@@ -385,13 +380,8 @@ export const updateCategory = async (id: string, categoryData: UpdateCategoryDat
     console.log('🔄 [updateCategory] تحديث الواجهة فوراً...');
     
     // 🎯 استخدام النظام الموحد للتحديث التلقائي - مثل deleteCategory
-    const { autoRefreshSystem } = await import('@/lib/auto-refresh-system');
-    autoRefreshSystem.notifyChange({
-      entity: 'categories',
-      action: 'update',
-      data: { categoryId: id, updatedData: resultCategory },
-      organizationId: organizationId || resultCategory.organization_id
-    });
+    const { refreshAfterCategoryOperation } = await import('@/lib/data-refresh-helpers');
+    refreshAfterCategoryOperation('update', { organizationId: organizationId || resultCategory.organization_id });
 
     console.log('✅ [updateCategory] تم إرسال إشعارات التحديث');
     console.log('✅ [updateCategory] تم تحديث الفئة بنجاح كاملاً');
@@ -441,13 +431,8 @@ export const deleteCategory = async (id: string, organizationId?: string): Promi
     console.log('🔄 [deleteCategory] تحديث الواجهة فوراً...');
     
     // استخدام النظام الموحد - سطر واحد فقط! 🎉
-    const { autoRefreshSystem } = await import('@/lib/auto-refresh-system');
-    autoRefreshSystem.notifyChange({
-      entity: 'categories',
-      action: 'delete',
-      data: { categoryId: id },
-      organizationId: organizationId || 'unknown'
-    });
+    const { refreshAfterCategoryOperation } = await import('@/lib/data-refresh-helpers');
+    refreshAfterCategoryOperation('delete', { organizationId: organizationId || 'unknown' });
 
     console.log('✅ [deleteCategory] تم إرسال إشعارات التحديث');
     console.log('✅ [deleteCategory] تم حذف الفئة بنجاح كاملاً');

@@ -304,8 +304,6 @@ export default defineConfig(({ command, mode }) => {
           manualChunks: {
             'core-infra': [
               './src/lib/cache/deduplication.ts',
-              './src/lib/ultimateRequestController.ts',
-              './src/lib/requestSystemInitializer.ts',
               './src/lib/authSingleton.ts',
               './src/lib/performance-tracking.ts'
             ],

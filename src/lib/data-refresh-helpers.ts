@@ -15,6 +15,36 @@ export const setGlobalQueryClient = (queryClient: QueryClient) => {
   globalQueryClient = queryClient;
 };
 
+/**
+ * دالة إجبار تحديث البيانات
+ */
+const forceDataRefresh = async (queryKey?: string | string[], options?: { forceRefresh?: boolean }) => {
+  if (!globalQueryClient) return;
+  
+  try {
+    if (typeof queryKey === 'string') {
+      await globalQueryClient.invalidateQueries({ 
+        queryKey: [queryKey], 
+        exact: false,
+        type: 'all'
+      });
+    } else if (Array.isArray(queryKey)) {
+      for (const key of queryKey) {
+        await globalQueryClient.invalidateQueries({ 
+          queryKey: [key], 
+          exact: false,
+          type: 'all'
+        });
+      }
+    } else {
+      // تحديث شامل لجميع الاستعلامات
+      await globalQueryClient.invalidateQueries();
+    }
+  } catch (error) {
+    console.error('❌ [forceDataRefresh] خطأ في تحديث البيانات:', error);
+  }
+};
+
 // =================================================================
 // 🎯 CORE CACHE INVALIDATION SYSTEM
 // =================================================================
