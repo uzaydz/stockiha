@@ -76,6 +76,12 @@ export const updateDomainVerificationStatus = async (
   try {
     const supabase = getSupabaseClient();
     
+    // التحقق من صحة عميل Supabase قبل الاستخدام
+    if (!supabase) {
+      console.error('فشل في الحصول على عميل Supabase');
+      return false;
+    }
+    
     // التحقق من وجود سجل للنطاق
     const { data: existingRecord } = await supabase
       .from('domain_verifications')

@@ -155,6 +155,13 @@ const DomainSettings: React.FC = () => {
     
     try {
       const supabase = getSupabaseClient();
+      
+      // التحقق من صحة عميل Supabase قبل الاستخدام
+      if (!supabase) {
+        console.error('فشل في الحصول على عميل Supabase');
+        return;
+      }
+      
       const { data, error } = await supabase
         .from('domain_verifications' as any)
         .select('*')

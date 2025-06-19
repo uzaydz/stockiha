@@ -8,6 +8,14 @@ export async function getDomainInfo(organizationId: string) {
   try {
     const supabase = getSupabaseClient();
     
+    // التحقق من صحة عميل Supabase قبل الاستخدام
+    if (!supabase) {
+      return {
+        success: false,
+        error: 'فشل في الحصول على عميل Supabase'
+      };
+    }
+    
     // التحقق من وجود النطاق للمؤسسة
     const { data: orgData, error: orgError } = await supabase
       .from('organizations')

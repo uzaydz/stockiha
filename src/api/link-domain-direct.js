@@ -24,7 +24,7 @@ export async function linkDomain(domain, organizationId) {
     if (!supabase) {
       return {
         success: false, 
-        error: 'فشل في الاتصال بقاعدة البيانات'
+        error: 'فشل في الاتصال بقاعدة البيانات - عميل Supabase غير متاح'
       };
     }
 

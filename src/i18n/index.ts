@@ -1340,73 +1340,148 @@ const getDefaultLanguageFromDatabase = async () => {
       console.log('🌐 وضع التطوير المحلي - استخدام subdomain للاختبار:', subdomain);
     }
     
+    // التحقق من النطاقات المخصصة أولاً قبل البحث بالنطاق الفرعي
     const supabase = getSupabaseClient();
     
-    // جلب معرف المؤسسة من subdomain
-    const { data: orgData, error: orgError } = await supabase
-      .from('organizations')
-      .select('id')
-      .eq('subdomain', subdomain)
-      .single();
-    
-    if (orgError || !orgData) {
-      console.log('🌐 لم يتم العثور على المؤسسة للـ subdomain:', subdomain);
-      return 'ar';
-    }
-    
-    console.log('🌐 تم العثور على المؤسسة:', orgData.id);
-    
-    // جلب اللغة الافتراضية للمؤسسة مباشرة من organizations table
-    const { data: orgWithSettings, error: orgSettingsError } = await supabase
-      .from('organizations')
-      .select('id, organization_settings(default_language)')
-      .eq('id', orgData.id)
-      .single();
-    
-    console.log('🌐 نتيجة استعلام إعدادات المؤسسة:', { orgWithSettings, orgSettingsError });
-    console.log('🌐 تفاصيل البيانات الكاملة:', JSON.stringify(orgWithSettings, null, 2));
-    
-    if (orgSettingsError || !orgWithSettings) {
-      console.log('🌐 خطأ في جلب إعدادات المؤسسة:', orgSettingsError);
-      // fallback: محاولة الوصول المباشر
-      try {
-        const { data: directData, error: directError } = await supabase
-          .from('organization_settings')
-          .select('default_language')
-          .eq('organization_id', orgData.id)
-          .limit(1);
+    // إذا كان النطاق الفرعي هو www أو كان النطاق يبدو كنطاق مخصص، ابحث بالنطاق الكامل
+    if (subdomain === 'www' || currentHost.includes('.')) {
+      // محاولة البحث بالنطاق الكامل أولاً
+      const { data: domainOrgData, error: domainError } = await supabase
+        .from('organizations')
+        .select('id')
+        .eq('domain', currentHost)
+        .maybeSingle();
+      
+      if (!domainError && domainOrgData) {
+        console.log('🌐 تم العثور على المؤسسة بالنطاق المخصص:', currentHost);
+        // استخدام البيانات الموجودة بدلاً من البحث مرة أخرى
+        const orgData = domainOrgData;
         
-        console.log('🌐 نتيجة الوصول المباشر:', { directData, directError });
+        // جلب اللغة الافتراضية للمؤسسة مباشرة من organizations table
+        const { data: orgWithSettings, error: orgSettingsError } = await supabase
+          .from('organizations')
+          .select('id, organization_settings(default_language)')
+          .eq('id', orgData.id)
+          .single();
         
-        if (!directError && directData && directData.length > 0) {
-          console.log('🌐 تم جلب اللغة الافتراضية بالوصول المباشر:', directData[0].default_language);
-          return directData[0].default_language || 'ar';
+        console.log('🌐 نتيجة استعلام إعدادات المؤسسة:', { orgWithSettings, orgSettingsError });
+        
+        if (orgSettingsError || !orgWithSettings) {
+          console.log('🌐 خطأ في جلب إعدادات المؤسسة:', orgSettingsError);
+          // fallback: محاولة الوصول المباشر
+          try {
+            const { data: directData, error: directError } = await supabase
+              .from('organization_settings')
+              .select('default_language')
+              .eq('organization_id', orgData.id)
+              .limit(1);
+            
+            console.log('🌐 نتيجة الوصول المباشر:', { directData, directError });
+            
+            if (!directError && directData && directData.length > 0) {
+              console.log('🌐 تم جلب اللغة الافتراضية بالوصول المباشر:', directData[0].default_language);
+              return directData[0].default_language || 'ar';
+            }
+          } catch (fallbackError) {
+            console.log('🌐 فشل الوصول المباشر أيضاً:', fallbackError);
+          }
+          return 'ar';
         }
-      } catch (fallbackError) {
-        console.log('🌐 فشل الوصول المباشر أيضاً:', fallbackError);
+        
+        // استخراج اللغة الافتراضية
+        const organizationSettings = (orgWithSettings as any).organization_settings;
+        console.log('🌐 إعدادات المؤسسة المستخرجة:', organizationSettings);
+        
+        if (!organizationSettings || (Array.isArray(organizationSettings) && organizationSettings.length === 0)) {
+          console.log('🌐 لم يتم العثور على إعدادات المؤسسة:', orgData.id);
+          return 'ar';
+        }
+        
+        let defaultLanguage;
+        if (Array.isArray(organizationSettings)) {
+          defaultLanguage = organizationSettings[0]?.default_language;
+        } else {
+          defaultLanguage = organizationSettings?.default_language;
+        }
+        
+        console.log('🌐 تم جلب اللغة الافتراضية من قاعدة البيانات:', defaultLanguage);
+        return defaultLanguage || 'ar';
       }
-      return 'ar';
     }
     
-    // استخراج اللغة الافتراضية
-    const organizationSettings = (orgWithSettings as any).organization_settings;
-    console.log('🌐 إعدادات المؤسسة المستخرجة:', organizationSettings);
-    console.log('🌐 نوع البيانات:', typeof organizationSettings, Array.isArray(organizationSettings));
+         // إذا لم يكن www أو كان نطاق فرعي حقيقي، جرب البحث بالنطاق الفرعي
+     if (subdomain !== 'www') {
+       // جلب معرف المؤسسة من subdomain
+       const { data: orgData, error: orgError } = await supabase
+         .from('organizations')
+         .select('id')
+         .eq('subdomain', subdomain)
+         .single();
     
-    if (!organizationSettings || (Array.isArray(organizationSettings) && organizationSettings.length === 0)) {
-      console.log('🌐 لم يتم العثور على إعدادات المؤسسة:', orgData.id);
-      return 'ar';
-    }
-    
-    let defaultLanguage;
-    if (Array.isArray(organizationSettings)) {
-      defaultLanguage = organizationSettings[0]?.default_language;
-    } else {
-      defaultLanguage = organizationSettings?.default_language;
-    }
-    
-    console.log('🌐 تم جلب اللغة الافتراضية من قاعدة البيانات:', defaultLanguage);
-    return defaultLanguage || 'ar';
+       if (orgError || !orgData) {
+         console.log('🌐 لم يتم العثور على المؤسسة للـ subdomain:', subdomain);
+         return 'ar';
+       }
+       
+       // للنطاقات الفرعية الحقيقية فقط
+       console.log('🌐 تم العثور على المؤسسة:', orgData.id);
+       
+       // جلب اللغة الافتراضية للمؤسسة مباشرة من organizations table
+       const { data: orgWithSettings, error: orgSettingsError } = await supabase
+         .from('organizations')
+         .select('id, organization_settings(default_language)')
+         .eq('id', orgData.id)
+         .single();
+       
+       console.log('🌐 نتيجة استعلام إعدادات المؤسسة:', { orgWithSettings, orgSettingsError });
+       console.log('🌐 تفاصيل البيانات الكاملة:', JSON.stringify(orgWithSettings, null, 2));
+       
+       if (orgSettingsError || !orgWithSettings) {
+         console.log('🌐 خطأ في جلب إعدادات المؤسسة:', orgSettingsError);
+         // fallback: محاولة الوصول المباشر
+         try {
+           const { data: directData, error: directError } = await supabase
+             .from('organization_settings')
+             .select('default_language')
+             .eq('organization_id', orgData.id)
+             .limit(1);
+           
+           console.log('🌐 نتيجة الوصول المباشر:', { directData, directError });
+           
+           if (!directError && directData && directData.length > 0) {
+             console.log('🌐 تم جلب اللغة الافتراضية بالوصول المباشر:', directData[0].default_language);
+             return directData[0].default_language || 'ar';
+           }
+         } catch (fallbackError) {
+           console.log('🌐 فشل الوصول المباشر أيضاً:', fallbackError);
+         }
+         return 'ar';
+       }
+       
+       // استخراج اللغة الافتراضية
+       const organizationSettings = (orgWithSettings as any).organization_settings;
+       console.log('🌐 إعدادات المؤسسة المستخرجة:', organizationSettings);
+       console.log('🌐 نوع البيانات:', typeof organizationSettings, Array.isArray(organizationSettings));
+       
+       if (!organizationSettings || (Array.isArray(organizationSettings) && organizationSettings.length === 0)) {
+         console.log('🌐 لم يتم العثور على إعدادات المؤسسة:', orgData.id);
+         return 'ar';
+       }
+       
+       let defaultLanguage;
+       if (Array.isArray(organizationSettings)) {
+         defaultLanguage = organizationSettings[0]?.default_language;
+       } else {
+         defaultLanguage = organizationSettings?.default_language;
+       }
+       
+       console.log('🌐 تم جلب اللغة الافتراضية من قاعدة البيانات:', defaultLanguage);
+       return defaultLanguage || 'ar';
+     } else {
+       // www ليس نطاق فرعي صحيح، استخدم اللغة الافتراضية
+       console.log('🌐 www ليس نطاق فرعي صحيح، استخدام اللغة الافتراضية');
+       return 'ar';
+     }
     
   } catch (error) {
     console.error('خطأ في جلب اللغة الافتراضية:', error);
