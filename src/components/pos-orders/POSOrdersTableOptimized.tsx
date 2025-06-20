@@ -35,7 +35,7 @@ import {
   Package,
   AlertCircle,
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import type { POSOrderWithDetails } from '@/api/posOrdersService';
@@ -183,7 +183,13 @@ const OrderRow = React.memo<{
       </TableCell>
       <TableCell>
         <span className="text-sm text-muted-foreground">
-          {format(new Date(order.created_at), 'dd/MM/yyyy HH:mm', { locale: ar })}
+          {(() => {
+            try {
+              return format(parseISO(order.created_at), 'dd/MM/yyyy HH:mm', { locale: ar });
+            } catch (error) {
+              return format(new Date(order.created_at), 'dd/MM/yyyy HH:mm', { locale: ar });
+            }
+          })()}
         </span>
       </TableCell>
       <TableCell>

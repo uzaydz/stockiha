@@ -62,43 +62,61 @@ const ProductEditForm: React.FC<ProductEditFormProps> = ({
   // Initialize form with react-hook-form and zod validation
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
-    defaultValues: {
-      name: product?.name || '',
-      description: product?.description || '',
-      price: product?.price || 0,
-      purchase_price: product?.purchase_price || 0,
-      compare_at_price: product?.compare_at_price || undefined,
-      wholesale_price: product?.wholesale_price || undefined,
-      partial_wholesale_price: product?.partial_wholesale_price || undefined,
-      min_wholesale_quantity: product?.min_wholesale_quantity || undefined,
-      min_partial_wholesale_quantity: product?.min_partial_wholesale_quantity || undefined,
-      allow_retail: product?.allow_retail !== false,
-      allow_wholesale: product?.allow_wholesale || false,
-      allow_partial_wholesale: product?.allow_partial_wholesale || false,
-      sku: product?.sku || '',
-      barcode: product?.barcode || '',
-      category_id: product?.category_id || '',
-      subcategory_id: product?.subcategory_id || '',
-      brand: product?.brand || '',
-      stock_quantity: product?.stock_quantity || 0,
-      thumbnail_image: product?.thumbnail_image || '',
-      has_variants: Boolean((product as any)?.has_variants),
-      show_price_on_landing: (product as any)?.show_price_on_landing !== false,
-      is_featured: Boolean(product?.is_featured),
-      is_new: Boolean(product?.is_new),
-      use_sizes: Boolean((product as any)?.use_sizes),
-      is_sold_by_unit: (product as any)?.is_sold_by_unit !== false,
-      unit_type: (product as any)?.unit_type || 'kg',
-      use_variant_prices: Boolean((product as any)?.use_variant_prices),
-      unit_purchase_price: (product as any)?.unit_purchase_price || 0,
-      unit_sale_price: (product as any)?.unit_sale_price || 0,
-      colors: [],
-      additional_images: [],
-    }
+    defaultValues: (() => {
+      const defaults = {
+        name: product?.name || '',
+        description: product?.description || '',
+        price: product?.price || 0,
+        purchase_price: product?.purchase_price || 0,
+        compare_at_price: product?.compare_at_price || undefined,
+        wholesale_price: product?.wholesale_price || undefined,
+        partial_wholesale_price: product?.partial_wholesale_price || undefined,
+        min_wholesale_quantity: product?.min_wholesale_quantity || undefined,
+        min_partial_wholesale_quantity: product?.min_partial_wholesale_quantity || undefined,
+        allow_retail: product?.allow_retail !== false,
+        allow_wholesale: product?.allow_wholesale || false,
+        allow_partial_wholesale: product?.allow_partial_wholesale || false,
+        sku: product?.sku || '',
+        barcode: product?.barcode || '',
+        category_id: product?.category_id || '',
+        subcategory_id: product?.subcategory_id || '',
+        brand: product?.brand || '',
+        stock_quantity: product?.stock_quantity ?? 0, // استخدام ?? بدلاً من ||
+        thumbnail_image: product?.thumbnail_image || '',
+        has_variants: Boolean((product as any)?.has_variants),
+        show_price_on_landing: (product as any)?.show_price_on_landing !== false,
+        is_featured: Boolean(product?.is_featured),
+        is_new: Boolean(product?.is_new),
+        use_sizes: Boolean((product as any)?.use_sizes),
+        is_sold_by_unit: (product as any)?.is_sold_by_unit !== false,
+        unit_type: (product as any)?.unit_type || 'kg',
+        use_variant_prices: Boolean((product as any)?.use_variant_prices),
+        unit_purchase_price: (product as any)?.unit_purchase_price || 0,
+        unit_sale_price: (product as any)?.unit_sale_price || 0,
+        colors: [],
+        additional_images: [],
+      };
+      
+      console.log('🏗️ ProductEditForm - Form defaultValues:', {
+        productId: product?.id,
+        originalStock: product?.stock_quantity,
+        defaultStock: defaults.stock_quantity,
+        hasVariants: defaults.has_variants
+      });
+      
+      return defaults;
+    })()
   });
 
   // تعيين الصورة الرئيسية والصور الإضافية في النموذج
   useEffect(() => {
+    console.log('🖼️ ProductEditForm - Setting images in form:', {
+      productId: product?.id,
+      thumbnailImage: product.thumbnail_image,
+      additionalImagesCount: additionalImages.length,
+      currentStockQuantity: form.getValues('stock_quantity')
+    });
+    
     form.setValue('thumbnail_image', product.thumbnail_image || '');
     form.setValue('additional_images', additionalImages);
   }, [product, additionalImages, form]);
@@ -111,6 +129,13 @@ const ProductEditForm: React.FC<ProductEditFormProps> = ({
   };
 
   const handleProductColorsChange = (colors: ProductColor[]) => {
+    console.log('🎨 ProductEditForm - handleProductColorsChange:', {
+      hasVariants: form.watch('has_variants'),
+      newColorsLength: colors.length,
+      currentStock: form.getValues('stock_quantity'),
+      originalProductColorsLength: originalProductColors.length
+    });
+    
     // تأكد من حفظ مقاسات كل لون إذا كان له مقاسات
     const updatedColors = colors.map(color => {
       const existingColor = productColors.find(c => c.id === color.id);
@@ -123,9 +148,14 @@ const ProductEditForm: React.FC<ProductEditFormProps> = ({
     setProductColors(updatedColors);
     form.setValue('colors', updatedColors);
     
+    // تحديث كمية المخزون فقط إذا كان المنتج يستخدم المتغيرات ولديه ألوان فعلاً
     if (form.watch('has_variants') && updatedColors.length > 0) {
       const totalQuantity = updatedColors.reduce((total, color) => total + color.quantity, 0);
+      console.log('🚨 ProductEditForm - Setting stock_quantity to:', totalQuantity, 'from colors');
       form.setValue('stock_quantity', totalQuantity);
+    } else if (!form.watch('has_variants')) {
+      // إذا لم يكن يستخدم المتغيرات، احتفظ بالكمية الأصلية من المنتج
+      console.log('ℹ️ ProductEditForm - No variants, keeping original stock');
     }
   };
 

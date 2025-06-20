@@ -33,7 +33,7 @@ export const updateProduct = async (product: Product) => {
     // Create a database version of the product
     const dbProduct = {
       ...product,
-      stock_quantity: product.stockQuantity || product.stock_quantity,
+      stock_quantity: product.stockQuantity ?? product.stock_quantity,
       updated_at: new Date().toISOString()
     };
 
@@ -50,8 +50,8 @@ export const updateProduct = async (product: Product) => {
     // Ensure both properties are in sync
     const updatedProduct = {
       ...product, 
-      stock_quantity: product.stockQuantity || product.stock_quantity,
-      stockQuantity: product.stockQuantity || product.stock_quantity,
+      stock_quantity: product.stockQuantity ?? product.stock_quantity,
+      stockQuantity: product.stockQuantity ?? product.stock_quantity,
       updatedAt: new Date().toISOString()
     };
     

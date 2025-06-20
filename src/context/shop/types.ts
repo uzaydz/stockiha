@@ -67,7 +67,7 @@ export interface ShopContextType {
   
   // Orders
   orders: Order[];
-  addOrder: (order: Omit<Order, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  addOrder: (order: Omit<Order, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Order>;
   updateOrder: (order: Order) => void;
   deleteOrder: (orderId: string) => void;
   

@@ -5,6 +5,7 @@ import { ProductFormValues } from '@/types/product';
 import { updateProductStockQuantity } from './productVariants';
 import { cacheManager } from '@/lib/cache/CentralCacheManager';
 import { queryClient } from '@/lib/config/queryClient';
+import UnifiedRequestManager from '@/lib/unifiedRequestManager';
 
 export interface TimerConfig {
   enabled: boolean;
@@ -197,11 +198,9 @@ export type Category = Database['public']['Tables']['product_categories']['Row']
 export type Subcategory = Database['public']['Tables']['product_subcategories']['Row'];
 
 export const getProducts = async (organizationId?: string, includeInactive: boolean = false): Promise<Product[]> => {
-  console.log('🔍 getProducts called with:', { organizationId, includeInactive });
 
   try {
     if (!organizationId) {
-      console.log('🔍 getProducts - No organization ID provided');
       return [];
     }
 
@@ -224,24 +223,14 @@ export const getProducts = async (organizationId?: string, includeInactive: bool
       query = query.eq('is_active', true);
     }
 
-    console.log('🔍 getProducts - Executing query for organization:', organizationId);
     const { data, error } = await query;
     
     if (error) {
-      console.error('🔍 getProducts - Query error:', error);
-      console.error('🔍 getProducts - Full error details:', JSON.stringify(error, null, 2));
       return [];
     }
 
-    console.log('🔍 getProducts - Query result:', { 
-      dataLength: data?.length || 0, 
-      sampleData: data?.slice(0, 2) || [],
-      fullData: data
-    });
-
     return (data as any) || [];
   } catch (error) {
-    console.error('🔍 getProducts - Caught error:', error);
     return []; // Return empty array to prevent UI from hanging
   }
 };
@@ -327,35 +316,20 @@ export const getProductsPaginated = async (
     }
 
     // إضافة الترتيب مع diagnostic logging
-    console.log('🔍 [getProductsPaginated] تطبيق الترتيب:', {
-      sortOption,
-      organizationId,
-      searchQuery,
-      categoryFilter,
-      stockFilter,
-      timestamp: new Date().toISOString()
-    });
 
     if (sortOption === 'newest') {
-      console.log('📅 [getProductsPaginated] ترتيب حسب الأحدث (created_at DESC)');
       query = query.order('created_at', { ascending: false });
     } else if (sortOption === 'oldest') {
-      console.log('📅 [getProductsPaginated] ترتيب حسب الأقدم (created_at ASC)');
       query = query.order('created_at', { ascending: true });
     } else if (sortOption === 'price-high') {
-      console.log('💰 [getProductsPaginated] ترتيب حسب السعر الأعلى');
       query = query.order('price', { ascending: false });
     } else if (sortOption === 'price-low') {
-      console.log('💰 [getProductsPaginated] ترتيب حسب السعر الأقل');
       query = query.order('price', { ascending: true });
     } else if (sortOption === 'name-asc') {
-      console.log('🔤 [getProductsPaginated] ترتيب حسب الاسم تصاعدي');
       query = query.order('name', { ascending: true });
     } else if (sortOption === 'name-desc') {
-      console.log('🔤 [getProductsPaginated] ترتيب حسب الاسم تنازلي');
       query = query.order('name', { ascending: false });
     } else {
-      console.log('🔤 [getProductsPaginated] ترتيب افتراضي حسب الاسم');
       query = query.order('name', { ascending: true });
     }
 
@@ -368,30 +342,13 @@ export const getProductsPaginated = async (
     // تطبيق الـ pagination
     query = query.range(from, to);
 
-    console.log('🔍 [getProductsPaginated] About to execute final query with all filters and pagination');
     const { data, error, count } = await query;
 
     if (error) {
-      console.error('❌ [getProductsPaginated] خطأ في قاعدة البيانات:', error);
       throw error;
     }
 
     // 🔍 Diagnostic logging للمساعدة في تشخيص مشكلة فلتر "الأحدث"
-    console.log('📊 [getProductsPaginated] استجابة قاعدة البيانات:', {
-      sortOption,
-      organizationId,
-      dataLength: data?.length || 0,
-      totalCount: count,
-      sampleData: data?.slice(0, 2).map((item: any) => ({
-        id: item.id,
-        name: item.name,
-        created_at: item.created_at,
-        price: item.price,
-        is_active: item.is_active
-      })) || [],
-      allCreatedAtValues: data?.map((item: any) => item.created_at) || [],
-      timestamp: new Date().toISOString()
-    });
 
     const totalCount = count || 0;
     const totalPages = Math.ceil(totalCount / limit);
@@ -976,25 +933,18 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
     purchase_page_config: createdProduct.purchase_page_config ? JSON.parse(JSON.stringify(createdProduct.purchase_page_config)) : null,
   };
 
-  console.log('🔄 [createProduct] تحديث الواجهة فوراً بعد إنشاء المنتج...');
-    
   // 🎯 استخدام النظام الموحد للتحديث التلقائي - مثل updateProduct
   try {
     const { refreshAfterProductOperation } = await import('@/lib/data-refresh-helpers');
     refreshAfterProductOperation('create', { organizationId: finalProductData.organization_id });
 
-    console.log('✅ [createProduct] تم إرسال إشعارات التحديث بعد الإنشاء');
   } catch (error) {
-    console.error('❌ [createProduct] خطأ في إرسال إشعارات التحديث:', error);
   }
-  
-  console.log('✅ [createProduct] تم إنشاء المنتج بنجاح كاملاً');
 
   toast.success("تم إنشاء المنتج بنجاح!");
 
   // 🎯 الحل: إلغاء صلاحية كاش المنتجات
   cacheManager.invalidate('products*');
-  console.log('🧹 [Cache] تم إلغاء صلاحية كاش المنتجات بعد الإنشاء');
 
   // Invalidate relevant queries
   const organizationId = createdProduct.organization_id;
@@ -1016,6 +966,12 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
 };
 
 export const updateProduct = async (id: string, updates: UpdateProduct): Promise<Product> => {
+  console.log('🔧 updateProduct called with:', {
+    id,
+    stock_quantity: updates.stock_quantity,
+    fullUpdates: updates
+  });
+
   const { 
     colors,
     additional_images,
@@ -1024,6 +980,11 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
     marketingSettings, // Destructure marketingSettings
     ...mainProductUpdates 
   } = updates;
+
+  console.log('🔧 mainProductUpdates after destructuring:', {
+    stock_quantity: mainProductUpdates.stock_quantity,
+    mainProductUpdates
+  });
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -1349,25 +1310,18 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
     purchase_page_config: updatedProductData.purchase_page_config ? JSON.parse(JSON.stringify(updatedProductData.purchase_page_config)) : null,
   };
 
-  console.log('🔄 [updateProduct] تحديث الواجهة فوراً...');
-    
   // 🎯 استخدام النظام الموحد للتحديث التلقائي - مثل deleteProduct
   try {
     const { refreshAfterProductOperation } = await import('@/lib/data-refresh-helpers');
     refreshAfterProductOperation('update', { organizationId: resultProduct.organization_id });
 
-    console.log('✅ [updateProduct] تم إرسال إشعارات التحديث');
   } catch (error) {
-    console.error('❌ [updateProduct] خطأ في إرسال إشعارات التحديث:', error);
   }
-  
-  console.log('✅ [updateProduct] تم تحديث المنتج بنجاح كاملاً');
 
   toast.success("تم تحديث المنتج بنجاح!");
 
   // 🎯 الحل: إلغاء صلاحية كاش المنتجات
   cacheManager.invalidate('products*');
-  console.log('🧹 [Cache] تم إلغاء صلاحية كاش المنتجات بعد التحديث');
 
   // تحديث مخزون المنتج الرئيسي
   await updateProductStockQuantity(id);
@@ -1403,7 +1357,6 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
       await queryClient.invalidateQueries({ queryKey: ['categories'] });
     }
   } catch (error) {
-    console.error('❌ [updateProduct] خطأ في إرسال إشعارات التحديث:', error);
   }
   
   toast.success('تم تحديث المنتج بنجاح');
@@ -1448,17 +1401,44 @@ export const deleteProduct = async (id: string, forceDisable: boolean = false): 
   toast.success('تم حذف المنتج بنجاح');
 };
 
-export const getCategories = async (): Promise<Category[]> => {
-  const { data, error } = await supabase
-    .from('product_categories')
-    .select('*')
-    .order('name');
+export const getCategories = async (organizationId?: string): Promise<Category[]> => {
+  try {
+    // محاولة الحصول على معرف المؤسسة إذا لم يتم تمريره
+    let orgId = organizationId;
+    if (!orgId) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: userProfile } = await supabase
+          .from('users')
+          .select('organization_id')
+          .eq('id', user.id)
+          .single();
+        orgId = userProfile?.organization_id;
+      }
+    }
+    
+    // استخدام UnifiedRequestManager إذا كان معرف المؤسسة متاحاً
+    if (orgId) {
+      const categories = await UnifiedRequestManager.getProductCategories(orgId);
+      return categories || [];
+    }
+    
+    // fallback للطريقة التقليدية
+    const { data, error } = await supabase
+      .from('product_categories')
+      .select('*')
+      .order('name');
 
-  if (error) {
+    if (error) {
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    if (import.meta.env.DEV) {
+    }
     throw error;
   }
-
-  return data;
 };
 
 export const getCategoryById = async (id: string): Promise<Category | null> => {

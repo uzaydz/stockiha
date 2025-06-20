@@ -167,39 +167,50 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
   // Initialize form with react-hook-form and zod validation
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
-    defaultValues: {
-      name: product?.name || '',
-      description: product?.description || '',
-      price: product?.price || 0,
-      purchase_price: product?.purchase_price || 0,
-      compare_at_price: product?.compare_at_price || undefined,
-      wholesale_price: product?.wholesale_price || undefined,
-      partial_wholesale_price: product?.partial_wholesale_price || undefined,
-      min_wholesale_quantity: product?.min_wholesale_quantity || undefined,
-      min_partial_wholesale_quantity: product?.min_partial_wholesale_quantity || undefined,
-      allow_retail: product?.allow_retail !== false,
-      allow_wholesale: product?.allow_wholesale || false,
-      allow_partial_wholesale: product?.allow_partial_wholesale || false,
-      sku: product?.sku || '',
-      barcode: product?.barcode || '',
-      category_id: product?.category_id || '',
-      subcategory_id: product?.subcategory_id || '',
-      brand: product?.brand || '',
-      stock_quantity: product?.stock_quantity || 0,
-      thumbnail_image: product?.thumbnail_image || '',
-      has_variants: Boolean((product as any)?.has_variants),
-      show_price_on_landing: (product as any)?.show_price_on_landing !== false,
-      is_featured: Boolean(product?.is_featured),
-      is_new: Boolean(product?.is_new),
-      use_sizes: Boolean((product as any)?.use_sizes),
-      is_sold_by_unit: (product as any)?.is_sold_by_unit !== false,
-      unit_type: (product as any)?.unit_type || 'kg',
-      use_variant_prices: Boolean((product as any)?.use_variant_prices),
-      unit_purchase_price: (product as any)?.unit_purchase_price || 0,
-      unit_sale_price: (product as any)?.unit_sale_price || 0,
-      colors: [],
-      additional_images: [],
-    }
+    defaultValues: (() => {
+      const defaults = {
+        name: product?.name || '',
+        description: product?.description || '',
+        price: product?.price || 0,
+        purchase_price: product?.purchase_price || 0,
+        compare_at_price: product?.compare_at_price || undefined,
+        wholesale_price: product?.wholesale_price || undefined,
+        partial_wholesale_price: product?.partial_wholesale_price || undefined,
+        min_wholesale_quantity: product?.min_wholesale_quantity || undefined,
+        min_partial_wholesale_quantity: product?.min_partial_wholesale_quantity || undefined,
+        allow_retail: product?.allow_retail !== false,
+        allow_wholesale: product?.allow_wholesale || false,
+        allow_partial_wholesale: product?.allow_partial_wholesale || false,
+        sku: product?.sku || '',
+        barcode: product?.barcode || '',
+        category_id: product?.category_id || '',
+        subcategory_id: product?.subcategory_id || '',
+        brand: product?.brand || '',
+        stock_quantity: product?.stock_quantity || 0,
+        thumbnail_image: product?.thumbnail_image || '',
+        has_variants: Boolean((product as any)?.has_variants),
+        show_price_on_landing: (product as any)?.show_price_on_landing !== false,
+        is_featured: Boolean(product?.is_featured),
+        is_new: Boolean(product?.is_new),
+        use_sizes: Boolean((product as any)?.use_sizes),
+        is_sold_by_unit: (product as any)?.is_sold_by_unit !== false,
+        unit_type: (product as any)?.unit_type || 'kg',
+        use_variant_prices: Boolean((product as any)?.use_variant_prices),
+        unit_purchase_price: (product as any)?.unit_purchase_price || 0,
+        unit_sale_price: (product as any)?.unit_sale_price || 0,
+        colors: [],
+        additional_images: [],
+      };
+      
+      console.log('🏗️ Form defaultValues initialized:', {
+        productId: product?.id,
+        stockQuantity: defaults.stock_quantity,
+        originalProductStock: product?.stock_quantity,
+        hasVariants: defaults.has_variants
+      });
+      
+      return defaults;
+    })()
   });
   
   // استرجاع الفئات
@@ -224,15 +235,29 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
   
   // استرجاع بيانات المنتج عند الفتح
   useEffect(() => {
+    console.log('🔄 Main product loading useEffect triggered:', {
+      productExists: !!product,
+      open,
+      productId: product?.id,
+      productStock: product?.stock_quantity,
+      currentFormStock: form.getValues('stock_quantity')
+    });
+    
     if (product && open) {
       // تعيين الصورة الرئيسية مباشرة من معلومات المنتج
       form.setValue('thumbnail_image', product.thumbnail_image || '');
       
       const loadProductDetails = async () => {
         try {
+          console.log('📦 Loading product details for editing:', {
+            productId: product.id,
+            productStockQuantity: product.stock_quantity,
+            productHasVariants: product.has_variants
+          });
           
           // تحميل الألوان
           const colors = await getProductColors(product.id);
+          console.log('🎨 Loaded colors from database:', colors);
           
           setProductColors(colors);
           setOriginalProductColors(colors);
@@ -384,18 +409,34 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
 
   // تحديث كمية المخزون بناءً على كميات الألوان عند استخدام المتغيرات
   useEffect(() => {
+    console.log('🔥 EditProductDialog useEffect - Color quantity update:', {
+      watchHasVariants,
+      productColorsLength: productColors.length,
+      productColors,
+      currentStockQuantity: form.getValues('stock_quantity')
+    });
+    
     if (watchHasVariants && productColors.length > 0) {
       const totalQuantity = productColors.reduce((total, color) => total + color.quantity, 0);
+      console.log('🚨 Setting stock_quantity to:', totalQuantity, 'from colors:', productColors);
       form.setValue('stock_quantity', totalQuantity);
     }
   }, [productColors, watchHasVariants, form]);
 
   // تحديث السعر في الألوان عند تغيير السعر الأساسي وعدم استخدام أسعار متغيرة
   useEffect(() => {
+    console.log('💰 Price update useEffect triggered:', {
+      useVariantPrices,
+      productColorsLength: productColors.length,
+      watchPrice,
+      currentStock: form.getValues('stock_quantity')
+    });
+    
     if (!useVariantPrices && productColors.length > 0) {
       // Only update if at least one color has a different price than watchPrice
       const needsUpdate = productColors.some(color => color.price !== watchPrice);
       if (needsUpdate) {
+        console.log('💰 Updating product colors prices');
         const updatedColors = productColors.map(color => ({
           ...color,
           price: watchPrice
@@ -421,6 +462,11 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
   };
 
   const handleProductColorsChange = (colors: ProductColor[]) => {
+    console.log('🎨 handleProductColorsChange called:', {
+      newColors: colors,
+      watchHasVariants,
+      currentStockQuantity: form.getValues('stock_quantity')
+    });
 
     // تأكد من حفظ مقاسات كل لون إذا كان له مقاسات
     const updatedColors = colors.map(color => {
@@ -441,6 +487,7 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
     
     if (watchHasVariants && updatedColors.length > 0) {
       const totalQuantity = updatedColors.reduce((total, color) => total + color.quantity, 0);
+      console.log('🚨 handleProductColorsChange - Setting stock_quantity to:', totalQuantity);
       form.setValue('stock_quantity', totalQuantity);
     }
   };
@@ -511,6 +558,13 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
   }, [product]);
 
   const onSubmit = async (values: ProductFormValues) => {
+    console.log('💾 onSubmit called with values:', {
+      stockQuantity: values.stock_quantity,
+      hasVariants: values.has_variants,
+      productColorsLength: productColors.length,
+      productColors: productColors.map(c => ({ id: c.id, name: c.name, quantity: c.quantity }))
+    });
+    
     setIsSubmitting(true);
 
     try {
@@ -571,6 +625,12 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
         use_sizes: values.use_sizes,
         updated_at: new Date().toISOString(),
       };
+      
+      console.log('📝 Prepared updateData:', {
+        stock_quantity: updateData.stock_quantity,
+        has_variants: updateData.has_variants,
+        fullUpdateData: updateData
+      });
 
       // إذا تم تغيير SKU، تحقق من عدم وجود تكرار
       if (values.sku !== product.sku) {
@@ -681,6 +741,7 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
       }
 
       // تحديث الألوان
+      console.log('🎨 بدء تحديث الألوان - has_variants:', values.has_variants, 'عدد الألوان:', productColors.length);
       if (values.has_variants) {
         // حذف الألوان القديمة
         for (const color of originalProductColors) {
@@ -771,10 +832,13 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
         }
       } else {
         // إذا تم تعطيل المتغيرات، احذف كل الألوان
+        console.log('🗑️ حذف جميع الألوان لأن has_variants = false');
         for (const color of originalProductColors) {
           await deleteProductColor(color.id);
         }
       }
+      
+      console.log('✅ انتهى تحديث الألوان بنجاح');
 
       // تحديث الصور الإضافية في جدول product_images
       try {

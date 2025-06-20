@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { useEffect } from "react";
 
 interface ProductInventoryProps {
   form: UseFormReturn<ProductFormValues>;
@@ -22,12 +23,43 @@ export default function ProductInventory({
   hasVariants = false, 
   productId = '' 
 }: ProductInventoryProps) {
-  const stockQuantity = form.watch('stock_quantity') || 0;
+  const stockQuantity = form.watch('stock_quantity') ?? 0;
   const hasVariantsEnabled = form.watch('has_variants');
 
+  // Console logs للتتبع
+  console.log('🔍 ProductInventory - Current Values:', {
+    stockQuantity,
+    hasVariants,
+    hasVariantsEnabled,
+    productId,
+    formValues: form.getValues(),
+    watchedStockQuantity: form.watch('stock_quantity')
+  });
+
+  // تتبع التغييرات في stock_quantity
+  useEffect(() => {
+    console.log('🎯 useEffect - stock_quantity changed to:', form.watch('stock_quantity'));
+    
+    const subscription = form.watch((value, { name, type }) => {
+      if (name === 'stock_quantity') {
+        console.log('📝 Form watch - stock_quantity:', {
+          name,
+          type,
+          value: value.stock_quantity,
+          allValues: value
+        });
+      }
+    });
+    
+    return () => subscription.unsubscribe();
+  }, [form]);
+
   const getStockStatus = () => {
-    if (stockQuantity === 0) return 'out-of-stock';
-    if (stockQuantity <= 10) return 'low-stock';
+    const currentStock = form.watch('stock_quantity');
+    console.log('📊 getStockStatus - currentStock:', currentStock, typeof currentStock);
+    if (currentStock === undefined || currentStock === null) return 'not-set';
+    if (currentStock === 0) return 'out-of-stock';
+    if (currentStock <= 10) return 'low-stock';
     return 'in-stock';
   };
 
@@ -90,10 +122,18 @@ export default function ProductInventory({
               </Alert>
             ) : (
               <div className="space-y-5">
-                <FormField
-                  control={form.control}
-                  name="stock_quantity"
-                  render={({ field }) => (
+                                        <FormField
+                          control={form.control}
+                          name="stock_quantity"
+                          render={({ field }) => {
+                            console.log('🎨 FormField render - field:', {
+                              fieldValue: field.value,
+                              fieldName: field.name,
+                              hasVariants,
+                              hasVariantsEnabled,
+                              isDisabled: hasVariants && hasVariantsEnabled
+                            });
+                            return (
                     <FormItem className="space-y-2">
                       <FormLabel className="text-sm font-medium text-foreground flex items-center gap-2">
                         كمية المخزون
@@ -124,14 +164,60 @@ export default function ProductInventory({
                             type="number" 
                             min="0" 
                             step="1" 
-                            placeholder="0"
+                            placeholder="أدخل كمية المخزون (مثال: 10)"
                             className="pl-10 h-10 text-sm bg-background/80 dark:bg-background/60 border-border/60 hover:border-primary/60 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-300 shadow-sm hover:shadow-md focus:shadow-lg backdrop-blur-sm"
-                            {...field}
-                            defaultValue={field.value === undefined || field.value === null ? 0 : field.value}
+                            value={(() => {
+                              // استخدام ?? بدلاً من || للتمييز بين 0 و null/undefined
+                              const inputValue = field.value ?? '';
+                              console.log('💡 Input value being rendered:', {
+                                fieldValue: field.value,
+                                inputValue,
+                                typeOfFieldValue: typeof field.value,
+                                isUndefined: field.value === undefined,
+                                isNull: field.value === null,
+                                isEmptyString: String(field.value) === '',
+                                isZero: field.value === 0
+                              });
+                              return inputValue;
+                            })()}
                             disabled={hasVariants && hasVariantsEnabled}
                             onChange={(e) => {
-                              const value = parseInt(e.target.value, 10);
-                              field.onChange(isNaN(value) ? 0 : value);
+                              const inputValue = e.target.value;
+                              console.log('🔄 Input onChange:', {
+                                inputValue,
+                                inputType: typeof inputValue,
+                                fieldValue: field.value,
+                                currentFormStock: form.getValues('stock_quantity')
+                              });
+                              
+                              if (inputValue === '') {
+                                console.log('⚠️ Setting field to undefined because input is empty');
+                                field.onChange(undefined); // احتفظ بالقيمة فارغة
+                              } else {
+                                const numValue = parseInt(inputValue, 10);
+                                console.log('🔢 Parsing number:', {
+                                  inputValue,
+                                  numValue,
+                                  isNaN: isNaN(numValue),
+                                  isValidRange: numValue >= 0
+                                });
+                                
+                                if (!isNaN(numValue) && numValue >= 0) {
+                                  console.log('✅ Setting field value to:', numValue);
+                                  field.onChange(numValue);
+                                } else {
+                                  console.log('❌ Invalid number, not setting value');
+                                }
+                              }
+                              
+                              // تحقق من القيمة بعد التغيير
+                              setTimeout(() => {
+                                console.log('⏰ After onChange - Form values:', {
+                                  stockQuantity: form.getValues('stock_quantity'),
+                                  watchedValue: form.watch('stock_quantity'),
+                                  fieldValue: field.value
+                                });
+                              }, 0);
                             }}
                           />
                           <div className="absolute inset-0 rounded-md bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-focus-within:opacity-100 transition-opacity duration-300 pointer-events-none" />
@@ -139,12 +225,14 @@ export default function ProductInventory({
                       </FormControl>
                       <FormMessage className="text-xs" />
                     </FormItem>
-                  )}
+                  )}}
                 />
 
                 {/* Stock Status Indicator */}
                 <div className={`p-4 rounded-xl border backdrop-blur-sm shadow-sm transition-all duration-300 ${
-                  stockStatus === 'out-of-stock' 
+                  stockStatus === 'not-set'
+                    ? 'bg-gradient-to-r from-gray-50/60 to-slate-50/40 dark:from-gray-950/30 dark:to-slate-950/20 border-gray-200/50 dark:border-gray-800/30'
+                    : stockStatus === 'out-of-stock' 
                     ? 'bg-gradient-to-r from-red-50/60 to-red-100/40 dark:from-red-950/30 dark:to-red-900/20 border-red-200/50 dark:border-red-800/30'
                     : stockStatus === 'low-stock'
                     ? 'bg-gradient-to-r from-yellow-50/60 to-amber-50/40 dark:from-yellow-950/30 dark:to-amber-950/20 border-yellow-200/50 dark:border-yellow-800/30'
@@ -152,14 +240,18 @@ export default function ProductInventory({
                 }`}>
                   <div className="flex items-center gap-3">
                     <div className={`p-2.5 rounded-xl shadow-sm ${
-                      stockStatus === 'out-of-stock'
+                      stockStatus === 'not-set'
+                        ? 'bg-gradient-to-br from-gray-100 to-slate-100 dark:from-gray-900/60 dark:to-slate-900/60'
+                        : stockStatus === 'out-of-stock'
                         ? 'bg-gradient-to-br from-red-100 to-red-200 dark:from-red-900/60 dark:to-red-800/60'
                         : stockStatus === 'low-stock'
                         ? 'bg-gradient-to-br from-yellow-100 to-amber-100 dark:from-yellow-900/60 dark:to-amber-900/60'
                         : 'bg-gradient-to-br from-green-100 to-emerald-100 dark:from-green-900/60 dark:to-emerald-900/60'
                     }`}>
                       <Package className={`w-4 h-4 ${
-                        stockStatus === 'out-of-stock'
+                        stockStatus === 'not-set'
+                          ? 'text-gray-600 dark:text-gray-400'
+                          : stockStatus === 'out-of-stock'
                           ? 'text-red-600 dark:text-red-400'
                           : stockStatus === 'low-stock'
                           ? 'text-yellow-600 dark:text-yellow-400'
@@ -168,13 +260,17 @@ export default function ProductInventory({
                     </div>
                     <div className="flex-1">
                       <div className={`font-medium text-sm ${
-                        stockStatus === 'out-of-stock'
+                        stockStatus === 'not-set'
+                          ? 'text-gray-800 dark:text-gray-200'
+                          : stockStatus === 'out-of-stock'
                           ? 'text-red-800 dark:text-red-200'
                           : stockStatus === 'low-stock'
                           ? 'text-yellow-800 dark:text-yellow-200'
                           : 'text-green-800 dark:text-green-200'
                       }`}>
-                        {stockStatus === 'out-of-stock' 
+                        {stockStatus === 'not-set'
+                          ? 'لم يتم تحديد المخزون'
+                          : stockStatus === 'out-of-stock' 
                           ? 'نفد من المخزون'
                           : stockStatus === 'low-stock'
                           ? 'مخزون منخفض'
@@ -182,13 +278,17 @@ export default function ProductInventory({
                         }
                       </div>
                       <div className={`text-xs ${
-                        stockStatus === 'out-of-stock'
+                        stockStatus === 'not-set'
+                          ? 'text-gray-700 dark:text-gray-300'
+                          : stockStatus === 'out-of-stock'
                           ? 'text-red-700 dark:text-red-300'
                           : stockStatus === 'low-stock'
                           ? 'text-yellow-700 dark:text-yellow-300'
                           : 'text-green-700 dark:text-green-300'
                       }`}>
-                        {stockStatus === 'out-of-stock' 
+                        {stockStatus === 'not-set'
+                          ? 'يرجى إدخال كمية المخزون'
+                          : stockStatus === 'out-of-stock' 
                           ? 'يجب إعادة تعبئة المخزون'
                           : stockStatus === 'low-stock'
                           ? 'فكر في إعادة الطلب قريباً'
@@ -198,13 +298,15 @@ export default function ProductInventory({
                     </div>
                     <div className="text-center">
                       <div className={`text-lg font-bold ${
-                        stockStatus === 'out-of-stock'
+                        stockStatus === 'not-set'
+                          ? 'text-gray-700 dark:text-gray-300'
+                          : stockStatus === 'out-of-stock'
                           ? 'text-red-700 dark:text-red-300'
                           : stockStatus === 'low-stock'
                           ? 'text-yellow-700 dark:text-yellow-300'
                           : 'text-green-700 dark:text-green-300'
                       }`}>
-                        {stockQuantity}
+                        {stockStatus === 'not-set' ? '--' : stockQuantity}
                       </div>
                       <div className="text-xs text-muted-foreground">وحدة</div>
                     </div>

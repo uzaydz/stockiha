@@ -9,6 +9,7 @@ import { usePOSData } from '@/context/POSDataContext';
 import { cn } from '@/lib/utils';
 import Layout from '@/components/Layout';
 import ProductCatalog from '@/components/pos/ProductCatalog';
+import ProductCatalogOptimized from '@/components/pos/ProductCatalogOptimized';
 import Cart from '@/components/pos/Cart';
 import QuickActions from '@/components/pos/QuickActions';
 import SubscriptionCatalog from '@/components/pos/SubscriptionCatalog';
@@ -61,7 +62,10 @@ const POS = () => {
     organizationApps,
     isLoading: isPOSDataLoading,
     errors,
-    refreshAll: refreshPOSData
+    refreshAll: refreshPOSData,
+    refreshProducts,
+    updateProductStockInCache,
+    getProductStock
   } = usePOSData();
   
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -130,7 +134,7 @@ const POS = () => {
       const sortedProducts = Object.entries(productFrequency)
         .sort((a, b) => b[1] - a[1])
         .map(([id]) => products.find(p => p.id === id))
-        .filter((p): p is Product => !!p)
+        .filter((p): p is any => !!p)
         .slice(0, 6);
       
       setFavoriteProducts(sortedProducts);
@@ -147,20 +151,33 @@ const POS = () => {
       return;
     }
     
+    // استخدام دالة getProductStock للحصول على المخزون المحدث
+    const currentStock = getProductStock(product.id);
+    
     // إذا لم يكن للمنتج متغيرات، أضفه مباشرة
-    const existingItem = cartItems.find(item => item.product.id === product.id);
+    const existingItem = cartItems.find(item => 
+      item.product.id === product.id && 
+      !item.colorId && 
+      !item.sizeId
+    );
     
     if (existingItem) {
-      if (existingItem.quantity >= product.stock_quantity) {
-        toast.error(`لا يمكن إضافة المزيد من "${product.name}". الكمية المتاحة: ${product.stock_quantity}`);
+      if (existingItem.quantity >= currentStock) {
+        toast.error(`لا يمكن إضافة المزيد من "${product.name}". الكمية المتاحة: ${currentStock}`);
         return;
       }
       
       const updatedCart = cartItems.map(item =>
-        item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+        item.product.id === product.id && !item.colorId && !item.sizeId 
+          ? { ...item, quantity: item.quantity + 1 } 
+          : item
       );
       setCartItems(updatedCart);
     } else {
+      if (currentStock <= 0) {
+        toast.error(`المنتج "${product.name}" غير متوفر في المخزون`);
+        return;
+      }
       setCartItems([...cartItems, { product, quantity: 1 }]);
     }
     
@@ -328,7 +345,7 @@ const POS = () => {
                     size.price,
                     color.name,
                     color.color_code,
-                    size.name,
+                    size.size_name || 'مقاس',
                     color.image_url
                   );
                 foundVariant = true;
@@ -359,23 +376,8 @@ const POS = () => {
     
     const item = cartItems[index];
     
-    // حساب الكمية المتاحة بناءً على المتغير المحدد
-    let availableQuantity = item.product.stock_quantity;
-    
-    if (item.sizeId) {
-      // البحث عن المقاس المحدد
-      const color = item.product.colors?.find(c => c.id === item.colorId);
-      const size = color?.sizes?.find(s => s.id === item.sizeId);
-      if (size) {
-        availableQuantity = size.quantity;
-      }
-    } else if (item.colorId) {
-      // البحث عن اللون المحدد
-      const color = item.product.colors?.find(c => c.id === item.colorId);
-      if (color) {
-        availableQuantity = color.quantity;
-      }
-    }
+    // استخدام getProductStock للحصول على الكمية المحدثة
+    const availableQuantity = getProductStock(item.product.id, item.colorId, item.sizeId);
     
     if (quantity > availableQuantity) {
       toast.error(`الكمية المطلوبة غير متوفرة. الكمية المتاحة: ${availableQuantity}`);
@@ -788,7 +790,6 @@ const POS = () => {
       // تحديث إضافي للمخزون محلياً (للتأكد)
       cartItemsWithWholesale.forEach(async (item) => {
         try {
-          console.log('POS: Manually updating inventory for:', item.product.name, 'quantity:', item.quantity);
           
           if (item.sizeId) {
             // تحديث مقاس محدد
@@ -804,7 +805,6 @@ const POS = () => {
                 .from('product_sizes')
                 .update({ quantity: newQuantity })
                 .eq('id', item.sizeId);
-              console.log('POS: Updated size quantity from', currentSize.quantity, 'to', newQuantity);
             }
           } else if (item.colorId) {
             // تحديث لون محدد
@@ -820,7 +820,6 @@ const POS = () => {
                 .from('product_colors')
                 .update({ quantity: newQuantity })
                 .eq('id', item.colorId);
-              console.log('POS: Updated color quantity from', currentColor.quantity, 'to', newQuantity);
             }
           } else {
             // تحديث المنتج الأساسي
@@ -836,11 +835,9 @@ const POS = () => {
                 .from('products')
                 .update({ stock_quantity: newQuantity })
                 .eq('id', item.product.id);
-              console.log('POS: Updated product quantity from', currentProduct.stock_quantity, 'to', newQuantity);
             }
           }
         } catch (error) {
-          console.error('POS: Error updating inventory:', error);
         }
       });
       
@@ -856,6 +853,18 @@ const POS = () => {
       const totalTime = Date.now() - startProcessing;
       
       toast.success(`تم إنشاء الطلب بنجاح (${totalTime}ms)`);
+      
+      // تحديث فوري من قاعدة البيانات للحصول على أحدث البيانات
+      console.log(`[POS] تحديث البيانات من الخادم بعد إتمام البيع...`);
+      try {
+        await refreshProducts();
+        console.log(`[POS] تم تحديث البيانات من الخادم بنجاح`);
+      } catch (error) {
+        console.warn(`[POS] خطأ في تحديث البيانات من الخادم:`, error);
+      }
+      
+      // مسح السلة بعد إتمام العملية بنجاح
+      clearCart();
       
       return {
         orderId: createdOrder.id,
@@ -1095,8 +1104,7 @@ const POS = () => {
                       </div>
                     </div>
                   ) : (
-                    <ProductCatalog 
-                      products={products}
+                    <ProductCatalogOptimized 
                       onAddToCart={addItemToCart}
                     />
                   )}

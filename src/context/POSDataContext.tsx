@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useCallback, useMemo, ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTenant } from './TenantContext';
 import { useAuth } from './AuthContext';
@@ -7,6 +7,7 @@ import { POSSettings } from '@/types/posSettings';
 import { deduplicateRequest } from '../lib/cache/deduplication';
 import { supabase } from '@/lib/supabase';
 import { logPOSContextStatus } from '@/utils/productionDebug';
+import UnifiedRequestManager from '@/lib/unifiedRequestManager';
 
 // =================================================================
 // 🎯 POSDataContext V2 - الحل الشامل مع تحليل قاعدة البيانات المعمق
@@ -226,6 +227,7 @@ interface POSData {
   // دوال مساعدة للمخزون
   getProductStock: (productId: string, colorId?: string, sizeId?: string) => number;
   updateProductStock: (productId: string, colorId: string | null, sizeId: string | null, newQuantity: number) => Promise<boolean>;
+  updateProductStockInCache: (productId: string, colorId: string | null, sizeId: string | null, quantityToReduce: number) => void;
   checkLowStock: (productId: string) => boolean;
   getProductPrice: (productId: string, quantity: number, colorId?: string, sizeId?: string) => number;
 }
@@ -236,7 +238,9 @@ const POSDataContext = createContext<POSData | undefined>(undefined);
 // 🔧 دوال جلب البيانات المحسنة مع تحليل قاعدة البيانات المعمق
 // =================================================================
 
+// DEPRECATED: استخدم getPaginatedProducts من pos-products-api بدلاً من هذه الدالة
 const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWithVariants[]> => {
+  // الآن نجلب صفحة واحدة فقط بدلاً من جميع المنتجات
   return deduplicateRequest(`pos-products-enhanced-${orgId}`, async () => {
     
     const { data, error } = await supabase
@@ -257,7 +261,8 @@ const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWi
       `)
       .eq('organization_id', orgId)
       .eq('is_active', true)
-      .order('name');
+      .order('name')
+      .limit(100); // حد أقصى 100 منتج فقط لتحسين الأداء
 
     if (error) {
       throw error;
@@ -428,19 +433,25 @@ const fetchPOSCategoriesEnhanced = async (orgId: string): Promise<SubscriptionCa
 
 const fetchProductCategories = async (orgId: string): Promise<ProductCategory[]> => {
   return deduplicateRequest(`pos-product-categories-${orgId}`, async () => {
-    
-    const { data, error } = await supabase
-      .from('product_categories')
-      .select('*')
-      .eq('organization_id', orgId)
-      .eq('is_active', true)
-      .order('name');
-
-    if (error) {
+    try {
+      // استخدام UnifiedRequestManager للحد من الطلبات المكررة
+      const data = await UnifiedRequestManager.getProductCategories(orgId);
+      
+      // تحويل البيانات إلى ProductCategory format
+      return (data || []).map(cat => ({
+        id: cat.id,
+        name: cat.name,
+        description: cat.description,
+        organization_id: cat.organization_id,
+        is_active: cat.is_active,
+        created_at: cat.created_at,
+        updated_at: cat.updated_at
+      }));
+    } catch (error) {
+      if (import.meta.env.DEV) {
+      }
       throw error;
     }
-
-    return data || [];
   });
 };
 
@@ -689,28 +700,144 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
     await queryClient.invalidateQueries({ queryKey: ['pos-organization-apps-enhanced'] });
   }, [queryClient]);
 
+  // دالة خاصة لتحديث المخزون في cache مباشرة (optimistic update)
+  const updateProductStockInCache = useCallback((
+    productId: string,
+    colorId: string | null,
+    sizeId: string | null,
+    quantityToReduce: number
+  ) => {
+    console.log(`[POSDataContext] تحديث المخزون في cache - منتج: ${productId}, كمية التقليل: ${quantityToReduce}`);
+    
+    // استخدام invalidateQueries + setQueryData للتأكد من re-render
+    queryClient.setQueryData(['pos-products-enhanced', orgId], (oldData: POSProductWithVariants[] | undefined) => {
+      if (!oldData) {
+        console.log(`[POSDataContext] لا توجد بيانات في cache للتحديث`);
+        return oldData;
+      }
+      
+      const updatedData = oldData.map(product => {
+        if (product.id !== productId) return product;
+        
+        const updatedProduct = { ...product };
+        console.log(`[POSDataContext] تحديث المنتج: ${product.name} - المخزون الحالي: ${product.stock_quantity}`);
+        
+        if (sizeId && colorId) {
+          // تحديث مقاس محدد
+          updatedProduct.colors = product.colors?.map(color => {
+            if (color.id === colorId) {
+              return {
+                ...color,
+                sizes: color.sizes?.map(size => {
+                  if (size.id === sizeId) {
+                    const newQuantity = Math.max(0, size.quantity - quantityToReduce);
+                    console.log(`[POSDataContext] تحديث مقاس - من ${size.quantity} إلى ${newQuantity}`);
+                    return { ...size, quantity: newQuantity };
+                  }
+                  return size;
+                }) || []
+              };
+            }
+            return color;
+          }) || [];
+        } else if (colorId) {
+          // تحديث لون محدد
+          updatedProduct.colors = product.colors?.map(color => {
+            if (color.id === colorId) {
+              const newQuantity = Math.max(0, color.quantity - quantityToReduce);
+              console.log(`[POSDataContext] تحديث لون - من ${color.quantity} إلى ${newQuantity}`);
+              return { ...color, quantity: newQuantity };
+            }
+            return color;
+          }) || [];
+        } else {
+          // تحديث المنتج الأساسي
+          const newQuantity = Math.max(0, product.stock_quantity - quantityToReduce);
+          console.log(`[POSDataContext] تحديث منتج أساسي - من ${product.stock_quantity} إلى ${newQuantity}`);
+          updatedProduct.stock_quantity = newQuantity;
+          updatedProduct.stockQuantity = newQuantity;
+          updatedProduct.actual_stock_quantity = newQuantity;
+        }
+        
+        return updatedProduct;
+      });
+      
+      console.log(`[POSDataContext] تم تحديث cache بنجاح`);
+      return updatedData;
+    });
+    
+    // إجبار React Query على إعادة التقييم والـ re-render
+    queryClient.invalidateQueries({ 
+      queryKey: ['pos-products-enhanced', orgId],
+      exact: true,
+      refetchType: 'none' // لا نريد refetch من الخادم، فقط re-render
+    });
+    
+  }, [queryClient, orgId]);
+
   // دوال مساعدة للمخزون
   const getProductStock = useCallback((productId: string, colorId?: string, sizeId?: string): number => {
     const product = products.find(p => p.id === productId);
-    if (!product) return 0;
+    if (!product) {
+      console.log(`[getProductStock] منتج غير موجود: ${productId}`);
+      return 0;
+    }
+
+    // طباعة تفاصيل المنتج لفهم البيانات
+    console.log(`[getProductStock] تفاصيل المنتج ${product.name}:`, {
+      id: product.id,
+      stockQuantity: product.stockQuantity,
+      stock_quantity: product.stock_quantity,
+      actual_stock_quantity: product.actual_stock_quantity,
+      has_variants: product.has_variants,
+      colors: product.colors?.length || 0
+    });
 
     if (!product.has_variants) {
-      return product.actual_stock_quantity;
+      const stock = product.actual_stock_quantity || product.stock_quantity || product.stockQuantity || 0;
+      console.log(`[getProductStock] منتج بدون متغيرات - ${product.name}: ${stock}`);
+      return stock;
     }
 
     if (colorId) {
       const color = product.colors?.find(c => c.id === colorId);
-      if (!color) return 0;
+      if (!color) {
+        console.log(`[getProductStock] لون غير موجود: ${colorId}`);
+        return 0;
+      }
+
+      console.log(`[getProductStock] تفاصيل اللون ${color.name}:`, {
+        id: color.id,
+        quantity: color.quantity,
+        has_sizes: color.has_sizes,
+        sizes: color.sizes?.length || 0
+      });
 
       if (sizeId && color.has_sizes) {
         const size = color.sizes?.find(s => s.id === sizeId);
-        return size?.quantity || 0;
+        if (!size) {
+          console.log(`[getProductStock] مقاس غير موجود: ${sizeId}`);
+          return 0;
+        }
+        
+        console.log(`[getProductStock] تفاصيل المقاس ${size.size_name}:`, {
+          id: size.id,
+          quantity: size.quantity,
+          size_name: size.size_name
+        });
+        
+        const stockQuantity = size.quantity || 0;
+        console.log(`[getProductStock] مقاس ${product.name} - ${color.name} - ${size.size_name}: ${stockQuantity}`);
+        return stockQuantity;
       }
       
-      return color.quantity;
+      console.log(`[getProductStock] لون ${product.name} - ${color.name}: ${color.quantity}`);
+      return color.quantity || 0;
     }
 
-    return product.actual_stock_quantity;
+    const stock = product.actual_stock_quantity || product.stock_quantity || product.stockQuantity || 0;
+    console.log(`[getProductStock] منتج أساسي - ${product.name}: ${stock}`);
+    return stock;
   }, [products]);
 
   const updateProductStock = useCallback(async (
@@ -851,6 +978,7 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
     // دوال المخزون
     getProductStock,
     updateProductStock,
+    updateProductStockInCache,
     checkLowStock,
     getProductPrice,
   }), [
@@ -858,7 +986,7 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
     inventoryStats, isLoading, isProductsLoading, isSubscriptionsLoading, 
     isCategoriesLoading, isPOSSettingsLoading, isAppsLoading, errors,
     refreshAll, refreshProducts, refreshSubscriptions, refreshPOSSettings, refreshApps,
-    getProductStock, updateProductStock, checkLowStock, getProductPrice
+    getProductStock, updateProductStock, updateProductStockInCache, checkLowStock, getProductPrice
   ]);
 
   logPOSContextStatus('CONTEXT_VALUE_READY', {

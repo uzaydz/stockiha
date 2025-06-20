@@ -5,8 +5,6 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-console.log('🧪 اختبار دالة get_complete_product_data...');
-
 // اختبار RPC - استخدام المنتج الموجود "burkini"
 try {
   const { data, error } = await supabase.rpc('get_complete_product_data', {
@@ -15,26 +13,14 @@ try {
   });
   
   if (error) {
-    console.error('❌ خطأ في RPC:', error);
   } else {
-    console.log('✅ RPC نجح:', data ? 'بيانات موجودة' : 'لا توجد بيانات');
     if (data) {
-      console.log('📦 هيكل البيانات:', {
-        product: !!data.product,
-        colors: Array.isArray(data.colors) ? data.colors.length : 'غير صحيح',
-        sizes: Array.isArray(data.sizes) ? data.sizes.length : 'غير صحيح',
-        form_settings: !!data.form_settings,
-        marketing_settings: !!data.marketing_settings,
-        reviews: Array.isArray(data.reviews) ? data.reviews.length : 'غير صحيح'
-      });
     }
   }
 } catch (err) {
-  console.error('💥 خطأ في RPC:', err.message);
 }
 
 // اختبار Edge Function
-console.log('\n🧪 اختبار Edge Function...');
 try {
   const { data: funcData, error: funcError } = await supabase.functions.invoke('get-product-page-data', {
     body: { 
@@ -44,10 +30,7 @@ try {
   });
   
   if (funcError) {
-    console.error('❌ خطأ في Edge Function:', funcError);
   } else {
-    console.log('✅ Edge Function نجح:', funcData ? 'بيانات موجودة' : 'لا توجد بيانات');
   }
 } catch (err) {
-  console.error('💥 خطأ في Edge Function:', err.message);
-} 
+}

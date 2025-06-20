@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { cn, formatPrice } from '@/lib/utils';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { ar } from 'date-fns/locale';
 
 interface QuickActionsProps {
@@ -80,9 +80,11 @@ export default function QuickActions({
     }
   };
 
-  const formatOrderDate = (date: Date) => {
+  const formatOrderDate = (date: Date | string) => {
     try {
-      return format(date, 'dd MMM HH:mm', { locale: ar });
+      // إذا كان التاريخ عبارة عن string، استخدم parseISO لتحويله إلى Date
+      const dateObj = typeof date === 'string' ? parseISO(date) : date;
+      return format(dateObj, 'dd MMM HH:mm', { locale: ar });
     } catch (error) {
       return 'تاريخ غير صالح';
     }

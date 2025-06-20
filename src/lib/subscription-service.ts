@@ -17,6 +17,8 @@ export interface SubscriptionPlan {
   is_active: boolean;
   is_popular?: boolean;
   display_order?: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Subscription {
@@ -47,6 +49,15 @@ export interface PaymentMethod {
     required: boolean;
     placeholder: string;
   }[];
+}
+
+interface SubscriptionValidationResult {
+  isValid: boolean;
+  status: 'active' | 'trial' | 'expired' | 'error';
+  message: string;
+  daysLeft?: number;
+  planName?: string;
+  source: 'subscription' | 'trial' | 'cache' | 'organization';
 }
 
 /**
@@ -225,5 +236,160 @@ export const SubscriptionService = {
     }
     
     return data || [];
+  },
+
+  /**
+   * التحقق من صحة الاشتراك بشكل موثوق مع عدة مصادر
+   */
+  async validateSubscriptionReliably(
+    organizationId: string,
+    organizationData: any,
+    cachedSubscriptions?: any[],
+    fallbackToCache: boolean = true
+  ): Promise<SubscriptionValidationResult> {
+    try {
+      // المحاولة الأولى: استخدام البيانات المرسلة (cachedSubscriptions)
+      if (cachedSubscriptions && cachedSubscriptions.length > 0) {
+        const subscription = cachedSubscriptions[0];
+        const endDate = new Date(subscription.end_date);
+        const now = new Date();
+        
+        if (endDate > now) {
+          const daysLeft = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          return {
+            isValid: true,
+            status: 'active',
+            message: `اشتراك نشط في الخطة ${subscription.plan?.name || 'غير محدد'}`,
+            daysLeft,
+            planName: subscription.plan?.name,
+            source: 'subscription'
+          };
+        }
+      }
+
+      // المحاولة الثانية: التحقق مباشرة من قاعدة البيانات
+      const { data: directSubscriptions, error: directError } = await supabase
+        .from('organization_subscriptions')
+        .select(`
+          *,
+          plan:plan_id(id, name, code)
+        `)
+        .eq('organization_id', organizationId)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (!directError && directSubscriptions && directSubscriptions.length > 0) {
+        const subscription = directSubscriptions[0];
+        const endDate = new Date(subscription.end_date);
+        const now = new Date();
+        
+        if (endDate > now) {
+          const daysLeft = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          return {
+            isValid: true,
+            status: 'active',
+            message: `اشتراك نشط في الخطة ${subscription.plan?.name || 'غير محدد'}`,
+            daysLeft,
+            planName: subscription.plan?.name,
+            source: 'subscription'
+          };
+        }
+      }
+
+      // المحاولة الثالثة: التحقق من الفترة التجريبية
+      if (organizationData) {
+        let isTrialActive = false;
+        let daysLeft = 0;
+        
+        // التحقق من تاريخ انتهاء الفترة التجريبية المخزن في settings
+        if (organizationData.settings?.trial_end_date) {
+          const trialEndDate = new Date(organizationData.settings.trial_end_date);
+          const now = new Date();
+          
+          const trialEndDateOnly = new Date(trialEndDate.setHours(23, 59, 59));
+          const nowDateOnly = new Date(now.setHours(0, 0, 0));
+          
+          isTrialActive = trialEndDateOnly >= nowDateOnly;
+          daysLeft = Math.ceil((trialEndDateOnly.getTime() - nowDateOnly.getTime()) / (1000 * 60 * 60 * 24));
+        } else {
+          // استخدام الطريقة القديمة كاحتياط
+          const trialResult = this.checkTrialStatus(organizationData.created_at);
+          isTrialActive = trialResult.isTrialActive;
+          daysLeft = trialResult.daysLeft;
+        }
+        
+        if (isTrialActive) {
+          return {
+            isValid: true,
+            status: 'trial',
+            message: `الفترة التجريبية سارية (${daysLeft} يوم متبقية)`,
+            daysLeft,
+            source: 'trial'
+          };
+        }
+      }
+
+      // المحاولة الرابعة: التحقق من البيانات الموجودة في المؤسسة كـ fallback
+      if (organizationData?.subscription_status === 'active' && organizationData?.subscription_id) {
+        return {
+          isValid: true,
+          status: 'active',
+          message: 'اشتراك نشط (بناءً على بيانات المؤسسة)',
+          source: 'organization'
+        };
+      }
+
+      // المحاولة الخامسة: التحقق من التخزين المؤقت
+      if (fallbackToCache) {
+        try {
+          const cachedData = localStorage.getItem('bazaar_auth_subscription');
+          if (cachedData) {
+            const parsed = JSON.parse(cachedData);
+            if (parsed.isActive && parsed.endDate) {
+              const endDate = new Date(parsed.endDate);
+              const now = new Date();
+              
+              if (endDate > now) {
+                return {
+                  isValid: true,
+                  status: 'active',
+                  message: 'اشتراك نشط (من البيانات المحفوظة)',
+                  source: 'cache'
+                };
+              }
+            }
+          }
+        } catch (cacheError) {
+        }
+      }
+
+      // لا يوجد اشتراك صالح
+      return {
+        isValid: false,
+        status: 'expired',
+        message: 'لا يوجد اشتراك نشط أو انتهت الفترة التجريبية',
+        source: 'subscription'
+      };
+
+    } catch (error) {
+      
+      // في حالة الخطأ، تحقق من بيانات المؤسسة كحل أخير
+      if (organizationData?.subscription_status === 'active' || organizationData?.subscription_status === 'trial') {
+        return {
+          isValid: true,
+          status: organizationData.subscription_status,
+          message: 'تم السماح بالوصول بناءً على بيانات المؤسسة (خطأ في التحقق)',
+          source: 'organization'
+        };
+      }
+
+      return {
+        isValid: false,
+        status: 'error',
+        message: 'خطأ في التحقق من الاشتراك',
+        source: 'subscription'
+      };
+    }
   }
 };

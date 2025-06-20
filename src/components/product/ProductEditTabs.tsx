@@ -52,6 +52,16 @@ const ProductEditTabs: React.FC<ProductEditTabsProps> = ({
 }) => {
   const hasVariants = form.watch('has_variants');
   
+  // Console logs للتتبع
+  console.log('📋 ProductEditTabs - Rendering with values:', {
+    productId,
+    organizationId,
+    hasVariants,
+    currentStockQuantity: form.getValues('stock_quantity'),
+    watchedStockQuantity: form.watch('stock_quantity'),
+    formValues: form.getValues()
+  });
+  
   return (
     <Tabs defaultValue="basic" className="w-full">
       <TabsList className="grid grid-cols-7 mb-6">
@@ -113,7 +123,9 @@ const ProductEditTabs: React.FC<ProductEditTabsProps> = ({
       <TabsContent value="inventory" className="space-y-6">
         <ProductInventory 
           form={form} 
-          hasVariants={form.watch('has_variants')} 
+          hasVariants={form.watch('has_variants')}
+          organizationId={organizationId}
+          productId={productId}
         />
       </TabsContent>
 

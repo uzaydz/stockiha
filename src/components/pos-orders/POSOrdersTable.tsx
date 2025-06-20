@@ -42,7 +42,7 @@ import {
   ChevronsRight,
   AlertTriangle
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import type { POSOrderWithDetails } from '../../api/posOrdersService';
 
@@ -164,7 +164,12 @@ export const POSOrdersTable: React.FC<POSOrdersTableProps> = ({
   };
 
   const formatDate = (date: string): string => {
-    return format(new Date(date), 'dd/MM/yyyy HH:mm', { locale: ar });
+    try {
+      return format(parseISO(date), 'dd/MM/yyyy HH:mm', { locale: ar });
+    } catch (error) {
+      // في حالة الخطأ، استخدم Date constructor كـ fallback
+      return format(new Date(date), 'dd/MM/yyyy HH:mm', { locale: ar });
+    }
   };
 
   const handleDeleteConfirm = () => {

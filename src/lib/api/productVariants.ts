@@ -405,6 +405,25 @@ export async function createProductSizesBatch(sizes: InsertProductSize[]): Promi
 // دالة مساعدة لتحديث stock_quantity للمنتج بناءً على مجموع كميات الألوان
 export const updateProductStockQuantity = async (productId: string): Promise<void> => {
   try {
+    // أولاً، تحقق من أن المنتج له متغيرات
+    const { data: product, error: productError } = await supabase
+      .from('products')
+      .select('has_variants')
+      .eq('id', productId)
+      .single();
+    
+    if (productError || !product) {
+      console.log('❌ updateProductStockQuantity: المنتج غير موجود');
+      return;
+    }
+    
+    // إذا كان المنتج ليس له متغيرات، لا تحديث stock_quantity تلقائياً
+    if (!product.has_variants) {
+      console.log('⏭️ updateProductStockQuantity: تم تخطي التحديث لأن المنتج ليس له متغيرات');
+      return;
+    }
+    
+    console.log('🔄 updateProductStockQuantity: بدء تحديث stock_quantity للمنتج مع متغيرات');
     
     // جلب جميع ألوان المنتج وحساب المجموع
     const { data: colors, error: colorsError } = await supabase
@@ -413,11 +432,13 @@ export const updateProductStockQuantity = async (productId: string): Promise<voi
       .eq('product_id', productId);
     
     if (colorsError) {
+      console.log('❌ updateProductStockQuantity: خطأ في جلب الألوان:', colorsError);
       return;
     }
     
     // حساب مجموع الكميات
     const totalQuantity = colors?.reduce((sum, color) => sum + (color.quantity || 0), 0) || 0;
+    console.log('📊 updateProductStockQuantity: المجموع المحسوب:', totalQuantity);
     
     // تحديث stock_quantity للمنتج
     const { error: updateError } = await supabase
@@ -426,8 +447,11 @@ export const updateProductStockQuantity = async (productId: string): Promise<voi
       .eq('id', productId);
     
     if (updateError) {
+      console.log('❌ updateProductStockQuantity: خطأ في التحديث:', updateError);
     } else {
+      console.log('✅ updateProductStockQuantity: تم تحديث stock_quantity إلى:', totalQuantity);
     }
   } catch (error) {
+    console.log('❌ updateProductStockQuantity: خطأ عام:', error);
   }
 };
