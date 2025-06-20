@@ -5,6 +5,8 @@ import { DatabaseMonitor } from './DatabaseMonitor';
 import { networkInterceptor } from '@/lib/network-interceptor';
 import { performanceTracker } from '@/lib/performance-tracker';
 import { databaseTracker } from '@/lib/database-tracker';
+import { memoryAnalyzer } from '@/lib/memory-analyzer';
+import { errorLogger } from '@/lib/error-logger';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';

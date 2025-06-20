@@ -146,6 +146,7 @@ const Products = memo(() => {
     if (!currentOrganization?.id) {
       setProducts([]);
       setIsLoading(false);
+      loadingRef.current = false;
       return;
     }
 
@@ -195,6 +196,7 @@ const Products = memo(() => {
       // التحقق من عدم إلغاء الطلب أو تغيير الطلب
       if (signal.aborted || lastRequestIdRef.current !== requestId) {
         console.log('🚫 تم إلغاء الطلب أو استبداله');
+        loadingRef.current = false;
         return;
       }
 
@@ -215,6 +217,7 @@ const Products = memo(() => {
     } catch (error: any) {
       if (error.name === 'AbortError' || signal.aborted) {
         console.log('🚫 تم إلغاء الطلب');
+        loadingRef.current = false;
         return;
       }
 
@@ -257,16 +260,26 @@ const Products = memo(() => {
   useEffect(() => {
     if (!currentOrganization?.id) return;
 
+    // منع تنشيط الـ effect أكثر من مرة في وقت قصير
+    if (loadingRef.current) {
+      console.log('⏸️ تم تجاهل useEffect - طلب آخر جاري');
+      return;
+    }
+
     // تحميل البيانات الأساسية
     const loadData = async () => {
-      await Promise.all([
-        fetchProducts(currentPage),
-        loadCategories()
-      ]);
+      try {
+        await Promise.all([
+          fetchProducts(currentPage),
+          loadCategories()
+        ]);
+      } catch (error) {
+        console.error('❌ خطأ في تحميل البيانات:', error);
+      }
     };
 
     // تأخير قصير لتجنب الاستدعاءات المتعددة
-    const timeoutId = setTimeout(loadData, 50);
+    const timeoutId = setTimeout(loadData, 100);
 
     return () => {
       clearTimeout(timeoutId);
@@ -281,9 +294,7 @@ const Products = memo(() => {
     filters.categoryFilter,
     filters.stockFilter,
     filters.sortOption,
-    pageSize,
-    fetchProducts,
-    loadCategories
+    pageSize
   ]);
 
   // Page navigation handlers

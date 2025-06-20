@@ -71,6 +71,10 @@ class DatabaseTracker {
   }
 
   startTracking() {
+    // تعطيل مؤقت للمراقبة لتجنب المشاكل
+    console.log('Database tracking disabled temporarily');
+    return;
+    
     if (this.isTracking) return;
     this.isTracking = true;
     console.log('Database tracking started');
@@ -116,17 +120,19 @@ class DatabaseTracker {
       
       // اعتراض العمليات المختلفة
       const interceptMethod = (method: string, operation: DatabaseQuery['operation']) => {
-        const original = query[method].bind(query);
-        query[method] = function(...args: any[]) {
-          dbQuery.operation = operation;
-          dbQuery.values = args[0];
-          
-          if (method === 'select') {
-            dbQuery.columns = args[0] ? args[0].split(',').map((c: string) => c.trim()) : ['*'];
-          }
-          
-          return original(...args);
-        };
+        if (query[method] && typeof query[method] === 'function') {
+          const original = query[method].bind(query);
+          query[method] = function(...args: any[]) {
+            dbQuery.operation = operation;
+            dbQuery.values = args[0];
+            
+            if (method === 'select') {
+              dbQuery.columns = args[0] ? args[0].split(',').map((c: string) => c.trim()) : ['*'];
+            }
+            
+            return original(...args);
+          };
+        }
       };
       
       interceptMethod('select', 'SELECT');
@@ -137,31 +143,37 @@ class DatabaseTracker {
       
       // اعتراض الفلاتر
       const interceptFilter = (method: string) => {
-        const original = query[method].bind(query);
-        query[method] = function(...args: any[]) {
-          if (!dbQuery.filters) dbQuery.filters = [];
-          dbQuery.filters.push({ method, args });
-          return original(...args);
-        };
+        if (query[method] && typeof query[method] === 'function') {
+          const original = query[method].bind(query);
+          query[method] = function(...args: any[]) {
+            if (!dbQuery.filters) dbQuery.filters = [];
+            dbQuery.filters.push({ method, args });
+            return original(...args);
+          };
+        }
       };
       
       ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'like', 'ilike', 'in', 'contains', 'containedBy', 'is', 'filter'].forEach(interceptFilter);
       
       // اعتراض الترتيب والحد
-      const originalOrder = query.order.bind(query);
-      query.order = function(...args: any[]) {
-        dbQuery.orderBy = args;
-        return originalOrder(...args);
-      };
+      if (query.order && typeof query.order === 'function') {
+        const originalOrder = query.order.bind(query);
+        query.order = function(...args: any[]) {
+          dbQuery.orderBy = args;
+          return originalOrder(...args);
+        };
+      }
       
-      const originalLimit = query.limit.bind(query);
-      query.limit = function(limit: number) {
-        dbQuery.limit = limit;
-        return originalLimit(limit);
-      };
+      if (query.limit && typeof query.limit === 'function') {
+        const originalLimit = query.limit.bind(query);
+        query.limit = function(limit: number) {
+          dbQuery.limit = limit;
+          return originalLimit(limit);
+        };
+      }
       
-      const originalOffset = query.offset?.bind(query);
-      if (originalOffset) {
+      if (query.offset && typeof query.offset === 'function') {
+        const originalOffset = query.offset.bind(query);
         query.offset = function(offset: number) {
           dbQuery.offset = offset;
           return originalOffset(offset);
@@ -173,7 +185,7 @@ class DatabaseTracker {
         const methods = ['then', 'single', 'maybeSingle'];
         
         methods.forEach(method => {
-          if (query[method]) {
+          if (query[method] && typeof query[method] === 'function') {
             const original = query[method].bind(query);
             query[method] = async function(...args: any[]) {
               // بناء الاستعلام الكامل
@@ -248,7 +260,7 @@ class DatabaseTracker {
   private interceptRpcOperations() {
     const self = this;
     
-    if (supabase.rpc) {
+    if (supabase.rpc && typeof supabase.rpc === 'function') {
       const originalRpc = supabase.rpc.bind(supabase);
       
       (supabase as any).rpc = async function(fn: string, params?: any) {
@@ -314,7 +326,7 @@ class DatabaseTracker {
       const authMethods = ['signIn', 'signUp', 'signOut', 'resetPasswordForEmail', 'updateUser'];
       
       authMethods.forEach(method => {
-        if ((supabase.auth as any)[method]) {
+        if ((supabase.auth as any)[method] && typeof (supabase.auth as any)[method] === 'function') {
           const original = (supabase.auth as any)[method].bind(supabase.auth);
           
           (supabase.auth as any)[method] = async function(...args: any[]) {

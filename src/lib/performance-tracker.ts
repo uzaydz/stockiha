@@ -485,6 +485,8 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // React Hook لتتبع أداء المكونات
+import React from 'react';
+
 export function useComponentPerformance(componentName: string) {
   const renderStart = performance.now();
   
