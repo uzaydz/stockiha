@@ -130,27 +130,12 @@ const TenantRegistrationForm = () => {
       });
       
       if (success) {
-        toast.success('تم إنشاء حساب المسؤول والنطاق الفرعي بنجاح');
+        toast.success('🎉 تم إنشاء حساب المسؤول بنجاح! مرحباً بك في ستوكيها');
         
-        // التوجه إلى النطاق الفرعي بعد التسجيل الناجح
-        const protocol = window.location.protocol;
-        const hostname = window.location.hostname;
-        const port = window.location.port;
-        
-        // بناء رابط النطاق الفرعي
-        let subdomainUrl;
-        if (hostname === 'localhost' || hostname === '127.0.0.1') {
-          // في بيئة التطوير، استخدم المنفذ للنطاق الفرعي
-          subdomainUrl = `${protocol}//${values.subdomain}.${hostname}${port ? ':' + port : ''}`;
-        } else {
-          // في بيئة الإنتاج، استخدم النطاق الفرعي العادي
-          subdomainUrl = `${protocol}//${values.subdomain}.${hostname}`;
-        }
-        
-        // تأخير قصير ثم التوجه
+        // التوجيه إلى stockiha.com/dashboard بدلاً من النطاق الفرعي
         setTimeout(() => {
-          window.location.href = subdomainUrl;
-        }, 2000);
+          navigate('/dashboard');
+        }, 1000); // تأخير قصير لإظهار رسالة النجاح
       } else {
         toast.error(`فشل التسجيل: ${error?.message || 'حدث خطأ'}`);
       }

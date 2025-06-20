@@ -184,21 +184,12 @@ export const OrganizationDataProvider: React.FC<{ children: ReactNode }> = ({ ch
     refetchOnWindowFocus: false,
   });
 
-  const {
-    data: products,
-    error: productsError,
-    isLoading: productsLoading,
-    refetch: refetchProducts
-  } = useQuery({
-    queryKey: ['products', organizationId],
-    queryFn: () => fetchProducts(organizationId!),
-    enabled: !!organizationId,
-    staleTime: 3 * 60 * 1000, // 3 دقائق - تحديث معقول للمنتجات
-    gcTime: 30 * 60 * 1000, // 30 دقيقة
-    retry: 1,
-    refetchOnMount: false, // منع التحديث التلقائي عند التحميل
-    refetchOnWindowFocus: false,
-  });
+  // تعطيل جلب جميع المنتجات من Context لتجنب التكرار
+  // الصفحات ستستخدم getProductsPaginated مباشرة
+  const products = null;
+  const productsError = null;
+  const productsLoading = false;
+  const refetchProducts = () => {};
 
   // جمع حالات التحميل والأخطاء
   const isLoading = settingsLoading || subscriptionsLoading || appsLoading || categoriesLoading || productsLoading;

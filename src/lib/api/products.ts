@@ -7,6 +7,42 @@ import { cacheManager } from '@/lib/cache/CentralCacheManager';
 import { queryClient } from '@/lib/config/queryClient';
 import UnifiedRequestManager from '@/lib/unifiedRequestManager';
 
+// نظام منع الطلبات المتزامنة المتكررة
+const ongoingRequests = new Map<string, Promise<any>>();
+
+// Cache محسن للنتائج مع انتهاء صلاحية ذكي
+interface CacheEntry {
+  data: any;
+  timestamp: number;
+  searchParams: string;
+}
+
+const resultsCache = new Map<string, CacheEntry>();
+const CACHE_DURATION = 2 * 60 * 1000; // دقيقتان
+const MAX_CACHE_SIZE = 50;
+
+// دالة تنظيف الـ cache
+const cleanupCache = () => {
+  const now = Date.now();
+  const entries = Array.from(resultsCache.entries());
+  
+  // إزالة المدخلات المنتهية الصلاحية
+  entries.forEach(([key, entry]) => {
+    if (now - entry.timestamp > CACHE_DURATION) {
+      resultsCache.delete(key);
+    }
+  });
+  
+  // إزالة أقدم المدخلات إذا تجاوز الحد الأقصى
+  if (resultsCache.size > MAX_CACHE_SIZE) {
+    const sortedEntries = entries
+      .sort((a, b) => a[1].timestamp - b[1].timestamp)
+      .slice(0, resultsCache.size - MAX_CACHE_SIZE);
+    
+    sortedEntries.forEach(([key]) => resultsCache.delete(key));
+  }
+};
+
 export interface TimerConfig {
   enabled: boolean;
   endDate: string; // Or Date?
@@ -101,7 +137,7 @@ export type Product = Database['public']['Tables']['products']['Row'] & {
   shipping_clone_id?: number | null;
   product_advanced_settings?: Database['public']['Tables']['product_advanced_settings']['Row'] | null;
   product_marketing_settings?: Database['public']['Tables']['product_marketing_settings']['Row'] | null;
-  reviews?: Review[];
+  reviews?: any[];
   form_settings?: any[] | null;
 };
 
@@ -187,8 +223,8 @@ export type UpdateProduct = Omit<Database['public']['Tables']['products']['Updat
 export interface WholesaleTier {
   id?: string;
   product_id: string;
-  min_quantity: number;
-  price: number;
+      min_quantity: number;
+    price_per_unit: number;
   organization_id?: string;
   created_at?: string;
   updated_at?: string;
@@ -235,7 +271,7 @@ export const getProducts = async (organizationId?: string, includeInactive: bool
   }
 };
 
-// دالة جديدة لجلب المنتجات مع الـ pagination
+// دالة جديدة لجلب المنتجات مع الـ pagination - محسنة
 export const getProductsPaginated = async (
   organizationId: string,
   page: number = 1,
@@ -255,8 +291,264 @@ export const getProductsPaginated = async (
   hasNextPage: boolean;
   hasPreviousPage: boolean;
 }> => {
-  try {
-    if (!organizationId) {
+  const {
+    includeInactive = false,
+    searchQuery = '',
+    categoryFilter = '',
+    stockFilter = 'all',
+    sortOption = 'newest'
+  } = options;
+
+  // إنشاء مفتاح cache محسن
+  const cacheKey = `products-${organizationId}-${page}-${limit}-${JSON.stringify({
+    includeInactive,
+    searchQuery: searchQuery.trim().toLowerCase(),
+    categoryFilter,
+    stockFilter,
+    sortOption
+  })}`;
+
+  console.log('🔄 [getProductsPaginated] API called:', { 
+    organizationId, 
+    page, 
+    limit, 
+    options,
+    cacheKey,
+    timestamp: new Date().toISOString() 
+  });
+
+  // تنظيف الـ cache دورياً
+  cleanupCache();
+
+  // فحص الـ cache أولاً
+  const cachedResult = resultsCache.get(cacheKey);
+  if (cachedResult && Date.now() - cachedResult.timestamp < CACHE_DURATION) {
+    console.log('✅ [getProductsPaginated] عائد من الـ cache');
+    return cachedResult.data;
+  }
+
+  // تجنب الطلبات المتزامنة المتعددة لنفس البيانات
+  if (ongoingRequests.has(cacheKey)) {
+    console.log('⏳ [getProductsPaginated] طلب جاري، انتظار...');
+    try {
+      const result = await ongoingRequests.get(cacheKey);
+      return result;
+    } catch (error) {
+      ongoingRequests.delete(cacheKey);
+      throw error;
+    }
+  }
+
+  const fetchPromise = async () => {
+    try {
+      if (!organizationId) {
+        const emptyResult = {
+          products: [],
+          totalCount: 0,
+          totalPages: 0,
+          currentPage: page,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        };
+        return emptyResult;
+      }
+
+      // حساب الفهرس للبداية
+      const from = (page - 1) * limit;
+      const to = from + limit - 1;
+
+      // بناء الاستعلام الأساسي مع تحسينات
+      let query = supabase
+        .from('products')
+        .select(`
+          *,
+          category:category_id(id, name, slug),
+          subcategory:subcategory_id(id, name, slug)
+        `, { count: 'exact' })
+        .eq('organization_id', organizationId);
+
+      // إضافة فلتر الحالة النشطة
+      if (!includeInactive) {
+        query = query.eq('is_active', true);
+      }
+
+      // البحث الذكي - يتجاهل الرموز الخاصة ويركز على الأحرف والأرقام
+      if (searchQuery.trim()) {
+        const cleanSearchQuery = searchQuery.trim();
+        
+        // تنظيف النص المُدخل من الرموز الخاصة (نبقي الأحرف والأرقام والمسافات فقط)
+        const normalizedSearchQuery = cleanSearchQuery
+          .replace(/[^\u0600-\u06FFa-zA-Z0-9\s]/g, ' ') // استبدال الرموز الخاصة بمسافات
+          .replace(/\s+/g, ' ') // تنظيف المسافات المتعددة
+          .trim();
+        
+        console.log('🔍 [البحث الذكي]:', {
+          original: cleanSearchQuery,
+          normalized: normalizedSearchQuery
+        });
+        
+        if (normalizedSearchQuery.length >= 2) {
+          // تقسيم النص إلى كلمات منفصلة للبحث الذكي
+          const searchWords = normalizedSearchQuery
+            .split(' ')
+            .filter(word => word.length >= 1);
+          
+          console.log('📝 [كلمات البحث]:', searchWords);
+          
+          // البحث الذكي المحسن مع نظام أولويات
+          const allWords = searchWords.join(' ');
+          
+          console.log('🎯 [البحث الكامل في الاسم]:', `name.ilike.%${allWords}%`);
+          
+          // بحث مبسط وقوي: تركيز أساسي على الاسم
+          let searchConditions: string[] = [];
+          
+          // أولوية عليا جداً: الاسم يحتوي على جميع الكلمات (تكرار أكثر = وزن أكبر)
+          searchWords.forEach(word => {
+            // 5 مرات للاسم = وزن عالي جداً
+            for (let i = 0; i < 5; i++) {
+              searchConditions.push(`name.ilike.%${word}%`);
+            }
+          });
+          
+          // أولوية متوسطة: SKU (مرة واحدة فقط)
+          searchWords.forEach(word => {
+            searchConditions.push(`sku.ilike.%${word}%`);
+          });
+          
+          // أولوية منخفضة: الوصف (للكلمات المهمة فقط)
+          searchWords.forEach(word => {
+            if (word.length >= 4) { // كلمات مهمة فقط
+              searchConditions.push(`description.ilike.%${word}%`);
+            }
+          });
+          
+          query = query.or(searchConditions.join(','));
+          
+          console.log('🎯 [البحث المبسط القوي]');
+          console.log(`📊 الاسم: ${searchWords.length * 5} شروط، SKU: ${searchWords.length} شروط`);
+          console.log('🔥 وزن الاسم أعلى 5 مرات من باقي الحقول');
+        } else {
+          // للنصوص القصيرة، استخدام البحث التقليدي
+          query = query.or(`name.ilike.%${cleanSearchQuery}%,sku.ilike.%${cleanSearchQuery}%,barcode.ilike.%${cleanSearchQuery}%`);
+        }
+      }
+
+      // إضافة فلتر الفئة
+      if (categoryFilter) {
+        query = query.eq('category_id', categoryFilter);
+      }
+
+      // إضافة فلتر المخزون مع تحسين
+      switch (stockFilter) {
+        case 'in-stock':
+          query = query.gt('stock_quantity', 0);
+          break;
+        case 'out-of-stock':
+          query = query.eq('stock_quantity', 0);
+          break;
+        case 'low-stock':
+          query = query.gt('stock_quantity', 0).lte('stock_quantity', 5);
+          break;
+        default:
+          // 'all' - لا نضيف فلتر
+          break;
+      }
+
+      // تحسين الترتيب - أولوية للبحث إذا كان موجوداً
+      const isSearchActive = searchQuery.trim().length > 0;
+      
+      if (isSearchActive) {
+        // ترتيب محسن خصيصاً للبحث: الأسماء الأقصر والأكثر دقة أولاً
+        // هذا يساعد في إظهار "Glass - 11 Pro" قبل الأسماء الطويلة
+        query = query
+          .order('name', { ascending: true }) // ترتيب أبجدي - "Glass" سيأتي قبل أسماء أخرى
+          .order('stock_quantity', { ascending: false }) // أولوية للمتوفر
+          .order('is_featured', { ascending: false }) // المنتجات المميزة أولاً
+          .order('created_at', { ascending: false }); // الأحدث أخيراً
+          
+        console.log('🎯 [ترتيب محسن للبحث: أبجدي + مخزون + مميز + تاريخ]');
+        console.log('🔍 هذا سيضع "Glass - 11 Pro" في المقدمة عند البحث عن "glass 11 pro"');
+      } else {
+        // الترتيب العادي عند عدم وجود بحث
+        switch (sortOption) {
+          case 'newest':
+            query = query.order('created_at', { ascending: false });
+            break;
+          case 'oldest':
+            query = query.order('created_at', { ascending: true });
+            break;
+          case 'price-high':
+            query = query.order('price', { ascending: false });
+            break;
+          case 'price-low':
+            query = query.order('price', { ascending: true });
+            break;
+          case 'name-asc':
+            query = query.order('name', { ascending: true });
+            break;
+          case 'name-desc':
+            query = query.order('name', { ascending: false });
+            break;
+          case 'stock-high':
+            query = query.order('stock_quantity', { ascending: false });
+            break;
+          case 'stock-low':
+            query = query.order('stock_quantity', { ascending: true });
+            break;
+          default:
+            query = query.order('created_at', { ascending: false });
+            break;
+        }
+
+        // إضافة ترتيب ثانوي للحصول على نتائج ثابتة
+        if (!['name-asc', 'name-desc'].includes(sortOption)) {
+          query = query.order('id', { ascending: false });
+        }
+      }
+
+      // تطبيق الـ pagination
+      query = query.range(from, to);
+
+      const { data, error, count } = await query;
+
+      if (error) {
+        console.error('❌ [getProductsPaginated] Database error:', error);
+        throw error;
+      }
+
+      const totalCount = count || 0;
+      const totalPages = Math.ceil(totalCount / limit);
+      const hasNextPage = page < totalPages;
+      const hasPreviousPage = page > 1;
+
+      const result = {
+        products: (data as Product[]) || [],
+        totalCount,
+        totalPages,
+        currentPage: page,
+        hasNextPage,
+        hasPreviousPage,
+      };
+
+      // حفظ النتيجة في الـ cache
+      resultsCache.set(cacheKey, {
+        data: result,
+        timestamp: Date.now(),
+        searchParams: cacheKey
+      });
+
+      console.log('✅ [getProductsPaginated] نجح الاستعلام:', {
+        products: result.products.length,
+        totalCount: result.totalCount,
+        totalPages: result.totalPages,
+        cached: true
+      });
+
+      return result;
+
+    } catch (error) {
+      console.error('❌ [getProductsPaginated] خطأ:', error);
       return {
         products: [],
         totalCount: 0,
@@ -265,114 +557,17 @@ export const getProductsPaginated = async (
         hasNextPage: false,
         hasPreviousPage: false,
       };
+    } finally {
+      // إزالة من الطلبات الجارية
+      ongoingRequests.delete(cacheKey);
     }
+  };
 
-    const {
-      includeInactive = false,
-      searchQuery = '',
-      categoryFilter = '',
-      stockFilter = 'all',
-      sortOption = 'newest'
-    } = options;
+  // إضافة الطلب للطلبات الجارية
+  const promise = fetchPromise();
+  ongoingRequests.set(cacheKey, promise);
 
-    // حساب الفهرس للبداية
-    const from = (page - 1) * limit;
-    const to = from + limit - 1;
-
-    // بناء الاستعلام الأساسي
-    let query = supabase
-      .from('products')
-      .select(`
-        *,
-        category:category_id(id, name, slug),
-        subcategory:subcategory_id(id, name, slug)
-      `, { count: 'exact' })
-      .eq('organization_id', organizationId);
-
-    // إضافة فلتر الحالة النشطة
-    if (!includeInactive) {
-      query = query.eq('is_active', true);
-    }
-
-    // إضافة فلتر البحث
-    if (searchQuery) {
-      query = query.or(`name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,sku.ilike.%${searchQuery}%,barcode.ilike.%${searchQuery}%`);
-    }
-
-    // إضافة فلتر الفئة
-    if (categoryFilter) {
-      query = query.eq('category_id', categoryFilter);
-    }
-
-    // إضافة فلتر المخزون
-    if (stockFilter !== 'all') {
-      if (stockFilter === 'in-stock') {
-        query = query.gt('stock_quantity', 0);
-      } else if (stockFilter === 'out-of-stock') {
-        query = query.eq('stock_quantity', 0);
-      } else if (stockFilter === 'low-stock') {
-        query = query.gt('stock_quantity', 0).lte('stock_quantity', 5);
-      }
-    }
-
-    // إضافة الترتيب مع diagnostic logging
-
-    if (sortOption === 'newest') {
-      query = query.order('created_at', { ascending: false });
-    } else if (sortOption === 'oldest') {
-      query = query.order('created_at', { ascending: true });
-    } else if (sortOption === 'price-high') {
-      query = query.order('price', { ascending: false });
-    } else if (sortOption === 'price-low') {
-      query = query.order('price', { ascending: true });
-    } else if (sortOption === 'name-asc') {
-      query = query.order('name', { ascending: true });
-    } else if (sortOption === 'name-desc') {
-      query = query.order('name', { ascending: false });
-    } else {
-      query = query.order('name', { ascending: true });
-    }
-
-    // إضافة fallback ordering لضمان ترتيب ثابت
-    if (sortOption === 'newest' || sortOption === 'oldest') {
-      // إضافة ترتيب ثانوي حسب ID لضمان التسلسل
-      query = query.order('id', { ascending: false });
-    }
-
-    // تطبيق الـ pagination
-    query = query.range(from, to);
-
-    const { data, error, count } = await query;
-
-    if (error) {
-      throw error;
-    }
-
-    // 🔍 Diagnostic logging للمساعدة في تشخيص مشكلة فلتر "الأحدث"
-
-    const totalCount = count || 0;
-    const totalPages = Math.ceil(totalCount / limit);
-    const hasNextPage = page < totalPages;
-    const hasPreviousPage = page > 1;
-
-    return {
-      products: (data as Product[]) || [],
-      totalCount,
-      totalPages,
-      currentPage: page,
-      hasNextPage,
-      hasPreviousPage,
-    };
-  } catch (error) {
-    return {
-      products: [],
-      totalCount: 0,
-      totalPages: 0,
-      currentPage: page,
-      hasNextPage: false,
-      hasPreviousPage: false,
-    };
-  }
+  return promise;
 };
 
 export const getProductById = async (id: string): Promise<Product | null> => {
@@ -888,13 +1083,13 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
   // معالجة أسعار الجملة إذا تم إرسالها
   if (wholesale_tiers && wholesale_tiers.length > 0) {
     // إدراج أسعار الجملة الجديدة مع التحقق من البيانات المطلوبة
-    const validTiers = wholesale_tiers.filter(tier => tier.min_quantity && tier.price);
+    const validTiers = wholesale_tiers.filter(tier => tier.min_quantity && tier.price_per_unit);
     
     if (validTiers.length > 0) {
       const wholesaleTiersToInsert = validTiers.map(tier => ({
         product_id: createdProduct.id,
         min_quantity: Number(tier.min_quantity),
-        price: Number(tier.price),
+        price: Number(tier.price_per_unit),
         organization_id: organization_id,
       }));
       
@@ -933,32 +1128,22 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
     purchase_page_config: createdProduct.purchase_page_config ? JSON.parse(JSON.stringify(createdProduct.purchase_page_config)) : null,
   };
 
-  // 🎯 استخدام النظام الموحد للتحديث التلقائي - مثل updateProduct
-  try {
-    const { refreshAfterProductOperation } = await import('@/lib/data-refresh-helpers');
-    refreshAfterProductOperation('create', { organizationId: finalProductData.organization_id });
+  console.log('🔄 [createProduct] تحديث الكاش بعد الإنشاء...');
 
-  } catch (error) {
-  }
-
-  toast.success("تم إنشاء المنتج بنجاح!");
-
-  // 🎯 الحل: إلغاء صلاحية كاش المنتجات
+  // تحديث محسن: فقط الكاش الضروري
   cacheManager.invalidate('products*');
-
-  // Invalidate relevant queries
+  
+  // تحديث React Query بشكل محدود
   const organizationId = createdProduct.organization_id;
   if (organizationId) {
     await queryClient.invalidateQueries({ queryKey: ['products', organizationId] });
-    await queryClient.invalidateQueries({ queryKey: ['product-categories', organizationId] });
-    await queryClient.invalidateQueries({ queryKey: ['dashboard-data', organizationId] });
-  } else {
-    await queryClient.invalidateQueries({ queryKey: ['products'] });
-    await queryClient.invalidateQueries({ queryKey: ['categories'] });
   }
 
+  toast.success("تم إنشاء المنتج بنجاح!");
+  console.log('✅ [createProduct] تم تحديث الكاش بنجاح');
+
   // 🎯 استخدام النظام الموحد للتحديث التلقائي
-  if (window.unifiedUpdate) {
+  if ((window as any).unifiedUpdate) {
     // ... existing code ...
   }
 
@@ -1252,13 +1437,13 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
     }
     
     // إدراج أسعار الجملة الجديدة مع التحقق من البيانات المطلوبة
-    const validTiers = wholesale_tiers.filter(tier => tier.min_quantity && tier.price);
+    const validTiers = wholesale_tiers.filter(tier => tier.min_quantity && tier.price_per_unit);
     
     if (validTiers.length > 0) {
       const wholesaleTiersToInsert = validTiers.map(tier => ({
         product_id: id,
         min_quantity: Number(tier.min_quantity),
-        price: Number(tier.price),
+        price: Number(tier.price_per_unit),
         organization_id: updatedProductData.organization_id,
       }));
       
@@ -1968,8 +2153,7 @@ export const updateReview = async (
     .from('product_reviews')
     .update({ 
       is_approved,
-      comment: comment || undefined,
-      rating 
+      comment: comment || undefined
     })
     .eq('id', reviewId);
 

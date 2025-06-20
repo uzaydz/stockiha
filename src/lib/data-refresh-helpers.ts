@@ -160,49 +160,38 @@ export const refreshAfterProductOperation = async (
 ) => {
   const { organizationId, immediate = true } = options;
 
-  const delay = immediate ? 0 : 100;
+  console.log('🎯 [refreshAfterProductOperation] بدء التحديث:', { operation, organizationId });
+
+  const delay = immediate ? 0 : 50; // تقليل التأخير
   
   setTimeout(async () => {
     try {
-      
-      await clearAllCacheLayers('products', organizationId);
-      
-      const productQueryKeys = [
+      // تحديث محسن: فقط المفاتيح الضرورية
+      const essentialKeys = [
         'products',
-        'product-list',
-        'pos-products',
         'dashboard-products',
-        'product_list',
-        'store-products',
-        'all-products',
-        `products-${organizationId}`,
-        `product-list-${organizationId}`,
-        `pos-products-${organizationId}`,
-        `dashboard-products-${organizationId}`
+        `products-${organizationId}`
       ];
 
-      for (const key of productQueryKeys) {
-        await forceDataRefresh(key, { forceRefresh: true });
-      }
-      
-      // تحديث إضافي للمفاتيح بدون forceRefresh
+      console.log('🔄 [refreshAfterProductOperation] تحديث المفاتيح الأساسية:', essentialKeys);
+
+      // تحديث واحد فقط لكل مفتاح
       await Promise.all(
-        productQueryKeys.map(key => 
-          forceDataRefresh(key)
+        essentialKeys.map(key => 
+          forceDataRefresh(key, { forceRefresh: true })
         )
       );
 
-      // إرسال إشعار للمكونات
-      const eventData = {
-        operation,
-        organizationId,
-        timestamp: new Date().toISOString()
-      };
-      
-      const customEvent = new CustomEvent('products-updated', { detail: eventData });
+      // إرسال إشعار مبسط للمكونات
+      const customEvent = new CustomEvent('products-updated', { 
+        detail: { operation, organizationId, timestamp: Date.now() } 
+      });
       window.dispatchEvent(customEvent);
 
+      console.log('✅ [refreshAfterProductOperation] تم التحديث بنجاح');
+
     } catch (error) {
+      console.error('❌ [refreshAfterProductOperation] خطأ في التحديث:', error);
     }
   }, delay);
 };

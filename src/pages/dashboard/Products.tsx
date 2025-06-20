@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useCallback, memo, useRef } from 'react';
-import { useSearchParams, useLocation } from 'react-router-dom';
+import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import { toast } from 'sonner';
-import { getProducts, getProductsPaginated } from '@/lib/api/products'; // Direct import from products API
+import { getProductsPaginated } from '@/lib/api/products';
 import ProductsHeader from '@/components/product/ProductsHeader';
 import ProductsList from '@/components/product/ProductsList';
 import ProductsFilter from '@/components/product/ProductsFilter';
@@ -14,151 +14,153 @@ import SyncProducts from '@/components/product/SyncProducts';
 import { cn } from '@/lib/utils';
 import { useDebounce } from '@/hooks/useDebounce';
 import ProductsSkeleton from '@/components/product/ProductsSkeleton';
-import { Grid, List, RefreshCcw } from 'lucide-react';
+import { Grid, List, RefreshCcw, Filter, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 
-// Define category type to help with type checking
+// Define category type
 type CategoryObject = { id: string; name: string; slug: string };
 
 // View mode type
 type ViewMode = 'grid' | 'list';
 
+// Enhanced filter interface
+interface FilterState {
+  searchQuery: string;
+  categoryFilter: string | null;
+  stockFilter: string;
+  sortOption: string;
+}
+
+// Constants for better performance
+const DEBOUNCE_DELAY = 300; // زيادة debounce لتحسين الأداء
+const DEFAULT_PAGE_SIZE = 12; // زيادة عدد المنتجات في الصفحة
+const MAX_CACHE_SIZE = 20; // تقليل حجم cache
+
 const Products = memo(() => {
   const { currentOrganization } = useTenant();
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
+  const navigate = useNavigate();
   
-  // ✅ Race Conditions Prevention
+  // Enhanced request management
   const abortControllerRef = useRef<AbortController | null>(null);
-  const isLoadingRef = useRef(false);
+  const loadingRef = useRef(false);
+  const lastRequestIdRef = useRef<string>('');
   
-  // استخدام URL search params لحفظ الحالة
+  // Core state management
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   
-  // استخدام URL params مع fallbacks
-  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
-  const [categoryFilter, setCategoryFilter] = useState<string | null>(searchParams.get('category'));
-  const [sortOption, setSortOption] = useState<string>(searchParams.get('sort') || 'newest');
-  const [stockFilter, setStockFilter] = useState<string>(searchParams.get('stock') || 'all');
-  const [currentPage, setCurrentPage] = useState(Number(searchParams.get('page')) || 1);
-  const [pageSize, setPageSize] = useState(Number(searchParams.get('pageSize')) || 10);
-  
-  // استخدام localStorage للإعدادات الشخصية
-  const [viewMode, setViewMode] = useLocalStorage<ViewMode>('products-view-mode', 'list');
-  const [showFilters, setShowFilters] = useLocalStorage('products-show-filters', true);
-  
-  const [isAddProductOpen, setIsAddProductOpen] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [unsyncedCount, setUnsyncedCount] = useState(0);
+  // Filter state with URL sync
+  const [filters, setFilters] = useState<FilterState>(() => ({
+    searchQuery: searchParams.get('search') || '',
+    categoryFilter: searchParams.get('category'),
+    stockFilter: searchParams.get('stock') || 'all',
+    sortOption: searchParams.get('sort') || 'newest',
+  }));
   
   // Pagination state
+  const [currentPage, setCurrentPage] = useState(Number(searchParams.get('page')) || 1);
+  const [pageSize, setPageSize] = useState(Number(searchParams.get('pageSize')) || DEFAULT_PAGE_SIZE);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [hasNextPage, setHasNextPage] = useState(false);
   const [hasPreviousPage, setHasPreviousPage] = useState(false);
 
-  // Debounced search query
-  const debouncedSearchQuery = useDebounce(searchQuery, 150);
+  // UI preferences
+  const [viewMode, setViewMode] = useLocalStorage<ViewMode>('products-view-mode', 'grid');
+  const [showFilters, setShowFilters] = useLocalStorage('products-show-filters', true);
+  const [isAddProductOpen, setIsAddProductOpen] = useState(false);
 
-  // Categories optimization - cache categories
-  const [allProductsForCategories, setAllProductsForCategories] = useState<Product[]>([]);
-  const [categoriesCache, setCategoriesCache] = useState<string[]>([]);
-  const [lastCategoriesFetch, setLastCategoriesFetch] = useState<number>(0);
-  
-  // Update URL params when filters change
-  const updateSearchParams = useCallback((updates: Record<string, string | null>) => {
-    const newParams = new URLSearchParams(searchParams);
-    
-    Object.entries(updates).forEach(([key, value]) => {
-      if (value === null || value === '' || value === 'all') {
-        newParams.delete(key);
-      } else {
-        newParams.set(key, value);
-      }
-    });
-    
-    setSearchParams(newParams);
-  }, [searchParams, setSearchParams]);
+  // Categories cache with optimized loading
+  const [categories, setCategories] = useState<CategoryObject[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
 
-  // Optimized categories fetching with caching
-  const fetchCategories = useCallback(async () => {
-    if (!currentOrganization?.id) return;
-    
-    // Check cache validity (5 minutes)
-    const now = Date.now();
-    if (categoriesCache.length > 0 && now - lastCategoriesFetch < 5 * 60 * 1000) {
-      return;
-    }
-    
-    try {
-      const allProducts = await getProducts(currentOrganization.id);
-      setAllProductsForCategories(allProducts);
-      setLastCategoriesFetch(now);
-    } catch (error) {
-    }
-  }, [currentOrganization?.id, categoriesCache.length, lastCategoriesFetch]);
+  // Enhanced debounced search - زيادة التأخير لتحسين الأداء
+  const debouncedSearchQuery = useDebounce(filters.searchQuery, DEBOUNCE_DELAY);
 
-  // Memoized categories
-  const categories = useMemo(() => {
-    const cats = [...new Set(
-      allProductsForCategories
-        .map(product => {
-          if (!product.category) return '';
-          
-          if (typeof product.category === 'object' && product.category !== null) {
-            return (product.category as CategoryObject).name || '';
-          }
-          
-          return String(product.category);
-        })
-        .filter(Boolean)
-    )];
-    
-    setCategoriesCache(cats);
-    return cats;
-  }, [allProductsForCategories]);
+  // Memoized filter for URL updates
+  const activeFilters = useMemo(() => ({
+    search: debouncedSearchQuery || undefined,
+    category: filters.categoryFilter || undefined,
+    stock: filters.stockFilter !== 'all' ? filters.stockFilter : undefined,
+    sort: filters.sortOption !== 'newest' ? filters.sortOption : undefined,
+    page: currentPage > 1 ? currentPage.toString() : undefined,
+    pageSize: pageSize !== DEFAULT_PAGE_SIZE ? pageSize.toString() : undefined,
+  }), [debouncedSearchQuery, filters.categoryFilter, filters.stockFilter, filters.sortOption, currentPage, pageSize]);
 
-  // Optimized products fetching with Race Conditions prevention
-  const fetchProductsPaginated = useCallback(async (
+  // Optimized URL params update
+  const updateURL = useCallback((newFilters: Partial<FilterState> = {}, newPage?: number) => {
+    const updatedFilters = { ...filters, ...newFilters };
+    const page = newPage || currentPage;
+    
+    const params = new URLSearchParams();
+    
+    // Add only non-default values
+    if (debouncedSearchQuery) params.set('search', debouncedSearchQuery);
+    if (updatedFilters.categoryFilter) params.set('category', updatedFilters.categoryFilter);
+    if (updatedFilters.stockFilter !== 'all') params.set('stock', updatedFilters.stockFilter);
+    if (updatedFilters.sortOption !== 'newest') params.set('sort', updatedFilters.sortOption);
+    if (page > 1) params.set('page', page.toString());
+    if (pageSize !== DEFAULT_PAGE_SIZE) params.set('pageSize', pageSize.toString());
+
+    // Navigate without causing unnecessary re-renders
+    navigate({ search: params.toString() }, { replace: true });
+  }, [filters, currentPage, pageSize, debouncedSearchQuery, navigate]);
+
+  // Enhanced products fetching with better error handling
+  const fetchProducts = useCallback(async (
     page: number = currentPage,
+    filterOverrides: Partial<FilterState> = {},
     forceRefresh: boolean = false
   ) => {
-    // منع Race Conditions - إلغاء الطلب السابق
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-
-    // منع الطلبات المتزامنة
-    if (isLoadingRef.current && !forceRefresh) {
+    // منع الطلبات المتكررة
+    if (loadingRef.current && !forceRefresh) {
+      console.log('⏸️ طلب آخر جاري، تم تجاهل الطلب');
       return;
     }
 
     if (!currentOrganization?.id) {
       setProducts([]);
       setIsLoading(false);
-      isLoadingRef.current = false;
       return;
     }
 
-    // إنشاء AbortController جديد
+    // إلغاء الطلب السابق
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // إنشاء طلب جديد
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
+    const requestId = `${Date.now()}-${Math.random()}`;
+    lastRequestIdRef.current = requestId;
 
     // تعيين حالة التحميل
-    isLoadingRef.current = true;
+    loadingRef.current = true;
     if (forceRefresh) {
       setIsRefreshing(true);
     } else {
       setIsLoading(true);
     }
-    
     setLoadError(null);
 
     try {
+      const searchFilters = { ...filters, ...filterOverrides };
+      
+      console.log('🔄 جلب المنتجات:', { 
+        page, 
+        pageSize, 
+        filters: searchFilters,
+        requestId 
+      });
+
       const result = await getProductsPaginated(
         currentOrganization.id,
         page,
@@ -166,565 +168,464 @@ const Products = memo(() => {
         {
           includeInactive: false,
           searchQuery: debouncedSearchQuery.trim(),
-          categoryFilter: categoryFilter || '',
-          stockFilter,
-          sortOption,
+          categoryFilter: searchFilters.categoryFilter || '',
+          stockFilter: searchFilters.stockFilter,
+          sortOption: searchFilters.sortOption,
         }
       );
 
-      // التحقق من عدم إلغاء الطلب
-      if (signal.aborted) {
+      // التحقق من عدم إلغاء الطلب أو تغيير الطلب
+      if (signal.aborted || lastRequestIdRef.current !== requestId) {
+        console.log('🚫 تم إلغاء الطلب أو استبداله');
         return;
       }
 
+      // تحديث الحالة
       setProducts(result.products);
       setTotalCount(result.totalCount);
       setTotalPages(result.totalPages);
       setCurrentPage(result.currentPage);
       setHasNextPage(result.hasNextPage);
       setHasPreviousPage(result.hasPreviousPage);
-      
-      // Update URL params
-      updateSearchParams({
-        page: result.currentPage.toString(),
-        pageSize: pageSize.toString(),
-        search: debouncedSearchQuery,
-        category: categoryFilter,
-        sort: sortOption,
-        stock: stockFilter,
+
+      console.log('✅ تم جلب المنتجات بنجاح:', {
+        products: result.products.length,
+        totalCount: result.totalCount,
+        currentPage: result.currentPage
       });
-      
+
     } catch (error: any) {
-      // تجاهل أخطاء الإلغاء
       if (error.name === 'AbortError' || signal.aborted) {
+        console.log('🚫 تم إلغاء الطلب');
         return;
       }
 
+      console.error('❌ خطأ في جلب المنتجات:', error);
       setLoadError('حدث خطأ أثناء تحميل المنتجات');
       toast.error('حدث خطأ أثناء تحميل المنتجات');
     } finally {
-      // تنظيف الحالة
-      isLoadingRef.current = false;
-      setIsLoading(false);
-      setIsRefreshing(false);
+      // تنظيف الحالة فقط إذا كان هذا هو آخر طلب
+      if (lastRequestIdRef.current === requestId) {
+        loadingRef.current = false;
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
+    }
+  }, [currentOrganization?.id, currentPage, pageSize, filters, debouncedSearchQuery]);
+
+  // Load categories optimized
+  const loadCategories = useCallback(async () => {
+    if (!currentOrganization?.id || categoriesLoading) return;
+
+    setCategoriesLoading(true);
+    try {
+      // استخدام الـ API البسيط لجلب الفئات
+      const { getCategories } = await import('@/lib/api/products');
+      const categoriesData = await getCategories(currentOrganization.id);
       
-      // تنظيف AbortController
-      if (abortControllerRef.current && !abortControllerRef.current.signal.aborted) {
-        abortControllerRef.current = null;
-      }
+      setCategories(categoriesData.map(cat => ({
+        id: cat.id,
+        name: cat.name,
+        slug: cat.slug || ''
+      })));
+    } catch (error) {
+      console.error('❌ خطأ في جلب الفئات:', error);
+    } finally {
+      setCategoriesLoading(false);
     }
-  }, [
-    currentOrganization?.id,
-    currentPage,
-    pageSize,
-    debouncedSearchQuery,
-    categoryFilter,
-    stockFilter,
-    sortOption,
-    updateSearchParams
-  ]);
+  }, [currentOrganization?.id, categoriesLoading]);
 
-  // ✅ UNIFIED EFFECT - حل مشكلة useEffect المتضاربة
+  // Main effect for data loading
   useEffect(() => {
-    // منع التحميل إذا لم يكن لدينا معرف المؤسسة
-    if (!currentOrganization?.id) {
-      setProducts([]);
-      setIsLoading(false);
-      return;
-    }
+    if (!currentOrganization?.id) return;
 
-    // تحديد الصفحة المطلوبة
-    let targetPage = currentPage;
-    
-    // إعادة تعيين إلى الصفحة الأولى عند تغيير الفلاتر
-    const isFilterChange = debouncedSearchQuery || categoryFilter || stockFilter !== 'all' || sortOption !== 'newest';
-    if (isFilterChange && currentPage > 1) {
-      targetPage = 1;
-      setCurrentPage(1);
-    }
-
-    // تحميل المنتجات والفئات معاً
+    // تحميل البيانات الأساسية
     const loadData = async () => {
-      try {
-        
-        // تحميل متوازي للمنتجات والفئات
-        await Promise.all([
-          fetchProductsPaginated(targetPage),
-          fetchCategories()
-        ]);
-        
-      } catch (error) {
-      }
+      await Promise.all([
+        fetchProducts(currentPage),
+        loadCategories()
+      ]);
     };
 
-    loadData();
+    // تأخير قصير لتجنب الاستدعاءات المتعددة
+    const timeoutId = setTimeout(loadData, 50);
+
+    return () => {
+      clearTimeout(timeoutId);
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [
     currentOrganization?.id,
     currentPage,
     debouncedSearchQuery,
-    categoryFilter,
-    stockFilter,
-    sortOption,
+    filters.categoryFilter,
+    filters.stockFilter,
+    filters.sortOption,
     pageSize
   ]);
 
-  // ✅ Cleanup effect - تنظيف عند إلغاء تحميل المكون
-  useEffect(() => {
-    return () => {
-      // إلغاء أي طلبات نشطة عند إلغاء تحميل المكون
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-        abortControllerRef.current = null;
-      }
-      isLoadingRef.current = false;
-    };
-  }, []);
+  // Enhanced filter handlers
+  const handleFilterChange = useCallback((
+    filterType: keyof FilterState,
+    value: string | null
+  ) => {
+    const newFilters = { ...filters, [filterType]: value };
+    setFilters(newFilters);
+    
+    // إعادة تعيين للصفحة الأولى عند تغيير الفلاتر
+    const newPage = 1;
+    setCurrentPage(newPage);
+    
+    // تحديث URL مباشرة
+    updateURL(newFilters, newPage);
+  }, [filters, updateURL]);
 
-  // Optimized handlers with useCallback
+  // Page navigation handlers
   const handlePageChange = useCallback((page: number) => {
     setCurrentPage(page);
-  }, []);
+    updateURL({}, page);
+    // scroll to top smoothly
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [updateURL]);
 
   const handlePageSizeChange = useCallback((size: number) => {
     setPageSize(size);
     setCurrentPage(1);
-  }, []);
+    updateURL({}, 1);
+  }, [updateURL]);
 
-  const handleSearchChange = useCallback((query: string) => {
-    setSearchQuery(query);
-    if (currentPage !== 1) {
-      setCurrentPage(1);
-    }
-  }, [currentPage]);
-
-  const handleCategoryChange = useCallback((category: string | null) => {
-    setCategoryFilter(category);
-    if (currentPage !== 1) {
-      setCurrentPage(1);
-    }
-  }, [currentPage]);
-
-  const handleSortChange = useCallback((sort: string) => {
-    setSortOption(sort);
-    if (currentPage !== 1) {
-      setCurrentPage(1);
-    }
-  }, [currentPage]);
-
-  const handleStockFilterChange = useCallback((stock: string) => {
-    setStockFilter(stock);
-    if (currentPage !== 1) {
-      setCurrentPage(1);
-    }
-  }, [currentPage]);
-
-  // Product refresh after operations
-  const refreshProducts = useCallback(async () => {
-    if (!currentOrganization?.id) return;
+  // Reset filters
+  const resetFilters = useCallback(() => {
+    const defaultFilters: FilterState = {
+      searchQuery: '',
+      categoryFilter: null,
+      stockFilter: 'all',
+      sortOption: 'newest'
+    };
     
-    await fetchProductsPaginated(currentPage, true);
-    await fetchCategories(); // Refresh categories too
+    setFilters(defaultFilters);
+    setCurrentPage(1);
+    
+    // مسح URL params
+    navigate({ search: '' }, { replace: true });
+  }, [navigate]);
+
+  // Enhanced refresh handler
+  const refreshProducts = useCallback(async () => {
+    await fetchProducts(currentPage, {}, true);
     toast.success('تم تحديث قائمة المنتجات بنجاح');
-  }, [currentOrganization?.id, currentPage, fetchProductsPaginated, fetchCategories]);
+  }, [fetchProducts, currentPage]);
 
-  // Handler for dummy sync
-  const handleDummySync = useCallback(async (): Promise<void> => {
-    toast.info('تم تعطيل المزامنة في هذه النسخة');
-    return Promise.resolve();
+  // Navigation state effect for refresh
+  useEffect(() => {
+    const locationState = location.state as { refreshData?: boolean; timestamp?: number } | null;
+    
+    if (locationState?.refreshData && locationState?.timestamp) {
+      console.log('🔄 تحديث من navigation state');
+      fetchProducts(currentPage, {}, true);
+      
+      // مسح state
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+  }, [location.state, fetchProducts, currentPage]);
+
+  // Product operation events listener
+  useEffect(() => {
+    const handleProductUpdated = (event: CustomEvent) => {
+      console.log('🔄 تحديث المنتجات من event:', event.detail);
+      fetchProducts(currentPage, {}, true);
+    };
+
+    window.addEventListener('products-updated', handleProductUpdated);
+    window.addEventListener('product-operation-completed', handleProductUpdated);
+
+    return () => {
+      window.removeEventListener('products-updated', handleProductUpdated);
+      window.removeEventListener('product-operation-completed', handleProductUpdated);
+    };
+  }, [fetchProducts, currentPage]);
+
+  // Cleanup effect
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      loadingRef.current = false;
+    };
   }, []);
 
-  // Handler for adding a new product
-  const handleAddProduct = useCallback(() => {
-    setIsAddProductOpen(true);
-  }, []);
-
-  // Manual retry handler
-  const handleRetry = useCallback(() => {
-    setLoadError(null);
-    fetchProductsPaginated(1);
-  }, [fetchProductsPaginated]);
-
-  // Toggle view mode
-  const handleViewModeChange = useCallback((mode: ViewMode) => {
-    setViewMode(mode);
-  }, [setViewMode]);
-
-  // Toggle filters visibility
-  const handleToggleFilters = useCallback(() => {
-    setShowFilters(!showFilters);
-  }, [showFilters, setShowFilters]);
-
-  // Optimized error state render
+  // Render states
   const renderErrorState = useCallback(() => (
-    <div className="flex flex-col items-center justify-center min-h-[300px] p-4 sm:p-8 border border-destructive/20 rounded-lg bg-destructive/5">
+    <div className="flex flex-col items-center justify-center min-h-[400px] p-8 border border-destructive/20 rounded-lg bg-destructive/5">
       <div className="text-destructive mb-4">
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 sm:h-12 sm:w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-        </svg>
+        <RefreshCcw className="h-12 w-12" />
       </div>
-      <h3 className="text-base sm:text-lg font-medium text-destructive mb-2 text-center">حدث خطأ أثناء تحميل المنتجات</h3>
-      <p className="text-sm text-destructive/80 mb-4 text-center px-4">{loadError || 'حدث خطأ غير متوقع. الرجاء المحاولة مرة أخرى.'}</p>
-      <Button
-        onClick={handleRetry}
-        variant="destructive"
-        className="gap-2"
-      >
+      <h3 className="text-lg font-medium text-destructive mb-2">حدث خطأ أثناء تحميل المنتجات</h3>
+      <p className="text-sm text-destructive/80 mb-4 text-center">{loadError}</p>
+      <Button onClick={refreshProducts} variant="destructive" className="gap-2">
         <RefreshCcw className="h-4 w-4" />
         إعادة المحاولة
       </Button>
     </div>
-  ), [loadError, handleRetry]);
+  ), [loadError, refreshProducts]);
 
-  // Optimized empty state render
   const renderEmptyState = useCallback(() => (
-    <div className="flex flex-col items-center justify-center min-h-[300px] p-4 sm:p-8 border border-border rounded-lg bg-muted/30">
+    <div className="flex flex-col items-center justify-center min-h-[400px] p-8 border border-border rounded-lg bg-muted/30">
       <div className="text-muted-foreground mb-4">
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 sm:h-12 sm:w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-        </svg>
+        <Search className="h-12 w-12" />
       </div>
-      <h3 className="text-base sm:text-lg font-medium text-foreground mb-2 text-center">لا توجد منتجات</h3>
-      <p className="text-sm text-muted-foreground mb-4 text-center px-4">
-        {debouncedSearchQuery || categoryFilter || stockFilter !== 'all' 
-          ? 'لا توجد منتجات تطابق الفلاتر المحددة. جرب تغيير الفلاتر أو إضافة منتجات جديدة.'
+      <h3 className="text-lg font-medium text-foreground mb-2">
+        {debouncedSearchQuery || filters.categoryFilter || filters.stockFilter !== 'all' 
+          ? 'لا توجد منتجات تطابق البحث' 
+          : 'لا توجد منتجات'}
+      </h3>
+      <p className="text-sm text-muted-foreground mb-4 text-center">
+        {debouncedSearchQuery || filters.categoryFilter || filters.stockFilter !== 'all'
+          ? 'جرب تغيير كلمات البحث أو الفلاتر المحددة'
           : 'قم بإضافة منتجات جديدة لعرضها هنا'
         }
       </p>
-      <Button
-        onClick={handleAddProduct}
-        className="gap-2"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-        </svg>
-        إضافة منتج جديد
-      </Button>
+      <div className="flex gap-2">
+        {(debouncedSearchQuery || filters.categoryFilter || filters.stockFilter !== 'all') && (
+          <Button onClick={resetFilters} variant="outline" className="gap-2">
+            <X className="h-4 w-4" />
+            مسح الفلاتر
+          </Button>
+        )}
+        <Button onClick={() => setIsAddProductOpen(true)} className="gap-2">
+          <Search className="h-4 w-4" />
+          إضافة منتج جديد
+        </Button>
+      </div>
     </div>
-  ), [debouncedSearchQuery, categoryFilter, stockFilter, handleAddProduct]);
+  ), [debouncedSearchQuery, filters.categoryFilter, filters.stockFilter, resetFilters]);
 
-  // 🚀 مراقبة التحديثات من navigate state (عند العودة من تعديل المنتج)
-  useEffect(() => {
-    const locationState = location.state as { refreshData?: boolean; updatedProductId?: string; timestamp?: number } | null;
-    
-    if (locationState?.refreshData && locationState?.timestamp) {
-      
-      // تحديث البيانات فوراً بدون تأخير
-      fetchProductsPaginated(currentPage, true);
-      
-      // مسح state بعد الاستخدام لتجنب التحديث المتكرر
-      window.history.replaceState(null, '', window.location.pathname + window.location.search);
-    }
-  }, [location.state, currentPage, fetchProductsPaginated]);
+  // Loading state
+  if (isLoading && !isRefreshing && products.length === 0) {
+    return (
+      <Layout>
+        <ProductsSkeleton />
+      </Layout>
+    );
+  }
 
-  // استمع للتحديثات الفورية للمنتجات
-  useEffect(() => {
-    
-    const handleProductsUpdated = (event: CustomEvent) => {
-      
-      // تحديث فوري للقائمة
-      if (event.detail?.operation === 'delete') {
-        
-        // تحديث شامل للمنتجات بعد الحذف
-        setTimeout(() => {
-          refreshProducts();
-        }, 200);
-      }
-      
-      // تحديث فوري للحالة
-      refreshProducts();
-    };
-
-    // إضافة مستمع الأحداث
-    window.addEventListener('products-updated', handleProductsUpdated);
-
-    // تنظيف عند إلغاء التحميل
-    return () => {
-      window.removeEventListener('products-updated', handleProductsUpdated);
-    };
-  }, [refreshProducts]);
-
-  // تحسين refreshProducts مع console.log
-  const refreshProductsWithLog = useCallback(async () => {
-    
-    if (!currentOrganization?.id) {
-      return;
-    }
-
-    try {
-      // استخدام النظام المتطور للتحديث
-      const { refreshAfterProductOperation } = await import('@/lib/data-refresh-helpers');
-
-      await refreshAfterProductOperation('delete', { 
-        organizationId: currentOrganization.id, 
-        immediate: true 
-      });
-
-      // التحديث الأساسي
-      await fetchProductsPaginated(currentPage, true);
-
-    } catch (error) {
-    }
-  }, [currentOrganization?.id, currentPage, fetchProductsPaginated]);
-
-  // ✅ Development debugging tools
-  useEffect(() => {
-    if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-      (window as any).debugProducts = {
-        currentState: () => ({
-          products: products.length,
-          isLoading,
-          isRefreshing,
-          loadError,
-          currentPage,
-          totalCount,
-          totalPages,
-          organizationId: currentOrganization?.id,
-          filters: {
-            searchQuery: debouncedSearchQuery,
-            categoryFilter,
-            stockFilter,
-            sortOption
-          }
-        }),
-        forceRefresh: () => {
-          fetchProductsPaginated(currentPage, true);
-        },
-        clearCache: () => {
-          if (typeof window !== 'undefined' && (window as any).emergencyFixCache) {
-            (window as any).emergencyFixCache(currentOrganization?.id);
-          }
-        },
-        // 🆕 اختبار مباشر لفلتر "الأحدث"
-        testNewestFilter: async () => {
-          if (!currentOrganization?.id) {
-            return;
-          }
-
-          try {
-            // استيراد getProductsPaginated مباشرة
-            const { getProductsPaginated } = await import('@/lib/api/products');
-            
-            const result = await getProductsPaginated(
-              currentOrganization.id,
-              1,
-              10,
-              {
-                includeInactive: false,
-                searchQuery: '',
-                categoryFilter: '',
-                stockFilter: 'all',
-                sortOption: 'newest'
-              }
-            );
-            
-            return result;
-          } catch (error) {
-            return null;
-          }
-        },
-        // 🆕 اختبار مقارنة الفلاتر
-        compareFilters: async () => {
-          if (!currentOrganization?.id) {
-            return;
-          }
-
-          try {
-            const { getProductsPaginated } = await import('@/lib/api/products');
-            
-            const filters = ['newest', 'oldest', 'name-asc', 'price-high'];
-            const results: any = {};
-            
-            for (const filter of filters) {
-              const result = await getProductsPaginated(
-                currentOrganization.id,
-                1,
-                10,
-                {
-                  includeInactive: false,
-                  searchQuery: '',
-                  categoryFilter: '',
-                  stockFilter: 'all',
-                  sortOption: filter
-                }
-              );
-              
-              results[filter] = {
-                count: result.products.length,
-                totalCount: result.totalCount,
-                sampleProducts: result.products.slice(0, 2).map(p => ({
-                  id: p.id,
-                  name: p.name,
-                  created_at: p.created_at
-                }))
-              };
-            }
-            
-            return results;
-          } catch (error) {
-            return null;
-          }
-        }
-      };
-      
-    }
-  }, [products.length, isLoading, currentPage, currentOrganization?.id]);
+  // Error state
+  if (loadError && products.length === 0) {
+    return (
+      <Layout>
+        <div className="container mx-auto p-6">
+          {renderErrorState()}
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
-      <SyncProducts
-        count={unsyncedCount}
-        onSync={handleDummySync}
-        isSyncing={isSyncing}
-      />
-      
-      <div className="container mx-auto py-3 sm:py-6 px-4 sm:px-6">
-        {/* Header with improved responsive design */}
-        <div className="space-y-4 sm:space-y-6">
-          <ProductsHeader
-            productCount={totalCount}
-            onAddProduct={handleAddProduct}
-            products={products}
-            onAddProductClick={handleAddProduct}
-            searchQuery={searchQuery}
-            onSearchChange={handleSearchChange}
-            sortOption={sortOption}
-            onSortChange={handleSortChange}
-            totalProducts={totalCount}
-            onShowFilter={handleToggleFilters}
-            isSyncing={isSyncing}
-            unsyncedCount={unsyncedCount}
-            onSync={handleDummySync}
-          />
+      <div className="container mx-auto p-6 space-y-6">
+        {/* Enhanced Header */}
+        <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+          <div>
+            <h1 className="text-2xl font-bold">المنتجات</h1>
+            <p className="text-muted-foreground">
+              {totalCount > 0 && (
+                <>إجمالي {totalCount} منتج{totalCount > 1 ? 'ات' : ''}</>
+              )}
+            </p>
+          </div>
           
-          {/* View mode toggle and refresh - mobile optimized */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground hidden sm:inline">عرض:</span>
-              <div className="flex rounded-md border border-input bg-background">
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowFilters(!showFilters)}
+              className="gap-2"
+            >
+              <Filter className="h-4 w-4" />
+              {showFilters ? 'إخفاء الفلاتر' : 'إظهار الفلاتر'}
+            </Button>
+            
+            <Button onClick={refreshProducts} variant="outline" size="sm" disabled={isRefreshing}>
+              <RefreshCcw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
+            </Button>
+            
+            <Button onClick={() => setIsAddProductOpen(true)}>
+              إضافة منتج
+            </Button>
+          </div>
+        </div>
+
+        {/* Enhanced Search and Filters */}
+        {showFilters && (
+          <div className="bg-card border rounded-lg p-4 space-y-4">
+            {/* Search Input */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="البحث في المنتجات (الاسم، الوصف، SKU، الباركود)..."
+                value={filters.searchQuery}
+                onChange={(e) => handleFilterChange('searchQuery', e.target.value)}
+                className="pl-10"
+              />
+              {filters.searchQuery && (
                 <Button
-                  variant={viewMode === 'list' ? 'default' : 'ghost'}
+                  variant="ghost"
                   size="sm"
-                  onClick={() => handleViewModeChange('list')}
-                  className={cn(
-                    "rounded-l-md rounded-r-none border-0",
-                    viewMode === 'list' && "bg-primary text-primary-foreground"
-                  )}
+                  onClick={() => handleFilterChange('searchQuery', '')}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
                 >
-                  <List className="h-4 w-4" />
-                  <span className="hidden sm:inline ml-2">قائمة</span>
+                  <X className="h-3 w-3" />
                 </Button>
+              )}
+            </div>
+
+            {/* Filter Row */}
+            <div className="flex flex-wrap gap-3">
+              {/* Category Filter */}
+                             <Select
+                 value={filters.categoryFilter || 'all'}
+                 onValueChange={(value) => handleFilterChange('categoryFilter', value === 'all' ? null : value)}
+               >
+                 <SelectTrigger className="w-48">
+                   <SelectValue placeholder="جميع الفئات" />
+                 </SelectTrigger>
+                 <SelectContent>
+                   <SelectItem value="all">جميع الفئات</SelectItem>
+                   {categories.map((category) => (
+                     <SelectItem key={category.id} value={category.id}>
+                       {category.name}
+                     </SelectItem>
+                   ))}
+                 </SelectContent>
+               </Select>
+
+              {/* Stock Filter */}
+              <Select
+                value={filters.stockFilter}
+                onValueChange={(value) => handleFilterChange('stockFilter', value)}
+              >
+                <SelectTrigger className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">جميع المنتجات</SelectItem>
+                  <SelectItem value="in-stock">متوفر</SelectItem>
+                  <SelectItem value="low-stock">مخزون منخفض</SelectItem>
+                  <SelectItem value="out-of-stock">نفد المخزون</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Sort Filter */}
+              <Select
+                value={filters.sortOption}
+                onValueChange={(value) => handleFilterChange('sortOption', value)}
+              >
+                <SelectTrigger className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="newest">الأحدث</SelectItem>
+                  <SelectItem value="oldest">الأقدم</SelectItem>
+                  <SelectItem value="name-asc">الاسم (أ-ي)</SelectItem>
+                  <SelectItem value="name-desc">الاسم (ي-أ)</SelectItem>
+                  <SelectItem value="price-low">السعر (منخفض)</SelectItem>
+                  <SelectItem value="price-high">السعر (مرتفع)</SelectItem>
+                  <SelectItem value="stock-high">المخزون (مرتفع)</SelectItem>
+                  <SelectItem value="stock-low">المخزون (منخفض)</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* View Toggle */}
+              <div className="flex border rounded-md">
                 <Button
                   variant={viewMode === 'grid' ? 'default' : 'ghost'}
                   size="sm"
-                  onClick={() => handleViewModeChange('grid')}
-                  className={cn(
-                    "rounded-r-md rounded-l-none border-0",
-                    viewMode === 'grid' && "bg-primary text-primary-foreground"
-                  )}
+                  onClick={() => setViewMode('grid')}
+                  className="rounded-r-none"
                 >
                   <Grid className="h-4 w-4" />
-                  <span className="hidden sm:inline ml-2">شبكة</span>
+                </Button>
+                <Button
+                  variant={viewMode === 'list' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('list')}
+                  className="rounded-l-none border-l"
+                >
+                  <List className="h-4 w-4" />
                 </Button>
               </div>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => refreshProducts()}
-                disabled={isRefreshing}
-                className="gap-2"
-              >
-                <RefreshCcw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
-                <span className="hidden sm:inline">تحديث</span>
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleToggleFilters}
-                className="gap-2 sm:hidden"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.207A1 1 0 013 6.5V4z" />
-                </svg>
-                {showFilters ? 'إخفاء الفلاتر' : 'إظهار الفلاتر'}
-              </Button>
-            </div>
-          </div>
-          
-          {/* Filters with mobile optimization */}
-          {showFilters && (
-            <div className="space-y-4">
-              <ProductsFilter
-                searchQuery={searchQuery}
-                onSearchChange={handleSearchChange}
-                categories={categories}
-                categoryFilter={categoryFilter}
-                onCategoryChange={handleCategoryChange}
-                sortOption={sortOption}
-                onSortChange={handleSortChange}
-                stockFilter={stockFilter}
-                onStockFilterChange={handleStockFilterChange}
-              />
-            </div>
-          )}
-        </div>
-        
-        {/* Content area with improved loading states */}
-        <div className="mt-6">
-          {loadError ? (
-            renderErrorState()
-          ) : isLoading && !isRefreshing ? (
-            <ProductsSkeleton viewMode={viewMode} />
-          ) : products.length === 0 ? (
-            renderEmptyState()
-          ) : (
-            <div className="space-y-6">
-              {/* Products list with loading overlay */}
-              <div className="relative">
-                {isRefreshing && (
-                  <div className="absolute inset-0 bg-background/50 backdrop-blur-sm z-10 flex items-center justify-center rounded-lg">
-                    <div className="flex items-center gap-2 bg-background border rounded-lg px-4 py-2 shadow-lg">
-                      <RefreshCcw className="h-4 w-4 animate-spin" />
-                      <span className="text-sm">جاري التحديث...</span>
-                    </div>
-                  </div>
-                )}
-                
-                <ProductsList 
-                  products={products} 
-                  onRefreshProducts={refreshProducts}
-                  viewMode={viewMode}
-                  isLoading={isRefreshing}
-                />
-              </div>
-              
-              {/* Pagination with mobile optimization */}
-              {totalPages > 1 && (
-                <div className="flex justify-center">
-                  <Pagination
-                    currentPage={currentPage}
-                    totalPages={totalPages}
-                    onPageChange={handlePageChange}
-                    showSizeChanger={true}
-                    pageSize={pageSize}
-                    onPageSizeChange={handlePageSizeChange}
-                    totalItems={totalCount}
-                    loading={isLoading || isRefreshing}
-                  />
-                </div>
+
+              {/* Reset Filters */}
+              {(filters.searchQuery || filters.categoryFilter || filters.stockFilter !== 'all' || filters.sortOption !== 'newest') && (
+                <Button variant="outline" size="sm" onClick={resetFilters} className="gap-2">
+                  <X className="h-4 w-4" />
+                  مسح الفلاتر
+                </Button>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Products Content */}
+        <div className="space-y-4">
+          {/* Loading overlay for refresh */}
+          {isRefreshing && (
+            <div className="text-center text-sm text-muted-foreground">
+              جاري تحديث المنتجات...
+            </div>
+          )}
+
+          {/* Products List */}
+          {products.length === 0 ? (
+            renderEmptyState()
+          ) : (
+            <>
+                             <ProductsList 
+                 products={products} 
+                 viewMode={viewMode}
+                 isLoading={isRefreshing}
+                 onRefreshProducts={refreshProducts}
+               />
+              
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex justify-center items-center gap-4 pt-6">
+                                     <Pagination
+                     currentPage={currentPage}
+                     totalPages={totalPages}
+                     onPageChange={handlePageChange}
+                   />
+                  
+                  {/* Page Size Selector */}
+                  <Select
+                    value={pageSize.toString()}
+                    onValueChange={(value) => handlePageSizeChange(Number(value))}
+                  >
+                    <SelectTrigger className="w-24">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="6">6</SelectItem>
+                      <SelectItem value="12">12</SelectItem>
+                      <SelectItem value="24">24</SelectItem>
+                      <SelectItem value="48">48</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </>
           )}
         </div>
-        
+
         {/* Add Product Dialog */}
-        <AddProductDialog
-          open={isAddProductOpen}
-          onOpenChange={setIsAddProductOpen}
-          onProductAdded={refreshProducts}
-        />
+                 <AddProductDialog
+           open={isAddProductOpen}
+           onOpenChange={setIsAddProductOpen}
+           onProductAdded={refreshProducts}
+         />
       </div>
     </Layout>
   );

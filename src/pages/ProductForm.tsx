@@ -354,22 +354,20 @@ const ProductForm = () => {
           localStorage.removeItem(`product-draft-${organizationIdFromTenant}`);
         }
 
-        // 🚀 الحل المحسن: تحديث بسيط وفعال
+        // 🚀 تحديث محسن: تجنب التكرار
         try {
+          console.log('🔄 [ProductForm] تحديث البيانات...');
           
-          // 1. إلغاء صلاحية كاش المنتجات والمخزون
-          cacheManager.invalidate('products*');
-          cacheManager.invalidate('inventory*');
-          cacheManager.invalidate('product-stock*');
-          
-          // 2. تحديث النظام المتطور
+          // فقط إشعار بسيط للمكونات - التحديث الفعلي سيحدث في createProduct/updateProduct
           const operation = isEditMode ? 'update' : 'create';
-          await refreshAfterProductOperation(operation, {
-            organizationId: currentOrganizationId,
-            immediate: true
+          const customEvent = new CustomEvent('product-operation-completed', { 
+            detail: { operation, organizationId: currentOrganizationId, productId: result?.id } 
           });
+          window.dispatchEvent(customEvent);
           
+          console.log('✅ [ProductForm] تم إرسال إشعار التحديث');
         } catch (refreshError) {
+          console.warn('⚠️ [ProductForm] خطأ في إرسال الإشعار:', refreshError);
         }
 
         // التوجه السلس لصفحة المنتجات (بدون إعادة تحميل)
