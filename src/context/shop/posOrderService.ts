@@ -4,6 +4,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { ensureCustomerExists } from '@/lib/fallback_customer';
 import { queryClient } from '@/lib/config/queryClient';
 
+// نظام حماية لمنع التحديث المضاعف للمخزون
+const processedInventoryUpdates = new Set<string>();
+
 // دالة محسنة لإنشاء طلبية نقطة البيع
 export const createPOSOrder = async (
   order: Omit<Order, 'id' | 'createdAt' | 'updatedAt'>, 
@@ -108,8 +111,10 @@ export const createPOSOrder = async (
           }
         }
 
-        // تحديث المخزون
+        // تحديث المخزون - مع logs للتتبع
+        console.log(`🏪 [createPOSOrder] بدء تحديث مخزون ${order.items.length} منتج`);
         await updateInventoryForOrder(order.items);
+        console.log(`✅ [createPOSOrder] انتهى تحديث المخزون`);
       } catch (error) {
       }
     }
@@ -153,18 +158,68 @@ export const createPOSOrder = async (
   }
 };
 
-// دالة لتحديث المخزون
+// دالة لتحديث المخزون - مع حماية من التحديث المضاعف
 async function updateInventoryForOrder(items: OrderItem[]) {
-  for (const item of items) {
+  const updateId = `${Date.now()}-${Math.random()}`;
+  console.log(`📦 [updateInventoryForOrder ${updateId}] بدء معالجة ${items.length} عنصر`);
+  
+  for (let index = 0; index < items.length; index++) {
+    const item = items[index];
+    const itemUpdateKey = `${item.productId}-${item.quantity}-${Date.now()}`;
+    
     try {
+      // حماية من التحديث المضاعف
+      if (processedInventoryUpdates.has(itemUpdateKey)) {
+        console.warn(`⚠️ تم تجاهل التحديث المكرر للمنتج ${item.productId}`);
+        continue;
+      }
+      
+      processedInventoryUpdates.add(itemUpdateKey);
+      console.log(`🔄 [${index + 1}/${items.length}] تحديث مخزون المنتج ${item.productId} - الكمية: ${item.quantity}`);
+      
+      // جلب الكمية الحالية قبل التحديث للمراقبة
+      const { data: currentProduct } = await supabase
+        .from('products')
+        .select('stock_quantity')
+        .eq('id', item.productId)
+        .single();
+      
+      const stockBefore = currentProduct?.stock_quantity || 0;
+      console.log(`📊 المخزون الحالي قبل التحديث: ${stockBefore}`);
+      
       // استخدام الدالة الآمنة لتحديث مخزون المنتج
-      await supabase.rpc('update_product_stock_safe', {
+      const { error } = await supabase.rpc('update_product_stock_safe', {
         p_product_id: item.productId,
         p_quantity_sold: item.quantity
       });
+      
+      if (error) {
+        console.error(`❌ خطأ في تحديث مخزون المنتج ${item.productId}:`, error);
+        // إزالة من Set في حالة الخطأ للسماح بإعادة المحاولة
+        processedInventoryUpdates.delete(itemUpdateKey);
+      } else {
+        // التحقق من النتيجة
+        const { data: updatedProduct } = await supabase
+          .from('products')
+          .select('stock_quantity')
+          .eq('id', item.productId)
+          .single();
+        
+        const stockAfter = updatedProduct?.stock_quantity || 0;
+        console.log(`✅ تم التحديث بنجاح. المخزون بعد التحديث: ${stockAfter} (تم خصم ${stockBefore - stockAfter})`);
+        
+        // تنظيف Set بعد 30 ثانية لمنع تراكم البيانات
+        setTimeout(() => {
+          processedInventoryUpdates.delete(itemUpdateKey);
+        }, 30000);
+      }
     } catch (error) {
+      console.error(`❌ خطأ عام في معالجة العنصر ${index + 1}:`, error);
+      processedInventoryUpdates.delete(itemUpdateKey);
     }
   }
+  
+  console.log(`🎉 [updateInventoryForOrder ${updateId}] انتهت معالجة جميع العناصر`);
 }
 
 // دالة لإضافة حجوزات الخدمات

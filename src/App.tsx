@@ -138,14 +138,11 @@ import { useSessionTracking } from './hooks/useSessionTracking';
 import { isElectron } from '@/lib/isElectron';
 import { useTenant } from '@/context/TenantContext';
 import { getCategoryById, getCategories } from '@/lib/api/unified-api';
-import PerformanceMonitor from './components/PerformanceMonitor';
 import { configureCrossDomainAuth } from '@/lib/cross-domain-auth';
 import { detectLoadingLoop, autoFixStorage } from '@/lib/utils/storage-helper';
 import { useDevtools } from '@/hooks/useDevtools';
-import { AuthDebugger } from './components/auth/AuthDebugger';
 import { LocalStorageMonitor } from './components/auth/LocalStorageMonitor';
 import { enableRequestInterception, setCurrentOrganizationId } from '@/lib/requestInterceptor';
-import RequestMonitor from './components/debug/RequestMonitor';
 import '@/utils/auth-debug'; // أدوات التشخيص
 
 // تأخير تفعيل اعتراض الطلبات حتى يصبح النظام الموحد جاهزاً
@@ -171,7 +168,6 @@ setTimeout(() => {
 
 // 📊 نظام مراقبة الأداء والتحليلات الشامل
 import { initializePerformanceAnalytics } from '@/lib/analytics/initializePerformanceAnalytics';
-import PerformanceWidget from '@/components/performance/PerformanceWidget';
 
 // ✨ نظام التحديث المتطور للبيانات
 import { setGlobalQueryClient } from '@/lib/data-refresh-helpers';
@@ -437,7 +433,6 @@ const App = () => {
                   <StoreProvider>
                   <AppsProvider>
                   <HelmetProvider>
-                  <RequestMonitor />
                   <Toaster />
                   <Sonner />
                 <Routes>
@@ -1025,23 +1020,7 @@ const App = () => {
                 </Routes>
                 <SyncManagerWrapper />
                 
-                {/* 🔍 AUTH DEBUGGER: مراقبة حالة المصادقة */}
-                {import.meta.env.DEV && <AuthDebugger />}
                 {import.meta.env.DEV && <LocalStorageMonitor />}
-                
-                {/* 🚀 PERFORMANCE MONITOR: Million.js Enhanced - مخفي في الإنتاج */}
-                {import.meta.env.DEV && (
-                  <PerformanceMonitor 
-                    enabled={true}
-                    logToConsole={true}
-                  />
-                )}
-                
-                {/* 📊 PERFORMANCE ANALYTICS WIDGET: Widget مراقبة الأداء الشامل */}
-                {import.meta.env.DEV && <PerformanceWidget />}
-                
-                {/* 📊 REQUEST MONITOR: مراقب الطلبات المطور */}
-                {import.meta.env.DEV && <RequestMonitor />}
                                     </HelmetProvider>
                   </AppsProvider>
                   </StoreProvider>

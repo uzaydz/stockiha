@@ -63,6 +63,8 @@ const Products = memo(() => {
     stockFilter: searchParams.get('stock') || 'all',
     sortOption: searchParams.get('sort') || 'newest',
   }));
+
+
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(Number(searchParams.get('page')) || 1);
@@ -102,7 +104,7 @@ const Products = memo(() => {
     const params = new URLSearchParams();
     
     // Add only non-default values
-    if (debouncedSearchQuery) params.set('search', debouncedSearchQuery);
+    if (updatedFilters.searchQuery) params.set('search', updatedFilters.searchQuery);
     if (updatedFilters.categoryFilter) params.set('category', updatedFilters.categoryFilter);
     if (updatedFilters.stockFilter !== 'all') params.set('stock', updatedFilters.stockFilter);
     if (updatedFilters.sortOption !== 'newest') params.set('sort', updatedFilters.sortOption);
@@ -111,7 +113,23 @@ const Products = memo(() => {
 
     // Navigate without causing unnecessary re-renders
     navigate({ search: params.toString() }, { replace: true });
-  }, [filters, currentPage, pageSize, debouncedSearchQuery, navigate]);
+  }, [filters, currentPage, pageSize, navigate]);
+
+  // Enhanced filter handlers (defined after updateURL)
+  const handleFilterChange = useCallback((
+    filterType: keyof FilterState,
+    value: string | null
+  ) => {
+    const newFilters = { ...filters, [filterType]: value };
+    setFilters(newFilters);
+    
+    // إعادة تعيين للصفحة الأولى عند تغيير الفلاتر
+    const newPage = 1;
+    setCurrentPage(newPage);
+    
+    // تحديث URL مباشرة
+    updateURL(newFilters, newPage);
+  }, [filters, updateURL]);
 
   // Enhanced products fetching with better error handling
   const fetchProducts = useCallback(async (
@@ -263,24 +281,10 @@ const Products = memo(() => {
     filters.categoryFilter,
     filters.stockFilter,
     filters.sortOption,
-    pageSize
+    pageSize,
+    fetchProducts,
+    loadCategories
   ]);
-
-  // Enhanced filter handlers
-  const handleFilterChange = useCallback((
-    filterType: keyof FilterState,
-    value: string | null
-  ) => {
-    const newFilters = { ...filters, [filterType]: value };
-    setFilters(newFilters);
-    
-    // إعادة تعيين للصفحة الأولى عند تغيير الفلاتر
-    const newPage = 1;
-    setCurrentPage(newPage);
-    
-    // تحديث URL مباشرة
-    updateURL(newFilters, newPage);
-  }, [filters, updateURL]);
 
   // Page navigation handlers
   const handlePageChange = useCallback((page: number) => {
@@ -426,62 +430,26 @@ const Products = memo(() => {
   return (
     <Layout>
       <div className="container mx-auto p-6 space-y-6">
-        {/* Enhanced Header */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-          <div>
-            <h1 className="text-2xl font-bold">المنتجات</h1>
-            <p className="text-muted-foreground">
-              {totalCount > 0 && (
-                <>إجمالي {totalCount} منتج{totalCount > 1 ? 'ات' : ''}</>
-              )}
-            </p>
-          </div>
-          
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowFilters(!showFilters)}
-              className="gap-2"
-            >
-              <Filter className="h-4 w-4" />
-              {showFilters ? 'إخفاء الفلاتر' : 'إظهار الفلاتر'}
-            </Button>
-            
-            <Button onClick={refreshProducts} variant="outline" size="sm" disabled={isRefreshing}>
-              <RefreshCcw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
-            </Button>
-            
-            <Button onClick={() => setIsAddProductOpen(true)}>
-              إضافة منتج
-            </Button>
-          </div>
-        </div>
+        {/* Products Header with all buttons */}
+        <ProductsHeader
+          productCount={products.length}
+          onAddProduct={() => setIsAddProductOpen(true)}
+          products={products}
+          onAddProductClick={() => {}}
+          onSearchChange={(value) => handleFilterChange('searchQuery', value)}
+          searchQuery={filters.searchQuery}
+          onSortChange={(value) => handleFilterChange('sortOption', value)}
+          sortOption={filters.sortOption}
+          totalProducts={totalCount}
+          onShowFilter={() => setShowFilters(!showFilters)}
+          isSyncing={isRefreshing}
+          unsyncedCount={0}
+          onSync={refreshProducts}
+        />
 
-        {/* Enhanced Search and Filters */}
+        {/* Enhanced Filters */}
         {showFilters && (
           <div className="bg-card border rounded-lg p-4 space-y-4">
-            {/* Search Input */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="البحث في المنتجات (الاسم، الوصف، SKU، الباركود)..."
-                value={filters.searchQuery}
-                onChange={(e) => handleFilterChange('searchQuery', e.target.value)}
-                className="pl-10"
-              />
-              {filters.searchQuery && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleFilterChange('searchQuery', '')}
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              )}
-            </div>
-
             {/* Filter Row */}
             <div className="flex flex-wrap gap-3">
               {/* Category Filter */}

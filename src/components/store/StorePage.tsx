@@ -456,16 +456,6 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
           product_count: cat.product_count || 0
         }))} />
         
-        <Button 
-          variant="outline" 
-          size="sm" 
-          className="fixed bottom-4 right-4 z-[100] bg-primary/10 hover:bg-primary/20 print:hidden"
-          onClick={handleReload}
-        >
-          <RefreshCw className="w-4 h-4 mr-2" />
-          إعادة تحميل
-        </Button>
-        
         {/* إضافة المساحة المناسبة للنافبار الثابت */}
         <main className="flex-1 pt-16">
           {dataLoading && (!storeData || Object.keys(storeData).length === 0) && <SkeletonLoader type="banner" />}

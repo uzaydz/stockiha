@@ -81,65 +81,79 @@ export const addOrder = async (
         supabase.from('order_items').insert(orderItemsToInsert)
       );
       
-      // تحديث المخزون بالتوازي
-      const inventoryUpdates = order.items.map(async (item) => {
+      // تحديث المخزون بالتسلسل لتجنب race conditions والتحديث المضاعف
+      console.log(`🏪 بدء تحديث مخزون ${order.items.length} منتج بالتسلسل...`);
+      
+      // معالجة العناصر بالتسلسل وليس بالتوازي
+      for (let index = 0; index < order.items.length; index++) {
+        const item = order.items[index];
         try {
+          console.log(`🔄 [${index + 1}/${order.items.length}] بدء تحديث مخزون المنتج:`, item.productId, 'الكمية:', item.quantity);
+          
           const hasVariantInfo = item.variant_info && (item.variant_info.colorId || item.variant_info.sizeId);
           
-                      if (hasVariantInfo) {
-              if (item.variant_info.sizeId) {
-                // جلب الكمية الحالية للمقاس وتحديثها
-                const { data: currentSize } = await supabase
-                  .from('product_sizes')
-                  .select('quantity')
-                  .eq('id', item.variant_info.sizeId)
-                  .single();
-                
-                if (currentSize) {
-                  const newQuantity = Math.max(0, currentSize.quantity - item.quantity);
-                  await supabase
-                    .from('product_sizes')
-                    .update({ quantity: newQuantity })
-                    .eq('id', item.variant_info.sizeId);
-                }
-              } else if (item.variant_info.colorId) {
-                // جلب الكمية الحالية للون وتحديثها
-                const { data: currentColor } = await supabase
-                  .from('product_colors')
-                  .select('quantity')
-                  .eq('id', item.variant_info.colorId)
-                  .single();
-                
-                if (currentColor) {
-                  const newQuantity = Math.max(0, currentColor.quantity - item.quantity);
-                  await supabase
-                    .from('product_colors')
-                    .update({ quantity: newQuantity })
-                    .eq('id', item.variant_info.colorId);
-                }
-              }
-            } else {
-              // جلب الكمية الحالية للمنتج وتحديثها
-              const { data: currentProduct } = await supabase
-                .from('products')
-                .select('stock_quantity')
-                .eq('id', item.productId)
+          if (hasVariantInfo) {
+            if (item.variant_info.sizeId) {
+              console.log(`📏 تحديث مخزون المقاس:`, item.variant_info.sizeId);
+              // تحديث مخزون المقاس بطريقة آمنة
+              const { data: currentSize } = await supabase
+                .from('product_sizes')
+                .select('quantity')
+                .eq('id', item.variant_info.sizeId)
                 .single();
               
-              if (currentProduct) {
-                const newQuantity = Math.max(0, currentProduct.stock_quantity - item.quantity);
+              if (currentSize && currentSize.quantity >= item.quantity) {
+                const newQuantity = currentSize.quantity - item.quantity;
                 await supabase
-                  .from('products')
-                  .update({ stock_quantity: newQuantity })
-                  .eq('id', item.productId);
+                  .from('product_sizes')
+                  .update({ quantity: newQuantity })
+                  .eq('id', item.variant_info.sizeId);
+                console.log(`✅ تم تحديث مخزون المقاس من ${currentSize.quantity} إلى ${newQuantity}`);
+              } else {
+                console.warn(`⚠️ مخزون المقاس غير كافي أو غير موجود`);
+              }
+            } else if (item.variant_info.colorId) {
+              console.log(`🎨 تحديث مخزون اللون:`, item.variant_info.colorId);
+              // تحديث مخزون اللون بطريقة آمنة
+              const { data: currentColor } = await supabase
+                .from('product_colors')
+                .select('quantity')
+                .eq('id', item.variant_info.colorId)
+                .single();
+              
+              if (currentColor && currentColor.quantity >= item.quantity) {
+                const newQuantity = currentColor.quantity - item.quantity;
+                await supabase
+                  .from('product_colors')
+                  .update({ quantity: newQuantity })
+                  .eq('id', item.variant_info.colorId);
+                console.log(`✅ تم تحديث مخزون اللون من ${currentColor.quantity} إلى ${newQuantity}`);
+              } else {
+                console.warn(`⚠️ مخزون اللون غير كافي أو غير موجود`);
               }
             }
+          } else {
+            console.log(`📦 تحديث مخزون المنتج الأساسي:`, item.productId);
+            // استخدام الدالة الآمنة لتحديث مخزون المنتج الأساسي
+            const { error: stockError } = await supabase.rpc('update_product_stock_safe', {
+              p_product_id: item.productId,
+              p_quantity_sold: item.quantity
+            });
+            
+            if (stockError) {
+              console.error(`❌ خطأ في تحديث مخزون المنتج:`, stockError);
+            } else {
+              console.log(`✅ تم تحديث مخزون المنتج بنجاح`);
+            }
+          }
+          
+          console.log(`✅ انتهى تحديث مخزون العنصر ${index + 1}`);
         } catch (error) {
-          return null;
+          console.error(`❌ خطأ في تحديث مخزون العنصر ${index + 1}:`, error);
         }
-      });
+      }
       
-      parallelOperations.push(Promise.allSettled(inventoryUpdates));
+      console.log(`🎉 انتهى تحديث مخزون جميع المنتجات`);
     }
     
     // إضافة حجوزات الخدمات

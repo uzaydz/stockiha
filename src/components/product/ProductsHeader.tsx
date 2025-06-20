@@ -66,14 +66,6 @@ const ProductsHeader = ({
           <Button 
             variant="outline" 
             className="flex-1 sm:w-auto whitespace-nowrap"
-            onClick={onAddProductClick}
-          >
-            <Plus className="h-4 w-4 ml-2" />
-            إضافة سريع
-          </Button>
-          <Button 
-            variant="outline" 
-            className="flex-1 sm:w-auto whitespace-nowrap"
             onClick={() => navigate('/dashboard/quick-barcode-print')}
           >
             <Printer className="h-4 w-4 ml-2" />
