@@ -444,6 +444,74 @@ export const POSOrderDetails: React.FC<POSOrderDetailsProps> = ({
               </Card>
             </div>
 
+            {/* معلومات حساب الاشتراك */}
+            {order.metadata && 
+             typeof order.metadata === 'object' &&
+             order.metadata !== null &&
+             'subscriptionAccountInfo' in order.metadata &&
+             order.metadata.subscriptionAccountInfo &&
+             typeof order.metadata.subscriptionAccountInfo === 'object' && (
+              <Card className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 border-purple-200 dark:border-purple-800">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2 text-purple-800 dark:text-purple-200">
+                    <CreditCard className="h-4 w-4" />
+                    معلومات حساب الاشتراك
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {(() => {
+                    const accountInfo = order.metadata.subscriptionAccountInfo as any;
+                    return (
+                      <>
+                        {accountInfo.username && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">اسم المستخدم:</span>
+                            <span className="font-mono bg-purple-100 dark:bg-purple-900/30 px-2 py-1 rounded text-purple-800 dark:text-purple-200">
+                              {accountInfo.username}
+                            </span>
+                          </div>
+                        )}
+                        
+                        {accountInfo.email && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">البريد الإلكتروني:</span>
+                            <span className="font-mono bg-blue-100 dark:bg-blue-900/30 px-2 py-1 rounded text-blue-800 dark:text-blue-200">
+                              {accountInfo.email}
+                            </span>
+                          </div>
+                        )}
+                        
+                        {accountInfo.password && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">كلمة المرور:</span>
+                            <span className="font-mono bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded text-green-800 dark:text-green-200">
+                              {accountInfo.password}
+                            </span>
+                          </div>
+                        )}
+                        
+                        {accountInfo.notes && (
+                          <div className="space-y-2">
+                            <span className="text-sm text-muted-foreground">ملاحظات:</span>
+                            <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded text-sm">
+                              {accountInfo.notes}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {!Object.values(accountInfo).some(val => val) && (
+                          <div className="text-muted-foreground text-center py-4">
+                            <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                            <p>لا توجد معلومات حساب اشتراك</p>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </CardContent>
+              </Card>
+            )}
+
             {/* عناصر الطلبية */}
             <Card>
               <CardHeader className="pb-3">

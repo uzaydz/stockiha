@@ -115,6 +115,11 @@ export const POSOrders: React.FC = () => {
         ITEMS_PER_PAGE
       );
 
+      // إضافة debugging للتحقق من البيانات
+      console.log('🔍 Debug fetchOrders - Received orders:', result.orders?.slice(0, 2));
+      console.log('🔍 Debug fetchOrders - First order:', result.orders?.[0]);
+      console.log('🔍 Debug fetchOrders - First order metadata:', result.orders?.[0]?.metadata);
+
       updateState({
         orders: result.orders,
         totalItems: result.total,
@@ -146,7 +151,7 @@ export const POSOrders: React.FC = () => {
   useEffect(() => {
     if (organization?.id) {
       // مسح الكاش لضمان جلب البيانات المحدثة
-      posOrdersService.clearOrdersCache();
+      posOrdersService.clearCache(); // مسح جميع الكاش
       fetchStats();
       fetchOrders(1, {});
       fetchEmployees();

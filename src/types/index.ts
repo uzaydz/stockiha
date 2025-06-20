@@ -198,6 +198,13 @@ export interface PartialPayment {
   remainingAmount: number;
 }
 
+export interface SubscriptionAccountInfo {
+  username?: string;
+  email?: string;
+  password?: string;
+  notes?: string;
+}
+
 export interface Order {
   id: string;
   customerId: string;
@@ -219,6 +226,7 @@ export interface Order {
   employeeId?: string; // معرف الموظف الذي أتم الطلب (للمتجر الفعلي)
   partialPayment?: PartialPayment; // بيانات الدفع الجزئي
   considerRemainingAsPartial?: boolean; // هل يعتبر المبلغ المتبقي دفع جزئي أم خصم
+  subscriptionAccountInfo?: SubscriptionAccountInfo; // معلومات حساب الاشتراك (للطلبيات التي تحتوي على خدمات اشتراك)
   createdAt: Date;
   updatedAt: Date;
   organization_id?: string; // معرف المنظمة/المؤسسة

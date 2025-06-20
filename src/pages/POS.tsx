@@ -773,7 +773,9 @@ const POS = () => {
         employeeId: user?.id || "",
         partialPayment: orderDetails.partialPayment,
         createdAt: new Date(),
-        updatedAt: new Date()
+        updatedAt: new Date(),
+        // إضافة معلومات حساب الاشتراك
+        subscriptionAccountInfo: orderDetails.subscriptionAccountInfo
       };
 
       // حفظ الطلب محلياً للمرجع

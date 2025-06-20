@@ -57,7 +57,8 @@ import {
   Grid3X3,
   Smartphone,
   CreditCard,
-  Gamepad2
+  Gamepad2,
+  ShoppingCart
 } from 'lucide-react';
 
 // استيراد سياق التطبيقات
@@ -401,13 +402,15 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
           badge: 'جديد'
         }] : []),
         // خدمات الاشتراكات - تظهر فقط إذا كان التطبيق مفعّل
-        ...(isAppEnabledMemo('subscription-services') ? [{
-          title: 'خدمات الاشتراكات',
-          icon: Tv,
-          href: '/dashboard/subscription-services',
-          requiredPermission: 'viewServices',
-          badge: 'جديد'
-        }] : []),
+        ...(isAppEnabledMemo('subscription-services') ? [
+          {
+            title: 'خدمات الاشتراكات',
+            icon: Tv,
+            href: '/dashboard/subscription-services',
+            requiredPermission: 'viewServices',
+            badge: 'جديد'
+          }
+        ] : []),
       ]
     }] : []),
     // مجموعة فليكسي وعملات رقمية - تظهر فقط إذا كان التطبيق مفعّل

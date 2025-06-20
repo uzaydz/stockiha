@@ -102,12 +102,14 @@ const SubscriptionCatalog: React.FC<SubscriptionCatalogProps> = ({
       
       // فحص الكمية المتاحة بناءً على نظام الأسعار
       if (s.pricing_options && s.pricing_options.length > 0) {
-        return s.pricing_options.some(p => p.is_active && p.available_quantity > 0);
+        const hasPricingStock = s.pricing_options.some(p => p.is_active && p.available_quantity > 0);
+        const hasServiceStock = s.available_quantity > 0;
+        return hasPricingStock || hasServiceStock;
       } else {
         return s.available_quantity > 0;
       }
     }).length,
-    featured: subscriptions.filter(s => s.is_featured).length,
+    featured: subscriptions.filter(s => s.is_featured && s.is_active).length,
     totalValue: subscriptions.reduce((sum, s) => {
       // حساب القيمة الإجمالية بناءً على نظام الأسعار
       if (s.pricing_options && s.pricing_options.length > 0) {
@@ -132,9 +134,10 @@ const SubscriptionCatalog: React.FC<SubscriptionCatalogProps> = ({
     
     // فحص الكمية المتاحة بناءً على نظام الأسعار
     if (subscription.pricing_options && subscription.pricing_options.length > 0) {
-      // استخدام نظام الأسعار الجديد - فحص إذا كان هناك أي خيار سعر (حتى لو نفد المخزون)
-      isAvailable = isAvailable && subscription.pricing_options.some(p => 
-        p.is_active
+      // استخدام نظام الأسعار الجديد - فحص إذا كان هناك كمية متاحة
+      isAvailable = isAvailable && (
+        subscription.pricing_options.some(p => p.is_active && p.available_quantity > 0) ||
+        subscription.available_quantity > 0
       );
     } else {
       // استخدام النظام القديم - فحص الكمية الأساسية

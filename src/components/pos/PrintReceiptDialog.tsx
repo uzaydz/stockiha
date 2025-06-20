@@ -29,6 +29,12 @@ interface PrintReceiptDialogProps {
   considerRemainingAsPartial?: boolean;
   orderDate: Date;
   orderNumber: string;
+  subscriptionAccountInfo?: {
+    username?: string;
+    email?: string;
+    password?: string;
+    notes?: string;
+  };
   onPrintCompleted: () => void;
 }
 
@@ -48,6 +54,7 @@ export default function PrintReceiptDialog({
   considerRemainingAsPartial = false,
   orderDate,
   orderNumber,
+  subscriptionAccountInfo,
   onPrintCompleted
 }: PrintReceiptDialogProps) {
   const { user } = useAuth();
@@ -77,6 +84,7 @@ export default function PrintReceiptDialog({
       remainingAmount={completedRemainingAmount}
       isPartialPayment={isPartialPayment}
       considerRemainingAsPartial={considerRemainingAsPartial}
+      subscriptionAccountInfo={subscriptionAccountInfo}
     />
   );
 }

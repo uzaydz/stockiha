@@ -22,6 +22,12 @@ export const createPOSOrder = async (
     // توليد slug فريد للطلبية (بأحرف صغيرة لتوافق القيد)
     const orderSlug = `pos-${new Date().getTime()}-${Math.floor(Math.random() * 1000)}`;
     
+    // تحضير metadata مع معلومات حساب الاشتراك
+    const metadata: any = {};
+    if (order.subscriptionAccountInfo) {
+      metadata.subscriptionAccountInfo = order.subscriptionAccountInfo;
+    }
+
     // تحضير بيانات الطلبية
     const orderData = {
       customer_id: customerId,
@@ -44,7 +50,9 @@ export const createPOSOrder = async (
       consider_remaining_as_partial: order.considerRemainingAsPartial || false,
       completed_at: order.status === 'completed' ? new Date().toISOString() : null,
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      // إضافة معلومات حساب الاشتراك في metadata
+      metadata: Object.keys(metadata).length > 0 ? metadata : null
     };
 
     // إنشاء الطلب مباشرة
@@ -63,10 +71,15 @@ export const createPOSOrder = async (
     // إضافة عناصر الطلب بشكل منفصل وآمن
     if (order.items && order.items.length > 0) {
       try {
+        console.log('🔍 Debug createPOSOrder - Inserting order items:', order.items);
+        console.log('🔍 Debug createPOSOrder - Order ID:', newOrderId);
+        console.log('🔍 Debug createPOSOrder - Organization ID:', currentOrganizationId);
         
         // إدراج العناصر واحد تلو الآخر بالحقول الأساسية فقط
         for (let index = 0; index < order.items.length; index++) {
           const item = order.items[index];
+          
+          console.log(`🔍 Debug createPOSOrder - Processing item ${index}:`, item);
           
           const itemData = {
             order_id: newOrderId,
@@ -81,12 +94,17 @@ export const createPOSOrder = async (
             slug: `item-${Date.now()}-${index}`
           };
 
+          console.log(`🔍 Debug createPOSOrder - Item data to insert:`, itemData);
+
           const { error: itemError } = await supabase
             .from('order_items')
             .insert(itemData);
 
           if (itemError) {
+            console.error(`🔴 Error inserting item ${index}:`, itemError);
             // نستمر في إضافة باقي العناصر حتى لو فشل أحدها
+          } else {
+            console.log(`✅ Successfully inserted item ${index}`);
           }
         }
 

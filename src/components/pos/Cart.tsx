@@ -96,6 +96,12 @@ export default function Cart({
   const [completedCustomerName, setCompletedCustomerName] = useState<string | undefined>();
   const [completedPaidAmount, setCompletedPaidAmount] = useState<number>(0);
   const [completedRemainingAmount, setCompletedRemainingAmount] = useState<number>(0);
+  const [completedSubscriptionAccountInfo, setCompletedSubscriptionAccountInfo] = useState<{
+    username?: string;
+    email?: string;
+    password?: string;
+    notes?: string;
+  } | undefined>();
   
   // ميزات جديدة
   const [searchQuery, setSearchQuery] = useState('');
@@ -103,6 +109,14 @@ export default function Cart({
   const [savedCarts, setSavedCarts] = useState<{id: string, name: string, items: CartItemType[]}[]>([]);
   const [relatedProducts, setRelatedProducts] = useState<Record<string, Product[]>>({});
   const [showRelatedProducts, setShowRelatedProducts] = useState(false);
+  
+  // حالة معلومات حساب الاشتراك
+  const [subscriptionAccountInfo, setSubscriptionAccountInfo] = useState({
+    username: '',
+    email: '',
+    password: '',
+    notes: ''
+  });
   
   // وظائف الحساب
   const calculateSubtotal = useCallback(() => {
@@ -158,6 +172,9 @@ export default function Cart({
   const hasServices = selectedServices.length > 0;
   const hasSubscriptions = selectedSubscriptions.length > 0;
   const isCartEmpty = !hasItems && !hasServices && !hasSubscriptions;
+  
+  // التحقق من وجود خدمات اشتراك لإظهار نموذج معلومات الحساب
+  const hasSubscriptionServices = hasSubscriptions;
   
   // البحث عن عناصر السلة
   const filteredCartItems = useCallback(() => {
@@ -383,7 +400,9 @@ export default function Cart({
           amountPaid: numAmountPaid,
           remainingAmount: remainingAmount
         } : undefined,
-        considerRemainingAsPartial: isPartialPayment ? considerRemainingAsPartial : undefined
+        considerRemainingAsPartial: isPartialPayment ? considerRemainingAsPartial : undefined,
+        // إضافة معلومات حساب الاشتراك إذا كانت موجودة
+        subscriptionAccountInfo: hasSubscriptionServices ? subscriptionAccountInfo : undefined
       });
 
       // تعيين مؤشر أن الطلب قد تمت معالجته لتجنب تكرار التنفيذ
@@ -401,6 +420,13 @@ export default function Cart({
       setCompletedOrderDate(new Date());
       setCompletedPaidAmount(numAmountPaid);
       setCompletedRemainingAmount(remainingAmount);
+      
+      // حفظ معلومات حساب الاشتراك للطباعة
+      if (hasSubscriptionServices && subscriptionAccountInfo) {
+        setCompletedSubscriptionAccountInfo({...subscriptionAccountInfo});
+      } else {
+        setCompletedSubscriptionAccountInfo(undefined);
+      }
       
       // فتح نافذة الطباعة
       setIsPaymentDialogOpen(false);
@@ -426,9 +452,18 @@ export default function Cart({
     setIsPartialPayment(false);
     setRemainingAmount(0);
     
+    // إعادة تعيين معلومات حساب الاشتراك
+    setSubscriptionAccountInfo({
+      username: '',
+      email: '',
+      password: '',
+      notes: ''
+    });
+    
     // إعادة تعيين بيانات الطلب المكتمل
     setCompletedPaidAmount(0);
     setCompletedRemainingAmount(0);
+    setCompletedSubscriptionAccountInfo(undefined);
     
     // عرض رسالة نجاح
     toast.success("تم إنشاء الطلب بنجاح");
@@ -627,6 +662,9 @@ export default function Cart({
         openNewCustomerDialog={() => setIsNewCustomerDialogOpen(true)}
         isProcessing={isProcessing}
         filteredCustomers={filteredCustomers}
+        hasSubscriptionServices={hasSubscriptionServices}
+        subscriptionAccountInfo={subscriptionAccountInfo}
+        setSubscriptionAccountInfo={setSubscriptionAccountInfo}
       />
       
       <NewCustomerDialog
@@ -654,6 +692,7 @@ export default function Cart({
         completedRemainingAmount={completedRemainingAmount}
         isPartialPayment={isPartialPayment}
         considerRemainingAsPartial={considerRemainingAsPartial}
+        subscriptionAccountInfo={completedSubscriptionAccountInfo}
         onPrintCompleted={handlePrintCompleted}
       />
     </div>

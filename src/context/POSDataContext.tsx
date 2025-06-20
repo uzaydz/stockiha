@@ -66,6 +66,7 @@ interface SubscriptionService {
   created_at: string;
   updated_at: string;
   category?: SubscriptionCategory;
+  pricing_options?: any[]; // إضافة خيارات الأسعار
 }
 
 interface SubscriptionCategory {
@@ -386,9 +387,13 @@ const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWi
 const fetchPOSSubscriptionsEnhanced = async (orgId: string): Promise<SubscriptionService[]> => {
   return deduplicateRequest(`pos-subscriptions-enhanced-${orgId}`, async () => {
     
+    // جلب الخدمات مع الأسعار
     const { data: servicesData, error: servicesError } = await supabase
       .from('subscription_services')
-      .select('*')
+      .select(`
+        *,
+        category:subscription_categories(*)
+      `)
       .eq('organization_id', orgId)
       .eq('is_active', true)
       .order('is_featured', { ascending: false })
@@ -398,7 +403,28 @@ const fetchPOSSubscriptionsEnhanced = async (orgId: string): Promise<Subscriptio
       throw servicesError;
     }
 
-    return servicesData || [];
+    if (!servicesData || servicesData.length === 0) {
+      return [];
+    }
+
+    // جلب أسعار كل خدمة
+    const servicesWithPricing = await Promise.all(
+      servicesData.map(async (service) => {
+        const { data: pricingData } = await supabase
+          .from('subscription_service_pricing' as any)
+          .select('*')
+          .eq('subscription_service_id', service.id)
+          .eq('is_active', true)
+          .order('display_order');
+
+        return {
+          ...service,
+          pricing_options: pricingData || []
+        };
+      })
+    );
+
+    return servicesWithPricing as any;
   });
 };
 

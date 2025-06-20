@@ -67,6 +67,12 @@ interface POSOrderWithDetails {
   has_returns?: boolean;
   is_fully_returned?: boolean;
   total_returned_amount?: number;
+  
+  // حقول جديدة لنوع البيع
+  sale_type?: 'product' | 'subscription';
+  product_items_count?: number;
+  subscription_items_count?: number;
+  metadata?: any;
 }
 
 interface POSOrderStats {
@@ -538,6 +544,7 @@ const fetchPOSOrdersOptimized = async (
           updated_at,
           customer_id,
           employee_id,
+          metadata,
           customer:customers!orders_customer_id_fkey(
             id,
             name,
@@ -588,8 +595,10 @@ const fetchPOSOrdersOptimized = async (
       // جلب عدد العناصر لكل طلبية بشكل منفصل ومحسن
       const orderIds = (orders || []).map(order => order.id);
       let itemsCounts: { [key: string]: number } = {};
+      let subscriptionCounts: { [key: string]: number } = {};
 
       if (orderIds.length > 0) {
+        // جلب عناصر المنتجات العادية
         const { data: itemsData } = await supabase
           .from('order_items')
           .select('order_id, quantity')
@@ -601,6 +610,45 @@ const fetchPOSOrdersOptimized = async (
             itemsCounts[item.order_id] = 0;
           }
           itemsCounts[item.order_id] += item.quantity || 0;
+        });
+
+        // جلب معاملات الاشتراك للطلبيات (ربط بناءً على التاريخ والموظف)
+        const orderEmployeeMap = (orders || []).reduce((map, order) => {
+          if (order.employee_id) {
+            map[order.employee_id] = map[order.employee_id] || [];
+            map[order.employee_id].push({
+              id: order.id,
+              created_at: order.created_at,
+              customer_name: order.customer?.name || 'زائر'
+            });
+          }
+          return map;
+        }, {} as any);
+
+        // جلب معاملات الاشتراك
+        const { data: subscriptionTransactions } = await supabase
+          .from('subscription_transactions')
+          .select('id, quantity, transaction_date, processed_by, customer_name')
+          .eq('transaction_type', 'sale')
+          .in('processed_by', Object.keys(orderEmployeeMap));
+
+        // ربط معاملات الاشتراك بالطلبيات
+        (subscriptionTransactions || []).forEach(transaction => {
+          const relatedOrders = orderEmployeeMap[transaction.processed_by] || [];
+          
+          relatedOrders.forEach((orderInfo: any) => {
+            const orderDate = new Date(orderInfo.created_at);
+            const transactionDate = new Date(transaction.transaction_date);
+            const timeDiff = Math.abs(orderDate.getTime() - transactionDate.getTime());
+            
+            // ربط إذا كان التوقيت قريب (أقل من دقيقتين) ونفس العميل
+            if (timeDiff < 2 * 60 * 1000 && transaction.customer_name === orderInfo.customer_name) {
+              if (!subscriptionCounts[orderInfo.id]) {
+                subscriptionCounts[orderInfo.id] = 0;
+              }
+              subscriptionCounts[orderInfo.id] += transaction.quantity || 1;
+            }
+          });
         });
       }
 
@@ -616,29 +664,43 @@ const fetchPOSOrdersOptimized = async (
         returnsData = returns || [];
       }
 
-      // معالجة البيانات المحسنة
-      const processedOrders = (orders || []).map(order => {
-        const orderReturns = returnsData.filter(ret => ret.original_order_id === order.id);
-        const totalReturnedAmount = orderReturns.reduce((sum, ret) => sum + parseFloat(ret.refund_amount || '0'), 0);
-        const originalTotal = parseFloat(order.total);
-        const effectiveTotal = originalTotal - totalReturnedAmount;
-        
-        // عدد العناصر من الحساب المنفصل
-        const itemsCount = itemsCounts[order.id] || 0;
+              // معالجة البيانات المحسنة
+        const processedOrders = (orders || []).map(order => {
+          const orderReturns = returnsData.filter(ret => ret.original_order_id === order.id);
+          const totalReturnedAmount = orderReturns.reduce((sum, ret) => sum + parseFloat(ret.refund_amount || '0'), 0);
+          const originalTotal = parseFloat(order.total);
+          const effectiveTotal = originalTotal - totalReturnedAmount;
+          
+          // عدد العناصر من الحساب المنفصل (منتجات + اشتراكات)
+          const productItemsCount = itemsCounts[order.id] || 0;
+          const subscriptionItemsCount = subscriptionCounts[order.id] || 0;
+          const totalItemsCount = productItemsCount + subscriptionItemsCount;
 
-        return {
-          ...order,
-          order_items: [], // سيتم جلبها عند الحاجة فقط
-          items_count: itemsCount,
-          effective_status: totalReturnedAmount >= originalTotal ? 'fully_returned' : 
-                           totalReturnedAmount > 0 ? 'partially_returned' : order.status,
-          effective_total: effectiveTotal,
-          original_total: originalTotal,
-          has_returns: totalReturnedAmount > 0,
-          is_fully_returned: totalReturnedAmount >= originalTotal,
-          total_returned_amount: totalReturnedAmount
-        };
-      }) as POSOrderWithDetails[];
+          // تحديد نوع البيع بناءً على وجود معلومات حساب الاشتراك أو عناصر الاشتراك
+          const hasSubscriptionAccount = order.metadata && 
+                                       typeof order.metadata === 'object' &&
+                                       order.metadata !== null &&
+                                       'subscriptionAccountInfo' in order.metadata &&
+                                       order.metadata.subscriptionAccountInfo;
+          
+          const saleType = (hasSubscriptionAccount || subscriptionItemsCount > 0) ? 'subscription' : 'product';
+
+          return {
+            ...order,
+            order_items: [], // سيتم جلبها عند الحاجة فقط
+            items_count: totalItemsCount,
+            sale_type: saleType, // إضافة نوع البيع
+            product_items_count: productItemsCount, // عدد المنتجات
+            subscription_items_count: subscriptionItemsCount, // عدد الاشتراكات
+            effective_status: totalReturnedAmount >= originalTotal ? 'fully_returned' : 
+                             totalReturnedAmount > 0 ? 'partially_returned' : order.status,
+            effective_total: effectiveTotal,
+            original_total: originalTotal,
+            has_returns: totalReturnedAmount > 0,
+            is_fully_returned: totalReturnedAmount >= originalTotal,
+            total_returned_amount: totalReturnedAmount
+          };
+        }) as POSOrderWithDetails[];
 
       const result = {
         orders: processedOrders,
@@ -877,31 +939,103 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
 
   const deleteOrder = useCallback(async (orderId: string): Promise<boolean> => {
     try {
-      // حذف عناصر الطلبية أولاً
+      console.log('🗑️ Debug deleteOrder - Starting deletion for order:', orderId);
+
+      // 1. حذف عناصر الطلبية
       const { error: itemsError } = await supabase
         .from('order_items')
         .delete()
         .eq('order_id', orderId);
 
       if (itemsError) {
-        return false;
+        console.error('🔴 Error deleting order_items:', itemsError);
+        // لا نرجع false هنا لأن العناصر قد تكون فارغة أصلاً
       }
 
-      // حذف الطلبية
+      // 2. حذف المعاملات المالية المرتبطة
+      const { error: transactionsError } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('order_id', orderId);
+
+      if (transactionsError) {
+        console.error('🔴 Error deleting transactions:', transactionsError);
+        // نتابع حتى لو فشل حذف المعاملات
+      }
+
+      // 3. حذف حجوزات الخدمات المرتبطة
+      const { error: bookingsError } = await supabase
+        .from('service_bookings')
+        .delete()
+        .eq('order_id', orderId);
+
+      if (bookingsError) {
+        console.error('🔴 Error deleting service_bookings:', bookingsError);
+        // نتابع حتى لو فشل حذف الحجوزات
+      }
+
+      // 4. حذف المرتجعات المرتبطة (إن وجدت)
+      const { error: returnsError } = await supabase
+        .from('returns')
+        .delete()
+        .eq('original_order_id', orderId);
+
+      if (returnsError) {
+        console.error('🔴 Error deleting returns:', returnsError);
+        // نتابع حتى لو فشل حذف المرتجعات
+      }
+
+      // 5. حذف معاملات الاشتراك المرتبطة (إن وجدت)
+      // نحتاج لجلب معلومات الطلبية أولاً للربط بالتوقيت والموظف
+      try {
+        const { data: orderData } = await supabase
+          .from('orders')
+          .select('employee_id, created_at, customer_id')
+          .eq('id', orderId)
+          .single();
+
+        if (orderData?.employee_id) {
+          // حذف معاملات الاشتراك القريبة من تاريخ الطلبية (±5 دقائق)
+          const orderDate = new Date(orderData.created_at);
+          const startTime = new Date(orderDate.getTime() - 5 * 60 * 1000);
+          const endTime = new Date(orderDate.getTime() + 5 * 60 * 1000);
+
+          const { error: subscriptionError } = await supabase
+            .from('subscription_transactions')
+            .delete()
+            .eq('processed_by', orderData.employee_id)
+            .gte('transaction_date', startTime.toISOString())
+            .lte('transaction_date', endTime.toISOString());
+
+          if (subscriptionError) {
+            console.error('🔴 Error deleting subscription_transactions:', subscriptionError);
+            // نتابع حتى لو فشل حذف معاملات الاشتراك
+          }
+        }
+      } catch (subscriptionDeleteError) {
+        console.error('🔴 Error in subscription deletion logic:', subscriptionDeleteError);
+        // نتابع حتى لو فشل منطق حذف الاشتراكات
+      }
+
+      // 6. أخيراً، حذف الطلبية نفسها
       const { error: orderError } = await supabase
         .from('orders')
         .delete()
         .eq('id', orderId);
 
       if (orderError) {
+        console.error('🔴 Error deleting order:', orderError);
         return false;
       }
+
+      console.log('✅ Order deleted successfully:', orderId);
 
       // إعادة تحميل البيانات
       await Promise.all([refetchStats(), refetchOrders()]);
       
       return true;
     } catch (error) {
+      console.error('🔴 Error in deleteOrder:', error);
       return false;
     }
   }, [refetchStats, refetchOrders]);

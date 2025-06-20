@@ -47,6 +47,12 @@ interface PrintReceiptProps {
   remainingAmount?: number;
   isPartialPayment?: boolean;
   considerRemainingAsPartial?: boolean;
+  subscriptionAccountInfo?: {
+    username?: string;
+    email?: string;
+    password?: string;
+    notes?: string;
+  };
   isOpen: boolean;
   onClose: () => void;
 }
@@ -67,6 +73,7 @@ const PrintReceipt: React.FC<PrintReceiptProps> = ({
   remainingAmount = 0,
   isPartialPayment = false,
   considerRemainingAsPartial = false,
+  subscriptionAccountInfo,
   isOpen,
   onClose
 }) => {
@@ -670,7 +677,7 @@ ${customerName ? `العميل: ${customerName}` : ''}
 المنتجات:
 ${items.map(item => `- ${item.product.name} × ${formatNumberNormal(item.quantity.toString())} = ${formatPriceWithSettings((item.variantPrice || item.wholesalePrice || item.product.price) * item.quantity)}`).join('\n')}
 
-${services.length > 0 ? `الخدمات:\n${services.map(service => `- ${service.name} = ${formatPriceWithSettings(service.price)}`).join('\n')}\n` : ''}
+${services.length > 0 ? `الخدمات:\n${services.map(service => `- ${service.name} = ${formatPriceWithSettings(service.price)}`).join('\n')}\n` : ''}${subscriptionAccountInfo && Object.values(subscriptionAccountInfo).some(val => val) ? `\n🔐 معلومات حساب الاشتراك:\n${subscriptionAccountInfo.username ? `اسم المستخدم: ${subscriptionAccountInfo.username}\n` : ''}${subscriptionAccountInfo.email ? `البريد الإلكتروني: ${subscriptionAccountInfo.email}\n` : ''}${subscriptionAccountInfo.password ? `كلمة المرور: ${subscriptionAccountInfo.password}\n` : ''}${subscriptionAccountInfo.notes ? `ملاحظات: ${subscriptionAccountInfo.notes}\n` : ''}\n` : ''}
 
 المجموع الفرعي: ${formatPriceWithSettings(subtotal)}
 ${discountAmount > 0 ? `الخصم (${formatNumberNormal(discount.toString())}%): -${formatPriceWithSettings(discountAmount)}` : ''}
@@ -1055,6 +1062,83 @@ ${paymentMethod ? `طريقة الدفع: ${paymentMethod}` : ''}
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* معلومات حساب الاشتراك */}
+          {subscriptionAccountInfo && Object.values(subscriptionAccountInfo).some(val => val) && (
+            <div className="mb-4">
+              <h3 className="font-bold text-xs mb-2 border-b border-dashed pb-1">
+                🔐 معلومات حساب الاشتراك
+              </h3>
+              
+              {settings?.item_display_style === 'table' ? (
+                // عرض في شكل جدول متناسق مع المنتجات
+                <table className="w-full text-xs">
+                  <tbody>
+                    {subscriptionAccountInfo.username && (
+                      <tr>
+                        <td className="text-right py-1">اسم المستخدم:</td>
+                        <td className={`py-1 font-mono ${settings.price_position === 'right' ? 'text-right' : 'text-left'}`}>
+                          {subscriptionAccountInfo.username}
+                        </td>
+                      </tr>
+                    )}
+                    {subscriptionAccountInfo.email && (
+                      <tr>
+                        <td className="text-right py-1">البريد الإلكتروني:</td>
+                        <td className={`py-1 font-mono ${settings.price_position === 'right' ? 'text-right' : 'text-left'}`}>
+                          {subscriptionAccountInfo.email}
+                        </td>
+                      </tr>
+                    )}
+                    {subscriptionAccountInfo.password && (
+                      <tr>
+                        <td className="text-right py-1">كلمة المرور:</td>
+                        <td className={`py-1 font-mono ${settings.price_position === 'right' ? 'text-right' : 'text-left'}`}>
+                          {subscriptionAccountInfo.password}
+                        </td>
+                      </tr>
+                    )}
+                    {subscriptionAccountInfo.notes && (
+                      <tr>
+                        <td className="text-right py-1">ملاحظات:</td>
+                        <td className={`py-1 ${settings.price_position === 'right' ? 'text-right' : 'text-left'}`}>
+                          {subscriptionAccountInfo.notes}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              ) : (
+                // عرض في شكل قائمة متناسق مع المنتجات
+                <div className="space-y-1">
+                  {subscriptionAccountInfo.username && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs">اسم المستخدم:</span>
+                      <span className="text-xs font-mono">{subscriptionAccountInfo.username}</span>
+                    </div>
+                  )}
+                  {subscriptionAccountInfo.email && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs">البريد الإلكتروني:</span>
+                      <span className="text-xs font-mono">{subscriptionAccountInfo.email}</span>
+                    </div>
+                  )}
+                  {subscriptionAccountInfo.password && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs">كلمة المرور:</span>
+                      <span className="text-xs font-mono">{subscriptionAccountInfo.password}</span>
+                    </div>
+                  )}
+                  {subscriptionAccountInfo.notes && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs">ملاحظات:</span>
+                      <span className="text-xs">{subscriptionAccountInfo.notes}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

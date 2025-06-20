@@ -242,13 +242,39 @@ export class POSOrdersService {
   }> {
     const cacheKey = this.getCacheKey('pos_orders', { organizationId, filters, page, limit });
     const cached = this.getFromCache<{ orders: POSOrderWithDetails[]; total: number; hasMore: boolean }>(cacheKey);
-    if (cached) return cached;
+    // تعطيل الكاش مؤقتاً للاختبار
+    // if (cached) return cached;
 
     try {
+      console.log('🔍 Debug getPOSOrders - organizationId:', organizationId);
+      console.log('🔍 Debug getPOSOrders - About to execute query...');
+      
       let query = supabase
         .from('orders')
         .select(`
-          *,
+          id,
+          slug,
+          customer_order_number,
+          status,
+          payment_status,
+          payment_method,
+          subtotal,
+          tax,
+          discount,
+          total,
+          notes,
+          is_online,
+          organization_id,
+          customer_id,
+          employee_id,
+          pos_order_type,
+          amount_paid,
+          remaining_amount,
+          consider_remaining_as_partial,
+          completed_at,
+          created_at,
+          updated_at,
+          metadata,
           customer:customers!orders_customer_id_fkey(*),
           employee:users!orders_employee_id_fkey(*),
           order_items(
@@ -261,16 +287,14 @@ export class POSOrdersService {
             is_wholesale,
             slug,
             name,
-            variant_info,
-            color_id,
-            color_name,
-            size_id,
-            size_name
+            variant_info
           )
         `)
         .eq('organization_id', organizationId)
         .eq('is_online', false)
         .order('created_at', { ascending: false });
+
+      console.log('🔍 Debug getPOSOrders - Query created, applying filters...');
 
       // تطبيق الفلاتر
       if (filters.status) {
@@ -319,13 +343,22 @@ export class POSOrdersService {
       const { data: orders, error } = await query
         .range((page - 1) * limit, page * limit - 1);
 
+      console.log('🔍 Debug getPOSOrders - Query executed');
+      console.log('🔍 Debug getPOSOrders - Error:', error);
+      console.log('🔍 Debug getPOSOrders - Raw orders count:', orders?.length);
+      console.log('🔍 Debug getPOSOrders - Sample order:', orders?.[0]);
+      console.log('🔍 Debug getPOSOrders - Sample metadata:', orders?.[0]?.metadata);
+
       if (error) throw error;
 
       // حساب حالة المرتجعات لكل طلبية
       const orderIds = (orders || []).map(order => order.id);
       let returnsData: any[] = [];
+      // تعطيل subscription_transactions مؤقتاً للتركيز على metadata
+      // let subscriptionData: any[] = [];
       
       if (orderIds.length > 0) {
+        // جلب بيانات المرتجعات
         const { data: returns } = await supabase
           .from('returns' as any)
           .select(`
@@ -338,7 +371,30 @@ export class POSOrdersService {
           .eq('status', 'approved');
         
         returnsData = returns || [];
+
+        // تعطيل مؤقتاً
+        // // جلب بيانات معاملات الاشتراك وربطها بالطلبيات حسب التاريخ والعميل
+        // const { data: subscriptionTransactions } = await supabase
+        //   .from('subscription_transactions')
+        //   .select(`
+        //     id,
+        //     service_id,
+        //     amount,
+        //     quantity,
+        //     description,
+        //     transaction_date,
+        //     customer_name,
+        //     processed_by
+        //   `)
+        //   .eq('transaction_type', 'sale');
+        
+        // subscriptionData = subscriptionTransactions || [];
+        // console.log('🔍 Debug - Subscription transactions:', subscriptionData);
       }
+
+      // إضافة debugging للتحقق من البيانات
+      console.log('🔍 Debug posOrdersService - Raw orders data:', orders?.slice(0, 1));
+      console.log('🔍 Debug posOrdersService - First order metadata:', orders?.[0]?.metadata);
 
       // معالجة البيانات وحساب الإحصائيات
       const processedOrders = (orders || []).map(order => {
@@ -347,13 +403,49 @@ export class POSOrdersService {
         const originalTotal = parseFloat(order.total);
         const effectiveTotal = originalTotal - totalReturnedAmount;
         
+        // البحث عن معاملات الاشتراك المرتبطة بهذه الطلبية
+        // نربط بناءً على employee_id وتاريخ قريب (نفس الدقيقة)
+        const orderDate = new Date(order.created_at);
+        const relatedSubscriptions = subscriptionData.filter(sub => {
+          const subDate = new Date(sub.transaction_date);
+          const timeDiff = Math.abs(orderDate.getTime() - subDate.getTime());
+          return sub.processed_by === order.employee_id && 
+                 timeDiff < 60000 && // أقل من دقيقة
+                 sub.customer_name === (order.customer?.name || 'زائر');
+        });
+
+        console.log(`🔍 Debug - Order ${order.id} related subscriptions:`, relatedSubscriptions);
+
+        // إضافة عناصر الاشتراك إلى order_items
+        const subscriptionItems = relatedSubscriptions.map(sub => ({
+          id: sub.id,
+          product_id: sub.service_id,
+          product_name: sub.description,
+          quantity: sub.quantity,
+          unit_price: sub.amount,
+          total_price: sub.amount * sub.quantity,
+          is_wholesale: false,
+          slug: `SUB-${sub.id.slice(-8)}`,
+          name: sub.description,
+          original_price: sub.amount,
+          variant_info: null,
+          color_id: null,
+          color_name: null,
+          size_id: null,
+          size_name: null
+        }));
+
+        // دمج العناصر الموجودة مع عناصر الاشتراك
+        const allItems = [...(order.order_items || []), ...subscriptionItems];
+        
         // حساب عدد العناصر
-        const itemsCount = (order.order_items || []).reduce((sum: number, item: any) => {
+        const itemsCount = allItems.reduce((sum: number, item: any) => {
           return sum + (parseInt(item.quantity?.toString() || '0') || 0);
         }, 0);
 
-        return {
+        const processedOrder = {
           ...order,
+          order_items: allItems,
           items_count: itemsCount,
           effective_status: totalReturnedAmount >= originalTotal ? 'fully_returned' : 
                            totalReturnedAmount > 0 ? 'partially_returned' : order.status,
@@ -363,7 +455,11 @@ export class POSOrdersService {
           is_fully_returned: totalReturnedAmount >= originalTotal,
           total_returned_amount: totalReturnedAmount
         };
-      }) as POSOrderWithDetails[];
+
+        console.log(`🔍 Debug posOrdersService - Order ${order.id} metadata:`, order.metadata);
+        
+        return processedOrder;
+      }) as any;
 
       const result = {
         orders: processedOrders,
@@ -388,13 +484,38 @@ export class POSOrdersService {
   async getPOSOrderById(orderId: string): Promise<POSOrderWithDetails | null> {
     const cacheKey = this.getCacheKey('pos_order_detail', { orderId });
     const cached = this.getFromCache<POSOrderWithDetails>(cacheKey);
-    if (cached) return cached;
+    // تعطيل الكاش مؤقتاً للاختبار
+    // if (cached) return cached;
 
     try {
+      console.log('🔍 Debug getPOSOrderById - Starting query for:', orderId);
+      
       const { data: order, error } = await supabase
         .from('orders')
         .select(`
-          *,
+          id,
+          slug,
+          customer_order_number,
+          status,
+          payment_status,
+          payment_method,
+          subtotal,
+          tax,
+          discount,
+          total,
+          notes,
+          is_online,
+          organization_id,
+          customer_id,
+          employee_id,
+          pos_order_type,
+          amount_paid,
+          remaining_amount,
+          consider_remaining_as_partial,
+          completed_at,
+          created_at,
+          updated_at,
+          metadata,
           customer:customers!orders_customer_id_fkey(*),
           employee:users!orders_employee_id_fkey(*),
           order_items(
@@ -419,6 +540,10 @@ export class POSOrdersService {
         .eq('is_online', false)
         .single();
 
+      console.log('🔍 Debug getPOSOrderById - Raw response:', { data: order, error });
+      console.log('🔍 Debug getPOSOrderById - Order metadata:', order?.metadata);
+      console.log('🔍 Debug getPOSOrderById - Order items:', order?.order_items);
+
       if (error) throw error;
       if (!order) return null;
 
@@ -427,7 +552,7 @@ export class POSOrdersService {
         items_count: (order.order_items || []).reduce((total: number, item: any) => {
           return total + (parseInt(item.quantity?.toString() || '0') || 0);
         }, 0)
-      } as POSOrderWithDetails;
+      } as any;
 
       this.setCache(cacheKey, orderWithDetails);
       return orderWithDetails;

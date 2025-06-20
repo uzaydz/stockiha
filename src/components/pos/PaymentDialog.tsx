@@ -44,6 +44,20 @@ interface PaymentDialogProps {
   handlePaymentComplete: () => void;
   openNewCustomerDialog: () => void;
   filteredCustomers: () => User[];
+  // معلومات حساب الاشتراك
+  hasSubscriptionServices: boolean;
+  subscriptionAccountInfo: {
+    username: string;
+    email: string;
+    password: string;
+    notes: string;
+  };
+  setSubscriptionAccountInfo: (info: {
+    username: string;
+    email: string;
+    password: string;
+    notes: string;
+  }) => void;
 }
 
 export default function PaymentDialog({
@@ -74,7 +88,10 @@ export default function PaymentDialog({
   total,
   handlePaymentComplete,
   openNewCustomerDialog,
-  filteredCustomers
+  filteredCustomers,
+  hasSubscriptionServices,
+  subscriptionAccountInfo,
+  setSubscriptionAccountInfo
 }: PaymentDialogProps) {
   // حالة تركيز حقل المبلغ المدفوع
   const [isAmountFocused, setIsAmountFocused] = useState(false);
@@ -356,6 +373,96 @@ export default function PaymentDialog({
               </TabsContent>
             </Tabs>
           </div>
+          
+          {/* نموذج معلومات حساب الاشتراك - يظهر فقط عند وجود خدمات اشتراك */}
+          {hasSubscriptionServices && (
+            <div className="space-y-3 bg-blue-50/80 dark:bg-blue-950/30 p-4 rounded-lg border border-blue-200/50 dark:border-blue-800/50">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/50 rounded-full flex items-center justify-center">
+                  🔐
+                </div>
+                <div>
+                  <Label className="text-sm font-semibold text-blue-900 dark:text-blue-100">
+                    معلومات حساب الاشتراك
+                  </Label>
+                  <p className="text-xs text-blue-700 dark:text-blue-300">(اختياري - لتسليم المعلومات للعميل)</p>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 gap-3">
+                <div>
+                  <Label className="text-xs font-medium text-blue-800 dark:text-blue-200 mb-1 block">
+                    اسم المستخدم / البريد الإلكتروني
+                  </Label>
+                  <Input
+                    type="text"
+                    placeholder="username أو email@example.com"
+                    value={subscriptionAccountInfo.username}
+                    onChange={(e) => setSubscriptionAccountInfo({
+                      ...subscriptionAccountInfo,
+                      username: e.target.value
+                    })}
+                    className="text-sm bg-white/80 dark:bg-gray-800/80 border-blue-200 dark:border-blue-700 focus:border-blue-400 dark:focus:border-blue-500"
+                  />
+                </div>
+                
+                <div>
+                  <Label className="text-xs font-medium text-blue-800 dark:text-blue-200 mb-1 block">
+                    البريد الإلكتروني (إن كان مختلف)
+                  </Label>
+                  <Input
+                    type="email"
+                    placeholder="email@example.com (اختياري)"
+                    value={subscriptionAccountInfo.email}
+                    onChange={(e) => setSubscriptionAccountInfo({
+                      ...subscriptionAccountInfo,
+                      email: e.target.value
+                    })}
+                    className="text-sm bg-white/80 dark:bg-gray-800/80 border-blue-200 dark:border-blue-700 focus:border-blue-400 dark:focus:border-blue-500"
+                  />
+                </div>
+                
+                <div>
+                  <Label className="text-xs font-medium text-blue-800 dark:text-blue-200 mb-1 block">
+                    كلمة المرور
+                  </Label>
+                  <Input
+                    type="password"
+                    placeholder="••••••••"
+                    value={subscriptionAccountInfo.password}
+                    onChange={(e) => setSubscriptionAccountInfo({
+                      ...subscriptionAccountInfo,
+                      password: e.target.value
+                    })}
+                    className="text-sm bg-white/80 dark:bg-gray-800/80 border-blue-200 dark:border-blue-700 focus:border-blue-400 dark:focus:border-blue-500"
+                  />
+                </div>
+                
+                <div>
+                  <Label className="text-xs font-medium text-blue-800 dark:text-blue-200 mb-1 block">
+                    ملاحظات إضافية
+                  </Label>
+                  <Input
+                    type="text"
+                    placeholder="معلومات إضافية مهمة للعميل"
+                    value={subscriptionAccountInfo.notes}
+                    onChange={(e) => setSubscriptionAccountInfo({
+                      ...subscriptionAccountInfo,
+                      notes: e.target.value
+                    })}
+                    className="text-sm bg-white/80 dark:bg-gray-800/80 border-blue-200 dark:border-blue-700 focus:border-blue-400 dark:focus:border-blue-500"
+                  />
+                </div>
+              </div>
+              
+              <div className="bg-blue-100/50 dark:bg-blue-900/20 p-3 rounded-md border border-blue-200/30 dark:border-blue-800/30">
+                <p className="text-xs text-blue-700 dark:text-blue-300 flex items-start gap-2">
+                  <span className="text-sm">💡</span>
+                  <span>هذه المعلومات ستظهر في تفاصيل الطلبية وعلى وصل الطباعة لتسهيل تسليم الاشتراك للعميل</span>
+                </p>
+              </div>
+            </div>
+          )}
           
           {/* خصم وملاحظات */}
           <div className="grid grid-cols-2 gap-3">
