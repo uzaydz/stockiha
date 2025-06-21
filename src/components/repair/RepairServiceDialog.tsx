@@ -39,9 +39,11 @@ interface RepairServiceDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: (orderId: string, trackingCode: string) => void;
+  editMode?: boolean;
+  repairOrder?: any; // سنستخدم any مؤقتاً لتجنب مشاكل الأنواع
 }
 
-const RepairServiceDialog = ({ isOpen, onClose, onSuccess }: RepairServiceDialogProps) => {
+const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, repairOrder }: RepairServiceDialogProps) => {
   const { user, organizationId } = useUser();
   
   // حالة النموذج
@@ -96,8 +98,31 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess }: RepairServiceDialog
   useEffect(() => {
     if (isOpen) {
       fetchRepairLocations();
+      
+      // ملء الحقول في حالة التعديل
+      if (editMode && repairOrder) {
+        setCustomerName(repairOrder.customer_name || '');
+        setCustomerPhone(repairOrder.customer_phone || '');
+        
+        // التعامل مع مكان التصليح بشكل صحيح
+        if (repairOrder.custom_location) {
+          setRepairLocation('أخرى');
+          setCustomLocation(repairOrder.custom_location);
+        } else if (repairOrder.repair_location_id) {
+          setRepairLocation(repairOrder.repair_location_id);
+          setCustomLocation('');
+        } else {
+          setRepairLocation('');
+          setCustomLocation('');
+        }
+        
+        setIssueDescription(repairOrder.issue_description || '');
+        setTotalPrice(repairOrder.total_price || 0);
+        setPaidAmount(repairOrder.paid_amount || 0);
+        setPaymentMethod(repairOrder.payment_method || 'نقدًا');
+      }
     }
-  }, [supabase, organizationId, isOpen]);
+  }, [supabase, organizationId, isOpen, editMode, repairOrder]);
 
   // إعادة تعيين النموذج عند الإغلاق
   useEffect(() => {
@@ -179,50 +204,95 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess }: RepairServiceDialog
     setIsSubmitting(true);
     
     try {
-      // إنشاء معرّف فريد للطلبية
-      const repairOrderId = uuidv4();
-      
-      // توليد رقم الطلبية ورمز التتبع
-      const now = new Date();
-      const year = now.getFullYear().toString().slice(-2);
-      const month = (now.getMonth() + 1).toString().padStart(2, '0');
-      const randomDigits = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-      
-      const orderNumber = `RPR-${year}${month}-${randomDigits}`;
-      const trackingCode = `TR-${year}${month}-${randomDigits}-${repairOrderId.slice(0, 4)}`;
+      let repairOrderId: string;
+      let orderNumber: string;
+      let trackingCode: string;
 
-      // إعداد بيانات الطلبية
-      const repairOrderData = {
-        id: repairOrderId,
-        organization_id: organizationId,
-        customer_name: customerName,
-        customer_phone: customerPhone,
-        repair_location_id: repairLocation === 'أخرى' ? null : repairLocation,
-        custom_location: repairLocation === 'أخرى' ? customLocation : null,
-        issue_description: issueDescription,
-        total_price: totalPrice,
-        paid_amount: paidAmount || 0,
-        payment_method: paymentMethod,
-        received_by: user?.id,
-        status: 'قيد الانتظار',
-        order_number: orderNumber,
-        repair_tracking_code: trackingCode,
-      };
+      if (editMode && repairOrder) {
+        // في حالة التعديل، نستخدم المعرفات الموجودة
+        repairOrderId = repairOrder.id;
+        orderNumber = repairOrder.order_number || '';
+        trackingCode = repairOrder.repair_tracking_code || '';
 
-      // إدراج الطلبية في قاعدة البيانات
-      const { error: insertError } = await supabase
-        .from('repair_orders')
-        .insert(repairOrderData as any);
+        // إعداد بيانات التحديث
+        const updateData: any = {
+          customer_name: customerName,
+          customer_phone: customerPhone,
+          issue_description: issueDescription || null,
+          total_price: totalPrice,
+          paid_amount: paidAmount || 0,
+          payment_method: paymentMethod,
+          updated_at: new Date().toISOString(),
+        };
 
-      if (insertError) {
-        throw new Error(`فشل في إضافة طلبية التصليح: ${insertError.message}`);
+        // إضافة حقل repair_location_id فقط إذا كان له قيمة
+        if (repairLocation && repairLocation !== 'أخرى') {
+          updateData.repair_location_id = repairLocation;
+          updateData.custom_location = null;
+        } else if (repairLocation === 'أخرى') {
+          updateData.repair_location_id = null;
+          updateData.custom_location = customLocation || null;
+        }
+
+        // تحديث الطلبية في قاعدة البيانات
+        console.log('Updating repair order with data:', updateData);
+        console.log('Repair order ID:', repairOrderId);
+        
+        const { error: updateError } = await supabase
+          .from('repair_orders')
+          .update(updateData)
+          .eq('id', repairOrderId);
+
+        if (updateError) {
+          console.error('Update error:', updateError);
+          throw new Error(`فشل في تحديث طلبية التصليح: ${updateError.message}`);
+        }
+      } else {
+        // في حالة الإضافة، ننشئ معرفات جديدة
+        repairOrderId = uuidv4();
+        
+        // توليد رقم الطلبية ورمز التتبع
+        const now = new Date();
+        const year = now.getFullYear().toString().slice(-2);
+        const month = (now.getMonth() + 1).toString().padStart(2, '0');
+        const randomDigits = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+        
+        orderNumber = `RPR-${year}${month}-${randomDigits}`;
+        trackingCode = `TR-${year}${month}-${randomDigits}-${repairOrderId.slice(0, 4)}`;
+
+        // إعداد بيانات الطلبية
+        const repairOrderData = {
+          id: repairOrderId,
+          organization_id: organizationId,
+          customer_name: customerName,
+          customer_phone: customerPhone,
+          repair_location_id: repairLocation === 'أخرى' ? null : repairLocation,
+          custom_location: repairLocation === 'أخرى' ? customLocation : null,
+          issue_description: issueDescription,
+          total_price: totalPrice,
+          paid_amount: paidAmount || 0,
+          payment_method: paymentMethod,
+          received_by: user?.id,
+          status: 'قيد الانتظار',
+          order_number: orderNumber,
+          repair_tracking_code: trackingCode,
+        };
+
+        // إدراج الطلبية في قاعدة البيانات
+        const { error: insertError } = await supabase
+          .from('repair_orders')
+          .insert(repairOrderData as any);
+
+        if (insertError) {
+          throw new Error(`فشل في إضافة طلبية التصليح: ${insertError.message}`);
+        }
       }
 
-      // إنشاء سجل تاريخ الحالة الأولي
+      // إنشاء سجل تاريخ
       const historyEntry = {
         repair_order_id: repairOrderId,
-        status: 'قيد الانتظار',
-        notes: 'تم إنشاء طلبية التصليح',
+        status: editMode ? 'تم التحديث' : 'قيد الانتظار',
+        notes: editMode ? 'تم تحديث بيانات طلبية التصليح' : 'تم إنشاء طلبية التصليح',
         created_by: user?.id,
       };
 
@@ -231,9 +301,10 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess }: RepairServiceDialog
         .insert(historyEntry as any);
 
       if (historyError) {
+        console.error('خطأ في إضافة سجل التاريخ:', historyError);
       }
 
-      // رفع الصور إذا كانت موجودة
+      // رفع الصور إذا كانت موجودة (في كل من الإضافة والتعديل)
       if (fileList.length > 0) {
         const imagePromises = fileList.map(async (file, index) => {
           const fileExt = file.name.split('.').pop();
@@ -277,10 +348,10 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess }: RepairServiceDialog
         await Promise.all(imagePromises);
       }
 
-      toast.success('تم إضافة طلبية التصليح بنجاح');
-      
-      // استدعاء دالة النجاح مع معرّف الطلبية ورمز التتبع
-      onSuccess(repairOrderId, trackingCode);
+              toast.success(editMode ? 'تم تحديث طلبية التصليح بنجاح' : 'تم إضافة طلبية التصليح بنجاح');
+        
+        // استدعاء دالة النجاح مع معرّف الطلبية ورمز التتبع
+        onSuccess(repairOrderId, trackingCode);
       
       // إغلاق النافذة وإعادة تعيين النموذج
       onClose();
@@ -324,10 +395,10 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess }: RepairServiceDialog
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <Wrench className="h-5 w-5" />
-            إضافة طلبية تصليح جديدة
+            {editMode ? 'تعديل طلبية التصليح' : 'إضافة طلبية تصليح جديدة'}
           </DialogTitle>
           <DialogDescription>
-            أدخل بيانات طلبية التصليح الجديدة
+            {editMode ? 'قم بتعديل بيانات طلبية التصليح' : 'أدخل بيانات طلبية التصليح الجديدة'}
           </DialogDescription>
         </DialogHeader>
         
@@ -522,6 +593,7 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess }: RepairServiceDialog
         
         <DialogFooter className="sm:justify-between">
           <Button
+            type="button"
             variant="outline"
             onClick={onClose}
             disabled={isSubmitting}
@@ -529,8 +601,9 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess }: RepairServiceDialog
             إلغاء
           </Button>
           <Button
+            type="submit"
             variant="default"
-            onClick={handleSubmit}
+            form="repair-form"
             disabled={isSubmitting}
             className="flex gap-2 items-center"
           >
@@ -541,7 +614,7 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess }: RepairServiceDialog
               </>
             ) : (
               <>
-                حفظ طلبية التصليح
+                {editMode ? 'تحديث الطلبية' : 'حفظ طلبية التصليح'}
               </>
             )}
           </Button>

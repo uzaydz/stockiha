@@ -498,10 +498,7 @@ const StoreEditorDemo = () => {
             <Eye className="h-4 w-4" />
             معاينة
           </Button>
-          <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-700 text-white">
-            <Save className="h-4 w-4" />
-            حفظ
-          </Button>
+
           <Button size="sm" className="gap-2 bg-green-600 hover:bg-green-700 text-white">
             <Rocket className="h-4 w-4" />
             نشر

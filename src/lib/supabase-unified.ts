@@ -24,6 +24,15 @@ export const supabase: SupabaseClient<Database> = createClient<Database>(supabas
     // A single, consistent storage key across the app
     storageKey: 'bazaar-supabase-auth-unified-main', 
   },
+  realtime: {
+    // إعدادات خاصة لحل مشكلة WebSocket في المتصفح
+    transport: typeof window !== 'undefined' ? window.WebSocket : undefined,
+    timeout: 20000,
+    heartbeatIntervalMs: 30000,
+    params: {
+      eventsPerSecond: 10
+    }
+  },
   global: {
     headers: {
       'X-Client-Info': 'bazaar-unified-client-simplified',

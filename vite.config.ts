@@ -201,6 +201,8 @@ export default defineConfig(({ command, mode }) => {
         url: 'url',
         zlib: 'browserify-zlib',
         fs: 'memfs',
+        // إصلاح مشكلة WebSocket لـ Supabase - تعطيل ws module
+        'ws': path.resolve(__dirname, 'src/utils/websocket-polyfill.ts'),
         // إصلاح مشكلة lodash CommonJS
         'lodash/get': 'lodash-es/get',
         'lodash/isString': 'lodash-es/isString',

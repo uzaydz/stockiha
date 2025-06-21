@@ -490,3 +490,10 @@ import './context/POSDataContext';
 
 // ✅ تفعيل نظام منع التكرار العالمي أولاً قبل أي شيء
 import './lib/requestDeduplicationGlobal';
+
+import './i18n';
+import './lib/performance/optimizations';
+import { disableConsoleInProduction, batchDOMUpdates } from './lib/performance/optimizations';
+
+// تطبيق تحسينات الأداء
+disableConsoleInProduction();

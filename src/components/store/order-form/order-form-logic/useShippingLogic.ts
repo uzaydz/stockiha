@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef, useMemo } from "react";
 import { UseFormReturn } from "react-hook-form";
 import { OrderFormValues } from "../OrderFormTypes";
 import { ShippingProviderSettings } from "../types";
 import { useSupabase } from "@/context/SupabaseContext";
 import { getShippingMunicipalities, calculateShippingFee, getShippingProvinces } from "@/api/product-page";
+import { requestCache, createCacheKey } from '@/lib/cache/requestCache';
+import { debounce } from 'lodash';
+import type { Municipality } from '@/api/product-page';
 
 interface ShippingLogicReturn {
   currentDeliveryFee: number;
@@ -63,255 +66,15 @@ export const useShippingLogic = (
     formSettings?.settings?.shipping_integration?.provider_id
   );
 
-  // تحميل قائمة الولايات
-  useEffect(() => {
-    const loadWilayas = async () => {
-      if (!tenantId) return;
-      setIsLoadingWilayas(true);
-      try {
-        const wilayas = await getShippingProvinces(tenantId);
-        setWilayasList(Array.isArray(wilayas) ? wilayas : []);
-      } catch (error) {
-        setWilayasList([]);
-      } finally {
-        setIsLoadingWilayas(false);
-      }
-    };
-    loadWilayas();
-  }, [tenantId]);
+  // إضافة مرجع لتخزين آخر طلب
+  const lastRequestRef = useRef<{
+    provinceId?: string | number;
+    municipalityId?: string | number | null;
+    deliveryType?: string;
+  }>({});
 
-  // دالة حساب سعر ZR Express
-  const calculateZRExpressShippingPrice = async (
-    tenantId: string,
-    provinceId: string,
-    isHomeDelivery: boolean
-  ): Promise<TarificationResponse> => {
-    try {
-
-      const { data, error } = await supabase.functions.invoke('calculate-zrexpress-shipping', {
-        body: {
-          organizationId: tenantId,
-          wilayaId: provinceId,
-          isHomeDelivery
-        }
-      });
-
-      if (error) throw error;
-      return data || { success: false, price: 0, error: 'No data returned' };
-    } catch (error) {
-      return { success: false, price: 0, error: String(error) };
-    }
-  };
-
-  const handleDeliveryTypeChange = useCallback(
-    (value: "home" | "desk") => {
-      
-      setSelectedDeliveryType(value);
-      form.setValue("deliveryOption", value, { shouldValidate: true });
-
-      const recalculateShippingPrice = async () => {
-        setIsLoadingDeliveryFee(true);
-        try {
-          const currentProvince = form.getValues('province');
-          const currentMunicipality = form.getValues('municipality');
-
-          if (currentProvince) {
-            await updateDeliveryFee(currentProvince, currentMunicipality || null);
-          } else {
-          }
-        } catch (error) {
-          const isHomeDelivery = value === 'home';
-          const fallbackPrice = isHomeDelivery ? 800 : 300;
-          setCurrentDeliveryFee(fallbackPrice);
-        } finally {
-          setIsLoadingDeliveryFee(false);
-        }
-      };
-      
-      setTimeout(async () => {
-        setIsLoadingCommunes(true);
-        try {
-          const currentProvince = form.getValues('province');
-          if (currentProvince && tenantId) {
-            const municipalities = await getShippingMunicipalities(Number(currentProvince), tenantId);
-            setCommunesList(Array.isArray(municipalities) ? municipalities : []);
-          }
-          
-          await recalculateShippingPrice();
-          
-        } catch (e) {
-          setCommunesList([]);
-        } finally {
-          setIsLoadingCommunes(false);
-        }
-      }, 100);
-    },
-    [form, hasShippingIntegration, tenantId, selectedDeliveryType]
-  );
-
-  const handleWilayaChange = useCallback(
-    async (wilayaId: string) => {
-      if (!wilayaId || !tenantId) {
-        return;
-      }
-
-      // إعادة تعيين القيم المتعلقة بالبلدية
-      form.setValue("municipality", "", { shouldValidate: false, shouldDirty: false });
-      form.setValue("stopDeskId", "", { shouldValidate: false, shouldDirty: false });
-      setCommunesList([]);
-      setYalidineCentersList([]);
-
-      setTimeout(async () => {
-        setIsLoadingCommunes(true);
-        
-        try {
-          // مسح التخزين المؤقت للبلديات أولاً
-          const cacheKey = `shipping_municipalities:${tenantId}:${wilayaId}`;
-          localStorage.removeItem(cacheKey);
-          
-          let municipalities = null;
-          let municipalitiesLoaded = false;
-          
-          // المحاولة الأولى: استخدام API function
-          try {
-            municipalities = await getShippingMunicipalities(Number(wilayaId), tenantId);
-            
-            if (municipalities && Array.isArray(municipalities) && municipalities.length > 0) {
-              municipalitiesLoaded = true;
-            } else {
-            }
-          } catch (apiError) {
-          }
-          
-          // المحاولة الثانية: الاستعلام المباشر إذا فشلت الطريقة الأولى
-          if (!municipalitiesLoaded) {
-            try {
-              const { data: directData, error: directError } = await supabase.rpc(
-                'get_shipping_municipalities' as any,
-                {
-                  p_wilaya_id: Number(wilayaId),
-                  p_org_id: tenantId
-                }
-              );
-
-              if (!directError && directData && Array.isArray(directData) && directData.length > 0) {
-                municipalities = directData;
-                municipalitiesLoaded = true;
-              } else {
-              }
-            } catch (directError) {
-            }
-          }
-          
-          // معالجة النتائج
-          if (municipalitiesLoaded && municipalities && Array.isArray(municipalities) && municipalities.length > 0) {
-            
-            setCommunesList(municipalities);
-            
-            // تحديث البلدية الأولى في النموذج تلقائياً
-            const firstMunicipalityId = municipalities[0]?.id;
-            if (firstMunicipalityId) {
-              form.setValue("municipality", firstMunicipalityId.toString(), { shouldValidate: true });
-              
-              // إعادة حساب سعر التوصيل للولاية الجديدة
-              try {
-                // سيتم حساب السعر تلقائياً عند تغيير البلدية
-              } catch (feeError) {
-              }
-            }
-          } else {
-            setCommunesList([]);
-          }
-          
-        } catch (generalError) {
-          setCommunesList([]);
-        } finally {
-          setIsLoadingCommunes(false);
-        }
-      }, 100);
-    },
-    [form, tenantId]
-  );
-
-  // تحميل إعدادات شركة الشحن الافتراضية
-  useEffect(() => {
-    const fetchDefaultProviderSettings = async () => {
-      // أولوية للمنتج: إذا كان المنتج له shipping_provider_id محدد، نستخدمه
-      let effectiveProviderId = null;
-      
-      // التحقق من إعدادات المنتج أولاً
-      if (productId) {
-        try {
-          const { data: productData, error: productError } = await supabase
-            .from('products')
-            .select('shipping_provider_id, shipping_method_type')
-            .eq('id', productId)
-            .single();
-          
-          if (!productError && productData && productData.shipping_provider_id) {
-            effectiveProviderId = productData.shipping_provider_id;
-          }
-        } catch (error) {
-        }
-      }
-      
-      // إذا لم يجد شركة شحن في المنتج، استخدم إعدادات النموذج
-      if (!effectiveProviderId) {
-        effectiveProviderId = formSettings?.settings?.shipping_integration?.provider_id || 
-                             formSettings?.settings?.shipping_integration?.provider;
-      }
-
-      if (!effectiveProviderId || !tenantId) {
-        setShippingProviderSettings(null);
-        return;
-      }
-
-      // التحقق من صحة providerId قبل النداء على قاعدة البيانات
-      const numericProviderId = parseInt(effectiveProviderId);
-      if (isNaN(numericProviderId) || numericProviderId <= 0) {
-        setShippingProviderSettings(null);
-        return;
-      }
-
-      setIsLoadingProviderSettings(true);
-      try {
-        const { data: providerData, error: providerError } = await supabase
-          .from("shipping_providers")
-          .select("code, name")
-          .eq("id", numericProviderId)
-          .single();
-
-        if (providerData && !providerError) {
-          setShippingProviderCode(providerData.code);
-          const defaultSettings: ShippingProviderSettings = {
-            provider_code: providerData.code,
-            is_home_delivery_enabled: true,
-            is_desk_delivery_enabled: true,
-            id: null,
-            original_provider_id: numericProviderId,
-            name: providerData.name || "Default Provider",
-            is_active: true,
-            use_unified_price: false,
-            unified_home_price: 0,
-            unified_desk_price: 0,
-            is_free_delivery_home: false,
-            is_free_delivery_desk: false,
-          };
-          
-          setShippingProviderSettings(defaultSettings);
-        } else {
-          setShippingProviderSettings(null);
-        }
-      } catch (error) {
-        setShippingProviderSettings(null);
-      } finally {
-        setIsLoadingProviderSettings(false);
-      }
-    };
-
-    fetchDefaultProviderSettings();
-  }, [formSettings, tenantId, hasShippingIntegration, productId]);
-
+  // نقل تعريف updateDeliveryFee هنا قبل استخدامها
+  // نقل تعريف updateDeliveryFee قبل استخدامه
   const updateDeliveryFee = useCallback(async (provinceId: string | number, municipalityId: string | number | null) => {
     if (!provinceId || !tenantId) return;
 
@@ -574,6 +337,239 @@ export const useShippingLogic = (
       setIsLoadingDeliveryFee(false);
     }
   }, [tenantId, form, quantity, selectedDeliveryType, initialDeliveryFee, productId, shippingProviderSettings, formSettings]);
+
+
+
+  // تحميل قائمة الولايات
+  useEffect(() => {
+    const loadWilayas = async () => {
+      if (!tenantId) return;
+      setIsLoadingWilayas(true);
+      try {
+        const wilayas = await getShippingProvinces(tenantId);
+        setWilayasList(Array.isArray(wilayas) ? wilayas : []);
+      } catch (error) {
+        setWilayasList([]);
+      } finally {
+        setIsLoadingWilayas(false);
+      }
+    };
+    loadWilayas();
+  }, [tenantId]);
+
+  // دالة حساب سعر ZR Express
+  const calculateZRExpressShippingPrice = async (
+    tenantId: string,
+    provinceId: string,
+    isHomeDelivery: boolean
+  ): Promise<TarificationResponse> => {
+    try {
+
+      const { data, error } = await supabase.functions.invoke('calculate-zrexpress-shipping', {
+        body: {
+          organizationId: tenantId,
+          wilayaId: provinceId,
+          isHomeDelivery
+        }
+      });
+
+      if (error) throw error;
+      return data || { success: false, price: 0, error: 'No data returned' };
+    } catch (error) {
+      return { success: false, price: 0, error: String(error) };
+    }
+  };
+
+  const handleDeliveryTypeChange = useCallback(
+    (value: "home" | "desk") => {
+      
+      setSelectedDeliveryType(value);
+      form.setValue("deliveryOption", value, { shouldValidate: true });
+
+      const recalculateShippingPrice = async () => {
+        setIsLoadingDeliveryFee(true);
+        try {
+          const currentProvince = form.getValues('province');
+          const currentMunicipality = form.getValues('municipality');
+
+          if (currentProvince) {
+            await updateDeliveryFee(currentProvince, currentMunicipality || null);
+          } else {
+          }
+        } catch (error) {
+          const isHomeDelivery = value === 'home';
+          const fallbackPrice = isHomeDelivery ? 800 : 300;
+          setCurrentDeliveryFee(fallbackPrice);
+        } finally {
+          setIsLoadingDeliveryFee(false);
+        }
+      };
+      
+      setTimeout(async () => {
+        setIsLoadingCommunes(true);
+        try {
+          const currentProvince = form.getValues('province');
+          if (currentProvince && tenantId) {
+            const municipalities = await getShippingMunicipalities(Number(currentProvince), tenantId);
+            setCommunesList(Array.isArray(municipalities) ? municipalities : []);
+          }
+          
+          await recalculateShippingPrice();
+          
+        } catch (e) {
+          setCommunesList([]);
+        } finally {
+          setIsLoadingCommunes(false);
+        }
+      }, 100);
+    },
+    [form, hasShippingIntegration, tenantId, selectedDeliveryType]
+  );
+
+  const handleWilayaChange = useCallback(
+    async (wilayaId: string) => {
+      if (!wilayaId || !tenantId) {
+        return;
+      }
+
+      // إعادة تعيين القيم المتعلقة بالبلدية
+      form.setValue("municipality", "", { shouldValidate: false, shouldDirty: false });
+      form.setValue("stopDeskId", "", { shouldValidate: false, shouldDirty: false });
+      setCommunesList([]);
+      setYalidineCentersList([]);
+
+      // استخدام requestCache بدلاً من setTimeout
+      setIsLoadingCommunes(true);
+      
+      try {
+        const cacheKey = createCacheKey('municipalities_for_wilaya', tenantId, wilayaId);
+        
+        const municipalities = await requestCache.get(
+          cacheKey,
+          async () => {
+            try {
+              return await getShippingMunicipalities(Number(wilayaId), tenantId);
+            } catch (error) {
+              // محاولة الاستعلام المباشر كـ fallback
+              const { data, error: directError } = await supabase.rpc(
+                'get_shipping_municipalities' as any,
+                {
+                  p_wilaya_id: Number(wilayaId),
+                  p_org_id: tenantId
+                }
+              );
+
+              if (!directError && data && Array.isArray(data)) {
+                return data as Municipality[];
+              }
+              
+              throw error;
+            }
+          },
+          5 * 60 * 1000 // 5 دقائق
+        );
+
+        if (municipalities && municipalities.length > 0) {
+          setCommunesList(municipalities);
+          
+          // تحديث البلدية الأولى في النموذج تلقائياً
+          const firstMunicipalityId = municipalities[0]?.id;
+          if (firstMunicipalityId) {
+            form.setValue("municipality", firstMunicipalityId.toString(), { shouldValidate: true });
+            
+            // تحديث رسوم التوصيل مباشرة
+            updateDeliveryFee(wilayaId, firstMunicipalityId);
+          }
+        } else {
+          setCommunesList([]);
+        }
+      } catch (error) {
+        setCommunesList([]);
+      } finally {
+        setIsLoadingCommunes(false);
+      }
+    },
+    [form, tenantId, updateDeliveryFee]
+  );
+
+  // تحميل إعدادات شركة الشحن الافتراضية
+  useEffect(() => {
+    const fetchDefaultProviderSettings = async () => {
+      // أولوية للمنتج: إذا كان المنتج له shipping_provider_id محدد، نستخدمه
+      let effectiveProviderId = null;
+      
+      // التحقق من إعدادات المنتج أولاً
+      if (productId) {
+        try {
+          const { data: productData, error: productError } = await supabase
+            .from('products')
+            .select('shipping_provider_id, shipping_method_type')
+            .eq('id', productId)
+            .single();
+          
+          if (!productError && productData && productData.shipping_provider_id) {
+            effectiveProviderId = productData.shipping_provider_id;
+          }
+        } catch (error) {
+        }
+      }
+      
+      // إذا لم يجد شركة شحن في المنتج، استخدم إعدادات النموذج
+      if (!effectiveProviderId) {
+        effectiveProviderId = formSettings?.settings?.shipping_integration?.provider_id || 
+                             formSettings?.settings?.shipping_integration?.provider;
+      }
+
+      if (!effectiveProviderId || !tenantId) {
+        setShippingProviderSettings(null);
+        return;
+      }
+
+      // التحقق من صحة providerId قبل النداء على قاعدة البيانات
+      const numericProviderId = parseInt(effectiveProviderId);
+      if (isNaN(numericProviderId) || numericProviderId <= 0) {
+        setShippingProviderSettings(null);
+        return;
+      }
+
+      setIsLoadingProviderSettings(true);
+      try {
+        const { data: providerData, error: providerError } = await supabase
+          .from("shipping_providers")
+          .select("code, name")
+          .eq("id", numericProviderId)
+          .single();
+
+        if (providerData && !providerError) {
+          setShippingProviderCode(providerData.code);
+          const defaultSettings: ShippingProviderSettings = {
+            provider_code: providerData.code,
+            is_home_delivery_enabled: true,
+            is_desk_delivery_enabled: true,
+            id: null,
+            original_provider_id: numericProviderId,
+            name: providerData.name || "Default Provider",
+            is_active: true,
+            use_unified_price: false,
+            unified_home_price: 0,
+            unified_desk_price: 0,
+            is_free_delivery_home: false,
+            is_free_delivery_desk: false,
+          };
+          
+          setShippingProviderSettings(defaultSettings);
+        } else {
+          setShippingProviderSettings(null);
+        }
+      } catch (error) {
+        setShippingProviderSettings(null);
+      } finally {
+        setIsLoadingProviderSettings(false);
+      }
+    };
+
+    fetchDefaultProviderSettings();
+  }, [formSettings, tenantId, hasShippingIntegration, productId]);
 
   // دالة للتعامل مع تغيير شركة التوصيل
   const handleShippingProviderChange = useCallback(async (providerId: string) => {

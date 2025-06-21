@@ -1,0 +1,437 @@
+/* ==========================================================================
+   لوحة الخصائص - تحسينات متجاوبة
+   ========================================================================== */
+
+/* متغيرات مخصصة للوحة الخصائص */
+:root {
+  --properties-panel-width-sm: clamp(280px, 35vw, 360px);
+  --properties-panel-width-md: clamp(320px, 30vw, 400px);
+  --properties-panel-width-lg: 400px;
+  --properties-panel-width-xl: 450px;
+  --properties-panel-collapsed-width: 60px;
+  --properties-panel-border-radius: 12px;
+  --properties-panel-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  --properties-panel-backdrop: rgba(255, 255, 255, 0.85);
+}
+
+/* الموضوع الداكن */
+[data-theme="dark"] {
+  --properties-panel-backdrop: rgba(0, 0, 0, 0.85);
+  --properties-panel-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+}
+
+/* حاوي اللوحة الأساسي */
+.properties-panel-rtl {
+  direction: rtl;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: var(--properties-panel-border-radius);
+  box-shadow: var(--properties-panel-shadow);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+/* لوحة الخصائص المحسنة */
+.properties-panel-enhanced {
+  position: relative !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  contain: layout style paint !important;
+}
+
+/* انيميشن الانزلاق للوحة */
+.properties-panel-slide-rtl {
+  transform-origin: right center;
+  will-change: transform, opacity;
+}
+
+/* تحسينات responsive للشاشات المختلفة مع حدود آمنة */
+
+/* الشاشات الصغيرة جداً (أقل من 640px) */
+@media (max-width: 639px) {
+  .properties-panel-rtl {
+    position: fixed !important;
+    top: 0;
+    left: 0 !important; /* تثبيت من اليسار */
+    right: auto !important; /* إلغاء التثبيت من اليمين */
+    height: 100vh;
+    z-index: 9999;
+    border-radius: 0;
+    border-left: none;
+    border-right: 1px solid var(--border);
+    max-width: calc(100vw - 20px) !important; /* حد أقصى مع ترك مسافة */
+    min-width: 280px;
+  }
+  
+  /* تأكد من أن المحتوى يبقى داخل الحدود */
+  .properties-panel-rtl * {
+    max-width: 100%;
+    overflow-wrap: break-word;
+  }
+  
+  /* تقليل padding في الشاشات الصغيرة */
+  .properties-panel-rtl .space-y-4 > * + * {
+    margin-top: 0.75rem !important;
+  }
+  
+  .properties-panel-rtl .space-y-3 > * + * {
+    margin-top: 0.5rem !important;
+  }
+  
+  /* تقليل حجم الخط في الحقول */
+  .properties-panel-rtl input,
+  .properties-panel-rtl textarea,
+  .properties-panel-rtl select {
+    font-size: 14px !important;
+    padding: 8px 12px !important;
+  }
+  
+  /* تقليل ارتفاع الأزرار */
+  .properties-panel-rtl button {
+    min-height: 36px !important;
+    padding: 6px 12px !important;
+  }
+}
+
+/* الشاشات المتوسطة (640px - 767px) */
+@media (min-width: 640px) and (max-width: 767px) {
+  .properties-panel-rtl {
+    max-width: min(var(--properties-panel-width-sm), calc(100vw - 40px));
+    left: auto !important;
+    right: 0 !important;
+    border-left: 1px solid var(--border);
+    border-right: none;
+  }
+  
+  /* تحسين المسافات */
+  .properties-panel-rtl .p-4 {
+    padding: 1rem !important;
+  }
+  
+  .properties-panel-rtl .p-3 {
+    padding: 0.75rem !important;
+  }
+}
+
+/* الشاشات الكبيرة (768px - 1023px) */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .properties-panel-rtl {
+    max-width: min(var(--properties-panel-width-md), calc(40vw));
+    left: auto !important;
+    right: 0 !important;
+    border-left: 1px solid var(--border);
+    border-right: none;
+  }
+}
+
+/* الشاشات الكبيرة جداً (1024px+) */
+@media (min-width: 1024px) {
+  .properties-panel-rtl {
+    max-width: min(var(--properties-panel-width-lg), calc(35vw));
+    left: auto !important;
+    right: 0 !important;
+    border-left: 1px solid var(--border);
+    border-right: none;
+  }
+}
+
+/* الشاشات الضخمة (1280px+) */
+@media (min-width: 1280px) {
+  .properties-panel-rtl {
+    max-width: min(var(--properties-panel-width-xl), calc(30vw));
+    left: auto !important;
+    right: 0 !important;
+    border-left: 1px solid var(--border);
+    border-right: none;
+  }
+}
+
+/* تحسينات للحقول والمدخلات */
+.properties-panel-rtl .input-responsive {
+  width: 100%;
+  transition: all 0.2s ease;
+}
+
+.properties-panel-rtl .input-responsive:focus {
+  transform: scale(1.02);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* تحسين عرض التبويبات */
+.properties-panel-rtl .tabs-list-responsive {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 4px;
+  border-radius: 8px;
+}
+
+@media (max-width: 639px) {
+  .properties-panel-rtl .tabs-list-responsive {
+    gap: 2px;
+    padding: 2px;
+  }
+}
+
+/* تحسين عرض الأقسام */
+.properties-section-responsive {
+  margin-bottom: 1rem;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.properties-section-responsive:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+@media (max-width: 639px) {
+  .properties-section-responsive {
+    margin-bottom: 0.75rem;
+    border-radius: 6px;
+  }
+}
+
+/* تحسين المنزلقات (Sliders) */
+.properties-panel-rtl .slider-responsive {
+  width: 100%;
+  margin: 12px 0;
+}
+
+.properties-panel-rtl .slider-responsive .slider-track {
+  height: 6px;
+  border-radius: 3px;
+}
+
+.properties-panel-rtl .slider-responsive .slider-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.properties-panel-rtl .slider-responsive .slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+@media (max-width: 639px) {
+  .properties-panel-rtl .slider-responsive .slider-thumb {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+/* تحسين المفاتيح (Switches) */
+.properties-panel-rtl .switch-responsive {
+  transition: all 0.2s ease;
+}
+
+.properties-panel-rtl .switch-responsive:hover {
+  transform: scale(1.05);
+}
+
+/* تحسين القوائم المنسدلة */
+.properties-panel-rtl .select-responsive {
+  width: 100%;
+  position: relative;
+}
+
+.properties-panel-rtl .select-responsive .select-trigger {
+  width: 100%;
+  text-align: right;
+  padding: 8px 12px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.properties-panel-rtl .select-responsive .select-trigger:focus {
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+@media (max-width: 639px) {
+  .properties-panel-rtl .select-responsive .select-trigger {
+    padding: 6px 10px;
+    font-size: 14px;
+  }
+}
+
+/* تحسين منطقة التمرير */
+.properties-scroll-area {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(155, 155, 155, 0.5) transparent;
+}
+
+.properties-scroll-area::-webkit-scrollbar {
+  width: 8px;
+}
+
+.properties-scroll-area::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.properties-scroll-area::-webkit-scrollbar-thumb {
+  background-color: rgba(155, 155, 155, 0.5);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.properties-scroll-area::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(155, 155, 155, 0.8);
+}
+
+@media (max-width: 639px) {
+  .properties-scroll-area::-webkit-scrollbar {
+    width: 6px;
+  }
+}
+
+/* تحسينات للإنيميشن في الأجهزة المحمولة */
+@media (max-width: 767px) {
+  .properties-panel-rtl * {
+    transition-duration: 0.2s !important;
+  }
+}
+
+/* تحسين للوضع الأفقي في الأجهزة المحمولة */
+@media (max-width: 767px) and (orientation: landscape) {
+  .properties-panel-rtl {
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+}
+
+/* تحسينات إضافية للأداء */
+.properties-panel-rtl * {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* تحسين focus للوصولية */
+.properties-panel-rtl *:focus-visible {
+  outline: 2px solid rgba(59, 130, 246, 0.6);
+  outline-offset: 2px;
+}
+
+/* تحسين للطباعة */
+@media print {
+  .properties-panel-rtl {
+    display: none !important;
+  }
+}
+
+/* تحسين للحركة المخفضة */
+@media (prefers-reduced-motion: reduce) {
+  .properties-panel-rtl * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* تحسين للتباين العالي */
+@media (prefers-contrast: high) {
+  .properties-panel-rtl {
+    border: 2px solid currentColor;
+    background: Canvas;
+    color: CanvasText;
+  }
+}
+
+/* تحسينات خاصة بالشاشات الصغيرة للغاية */
+@media (max-width: 380px) {
+  .properties-panel-rtl {
+    font-size: 13px;
+  }
+  
+  .properties-panel-rtl .text-sm {
+    font-size: 12px !important;
+  }
+  
+  .properties-panel-rtl .p-4 {
+    padding: 0.75rem !important;
+  }
+  
+  .properties-panel-rtl .p-3 {
+    padding: 0.5rem !important;
+  }
+  
+  .properties-panel-rtl .space-y-4 > * + * {
+    margin-top: 0.5rem !important;
+  }
+  
+  .properties-panel-rtl .gap-3 {
+    gap: 0.5rem !important;
+  }
+}
+
+/* تحسينات للشاشات فائقة العرض */
+@media (min-width: 1920px) {
+  .properties-panel-rtl {
+    max-width: 500px;
+  }
+}
+
+/* تأثيرات بصرية محسنة */
+.properties-panel-glass-effect {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="dark"] .properties-panel-glass-effect {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* حالات التحميل */
+.properties-panel-loading {
+  pointer-events: none;
+  opacity: 0.6;
+  filter: blur(1px);
+}
+
+.properties-panel-loading::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border: 2px solid transparent;
+  border-top: 2px solid currentColor;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* تحسينات خاصة للاتجاه RTL */
+.properties-panel-rtl .flex-row-reverse {
+  flex-direction: row-reverse;
+}
+
+.properties-panel-rtl .text-right {
+  text-align: right;
+}
+
+.properties-panel-rtl .mr-auto {
+  margin-right: auto;
+  margin-left: 0;
+}
+
+.properties-panel-rtl .ml-auto {
+  margin-left: auto;
+  margin-right: 0;
+} 

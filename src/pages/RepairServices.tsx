@@ -164,6 +164,7 @@ const RepairServices = () => {
   
   // حالة نوافذ العمل
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<RepairOrder | null>(null);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
@@ -302,6 +303,47 @@ const RepairServices = () => {
     }
   };
   
+  // التعامل مع نجاح التعديل
+  const handleEditSuccess = async () => {
+    try {
+      if (!organizationId) return;
+      
+      const { data, error } = await supabase
+        .from('repair_orders')
+        .select(`
+          *,
+          images:repair_images(*),
+          history:repair_status_history(*, users(name)),
+          repair_location:repair_locations(id, name, description, address, phone),
+          staff:users(id, name, email, phone)
+        `)
+        .eq('organization_id', organizationId)
+        .order('created_at', { ascending: false });
+        
+      if (error) throw error;
+      
+      if (data) {
+        const typedData = data as unknown as RepairOrder[];
+        setRepairOrders(typedData);
+        
+        // إعادة حساب الإحصائيات
+        const statusCounts = {
+          total: typedData.length,
+          pending: typedData.filter(order => order.status === 'قيد الانتظار').length,
+          inProgress: typedData.filter(order => order.status === 'جاري التصليح').length,
+          completed: typedData.filter(order => order.status === 'مكتمل').length,
+          cancelled: typedData.filter(order => order.status === 'ملغي').length,
+        };
+        
+        setStats(statusCounts);
+      }
+      
+      toast.success('تم تحديث طلبية التصليح بنجاح');
+    } catch (error) {
+      toast.error('فشل في تحديث البيانات');
+    }
+  };
+  
   // مشاركة رابط التتبع
   const shareTrackingLink = () => {
     if (!trackingInfo) return;
@@ -322,6 +364,12 @@ const RepairServices = () => {
   const handleViewOrder = (order: RepairOrder) => {
     setSelectedOrder(order);
     setIsViewDialogOpen(true);
+  };
+  
+  // التعامل مع تعديل طلبية
+  const handleEditOrder = (order: RepairOrder) => {
+    setSelectedOrder(order);
+    setIsEditDialogOpen(true);
   };
   
   // تحديث حالة طلبية التصليح
@@ -712,7 +760,10 @@ const RepairServices = () => {
                                 <Eye className="h-4 w-4 mr-2" />
                                 عرض التفاصيل
                               </DropdownMenuItem>
-                              <DropdownMenuItem>
+                              <DropdownMenuItem onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditOrder(order);
+                              }}>
                                 <Edit2 className="h-4 w-4 mr-2" />
                                 تعديل الطلبية
                               </DropdownMenuItem>
@@ -733,7 +784,14 @@ const RepairServices = () => {
                                 <Printer className="h-4 w-4 mr-2" />
                                 طباعة إيصال
                               </DropdownMenuItem>
-                              <DropdownMenuItem>
+                              <DropdownMenuItem onClick={(e) => {
+                                e.stopPropagation();
+                                setTrackingInfo({
+                                  orderId: order.id,
+                                  trackingCode: order.repair_tracking_code || order.order_number || order.id
+                                });
+                                setIsShareDialogOpen(true);
+                              }}>
                                 <Share2 className="h-4 w-4 mr-2" />
                                 مشاركة التتبع
                               </DropdownMenuItem>
@@ -763,6 +821,18 @@ const RepairServices = () => {
         isOpen={isAddDialogOpen}
         onClose={() => setIsAddDialogOpen(false)}
         onSuccess={handleAddSuccess}
+      />
+
+      {/* نافذة تعديل طلبية */}
+      <RepairServiceDialog
+        isOpen={isEditDialogOpen}
+        onClose={() => setIsEditDialogOpen(false)}
+        onSuccess={() => {
+          handleEditSuccess();
+          setIsEditDialogOpen(false);
+        }}
+        editMode={true}
+        repairOrder={selectedOrder}
       />
       
       {/* نافذة عرض تفاصيل طلبية التصليح */}
@@ -1040,7 +1110,10 @@ const RepairServices = () => {
                 </div>
               </div>
               <div className="flex gap-2">
-                <Button variant="secondary" className="gap-1">
+                <Button variant="secondary" className="gap-1" onClick={() => {
+                  setIsViewDialogOpen(false);
+                  handleEditOrder(selectedOrder);
+                }}>
                   <Edit2 className="h-4 w-4" />
                   تعديل
                 </Button>

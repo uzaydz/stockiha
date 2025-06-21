@@ -2,6 +2,8 @@ import React from 'react';
 import { getMunicipalities } from "@/api/formShippingIntegration";
 import type { ExtendedFormField } from "../types"; // Adjusted import path
 import { findStopDeskForMunicipality } from './StopDeskLogic'; // Assuming this is the correct path
+import { requestCache, createCacheKey } from '@/lib/cache/requestCache';
+import { debounce } from 'lodash';
 
 interface FormEventHandlerProps {
   extendedFields: ExtendedFormField[];
@@ -31,6 +33,14 @@ export const useFormEventHandlers = ({
   onFieldChange,
   deliveryTypeUpdateRef
 }: FormEventHandlerProps) => {
+
+  // إنشاء دالة debounced لإعادة حساب سعر التوصيل
+  const debouncedRecalculatePrice = React.useMemo(
+    () => debounce((deliveryType: string, provinceId: string, municipalityId: string) => {
+      recalculateAndSetDeliveryPrice(deliveryType, provinceId, municipalityId);
+    }, 300),
+    [recalculateAndSetDeliveryPrice]
+  );
 
   // دالة مساعدة لتحديث قيمة الحقل وإرسالها إلى النموذج الأساسي
   const updateFieldValue = (fieldName: string, value: string) => {
@@ -102,10 +112,17 @@ export const useFormEventHandlers = ({
         municipalityField.isLoading = true;
         setExtendedFields([...updatedFields]);
         
-        const municipalities = await getMunicipalities(
-          currentOrganization.id, 
-          provinceId, 
-          selectedDeliveryType as any
+        // استخدام نظام التخزين المؤقت للبلديات
+        const cacheKey = createCacheKey('form_municipalities', currentOrganization.id, provinceId, selectedDeliveryType);
+        
+        const municipalities = await requestCache.get(
+          cacheKey,
+          () => getMunicipalities(
+            currentOrganization.id, 
+            provinceId, 
+            selectedDeliveryType as any
+          ),
+          5 * 60 * 1000 // 5 دقائق
         );
         
         if (!municipalities || municipalities.length === 0) {
@@ -156,9 +173,8 @@ export const useFormEventHandlers = ({
         
         setExtendedFields([...updatedFields]);
         
-        setTimeout(() => {
-            recalculateAndSetDeliveryPrice(selectedDeliveryType, provinceId, newMunicipalityValue);
-        }, 0);
+        // استخدام الدالة المؤجلة لإعادة حساب السعر
+        debouncedRecalculatePrice(selectedDeliveryType, provinceId, newMunicipalityValue);
       }
     } catch (error) {
       const updatedFields = [...extendedFields];
@@ -204,7 +220,8 @@ export const useFormEventHandlers = ({
         }
       }
       
-      recalculateAndSetDeliveryPrice(selectedDeliveryType, provinceId, municipalityId);
+      // استخدام الدالة المؤجلة لإعادة حساب السعر
+      debouncedRecalculatePrice(selectedDeliveryType, provinceId, municipalityId);
     } catch (error) {
     }
   };

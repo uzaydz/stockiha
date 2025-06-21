@@ -278,17 +278,17 @@ const POS = () => {
 
   // تنظيف البيانات الواردة من قارئ الباركود
   const cleanBarcodeInput = (input: string): string => {
+    // إزالة المسافات من البداية والنهاية فقط
+    let cleaned = input.trim();
     
-    // إزالة الأحرف العربية والرموز الخاصة، والاحتفاظ بالأرقام والحروف الانجليزية فقط
-    let cleaned = input.replace(/[^\w\d-]/g, '');
+    // إزالة أحرف التحكم غير المرئية (مثل \n, \r, \t)
+    cleaned = cleaned.replace(/[\x00-\x1F\x7F]/g, '');
     
-    // إذا كان النص فارغ بعد التنظيف، جرب إزالة كل شيء عدا الأرقام
-    if (!cleaned || cleaned.length === 0) {
-      cleaned = input.replace(/[^\d]/g, '');
-    }
+    // إزالة المسافات المتعددة واستبدالها بمسافة واحدة
+    cleaned = cleaned.replace(/\s+/g, ' ');
     
-    // إزالة المسافات الإضافية
-    cleaned = cleaned.trim();
+    // السماح بمعظم الأحرف بما في ذلك الأرقام والحروف والرموز الخاصة
+    // هذا يسمح بمطابقة أكثر مرونة مع الباركود المحفوظ
     return cleaned;
   };
 
@@ -296,6 +296,9 @@ const POS = () => {
   const handleBarcodeScanned = (rawBarcode: string) => {
     // تنظيف البيانات الواردة من قارئ الباركود
     const barcode = cleanBarcodeInput(rawBarcode);
+    
+    console.log('[DEBUG] الباركود الأصلي:', rawBarcode);
+    console.log('[DEBUG] الباركود بعد التنظيف:', barcode);
     
     // التحقق من أن الباركود ليس فارغ بعد التنظيف
     if (!barcode || barcode.length === 0) {
@@ -359,6 +362,17 @@ const POS = () => {
     }
     
     if (!foundVariant) {
+      // عرض الباركودات المتاحة في وحدة التحكم للمساعدة في التشخيص
+      console.log('[DEBUG] الباركودات المتاحة في المنتجات:');
+      products.forEach(p => {
+        if (p.barcode) {
+          console.log(`- ${p.name}: ${p.barcode}`);
+        }
+        if (p.sku) {
+          console.log(`- ${p.name} (SKU): ${p.sku}`);
+        }
+      });
+      
       toast.error(`لم يتم العثور على منتج بالباركود: ${barcode}`);
     }
   };
@@ -863,7 +877,8 @@ const POS = () => {
       if (event.key === 'Enter') {
         event.preventDefault();
         if (barcodeBuffer.length > 0) {
-          const barcode = barcodeBuffer.replace(/[^\w\d-]/g, '').trim();
+          // استخدام نفس وظيفة التنظيف المحدثة
+          const barcode = cleanBarcodeInput(barcodeBuffer);
           if (barcode) {
             const product = products.find(p => p.barcode === barcode || p.sku === barcode);
             if (product) {

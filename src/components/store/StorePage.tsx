@@ -403,23 +403,48 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
       // جلب الإعدادات للمرة الأولى
       await fetchFooterSettings();
 
-      // إعداد مراقب للتغييرات في الوقت الفعلي
-      const subscription = supabase
-        .channel('footer-settings-changes')
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'store_settings',
-          filter: `organization_id=eq.${storeData.organization_details.id} AND component_type=eq.footer`
-        }, (payload) => {
-          // إعادة جلب الإعدادات عند حدوث تغيير
-          fetchFooterSettings();
-        })
-        .subscribe();
+
+      // إعداد مراقب للتغييرات في الوقت الفعلي مع error handling
+      let subscription: any = null;
+      
+      try {
+        subscription = supabase
+          .channel('footer-settings-changes')
+          .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'store_settings',
+            filter: `organization_id=eq.${storeData.organization_details.id} AND component_type=eq.footer`
+          }, (payload) => {
+            // إعادة جلب الإعدادات عند حدوث تغيير
+            fetchFooterSettings();
+          })
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              console.log('✅ اشتراك Realtime نجح للفوتر');
+            } else if (status === 'CHANNEL_ERROR') {
+              console.warn('⚠️ خطأ في اشتراك Realtime للفوتر، سيتم تجاهل التحديثات المباشرة');
+            } else if (status === 'TIMED_OUT') {
+              console.warn('⏱️ انتهت مهلة اشتراك Realtime للفوتر');
+            } else if (status === 'CLOSED') {
+              console.log('🔌 تم إغلاق اشتراك Realtime للفوتر');
+            }
+          });
+      } catch (error) {
+        console.warn('⚠️ فشل في إعداد Realtime subscription للفوتر:', error);
+        // في حالة فشل الـ realtime، يمكن إضافة polling كبديل
+        // setInterval(fetchFooterSettings, 30000); // تحديث كل 30 ثانية
+      }
 
       // إرجاع دالة التنظيف
       return () => {
-        subscription.unsubscribe();
+        if (subscription) {
+          try {
+            subscription.unsubscribe();
+          } catch (error) {
+            console.warn('تحذير: فشل في إلغاء اشتراك Realtime:', error);
+          }
+        }
       };
     };
 
@@ -427,6 +452,8 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
     
     initializeFooterSettings().then((cleanupFn) => {
       cleanup = cleanupFn;
+    }).catch((error) => {
+      console.warn('فشل في تهيئة إعدادات الفوتر:', error);
     });
 
     // تنظيف المراقب عند انتهاء المكون

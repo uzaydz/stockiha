@@ -1,5 +1,6 @@
 // import { supabase } from '@/lib/supabase-client';
 import { withCache, LONG_CACHE_TTL, SHORT_CACHE_TTL } from '@/lib/cache/storeCache';
+import { requestCache, createCacheKey } from '@/lib/cache/requestCache';
 import type { Product, ProductColor, ProductSize } from '@/lib/api/products';
 // import { trackedFunctionInvoke, trackedRpc, trackedSupabase } from '@/lib/db-tracker'; // تعطيل هذا مؤقتًا
 import { supabase } from '@/lib/supabase-client'; // افتراض وجود هذا الملف وتكوينه بشكل صحيح
@@ -104,9 +105,9 @@ const CACHE_PREFIX = 'product_page_';
  * @returns كائن ProductPageData يحتوي على كل بيانات الصفحة أو null
  */
 export const getProductPageData = async (organizationId: string, slug: string): Promise<ProductPageData | null> => {
-  const cacheKey = `${CACHE_PREFIX}${organizationId}_${slug}`;
+  const cacheKey = createCacheKey('product_page', organizationId, slug);
 
-  return withCache<ProductPageData | null>(
+  return requestCache.get(
     cacheKey,
     async () => {
       try {
@@ -214,13 +215,15 @@ export const getProductPageData = async (organizationId: string, slug: string): 
 };
 
 /**
- * جلب بيانات الولايات المتاحة للشحن
+ * جلب بيانات الولايات المتاحة للشحن - مع تخزين مؤقت محسّن
  * @param organizationId معرف المؤسسة
  * @returns قائمة الولايات المتاحة
  */
 export async function getShippingProvinces(organizationId: string): Promise<Province[]> {
-  return withCache<Province[]>(
-    `shipping_provinces:${organizationId}`,
+  const cacheKey = createCacheKey('shipping_provinces', organizationId);
+  
+  return requestCache.get(
+    cacheKey,
     async () => {
       try {
         // استدعاء دالة جلب الولايات الموحدة في قاعدة البيانات
@@ -245,13 +248,15 @@ export async function getShippingProvinces(organizationId: string): Promise<Prov
 }
 
 /**
- * جلب بيانات البلديات في ولاية معينة
+ * جلب بيانات البلديات في ولاية معينة - مع تخزين مؤقت محسّن
  * @param wilayaId معرف الولاية
  * @returns قائمة البلديات في الولاية
  */
 export async function getShippingMunicipalities(wilayaId: number, organizationId: string): Promise<Municipality[]> {
-  return withCache<Municipality[]>(
-    `shipping_municipalities:${organizationId}:${wilayaId}`,
+  const cacheKey = createCacheKey('shipping_municipalities', organizationId, wilayaId);
+  
+  return requestCache.get(
+    cacheKey,
     async () => {
       try {
         

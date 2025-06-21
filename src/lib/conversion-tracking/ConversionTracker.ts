@@ -55,6 +55,9 @@ class ConversionTracker {
   private eventQueue: ConversionEvent[] = [];
   private isProcessing = false;
   private retryDelays = [1000, 3000, 5000, 10000]; // تدرج في التأخير
+  private apiAvailable: boolean | null = null; // حالة توفر API
+  private lastApiCheck: number = 0; // آخر وقت تم فيه فحص API
+  private readonly API_CHECK_INTERVAL = 5 * 60 * 1000; // 5 دقائق
 
   constructor(private productId: string) {
     this.initializeSettings();
@@ -524,9 +527,48 @@ class ConversionTracker {
   }
 
   /**
+   * التحقق من توفر API endpoint
+   */
+  private async checkApiAvailability(): Promise<boolean> {
+    // إذا تم الفحص مؤخراً، استخدم النتيجة المحفوظة
+    if (this.apiAvailable !== null && Date.now() - this.lastApiCheck < this.API_CHECK_INTERVAL) {
+      return this.apiAvailable;
+    }
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 ثواني
+
+      const response = await fetch('/api/conversion-events/health', {
+        method: 'GET',
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      this.apiAvailable = response.ok;
+      this.lastApiCheck = Date.now();
+      
+      return this.apiAvailable;
+    } catch (error) {
+      // إذا فشل الفحص، افترض أن API غير متاح
+      this.apiAvailable = false;
+      this.lastApiCheck = Date.now();
+      return false;
+    }
+  }
+
+  /**
    * تسجيل الحدث في قاعدة البيانات
    */
   private async logEventToDatabase(event: ConversionEvent): Promise<void> {
+    // التحقق من توفر API أولاً
+    const isApiAvailable = await this.checkApiAvailability();
+    if (!isApiAvailable) {
+      // إذا كان API غير متاح، لا تحاول الإرسال
+      return;
+    }
+
     try {
       const eventData = {
         product_id: event.product_id,
@@ -556,6 +598,12 @@ class ConversionTracker {
         clearTimeout(timeoutId);
 
         if (!response.ok) {
+          // إذا فشل الطلب، قم بتحديث حالة API
+          if (response.status === 404 || response.status === 503) {
+            this.apiAvailable = false;
+            this.lastApiCheck = Date.now();
+          }
+          
           const errorData = await response.text();
           // لا نرمي خطأ، فقط نسجل التحذير
           return;
@@ -567,7 +615,11 @@ class ConversionTracker {
         clearTimeout(timeoutId);
         
         if (fetchError.name === 'AbortError') {
+          // timeout - قد يكون API بطيء
         } else {
+          // خطأ في الشبكة - API غير متاح على الأرجح
+          this.apiAvailable = false;
+          this.lastApiCheck = Date.now();
         }
         // لا نرمي خطأ، فقط نسجل التحذير
       }

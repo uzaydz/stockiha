@@ -1192,33 +1192,7 @@ export const StorePreview: React.FC<StorePreviewProps> = React.memo(({ organizat
           
           {/* أدوات إضافية */}
           <div className="flex items-center gap-1">
-            {/* زر الحفظ */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={hasUnsavedChanges() ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={handleSave}
-                  disabled={isSaving || !hasUnsavedChanges()}
-                  className={cn(
-                    "h-8 px-3 transition-all duration-200",
-                    hasUnsavedChanges() && "bg-primary dark:bg-primary text-primary-foreground dark:text-primary-foreground"
-                  )}
-                >
-                  {isSaving ? (
-                    <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
-                  ) : hasUnsavedChanges() ? (
-                    <Save className="w-4 h-4 mr-1" />
-                  ) : (
-                    <Check className="w-4 h-4 mr-1" />
-                  )}
-                  {isSaving ? 'جاري الحفظ...' : hasUnsavedChanges() ? 'حفظ' : 'محفوظ'}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{hasUnsavedChanges() ? 'حفظ التغييرات' : 'جميع التغييرات محفوظة'}</p>
-              </TooltipContent>
-            </Tooltip>
+
             
           {/* شبكة المحاذاة */}
             <Tooltip>

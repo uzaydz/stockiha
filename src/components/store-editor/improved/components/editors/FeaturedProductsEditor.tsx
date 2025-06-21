@@ -230,44 +230,48 @@ export const FeaturedProductsEditor: React.FC<FeaturedProductsEditorProps> = ({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 lg:space-y-6">
       {/* قسم المحتوى */}
       <PropertySection
         title="المحتوى الأساسي"
         icon={<Type className="w-4 h-4" />}
         expanded={expandedSections.has('content')}
         onToggle={() => toggleSection('content')}
+        className="properties-section-responsive"
       >
-        <div className="space-y-4">
-          <div>
-            <Label htmlFor="featured-title">العنوان</Label>
-            <Input
-              id="featured-title"
-              value={settings.title || ''}
-              onChange={(e) => onUpdate('title', e.target.value)}
-              placeholder="منتجاتنا المميزة"
-              className="mt-1"
-            />
+        <div className="space-y-3 lg:space-y-4">
+          <div className="grid gap-3 lg:gap-4">
+            <div>
+              <Label htmlFor="featured-title" className="text-sm font-medium">العنوان</Label>
+              <Input
+                id="featured-title"
+                value={settings.title || ''}
+                onChange={(e) => onUpdate('title', e.target.value)}
+                placeholder="منتجاتنا المميزة"
+                className="mt-1.5 input-responsive"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="featured-description" className="text-sm font-medium">الوصف</Label>
+              <Textarea
+                id="featured-description"
+                value={settings.description || ''}
+                onChange={(e) => onUpdate('description', e.target.value)}
+                placeholder="اكتشف أفضل ما لدينا من منتجات مختارة بعناية"
+                rows={3}
+                className="mt-1.5 input-responsive resize-none"
+              />
+            </div>
           </div>
 
-          <div>
-            <Label htmlFor="featured-description">الوصف</Label>
-            <Textarea
-              id="featured-description"
-              value={settings.description || ''}
-              onChange={(e) => onUpdate('description', e.target.value)}
-              placeholder="اكتشف أفضل ما لدينا من منتجات مختارة بعناية"
-              rows={3}
-              className="mt-1"
-            />
-          </div>
-
-          <div className="flex items-center justify-between">
-            <Label htmlFor="show-view-all">إظهار زر "عرض الكل"</Label>
+          <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+            <Label htmlFor="show-view-all" className="text-sm font-medium">إظهار زر "عرض الكل"</Label>
             <Switch
               id="show-view-all"
               checked={settings.showViewAllButton ?? true}
               onCheckedChange={(checked) => onUpdate('showViewAllButton', checked)}
+              className="switch-responsive"
             />
           </div>
         </div>
@@ -279,11 +283,12 @@ export const FeaturedProductsEditor: React.FC<FeaturedProductsEditorProps> = ({
         icon={<Settings2 className="w-4 h-4" />}
         expanded={expandedSections.has('display')}
         onToggle={() => toggleSection('display')}
+        className="properties-section-responsive"
       >
-        <div className="space-y-4">
-          <div>
-            <Label htmlFor="display-count">عدد المنتجات المعروضة</Label>
-            <div className="mt-2">
+        <div className="space-y-3 lg:space-y-4">
+          <div className="p-3 bg-card/50 rounded-lg border border-border/50">
+            <Label htmlFor="display-count" className="text-sm font-medium">عدد المنتجات المعروضة</Label>
+            <div className="mt-2 slider-responsive">
               <Slider
                 value={[settings.displayCount || 4]}
                 onValueChange={(value) => onUpdate('displayCount', value[0])}
@@ -292,38 +297,40 @@ export const FeaturedProductsEditor: React.FC<FeaturedProductsEditorProps> = ({
                 step={1}
                 className="w-full"
               />
-              <div className="flex justify-between text-xs text-muted-foreground mt-1">
+              <div className="flex justify-between text-xs text-muted-foreground mt-2">
                 <span>2</span>
-                <span className="font-medium">{settings.displayCount || 4} منتج</span>
+                <span className="font-medium text-primary">{settings.displayCount || 4} منتج</span>
                 <span>20</span>
               </div>
             </div>
           </div>
 
           <div>
-            <Label htmlFor="display-type">نوع العرض</Label>
-            <Select
-              value={settings.displayType || 'grid'}
-              onValueChange={(value) => onUpdate('displayType', value)}
-            >
-              <SelectTrigger className="mt-1">
-                <SelectValue placeholder="اختر نوع العرض" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="grid">
-                  <div className="flex items-center gap-2">
-                    <Grid3X3 className="w-4 h-4" />
-                    شبكة
-                  </div>
-                </SelectItem>
-                <SelectItem value="list">
-                  <div className="flex items-center gap-2">
-                    <List className="w-4 h-4" />
-                    قائمة
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
+            <Label htmlFor="display-type" className="text-sm font-medium">نوع العرض</Label>
+            <div className="select-responsive">
+              <Select
+                value={settings.displayType || 'grid'}
+                onValueChange={(value) => onUpdate('displayType', value)}
+              >
+                <SelectTrigger className="mt-1.5 select-trigger">
+                  <SelectValue placeholder="اختر نوع العرض" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="grid">
+                    <div className="flex items-center gap-2">
+                      <Grid3X3 className="w-4 h-4" />
+                      شبكة
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="list">
+                    <div className="flex items-center gap-2">
+                      <List className="w-4 h-4" />
+                      قائمة
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <Separator />

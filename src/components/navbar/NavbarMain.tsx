@@ -24,6 +24,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { requestCache, createCacheKey } from '@/lib/cache/requestCache';
 
 interface NavbarMainProps {
   className?: string;
@@ -279,28 +280,49 @@ export function NavbarMain({
     };
   }, [currentOrganization?.id, currentOrganization?.name]);
   
-  // Load product categories
+  // Load product categories - مع تحسينات لتقليل الطلبات المتكررة
   useEffect(() => {
     const fetchCategories = async () => {
+      // إذا كانت الفئات محملة من الخارج، استخدمها مباشرة
       if (propCategories?.length) {
         setStoreCategories(propCategories);
         return;
       }
+      
+      // إذا لم يكن لدينا معرف المؤسسة، لا نحمل شيء
       if (!currentOrganization?.id) return;
+      
+      // إذا كانت الفئات محملة بالفعل ولم تتغير المؤسسة، لا نحمل مرة أخرى
+      if (storeCategories.length > 0 && isLoadingCategories === false) {
+        return;
+      }
       
       setIsLoadingCategories(true);
       try {
-        const categoriesFromDB = await getProductCategories(currentOrganization.id);
+        // استخدام نظام التخزين المؤقت الجديد
+        const cacheKey = createCacheKey('navbar_categories', currentOrganization.id);
+        
+        const categoriesFromDB = await requestCache.get(
+          cacheKey,
+          () => getProductCategories(currentOrganization.id),
+          10 * 60 * 1000 // 10 دقائق
+        );
+        
         if (categoriesFromDB && categoriesFromDB.length > 0) {
           setStoreCategories(categoriesFromDB);
         }
       } catch (error) {
+        // معالجة صامتة للأخطاء
       } finally {
         setIsLoadingCategories(false);
       }
     };
-    fetchCategories();
-  }, [currentOrganization?.id, propCategories]);
+    
+    // تأخير طفيف لتجنب التحميل المتزامن مع مكونات أخرى
+    const timeoutId = setTimeout(fetchCategories, 100);
+    
+    return () => clearTimeout(timeoutId);
+  }, [currentOrganization?.id, propCategories]); // إزالة storeCategories من التبعيات لتجنب التحديثات المتكررة
 
   // Enhanced notification sample data
   const sampleNotifications = [

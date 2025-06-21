@@ -1,0 +1,506 @@
+/* ==========================================================================
+   لوحة الخصائص المحسنة - تصميم متجاوب ومتطور
+   ========================================================================== */
+
+/* متغيرات CSS للتخصيص */
+:root {
+  --properties-panel-width-xs: clamp(280px, 85vw, 320px);
+  --properties-panel-width-sm: clamp(300px, 80vw, 360px);
+  --properties-panel-width-md: clamp(350px, 40vw, 400px);
+  --properties-panel-width-lg: clamp(380px, 35vw, 420px);
+  --properties-panel-width-xl: 450px;
+  --properties-panel-collapsed: 50px;
+  --properties-panel-border-radius: 16px;
+  --properties-panel-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  --properties-panel-backdrop: rgba(255, 255, 255, 0.9);
+  --properties-panel-gradient: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+}
+
+/* الموضوع الداكن */
+[data-theme="dark"] {
+  --properties-panel-backdrop: rgba(0, 0, 0, 0.9);
+  --properties-panel-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  --properties-panel-gradient: linear-gradient(135deg, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.1));
+}
+
+/* المحتوى الرئيسي للوحة */
+.properties-panel-enhanced {
+  direction: rtl;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  will-change: transform, opacity, width;
+}
+
+.properties-panel-container {
+  position: relative;
+  overflow: hidden;
+}
+
+.properties-panel-fullscreen {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.properties-panel-mobile {
+  font-size: 14px;
+}
+
+/* تحسينات للأقسام */
+.properties-section-enhanced {
+  border-radius: 12px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.properties-section-enhanced:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  border-color: rgba(59, 130, 246, 0.2);
+}
+
+[data-theme="dark"] .properties-section-enhanced {
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.1));
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .properties-section-enhanced:hover {
+  border-color: rgba(59, 130, 246, 0.3);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+}
+
+/* حقول الخصائص المحسنة */
+.property-field {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.property-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+  margin-bottom: 0.5rem;
+  transition: color 0.2s ease;
+}
+
+.property-input,
+.property-textarea {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1.5px solid hsl(var(--border));
+  border-radius: 8px;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-size: 0.875rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(10px);
+}
+
+.property-input:focus,
+.property-textarea:focus {
+  outline: none;
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  transform: scale(1.02);
+  background: hsl(var(--card));
+}
+
+.property-input:hover,
+.property-textarea:hover {
+  border-color: hsl(var(--primary) / 0.6);
+}
+
+/* تحسين منطقة التمرير */
+.properties-scroll-enhanced {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(155, 155, 155, 0.5) transparent;
+}
+
+.properties-scroll-enhanced::-webkit-scrollbar {
+  width: 6px;
+}
+
+.properties-scroll-enhanced::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.properties-scroll-enhanced::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(155, 155, 155, 0.6), rgba(155, 155, 155, 0.3));
+  border-radius: 3px;
+  transition: all 0.2s ease;
+}
+
+.properties-scroll-enhanced::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.7), rgba(59, 130, 246, 0.4));
+}
+
+/* تحسينات responsive للشاشات المختلفة */
+
+/* الشاشات الصغيرة جداً (أقل من 480px) */
+@media (max-width: 479px) {
+  .properties-panel-enhanced {
+    font-size: 13px;
+  }
+  
+  .properties-section-enhanced {
+    border-radius: 8px;
+    margin-bottom: 0.75rem;
+  }
+  
+  .property-input,
+  .property-textarea {
+    padding: 0.625rem 0.875rem;
+    font-size: 13px;
+    border-radius: 6px;
+  }
+  
+  .property-label {
+    font-size: 0.8125rem;
+    margin-bottom: 0.375rem;
+  }
+}
+
+/* الشاشات الصغيرة (480px - 639px) */
+@media (min-width: 480px) and (max-width: 639px) {
+  .properties-panel-enhanced {
+    font-size: 14px;
+  }
+  
+  .property-input,
+  .property-textarea {
+    padding: 0.6875rem 0.9375rem;
+  }
+}
+
+/* الشاشات المتوسطة (640px - 767px) */
+@media (min-width: 640px) and (max-width: 767px) {
+  .properties-section-enhanced {
+    border-radius: 10px;
+  }
+}
+
+/* الشاشات الكبيرة (768px - 1023px) */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .properties-panel-enhanced {
+    font-size: 15px;
+  }
+}
+
+/* الشاشات الكبيرة جداً (1024px+) */
+@media (min-width: 1024px) {
+  .properties-section-enhanced {
+    border-radius: 14px;
+  }
+  
+  .property-input,
+  .property-textarea {
+    padding: 0.875rem 1.125rem;
+  }
+}
+
+/* تحسينات للمفاتيح والمنزلقات */
+.properties-panel-enhanced .switch-responsive {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.properties-panel-enhanced .switch-responsive:hover {
+  transform: scale(1.05);
+}
+
+.properties-panel-enhanced .slider-responsive {
+  width: 100%;
+  margin: 1rem 0;
+}
+
+.properties-panel-enhanced .slider-responsive .slider-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, hsl(var(--muted)), hsl(var(--muted-foreground) / 0.2));
+}
+
+.properties-panel-enhanced .slider-responsive .slider-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary) / 0.8));
+  border: 2px solid hsl(var(--background));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition: all 0.2s ease;
+}
+
+.properties-panel-enhanced .slider-responsive .slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+/* تحسين القوائم المنسدلة */
+.properties-panel-enhanced .select-responsive {
+  width: 100%;
+  position: relative;
+}
+
+.properties-panel-enhanced .select-responsive .select-trigger {
+  width: 100%;
+  text-align: right;
+  padding: 0.75rem 1rem;
+  border: 1.5px solid hsl(var(--border));
+  border-radius: 8px;
+  background: hsl(var(--background));
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(10px);
+}
+
+.properties-panel-enhanced .select-responsive .select-trigger:focus {
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  transform: scale(1.02);
+}
+
+.properties-panel-enhanced .select-responsive .select-trigger:hover {
+  border-color: hsl(var(--primary) / 0.6);
+  background: hsl(var(--card));
+}
+
+/* تأثيرات التحميل والحالات */
+.properties-panel-loading {
+  pointer-events: none;
+  opacity: 0.7;
+  filter: blur(1px);
+  position: relative;
+}
+
+.properties-panel-loading::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 24px;
+  height: 24px;
+  margin: -12px 0 0 -12px;
+  border: 3px solid transparent;
+  border-top: 3px solid hsl(var(--primary));
+  border-radius: 50%;
+  animation: properties-spin 1s linear infinite;
+  z-index: 1000;
+}
+
+@keyframes properties-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* تحسينات للانيميشن في الأجهزة المحمولة */
+@media (max-width: 767px) {
+  .properties-panel-enhanced * {
+    transition-duration: 0.2s !important;
+  }
+  
+  .properties-section-enhanced:hover {
+    transform: translateY(-1px);
+  }
+  
+  .property-input:focus,
+  .property-textarea:focus {
+    transform: scale(1.01);
+  }
+}
+
+/* تحسين للوضع الأفقي في الأجهزة المحمولة */
+@media (max-width: 767px) and (orientation: landscape) {
+  .properties-panel-enhanced {
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+}
+
+/* تحسينات الوصولية */
+.properties-panel-enhanced *:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.properties-panel-enhanced button:focus-visible {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+}
+
+/* تحسين للطباعة */
+@media print {
+  .properties-panel-enhanced {
+    display: none !important;
+  }
+}
+
+/* تحسين للحركة المخفضة */
+@media (prefers-reduced-motion: reduce) {
+  .properties-panel-enhanced * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* تحسين للتباين العالي */
+@media (prefers-contrast: high) {
+  .properties-panel-enhanced {
+    border: 2px solid currentColor;
+    background: Canvas;
+    color: CanvasText;
+  }
+  
+  .property-input,
+  .property-textarea {
+    border: 2px solid currentColor;
+    background: Field;
+    color: FieldText;
+  }
+}
+
+/* تحسينات للألوان في الموضوع الداكن */
+[data-theme="dark"] .property-input,
+[data-theme="dark"] .property-textarea {
+  background: rgba(0, 0, 0, 0.3);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="dark"] .property-input:focus,
+[data-theme="dark"] .property-textarea:focus {
+  background: rgba(0, 0, 0, 0.5);
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+[data-theme="dark"] .property-input:hover,
+[data-theme="dark"] .property-textarea:hover {
+  border-color: rgba(59, 130, 246, 0.4);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+/* تحسينات خاصة بالاتجاه RTL */
+.properties-panel-enhanced {
+  direction: rtl;
+}
+
+.properties-panel-enhanced .flex-row-reverse {
+  flex-direction: row-reverse;
+}
+
+.properties-panel-enhanced .text-right {
+  text-align: right;
+}
+
+.properties-panel-enhanced .ml-auto {
+  margin-left: auto;
+  margin-right: 0;
+}
+
+.properties-panel-enhanced .mr-auto {
+  margin-right: auto;
+  margin-left: 0;
+}
+
+/* تحسينات للمسافات المتجاوبة */
+@media (max-width: 639px) {
+  .properties-panel-enhanced .space-y-4 > * + * {
+    margin-top: 0.75rem !important;
+  }
+  
+  .properties-panel-enhanced .space-y-3 > * + * {
+    margin-top: 0.5rem !important;
+  }
+  
+  .properties-panel-enhanced .p-4 {
+    padding: 0.75rem !important;
+  }
+  
+  .properties-panel-enhanced .p-3 {
+    padding: 0.5rem !important;
+  }
+  
+  .properties-panel-enhanced .gap-3 {
+    gap: 0.5rem !important;
+  }
+}
+
+/* تحسينات للشاشات فائقة العرض */
+@media (min-width: 1920px) {
+  .properties-panel-enhanced {
+    max-width: 500px;
+  }
+}
+
+/* تأثيرات بصرية محسنة */
+.properties-glass-effect {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+}
+
+[data-theme="dark"] .properties-glass-effect {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* تحسينات الأداء */
+.properties-panel-enhanced * {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* تحسينات متقدمة للتفاعل */
+.properties-panel-enhanced .interactive-element {
+  position: relative;
+  overflow: hidden;
+}
+
+.properties-panel-enhanced .interactive-element::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+
+.properties-panel-enhanced .interactive-element:hover::before {
+  left: 100%;
+}
+
+/* تحسينات للفوتر التحفيزي */
+.properties-footer-enhanced {
+  position: relative;
+  overflow: hidden;
+}
+
+.properties-footer-enhanced::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.5), transparent);
+}
+
+/* تحسينات أداء الانيميشن */
+.properties-panel-enhanced .will-change-transform {
+  will-change: transform;
+}
+
+.properties-panel-enhanced .will-change-opacity {
+  will-change: opacity;
+}
+
+.properties-panel-enhanced .gpu-accelerated {
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+} 
