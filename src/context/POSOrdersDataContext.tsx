@@ -26,6 +26,7 @@ interface POSOrderWithDetails {
   discount?: number;
   amount_paid?: number;
   remaining_amount?: number;
+  consider_remaining_as_partial?: boolean;
   is_online: boolean;
   notes?: string;
   created_at: string;
@@ -155,6 +156,7 @@ interface POSOrdersData {
   updateOrderStatus: (orderId: string, status: string, notes?: string) => Promise<boolean>;
   updatePaymentStatus: (orderId: string, paymentStatus: string, amountPaid?: number) => Promise<boolean>;
   deleteOrder: (orderId: string) => Promise<boolean>;
+  updateOrderInCache: (updatedOrder: POSOrderWithDetails) => void;
   
   // دوال تحديث المخزون
   refreshProductsCache: () => void;
@@ -548,6 +550,7 @@ const fetchPOSOrdersOptimized = async (
           discount,
           amount_paid,
           remaining_amount,
+          consider_remaining_as_partial,
           notes,
           created_at,
           updated_at,
@@ -1160,6 +1163,50 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
     }
   }, [refetchStats, refetchOrders]);
 
+  // تحديث طلبية في الكاش بدلاً من إعادة تحميل كل البيانات
+  const updateOrderInCache = useCallback((updatedOrder: POSOrderWithDetails) => {
+    console.log('🔄 [POSOrdersDataContext] تحديث الطلبية في الكاش:', updatedOrder.id);
+    console.log('📋 [POSOrdersDataContext] البيانات المحدثة:', {
+      status: updatedOrder.status,
+      payment_status: updatedOrder.payment_status,
+      payment_method: updatedOrder.payment_method,
+      amount_paid: updatedOrder.amount_paid,
+      remaining_amount: updatedOrder.remaining_amount,
+      consider_remaining_as_partial: updatedOrder.consider_remaining_as_partial,
+      total: updatedOrder.total
+    });
+    
+    // تحديث البيانات محلياً في React Query cache
+    queryClient.setQueryData(
+      ['pos-orders', orgId, currentPage, filters],
+      (oldData: any) => {
+        if (!oldData) {
+          console.log('⚠️ [POSOrdersDataContext] لا توجد بيانات قديمة في الكاش');
+          return oldData;
+        }
+        
+        const updatedOrders = oldData.orders.map((order: POSOrderWithDetails) => 
+          order.id === updatedOrder.id ? updatedOrder : order
+        );
+        
+        console.log('✅ [POSOrdersDataContext] تم تحديث الكاش محلياً');
+        console.log('🔍 [POSOrdersDataContext] الطلبية المحدثة في الكاش:', 
+          updatedOrders.find((o: POSOrderWithDetails) => o.id === updatedOrder.id)
+        );
+        
+        return {
+          ...oldData,
+          orders: updatedOrders
+        };
+      }
+    );
+    
+    // تحديث الإحصائيات أيضاً إذا لزم الأمر
+    if (updatedOrder.payment_status || updatedOrder.status) {
+      refetchStats();
+    }
+  }, [queryClient, orgId, currentPage, filters, refetchStats]);
+
   // دوال الفلترة والصفحات
   const handleSetFilters = useCallback((newFilters: POSOrderFilters) => {
     setFilters(newFilters);
@@ -1220,6 +1267,10 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
     updateOrderStatus,
     updatePaymentStatus,
     deleteOrder,
+    updateOrderInCache,
+    
+    // دوال تحديث المخزون
+    refreshProductsCache: () => {}, // placeholder
     
     // دوال lazy loading
     fetchOrderDetails,
@@ -1228,7 +1279,7 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
     organizationSubscriptions, posSettings, isLoading, isStatsLoading, 
     isOrdersLoading, isEmployeesLoading, errors, refreshAll, refreshStats, 
     refreshOrders, handleSetFilters, handleSetPage, updateOrderStatus, 
-    updatePaymentStatus, deleteOrder
+    updatePaymentStatus, deleteOrder, updateOrderInCache
   ]);
 
   return (

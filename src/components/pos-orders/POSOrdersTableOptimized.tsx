@@ -78,17 +78,55 @@ const StatusBadge = React.memo<{ status: string }>(({ status }) => {
 StatusBadge.displayName = 'StatusBadge';
 
 // Payment status badge component
-const PaymentStatusBadge = React.memo<{ status: string }>(({ status }) => {
-  const config = {
-    paid: { label: 'مدفوع', className: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' },
-    unpaid: { label: 'غير مدفوع', className: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' },
-    partial: { label: 'دفع جزئي', className: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' },
-  };
+const PaymentStatusBadge = React.memo<{ order: POSOrderWithDetails }>(({ order }) => {
+  const total = parseFloat(order.total.toString());
+  const amountPaid = parseFloat(order.amount_paid?.toString() || '0');
+  
+  // تحديد حالة الدفع الفعلية بناءً على البيانات
+  let status = order.payment_status;
+  let label = '';
+  let className = '';
+  
+  // إذا كان المبلغ المدفوع أقل من المجموع وتم تعيين consider_remaining_as_partial
+  if (amountPaid < total && order.consider_remaining_as_partial === true) {
+    status = 'partial';
+    label = 'دفع جزئي';
+    className = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300';
+  }
+  // إذا كان المبلغ المدفوع أقل من المجموع ولم يتم تعيين consider_remaining_as_partial (تخفيض)
+  else if (amountPaid < total && order.consider_remaining_as_partial !== true) {
+    status = 'paid';
+    label = 'مدفوع';
+    className = 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
+  }
+  // إذا كان المبلغ المدفوع يساوي أو أكبر من المجموع
+  else if (amountPaid >= total) {
+    status = 'paid';
+    label = 'مدفوع';
+    className = 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
+  }
+  // إذا لم يتم الدفع أصلاً
+  else if (amountPaid === 0) {
+    status = 'unpaid';
+    label = 'غير مدفوع';
+    className = 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';
+  }
+  // استخدام حالة الدفع من قاعدة البيانات كـ fallback
+  else {
+    const config = {
+      paid: { label: 'مدفوع', className: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' },
+      unpaid: { label: 'غير مدفوع', className: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' },
+      partial: { label: 'دفع جزئي', className: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' },
+    };
 
-  const { label, className } = config[status as keyof typeof config] || {
-    label: status,
-    className: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300',
-  };
+    const statusConfig = config[order.payment_status as keyof typeof config] || {
+      label: order.payment_status,
+      className: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300',
+    };
+    
+    label = statusConfig.label;
+    className = statusConfig.className;
+  }
 
   return <Badge variant="outline" className={cn('font-medium text-xs', className)}>{label}</Badge>;
 });
@@ -104,6 +142,8 @@ const TableRowSkeleton = () => (
     <TableCell><Skeleton className="h-6 w-20" /></TableCell>
     <TableCell><Skeleton className="h-6 w-16" /></TableCell>
     <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+    <TableCell><Skeleton className="h-6 w-16" /></TableCell>
     <TableCell><Skeleton className="h-6 w-20" /></TableCell>
     <TableCell><Skeleton className="h-4 w-28" /></TableCell>
     <TableCell><Skeleton className="h-8 w-8 rounded" /></TableCell>
@@ -172,6 +212,51 @@ const OrderRow = React.memo<{
     await onStatusUpdate(newStatus);
   }, [onStatusUpdate]);
 
+  // تحديد نوع الدفع
+  const getPaymentType = () => {
+    const total = parseFloat(order.total.toString());
+    const amountPaid = parseFloat(order.amount_paid?.toString() || '0');
+    const remainingAmount = parseFloat(order.remaining_amount?.toString() || '0');
+    
+    // إضافة تسجيل للتحقق من البيانات
+    console.log(`🔍 [getPaymentType] طلبية ${order.slug || order.id}:`, {
+      total,
+      amountPaid,
+      remainingAmount,
+      consider_remaining_as_partial: order.consider_remaining_as_partial,
+      payment_status: order.payment_status
+    });
+    
+    // إذا كان المبلغ المدفوع أقل من المجموع وتم تعيين consider_remaining_as_partial
+    if (amountPaid < total && order.consider_remaining_as_partial === true) {
+      console.log(`✅ [getPaymentType] ${order.slug || order.id}: دفعة جزئية`);
+      return { type: 'partial', label: 'دفعة جزئية', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300' };
+    }
+    
+    // إذا كان المبلغ المدفوع أقل من المجموع ولم يتم تعيين consider_remaining_as_partial (تخفيض)
+    if (amountPaid < total && order.consider_remaining_as_partial !== true) {
+      console.log(`✅ [getPaymentType] ${order.slug || order.id}: تخفيض`);
+      return { type: 'discount', label: 'تخفيض', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' };
+    }
+    
+    // إذا كان المبلغ المدفوع يساوي أو أكبر من المجموع
+    if (amountPaid >= total) {
+      console.log(`✅ [getPaymentType] ${order.slug || order.id}: دفع كامل`);
+      return { type: 'full', label: 'دفع كامل', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' };
+    }
+    
+    // إذا لم يتم الدفع أصلاً
+    if (amountPaid === 0) {
+      console.log(`✅ [getPaymentType] ${order.slug || order.id}: لم يتم الدفع`);
+      return { type: 'unpaid', label: 'لم يتم الدفع', color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' };
+    }
+    
+    console.log(`⚠️ [getPaymentType] ${order.slug || order.id}: غير محدد`);
+    return { type: 'unknown', label: 'غير محدد', color: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300' };
+  };
+
+  const paymentType = getPaymentType();
+
   return (
     <TableRow className="hover:bg-muted/50 transition-colors">
       <TableCell className="font-medium">
@@ -181,10 +266,15 @@ const OrderRow = React.memo<{
         {order.customer ? (
           <div className="text-sm">
             <p className="font-medium">{order.customer.name}</p>
-            <p className="text-muted-foreground">{order.customer.phone}</p>
+            {order.customer.phone && (
+              <p className="text-muted-foreground">{order.customer.phone}</p>
+            )}
           </div>
         ) : (
-          <span className="text-muted-foreground">عميل نقدي</span>
+          <div className="text-sm">
+            <p className="font-medium text-muted-foreground">زائر</p>
+            <p className="text-xs text-muted-foreground">عميل نقدي</p>
+          </div>
         )}
       </TableCell>
       <TableCell>
@@ -215,7 +305,24 @@ const OrderRow = React.memo<{
         </div>
       </TableCell>
       <TableCell>
-        <PaymentStatusBadge status={order.payment_status} />
+        <div className="text-right">
+          <span className="font-medium">
+            {formatCurrency(parseFloat(order.amount_paid?.toString() || '0'))}
+          </span>
+          {order.remaining_amount && parseFloat(order.remaining_amount.toString()) > 0 && (
+            <div className="text-xs text-muted-foreground">
+              متبقي: {formatCurrency(parseFloat(order.remaining_amount.toString()))}
+            </div>
+          )}
+        </div>
+      </TableCell>
+      <TableCell>
+        <Badge className={cn('font-medium text-xs', paymentType.color)}>
+          {paymentType.label}
+        </Badge>
+      </TableCell>
+      <TableCell>
+        <PaymentStatusBadge order={order} />
       </TableCell>
       <TableCell>
         <span className="text-sm text-muted-foreground">
@@ -372,6 +479,8 @@ export const POSOrdersTableOptimized = React.memo<POSOrdersTableProps>(({
                   <TableHead className="text-right">نوع البيع</TableHead>
                   <TableHead className="text-right">الحالة</TableHead>
                   <TableHead className="text-right">المجموع</TableHead>
+                  <TableHead className="text-right">المبلغ المدفوع</TableHead>
+                  <TableHead className="text-right">نوع الدفع</TableHead>
                   <TableHead className="text-right">حالة الدفع</TableHead>
                   <TableHead className="text-right">التاريخ</TableHead>
                   <TableHead className="text-center w-[50px]">إجراءات</TableHead>
@@ -391,7 +500,9 @@ export const POSOrdersTableOptimized = React.memo<POSOrdersTableProps>(({
                       onEdit={() => onOrderEdit(order)}
                       onDelete={() => onOrderDelete(order)}
                       onPrint={() => onOrderPrint(order)}
-                      onStatusUpdate={(status) => onStatusUpdate(order.id, status)}
+                      onStatusUpdate={async (status) => {
+                        await onStatusUpdate(order.id, status);
+                      }}
                     />
                   ))
                 )}

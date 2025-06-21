@@ -4,6 +4,7 @@ import { formatPrice } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { createCustomer } from '@/context/shop/userService';
 import { 
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle 
 } from "@/components/ui/dialog";
@@ -14,6 +15,9 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from '@/components/ui/textarea';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
+import { Check, ChevronDown } from "lucide-react";
 import { 
   Receipt, AlertCircle, CreditCard, Banknote, UserPlus, Wallet, 
   Receipt as ReceiptIcon, Edit3, Save, X, Calculator, DollarSign 
@@ -35,6 +39,7 @@ interface POSOrderWithDetails {
   discount?: number;
   amount_paid?: number;
   remaining_amount?: number;
+  consider_remaining_as_partial?: boolean;
   is_online: boolean;
   notes?: string;
   created_at: string;
@@ -80,6 +85,16 @@ export default function EditOrderDialog({
   const [customers, setCustomers] = useState<any[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<User | null>(null);
   const [searchCustomer, setSearchCustomer] = useState('');
+  const [isCustomerPopoverOpen, setIsCustomerPopoverOpen] = useState(false);
+  
+  // حالة نافذة إضافة عميل جديد
+  const [isNewCustomerDialogOpen, setIsNewCustomerDialogOpen] = useState(false);
+  const [isAddingCustomer, setIsAddingCustomer] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({
+    name: '',
+    email: '',
+    phone: ''
+  });
   
   // بيانات الدفع
   const [paymentMethod, setPaymentMethod] = useState('cash');
@@ -142,21 +157,110 @@ export default function EditOrderDialog({
 
   // جلب العملاء
   const fetchCustomers = useCallback(async () => {
-    if (!order?.organization_id) return;
-    
     try {
-      const { data, error } = await supabase
+      console.log('🔍 [fetchCustomers] بدء جلب العملاء');
+      
+      // الحصول على معرف المؤسسة من localStorage كما هو مستخدم في customers.ts
+      const organizationId = localStorage.getItem('bazaar_organization_id');
+      
+      if (!organizationId) {
+        console.log('⚠️ [fetchCustomers] لا يوجد معرف مؤسسة في localStorage');
+        return;
+      }
+      
+      console.log('🔍 [fetchCustomers] جلب العملاء للمؤسسة:', organizationId);
+      
+      // جلب العملاء من جدول customers
+      const { data: orgCustomers, error: orgError } = await supabase
         .from('customers')
-        .select('id, name, email, phone')
-        .eq('organization_id', order.organization_id)
-        .order('name');
+        .select('id, name, email, phone, organization_id, created_at, updated_at')
+        .eq('organization_id', organizationId)
+        .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setCustomers(data || []);
+      if (orgError) {
+        console.error('❌ [fetchCustomers] خطأ في جلب عملاء المؤسسة:', orgError);
+        throw orgError;
+      }
+      
+      // جلب العملاء من جدول users مع role 'customer'
+      const { data: userCustomers, error: userError } = await supabase
+        .from('users')
+        .select('id, name, email, phone, organization_id, created_at, updated_at')
+        .eq('role', 'customer')
+        .eq('organization_id', organizationId)
+        .order('created_at', { ascending: false });
+
+      if (userError) {
+        console.error('❌ [fetchCustomers] خطأ في جلب عملاء المستخدمين:', userError);
+        // لا نرمي الخطأ هنا، نكمل مع عملاء المؤسسة فقط
+      }
+      
+      // تصفية العملاء الذين لديهم معرف مشكوك فيه
+      const filteredOrgCustomers = (orgCustomers || []).filter(customer => 
+        customer.id !== '00000000-0000-0000-0000-000000000000'
+      );
+      
+      const filteredUserCustomers = (userCustomers || []).filter(user => 
+        user.id !== '00000000-0000-0000-0000-000000000000'
+      );
+      
+      // تحويل عملاء المستخدمين إلى تنسيق العملاء ودمجهم
+      const mappedUserCustomers = filteredUserCustomers.map(user => ({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        organization_id: user.organization_id,
+        created_at: user.created_at,
+        updated_at: user.updated_at
+      }));
+
+      // دمج جميع العملاء
+      const allCustomers = [
+        ...filteredOrgCustomers,
+        ...mappedUserCustomers
+      ];
+      
+      // إزالة التكرار بناءً على معرف العميل
+      const uniqueCustomers = allCustomers.filter((customer, index, self) =>
+        index === self.findIndex(c => c.id === customer.id)
+      );
+      
+      // ترتيب العملاء حسب الاسم
+      uniqueCustomers.sort((a, b) => a.name.localeCompare(b.name));
+      
+      console.log('✅ [fetchCustomers] تم جلب العملاء:', uniqueCustomers.length, 'عميل');
+      console.log('📋 [fetchCustomers] قائمة العملاء:', uniqueCustomers.map(c => ({ id: c.id, name: c.name })));
+      
+      setCustomers(uniqueCustomers);
     } catch (error) {
-      console.error('خطأ في جلب العملاء:', error);
+      console.error('❌ [fetchCustomers] خطأ في جلب العملاء:', error);
+      setCustomers([]);
     }
-  }, [order?.organization_id]);
+  }, []);
+
+  // تحديث قائمة العملاء عند فتح النافذة
+  useEffect(() => {
+    if (isOpen) {
+      console.log('🔄 [EditOrderDialog] فتح النافذة - جلب العملاء');
+      fetchCustomers();
+    }
+  }, [isOpen, fetchCustomers]);
+
+  // تحديث العميل المختار بعد جلب العملاء
+  useEffect(() => {
+    if (order?.customer && customers.length > 0) {
+      // البحث عن العميل في قائمة العملاء المجلبة
+      const foundCustomer = customers.find(c => c.id === order.customer?.id);
+      if (foundCustomer) {
+        console.log('🔄 [EditOrderDialog] تم العثور على العميل في القائمة:', foundCustomer);
+        setSelectedCustomer(foundCustomer);
+      } else {
+        console.log('⚠️ [EditOrderDialog] العميل غير موجود في القائمة، استخدام بيانات الطلبية:', order.customer);
+        setSelectedCustomer(order.customer as User);
+      }
+    }
+  }, [order?.customer, customers]);
 
   // تحديث البيانات عند فتح النافذة أو تغيير الطلبية
   useEffect(() => {
@@ -208,27 +312,25 @@ export default function EditOrderDialog({
       setTax(orderTax);
       setAmountPaid(orderAmountPaid.toString());
       
-      // تحديد العميل المحدد
+      // تحديد العميل المحدد (سيتم تحديثه بعد جلب العملاء)
       if (order.customer) {
         console.log('👤 تحديد العميل:', order.customer);
         setSelectedCustomer(order.customer as User);
       } else {
-        console.log('👤 لا يوجد عميل محدد');
+        console.log('👤 لا يوجد عميل محدد - سيتم عرض "زائر"');
         setSelectedCustomer(null);
       }
-      
-      // جلب العملاء
-      fetchCustomers();
     } else {
       console.log('⚠️ [EditOrderDialog] لا توجد بيانات طلبية أو النافذة مغلقة');
     }
-  }, [isOpen, order, fetchCustomers]);
+  }, [isOpen, order]);
 
   // إعادة تعيين النموذج عند الإغلاق
   useEffect(() => {
     if (!isOpen) {
       setSearchCustomer('');
       setQuickCalcValue('');
+      setIsCustomerPopoverOpen(false);
     }
   }, [isOpen]);
 
@@ -257,14 +359,26 @@ export default function EditOrderDialog({
 
   // فلترة العملاء
   const filteredCustomers = useCallback(() => {
-    if (!searchCustomer.trim()) return customers;
+    console.log('🔍 [filteredCustomers] البحث في العملاء:', {
+      totalCustomers: customers.length,
+      searchQuery: searchCustomer,
+      customers: customers.map(c => ({ id: c.id, name: c.name }))
+    });
+    
+    if (!searchCustomer.trim()) {
+      console.log('📋 [filteredCustomers] عرض جميع العملاء:', customers.length);
+      return customers;
+    }
     
     const query = searchCustomer.toLowerCase();
-    return customers.filter(customer => 
+    const filtered = customers.filter(customer => 
       customer.name.toLowerCase().includes(query) ||
       customer.phone?.toLowerCase().includes(query) ||
       customer.email?.toLowerCase().includes(query)
     );
+    
+    console.log('🔍 [filteredCustomers] نتائج البحث:', filtered.length, 'من أصل', customers.length);
+    return filtered;
   }, [customers, searchCustomer]);
 
   // حفظ التعديلات
@@ -279,15 +393,26 @@ export default function EditOrderDialog({
         status: orderStatus,
         payment_status: paymentStatus,
         payment_method: paymentMethod,
+        subtotal: subtotal,
+        tax: tax,
         notes: notes.trim() || null,
         discount: discount,
         amount_paid: paidAmount,
         remaining_amount: paymentStatus === 'paid' ? 0 : remainingAmount,
-        customer_id: selectedCustomer?.id || null,
+        consider_remaining_as_partial: isPartialPayment ? considerRemainingAsPartial : false,
+        customer_id: selectedCustomer && selectedCustomer.id !== 'guest' ? selectedCustomer.id : null,
         updated_at: new Date().toISOString()
       };
 
       console.log('🔄 [EditOrderDialog] تحديث الطلبية:', order.id);
+      console.log('💰 [EditOrderDialog] تفاصيل الدفع:', {
+        paidAmount,
+        total,
+        remainingAmount,
+        isPartialPayment,
+        considerRemainingAsPartial,
+        paymentStatus
+      });
       console.log('📋 البيانات المحدثة:', updatedData);
 
       // تحديث الطلبية في قاعدة البيانات
@@ -297,9 +422,8 @@ export default function EditOrderDialog({
         .eq('id', order.id)
         .select(`
           *,
-          customer:customers(id, name, email, phone),
-          employee:users(id, name, email),
-          order_items(*)
+          customer:customers!orders_customer_id_fkey(id, name, email, phone),
+          employee:users!orders_employee_id_fkey(id, name, email)
         `)
         .single();
 
@@ -310,11 +434,30 @@ export default function EditOrderDialog({
 
       console.log('✅ تم تحديث الطلبية بنجاح:', data);
       
+      // إنشاء الطلبية المحدثة مع البيانات الكاملة
+      const updatedOrder: POSOrderWithDetails = {
+        ...order,
+        ...data,
+        customer: data.customer || null,
+        employee: data.employee || order.employee,
+        // الحفاظ على البيانات المحسوبة
+        items_count: order.items_count,
+        effective_status: order.effective_status,
+        effective_total: data.total - (order.total_returned_amount || 0),
+        original_total: data.total,
+        has_returns: order.has_returns,
+        is_fully_returned: order.is_fully_returned,
+        total_returned_amount: order.total_returned_amount,
+        order_items: order.order_items
+      };
+      
+      console.log('📤 إرسال البيانات المحدثة:', updatedOrder);
+      
       // إشعار بالنجاح
       toast.success('تم تحديث الطلبية بنجاح');
       
       // إرسال البيانات المحدثة للمكون الأب
-      onOrderUpdated(data as unknown as POSOrderWithDetails);
+      onOrderUpdated(updatedOrder);
       
       // إغلاق النافذة
       onOpenChange(false);
@@ -329,8 +472,52 @@ export default function EditOrderDialog({
 
   // فتح نافذة إضافة عميل جديد
   const openNewCustomerDialog = () => {
-    // TODO: تطبيق نافذة إضافة عميل جديد
-    toast.info('ميزة إضافة عميل جديد قيد التطوير');
+    setNewCustomer({ name: '', email: '', phone: '' });
+    setIsNewCustomerDialogOpen(true);
+  };
+
+  // إضافة عميل جديد
+  const handleAddCustomer = async () => {
+    if (!newCustomer.name.trim()) {
+      toast.error("اسم العميل مطلوب");
+      return;
+    }
+    
+    try {
+      setIsAddingCustomer(true);
+      
+      const customer = await createCustomer({
+        name: newCustomer.name.trim(),
+        email: newCustomer.email.trim() || undefined,
+        phone: newCustomer.phone.trim() || undefined
+      });
+      
+      if (customer) {
+        console.log('✅ [handleAddCustomer] تم إنشاء العميل:', customer);
+        
+        // إضافة العميل الجديد إلى قائمة العملاء
+        setCustomers(prev => {
+          const updatedCustomers = [customer, ...prev];
+          console.log('📋 [handleAddCustomer] قائمة العملاء المحدثة:', updatedCustomers.length, 'عميل');
+          return updatedCustomers;
+        });
+        
+        // اختيار العميل الجديد
+        setSelectedCustomer(customer);
+        console.log('👤 [handleAddCustomer] تم اختيار العميل الجديد:', customer.name);
+        
+        // إغلاق النافذة وإعادة تعيين البيانات
+        setIsNewCustomerDialogOpen(false);
+        setNewCustomer({ name: '', email: '', phone: '' });
+        
+        toast.success(`تم إضافة العميل "${customer.name}" بنجاح`);
+      }
+    } catch (error: any) {
+      console.error('خطأ في إضافة العميل:', error);
+      toast.error(error.message || "حدث خطأ أثناء إضافة العميل");
+    } finally {
+      setIsAddingCustomer(false);
+    }
   };
 
   if (!order) return null;
@@ -394,60 +581,109 @@ export default function EditOrderDialog({
           <div className="space-y-1.5">
             <Label className="text-sm font-medium">العميل</Label>
             <div className="flex gap-2">
-              <Select
-                value={selectedCustomer?.id || 'guest'}
-                onValueChange={(value) => {
-                  if (value === 'guest') {
-                    setSelectedCustomer(null);
-                  } else if (value === 'new') {
-                    openNewCustomerDialog();
-                  } else {
-                    const customer = customers.find(c => c.id === value);
-                    setSelectedCustomer(customer || null);
-                  }
-                }}
-              >
-                <SelectTrigger className="flex-1">
-                  <SelectValue placeholder="اختر العميل" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="guest">زائر</SelectItem>
-                  <SelectItem value="new" className="text-primary flex items-center gap-2">
-                    <UserPlus className="h-4 w-4" />
-                    إضافة عميل جديد
-                  </SelectItem>
-                  
-                  <Separator className="my-1" />
-                  
-                  <div className="relative">
-                    <Input
-                      placeholder="بحث عن عميل..."
-                      className="mb-2"
+              <Popover open={isCustomerPopoverOpen} onOpenChange={setIsCustomerPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={isCustomerPopoverOpen}
+                    className="flex-1 justify-between"
+                  >
+                    {selectedCustomer ? selectedCustomer.name : "اختر العميل أو زائر"}
+                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0" align="start">
+                  <Command>
+                    <CommandInput 
+                      placeholder="ابحث عن عميل..." 
                       value={searchCustomer}
-                      onChange={(e) => setSearchCustomer(e.target.value)}
+                      onValueChange={setSearchCustomer}
                     />
-                    <div className="max-h-40 overflow-y-auto">
-                      {filteredCustomers().length > 0 ? (
-                        filteredCustomers().map(customer => (
-                          <SelectItem key={customer.id} value={customer.id}>
-                            {customer.name}
+                    <CommandEmpty>لا توجد نتائج للبحث</CommandEmpty>
+                    <CommandGroup>
+                      {/* خيار زائر */}
+                      <CommandItem
+                        value="guest"
+                        onSelect={() => {
+                          setSelectedCustomer(null);
+                          setIsCustomerPopoverOpen(false);
+                          setSearchCustomer('');
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "ml-2 h-4 w-4",
+                            !selectedCustomer ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        زائر
+                      </CommandItem>
+                      
+                      {/* خيار إضافة عميل جديد */}
+                      <CommandItem
+                        value="new-customer"
+                        onSelect={() => {
+                          setIsCustomerPopoverOpen(false);
+                          setSearchCustomer('');
+                          openNewCustomerDialog();
+                        }}
+                        className="text-primary"
+                      >
+                        <UserPlus className="ml-2 h-4 w-4" />
+                        إضافة عميل جديد
+                      </CommandItem>
+                      
+                      {/* فاصل */}
+                      {customers.length > 0 && (
+                        <div className="border-t my-1" />
+                      )}
+                      
+                      {/* قائمة العملاء */}
+                      {filteredCustomers().map((customer) => (
+                        <CommandItem
+                          key={customer.id}
+                          value={customer.name}
+                          onSelect={() => {
+                            setSelectedCustomer(customer);
+                            setIsCustomerPopoverOpen(false);
+                            setSearchCustomer('');
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "ml-2 h-4 w-4",
+                              selectedCustomer?.id === customer.id ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          <div className="flex flex-col">
+                            <span>{customer.name}</span>
                             {customer.phone && (
-                              <span className="text-xs text-muted-foreground mr-1">
-                                 ({customer.phone})
+                              <span className="text-xs text-muted-foreground">
+                                {customer.phone}
                               </span>
                             )}
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <div className="py-2 px-2 text-center text-sm text-muted-foreground">
-                          لا توجد نتائج للبحث
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </SelectContent>
-              </Select>
+                          </div>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </Command>
+                </PopoverContent>
+                             </Popover>
             </div>
+            
+            {/* معلومات العميل المختار */}
+            {selectedCustomer && (
+              <div className="text-xs text-muted-foreground mt-1 p-2 bg-muted/30 rounded">
+                <div className="font-medium">👤 {selectedCustomer.name}</div>
+                {selectedCustomer.email && (
+                  <div>📧 {selectedCustomer.email}</div>
+                )}
+                {selectedCustomer.phone && (
+                  <div>📱 {selectedCustomer.phone}</div>
+                )}
+              </div>
+            )}
           </div>
           
           {/* اختيار طريقة الدفع */}
@@ -722,6 +958,97 @@ export default function EditOrderDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+      
+      {/* نافذة إضافة عميل جديد */}
+      <Dialog open={isNewCustomerDialogOpen} onOpenChange={(open) => !isAddingCustomer && setIsNewCustomerDialogOpen(open)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5 text-primary" />
+              <span>إضافة عميل جديد</span>
+            </DialogTitle>
+            <DialogDescription>
+              أدخل بيانات العميل الجديد وسيتم إضافته للطلبية تلقائياً
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="new-customer-name" className="text-sm font-medium">
+                اسم العميل <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="new-customer-name"
+                value={newCustomer.name}
+                onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })}
+                placeholder="أدخل اسم العميل"
+                className="focus:border-primary focus:ring-1 focus:ring-primary"
+                disabled={isAddingCustomer}
+              />
+            </div>
+            
+            <div className="space-y-1.5">
+              <Label htmlFor="new-customer-email" className="text-sm font-medium">
+                البريد الإلكتروني <span className="text-muted-foreground text-xs">(اختياري)</span>
+              </Label>
+              <Input
+                id="new-customer-email"
+                type="email"
+                value={newCustomer.email}
+                onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
+                placeholder="أدخل البريد الإلكتروني"
+                className="focus:border-primary focus:ring-1 focus:ring-primary"
+                disabled={isAddingCustomer}
+              />
+            </div>
+            
+            <div className="space-y-1.5">
+              <Label htmlFor="new-customer-phone" className="text-sm font-medium">
+                رقم الهاتف <span className="text-muted-foreground text-xs">(اختياري)</span>
+              </Label>
+              <Input
+                id="new-customer-phone"
+                value={newCustomer.phone}
+                onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
+                placeholder="أدخل رقم الهاتف"
+                dir="rtl"
+                inputMode="tel"
+                style={{ textAlign: 'right', direction: 'rtl' }}
+                className="focus:border-primary focus:ring-1 focus:ring-primary text-right [&::placeholder]:text-right [&::placeholder]:mr-0"
+                disabled={isAddingCustomer}
+              />
+            </div>
+          </div>
+          
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button 
+              variant="outline" 
+              onClick={() => setIsNewCustomerDialogOpen(false)}
+              disabled={isAddingCustomer}
+              className="w-full sm:w-auto"
+            >
+              إلغاء
+            </Button>
+            <Button 
+              onClick={handleAddCustomer}
+              disabled={isAddingCustomer || !newCustomer.name.trim()}
+              className="w-full sm:w-auto bg-gradient-to-r from-primary to-primary/90"
+            >
+              {isAddingCustomer ? (
+                <>
+                  <span className="animate-spin ml-2">⏳</span>
+                  جاري الإضافة...
+                </>
+              ) : (
+                <>
+                  <UserPlus className="h-4 w-4 ml-2" />
+                  إضافة العميل
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 } 

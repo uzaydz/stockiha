@@ -45,6 +45,7 @@ interface POSOrderWithDetails {
   discount?: number;
   amount_paid?: number;
   remaining_amount?: number;
+  consider_remaining_as_partial?: boolean;
   is_online: boolean;
   notes?: string;
   created_at: string;
@@ -135,7 +136,8 @@ export const POSOrdersOptimized: React.FC = () => {
     setPage,
     updateOrderStatus,
     updatePaymentStatus,
-    deleteOrder
+    deleteOrder,
+    updateOrderInCache
   } = usePOSOrdersData();
 
   // حالة النوافذ المنبثقة
@@ -172,7 +174,9 @@ export const POSOrdersOptimized: React.FC = () => {
     setDialogState({ 
       selectedOrder: order, 
       showOrderDetails: true,
-      showOrderActions: false 
+      showOrderActions: false,
+      showEditItems: false,
+      showEditOrder: false
     });
   }, []);
 
@@ -262,7 +266,8 @@ export const POSOrdersOptimized: React.FC = () => {
     setDialogState({ 
       showOrderDetails: false, 
       showOrderActions: false,
-      showEditItems: false, 
+      showEditItems: false,
+      showEditOrder: false,
       selectedOrder: null 
     });
   }, []);
@@ -273,7 +278,8 @@ export const POSOrdersOptimized: React.FC = () => {
       selectedOrder: order, 
       showEditItems: true,
       showOrderDetails: false,
-      showOrderActions: false 
+      showOrderActions: false,
+      showEditOrder: false
     });
   }, []);
 
@@ -565,10 +571,13 @@ export const POSOrdersOptimized: React.FC = () => {
           }}
           order={dialogState.selectedOrder}
           onOrderUpdated={(updatedOrder) => {
-            // تحديث البيانات بعد التعديل
-            handleRefresh();
-            toast.success('تم تحديث الطلبية بنجاح');
-            setDialogState(prev => ({ ...prev, showEditOrder: false }));
+            console.log('📥 [POSOrdersOptimized] استلام الطلبية المحدثة:', updatedOrder);
+            
+            // تحديث البيانات محلياً بدلاً من إعادة تحميل كل شيء
+            updateOrderInCache(updatedOrder);
+            
+            // إغلاق النافذة
+            setDialogState(prev => ({ ...prev, showEditOrder: false, selectedOrder: null }));
           }}
         />
       </div>
