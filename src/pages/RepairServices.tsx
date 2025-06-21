@@ -64,7 +64,8 @@ import {
   Share2,
   Loader2,
   RefreshCw,
-  ChevronDown
+  ChevronDown,
+  AlertTriangle
 } from 'lucide-react';
 
 import RepairServiceDialog from '@/components/repair/RepairServiceDialog';
@@ -173,6 +174,11 @@ const RepairServices = () => {
   const [paymentAmount, setPaymentAmount] = useState<number>(0);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
+  
+  // حالة نافذة تأكيد الحذف
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [orderToDelete, setOrderToDelete] = useState<RepairOrder | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   // الإحصائيات
   const [stats, setStats] = useState({
@@ -550,6 +556,86 @@ const RepairServices = () => {
     }).format(date);
   };
   
+  // حذف طلبية التصليح
+  const handleDeleteOrder = async () => {
+    if (!orderToDelete) return;
+    
+    try {
+      setIsDeleting(true);
+      
+      // 1. حذف صور الطلبية من التخزين
+      if (orderToDelete.images && orderToDelete.images.length > 0) {
+        const imagePromises = orderToDelete.images.map(async (image) => {
+          // استخراج مسار الملف من URL
+          const urlParts = image.image_url.split('/');
+          const filePath = `repair_images/${orderToDelete.id}/${urlParts[urlParts.length - 1]}`;
+          
+          // حذف الصورة من التخزين
+          const { error } = await supabase.storage
+            .from('repair_images')
+            .remove([filePath]);
+            
+          if (error) {
+            console.error('خطأ في حذف الصورة:', error);
+          }
+        });
+        
+        await Promise.all(imagePromises);
+      }
+      
+      // 2. حذف الطلبية من قاعدة البيانات (سيتم حذف البيانات المرتبطة تلقائياً)
+      const { error } = await supabase
+        .from('repair_orders')
+        .delete()
+        .eq('id', orderToDelete.id);
+        
+      if (error) {
+        throw error;
+      }
+      
+      // 3. تحديث القائمة والإحصائيات
+      setRepairOrders(prevOrders => 
+        prevOrders.filter(order => order.id !== orderToDelete.id)
+      );
+      
+      // تحديث الإحصائيات
+      setStats(prev => {
+        const newStats = { ...prev };
+        newStats.total -= 1;
+        
+        // تحديث الإحصائية حسب حالة الطلبية المحذوفة
+        switch (orderToDelete.status) {
+          case 'قيد الانتظار':
+            newStats.pending -= 1;
+            break;
+          case 'جاري التصليح':
+            newStats.inProgress -= 1;
+            break;
+          case 'مكتمل':
+            newStats.completed -= 1;
+            break;
+          case 'ملغي':
+            newStats.cancelled -= 1;
+            break;
+        }
+        
+        return newStats;
+      });
+      
+      // إغلاق النوافذ
+      setIsDeleteDialogOpen(false);
+      setIsViewDialogOpen(false);
+      setOrderToDelete(null);
+      setSelectedOrder(null);
+      
+      toast.success('تم حذف طلبية التصليح بنجاح');
+    } catch (error: any) {
+      toast.error(`فشل في حذف الطلبية: ${error.message}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+  
   return (
     <Layout>
       <div className="flex flex-col h-full">
@@ -794,6 +880,18 @@ const RepairServices = () => {
                               }}>
                                 <Share2 className="h-4 w-4 mr-2" />
                                 مشاركة التتبع
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOrderToDelete(order);
+                                  setIsDeleteDialogOpen(true);
+                                }}
+                                className="text-red-600 focus:text-red-600"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                حذف الطلبية
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -1110,6 +1208,17 @@ const RepairServices = () => {
                 </div>
               </div>
               <div className="flex gap-2">
+                <Button 
+                  variant="destructive" 
+                  className="gap-1"
+                  onClick={() => {
+                    setOrderToDelete(selectedOrder);
+                    setIsDeleteDialogOpen(true);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  حذف
+                </Button>
                 <Button variant="secondary" className="gap-1" onClick={() => {
                   setIsViewDialogOpen(false);
                   handleEditOrder(selectedOrder);
@@ -1269,6 +1378,72 @@ const RepairServices = () => {
           </DialogContent>
         </Dialog>
       )}
+      
+      {/* نافذة تأكيد الحذف */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+              تأكيد حذف طلبية التصليح
+            </DialogTitle>
+            <DialogDescription>
+              {orderToDelete && (
+                <>
+                  رقم الطلبية: {orderToDelete.order_number || orderToDelete.id.slice(0, 8)} | 
+                  العميل: {orderToDelete.customer_name}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground mb-4">
+              هل أنت متأكد من حذف هذه الطلبية؟ سيتم حذف:
+            </p>
+            <ul className="text-sm space-y-2 list-disc list-inside mr-4 text-red-600">
+              <li>جميع بيانات الطلبية</li>
+              <li>صور الجهاز المرفقة</li>
+              <li>سجل التغييرات والحالات</li>
+              <li>معلومات الدفعات المسجلة</li>
+            </ul>
+            <p className="text-sm font-medium text-red-600 mt-4">
+              ⚠️ لا يمكن التراجع عن هذا الإجراء!
+            </p>
+          </div>
+          
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsDeleteDialogOpen(false);
+                setOrderToDelete(null);
+              }}
+              disabled={isDeleting}
+            >
+              إلغاء
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteOrder}
+              disabled={isDeleting}
+              className="gap-2"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  جارٍ الحذف...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4" />
+                  تأكيد الحذف
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 };
