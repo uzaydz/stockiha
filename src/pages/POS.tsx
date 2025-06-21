@@ -151,8 +151,21 @@ const POS = () => {
       return;
     }
     
-    // استخدام دالة getProductStock للحصول على المخزون المحدث
-    const currentStock = getProductStock(product.id);
+    // استخدام المخزون من المنتج نفسه أولاً، ثم محاولة getProductStock كـ fallback
+    let currentStock = product.stockQuantity || product.stock_quantity || 0;
+    
+    // محاولة الحصول على المخزون المحدث من POSDataContext إذا كان المنتج موجود
+    try {
+      const stockFromContext = getProductStock(product.id);
+      // استخدام المخزون من السياق فقط إذا كان المنتج موجود (ليس 0 بسبب عدم العثور عليه)
+      const productExistsInContext = products.some(p => p.id === product.id);
+      if (productExistsInContext) {
+        currentStock = stockFromContext;
+      }
+    } catch (error) {
+      // استخدام المخزون من المنتج نفسه في حالة الخطأ
+      console.log('[addItemToCart] استخدام المخزون من المنتج:', currentStock);
+    }
     
     // إذا لم يكن للمنتج متغيرات، أضفه مباشرة
     const existingItem = cartItems.find(item => 
@@ -390,8 +403,31 @@ const POS = () => {
     
     const item = cartItems[index];
     
-    // استخدام getProductStock للحصول على الكمية المحدثة
-    const availableQuantity = getProductStock(item.product.id, item.colorId, item.sizeId);
+    // استخدام المخزون من المنتج نفسه أولاً
+    let availableQuantity = item.product.stockQuantity || item.product.stock_quantity || 0;
+    
+    // محاولة الحصول على المخزون المحدث من POSDataContext إذا كان المنتج موجود
+    try {
+      const productExistsInContext = products.some(p => p.id === item.product.id);
+      if (productExistsInContext) {
+        availableQuantity = getProductStock(item.product.id, item.colorId, item.sizeId);
+      } else {
+        // للمنتجات مع متغيرات، استخدام المخزون من البيانات المحفوظة
+        if (item.colorId) {
+          const color = item.product.colors?.find(c => c.id === item.colorId);
+          if (color) {
+            if (item.sizeId && color.sizes) {
+              const size = color.sizes.find(s => s.id === item.sizeId);
+              availableQuantity = size?.quantity || 0;
+            } else {
+              availableQuantity = color.quantity || 0;
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.log('[updateItemQuantity] استخدام المخزون من المنتج:', availableQuantity);
+    }
     
     if (quantity > availableQuantity) {
       toast.error(`الكمية المطلوبة غير متوفرة. الكمية المتاحة: ${availableQuantity}`);

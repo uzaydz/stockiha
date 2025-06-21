@@ -156,12 +156,18 @@ export function invalidateProductsCache(organizationId: string) {
 
 // دالة مساعدة لتحويل المنتج من قاعدة البيانات إلى تنسيق الواجهة
 export function transformDatabaseProduct(dbProduct: any): any {
+  // التأكد من وجود stockQuantity و stock_quantity
+  const stockQuantity = dbProduct.stockQuantity || dbProduct.stock_quantity || 0;
+  
+  // تحويل البيانات المتغيرات إذا كانت موجودة
+  const colors = dbProduct.variants || dbProduct.colors || [];
+  
   return {
     id: dbProduct.id,
     name: dbProduct.name,
     description: dbProduct.description || '',
     price: dbProduct.price,
-    compareAtPrice: dbProduct.compareAtPrice,
+    compareAtPrice: dbProduct.compareAtPrice || dbProduct.compare_at_price,
     sku: dbProduct.sku,
     barcode: dbProduct.barcode,
     category: dbProduct.category,
@@ -169,33 +175,33 @@ export function transformDatabaseProduct(dbProduct: any): any {
     subcategory: dbProduct.subcategory,
     brand: dbProduct.brand,
     images: dbProduct.images || [],
-    thumbnailImage: dbProduct.thumbnailImage || '',
-    stockQuantity: dbProduct.stockQuantity,
-    stock_quantity: dbProduct.stock_quantity,
+    thumbnailImage: dbProduct.thumbnailImage || dbProduct.thumbnail_image || '',
+    stockQuantity: stockQuantity,
+    stock_quantity: stockQuantity,
     features: dbProduct.features,
     specifications: dbProduct.specifications || {},
-    isDigital: dbProduct.isDigital,
-    isNew: dbProduct.isNew,
-    isFeatured: dbProduct.isFeatured,
-    createdAt: new Date(dbProduct.createdAt),
-    updatedAt: new Date(dbProduct.updatedAt),
+    isDigital: dbProduct.isDigital || dbProduct.is_digital,
+    isNew: dbProduct.isNew || dbProduct.is_new,
+    isFeatured: dbProduct.isFeatured || dbProduct.is_featured,
+    createdAt: new Date(dbProduct.createdAt || dbProduct.created_at),
+    updatedAt: new Date(dbProduct.updatedAt || dbProduct.updated_at),
     has_variants: dbProduct.has_variants,
     use_sizes: dbProduct.use_sizes,
-    colors: dbProduct.variants || [],
+    colors: colors,
     
     // خصائص الجملة
     wholesale_price: dbProduct.wholesale_price,
     partial_wholesale_price: dbProduct.partial_wholesale_price,
     min_wholesale_quantity: dbProduct.min_wholesale_quantity,
     min_partial_wholesale_quantity: dbProduct.min_partial_wholesale_quantity,
-    allow_retail: dbProduct.allow_retail,
-    allow_wholesale: dbProduct.allow_wholesale,
-    allow_partial_wholesale: dbProduct.allow_partial_wholesale,
+    allow_retail: dbProduct.allow_retail !== false, // افتراضي true
+    allow_wholesale: dbProduct.allow_wholesale || false,
+    allow_partial_wholesale: dbProduct.allow_partial_wholesale || false,
     
     // خصائص إضافية
-    is_active: dbProduct.isActive,
-    actual_stock_quantity: dbProduct.stockQuantity,
-    total_variants_stock: dbProduct.stockQuantity,
-    low_stock_warning: dbProduct.stockQuantity <= 5
+    is_active: dbProduct.isActive !== false && dbProduct.is_active !== false, // افتراضي true
+    actual_stock_quantity: stockQuantity,
+    total_variants_stock: stockQuantity,
+    low_stock_warning: stockQuantity <= 5
   };
 } 

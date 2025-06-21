@@ -806,6 +806,8 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
     const product = products.find(p => p.id === productId);
     if (!product) {
       console.log(`[getProductStock] منتج غير موجود: ${productId}`);
+      console.log(`[getProductStock] إجمالي المنتجات المحملة: ${products.length}`);
+      console.log(`[getProductStock] معرفات المنتجات المتاحة:`, products.slice(0, 5).map(p => ({ id: p.id, name: p.name })));
       return 0;
     }
 
