@@ -529,7 +529,7 @@ const fetchPOSOrdersOptimized = async (
 
       const totalCount = countData || 0;
 
-      // جلب الطلبيات مع حقول أساسية فقط (بدون order_items)
+      // جلب الطلبيات مع جميع الحقول المالية المطلوبة
       let query = supabase
         .from('orders')
         .select(`
@@ -540,6 +540,12 @@ const fetchPOSOrdersOptimized = async (
           payment_status,
           payment_method,
           total,
+          subtotal,
+          tax,
+          discount,
+          amount_paid,
+          remaining_amount,
+          notes,
           created_at,
           updated_at,
           customer_id,
@@ -548,11 +554,13 @@ const fetchPOSOrdersOptimized = async (
           customer:customers!orders_customer_id_fkey(
             id,
             name,
-            phone
+            phone,
+            email
           ),
           employee:users!orders_employee_id_fkey(
             id,
-            name
+            name,
+            email
           )
         `)
         .eq('organization_id', orgId)

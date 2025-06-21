@@ -161,25 +161,66 @@ export default function EditOrderDialog({
   // تحديث البيانات عند فتح النافذة أو تغيير الطلبية
   useEffect(() => {
     if (isOpen && order) {
-      // تحديث البيانات من الطلبية
-      setOrderStatus(order.status);
-      setPaymentStatus(order.payment_status);
-      setPaymentMethod(order.payment_method);
+      console.log('🔄 [EditOrderDialog] تحميل بيانات الطلبية:', order);
+      console.log('📋 البيانات المستلمة:', {
+        id: order.id,
+        status: order.status,
+        payment_status: order.payment_status,
+        payment_method: order.payment_method,
+        total: order.total,
+        subtotal: order.subtotal,
+        tax: order.tax,
+        discount: order.discount,
+        amount_paid: order.amount_paid,
+        remaining_amount: order.remaining_amount,
+        customer: order.customer,
+        notes: order.notes
+      });
+      
+      console.log('🔍 فحص القيم الفردية:');
+      console.log('  - subtotal:', order.subtotal, typeof order.subtotal);
+      console.log('  - tax:', order.tax, typeof order.tax);
+      console.log('  - discount:', order.discount, typeof order.discount);
+      console.log('  - amount_paid:', order.amount_paid, typeof order.amount_paid);
+      
+      // تحديث البيانات من الطلبية مع معالجة القيم المفقودة
+      setOrderStatus(order.status || 'pending');
+      setPaymentStatus(order.payment_status || 'pending');
+      setPaymentMethod(order.payment_method || 'cash');
       setNotes(order.notes || '');
-      setDiscount(order.discount || 0);
-      setSubtotal(order.subtotal);
-      setTax(order.tax);
-      setAmountPaid((order.amount_paid || 0).toString());
+      
+      // معالجة البيانات المالية - إذا كانت فارغة، نحسبها من total
+      const orderTotal = order.total || 0;
+      const orderSubtotal = order.subtotal !== undefined ? order.subtotal : orderTotal;
+      const orderTax = order.tax !== undefined ? order.tax : 0;
+      const orderDiscount = order.discount !== undefined ? order.discount : 0;
+      const orderAmountPaid = order.amount_paid !== undefined ? order.amount_paid : orderTotal;
+      
+      console.log('💰 القيم المالية المحسوبة:');
+      console.log('  - total:', orderTotal);
+      console.log('  - subtotal:', orderSubtotal);
+      console.log('  - tax:', orderTax);
+      console.log('  - discount:', orderDiscount);
+      console.log('  - amount_paid:', orderAmountPaid);
+      
+      setDiscount(orderDiscount);
+      setSubtotal(orderSubtotal);
+      setTax(orderTax);
+      setAmountPaid(orderAmountPaid.toString());
       
       // تحديد العميل المحدد
       if (order.customer) {
+        console.log('👤 تحديد العميل:', order.customer);
         setSelectedCustomer(order.customer as User);
       } else {
+        console.log('👤 لا يوجد عميل محدد');
         setSelectedCustomer(null);
       }
       
       // جلب العملاء
       fetchCustomers();
+    } else {
+      console.log('⚠️ [EditOrderDialog] لا توجد بيانات طلبية أو النافذة مغلقة');
     }
   }, [isOpen, order, fetchCustomers]);
 
@@ -257,7 +298,7 @@ export default function EditOrderDialog({
         .select(`
           *,
           customer:customers(id, name, email, phone),
-          employee:profiles(id, name, email),
+          employee:users(id, name, email),
           order_items(*)
         `)
         .single();
@@ -300,7 +341,7 @@ export default function EditOrderDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Edit3 className="h-5 w-5 text-primary" />
-            <span>تعديل الطلبية #{order.customer_order_number}</span>
+            <span>تعديل الطلبية #{order.customer_order_number || order.slug?.slice(-8) || order.id.slice(-8)}</span>
           </DialogTitle>
           <DialogDescription>
             تعديل تفاصيل الطلبية ومعلومات الدفع

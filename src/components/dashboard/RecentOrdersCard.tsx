@@ -163,7 +163,7 @@ const OrderItem = React.memo(({ order, index }: { order: Order; index: number })
             <div className="flex items-center gap-2 flex-wrap mb-1">
               {/* رقم الطلب */}
               <h4 className="text-sm font-bold group-hover:text-primary transition-colors duration-300">
-                طلب #{order.id.slice(-6)}
+                طلب #{order.id ? order.id.slice(-6) : 'غير محدد'}
               </h4>
               
               {/* حالة الدفع */}
@@ -191,7 +191,7 @@ const OrderItem = React.memo(({ order, index }: { order: Order; index: number })
             <div className="flex flex-wrap gap-2 text-xs">
               <div className="flex items-center gap-1 bg-muted/40 px-2 py-0.5 rounded-md">
                 <User className="h-3 w-3 text-muted-foreground" />
-                <span className="text-muted-foreground">عميل #{order.customerId.slice(-4)}</span>
+                <span className="text-muted-foreground">عميل #{order.customerId ? order.customerId.slice(-4) : 'زائر'}</span>
               </div>
               
               {order.paymentMethod && (
