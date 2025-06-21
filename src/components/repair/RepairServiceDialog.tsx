@@ -196,12 +196,49 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!customerName || !customerPhone || !totalPrice) {
-      toast.error('يرجى ملء جميع الحقول المطلوبة');
+    // التحقق من صحة البيانات
+    if (!customerName?.trim()) {
+      toast.error('يرجى إدخال اسم العميل');
+      return;
+    }
+    
+    if (!customerPhone?.trim()) {
+      toast.error('يرجى إدخال رقم هاتف العميل');
+      return;
+    }
+    
+    if (!totalPrice || totalPrice <= 0) {
+      toast.error('يرجى إدخال سعر التصليح');
+      return;
+    }
+    
+    if (!organizationId) {
+      toast.error('خطأ في بيانات المؤسسة. يرجى إعادة تسجيل الدخول');
+      return;
+    }
+    
+    if (!repairLocation && repairLocation !== 'أخرى') {
+      toast.error('يرجى اختيار مكان التصليح');
+      return;
+    }
+    
+    if (repairLocation === 'أخرى' && !customLocation?.trim()) {
+      toast.error('يرجى إدخال مكان التصليح المخصص');
       return;
     }
     
     setIsSubmitting(true);
+    
+    console.log('🔧 [RepairServiceDialog] بدء حفظ طلبية التصليح...');
+    console.log('📋 البيانات:', {
+      customerName,
+      customerPhone,
+      repairLocation,
+      customLocation,
+      totalPrice,
+      paidAmount,
+      organizationId
+    });
     
     try {
       let repairOrderId: string;
@@ -279,29 +316,41 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
         };
 
         // إدراج الطلبية في قاعدة البيانات
-        const { error: insertError } = await supabase
+        console.log('💾 [RepairServiceDialog] إدراج البيانات في قاعدة البيانات...');
+        console.log('📄 بيانات الطلبية:', repairOrderData);
+        
+        const { data: insertedData, error: insertError } = await supabase
           .from('repair_orders')
-          .insert(repairOrderData as any);
+          .insert(repairOrderData)
+          .select()
+          .single();
 
         if (insertError) {
+          console.error('❌ خطأ في إدراج البيانات:', insertError);
           throw new Error(`فشل في إضافة طلبية التصليح: ${insertError.message}`);
         }
+        
+        console.log('✅ تم إدراج الطلبية بنجاح:', insertedData);
       }
 
       // إنشاء سجل تاريخ
+      console.log('📚 [RepairServiceDialog] إضافة سجل التاريخ...');
       const historyEntry = {
         repair_order_id: repairOrderId,
         status: editMode ? 'تم التحديث' : 'قيد الانتظار',
         notes: editMode ? 'تم تحديث بيانات طلبية التصليح' : 'تم إنشاء طلبية التصليح',
-        created_by: user?.id,
+        created_by: user?.id
       };
 
       const { error: historyError } = await supabase
         .from('repair_status_history')
-        .insert(historyEntry as any);
+        .insert(historyEntry);
 
       if (historyError) {
-        console.error('خطأ في إضافة سجل التاريخ:', historyError);
+        console.error('⚠️ خطأ في إضافة سجل التاريخ:', historyError);
+        // لا نوقف العملية بسبب خطأ في السجل
+      } else {
+        console.log('✅ تم إضافة سجل التاريخ بنجاح');
       }
 
       // رفع الصور إذا كانت موجودة (في كل من الإضافة والتعديل)
@@ -348,16 +397,18 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
         await Promise.all(imagePromises);
       }
 
-              toast.success(editMode ? 'تم تحديث طلبية التصليح بنجاح' : 'تم إضافة طلبية التصليح بنجاح');
+      console.log('🎉 [RepairServiceDialog] تمت العملية بنجاح!');
+      toast.success(editMode ? 'تم تحديث طلبية التصليح بنجاح' : 'تم إضافة طلبية التصليح بنجاح');
         
-        // استدعاء دالة النجاح مع معرّف الطلبية ورمز التتبع
-        onSuccess(repairOrderId, trackingCode);
+      // استدعاء دالة النجاح مع معرّف الطلبية ورمز التتبع
+      onSuccess(repairOrderId, trackingCode);
       
       // إغلاق النافذة وإعادة تعيين النموذج
       onClose();
       resetForm();
     } catch (error: any) {
-      toast.error(error.message || 'حدث خطأ أثناء إضافة طلبية التصليح');
+      console.error('❌ [RepairServiceDialog] خطأ في حفظ طلبية التصليح:', error);
+      toast.error(error.message || 'حدث خطأ أثناء حفظ طلبية التصليح');
     } finally {
       setIsSubmitting(false);
     }
@@ -403,7 +454,7 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
         </DialogHeader>
         
         <ScrollArea className="max-h-[75vh] overflow-y-auto px-1">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form id="repair-form" onSubmit={handleSubmit} className="space-y-6">
             {/* معلومات العميل */}
             <div className="space-y-4 bg-muted/30 p-4 rounded-lg">
               <h3 className="text-lg font-medium border-b pb-2">معلومات العميل</h3>

@@ -866,4 +866,102 @@ export class POSOrdersService {
     }
   }
 
+  /**
+   * تحديث عناصر الطلبية
+   */
+  async updateOrderItems(
+    orderId: string,
+    items: Array<{
+      id?: string;
+      product_id: string;
+      product_name: string;
+      quantity: number;
+      unit_price: number;
+      total_price: number;
+      is_wholesale: boolean;
+      color_id?: string;
+      size_id?: string;
+      color_name?: string;
+      size_name?: string;
+    }>
+  ): Promise<boolean> {
+    try {
+      // جلب معلومات الطلبية الحالية
+      const { data: orderData, error: orderError } = await supabase
+        .from('orders')
+        .select('tax, discount, organization_id')
+        .eq('id', orderId)
+        .single();
+
+      if (orderError) throw orderError;
+      if (!orderData) throw new Error('Order not found');
+
+      // حذف العناصر الموجودة
+      const { error: deleteError } = await supabase
+        .from('order_items')
+        .delete()
+        .eq('order_id', orderId);
+
+      if (deleteError) throw deleteError;
+
+      // إضافة العناصر الجديدة
+      const newItems = items.map((item, index) => ({
+        order_id: orderId,
+        organization_id: orderData.organization_id,
+        product_id: item.product_id,
+        product_name: item.product_name,
+        name: item.product_name,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        total_price: item.total_price,
+        is_wholesale: item.is_wholesale,
+        slug: `ITEM-${Date.now()}-${index}`,
+        color_id: item.color_id || null,
+        size_id: item.size_id || null,
+        color_name: item.color_name || null,
+        size_name: item.size_name || null,
+        variant_info: item.color_name || item.size_name ? {
+          color: item.color_name,
+          size: item.size_name
+        } : null
+      }));
+
+      const { error: insertError } = await supabase
+        .from('order_items')
+        .insert(newItems);
+
+      if (insertError) throw insertError;
+
+      // حساب المجموع الجديد
+      const subtotal = items.reduce((sum, item) => sum + item.total_price, 0);
+      
+      const tax = parseFloat(String(orderData?.tax || '0'));
+      const discount = parseFloat(String(orderData?.discount || '0'));
+      const total = subtotal + tax - discount;
+
+      // تحديث مجموع الطلبية
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update({
+          subtotal,
+          total,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', orderId);
+
+      if (updateError) throw updateError;
+
+      // مسح الكاش
+      this.clearCacheForOrder(orderId);
+      
+      return true;
+    } catch (error) {
+      console.error('Error updating order items:', error);
+      return false;
+    }
+  }
+
 }
+
+// تصدير instance واحد للاستخدام في التطبيق
+export const posOrdersService = POSOrdersService.getInstance();

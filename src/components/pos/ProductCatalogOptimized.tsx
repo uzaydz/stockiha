@@ -32,6 +32,9 @@ export default function ProductCatalogOptimized({ onAddToCart }: ProductCatalogO
   const [categories, setCategories] = useState<Category[]>([]);
   const [stats, setStats] = useState<any>(null);
   
+  // مرجع لآخر تحديث للمنتجات
+  const lastUpdateRef = useRef<number>(0);
+  
   // حالة Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
@@ -160,6 +163,35 @@ export default function ProductCatalogOptimized({ onAddToCart }: ProductCatalogO
       fetchProducts(currentPage + 1, false);
     }
   }, [inView, hasNextPage, isLoadingMore, isInitialLoading, currentPage, fetchProducts]);
+
+  // تحديث دوري للمنتجات كل 30 ثانية لضمان تحديث المخزون
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      // تحديث فقط إذا مر أكثر من 30 ثانية منذ آخر تحديث
+      if (now - lastUpdateRef.current > 30000) {
+        lastUpdateRef.current = now;
+        fetchProducts(1, true);
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [fetchProducts]);
+
+  // تحديث فوري عند تغيير focus للنافذة (عند العودة للتطبيق)
+  useEffect(() => {
+    const handleFocus = () => {
+      const now = Date.now();
+      // تحديث فقط إذا مر أكثر من 10 ثوانٍ منذ آخر تحديث
+      if (now - lastUpdateRef.current > 10000) {
+        lastUpdateRef.current = now;
+        fetchProducts(1, true);
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [fetchProducts]);
   
   // دالة للحصول على الفئات المعروضة
   const displayCategories = useMemo(() => {
@@ -204,6 +236,15 @@ export default function ProductCatalogOptimized({ onAddToCart }: ProductCatalogO
   const handleProductClick = useCallback((product: Product) => {
     if (product.stockQuantity > 0) {
       onAddToCart(product);
+      
+      // تحديث المخزون محلياً فوراً لتحسين تجربة المستخدم
+      setProducts(prevProducts => 
+        prevProducts.map(p => 
+          p.id === product.id 
+            ? { ...p, stockQuantity: Math.max(0, p.stockQuantity - 1) }
+            : p
+        )
+      );
     }
   }, [onAddToCart]);
   
@@ -272,7 +313,18 @@ export default function ProductCatalogOptimized({ onAddToCart }: ProductCatalogO
               className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 bg-primary text-primary-foreground hover:bg-primary/90 transition-all rounded-full w-8 h-8 p-0 shadow-md"
               onClick={(e) => {
                 e.stopPropagation();
-                onAddToCart(product);
+                if (product.stockQuantity > 0) {
+                  onAddToCart(product);
+                  
+                  // تحديث المخزون محلياً فوراً
+                  setProducts(prevProducts => 
+                    prevProducts.map(p => 
+                      p.id === product.id 
+                        ? { ...p, stockQuantity: Math.max(0, p.stockQuantity - 1) }
+                        : p
+                    )
+                  );
+                }
               }}
             >
               <Plus className="h-4 w-4" />

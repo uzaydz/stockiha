@@ -42,7 +42,8 @@ import {
   Download,
   FileText,
   Save,
-  Loader2
+  Loader2,
+  Package
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { POSOrderWithDetails } from '../../api/posOrdersService';
@@ -54,6 +55,7 @@ interface POSOrderActionsProps {
   onDelete: (orderId: string) => Promise<boolean>;
   onPrint: (order: POSOrderWithDetails) => void;
   onRefresh: () => void;
+  onEditItems?: (order: POSOrderWithDetails) => void;
   className?: string;
 }
 
@@ -87,6 +89,7 @@ export const POSOrderActions: React.FC<POSOrderActionsProps> = ({
   onDelete,
   onPrint,
   onRefresh,
+  onEditItems,
   className = ''
 }) => {
   const [activeAction, setActiveAction] = useState<ActionType>(null);
@@ -218,6 +221,18 @@ export const POSOrderActions: React.FC<POSOrderActionsProps> = ({
               <Printer className="h-4 w-4" />
               طباعة الوصل
             </Button>
+
+            {onEditItems && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onEditItems(order)}
+                className="flex items-center gap-2"
+              >
+                <Package className="h-4 w-4" />
+                تعديل العناصر
+              </Button>
+            )}
 
             <Button
               variant="outline"

@@ -855,6 +855,23 @@ const POS = () => {
       
       toast.success(`تم إنشاء الطلب بنجاح (${totalTime}ms)`);
       
+      // تحديث فوري للحالة المحلية قبل تحديث الخادم
+      console.log(`[POS] تحديث الحالة المحلية للمخزون...`);
+      try {
+        // تحديث المخزون في cache مباشرة لكل منتج
+        cartItems.forEach(item => {
+          updateProductStockInCache(
+            item.product.id,
+            item.colorId || null,
+            item.sizeId || null,
+            item.quantity
+          );
+        });
+        console.log(`[POS] تم تحديث الحالة المحلية بنجاح`);
+      } catch (error) {
+        console.warn(`[POS] خطأ في تحديث الحالة المحلية:`, error);
+      }
+
       // تحديث فوري من قاعدة البيانات للحصول على أحدث البيانات
       console.log(`[POS] تحديث البيانات من الخادم بعد إتمام البيع...`);
       try {

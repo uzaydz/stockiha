@@ -87,9 +87,14 @@ import { POSOrderFiltersOptimized as POSOrderFilters } from '../components/pos-o
 import { POSOrdersTableOptimized as POSOrdersTable } from '../components/pos-orders/POSOrdersTableOptimized';
 import { POSOrderDetails } from '../components/pos-orders/POSOrderDetails';
 import { POSOrderActions } from '../components/pos-orders/POSOrderActions';
+import { EditOrderItemsDialog } from '../components/pos-orders/EditOrderItemsDialog';
+import EditOrderDialog from '../components/pos-orders/EditOrderDialog';
 
 // Hooks
 import { useTitle } from '../hooks/useTitle';
+
+// Services
+import { posOrdersService } from '../api/posOrdersService';
 
 // =================================================================
 // 🎯 POSOrdersOptimized - النسخة المحسنة بدون طلبات مكررة
@@ -99,6 +104,8 @@ interface DialogState {
   selectedOrder: POSOrderWithDetails | null;
   showOrderDetails: boolean;
   showOrderActions: boolean;
+  showEditItems: boolean;
+  showEditOrder: boolean;
 }
 
 export const POSOrdersOptimized: React.FC = () => {
@@ -135,7 +142,9 @@ export const POSOrdersOptimized: React.FC = () => {
   const [dialogState, setDialogState] = useState<DialogState>({
     selectedOrder: null,
     showOrderDetails: false,
-    showOrderActions: false
+    showOrderActions: false,
+    showEditItems: false,
+    showEditOrder: false
   });
 
   // معالج تغيير الفلاتر
@@ -167,12 +176,14 @@ export const POSOrdersOptimized: React.FC = () => {
     });
   }, []);
 
-  // تعديل الطلبية (فتح صفحة الإجراءات)
+  // تعديل الطلبية (فتح نافذة التعديل الجديدة)
   const handleOrderEdit = useCallback((order: POSOrderWithDetails) => {
     setDialogState({ 
       selectedOrder: order, 
-      showOrderActions: true,
-      showOrderDetails: false 
+      showOrderActions: false,
+      showOrderDetails: false,
+      showEditItems: false,
+      showEditOrder: true
     });
   }, []);
 
@@ -250,10 +261,36 @@ export const POSOrdersOptimized: React.FC = () => {
   const closeDialogs = useCallback(() => {
     setDialogState({ 
       showOrderDetails: false, 
-      showOrderActions: false, 
+      showOrderActions: false,
+      showEditItems: false, 
       selectedOrder: null 
     });
   }, []);
+
+  // فتح نافذة تعديل العناصر
+  const handleEditItems = useCallback((order: POSOrderWithDetails) => {
+    setDialogState({ 
+      selectedOrder: order, 
+      showEditItems: true,
+      showOrderDetails: false,
+      showOrderActions: false 
+    });
+  }, []);
+
+  // حفظ عناصر الطلبية المحدثة
+  const handleSaveItems = useCallback(async (orderId: string, updatedItems: any[]) => {
+    try {
+      const success = await posOrdersService.updateOrderItems(orderId, updatedItems);
+      if (success) {
+        await refreshOrders();
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error saving order items:', error);
+      return false;
+    }
+  }, [refreshOrders]);
 
   // حساب الإحصائيات السريعة
   const quickStats = React.useMemo(() => {
@@ -438,6 +475,7 @@ export const POSOrdersOptimized: React.FC = () => {
                 }}
                 onPrint={handleOrderPrint}
                 onRefresh={handleRefresh}
+                onEditItems={handleEditItems}
               />
             </DialogContent>
           </Dialog>
@@ -507,6 +545,32 @@ export const POSOrdersOptimized: React.FC = () => {
             </CardContent>
           </Card>
         )}
+
+        {/* نافذة تعديل عناصر الطلبية */}
+        <EditOrderItemsDialog
+          order={dialogState.selectedOrder}
+          open={dialogState.showEditItems}
+          onClose={closeDialogs}
+          onSave={handleSaveItems}
+          onRefresh={handleRefresh}
+        />
+
+        {/* نافذة تعديل الطلبية الشاملة */}
+        <EditOrderDialog
+          isOpen={dialogState.showEditOrder}
+          onOpenChange={(open) => {
+            if (!open) {
+              setDialogState(prev => ({ ...prev, showEditOrder: false }));
+            }
+          }}
+          order={dialogState.selectedOrder}
+          onOrderUpdated={(updatedOrder) => {
+            // تحديث البيانات بعد التعديل
+            handleRefresh();
+            toast.success('تم تحديث الطلبية بنجاح');
+            setDialogState(prev => ({ ...prev, showEditOrder: false }));
+          }}
+        />
       </div>
     </Layout>
   );

@@ -798,6 +798,15 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
       exact: true,
       refetchType: 'none' // لا نريد refetch من الخادم، فقط re-render
     });
+
+    // إجبار re-render إضافي للتأكد من تحديث الواجهة
+    setTimeout(() => {
+      queryClient.invalidateQueries({ 
+        queryKey: ['pos-products-enhanced', orgId],
+        exact: true,
+        refetchType: 'none'
+      });
+    }, 100);
     
   }, [queryClient, orgId]);
 
