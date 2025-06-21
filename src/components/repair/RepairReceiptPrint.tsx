@@ -44,8 +44,8 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
     return num.toString().replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString());
   };
 
-  // حساب المبلغ المتبقي
-  const remainingAmount = order.total_price - order.paid_amount;
+  // حساب المبلغ المتبقي (فقط إذا لم يكن السعر مؤجل التحديد)
+  const remainingAmount = order.price_to_be_determined_later ? 0 : (order.total_price - order.paid_amount);
 
   return (
     <div 
@@ -140,10 +140,19 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
           
           <div>
             <h3 className="font-bold border-b pb-1 mb-2 receipt-title">تفاصيل الدفع:</h3>
-            <p className="text-sm"><span className="font-bold">السعر الكلي:</span> <span className="receipt-numbers">{convertToEnglishNumbers(order.total_price.toLocaleString())}</span> دج</p>
-            <p className="text-sm"><span className="font-bold">المبلغ المدفوع:</span> <span className="receipt-numbers text-green-600">{convertToEnglishNumbers(order.paid_amount.toLocaleString())}</span> دج</p>
-            {remainingAmount > 0 && (
-              <p className="text-sm font-bold text-red-600"><span>المبلغ المتبقي:</span> <span className="receipt-numbers">{convertToEnglishNumbers(remainingAmount.toLocaleString())}</span> دج</p>
+            {order.price_to_be_determined_later ? (
+              <div className="bg-amber-50 border border-amber-200 rounded p-2 text-center">
+                <p className="text-sm font-bold text-amber-800">💡 السعر يحدد لاحقاً</p>
+                <p className="text-xs text-amber-600">سيتم تحديد السعر بعد فحص الجهاز</p>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm"><span className="font-bold">السعر الكلي:</span> <span className="receipt-numbers">{convertToEnglishNumbers(order.total_price.toLocaleString())}</span> دج</p>
+                <p className="text-sm"><span className="font-bold">المبلغ المدفوع:</span> <span className="receipt-numbers text-green-600">{convertToEnglishNumbers(order.paid_amount.toLocaleString())}</span> دج</p>
+                {remainingAmount > 0 && (
+                  <p className="text-sm font-bold text-red-600"><span>المبلغ المتبقي:</span> <span className="receipt-numbers">{convertToEnglishNumbers(remainingAmount.toLocaleString())}</span> دج</p>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -216,16 +225,26 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
             </div>
           )}
           
-          <div className="flex justify-between items-center border-t border-yellow-300 pt-2">
-            <span className="text-xs">المبلغ المدفوع:</span>
-            <span className="text-xs font-bold text-green-600 receipt-numbers">{convertToEnglishNumbers(order.paid_amount.toLocaleString())}</span> دج
-          </div>
-          
-          {remainingAmount > 0 && (
-            <div className="flex justify-between items-center">
-              <span className="text-xs">المتبقي:</span>
-              <span className="text-xs font-bold text-red-600 receipt-numbers">{convertToEnglishNumbers(remainingAmount.toLocaleString())}</span> دج
+          {order.price_to_be_determined_later ? (
+            <div className="border-t border-yellow-300 pt-2 text-center">
+              <div className="bg-amber-100 border border-amber-300 rounded px-2 py-1">
+                <p className="text-xs font-bold text-amber-800">السعر يحدد لاحقاً</p>
+              </div>
             </div>
+          ) : (
+            <>
+              <div className="flex justify-between items-center border-t border-yellow-300 pt-2">
+                <span className="text-xs">المبلغ المدفوع:</span>
+                <span className="text-xs font-bold text-green-600 receipt-numbers">{convertToEnglishNumbers(order.paid_amount.toLocaleString())}</span> دج
+              </div>
+              
+              {remainingAmount > 0 && (
+                <div className="flex justify-between items-center">
+                  <span className="text-xs">المتبقي:</span>
+                  <span className="text-xs font-bold text-red-600 receipt-numbers">{convertToEnglishNumbers(remainingAmount.toLocaleString())}</span> دج
+                </div>
+              )}
+            </>
           )}
         </div>
 

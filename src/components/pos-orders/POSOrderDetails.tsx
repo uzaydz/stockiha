@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -38,11 +38,13 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
-  FileText
+  FileText,
+  Loader2
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import type { POSOrderWithDetails } from '../../api/posOrdersService';
+import { usePOSOrdersData } from '../../context/POSOrdersDataContext';
 
 interface POSOrderDetailsProps {
   order: POSOrderWithDetails | null;
@@ -109,6 +111,38 @@ export const POSOrderDetails: React.FC<POSOrderDetailsProps> = ({
   className = ''
 }) => {
   const [activeTab, setActiveTab] = useState<'details' | 'items' | 'payment'>('details');
+  const [orderItems, setOrderItems] = useState<any[]>([]);
+  const [isLoadingItems, setIsLoadingItems] = useState(false);
+  const [itemsError, setItemsError] = useState<string | null>(null);
+  const { fetchOrderDetails } = usePOSOrdersData();
+
+  // جلب عناصر الطلبية عند فتح النافذة
+  useEffect(() => {
+    if (open && order && order.id) {
+      const loadOrderItems = async () => {
+        setIsLoadingItems(true);
+        try {
+          const items = await fetchOrderDetails(order.id);
+          setOrderItems(items || []);
+        } catch (error) {
+          console.error('خطأ في جلب عناصر الطلبية:', error);
+          setOrderItems([]);
+        } finally {
+          setIsLoadingItems(false);
+        }
+      };
+
+      loadOrderItems();
+    }
+  }, [open, order, fetchOrderDetails]);
+
+  // إعادة تعيين البيانات عند إغلاق النافذة
+  useEffect(() => {
+    if (!open) {
+      setOrderItems([]);
+      setIsLoadingItems(false);
+    }
+  }, [open]);
 
   if (!order) return null;
 
@@ -517,11 +551,16 @@ export const POSOrderDetails: React.FC<POSOrderDetailsProps> = ({
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <ShoppingCart className="h-4 w-4" />
-                  عناصر الطلبية ({order.order_items?.length || 0})
+                  عناصر الطلبية ({isLoadingItems ? '...' : orderItems.length})
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
-                {order.order_items && order.order_items.length > 0 ? (
+                {isLoadingItems ? (
+                  <div className="flex justify-center items-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <span className="mr-2 text-muted-foreground">جاري تحميل عناصر الطلبية...</span>
+                  </div>
+                ) : orderItems && orderItems.length > 0 ? (
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -534,7 +573,7 @@ export const POSOrderDetails: React.FC<POSOrderDetailsProps> = ({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {order.order_items.map((item, index) => (
+                      {orderItems.map((item, index) => (
                         <TableRow key={item.id}>
                           <TableCell className="font-medium">{index + 1}</TableCell>
                           <TableCell>
@@ -599,6 +638,7 @@ export const POSOrderDetails: React.FC<POSOrderDetailsProps> = ({
                   <div className="text-center py-8 text-muted-foreground">
                     <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
                     <p>لا توجد عناصر في هذه الطلبية</p>
+                    <p className="text-xs mt-2">قد تكون هذه طلبية اشتراك أو خدمة رقمية</p>
                   </div>
                 )}
               </CardContent>

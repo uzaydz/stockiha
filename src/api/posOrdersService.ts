@@ -167,7 +167,7 @@ export class POSOrdersService {
         for (const [orderId, returnedAmount] of orderReturnsMap) {
           const order = returnsStats?.find(o => o.id === orderId);
           if (order) {
-            const originalTotal = parseFloat(order.total);
+            const originalTotal = parseFloat(String(order.total));
             totalReturnedAmount += returnedAmount;
             
             if (returnedAmount >= originalTotal) {
@@ -355,7 +355,7 @@ export class POSOrdersService {
       const orderIds = (orders || []).map(order => order.id);
       let returnsData: any[] = [];
       // تعطيل subscription_transactions مؤقتاً للتركيز على metadata
-      // let subscriptionData: any[] = [];
+      let subscriptionData: any[] = [];
       
       if (orderIds.length > 0) {
         // جلب بيانات المرتجعات
@@ -400,7 +400,7 @@ export class POSOrdersService {
       const processedOrders = (orders || []).map(order => {
         const orderReturns = returnsData.filter(ret => ret.original_order_id === order.id);
         const totalReturnedAmount = orderReturns.reduce((sum, ret) => sum + parseFloat(ret.refund_amount || '0'), 0);
-        const originalTotal = parseFloat(order.total);
+        const originalTotal = parseFloat(String(order.total));
         const effectiveTotal = originalTotal - totalReturnedAmount;
         
         // البحث عن معاملات الاشتراك المرتبطة بهذه الطلبية
@@ -645,21 +645,181 @@ export class POSOrdersService {
   }
 
   /**
-   * حذف طلبية (للمديرين فقط)
+   * حذف طلبية (للمديرين فقط) مع إعادة المخزون
    */
   async deleteOrder(orderId: string): Promise<boolean> {
     try {
-      const { error } = await supabase
+      console.log('🗑️ [POSOrdersService] بدء حذف الطلبية:', orderId);
+
+      // 1. جلب عناصر الطلبية قبل الحذف لإعادة المخزون (مع معلومات المنتج)
+      const { data: orderItems, error: itemsError } = await supabase
+        .from('order_items')
+        .select(`
+          product_id, 
+          quantity,
+          product_name,
+          unit_price,
+          total_price
+        `)
+        .eq('order_id', orderId);
+
+      if (itemsError) {
+        console.error('❌ خطأ في جلب عناصر الطلبية:', itemsError);
+        throw itemsError;
+      }
+
+      console.log('📦 عناصر الطلبية المراد إعادة مخزونها:', orderItems);
+
+      // التحقق من وجود عناصر
+      if (!orderItems || orderItems.length === 0) {
+        console.warn('⚠️ لا توجد عناصر في هذه الطلبية لإعادة مخزونها');
+        
+        // جلب معلومات الطلبية للتحقق
+        const { data: orderInfo } = await supabase
+          .from('orders')
+          .select('id, slug, total, status, metadata')
+          .eq('id', orderId)
+          .single();
+          
+        console.log('📋 معلومات الطلبية:', orderInfo);
+        
+        // إذا كانت طلبية اشتراك، فقد لا تحتوي على عناصر منتجات
+        // نتابع عملية الحذف
+      }
+
+      // 2. إعادة الكميات إلى المخزون باستخدام الدالة الجديدة
+      if (orderItems && orderItems.length > 0) {
+        console.log(`🔄 بدء إعادة المخزون لـ ${orderItems.length} منتج`);
+        
+        for (const item of orderItems) {
+          console.log(`📈 محاولة إعادة ${item.quantity} من المنتج ${item.product_id} إلى المخزون`);
+          
+          try {
+            // جلب المخزون الحالي قبل التحديث
+            const { data: productBefore, error: fetchError } = await supabase
+              .from('products')
+              .select('stock_quantity, name')
+              .eq('id', item.product_id)
+              .single();
+
+            if (fetchError) {
+              console.error(`❌ خطأ في جلب بيانات المنتج ${item.product_id}:`, fetchError);
+              continue;
+            }
+
+            console.log(`📊 المخزون الحالي للمنتج ${productBefore?.name}: ${productBefore?.stock_quantity}`);
+
+            // استدعاء دالة إعادة المخزون
+            const { data: restoreResult, error: stockError } = await supabase.rpc('restore_product_stock_safe' as any, {
+              p_product_id: item.product_id,
+              p_quantity_to_restore: item.quantity, // كمية موجبة للإعادة
+            });
+
+            console.log(`🔍 نتيجة استدعاء دالة الإعادة:`, { restoreResult, stockError });
+
+            if (stockError) {
+              console.error(`❌ خطأ في استدعاء دالة إعادة المخزون للمنتج ${item.product_id}:`, stockError);
+              
+              // محاولة بديلة: تحديث المخزون يدوياً
+              console.log(`🔄 محاولة تحديث المخزون يدوياً للمنتج ${item.product_id}`);
+              const { error: manualUpdateError } = await supabase
+                .from('products')
+                .update({ 
+                  stock_quantity: (productBefore?.stock_quantity || 0) + item.quantity,
+                  updated_at: new Date().toISOString(),
+                  last_inventory_update: new Date().toISOString()
+                })
+                .eq('id', item.product_id);
+
+              if (manualUpdateError) {
+                console.error(`❌ فشل التحديث اليدوي للمنتج ${item.product_id}:`, manualUpdateError);
+              } else {
+                console.log(`✅ تم التحديث اليدوي للمنتج ${item.product_id} بنجاح`);
+              }
+            } else if (!restoreResult) {
+              console.warn(`⚠️ دالة إعادة المخزون أرجعت false للمنتج ${item.product_id}`);
+              
+              // محاولة بديلة: تحديث المخزون يدوياً
+              console.log(`🔄 محاولة تحديث المخزون يدوياً للمنتج ${item.product_id}`);
+              const { error: manualUpdateError } = await supabase
+                .from('products')
+                .update({ 
+                  stock_quantity: (productBefore?.stock_quantity || 0) + item.quantity,
+                  updated_at: new Date().toISOString(),
+                  last_inventory_update: new Date().toISOString()
+                })
+                .eq('id', item.product_id);
+
+              if (manualUpdateError) {
+                console.error(`❌ فشل التحديث اليدوي للمنتج ${item.product_id}:`, manualUpdateError);
+              } else {
+                console.log(`✅ تم التحديث اليدوي للمنتج ${item.product_id} بنجاح`);
+              }
+            } else {
+              console.log(`✅ تم إعادة مخزون المنتج ${item.product_id} بنجاح عبر الدالة`);
+            }
+
+            // التحقق من النتيجة النهائية
+            const { data: productAfter } = await supabase
+              .from('products')
+              .select('stock_quantity')
+              .eq('id', item.product_id)
+              .single();
+
+            console.log(`📊 المخزون بعد التحديث للمنتج ${item.product_id}: ${productAfter?.stock_quantity}`);
+
+          } catch (error) {
+            console.error(`❌ خطأ عام في إعادة مخزون المنتج ${item.product_id}:`, error);
+          }
+        }
+        
+        console.log(`✅ انتهت عملية إعادة المخزون لجميع المنتجات`);
+      }
+
+      // 3. حذف عناصر الطلبية
+      const { error: deleteItemsError } = await supabase
+        .from('order_items')
+        .delete()
+        .eq('order_id', orderId);
+
+      if (deleteItemsError) {
+        console.error('❌ خطأ في حذف عناصر الطلبية:', deleteItemsError);
+        // نتابع الحذف حتى لو فشل حذف العناصر
+      } else {
+        console.log('✅ تم حذف عناصر الطلبية بنجاح');
+      }
+
+      // 4. حذف المعاملات المالية المرتبطة
+      const { error: transactionsError } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('order_id', orderId);
+
+      if (transactionsError) {
+        console.error('❌ خطأ في حذف المعاملات المالية:', transactionsError);
+        // نتابع الحذف
+      }
+
+      // 5. حذف أي سجلات مرتبطة أخرى (يمكن إضافة المزيد حسب الحاجة)
+      // ملاحظة: جدول المرتجعات قد لا يكون موجود في هذا المشروع
+
+      // 6. حذف الطلبية نفسها
+      const { error: deleteOrderError } = await supabase
         .from('orders')
         .delete()
         .eq('id', orderId)
         .eq('is_online', false);
 
-      if (error) throw error;
+      if (deleteOrderError) {
+        console.error('❌ خطأ في حذف الطلبية:', deleteOrderError);
+        throw deleteOrderError;
+      }
 
+      console.log('✅ تم حذف الطلبية بنجاح مع إعادة المخزون');
       this.clearCacheForOrder(orderId);
       return true;
     } catch (error) {
+      console.error('❌ فشل في حذف الطلبية:', error);
       return false;
     }
   }

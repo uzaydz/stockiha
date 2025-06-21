@@ -94,6 +94,7 @@ interface RepairOrder {
   status: string;
   total_price: number;
   paid_amount: number;
+  price_to_be_determined_later?: boolean;
   received_by: string;
   received_by_name?: string;
   created_at: string;
@@ -825,8 +826,22 @@ const RepairServices = () => {
                       <TableCell onClick={() => handleViewOrder(order)}>
                         {order.repair_location ? order.repair_location.name : order.custom_location || 'غير محدد'}
                       </TableCell>
-                      <TableCell onClick={() => handleViewOrder(order)}>{order.total_price.toLocaleString()} دج</TableCell>
-                      <TableCell onClick={() => handleViewOrder(order)}>{order.paid_amount.toLocaleString()} دج</TableCell>
+                      <TableCell onClick={() => handleViewOrder(order)}>
+                        {order.price_to_be_determined_later ? (
+                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300">
+                            يحدد لاحقاً
+                          </Badge>
+                        ) : (
+                          `${order.total_price.toLocaleString()} دج`
+                        )}
+                      </TableCell>
+                      <TableCell onClick={() => handleViewOrder(order)}>
+                        {order.price_to_be_determined_later ? (
+                          <span className="text-muted-foreground">-</span>
+                        ) : (
+                          `${order.paid_amount.toLocaleString()} دج`
+                        )}
+                      </TableCell>
                       <TableCell className="text-muted-foreground text-sm" onClick={() => handleViewOrder(order)}>
                         {formatDateTime(order.created_at)}
                       </TableCell>
@@ -853,14 +868,20 @@ const RepairServices = () => {
                                 <Edit2 className="h-4 w-4 mr-2" />
                                 تعديل الطلبية
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedOrder(order);
-                                setPaymentAmount(0);
-                                setIsPaymentDialogOpen(true);
-                              }}>
+                              <DropdownMenuItem 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedOrder(order);
+                                  setPaymentAmount(0);
+                                  setIsPaymentDialogOpen(true);
+                                }}
+                                disabled={order.price_to_be_determined_later}
+                              >
                                 <DollarSign className="h-4 w-4 mr-2" />
                                 تسجيل دفعة
+                                {order.price_to_be_determined_later && (
+                                  <span className="text-xs text-muted-foreground mr-2">(السعر غير محدد)</span>
+                                )}
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={(e) => {
                                 e.stopPropagation();
@@ -1060,27 +1081,44 @@ const RepairServices = () => {
                     <CardTitle>معلومات الدفع</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <div className="text-sm text-muted-foreground">المبلغ الكلي</div>
-                        <div className="font-medium">{selectedOrder.total_price.toLocaleString()} دج</div>
+                    {selectedOrder.price_to_be_determined_later ? (
+                      <div className="text-center py-6">
+                        <div className="inline-flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+                          <AlertTriangle className="h-5 w-5 text-amber-600" />
+                          <div>
+                            <div className="font-medium text-amber-800">السعر يحدد لاحقاً</div>
+                            <div className="text-sm text-amber-600">سيتم تحديد السعر بعد فحص الجهاز</div>
+                          </div>
+                        </div>
+                        <div className="mt-4 text-sm text-muted-foreground">
+                          طريقة الدفع: {selectedOrder.payment_method || 'نقدًا'}
+                        </div>
                       </div>
-                      
-                      <div className="space-y-2">
-                        <div className="text-sm text-muted-foreground">المبلغ المدفوع</div>
-                        <div className="font-medium">{selectedOrder.paid_amount.toLocaleString()} دج</div>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <div className="text-sm text-muted-foreground">المبلغ المتبقي</div>
-                        <div className="font-medium">{(selectedOrder.total_price - selectedOrder.paid_amount).toLocaleString()} دج</div>
-                      </div>
-                    </div>
-                    
-                    <div className="mt-4">
-                      <div className="text-sm text-muted-foreground">طريقة الدفع</div>
-                      <div>{selectedOrder.payment_method || 'نقدًا'}</div>
-                    </div>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="space-y-2">
+                            <div className="text-sm text-muted-foreground">المبلغ الكلي</div>
+                            <div className="font-medium">{selectedOrder.total_price.toLocaleString()} دج</div>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <div className="text-sm text-muted-foreground">المبلغ المدفوع</div>
+                            <div className="font-medium">{selectedOrder.paid_amount.toLocaleString()} دج</div>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <div className="text-sm text-muted-foreground">المبلغ المتبقي</div>
+                            <div className="font-medium">{(selectedOrder.total_price - selectedOrder.paid_amount).toLocaleString()} دج</div>
+                          </div>
+                        </div>
+                        
+                        <div className="mt-4">
+                          <div className="text-sm text-muted-foreground">طريقة الدفع</div>
+                          <div>{selectedOrder.payment_method || 'نقدًا'}</div>
+                        </div>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
                 
@@ -1226,14 +1264,18 @@ const RepairServices = () => {
                   <Edit2 className="h-4 w-4" />
                   تعديل
                 </Button>
-                <Button className="gap-1" onClick={() => {
-                  if (selectedOrder) {
-                    setPaymentAmount(0);
-                    setIsPaymentDialogOpen(true);
-                  }
-                }}>
+                <Button 
+                  className="gap-1" 
+                  disabled={selectedOrder?.price_to_be_determined_later}
+                  onClick={() => {
+                    if (selectedOrder) {
+                      setPaymentAmount(0);
+                      setIsPaymentDialogOpen(true);
+                    }
+                  }}
+                >
                   <DollarSign className="h-4 w-4" />
-                  تسجيل دفعة
+                  {selectedOrder?.price_to_be_determined_later ? 'السعر غير محدد' : 'تسجيل دفعة'}
                 </Button>
               </div>
             </DialogFooter>
@@ -1256,44 +1298,61 @@ const RepairServices = () => {
             </DialogHeader>
             
             <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>السعر الكلي</Label>
-                  <div className="p-2 bg-muted rounded-md font-medium">
-                    {selectedOrder.total_price.toLocaleString()} دج
+              {selectedOrder.price_to_be_determined_later ? (
+                <div className="text-center py-6">
+                  <div className="inline-flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-4">
+                    <AlertTriangle className="h-5 w-5 text-amber-600" />
+                    <div>
+                      <div className="font-medium text-amber-800">السعر يحدد لاحقاً</div>
+                      <div className="text-sm text-amber-600">يجب تحديد السعر أولاً قبل تسجيل الدفعات</div>
+                    </div>
                   </div>
+                  <p className="text-sm text-muted-foreground">
+                    يرجى تعديل الطلبية وتحديد السعر الكلي أولاً، ثم العودة لتسجيل الدفعة.
+                  </p>
                 </div>
-                
-                <div className="space-y-2">
-                  <Label>المبلغ المدفوع سابقاً</Label>
-                  <div className="p-2 bg-muted rounded-md font-medium">
-                    {selectedOrder.paid_amount.toLocaleString()} دج
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>السعر الكلي</Label>
+                      <div className="p-2 bg-muted rounded-md font-medium">
+                        {selectedOrder.total_price.toLocaleString()} دج
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label>المبلغ المدفوع سابقاً</Label>
+                      <div className="p-2 bg-muted rounded-md font-medium">
+                        {selectedOrder.paid_amount.toLocaleString()} دج
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label>المبلغ المتبقي</Label>
-                <div className="p-2 bg-muted rounded-md font-medium text-primary">
-                  {(selectedOrder.total_price - selectedOrder.paid_amount).toLocaleString()} دج
-                </div>
-              </div>
-              
-              <Separator />
-              
-              <div className="space-y-2">
-                <Label htmlFor="payment-amount">مبلغ الدفعة الجديدة</Label>
-                <Input
-                  id="payment-amount"
-                  type="number"
-                  min="0"
-                  max={selectedOrder.total_price - selectedOrder.paid_amount}
-                  value={paymentAmount || ''}
-                  onChange={(e) => setPaymentAmount(parseFloat(e.target.value) || 0)}
-                  placeholder="أدخل مبلغ الدفعة..."
-                  className="text-left ltr"
-                />
-              </div>
+                  
+                  <div className="space-y-2">
+                    <Label>المبلغ المتبقي</Label>
+                    <div className="p-2 bg-muted rounded-md font-medium text-primary">
+                      {(selectedOrder.total_price - selectedOrder.paid_amount).toLocaleString()} دج
+                    </div>
+                  </div>
+                  
+                  <Separator />
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="payment-amount">مبلغ الدفعة الجديدة</Label>
+                    <Input
+                      id="payment-amount"
+                      type="number"
+                      min="0"
+                      max={selectedOrder.total_price - selectedOrder.paid_amount}
+                      value={paymentAmount || ''}
+                      onChange={(e) => setPaymentAmount(parseFloat(e.target.value) || 0)}
+                      placeholder="أدخل مبلغ الدفعة..."
+                      className="text-left ltr"
+                    />
+                  </div>
+                </>
+              )}
             </div>
             
             <DialogFooter className="gap-2">
@@ -1304,33 +1363,46 @@ const RepairServices = () => {
               >
                 إلغاء
               </Button>
-              <Button
-                onClick={async () => {
-                  if (selectedOrder) {
-                    const success = await handleAddPayment(selectedOrder.id, paymentAmount);
-                    if (success) setIsPaymentDialogOpen(false);
+              {selectedOrder.price_to_be_determined_later ? (
+                <Button
+                  onClick={() => {
+                    setIsPaymentDialogOpen(false);
+                    handleEditOrder(selectedOrder);
+                  }}
+                  className="gap-2"
+                >
+                  <Edit2 className="h-4 w-4" />
+                  تعديل الطلبية
+                </Button>
+              ) : (
+                <Button
+                  onClick={async () => {
+                    if (selectedOrder) {
+                      const success = await handleAddPayment(selectedOrder.id, paymentAmount);
+                      if (success) setIsPaymentDialogOpen(false);
+                    }
+                  }}
+                  disabled={
+                    isProcessingPayment || 
+                    !paymentAmount || 
+                    paymentAmount <= 0 || 
+                    paymentAmount > (selectedOrder.total_price - selectedOrder.paid_amount)
                   }
-                }}
-                disabled={
-                  isProcessingPayment || 
-                  !paymentAmount || 
-                  paymentAmount <= 0 || 
-                  paymentAmount > (selectedOrder.total_price - selectedOrder.paid_amount)
-                }
-                className="gap-2"
-              >
-                {isProcessingPayment ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    جارٍ المعالجة...
-                  </>
-                ) : (
-                  <>
-                    <DollarSign className="h-4 w-4" />
-                    تسجيل الدفعة
-                  </>
-                )}
-              </Button>
+                  className="gap-2"
+                >
+                  {isProcessingPayment ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      جارٍ المعالجة...
+                    </>
+                  ) : (
+                    <>
+                      <DollarSign className="h-4 w-4" />
+                      تسجيل الدفعة
+                    </>
+                  )}
+                </Button>
+              )}
             </DialogFooter>
           </DialogContent>
         </Dialog>

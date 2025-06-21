@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -55,6 +56,7 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
   const [totalPrice, setTotalPrice] = useState<number>(0);
   const [paidAmount, setPaidAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState('نقدًا');
+  const [priceToBeDetLater, setPriceToBeDetLater] = useState<boolean>(false);
   
   // حالة رفع الصور
   const [fileList, setFileList] = useState<File[]>([]);
@@ -120,6 +122,7 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
         setTotalPrice(repairOrder.total_price || 0);
         setPaidAmount(repairOrder.paid_amount || 0);
         setPaymentMethod(repairOrder.payment_method || 'نقدًا');
+        setPriceToBeDetLater(repairOrder.price_to_be_determined_later || false);
       }
     }
   }, [supabase, organizationId, isOpen, editMode, repairOrder]);
@@ -141,6 +144,7 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
     setTotalPrice(0);
     setPaidAmount(0);
     setPaymentMethod('نقدًا');
+    setPriceToBeDetLater(false);
     setFileList([]);
     setFilePreview([]);
   };
@@ -207,8 +211,8 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
       return;
     }
     
-    if (!totalPrice || totalPrice <= 0) {
-      toast.error('يرجى إدخال سعر التصليح');
+    if (!priceToBeDetLater && (!totalPrice || totalPrice <= 0)) {
+      toast.error('يرجى إدخال سعر التصليح أو اختيار "السعر يحدد لاحقاً"');
       return;
     }
     
@@ -256,9 +260,10 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
           customer_name: customerName,
           customer_phone: customerPhone,
           issue_description: issueDescription || null,
-          total_price: totalPrice,
-          paid_amount: paidAmount || 0,
+          total_price: priceToBeDetLater ? null : totalPrice,
+          paid_amount: priceToBeDetLater ? 0 : (paidAmount || 0),
           payment_method: paymentMethod,
+          price_to_be_determined_later: priceToBeDetLater,
           updated_at: new Date().toISOString(),
         };
 
@@ -306,9 +311,10 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
           repair_location_id: repairLocation === 'أخرى' ? null : repairLocation,
           custom_location: repairLocation === 'أخرى' ? customLocation : null,
           issue_description: issueDescription,
-          total_price: totalPrice,
-          paid_amount: paidAmount || 0,
+          total_price: priceToBeDetLater ? null : totalPrice,
+          paid_amount: priceToBeDetLater ? 0 : (paidAmount || 0),
           payment_method: paymentMethod,
+          price_to_be_determined_later: priceToBeDetLater,
           received_by: user?.id,
           status: 'قيد الانتظار',
           order_number: orderNumber,
@@ -589,9 +595,88 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
             <div className="space-y-4 bg-muted/30 p-4 rounded-lg">
               <h3 className="text-lg font-medium border-b pb-2">معلومات الدفع</h3>
               
+              {/* خيار السعر يحدد لاحقاً */}
+              <div className="relative overflow-hidden">
+                <div className={`
+                  transition-all duration-300 ease-in-out rounded-xl border-2 p-4
+                  ${priceToBeDetLater 
+                    ? 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-300 shadow-md dark:from-amber-950/30 dark:to-orange-950/30 dark:border-amber-700' 
+                    : 'bg-gradient-to-r from-slate-50 to-gray-50 border-slate-200 hover:border-slate-300 dark:from-slate-900/50 dark:to-gray-900/50 dark:border-slate-700 dark:hover:border-slate-600'
+                  }
+                `}>
+                  {/* أيقونة الخلفية الزخرفية */}
+                  <div className="absolute top-2 right-2 opacity-10 dark:opacity-5">
+                    <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    </svg>
+                  </div>
+                  
+                  <div className="flex items-start gap-3 relative z-10">
+                    <div className="flex-shrink-0 mt-1">
+                      <Checkbox 
+                        id="price_tbd" 
+                        checked={priceToBeDetLater}
+                        onCheckedChange={(checked) => {
+                          setPriceToBeDetLater(checked as boolean);
+                          if (checked) {
+                            setTotalPrice(0);
+                            setPaidAmount(0);
+                          }
+                        }}
+                        className="w-5 h-5 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500 dark:data-[state=checked]:bg-amber-600 dark:data-[state=checked]:border-amber-600"
+                      />
+                    </div>
+                    
+                    <div className="flex-1 min-w-0">
+                      <Label 
+                        htmlFor="price_tbd"
+                        className="flex items-center gap-2 text-base font-semibold leading-none cursor-pointer group"
+                      >
+                        <span className={`
+                          transition-colors duration-200
+                          ${priceToBeDetLater 
+                            ? 'text-amber-800 dark:text-amber-200' 
+                            : 'text-slate-700 group-hover:text-slate-900 dark:text-slate-300 dark:group-hover:text-slate-100'
+                          }
+                        `}>
+                          💡 السعر يحدد لاحقاً
+                        </span>
+                        {priceToBeDetLater && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200 animate-pulse">
+                            مفعل
+                          </span>
+                        )}
+                      </Label>
+                      
+                      <p className={`
+                        mt-2 text-sm leading-relaxed transition-colors duration-200
+                        ${priceToBeDetLater 
+                          ? 'text-amber-700 dark:text-amber-300' 
+                          : 'text-slate-600 dark:text-slate-400'
+                        }
+                      `}>
+                        <span className="font-medium">اختر هذا الخيار</span> إذا كان السعر سيتم تحديده بعد فحص الجهاز وتشخيص العطل
+                      </p>
+                      
+                      {priceToBeDetLater && (
+                        <div className="mt-3 flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 animate-fade-in">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span>سيتم تعطيل حقول السعر والدفع حتى يتم تحديد السعر النهائي</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="total_price">سعر التصليح الكلي <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="total_price">
+                    سعر التصليح الكلي 
+                    {!priceToBeDetLater && <span className="text-red-500">*</span>}
+                  </Label>
                   <Input 
                     id="total_price" 
                     type="number"
@@ -599,8 +684,9 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
                     step={100}
                     value={totalPrice || ''}
                     onChange={(e) => setTotalPrice(parseFloat(e.target.value) || 0)}
-                    placeholder="أدخل السعر الكلي" 
-                    required
+                    placeholder={priceToBeDetLater ? "سيتم تحديده لاحقاً" : "أدخل السعر الكلي"}
+                    disabled={priceToBeDetLater}
+                    required={!priceToBeDetLater}
                   />
                 </div>
                 <div className="space-y-2">
@@ -613,14 +699,23 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
                     step={100}
                     value={paidAmount || ''}
                     onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)}
-                    placeholder="أدخل المبلغ المدفوع" 
+                    placeholder={priceToBeDetLater ? "لا يمكن الدفع مسبقاً" : "أدخل المبلغ المدفوع"}
+                    disabled={priceToBeDetLater}
                   />
                 </div>
               </div>
               
-              <div className="bg-background p-3 rounded-md text-center font-medium">
-                المبلغ المتبقي: {(totalPrice - (paidAmount || 0)).toLocaleString()} دج
-              </div>
+              {!priceToBeDetLater && (
+                <div className="bg-background p-3 rounded-md text-center font-medium">
+                  المبلغ المتبقي: {(totalPrice - (paidAmount || 0)).toLocaleString()} دج
+                </div>
+              )}
+              
+              {priceToBeDetLater && (
+                <div className="bg-amber-100 border border-amber-300 p-3 rounded-md text-center font-medium text-amber-800">
+                  💡 سيتم تحديد السعر والدفع لاحقاً بعد فحص الجهاز
+                </div>
+              )}
               
               <div className="space-y-2">
                 <Label htmlFor="payment_method">طريقة الدفع</Label>

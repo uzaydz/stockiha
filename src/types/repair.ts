@@ -40,6 +40,7 @@ export interface RepairOrder {
   status: string;
   total_price: number;
   paid_amount: number;
+  price_to_be_determined_later?: boolean;
   received_by: string;
   received_by_name?: string;
   created_at: string;

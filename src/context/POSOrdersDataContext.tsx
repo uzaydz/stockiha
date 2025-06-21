@@ -156,6 +156,9 @@ interface POSOrdersData {
   updatePaymentStatus: (orderId: string, paymentStatus: string, amountPaid?: number) => Promise<boolean>;
   deleteOrder: (orderId: string) => Promise<boolean>;
   
+  // دوال تحديث المخزون
+  refreshProductsCache: () => void;
+  
   // دوال lazy loading
   fetchOrderDetails: (orderId: string) => Promise<any[]>;
 }
@@ -949,7 +952,114 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
     try {
       console.log('🗑️ Debug deleteOrder - Starting deletion for order:', orderId);
 
-      // 1. حذف عناصر الطلبية
+      // 1. جلب عناصر الطلبية قبل الحذف لإعادة المخزون
+      const { data: orderItems, error: fetchItemsError } = await supabase
+        .from('order_items')
+        .select(`
+          product_id, 
+          quantity,
+          product_name,
+          unit_price,
+          total_price
+        `)
+        .eq('order_id', orderId);
+
+      if (fetchItemsError) {
+        console.error('🔴 Error fetching order items for stock restoration:', fetchItemsError);
+      } else {
+        console.log('📦 Order items to restore stock for:', orderItems);
+
+        // 2. إعادة الكميات إلى المخزون قبل الحذف
+        if (orderItems && orderItems.length > 0) {
+          console.log(`🔄 Starting stock restoration for ${orderItems.length} products`);
+          
+          for (const item of orderItems) {
+            console.log(`📈 Attempting to restore ${item.quantity} units of product ${item.product_id}`);
+            
+            try {
+              // جلب المخزون الحالي قبل التحديث
+              const { data: productBefore, error: fetchError } = await supabase
+                .from('products')
+                .select('stock_quantity, name')
+                .eq('id', item.product_id)
+                .single();
+
+              if (fetchError) {
+                console.error(`❌ Error fetching product ${item.product_id}:`, fetchError);
+                continue;
+              }
+
+              console.log(`📊 Current stock for product ${productBefore?.name}: ${productBefore?.stock_quantity}`);
+
+              // استدعاء دالة إعادة المخزون
+              const { data: restoreResult, error: stockError } = await supabase.rpc('restore_product_stock_safe' as any, {
+                p_product_id: item.product_id,
+                p_quantity_to_restore: item.quantity,
+              });
+
+              if (stockError) {
+                console.error(`❌ Error calling restore function for product ${item.product_id}:`, stockError);
+                
+                // محاولة بديلة: تحديث المخزون يدوياً
+                console.log(`🔄 Attempting manual stock update for product ${item.product_id}`);
+                const { error: manualUpdateError } = await supabase
+                  .from('products')
+                  .update({ 
+                    stock_quantity: (productBefore?.stock_quantity || 0) + item.quantity,
+                    updated_at: new Date().toISOString(),
+                    last_inventory_update: new Date().toISOString()
+                  })
+                  .eq('id', item.product_id);
+
+                if (manualUpdateError) {
+                  console.error(`❌ Manual update failed for product ${item.product_id}:`, manualUpdateError);
+                } else {
+                  console.log(`✅ Manual update successful for product ${item.product_id}`);
+                }
+              } else if (!restoreResult) {
+                console.warn(`⚠️ Restore function returned false for product ${item.product_id}`);
+                
+                // محاولة بديلة: تحديث المخزون يدوياً
+                console.log(`🔄 Attempting manual stock update for product ${item.product_id}`);
+                const { error: manualUpdateError } = await supabase
+                  .from('products')
+                  .update({ 
+                    stock_quantity: (productBefore?.stock_quantity || 0) + item.quantity,
+                    updated_at: new Date().toISOString(),
+                    last_inventory_update: new Date().toISOString()
+                  })
+                  .eq('id', item.product_id);
+
+                if (manualUpdateError) {
+                  console.error(`❌ Manual update failed for product ${item.product_id}:`, manualUpdateError);
+                } else {
+                  console.log(`✅ Manual update successful for product ${item.product_id}`);
+                }
+              } else {
+                console.log(`✅ Stock restored successfully for product ${item.product_id} via function`);
+              }
+
+              // التحقق من النتيجة النهائية
+              const { data: productAfter } = await supabase
+                .from('products')
+                .select('stock_quantity')
+                .eq('id', item.product_id)
+                .single();
+
+              console.log(`📊 Stock after update for product ${item.product_id}: ${productAfter?.stock_quantity}`);
+
+            } catch (error) {
+              console.error(`❌ General error restoring stock for product ${item.product_id}:`, error);
+            }
+          }
+          
+          console.log(`✅ Finished stock restoration for all products`);
+        } else {
+          console.warn('⚠️ No items found in this order to restore stock for');
+        }
+      }
+
+      // 3. حذف عناصر الطلبية بعد إعادة المخزون
       const { error: itemsError } = await supabase
         .from('order_items')
         .delete()
@@ -958,6 +1068,8 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
       if (itemsError) {
         console.error('🔴 Error deleting order_items:', itemsError);
         // لا نرجع false هنا لأن العناصر قد تكون فارغة أصلاً
+      } else {
+        console.log('✅ Order items deleted successfully');
       }
 
       // 2. حذف المعاملات المالية المرتبطة

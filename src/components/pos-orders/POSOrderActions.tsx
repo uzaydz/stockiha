@@ -137,8 +137,8 @@ export const POSOrderActions: React.FC<POSOrderActionsProps> = ({
   };
 
   const handlePaymentUpdate = async () => {
-    const amountPaidNum = parseFloat(amountPaid) || 0;
-    const totalAmount = parseFloat(order.total);
+    const amountPaidNum = parseFloat(String(amountPaid)) || 0;
+    const totalAmount = parseFloat(String(order.total));
     
     if (amountPaidNum > totalAmount) {
       toast.error('المبلغ المدفوع لا يمكن أن يكون أكبر من إجمالي الطلبية');
@@ -443,7 +443,7 @@ export const POSOrderActions: React.FC<POSOrderActionsProps> = ({
                   placeholder="0"
                   className="pl-10"
                   min="0"
-                  max={parseFloat(order.total)}
+                  max={String(order.total)}
                   step="0.01"
                 />
               </div>
@@ -452,14 +452,14 @@ export const POSOrderActions: React.FC<POSOrderActionsProps> = ({
               </div>
             </div>
 
-            {parseFloat(amountPaid) > 0 && parseFloat(amountPaid) < parseFloat(order.total) && (
+            {parseFloat(String(amountPaid)) > 0 && parseFloat(String(amountPaid)) < parseFloat(String(order.total)) && (
               <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
                 <div className="flex items-center gap-2 text-orange-800">
                   <AlertTriangle className="h-4 w-4" />
                   <span className="text-sm font-medium">دفع جزئي</span>
                 </div>
                 <p className="text-sm text-orange-700 mt-1">
-                  المبلغ المتبقي: {formatCurrency(parseFloat(order.total) - parseFloat(amountPaid))}
+                  المبلغ المتبقي: {formatCurrency(parseFloat(String(order.total)) - parseFloat(String(amountPaid)))}
                 </p>
               </div>
             )}
@@ -497,6 +497,20 @@ export const POSOrderActions: React.FC<POSOrderActionsProps> = ({
             <AlertDialogDescription>
               هل أنت متأكد من أنك تريد حذف هذه الطلبية؟ لا يمكن التراجع عن هذا الإجراء.
             </AlertDialogDescription>
+          </AlertDialogHeader>
+          
+          {/* تحذير مهم حول إعادة المخزون */}
+          <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg">
+            <div className="flex items-start gap-2">
+              <Package className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+              <div className="text-sm text-blue-800">
+                <p className="font-medium mb-1">ملاحظة مهمة:</p>
+                <p>عند حذف هذه الطلبية، سيتم تلقائياً إعادة جميع الكميات المباعة إلى المخزون.</p>
+              </div>
+            </div>
+          </div>
+          
+          <AlertDialogHeader>
           </AlertDialogHeader>
           
           <div className="bg-muted p-3 rounded-lg">
