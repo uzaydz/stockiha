@@ -1,0 +1,1238 @@
+{
+  "timestamp": "2025-06-21T19:12:32.953Z",
+  "totalRequests": 57,
+  "requests": [
+    {
+      "id": "req_1_1750533134832",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/lib/supabase/authErrorHandler.ts",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533134828.6,
+      "duration": 3.400000002235174,
+      "status": 200,
+      "size": 23254,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_2_1750533135042",
+      "url": "http://testfinalfinalvhio.localhost:8080/images/logo-new.webp",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533135032.5,
+      "duration": 9.5,
+      "status": 200,
+      "size": 274584,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_3_1750533135118",
+      "url": "https://wrnssatuvmumsczyldth.supabase.co/rest/v1/product_subcategories?is_active=eq.true&order=name",
+      "method": "GET",
+      "table": "product_subcategories",
+      "sourceFile": "requestDeduplicationGlobal.ts",
+      "sourceFunction": "window",
+      "component": "Unknown",
+      "fullPath": "window.fetch (http://testfinalfinalvhio.localhost:8080/src/lib/requestDeduplicationGlobal.ts",
+      "lineNumber": 45,
+      "timestamp": 1750533135118,
+      "duration": 448.5,
+      "status": 200,
+      "size": 11000,
+      "stackTrace": [
+        "at RequestTracker.trackRequest (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:478:33)",
+        "at window.fetch (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:273:25)",
+        "at window.fetch (http://testfinalfinalvhio.localhost:8080/src/lib/requestDeduplicationGlobal.ts:45:37)",
+        "at enhancedFetch (http://testfinalfinalvhio.localhost:8080/src/lib/http406Handler.ts:127:32)",
+        "at createDirectRestRequest (http://testfinalfinalvhio.localhost:8080/src/lib/unifiedRequestManager.ts:108:32)"
+      ],
+      "callerChain": [
+        "requestDeduplicationGlobal.ts:window:45",
+        "http406Handler.ts:enhancedFetch:127",
+        "unifiedRequestManager.ts:createDirectRestRequest:108"
+      ]
+    },
+    {
+      "id": "req_4_1750533135522",
+      "url": "https://wrnssatuvmumsczyldth.supabase.co/rest/v1/product_categories?select=*&order=name.asc",
+      "method": "GET",
+      "table": "product_categories",
+      "sourceFile": "categories.ts",
+      "sourceFunction": "getCategories",
+      "component": "API/Service",
+      "timestamp": 1750533135133.4,
+      "duration": 388.6000000014901,
+      "status": 200,
+      "size": 0,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "categories.ts:getCategories"
+      ]
+    },
+    {
+      "id": "req_5_1750533135533",
+      "url": "https://wrnssatuvmumsczyldth.supabase.co/rest/v1/organizations?select=*&subdomain=eq.testfinalfinalvhio",
+      "method": "GET",
+      "table": "organizations",
+      "sourceFile": "unknown-source.ts",
+      "sourceFunction": "unknownFunction",
+      "component": "Unknown",
+      "timestamp": 1750533135133.3,
+      "duration": 399.69999999925494,
+      "status": 200,
+      "size": 0,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "unknown-source.ts:unknownFunction"
+      ]
+    },
+    {
+      "id": "req_6_1750533135575",
+      "url": "https://wrnssatuvmumsczyldth.supabase.co/rest/v1/product_categories?organization_id=eq.6c2ed605-0880-4e40-af50-78f80f7283bb&is_active=eq.true&order=name",
+      "method": "GET",
+      "table": "product_categories",
+      "sourceFile": "requestDeduplicationGlobal.ts",
+      "sourceFunction": "window",
+      "component": "Unknown",
+      "fullPath": "window.fetch (http://testfinalfinalvhio.localhost:8080/src/lib/requestDeduplicationGlobal.ts",
+      "lineNumber": 45,
+      "timestamp": 1750533135576,
+      "duration": 218,
+      "status": 200,
+      "size": 1026,
+      "stackTrace": [
+        "at RequestTracker.trackRequest (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:478:33)",
+        "at window.fetch (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:273:25)",
+        "at window.fetch (http://testfinalfinalvhio.localhost:8080/src/lib/requestDeduplicationGlobal.ts:45:37)",
+        "at enhancedFetch (http://testfinalfinalvhio.localhost:8080/src/lib/http406Handler.ts:127:32)",
+        "at createDirectRestRequest (http://testfinalfinalvhio.localhost:8080/src/lib/unifiedRequestManager.ts:108:32)"
+      ],
+      "callerChain": [
+        "requestDeduplicationGlobal.ts:window:45",
+        "http406Handler.ts:enhancedFetch:127",
+        "unifiedRequestManager.ts:createDirectRestRequest:108"
+      ]
+    },
+    {
+      "id": "req_7_1750533135577",
+      "url": "https://wrnssatuvmumsczyldth.supabase.co/rest/v1/organization_settings?organization_id=eq.6c2ed605-0880-4e40-af50-78f80f7283bb&limit=1",
+      "method": "GET",
+      "table": "organization_settings",
+      "sourceFile": "requestDeduplicationGlobal.ts",
+      "sourceFunction": "window",
+      "component": "Unknown",
+      "fullPath": "window.fetch (http://testfinalfinalvhio.localhost:8080/src/lib/requestDeduplicationGlobal.ts",
+      "lineNumber": 45,
+      "timestamp": 1750533135577,
+      "duration": 218.79999999701977,
+      "status": 200,
+      "size": 745,
+      "stackTrace": [
+        "at RequestTracker.trackRequest (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:478:33)",
+        "at window.fetch (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:273:25)",
+        "at window.fetch (http://testfinalfinalvhio.localhost:8080/src/lib/requestDeduplicationGlobal.ts:45:37)",
+        "at enhancedFetch (http://testfinalfinalvhio.localhost:8080/src/lib/http406Handler.ts:119:16)",
+        "at createDirectRestRequest (http://testfinalfinalvhio.localhost:8080/src/lib/unifiedRequestManager.ts:108:32)"
+      ],
+      "callerChain": [
+        "requestDeduplicationGlobal.ts:window:45",
+        "http406Handler.ts:enhancedFetch:119",
+        "unifiedRequestManager.ts:createDirectRestRequest:108"
+      ]
+    },
+    {
+      "id": "req_8_1750533135579",
+      "url": "https://wrnssatuvmumsczyldth.supabase.co/rest/v1/organization_subscriptions?organization_id=eq.6c2ed605-0880-4e40-af50-78f80f7283bb&status=in.(active,trial)&order=created_at.desc&limit=1",
+      "method": "GET",
+      "table": "organization_subscriptions",
+      "sourceFile": "requestDeduplicationGlobal.ts",
+      "sourceFunction": "window",
+      "component": "Unknown",
+      "fullPath": "window.fetch (http://testfinalfinalvhio.localhost:8080/src/lib/requestDeduplicationGlobal.ts",
+      "lineNumber": 45,
+      "timestamp": 1750533135579,
+      "duration": 221,
+      "status": 200,
+      "size": 512,
+      "stackTrace": [
+        "at RequestTracker.trackRequest (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:478:33)",
+        "at window.fetch (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:273:25)",
+        "at window.fetch (http://testfinalfinalvhio.localhost:8080/src/lib/requestDeduplicationGlobal.ts:45:37)",
+        "at enhancedFetch (http://testfinalfinalvhio.localhost:8080/src/lib/http406Handler.ts:119:16)",
+        "at createDirectRestRequest (http://testfinalfinalvhio.localhost:8080/src/lib/unifiedRequestManager.ts:108:32)"
+      ],
+      "callerChain": [
+        "requestDeduplicationGlobal.ts:window:45",
+        "http406Handler.ts:enhancedFetch:119",
+        "unifiedRequestManager.ts:createDirectRestRequest:108"
+      ]
+    },
+    {
+      "id": "req_9_1750533135580",
+      "url": "https://wrnssatuvmumsczyldth.supabase.co/rest/v1/organization_apps?organization_id=eq.6c2ed605-0880-4e40-af50-78f80f7283bb&order=created_at.desc",
+      "method": "GET",
+      "table": "organization_apps",
+      "sourceFile": "requestDeduplicationGlobal.ts",
+      "sourceFunction": "window",
+      "component": "Unknown",
+      "fullPath": "window.fetch (http://testfinalfinalvhio.localhost:8080/src/lib/requestDeduplicationGlobal.ts",
+      "lineNumber": 45,
+      "timestamp": 1750533135580,
+      "duration": 215.5,
+      "status": 200,
+      "size": 2,
+      "stackTrace": [
+        "at RequestTracker.trackRequest (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:478:33)",
+        "at window.fetch (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:273:25)",
+        "at window.fetch (http://testfinalfinalvhio.localhost:8080/src/lib/requestDeduplicationGlobal.ts:45:37)",
+        "at enhancedFetch (http://testfinalfinalvhio.localhost:8080/src/lib/http406Handler.ts:119:16)",
+        "at createDirectRestRequest (http://testfinalfinalvhio.localhost:8080/src/lib/unifiedRequestManager.ts:108:32)"
+      ],
+      "callerChain": [
+        "requestDeduplicationGlobal.ts:window:45",
+        "http406Handler.ts:enhancedFetch:119",
+        "unifiedRequestManager.ts:createDirectRestRequest:108"
+      ]
+    },
+    {
+      "id": "req_10_1750533135805",
+      "url": "https://wrnssatuvmumsczyldth.supabase.co/rest/v1/store_settings?select=settings&organization_id=eq.6c2ed605-0880-4e40-af50-78f80f7283bb&component_type=eq.footer&is_active=eq.true",
+      "method": "GET",
+      "table": "store_settings",
+      "sourceFile": "store-settings.ts",
+      "sourceFunction": "getStoreSettings",
+      "component": "API/Service",
+      "timestamp": 1750533135582.8,
+      "duration": 223.20000000298023,
+      "status": 200,
+      "size": 0,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "store-settings.ts:getStoreSettings"
+      ]
+    },
+    {
+      "id": "req_11_1750533136286",
+      "url": "https://wrnssatuvmumsczyldth.supabase.co/functions/v1/get-complete-app-data",
+      "method": "GET",
+      "table": "Function: get-complete-app-data",
+      "sourceFile": "globalCacheManager.ts",
+      "sourceFunction": "fetchCompleteAppData",
+      "component": "Cache Management",
+      "timestamp": 1750533135582.8,
+      "duration": 703.1999999992549,
+      "status": 200,
+      "size": 0,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "globalCacheManager.ts:fetchCompleteAppData"
+      ]
+    },
+    {
+      "id": "req_12_1750533136438",
+      "url": "https://wrnssatuvmumsczyldth.supabase.co/functions/v1/get-ultra-optimized-product-data",
+      "method": "GET",
+      "table": "Function: get-ultra-optimized-product-data",
+      "sourceFile": "product-page.ts",
+      "sourceFunction": "getProductPageData",
+      "component": "API/Service",
+      "timestamp": 1750533135571.5,
+      "duration": 866.5,
+      "status": 200,
+      "size": 0,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "product-page.ts:getProductPageData"
+      ]
+    },
+    {
+      "id": "req_13_1750533136469",
+      "url": "https://wrnssatuvmumsczyldth.supabase.co/functions/v1/conversion-settings?productId=e0422086-9bbf-438c-9207-9ff37b7e1866",
+      "method": "GET",
+      "table": "Function: conversion-settings",
+      "sourceFile": "requestDeduplicationGlobal.ts",
+      "sourceFunction": "window",
+      "component": "Unknown",
+      "fullPath": "window.fetch (http://testfinalfinalvhio.localhost:8080/src/lib/requestDeduplicationGlobal.ts",
+      "lineNumber": 45,
+      "timestamp": 1750533136469,
+      "duration": 520.0999999977648,
+      "status": 200,
+      "size": 219,
+      "stackTrace": [
+        "at RequestTracker.trackRequest (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:478:33)",
+        "at window.fetch (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:273:25)",
+        "at window.fetch (http://testfinalfinalvhio.localhost:8080/src/lib/requestDeduplicationGlobal.ts:45:37)",
+        "at enhancedFetch (http://testfinalfinalvhio.localhost:8080/src/lib/http406Handler.ts:127:32)",
+        "at loadSettings (http://testfinalfinalvhio.localhost:8080/src/components/tracking/ProductTrackingWrapper.tsx:48:40)"
+      ],
+      "callerChain": [
+        "requestDeduplicationGlobal.ts:window:45",
+        "http406Handler.ts:enhancedFetch:127",
+        "ProductTrackingWrapper.tsx:loadSettings:48"
+      ]
+    },
+    {
+      "id": "req_14_1750533136477",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/OrderForm.tsx?t=1750532387986",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136474.5,
+      "duration": 2.5,
+      "status": 200,
+      "size": 101597,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_15_1750533136491",
+      "url": "https://wrnssatuvmumsczyldth.supabase.co/rest/v1/customers?select=*&id=eq.00000000-0000-0000-0000-000000000000",
+      "method": "GET",
+      "table": "customers",
+      "sourceFile": "customers.ts",
+      "sourceFunction": "getCustomers",
+      "component": "API/Service",
+      "timestamp": 1750533136290.8,
+      "duration": 200.19999999925494,
+      "status": 200,
+      "size": 0,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "customers.ts:getCustomers"
+      ]
+    },
+    {
+      "id": "req_16_1750533136498",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/order-form-logic/useOrderFormManagement.ts?t=1750532387986",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136486.3,
+      "duration": 11.699999999254942,
+      "status": 200,
+      "size": 17466,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_17_1750533136508",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/order-form-logic/useShippingLogic.ts?t=1750532387986",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136489.7,
+      "duration": 18.299999997019768,
+      "status": 200,
+      "size": 92674,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_18_1750533136508",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/order-form-logic/useOrderCalculations.ts",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136488.9,
+      "duration": 19.100000001490116,
+      "status": 200,
+      "size": 4919,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_19_1750533136508",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/order-form-logic/useAbandonedCartLogic.ts",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136488.8,
+      "duration": 19.199999999254942,
+      "status": 200,
+      "size": 24415,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_20_1750533136516",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/order-form-logic/useOrderSubmissionLogic.ts?t=1750532387986",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136487.2,
+      "duration": 28.800000000745058,
+      "status": 200,
+      "size": 41005,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_21_1750533136518",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/ui-parts/PersonalInfoFields.tsx",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136486.8,
+      "duration": 31.199999999254942,
+      "status": 200,
+      "size": 7266,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_22_1750533136523",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/ui-parts/DeliveryInfoFields.tsx?t=1750532387986",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136486.9,
+      "duration": 36.099999997764826,
+      "status": 200,
+      "size": 108681,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_23_1750533136525",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/index.ts?t=1750532387986",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136487.2,
+      "duration": 37.80000000074506,
+      "status": 200,
+      "size": 1554,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_24_1750533136530",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/OrderFormTypes.ts",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136500.5,
+      "duration": 29.5,
+      "status": 200,
+      "size": 20274,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_25_1750533136541",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/ui-parts/OrderSummary.tsx",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136491.9,
+      "duration": 49.099999997764826,
+      "status": 200,
+      "size": 61018,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_26_1750533136541",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/ui-parts/SubmitButton.tsx",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136488.4,
+      "duration": 52.599999997764826,
+      "status": 200,
+      "size": 32859,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_27_1750533136541",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ZRExpressShippingCalculator.tsx?t=1750532387986",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136525.4,
+      "duration": 15.600000001490116,
+      "status": 200,
+      "size": 12154,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_28_1750533136545",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/EcotrackShippingCalculator.tsx?t=1750532387986",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136526.3,
+      "duration": 18.700000002980232,
+      "status": 200,
+      "size": 26462,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_29_1750533136550",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/CustomFormFields.tsx?t=1750532387986",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136526,
+      "duration": 24,
+      "status": 200,
+      "size": 37645,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_30_1750533136562",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/index.ts?t=1750532387986",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136520.8,
+      "duration": 41.19999999925494,
+      "status": 200,
+      "size": 17514,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_31_1750533136562",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/api/zrexpress/service.ts",
+      "method": "GET",
+      "table": "External API: zrexpress",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136543.8,
+      "duration": 18.199999999254942,
+      "status": 200,
+      "size": 11345,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_32_1750533136572",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1750532387986",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136551.8,
+      "duration": 20.199999999254942,
+      "status": 200,
+      "size": 58576,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_33_1750533136577",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/DeliveryPriceLogic.tsx?t=1750532387986",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136552.5,
+      "duration": 24.5,
+      "status": 200,
+      "size": 72324,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_34_1750533136577",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/DeliveryTypeUpdater.tsx",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136552.4,
+      "duration": 24.600000001490116,
+      "status": 200,
+      "size": 11680,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_35_1750533136583",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/FormInitialization.tsx?t=1750532387986",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136553.2,
+      "duration": 29.800000000745058,
+      "status": 200,
+      "size": 13028,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_36_1750533136584",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/FormEventHandler.tsx?t=1750532387986",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136552.6,
+      "duration": 31.399999998509884,
+      "status": 200,
+      "size": 28396,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_37_1750533136589",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/FormFieldRenderer.tsx",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136552.5,
+      "duration": 36.5,
+      "status": 200,
+      "size": 90555,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_38_1750533136594",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/OrderSuccess.tsx",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136566.5,
+      "duration": 27.5,
+      "status": 200,
+      "size": 67653,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_39_1750533136594",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/PersonalInfoFields.tsx",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136563.9,
+      "duration": 30.100000001490116,
+      "status": 200,
+      "size": 34785,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_40_1750533136602",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/DeliveryInfoFields.tsx",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136567.2,
+      "duration": 34.80000000074506,
+      "status": 200,
+      "size": 191853,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_41_1750533136602",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/OrderSummary.tsx",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136565.5,
+      "duration": 36.5,
+      "status": 200,
+      "size": 77988,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_42_1750533136603",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/OrderFormSubmitter.ts",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136565.5,
+      "duration": 37.5,
+      "status": 200,
+      "size": 41593,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_43_1750533136607",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/OrderFormUtils.ts",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136566.2,
+      "duration": 40.80000000074506,
+      "status": 200,
+      "size": 39623,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_44_1750533136607",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/CustomShippingCalculator.tsx",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136579.2,
+      "duration": 27.800000000745058,
+      "status": 200,
+      "size": 7251,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_45_1750533136611",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/DatabaseConnection.ts",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136563.8,
+      "duration": 47.19999999925494,
+      "status": 200,
+      "size": 2677,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_46_1750533136617",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/FormFieldComponents.tsx",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136591.2,
+      "duration": 25.799999997019768,
+      "status": 200,
+      "size": 211061,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_47_1750533136618",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/lib/api/custom-shipping.ts",
+      "method": "GET",
+      "table": "External API: custom-shipping.ts",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136607.3,
+      "duration": 10.699999999254942,
+      "status": 200,
+      "size": 16689,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_48_1750533136622",
+      "url": "http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/DeliveryTypeField.tsx",
+      "method": "GET",
+      "table": "External: testfinalfinalvhio.localhost",
+      "sourceFile": "localhost-api.ts",
+      "sourceFunction": "localRequest",
+      "component": "Local API",
+      "timestamp": 1750533136592.5,
+      "duration": 29.5,
+      "status": 200,
+      "size": 107223,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "localhost-api.ts:localRequest"
+      ]
+    },
+    {
+      "id": "req_49_1750533136709",
+      "url": "https://wrnssatuvmumsczyldth.supabase.co/rest/v1/products?select=*%2Cproduct_colors%28*%2Cproduct_sizes%28*%29%29&organization_id=eq.6c2ed605-0880-4e40-af50-78f80f7283bb&is_active=eq.true",
+      "method": "GET",
+      "table": "products",
+      "sourceFile": "products.ts",
+      "sourceFunction": "getProducts",
+      "component": "API/Service",
+      "timestamp": 1750533136497.8,
+      "duration": 211.19999999925494,
+      "status": 200,
+      "size": 0,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "products.ts:getProducts"
+      ]
+    },
+    {
+      "id": "req_50_1750533136713",
+      "url": "https://wrnssatuvmumsczyldth.supabase.co/rest/v1/services?select=*&organization_id=eq.6c2ed605-0880-4e40-af50-78f80f7283bb",
+      "method": "GET",
+      "table": "services",
+      "sourceFile": "services.ts",
+      "sourceFunction": "getServices",
+      "component": "API/Service",
+      "timestamp": 1750533136502.1,
+      "duration": 210.89999999850988,
+      "status": 200,
+      "size": 0,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "services.ts:getServices"
+      ]
+    },
+    {
+      "id": "req_51_1750533136720",
+      "url": "https://wrnssatuvmumsczyldth.supabase.co/rest/v1/orders?select=*%2Corder_items%28*%29&organization_id=eq.6c2ed605-0880-4e40-af50-78f80f7283bb&order=created_at.desc",
+      "method": "GET",
+      "table": "orders",
+      "sourceFile": "orders.ts",
+      "sourceFunction": "getOrders",
+      "component": "API/Service",
+      "timestamp": 1750533136498.3,
+      "duration": 221.69999999925494,
+      "status": 200,
+      "size": 0,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "orders.ts:getOrders"
+      ]
+    },
+    {
+      "id": "req_52_1750533136879",
+      "url": "https://wrnssatuvmumsczyldth.supabase.co/rest/v1/yalidine_provinces_global?select=*&is_deliverable=eq.true&order=name.asc",
+      "method": "GET",
+      "table": "yalidine_provinces_global",
+      "sourceFile": "yalidine/service.ts",
+      "sourceFunction": "getProvinces",
+      "component": "API/Service",
+      "timestamp": 1750533136682,
+      "duration": 197,
+      "status": 200,
+      "size": 0,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "yalidine/service.ts:getProvinces"
+      ]
+    },
+    {
+      "id": "req_53_1750533136968",
+      "url": "https://wrnssatuvmumsczyldth.supabase.co/rest/v1/rpc/get_shipping_provinces",
+      "method": "GET",
+      "table": "rpc/get_shipping_provinces",
+      "sourceFile": "supabase-rpc.ts",
+      "sourceFunction": "get_shipping_provinces",
+      "component": "RPC Call",
+      "timestamp": 1750533136768.4,
+      "duration": 199.59999999776483,
+      "status": 200,
+      "size": 0,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "supabase-rpc.ts:get_shipping_provinces"
+      ]
+    },
+    {
+      "id": "req_54_1750533136968",
+      "url": "https://wrnssatuvmumsczyldth.supabase.co/rest/v1/products?select=shipping_provider_id%2Cshipping_method_type&id=eq.e0422086-9bbf-438c-9207-9ff37b7e1866",
+      "method": "GET",
+      "table": "products",
+      "sourceFile": "products.ts",
+      "sourceFunction": "getProducts",
+      "component": "API/Service",
+      "timestamp": 1750533136776,
+      "duration": 192,
+      "status": 200,
+      "size": 0,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "products.ts:getProducts"
+      ]
+    },
+    {
+      "id": "req_55_1750533136969",
+      "url": "https://wrnssatuvmumsczyldth.supabase.co/rest/v1/services?select=*&organization_id=eq.6c2ed605-0880-4e40-af50-78f80f7283bb&is_available=eq.true",
+      "method": "GET",
+      "table": "services",
+      "sourceFile": "services.ts",
+      "sourceFunction": "getServices",
+      "component": "API/Service",
+      "timestamp": 1750533136786.3,
+      "duration": 182.69999999925494,
+      "status": 200,
+      "size": 0,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "services.ts:getServices"
+      ]
+    },
+    {
+      "id": "req_56_1750533137025",
+      "url": "https://wrnssatuvmumsczyldth.supabase.co/storage/v1/object/public/organization-assets/product_thumbnails/6c2ed605-0880-4e40-af50-78f80f7283bb/1750175618898_IMG_4107_5388052.webp",
+      "method": "GET",
+      "sourceFile": "unknown-source.ts",
+      "sourceFunction": "unknownFunction",
+      "component": "Unknown",
+      "timestamp": 1750533136460.8,
+      "duration": 564.1999999992549,
+      "status": 200,
+      "size": 0,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "unknown-source.ts:unknownFunction"
+      ]
+    },
+    {
+      "id": "req_57_1750533137202",
+      "url": "https://wrnssatuvmumsczyldth.supabase.co/rest/v1/users?select=*&organization_id=eq.6c2ed605-0880-4e40-af50-78f80f7283bb",
+      "method": "GET",
+      "table": "users",
+      "sourceFile": "users.ts",
+      "sourceFunction": "getUsers",
+      "component": "API/Service",
+      "timestamp": 1750533136995.9,
+      "duration": 206.09999999776483,
+      "status": 200,
+      "size": 0,
+      "stackTrace": [
+        "at RequestTracker.findBetterSourceInfo (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:377:33)",
+        "at RequestTracker.recordPerformanceEntry (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:337:39)",
+        "at PerformanceObserver.<anonymous> (http://testfinalfinalvhio.localhost:8080/src/lib/utils/requestTracker.ts?t=1750533003322:315:38)"
+      ],
+      "callerChain": [
+        "users.ts:getUsers"
+      ]
+    }
+  ]
+}

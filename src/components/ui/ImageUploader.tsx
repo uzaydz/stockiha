@@ -5,6 +5,7 @@ import { Upload, X, ImageIcon, Loader2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/lib/supabase";
 import { useTenant } from "@/context/TenantContext";
+import { useUser } from "@/context/UserContext";
 import { Input } from "./input";
 import { UploadCloud } from "lucide-react";
 import { v4 } from "uuid";
@@ -47,7 +48,13 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropAreaRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
-  const { currentOrganization } = useTenant();
+  const tenantContext = useTenant();
+  const userContext = useUser();
+  
+  // استخدام المؤسسة من أي من السياقين المتاحين
+  const currentOrganization = tenantContext?.currentOrganization || 
+                               userContext?.currentOrganization || 
+                               { id: userContext?.organizationId };
   
   // استخدام Supabase client مباشرة (متاح بشكل متزامن)
   // const supabase متاح من الاستيراد مباشرة

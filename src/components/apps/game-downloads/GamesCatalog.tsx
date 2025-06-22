@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import ImageUploader from '@/components/ui/ImageUploader';
 
 interface GameCategory {
   id: string;
@@ -231,38 +232,30 @@ export default function GamesCatalog() {
     }
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  const handleImageUpload = (imageUrl: string, index: number) => {
+    setGameForm(prev => {
+      const newImages = [...prev.images];
+      if (index < newImages.length) {
+        newImages[index] = imageUrl;
+      } else {
+        newImages.push(imageUrl);
+      }
+      return { ...prev, images: newImages };
+    });
+  };
 
-    try {
-      const uploadPromises = Array.from(files).map(async (file) => {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${organizationId}/games/${Date.now()}-${Math.random()}.${fileExt}`;
+  const handleRemoveImage = (index: number) => {
+    setGameForm(prev => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index),
+    }));
+  };
 
-        const { error: uploadError } = await supabase.storage
-          .from('game-images')
-          .upload(fileName, file);
-
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('game-images')
-          .getPublicUrl(fileName);
-
-        return publicUrl;
-      });
-
-      const uploadedUrls = await Promise.all(uploadPromises);
-      setGameForm(prev => ({
-        ...prev,
-        images: [...prev.images, ...uploadedUrls],
-      }));
-
-      toast.success('تم رفع الصور بنجاح');
-    } catch (error: any) {
-      toast.error('فشل في رفع الصور');
-    }
+  const handleAddImage = () => {
+    setGameForm(prev => ({
+      ...prev,
+      images: [...prev.images, ''],
+    }));
   };
 
   const resetGameForm = () => {
@@ -652,41 +645,50 @@ export default function GamesCatalog() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="game-images">صور اللعبة</Label>
-              <Input
-                id="game-images"
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handleImageUpload}
-              />
-              {gameForm.images.length > 0 && (
-                <div className="grid grid-cols-4 gap-2 mt-2">
-                  {gameForm.images.map((image, index) => (
-                    <div key={index} className="relative">
-                      <img
-                        src={image}
-                        alt={`Game ${index + 1}`}
-                        className="h-20 w-full object-cover rounded-lg"
-                      />
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label>صور اللعبة</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddImage}
+                >
+                  <Plus className="h-4 w-4 ml-1" />
+                  إضافة صورة
+                </Button>
+              </div>
+              <div className="space-y-4">
+                {gameForm.images.map((image, index) => (
+                  <div key={index} className="border rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium">الصورة {index + 1}</span>
                       <Button
-                        size="sm"
+                        type="button"
                         variant="destructive"
-                        className="absolute top-1 left-1 h-6 w-6 p-0"
-                        onClick={() => {
-                          setGameForm(prev => ({
-                            ...prev,
-                            images: prev.images.filter((_, i) => i !== index),
-                          }));
-                        }}
+                        size="sm"
+                        onClick={() => handleRemoveImage(index)}
                       >
-                        ×
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
-                  ))}
-                </div>
-              )}
+                    <ImageUploader
+                      imageUrl={image}
+                      onImageUploaded={(url) => handleImageUpload(url, index)}
+                      folder="organization-assets/games"
+                      maxSizeInMB={5}
+                      compact={true}
+                    />
+                  </div>
+                ))}
+                {gameForm.images.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
+                    <Package className="h-12 w-12 mx-auto mb-2 text-muted-foreground" />
+                    <p>لا توجد صور مضافة</p>
+                    <p className="text-sm">انقر على "إضافة صورة" لرفع الصور</p>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="flex items-center space-x-2">

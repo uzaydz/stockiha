@@ -1,19 +1,32 @@
-import { Toaster } from "@/components/ui/toaster";
+import React, { Suspense, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { TenantProvider } from './context/TenantContext';
+import { AuthProvider } from './context/AuthContext';
+import { DashboardDataProvider } from './context/DashboardDataContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { Toaster } from './components/ui/toaster';
+import { ThemeProvider } from './components/ThemeProvider';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Loader2 } from 'lucide-react';
+import { AppsProvider } from './context/AppsContext';
+import { OrganizationDataProvider } from './contexts/OrganizationDataContext';
+import { I18nextProvider } from 'react-i18next';
+import i18n from './i18n';
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClientProvider } from '@tanstack/react-query';
 import queryClient from "./lib/config/queryClient";
-import { Routes, Route, useLocation, useParams, Navigate } from "react-router-dom";
+import { Routes as ReactRouterRoutes, Route, useLocation, useParams, Navigate } from "react-router-dom";
 import { useEffect, useState } from 'react';
 import { syncCategoriesDataOnStartup } from '@/lib/api/categories';
 import { ShopProvider } from "./context/ShopContext";
+import { StoreProvider } from "./context/StoreContext";
 import { HelmetProvider } from "react-helmet-async";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import PublicRoute from "./components/auth/PublicRoute";
 import SuperAdminRoute from "./components/auth/SuperAdminRoute";
 import SubscriptionCheck from "./components/subscription/SubscriptionCheck";
 import { SupabaseProvider } from "./context/SupabaseContext";
-import SessionMonitor from "./components/SessionMonitor";
+
 import ErrorMonitor from "./components/ErrorMonitor";
 import { MasterDebugDashboard } from "./components/debug/MasterDebugDashboard";
 import Index from "./pages/Index";
@@ -94,11 +107,8 @@ import StoreEditorDemo from '@/pages/admin/StoreEditorDemo';
 import AppsManagement from './pages/AppsManagement';
 import GameDownloadsPage from './pages/GameDownloadsPage';
 import PublicGameStorePage from './pages/PublicGameStorePage';
-import { AppsProvider } from './context/AppsContext';
-import { StoreProvider } from './context/StoreContext';
 import { UnifiedDataProvider } from '@/components/UnifiedDataProvider';
 import { UniversalDataUpdateProvider } from './context/UniversalDataUpdateContext';
-import { OrganizationDataProvider } from './contexts/OrganizationDataContext';
 import ConditionalRoute from './components/ConditionalRoute';
 import CallCenterRoute from './components/auth/CallCenterRoute';
 import CallCenterLayout from './components/call-center/CallCenterLayout';
@@ -137,7 +147,6 @@ import useTabFocusEffect from './hooks/useTabFocusEffect';
 import useReactQueryState from './hooks/useReactQueryState';
 import { useSessionTracking } from './hooks/useSessionTracking';
 import { isElectron } from '@/lib/isElectron';
-import { useTenant } from '@/context/TenantContext';
 import { getCategoryById, getCategories } from '@/lib/api/unified-api';
 import { configureCrossDomainAuth } from '@/lib/cross-domain-auth';
 import { detectLoadingLoop, autoFixStorage } from '@/lib/utils/storage-helper';
@@ -425,7 +434,6 @@ const App = () => {
         <TabFocusHandler>
           <SupabaseProvider>
             {/* <CrossDomainSessionReceiver> -- This component is now deprecated. Its logic has been integrated into AuthContext. */}
-              <SessionMonitor />
               <ErrorMonitor />
               {/* نظام المراقبة الشامل - يعمل في بيئة التطوير فقط */}
               {process.env.NODE_ENV === 'development' && <MasterDebugDashboard />}

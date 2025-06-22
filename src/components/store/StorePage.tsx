@@ -375,93 +375,33 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
   const navBarProps: NavbarProps = {
   };
 
-  // تحميل إعدادات الفوتر من قاعدة البيانات مع مراقبة التغييرات
+  // تحميل إعدادات الفوتر من قاعدة البيانات (بدون Realtime subscription)
   useEffect(() => {
     if (!storeData?.organization_details?.id) return;
 
-    const initializeFooterSettings = async () => {
-      const supabase = await getSupabaseClient();
-      
-      const fetchFooterSettings = async () => {
-        try {
-          const { data: footerData, error } = await supabase
-            .from('store_settings')
-            .select('settings')
-            .eq('organization_id', storeData.organization_details.id)
-            .eq('component_type', 'footer')
-            .eq('is_active', true)
-            .maybeSingle();
-
-          if (!error && footerData?.settings) {
-            setFooterSettings(footerData.settings);
-          } else {
-          }
-        } catch (error) {
-        }
-      };
-
-      // جلب الإعدادات للمرة الأولى
-      await fetchFooterSettings();
-
-
-      // إعداد مراقب للتغييرات في الوقت الفعلي مع error handling
-      let subscription: any = null;
-      
+    const fetchFooterSettings = async () => {
       try {
-        subscription = supabase
-          .channel('footer-settings-changes')
-          .on('postgres_changes', {
-            event: '*',
-            schema: 'public',
-            table: 'store_settings',
-            filter: `organization_id=eq.${storeData.organization_details.id} AND component_type=eq.footer`
-          }, (payload) => {
-            // إعادة جلب الإعدادات عند حدوث تغيير
-            fetchFooterSettings();
-          })
-          .subscribe((status) => {
-            if (status === 'SUBSCRIBED') {
-              console.log('✅ اشتراك Realtime نجح للفوتر');
-            } else if (status === 'CHANNEL_ERROR') {
-              console.warn('⚠️ خطأ في اشتراك Realtime للفوتر، سيتم تجاهل التحديثات المباشرة');
-            } else if (status === 'TIMED_OUT') {
-              console.warn('⏱️ انتهت مهلة اشتراك Realtime للفوتر');
-            } else if (status === 'CLOSED') {
-              console.log('🔌 تم إغلاق اشتراك Realtime للفوتر');
-            }
-          });
-      } catch (error) {
-        console.warn('⚠️ فشل في إعداد Realtime subscription للفوتر:', error);
-        // في حالة فشل الـ realtime، يمكن إضافة polling كبديل
-        // setInterval(fetchFooterSettings, 30000); // تحديث كل 30 ثانية
-      }
+        const supabase = await getSupabaseClient();
+        const { data: footerData, error } = await supabase
+          .from('store_settings')
+          .select('settings')
+          .eq('organization_id', storeData.organization_details.id)
+          .eq('component_type', 'footer')
+          .eq('is_active', true)
+          .maybeSingle();
 
-      // إرجاع دالة التنظيف
-      return () => {
-        if (subscription) {
-          try {
-            subscription.unsubscribe();
-          } catch (error) {
-            console.warn('تحذير: فشل في إلغاء اشتراك Realtime:', error);
-          }
+        if (!error && footerData?.settings) {
+          setFooterSettings(footerData.settings);
         }
-      };
-    };
-
-    let cleanup: (() => void) | undefined;
-    
-    initializeFooterSettings().then((cleanupFn) => {
-      cleanup = cleanupFn;
-    }).catch((error) => {
-      console.warn('فشل في تهيئة إعدادات الفوتر:', error);
-    });
-
-    // تنظيف المراقب عند انتهاء المكون
-    return () => {
-      if (cleanup) {
-        cleanup();
+      } catch (error) {
+        // تجاهل الأخطاء بصمت - إعدادات الفوتر اختيارية
       }
     };
+
+    // جلب الإعدادات مرة واحدة فقط عند تحميل الصفحة
+    fetchFooterSettings();
+
+    // لا حاجة لـ cleanup function لأننا لا نستخدم subscriptions
   }, [storeData?.organization_details?.id]);
 
   return (
