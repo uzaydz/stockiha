@@ -350,7 +350,48 @@ export function AppsProvider({ children }: AppsProviderProps) {
     }
   }, [organizationId, fetchOrganizationApps]);
 
-  // تفعيل تطبيق - نسخة محسنة
+  // دالة لإنشاء الإعدادات الافتراضية لتطبيق الألعاب
+  const createGameDownloadsDefaultSettings = async (organizationId: string, organizationName: string, subdomain: string) => {
+    try {
+      const defaultSettings = {
+        organization_id: organizationId,
+        business_name: `${organizationName} - متجر الألعاب`,
+        welcome_message: 'مرحباً بكم في متجر الألعاب الإلكترونية! نوفر لكم أحدث الألعاب بأفضل الأسعار.',
+        terms_conditions: 'شروط وأحكام الخدمة: 1. يجب دفع المبلغ كاملاً قبل التحميل 2. لا يمكن استرداد المبلغ بعد التحميل 3. الألعاب للاستخدام الشخصي فقط',
+        contact_info: { phone: '', whatsapp: '', email: '', address: '' },
+        social_links: { facebook: '', instagram: '', twitter: '' },
+        order_prefix: subdomain ? subdomain.substring(0, 2).toUpperCase() : 'GD',
+        auto_assign_orders: false,
+        notification_settings: { email_notifications: true, sms_notifications: false },
+        working_hours: {
+          saturday: { open: '09:00', close: '18:00', closed: false },
+          sunday: { open: '09:00', close: '18:00', closed: false },
+          monday: { open: '09:00', close: '18:00', closed: false },
+          tuesday: { open: '09:00', close: '18:00', closed: false },
+          wednesday: { open: '09:00', close: '18:00', closed: false },
+          thursday: { open: '09:00', close: '18:00', closed: false },
+          friday: { open: '09:00', close: '18:00', closed: true }
+        },
+        is_active: true
+      };
+
+      const { error } = await supabase
+        .from('game_downloads_settings')
+        .insert([defaultSettings]);
+
+      if (error) {
+        console.error('خطأ في إنشاء إعدادات تطبيق الألعاب:', error);
+        throw error;
+      }
+
+      console.log('✅ تم إنشاء إعدادات تطبيق الألعاب بنجاح');
+    } catch (error) {
+      console.error('فشل في إنشاء إعدادات تطبيق الألعاب:', error);
+      throw error;
+    }
+  };
+
+  // تفعيل تطبيق - نسخة محسنة مع إنشاء الإعدادات الافتراضية
   const enableApp = useCallback(async (appId: string): Promise<boolean> => {
     if (!organizationId) {
       toast.error('معرف المنظمة غير متوفر');
@@ -359,7 +400,7 @@ export function AppsProvider({ children }: AppsProviderProps) {
 
     const appDefinition = availableApps.find(app => app.id === appId);
     if (!appDefinition) {
-      toast.error('التطبيق غير موجود');
+      toast.error('التطبيق المطلوب غير متوفر');
       return false;
     }
 
@@ -371,20 +412,55 @@ export function AppsProvider({ children }: AppsProviderProps) {
         )
       );
 
-      // حفظ في قاعدة البيانات
-      // @ts-ignore - تجاهل أخطاء TypeScript مؤقتاً
-      const { error } = await supabase
-        .from('organization_apps')
-        .upsert({
-          organization_id: organizationId,
-          app_id: appId,
-          is_enabled: true,
-          installed_at: new Date().toISOString(),
-          configuration: {}
-        }, { onConflict: 'organization_id,app_id' });
+          // حفظ في قاعدة البيانات
+    // @ts-ignore - تجاهل أخطاء TypeScript مؤقتاً - جدول organization_apps موجود في قاعدة البيانات
+    const { error } = await supabase
+      .from('organization_apps')
+      .upsert({
+        organization_id: organizationId,
+        app_id: appId,
+        is_enabled: true,
+        installed_at: new Date().toISOString(),
+        configuration: {}
+      }, { onConflict: 'organization_id,app_id' });
 
       if (error) {
         throw error;
+      }
+
+      // إنشاء الإعدادات الافتراضية للتطبيقات التي تحتاجها
+      if (appId === 'game-downloads') {
+        try {
+          // الحصول على معلومات المؤسسة
+          const { data: orgData, error: orgError } = await supabase
+            .from('organizations')
+            .select('name, subdomain')
+            .eq('id', organizationId)
+            .single();
+
+          if (orgError) {
+            console.warn('لا يمكن الحصول على معلومات المؤسسة:', orgError);
+          }
+
+          // التحقق من عدم وجود إعدادات مسبقة
+          const { data: existingSettings, error: checkError } = await supabase
+            .from('game_downloads_settings')
+            .select('id')
+            .eq('organization_id', organizationId)
+            .single();
+
+          if (checkError && checkError.code === 'PGRST116') {
+            // لا توجد إعدادات، إنشاء إعدادات افتراضية
+            await createGameDownloadsDefaultSettings(
+              organizationId,
+              orgData?.name || 'متجر الألعاب',
+              orgData?.subdomain || ''
+            );
+          }
+        } catch (settingsError) {
+          console.warn('تحذير: لم يتم إنشاء الإعدادات الافتراضية لتطبيق الألعاب:', settingsError);
+          // لا نريد إيقاف تفعيل التطبيق بسبب فشل إنشاء الإعدادات
+        }
       }
 
       toast.success(`تم تفعيل تطبيق ${appDefinition.name} بنجاح`);
@@ -425,13 +501,13 @@ export function AppsProvider({ children }: AppsProviderProps) {
         )
       );
 
-      // حفظ في قاعدة البيانات
-      // @ts-ignore - تجاهل أخطاء TypeScript مؤقتاً
-      const { error } = await supabase
-        .from('organization_apps')
-        .update({ is_enabled: false })
-        .eq('organization_id', organizationId)
-        .eq('app_id', appId);
+          // حفظ في قاعدة البيانات
+    // @ts-ignore - تجاهل أخطاء TypeScript مؤقتاً - جدول organization_apps موجود في قاعدة البيانات
+    const { error } = await supabase
+      .from('organization_apps')
+      .update({ is_enabled: false })
+      .eq('organization_id', organizationId)
+      .eq('app_id', appId);
 
       if (error) {
         throw error;

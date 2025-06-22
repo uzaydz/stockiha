@@ -86,7 +86,7 @@ export default function CartSummary({
 
   return (
     <div className={cn(
-      "border-t border-border dark:border-zinc-800 flex-shrink-0",
+      "border-t border-border dark:border-border flex-shrink-0 bg-card dark:bg-card backdrop-blur-sm",
       isCartEmpty ? "mt-auto" : "" // إضافة mt-auto عندما تكون السلة فارغة لضمان ظهور الملخص في أسفل المكون
     )}>
       {/* محتوى ملخص السلة */}
@@ -97,14 +97,14 @@ export default function CartSummary({
         {/* المجموع الفرعي والخصم والضريبة - إظهاره فقط إذا كانت السلة غير فارغة */}
         {!isCartEmpty && (
           <>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-1.5 text-muted-foreground dark:text-zinc-400">
-                  <Receipt className="h-3.5 w-3.5" />
-                  <span>المجموع الفرعي</span>
+                <div className="flex items-center gap-2 text-muted-foreground dark:text-muted-foreground">
+                  <Receipt className="h-4 w-4" />
+                  <span className="font-medium">المجموع الفرعي</span>
                 </div>
                 <motion.span 
-                  className="font-medium text-foreground dark:text-zinc-300"
+                  className="font-semibold text-foreground dark:text-foreground"
                   animate={animate ? { scale: [1, 1.05, 1] } : {}}
                 >
                   {formatPrice(subtotal)}
@@ -113,11 +113,11 @@ export default function CartSummary({
 
               {discountAmount > 0 && (
                 <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-1.5 text-muted-foreground dark:text-zinc-400">
-                    <Percent className="h-3.5 w-3.5" />
-                    <span>الخصم</span>
+                  <div className="flex items-center gap-2 text-muted-foreground dark:text-muted-foreground">
+                    <Percent className="h-4 w-4" />
+                    <span className="font-medium">الخصم</span>
                   </div>
-                  <span className="font-medium text-emerald-600 dark:text-emerald-500">
+                  <span className="font-semibold text-green-600 dark:text-green-400">
                     - {formatPrice(discountAmount)}
                   </span>
                 </div>
@@ -125,26 +125,27 @@ export default function CartSummary({
 
               {tax > 0 && (
                 <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-1.5 text-muted-foreground dark:text-zinc-400">
-                    <span>الضريبة</span>
+                  <div className="flex items-center gap-2 text-muted-foreground dark:text-muted-foreground">
+                    <Calculator className="h-4 w-4" />
+                    <span className="font-medium">الضريبة</span>
                   </div>
-                  <span className="font-medium text-foreground dark:text-zinc-300">
+                  <span className="font-semibold text-foreground dark:text-foreground">
                     {formatPrice(tax)}
                   </span>
                 </div>
               )}
             </div>
 
-            <Separator className="bg-border dark:bg-zinc-800" />
+            <Separator className="bg-border dark:bg-border" />
           </>
         )}
 
         {/* الإجمالي - إظهاره فقط إذا كانت السلة غير فارغة */}
         {!isCartEmpty && (
-          <div className="flex items-center justify-between">
-            <span className="font-medium text-foreground dark:text-zinc-200">الإجمالي</span>
+          <div className="flex items-center justify-between bg-muted dark:bg-muted p-3 rounded-lg border border-border dark:border-border">
+            <span className="font-semibold text-foreground dark:text-foreground">الإجمالي</span>
             <motion.span 
-              className="text-lg font-semibold text-foreground dark:text-white"
+              className="text-xl font-bold text-primary dark:text-primary"
               animate={animate ? { scale: [1, 1.05, 1] } : {}}
             >
               {formatPrice(total)}
@@ -153,14 +154,14 @@ export default function CartSummary({
         )}
 
         {/* أزرار العمليات */}
-        <div className={cn("grid gap-2", isCartEmpty ? "pt-0" : "pt-1.5")}>
+        <div className={cn("grid gap-2.5", isCartEmpty ? "pt-0" : "pt-2")}>
           <Button
             onClick={handleOpenPaymentDialog}
             disabled={isProcessing || total === 0}
             className={cn(
-              "transition-all shadow-sm",
-              isCartEmpty ? "h-10" : "h-10", // جعل الارتفاع موحد في كل الحالات
-              "bg-primary hover:bg-primary/90 dark:bg-primary/90 dark:hover:bg-primary/80 text-primary-foreground"
+              "transition-all shadow-md hover:shadow-lg",
+              isCartEmpty ? "h-11" : "h-11", // جعل الارتفاع موحد في كل الحالات
+              "bg-primary hover:bg-primary/90 dark:bg-primary dark:hover:bg-primary/90 text-primary-foreground dark:text-primary-foreground font-semibold"
             )}
           >
             {isProcessing ? (
@@ -169,10 +170,10 @@ export default function CartSummary({
                 <span>جاري الدفع...</span>
               </div>
             ) : (
-              <div className="flex items-center justify-center gap-1.5">
+              <div className="flex items-center justify-center gap-2">
                 <CreditCard className="h-4 w-4" />
                 <span>{isCartEmpty ? "طلب جديد" : "الدفع"}</span>
-                <ArrowRight className="h-3.5 w-3.5 mr-0.5" />
+                <ArrowRight className="h-4 w-4 mr-0.5" />
               </div>
             )}
           </Button>
@@ -182,7 +183,7 @@ export default function CartSummary({
               variant="outline"
               onClick={clearCart}
               size="sm"
-              className="text-muted-foreground dark:text-zinc-400 border-border dark:border-zinc-800 hover:bg-accent dark:hover:bg-zinc-800/50 h-9"
+              className="text-muted-foreground dark:text-muted-foreground border-border dark:border-border hover:bg-accent dark:hover:bg-accent hover:text-red-500 dark:hover:text-red-400 h-9 font-medium"
             >
               إفراغ السلة
             </Button>

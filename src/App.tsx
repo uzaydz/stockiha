@@ -28,7 +28,7 @@ import SubscriptionCheck from "./components/subscription/SubscriptionCheck";
 import { SupabaseProvider } from "./context/SupabaseContext";
 
 import ErrorMonitor from "./components/ErrorMonitor";
-import { MasterDebugDashboard } from "./components/debug/MasterDebugDashboard";
+
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import POSOptimized from "./pages/POSOptimized";
@@ -436,7 +436,7 @@ const App = () => {
             {/* <CrossDomainSessionReceiver> -- This component is now deprecated. Its logic has been integrated into AuthContext. */}
               <ErrorMonitor />
               {/* نظام المراقبة الشامل - يعمل في بيئة التطوير فقط */}
-              {process.env.NODE_ENV === 'development' && <MasterDebugDashboard />}
+      
               <UnifiedDataProvider>
                 <UniversalDataUpdateProvider>
                 <OrganizationDataProvider>

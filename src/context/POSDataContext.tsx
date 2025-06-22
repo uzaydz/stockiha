@@ -239,12 +239,12 @@ const POSDataContext = createContext<POSData | undefined>(undefined);
 // 🔧 دوال جلب البيانات المحسنة مع تحليل قاعدة البيانات المعمق
 // =================================================================
 
-// DEPRECATED: استخدم getPaginatedProducts من pos-products-api بدلاً من هذه الدالة
+// تحميل ذكي للمنتجات: الأكثر مبيعاً + الأكثر مخزوناً
 const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWithVariants[]> => {
-  // الآن نجلب صفحة واحدة فقط بدلاً من جميع المنتجات
   return deduplicateRequest(`pos-products-enhanced-${orgId}`, async () => {
     
-    const { data, error } = await supabase
+    // جلب المنتجات الأحدث (الأكثر احتمالاً للاستخدام)
+    const { data: recentProducts, error: recentError } = await supabase
       .from('products')
       .select(`
         *,
@@ -262,15 +262,164 @@ const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWi
       `)
       .eq('organization_id', orgId)
       .eq('is_active', true)
-      .order('name')
-      .limit(100); // حد أقصى 100 منتج فقط لتحسين الأداء
+      .order('created_at', { ascending: false })
+      .limit(50);
 
-    if (error) {
-      throw error;
-    }
+    // جلب المنتجات الأكثر مخزوناً (المنتجات المتوفرة)
+    const { data: highStockProducts, error: highStockError } = await supabase
+      .from('products')
+      .select(`
+        *,
+        product_colors (
+          id, product_id, name, color_code, image_url, quantity, price, barcode, 
+          is_default, has_sizes, variant_number, purchase_price,
+          product_sizes (
+            id, color_id, product_id, size_name, quantity, price, barcode, 
+            is_default, purchase_price
+          )
+        ),
+        product_categories!category_id (
+          id, name, description
+        )
+      `)
+      .eq('organization_id', orgId)
+      .eq('is_active', true)
+      .gt('stock_quantity', 0)
+      .order('stock_quantity', { ascending: false })
+      .limit(50);
+
+    if (recentError && highStockError) {
+      // إذا فشلت الطريقة الذكية، نستخدم الطريقة العادية
+      const { data, error } = await supabase
+        .from('products')
+        .select(`
+          *,
+          product_colors (
+            id, product_id, name, color_code, image_url, quantity, price, barcode, 
+            is_default, has_sizes, variant_number, purchase_price,
+            product_sizes (
+              id, color_id, product_id, size_name, quantity, price, barcode, 
+              is_default, purchase_price
+            )
+          ),
+          product_categories!category_id (
+            id, name, description
+          )
+        `)
+        .eq('organization_id', orgId)
+        .eq('is_active', true)
+        .order('name')
+        .limit(100);
+
+             if (error) {
+         throw error;
+       }
+       
+       // تحويل البيانات للطريقة العادية
+       return (data || []).map(product => {
+         const colors = (product.product_colors || []).map((color: any) => ({
+           ...color,
+           sizes: color.product_sizes || []
+         }));
+         
+         // حساب المخزون الفعلي
+         let actual_stock_quantity = product.stock_quantity;
+         let total_variants_stock = 0;
+         
+         if (product.has_variants && colors.length > 0) {
+           total_variants_stock = colors.reduce((colorTotal: number, color: any) => {
+             if (color.has_sizes && color.sizes.length > 0) {
+               return colorTotal + color.sizes.reduce((sizeTotal: number, size: any) => sizeTotal + size.quantity, 0);
+             } else {
+               return colorTotal + color.quantity;
+             }
+           }, 0);
+           
+           actual_stock_quantity = total_variants_stock > 0 ? total_variants_stock : product.stock_quantity;
+         }
+         
+         const low_stock_warning = actual_stock_quantity <= (product.min_stock_level || 5);
+
+         return {
+           id: product.id,
+           name: product.name,
+           description: product.description || '',
+           price: product.price,
+           compareAtPrice: product.compare_at_price || undefined,
+           sku: product.sku,
+           barcode: product.barcode || undefined,
+           category: (product.product_categories?.name || 'أخرى') as any,
+           category_id: product.category_id || undefined,
+           subcategory: product.subcategory || undefined,
+           brand: product.brand || undefined,
+           images: product.images || [],
+           thumbnailImage: product.thumbnail_image || '',
+           stockQuantity: actual_stock_quantity,
+           stock_quantity: actual_stock_quantity,
+           features: product.features || undefined,
+           specifications: (product.specifications as Record<string, string>) || {},
+           isDigital: product.is_digital,
+           isNew: product.is_new || undefined,
+           isFeatured: product.is_featured || undefined,
+           createdAt: new Date(product.created_at),
+           updatedAt: new Date(product.updated_at),
+           has_variants: product.has_variants || false,
+           use_sizes: product.use_sizes || false,
+           compare_at_price: product.compare_at_price,
+           purchase_price: product.purchase_price,
+           subcategory_id: product.subcategory_id,
+           min_stock_level: product.min_stock_level,
+           reorder_level: product.reorder_level,
+           reorder_quantity: product.reorder_quantity,
+           slug: product.slug,
+           show_price_on_landing: product.show_price_on_landing,
+           last_inventory_update: product.last_inventory_update,
+           is_active: product.is_active,
+           wholesale_price: product.wholesale_price,
+           partial_wholesale_price: product.partial_wholesale_price,
+           min_wholesale_quantity: product.min_wholesale_quantity,
+           min_partial_wholesale_quantity: product.min_partial_wholesale_quantity,
+           allow_retail: product.allow_retail ?? true,
+           allow_wholesale: product.allow_wholesale ?? false,
+           allow_partial_wholesale: product.allow_partial_wholesale ?? false,
+           colors,
+           actual_stock_quantity,
+           total_variants_stock,
+           low_stock_warning,
+           has_fast_shipping: product.has_fast_shipping || false,
+           has_money_back: product.has_money_back || false,
+           has_quality_guarantee: product.has_quality_guarantee || false,
+           fast_shipping_text: product.fast_shipping_text,
+           money_back_text: product.money_back_text,
+           quality_guarantee_text: product.quality_guarantee_text,
+           is_sold_by_unit: product.is_sold_by_unit ?? true,
+           unit_type: product.unit_type,
+           use_variant_prices: product.use_variant_prices || false,
+           unit_purchase_price: product.unit_purchase_price,
+           unit_sale_price: product.unit_sale_price,
+           shipping_clone_id: product.shipping_clone_id,
+           name_for_shipping: product.name_for_shipping,
+           use_shipping_clone: product.use_shipping_clone || false,
+           shipping_method_type: product.shipping_method_type || 'default',
+           created_by_user_id: product.created_by_user_id,
+           updated_by_user_id: product.updated_by_user_id,
+         } as POSProductWithVariants;
+       });
+     }
+
+    // دمج النتائج وإزالة المكررات
+    const allProducts = [
+      ...(recentProducts || []),
+      ...(highStockProducts || [])
+    ];
+    
+    // إزالة المكررات بناءً على ID
+    const uniqueProducts = allProducts.filter((product, index, self) => 
+      index === self.findIndex(p => p.id === product.id)
+    );
 
     // تحويل البيانات مع حساب المخزون الفعلي
-    return (data || []).map(product => {
+    return uniqueProducts.map(product => {
       const colors = (product.product_colors || []).map((color: any) => ({
         ...color,
         sizes: color.product_sizes || []

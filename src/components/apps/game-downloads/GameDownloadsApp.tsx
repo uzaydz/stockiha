@@ -31,12 +31,20 @@ export default function GameDownloadsApp() {
             const currentPort = window.location.port;
             const currentProtocol = window.location.protocol;
 
+            // أولاً، التحقق من وجود نطاق مخصص للمؤسسة
+            if (organization?.domain) {
+              // استخدام النطاق المخصص مع مسار /games
+              const gamesUrl = `https://${organization.domain}/games`;
+              window.open(gamesUrl, '_blank');
+              return;
+            }
+
             // إذا كنا حالياً على النطاق الفرعي، استخدمه مباشرة
             if (currentHostname.includes('.localhost') && !currentHostname.startsWith('localhost')) {
-              // نحن بالفعل على النطاق الفرعي مثل testfinalfinalvhio.localhost
+              // نحن بالفعل على النطاق الفرعي مثل fredstore.localhost
               const gamesUrl = `/games`;
               window.open(gamesUrl, '_blank');
-            } else {
+            } else if (currentHostname.includes('localhost')) {
               // نحن على localhost عادي، نحتاج للحصول على النطاق الفرعي
               const storedSubdomain = localStorage.getItem('bazaar_current_subdomain');
               const orgSubdomain = organization?.subdomain;
@@ -52,6 +60,19 @@ export default function GameDownloadsApp() {
               const port = currentPort ? `:${currentPort}` : '';
               const gamesUrl = `${currentProtocol}//${subdomain}.localhost${port}/games`;
               window.open(gamesUrl, '_blank');
+            } else {
+              // نحن على بيئة الإنتاج
+              const orgSubdomain = organization?.subdomain;
+              
+              if (orgSubdomain) {
+                // استخدام النطاق الفرعي على stockiha.com
+                const gamesUrl = `https://${orgSubdomain}.stockiha.com/games`;
+                window.open(gamesUrl, '_blank');
+              } else {
+                // احتياطي: الذهاب إلى الصفحة الحالية مع /games
+                const gamesUrl = `/games`;
+                window.open(gamesUrl, '_blank');
+              }
             }
           }}
           variant="outline"

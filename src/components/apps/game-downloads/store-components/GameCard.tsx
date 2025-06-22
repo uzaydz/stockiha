@@ -59,36 +59,36 @@ export default function GameCard({ game, cart, onAddToCart, primaryColor, second
   };
 
   return (
-    <Card className="group overflow-hidden bg-gradient-to-br from-card/90 to-card/70 backdrop-blur-sm border-border/40 hover:border-primary/40 hover:shadow-2xl hover:shadow-primary/10 transition-all duration-500 hover:scale-[1.02] transform">
-      {/* Game Image */}
+    <Card className="group overflow-hidden bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border border-gray-200/60 dark:border-gray-700/60 hover:border-primary/30 dark:hover:border-primary/40 hover:shadow-xl hover:shadow-primary/5 dark:hover:shadow-primary/10 transition-all duration-300 hover:scale-[1.02] transform rounded-xl">
+      {/* Game Image - تكبير الصورة */}
       {game.images && game.images[0] ? (
-        <div className="aspect-video relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent z-10"></div>
+        <div className="aspect-[4/5] relative overflow-hidden rounded-t-xl">
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent z-10"></div>
           <img
             src={game.images[0]}
             alt={game.name}
-            className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-700"
+            className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500"
           />
           
           {/* Featured Badge */}
           {game.is_featured && (
-            <Badge className="absolute top-3 right-3 z-20 bg-gradient-to-r from-yellow-500 to-orange-500 text-white border-0 shadow-lg animate-pulse">
-              <Star className="w-3 h-3 mr-1" />
+            <Badge className="absolute top-3 right-3 z-20 bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0 shadow-lg">
+              <Star className="w-3 h-3 mr-1 fill-current" />
               مميز
             </Badge>
           )}
           
           {/* Platform Icon */}
           <div className="absolute bottom-3 left-3 z-20">
-            <div className="bg-black/50 backdrop-blur-sm rounded-full p-2.5 border border-white/20">
-              <PlatformIcon className="h-5 w-5 text-white" />
+            <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-lg p-2 border border-gray-200/50 dark:border-gray-600/50 shadow-sm">
+              <PlatformIcon className="h-4 w-4 text-gray-700 dark:text-gray-300" />
             </div>
           </div>
 
           {/* Size Badge */}
           {game.size_gb && (
             <div className="absolute top-3 left-3 z-20">
-              <Badge variant="secondary" className="bg-black/50 text-white border-white/20 backdrop-blur-sm">
+              <Badge variant="secondary" className="bg-white/90 dark:bg-gray-800/90 text-gray-700 dark:text-gray-300 border-gray-200/50 dark:border-gray-600/50 backdrop-blur-sm shadow-sm">
                 <HardDrive className="w-3 h-3 mr-1" />
                 {game.size_gb} GB
               </Badge>
@@ -96,67 +96,53 @@ export default function GameCard({ game, cart, onAddToCart, primaryColor, second
           )}
         </div>
       ) : (
-        <div className="aspect-video relative bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
+        <div className="aspect-[4/5] relative bg-gradient-to-br from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-900 flex items-center justify-center rounded-t-xl">
           <div className="text-center space-y-3">
-            <div className="bg-primary/20 rounded-full p-6">
+            <div className="bg-primary/10 dark:bg-primary/20 rounded-full p-6">
               <PlatformIcon className="h-12 w-12 text-primary" />
             </div>
-            <p className="text-sm font-medium text-primary">صورة غير متوفرة</p>
+            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">صورة غير متوفرة</p>
           </div>
           
           {game.is_featured && (
-            <Badge className="absolute top-3 right-3 bg-gradient-to-r from-yellow-500 to-orange-500 text-white border-0 shadow-lg animate-pulse">
-              <Star className="w-3 h-3 mr-1" />
+            <Badge className="absolute top-3 right-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0 shadow-lg">
+              <Star className="w-3 h-3 mr-1 fill-current" />
               مميز
             </Badge>
           )}
         </div>
       )}
 
-      <CardHeader className="pb-3">
+      <div className="p-4 space-y-4">
+        {/* Game Title and Category */}
         <div className="space-y-3">
-          <div className="flex items-start justify-between">
-            <CardTitle className="text-xl font-bold group-hover:text-primary transition-colors duration-300 line-clamp-2 leading-tight">
-              {game.name}
-            </CardTitle>
-          </div>
+          <CardTitle className="text-lg font-bold text-gray-900 dark:text-gray-100 group-hover:text-primary transition-colors duration-300 line-clamp-2 leading-tight">
+            {game.name}
+          </CardTitle>
           
-          <div className="flex flex-wrap gap-2">
-            {game.category && (
-              <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 transition-colors">
-                🏆 {game.category.name}
-              </Badge>
-            )}
-          </div>
+          {game.category && (
+            <Badge variant="secondary" className="bg-primary/10 dark:bg-primary/20 text-primary dark:text-primary border-primary/20 dark:border-primary/30 hover:bg-primary/20 dark:hover:bg-primary/30 transition-colors text-xs">
+              {game.category.name}
+            </Badge>
+          )}
         </div>
-      </CardHeader>
-
-      <CardContent className="pt-0 space-y-4">
-        {/* Description */}
-        {game.description && (
-          <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
-            {game.description}
-          </p>
-        )}
 
         {/* Price and Add to Cart */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-                {game.price.toLocaleString()} دج
-              </p>
-              <p className="text-xs text-muted-foreground font-medium">
-                سعر نهائي شامل
-              </p>
-            </div>
+        <div className="space-y-3">
+          <div className="text-center">
+            <p className="text-2xl font-bold text-primary dark:text-primary">
+              {game.price.toLocaleString()} دج
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              سعر نهائي شامل
+            </p>
           </div>
 
           <div className="flex gap-2">
             <Button
               onClick={() => onAddToCart(game)}
-              className={`flex-1 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 h-12 text-base font-semibold ${
-                primaryColor ? '' : 'bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 hover:shadow-green-500/20'
+              className={`flex-1 text-white border-0 shadow-md hover:shadow-lg transition-all duration-300 h-11 text-sm font-semibold rounded-lg ${
+                primaryColor ? '' : 'bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 dark:from-green-500 dark:to-green-400 dark:hover:from-green-600 dark:hover:to-green-500'
               }`}
               style={{
                 ...getButtonStyle(),
@@ -178,22 +164,22 @@ export default function GameCard({ game, cart, onAddToCart, primaryColor, second
               }}
               size="lg"
             >
-              <Plus className="ml-2 h-5 w-5" />
-              🛒 أضف للسلة
+              <Plus className="ml-2 h-4 w-4" />
+              أضف للسلة
             </Button>
             
             {cartItem && (
               <div 
-                className="flex items-center border rounded-lg px-4 min-w-[60px] justify-center"
+                className="flex items-center border border-gray-200 dark:border-gray-600 rounded-lg px-3 min-w-[50px] justify-center bg-green-50 dark:bg-green-900/20"
                 style={{
-                  backgroundColor: primaryColor ? `${primaryColor}10` : 'rgb(34 197 94 / 0.1)',
-                  borderColor: primaryColor ? `${primaryColor}20` : 'rgb(34 197 94 / 0.2)',
+                  backgroundColor: primaryColor ? `${primaryColor}10` : undefined,
+                  borderColor: primaryColor ? `${primaryColor}20` : undefined,
                 }}
               >
                 <span 
-                  className="text-lg font-bold"
+                  className="text-base font-bold text-green-600 dark:text-green-400"
                   style={{
-                    color: primaryColor || 'rgb(22 163 74)',
+                    color: primaryColor || undefined,
                   }}
                 >
                   {cartItem.quantity}
@@ -203,7 +189,7 @@ export default function GameCard({ game, cart, onAddToCart, primaryColor, second
           </div>
 
           {/* Quick Info */}
-          <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-border/50">
+          <div className="flex items-center justify-center gap-4 text-xs text-gray-500 dark:text-gray-400 pt-2 border-t border-gray-100 dark:border-gray-700">
             <div className="flex items-center gap-1">
               <Download className="w-3 h-3" />
               تحميل فوري
@@ -216,7 +202,7 @@ export default function GameCard({ game, cart, onAddToCart, primaryColor, second
             )}
           </div>
         </div>
-      </CardContent>
+      </div>
     </Card>
   );
 } 
