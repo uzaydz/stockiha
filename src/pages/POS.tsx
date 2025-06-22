@@ -297,8 +297,24 @@ const POS = () => {
     // إزالة أحرف التحكم غير المرئية (مثل \n, \r, \t)
     cleaned = cleaned.replace(/[\x00-\x1F\x7F]/g, '');
     
+    // إزالة أحرف خاصة أخرى قد تأتي من بعض أجهزة الباركود سكانر
+    // مثل NULL، BEL، DEL، وغيرها
+    cleaned = cleaned.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '');
+    
     // إزالة المسافات المتعددة واستبدالها بمسافة واحدة
     cleaned = cleaned.replace(/\s+/g, ' ');
+    
+    // إزالة المسافات من البداية والنهاية مرة أخرى بعد التنظيف
+    cleaned = cleaned.trim();
+    
+    // تحويل الأحرف الإنجليزية إلى lowercase لتحسين المطابقة
+    // (في حالة وجود باركودات تحتوي على أحرف)
+    // نحتفظ بالأرقام والرموز كما هي
+    cleaned = cleaned.toLowerCase();
+    
+    console.log('[cleanBarcodeInput] المدخل:', JSON.stringify(input));
+    console.log('[cleanBarcodeInput] بعد التنظيف:', JSON.stringify(cleaned));
+    console.log('[cleanBarcodeInput] طول المدخل:', input.length, 'طول النتيجة:', cleaned.length);
     
     // السماح بمعظم الأحرف بما في ذلك الأرقام والحروف والرموز الخاصة
     // هذا يسمح بمطابقة أكثر مرونة مع الباركود المحفوظ
@@ -930,9 +946,14 @@ const POS = () => {
       if (event.key === 'Enter') {
         event.preventDefault();
         if (barcodeBuffer.length > 0) {
-          // استخدام نفس وظيفة التنظيف المحدثة
+          // استخدام نفس وظيفة التنظيف المحدثة مع تسجيل تشخيصي
           const barcode = cleanBarcodeInput(barcodeBuffer);
+          
+          console.log('[BARCODE SCANNER] الباركود الأصلي:', barcodeBuffer);
+          console.log('[BARCODE SCANNER] الباركود بعد التنظيف:', barcode);
+          
           if (barcode) {
+            // البحث في المنتجات الأساسية أولاً
             const product = products.find(p => p.barcode === barcode || p.sku === barcode);
             if (product) {
               // التحقق من المخزون والإضافة للسلة
@@ -958,9 +979,11 @@ const POS = () => {
                 });
               }
             } else {
-              // البحث في متغيرات المنتجات
+              // البحث في متغيرات المنتجات (نفس المنطق من handleBarcodeScanned)
               let foundVariant = false;
+              
               for (const prod of products) {
+                // البحث في الألوان
                 if (prod.colors && prod.colors.length > 0) {
                   const color = prod.colors.find(c => c.barcode === barcode);
                   if (color) {
@@ -978,10 +1001,63 @@ const POS = () => {
                     foundVariant = true;
                     break;
                   }
+                  
+                  // البحث في المقاسات (هذا ما كان مفقوداً!)
+                  if (prod.use_sizes) {
+                    for (const color of prod.colors) {
+                      if (color.sizes && color.sizes.length > 0) {
+                        const size = color.sizes.find(s => s.barcode === barcode);
+                        if (size) {
+                          // إضافة المتغير للسلة مع المقاس
+                          setCartItems(prevCart => [...prevCart, {
+                            product: prod,
+                            quantity: 1,
+                            colorId: color.id,
+                            colorName: color.name,
+                            colorCode: color.color_code,
+                            sizeId: size.id,
+                            sizeName: size.size_name || 'مقاس',
+                            variantPrice: size.price,
+                            variantImage: color.image_url
+                          }]);
+                          toast.success(`تمت إضافة "${size.size_name || 'مقاس'} - ${color.name} - ${prod.name}" إلى السلة`);
+                          foundVariant = true;
+                          break;
+                        }
+                      }
+                    }
+                    if (foundVariant) break;
+                  }
                 }
               }
               
               if (!foundVariant) {
+                // عرض الباركودات المتاحة للتشخيص (نفس منطق handleBarcodeScanned)
+                console.log('[BARCODE SCANNER] الباركودات المتاحة في المنتجات:');
+                products.forEach(p => {
+                  if (p.barcode) {
+                    console.log(`- ${p.name}: ${p.barcode}`);
+                  }
+                  if (p.sku) {
+                    console.log(`- ${p.name} (SKU): ${p.sku}`);
+                  }
+                  // عرض باركودات الألوان والمقاسات أيضاً
+                  if (p.colors && p.colors.length > 0) {
+                    p.colors.forEach(color => {
+                      if (color.barcode) {
+                        console.log(`- ${p.name} - ${color.name}: ${color.barcode}`);
+                      }
+                      if (color.sizes && color.sizes.length > 0) {
+                        color.sizes.forEach(size => {
+                          if (size.barcode) {
+                            console.log(`- ${p.name} - ${color.name} - ${size.size_name}: ${size.barcode}`);
+                          }
+                        });
+                      }
+                    });
+                  }
+                });
+                
                 toast.error(`لم يتم العثور على منتج بالباركود: ${barcode}`);
               }
             }

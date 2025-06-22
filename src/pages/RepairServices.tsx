@@ -4,6 +4,9 @@ import { useUser } from '../context/UserContext';
 import { toast } from 'sonner';
 import { formatDate } from '@/lib/utils';
 
+// إضافة POSDataProvider
+import { POSDataProvider } from '@/context/POSDataContext';
+
 // مكونات واجهة المستخدم
 import Layout from '@/components/Layout';
 import {
@@ -135,6 +138,16 @@ interface RepairHistory {
   };
 }
 
+interface StatusCounts {
+  pending: number;
+  'in-progress': number;
+  waiting_for_customer: number;
+  'waiting-for-parts': number;
+  completed: number;
+  cancelled: number;
+  delivered: number;
+}
+
 const statusColors: Record<string, string> = {
   'قيد الانتظار': 'bg-amber-100 text-amber-800 hover:bg-amber-200',
   'جاري التصليح': 'bg-blue-100 text-blue-800 hover:bg-blue-200',
@@ -154,7 +167,8 @@ const statusOptions = [
   { value: 'تم الاستلام', label: 'تم الاستلام' },
 ];
 
-const RepairServices = () => {
+// مكون صفحة خدمات التصليح الرئيسي
+const RepairServicesContent = () => {
   const { user, organizationId } = useUser();
   
   // حالة الصفحة
@@ -1517,6 +1531,15 @@ const RepairServices = () => {
         </DialogContent>
       </Dialog>
     </Layout>
+  );
+};
+
+// المكون الرئيسي مع POSDataProvider
+const RepairServices = () => {
+  return (
+    <POSDataProvider>
+      <RepairServicesContent />
+    </POSDataProvider>
   );
 };
 
