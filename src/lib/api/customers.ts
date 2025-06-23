@@ -222,20 +222,79 @@ export const getCustomerOrdersTotal = async (customerId: string): Promise<number
   }
 };
 
-// Create a new customer
+// Create a new customer with conflict handling
 export const createCustomer = async (customer: Omit<Customer, 'id' | 'created_at' | 'updated_at'>): Promise<Customer> => {
+  // أولاً: البحث عن عميل موجود بنفس الهاتف والمؤسسة
+  if (customer.phone) {
+    const { data: existingCustomer, error: searchError } = await supabase
+      .from('customers')
+      .select('*')
+      .eq('phone', customer.phone)
+      .eq('organization_id', customer.organization_id)
+      .single();
+      
+    if (!searchError && existingCustomer) {
+      // تحديث العميل الموجود بالبيانات الجديدة
+      const { data: updatedCustomer, error: updateError } = await supabase
+        .from('customers')
+        .update({
+          name: customer.name,
+          email: customer.email || existingCustomer.email,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingCustomer.id)
+        .select()
+        .single();
+        
+      if (!updateError && updatedCustomer) {
+        return updatedCustomer;
+      }
+    }
+  }
+  
+  // ثانياً: محاولة إنشاء عميل جديد
   const { data, error } = await supabase
     .from('customers')
-    .insert([{ 
+    .insert({ 
       ...customer,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
-    }])
+    })
     .select()
     .single();
     
   if (error) {
-    throw new Error(error.message);
+    // إذا كان الخطأ بسبب تكرار (409 Conflict) رغم الفحص المسبق
+    if (error.code === '23505' || error.message.includes('duplicate') || error.message.includes('unique')) {
+      // محاولة أخيرة للبحث والتحديث
+      if (customer.phone) {
+        const { data: lastResortCustomer, error: lastSearchError } = await supabase
+          .from('customers')
+          .select('*')
+          .eq('phone', customer.phone)
+          .eq('organization_id', customer.organization_id)
+          .single();
+          
+        if (!lastSearchError && lastResortCustomer) {
+          const { data: finalUpdatedCustomer, error: finalUpdateError } = await supabase
+            .from('customers')
+            .update({
+              name: customer.name,
+              email: customer.email || lastResortCustomer.email,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', lastResortCustomer.id)
+            .select()
+            .single();
+            
+          if (!finalUpdateError && finalUpdatedCustomer) {
+            return finalUpdatedCustomer;
+          }
+        }
+      }
+    }
+    
+    throw new Error(`فشل في إنشاء العميل: ${error.message}`);
   }
   
   return data;

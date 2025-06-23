@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Product } from '@/types';
 import { Search, Filter, ShoppingCart, Tag, Package, LayoutGrid, ListFilter, Percent, Users, Plus, ArrowUpDown, Layers, Grid3X3, Grid2X2, List, ChevronDown, Loader2, AlertCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -248,7 +248,7 @@ export default function ProductCatalogOptimized({ onAddToCart }: ProductCatalogO
     }
   }, [onAddToCart]);
   
-  // مكون لعرض المنتج الواحد
+    // مكون لعرض المنتج الواحد
   const ProductCard = useCallback(({ product }: { product: Product }) => {
     return (
       <motion.div
@@ -260,12 +260,14 @@ export default function ProductCatalogOptimized({ onAddToCart }: ProductCatalogO
         className={cn(
           "rounded-xl border overflow-hidden transition-all hover:shadow-lg relative group",
           product.stockQuantity > 0 
-            ? "hover:border-primary/50 cursor-pointer bg-card hover:translate-y-[-2px]" 
+            ? "hover:border-primary/50 bg-card hover:translate-y-[-2px]" 
             : "opacity-70 bg-muted/40 border-muted"
         )}
-        onClick={() => handleProductClick(product)}
       >
-        <div className="relative aspect-square bg-gradient-to-br from-white to-gray-50">
+        <div 
+          className="relative aspect-square bg-gradient-to-br from-white to-gray-50 cursor-pointer"
+          onClick={() => handleProductClick(product)}
+        >
           <img
             src={product.thumbnailImage || '/placeholder-product.svg'}
             alt={product.name}
@@ -285,10 +287,10 @@ export default function ProductCatalogOptimized({ onAddToCart }: ProductCatalogO
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Badge variant="outline" className="bg-blue-500/90 text-white border-blue-600">
+                    <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 bg-blue-500/90 text-white border-blue-600 cursor-pointer">
                       <Users className="h-3 w-3 mr-1" />
                       جملة
-                    </Badge>
+                    </div>
                   </TooltipTrigger>
                   <TooltipContent side="left">
                     <p className="text-xs">سعر الجملة: {formatPrice((product as any).wholesale_price ?? 0)}</p>
@@ -446,10 +448,9 @@ export default function ProductCatalogOptimized({ onAddToCart }: ProductCatalogO
         </div>
         
         {/* الفئات */}
-        <AnimatePresence>
-          {showFilters && (
+        {showFilters && (
+          <div className="pt-1 pb-1">
             <motion.div 
-              className="pt-1 pb-1"
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
@@ -513,8 +514,8 @@ export default function ProductCatalogOptimized({ onAddToCart }: ProductCatalogO
                 </Select>
               </div>
             </motion.div>
-          )}
-        </AnimatePresence>
+          </div>
+        )}
       </div>
 
       <Separator className="opacity-50" />
@@ -587,11 +588,9 @@ export default function ProductCatalogOptimized({ onAddToCart }: ProductCatalogO
               viewMode === 'compact' ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-3" :
               "space-y-2"
             )}>
-              <AnimatePresence mode="popLayout">
-                {products.map((product) => (
-                  <ProductCard key={product.id} product={product} />
-                ))}
-              </AnimatePresence>
+              {products.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
             </div>
             
             {/* مؤشر تحميل المزيد */}

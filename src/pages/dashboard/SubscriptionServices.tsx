@@ -153,7 +153,9 @@ const SubscriptionServicesPage = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isPricingDialogOpen, setIsPricingDialogOpen] = useState(false);
   const [isAddCategoryDialogOpen, setIsAddCategoryDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedService, setSelectedService] = useState<SubscriptionService | null>(null);
+  const [serviceToDelete, setServiceToDelete] = useState<SubscriptionService | null>(null);
 
   // Form state for service
   const [formData, setFormData] = useState({
@@ -680,6 +682,83 @@ const SubscriptionServicesPage = () => {
     return service.selling_price || 0;
   };
 
+  // وظيفة حذف الاشتراك
+  const handleDeleteService = async () => {
+    if (!serviceToDelete || !organization?.id) {
+      toast({
+        title: "خطأ",
+        description: "لم يتم تحديد الخدمة للحذف",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // حذف جميع أسعار الخدمة أولاً
+      const { error: pricingError } = await (supabase as any)
+        .from('subscription_service_pricing')
+        .delete()
+        .eq('subscription_service_id', serviceToDelete.id);
+
+      if (pricingError) {
+        console.error('Error deleting pricing options:', pricingError);
+        toast({
+          title: "خطأ في حذف الأسعار",
+          description: pricingError.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // حذف الخدمة
+      const { error: serviceError } = await supabase
+        .from('subscription_services')
+        .delete()
+        .eq('id', serviceToDelete.id)
+        .eq('organization_id', organization.id);
+
+      if (serviceError) {
+        console.error('Error deleting service:', serviceError);
+        toast({
+          title: "خطأ في حذف الخدمة",
+          description: serviceError.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "تم الحذف بنجاح",
+        description: `تم حذف خدمة "${serviceToDelete.name}" وجميع أسعارها بنجاح`,
+      });
+
+      // تحديث قائمة الخدمات
+      await fetchServices();
+      
+      // إغلاق حوار الحذف وإعادة تعيين الخدمة المحددة
+      setIsDeleteDialogOpen(false);
+      setServiceToDelete(null);
+
+    } catch (error) {
+      console.error('Error deleting service:', error);
+      toast({
+        title: "خطأ غير متوقع",
+        description: "حدث خطأ أثناء حذف الخدمة",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // فتح حوار تأكيد الحذف
+  const openDeleteDialog = (service: SubscriptionService) => {
+    setServiceToDelete(service);
+    setIsDeleteDialogOpen(true);
+  };
+
   // فلترة الخدمات
   const filteredServices = services.filter(service => {
     const matchesSearch = service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -878,7 +957,10 @@ const SubscriptionServicesPage = () => {
                             تعديل
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-red-600">
+                          <DropdownMenuItem 
+                            className="text-red-600"
+                            onClick={() => openDeleteDialog(service)}
+                          >
                             <Trash2 className="h-4 w-4 mr-2" />
                             حذف
                           </DropdownMenuItem>
@@ -1670,6 +1752,34 @@ const SubscriptionServicesPage = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <AlertDialogContent dir="rtl">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+                تأكيد حذف الخدمة
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                هل أنت متأكد من حذف خدمة "{serviceToDelete?.name}"؟
+                <br />
+                <span className="text-red-600 font-medium">
+                  سيتم حذف جميع الأسعار والبيانات المرتبطة بهذه الخدمة نهائياً ولا يمكن التراجع عن هذا الإجراء.
+                </span>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>إلغاء</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteService}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                حذف نهائياً
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </Layout>
   );

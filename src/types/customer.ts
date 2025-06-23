@@ -3,6 +3,7 @@ export interface Customer {
   name: string;
   email: string;
   phone: string | null;
+  organization_id: string;
   created_at: string;
   updated_at: string;
 }

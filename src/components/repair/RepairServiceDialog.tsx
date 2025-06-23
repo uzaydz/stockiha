@@ -707,7 +707,7 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
               
               {!priceToBeDetLater && (
                 <div className="bg-background p-3 rounded-md text-center font-medium">
-                  المبلغ المتبقي: {(totalPrice - (paidAmount || 0)).toLocaleString()} دج
+                  المبلغ المتبقي: {((totalPrice || 0) - (paidAmount || 0)).toLocaleString()} دج
                 </div>
               )}
               

@@ -25,6 +25,7 @@ import ReceiptPreview from './ReceiptPreview';
 
 // استيراد هوك إعدادات نقطة البيع وأنواع البيانات
 import { usePOSData } from '@/context/POSDataContext';
+import { usePOSSettings } from '@/hooks/usePOSSettings';
 import { type POSSettings, defaultPOSSettings } from '@/types/posSettings';
 
 interface POSSettingsProps {
@@ -37,54 +38,28 @@ const POSSettings: React.FC<POSSettingsProps> = ({ isOpen, onOpenChange }) => {
   const { currentOrganization, isOrgAdmin } = useTenant();
   const [activeTab, setActiveTab] = useState('store-info');
   
-  // استخدام هوك إعدادات نقطة البيع
-  // استخدام POSDataContext المحسن بدلاً من usePOSSettings المكرر
+  // استخدام هوك إعدادات نقطة البيع الحقيقي
   const {
-    posSettings: settings, 
-    isPOSSettingsLoading: isLoading, 
-    errors,
-    refreshPOSSettings
-  } = usePOSData();
+    settings,
+    isLoading,
+    error,
+    updateSettings,
+    saveSettings: savePOSSettings,
+    isSaving,
+    saveSuccess,
+    hasPermission
+  } = usePOSSettings({ organizationId: currentOrganization?.id || '' });
   
-  // متغيرات الحالة المحلية للتوافق مع المكون
-  const [localSettings, setLocalSettings] = useState<POSSettings>(() => 
-    settings || { ...defaultPOSSettings, organization_id: currentOrganization?.id || '' }
-  );
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-  const [error, setError] = useState<string | null>(errors.posSettings || null);
-  const hasPermission = true; // سيتم تحديثها لاحقاً حسب نظام الصلاحيات
+  // استخدام الإعدادات من الهوك مباشرة
+  const localSettings = settings;
   
-  // تحديث الإعدادات المحلية عند تغير الإعدادات المجلبة
-  useEffect(() => {
-    if (settings) {
-      setLocalSettings(settings);
-    }
-  }, [settings]);
-  
-  // دوال التحديث والحفظ المحلية
-  const updateSettings = useCallback((updates: Partial<POSSettings>) => {
-    setLocalSettings(prev => ({ ...prev, ...updates }));
-  }, []);
-  
+  // استخدام وظيفة الحفظ من الهوك
   const saveSettings = useCallback(async () => {
-    setIsSaving(true);
-    setError(null);
-    
-    try {
-      // TODO: تنفيذ حفظ الإعدادات عبر API
-      // await updatePOSSettings(localSettings);
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'خطأ في حفظ الإعدادات');
-    } finally {
-      setIsSaving(false);
-    }
-  }, [localSettings]);
+    await savePOSSettings();
+  }, [savePOSSettings]);
   
-  // استخدام الإعدادات المحلية للعرض
-  const displaySettings = localSettings;
+  // استخدام الإعدادات للعرض
+  const displaySettings = localSettings || { ...defaultPOSSettings, organization_id: currentOrganization?.id || '' };
 
   // إنشاء دالة updateSetting للتوافق مع المكونات الفرعية
   const updateSetting = useCallback(<K extends keyof POSSettings>(key: K, value: POSSettings[K]) => {
@@ -95,11 +70,6 @@ const POSSettings: React.FC<POSSettingsProps> = ({ isOpen, onOpenChange }) => {
   const resetToDefaults = useCallback(() => {
     updateSettings(defaultPOSSettings);
   }, [updateSettings]);
-
-  // دالة لإعادة تحميل الإعدادات
-  const refreshSettings = useCallback(() => {
-    refreshPOSSettings();
-  }, [refreshPOSSettings]);
 
   // حفظ الإعدادات وإغلاق النافذة
   const handleSaveAndClose = async () => {
@@ -130,7 +100,7 @@ const POSSettings: React.FC<POSSettingsProps> = ({ isOpen, onOpenChange }) => {
   }
 
   // حالة الخطأ في الصلاحيات
-  if (error && error.includes('صلاحية')) {
+  if (!hasPermission() || (error && error.includes('صلاحية'))) {
     return (
       <Dialog open={isOpen} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-md">
@@ -169,7 +139,7 @@ const POSSettings: React.FC<POSSettingsProps> = ({ isOpen, onOpenChange }) => {
             <div className="space-x-2">
               <Button 
                 variant="outline" 
-                onClick={refreshSettings}
+                onClick={() => window.location.reload()}
                 disabled={isLoading}
               >
                 <RotateCcw className="h-4 w-4 ml-2" />

@@ -409,12 +409,12 @@ const arTranslations = {
     "search": "بحث",
     "filter": "تصفية",
     "sort": "ترتيب",
-    "currency": "ر.س"
+    "currency": "د.ج"
   },
   "app": {
     "title": "stockiha",
-    "loading": "جاري التحميل...",
-    "error": "حدث خطأ",
+    "appLoading": "جاري التحميل...",
+    "appError": "حدث خطأ",
     "success": "تمت العملية بنجاح",
     "welcome": "مرحبًا بك في بازار"
   },
@@ -1279,12 +1279,12 @@ const frTranslations = {
     "search": "Rechercher",
     "filter": "Filtrer",
     "sort": "Trier",
-    "currency": "SAR"
+    "currency": "DZD"
   },
   "app": {
     "title": "Console Bazaar",
-    "loading": "Chargement...",
-    "error": "Une erreur s'est produite",
+    "appLoading": "Chargement...",
+    "appError": "Une erreur s'est produite",
     "success": "Opération réussie",
     "welcome": "Bienvenue dans Bazaar"
   },
@@ -1488,7 +1488,7 @@ i18n
     resources,
     lng: getInitialLanguage(),
     fallbackLng: 'ar',
-    debug: true, // تفعيل التتبع للتشخيص
+    debug: false, // تعطيل debug للتقليل من رسائل الكونسول
     
     interpolation: {
       escapeValue: false,

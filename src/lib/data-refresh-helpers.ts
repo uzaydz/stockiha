@@ -18,7 +18,7 @@ export const setGlobalQueryClient = (queryClient: QueryClient) => {
 /**
  * دالة إجبار تحديث البيانات
  */
-const forceDataRefresh = async (queryKey?: string | string[], options?: { forceRefresh?: boolean }) => {
+export const forceDataRefresh = async (queryKey?: string | string[], options?: { forceRefresh?: boolean }) => {
   if (!globalQueryClient) return;
   
   try {

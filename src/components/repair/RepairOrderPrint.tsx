@@ -79,18 +79,19 @@ const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({ order }) => {
   
   // بناء رابط المتجر
   const storeUrl = (() => {
+    const hostname = window.location.hostname;
+    const isLocalhost = hostname === 'localhost' || hostname.includes('127.0.0.1');
+    
     // إذا كان هناك نطاق مخصص معرف في المنظمة
     if (currentOrganization?.domain) {
       return `https://${currentOrganization.domain}`;
     } 
     // إذا كان هناك نطاق فرعي معرف في المنظمة
     else if (currentOrganization?.subdomain) {
-      const hostname = window.location.hostname;
-      
       // إذا كنا في بيئة تطوير محلية
-      if (hostname === 'localhost' || hostname.includes('127.0.0.1')) {
-        // استخدم النطاق المحلي فقط
-        return window.location.origin;
+      if (isLocalhost) {
+        // استخدم النطاق الفرعي مع stockiha.com في بيئة التطوير
+        return `https://${currentOrganization.subdomain}.stockiha.com`;
       } 
       // إذا كنا في بيئة إنتاج
       else {
@@ -109,9 +110,16 @@ const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({ order }) => {
         }
       }
     } 
-    // استخدم النطاق الحالي كحل افتراضي
+    // إذا لم يكن هناك نطاق فرعي أو مخصص
     else {
-      return window.location.origin;
+      // في بيئة التطوير، استخدم stockiha.com
+      if (isLocalhost) {
+        return 'https://stockiha.com';
+      }
+      // في الإنتاج، استخدم النطاق الحالي
+      else {
+        return window.location.origin;
+      }
     }
   })();
   

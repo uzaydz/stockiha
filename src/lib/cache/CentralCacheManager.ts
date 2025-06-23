@@ -94,37 +94,115 @@ class CentralCacheManager {
 
   /**
    * Get data with automatic caching and deduplication
-   * 🚫 CACHE DISABLED - Always fetch fresh data
    */
   async get<T>(
     key: string,
     fetcher: () => Promise<T>,
     options: CacheOptions = {}
   ): Promise<T> {
-    
-    // Always fetch fresh data - no caching
-    try {
-      const data = await fetcher();
-      return data;
-    } catch (error) {
-      throw error;
+    const { ttl = this.getDefaultTTL(key), staleWhileRevalidate, dependencies = [] } = options;
+
+    // Check if request is already pending to prevent duplicates
+    if (this.pendingRequests.has(key)) {
+      return this.pendingRequests.get(key) as Promise<T>;
     }
+
+    // Check memory cache first
+    const cached = this.memoryCache.get(key);
+    const now = Date.now();
+
+    if (cached) {
+      const age = now - cached.timestamp;
+      
+      if (age < ttl) {
+        // Data is fresh
+        this.cacheStats.hits++;
+        return cached.data as T;
+      } else if (staleWhileRevalidate && age < ttl + staleWhileRevalidate) {
+        // Serve stale data and revalidate in background
+        this.cacheStats.staleHits++;
+        this.revalidateInBackground(key, fetcher, options);
+        return cached.data as T;
+      }
+    }
+
+    // Create fetcher promise
+    const fetchPromise = (async () => {
+      try {
+        const data = await fetcher();
+        
+        // Store in cache
+        const entry: CacheEntry<T> = {
+          data,
+          timestamp: now,
+          dependencies
+        };
+        
+        this.memoryCache.set(key, entry as CacheEntry<unknown>);
+        this.cacheStats.misses++;
+        
+        // Remove from pending requests
+        this.pendingRequests.delete(key);
+        
+        return data;
+      } catch (error) {
+        // Remove from pending requests on error
+        this.pendingRequests.delete(key);
+        throw error;
+      }
+    })();
+
+    // Store pending request
+    this.pendingRequests.set(key, fetchPromise);
+
+    return fetchPromise;
   }
 
   /**
    * Set data in cache
-   * 🚫 CACHE DISABLED - No data will be cached
    */
   set<T>(key: string, data: T, options: CacheOptions = {}): void {
-    // Do nothing - cache is disabled
+    const { dependencies = [] } = options;
+    const now = Date.now();
+    
+    const entry: CacheEntry<T> = {
+      data,
+      timestamp: now,
+      dependencies
+    };
+    
+    this.memoryCache.set(key, entry as CacheEntry<unknown>);
   }
 
   /**
    * Invalidate cache entries
-   * 🚫 CACHE DISABLED - No cache to invalidate
    */
   invalidate(patterns: string | string[]): void {
-    // Do nothing - cache is disabled
+    const patternsArray = Array.isArray(patterns) ? patterns : [patterns];
+    
+    for (const pattern of patternsArray) {
+      // Remove exact matches
+      this.memoryCache.delete(pattern);
+      
+      // Remove pattern matches
+      const regex = new RegExp(pattern.replace('*', '.*'));
+      const keysToDelete: string[] = [];
+      
+      for (const [key] of this.memoryCache.entries()) {
+        if (regex.test(key)) {
+          keysToDelete.push(key);
+        }
+      }
+      
+      for (const key of keysToDelete) {
+        this.memoryCache.delete(key);
+      }
+      
+      // Invalidate dependents
+      this.invalidateDependents(pattern);
+    }
+    
+    console.log('🗑️ [CentralCache] Invalidated patterns:', patternsArray);
   }
 
   /**
@@ -297,6 +375,11 @@ class CentralCacheManager {
 
 // Export singleton instance
 export const cacheManager = CentralCacheManager.getInstance();
+
+// إتاحة CacheManager في window object للتطوير والاختبار
+if (typeof window !== 'undefined') {
+  (window as any).cacheManager = cacheManager;
+}
 
 // Export types
 export type { CacheOptions, CacheEntry };

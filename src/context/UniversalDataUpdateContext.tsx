@@ -66,14 +66,109 @@ export const UniversalDataUpdateProvider: React.FC<{ children: React.ReactNode }
   // =================================================================
 
   const invalidateReactQueryCache = useCallback(async (dataType: DataType) => {
-    // Do nothing - universal data update is disabled
-    return;
-  }, []);
+    if (!queryClient || !currentOrganization?.id) return;
+
+    try {
+      const organizationId = currentOrganization.id;
+      
+      // تحديد الـ query keys المرتبطة بكل نوع بيانات
+      const queryKeyMap: Record<DataType, string[]> = {
+        'products': ['products', `products-${organizationId}`, 'dashboard-products'],
+        'categories': ['categories', `categories-${organizationId}`, 'product-categories'],
+        'inventory': ['inventory', `inventory-${organizationId}`, 'stock'],
+        'orders': ['orders', `orders-${organizationId}`, 'dashboard-orders'],
+        'settings': ['settings', `settings-${organizationId}`, 'organization-settings'],
+        'subscriptions': ['subscriptions', `subscriptions-${organizationId}`],
+        'employees': ['employees', `employees-${organizationId}`, 'users'],
+        'customers': ['customers', `customers-${organizationId}`],
+        'financials': ['financials', `financials-${organizationId}`, 'dashboard-stats'],
+        'pos-data': ['pos', `pos-${organizationId}`, 'pos-products', 'pos-orders'],
+        'dashboard-stats': ['dashboard', `dashboard-${organizationId}`, 'dashboard-data'],
+        'organization-apps': ['apps', `apps-${organizationId}`, 'organization-apps'],
+        'all': []
+      };
+
+      const queryKeys = queryKeyMap[dataType] || [];
+      
+      if (dataType === 'all') {
+        // تحديث شامل لجميع الاستعلامات
+        await queryClient.invalidateQueries();
+      } else {
+        // تحديث محدد للـ query keys المرتبطة
+        for (const key of queryKeys) {
+          await queryClient.invalidateQueries({ 
+            queryKey: [key], 
+            exact: false,
+            type: 'all'
+          });
+        }
+      }
+
+      console.log('✅ [UniversalDataUpdate] تم تحديث React Query cache:', dataType, queryKeys);
+    } catch (error) {
+      console.error('❌ [UniversalDataUpdate] خطأ في تحديث React Query cache:', error);
+    }
+  }, [queryClient, currentOrganization?.id]);
 
   const clearLocalStorageCache = useCallback((dataType: DataType) => {
-    // Do nothing - cache clearing is disabled
-    return;
-  }, []);
+    if (typeof window === 'undefined') return;
+
+    try {
+      const organizationId = currentOrganization?.id;
+      
+      // تحديد المفاتيح المراد حذفها من localStorage
+      const storageKeysMap: Record<DataType, string[]> = {
+        'products': ['products_cache', `products_${organizationId}`, 'product_list'],
+        'categories': ['categories_cache', `categories_${organizationId}`, 'product_categories'],
+        'inventory': ['inventory_cache', `inventory_${organizationId}`, 'stock_data'],
+        'orders': ['orders_cache', `orders_${organizationId}`, 'order_list'],
+        'settings': ['settings_cache', `settings_${organizationId}`, 'organization_settings'],
+        'subscriptions': ['subscriptions_cache', `subscriptions_${organizationId}`],
+        'employees': ['employees_cache', `employees_${organizationId}`, 'users_cache'],
+        'customers': ['customers_cache', `customers_${organizationId}`],
+        'financials': ['financials_cache', `financials_${organizationId}`, 'dashboard_stats'],
+        'pos-data': ['pos_cache', `pos_${organizationId}`, 'pos_products', 'pos_orders'],
+        'dashboard-stats': ['dashboard_cache', `dashboard_${organizationId}`, 'stats_cache'],
+        'organization-apps': ['apps_cache', `apps_${organizationId}`, 'organization_apps'],
+        'all': []
+      };
+
+      const keysToRemove = storageKeysMap[dataType] || [];
+      
+      if (dataType === 'all') {
+        // مسح شامل للـ localStorage المرتبط بالمؤسسة
+        const allKeys = Object.keys(localStorage);
+        for (const key of allKeys) {
+          if (key.includes(organizationId || '') || 
+              key.includes('cache') || 
+              key.includes('data') ||
+              key.includes('products') ||
+              key.includes('orders') ||
+              key.includes('categories')) {
+            localStorage.removeItem(key);
+          }
+        }
+      } else {
+        // مسح محدد للمفاتيح المرتبطة
+        for (const key of keysToRemove) {
+          localStorage.removeItem(key);
+        }
+      }
+
+      // مسح sessionStorage أيضاً
+      if (dataType === 'all') {
+        sessionStorage.clear();
+      } else {
+        for (const key of keysToRemove) {
+          sessionStorage.removeItem(key);
+        }
+      }
+
+      console.log('✅ [UniversalDataUpdate] تم تنظيف localStorage cache:', dataType, keysToRemove);
+    } catch (error) {
+      console.error('❌ [UniversalDataUpdate] خطأ في تنظيف localStorage cache:', error);
+    }
+  }, [currentOrganization?.id]);
 
   const triggerCustomRefreshEvents = useCallback((dataType: DataType) => {
 

@@ -502,15 +502,15 @@ const PublicRepairTracking: React.FC = () => {
                 )}
                 <div className="flex justify-between py-1 border-b">
                   <span className="text-muted-foreground">السعر الكلي</span>
-                  <span className="font-medium">{repairOrder.total_price.toLocaleString()} دج</span>
+                  <span className="font-medium">{(repairOrder.total_price || 0).toLocaleString()} دج</span>
                 </div>
                 <div className="flex justify-between py-1 border-b">
                   <span className="text-muted-foreground">المبلغ المدفوع</span>
-                  <span className="font-medium">{repairOrder.paid_amount.toLocaleString()} دج</span>
+                  <span className="font-medium">{(repairOrder.paid_amount || 0).toLocaleString()} دج</span>
                 </div>
                 <div className="flex justify-between py-1 border-b">
                   <span className="text-muted-foreground">المبلغ المتبقي</span>
-                  <span className="font-medium">{(repairOrder.total_price - repairOrder.paid_amount).toLocaleString()} دج</span>
+                  <span className="font-medium">{((repairOrder.total_price || 0) - (repairOrder.paid_amount || 0)).toLocaleString()} دج</span>
                 </div>
               </div>
             </div>
