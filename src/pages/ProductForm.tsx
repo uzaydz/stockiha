@@ -226,6 +226,12 @@ const ProductForm = () => {
 
   // Enhanced submit handler
   const onSubmit = async (data: ProductFormValues) => {
+    console.log('🚀 [ProductForm] onSubmit started:', {
+      formData: data,
+      productColors,
+      hasVariants: data.has_variants,
+      productColorsLength: productColors.length
+    });
 
     if (!organizationIdFromTenant && !data.organization_id) {
       toast.error("خطأ حرج: معرّف المؤسسة مفقود. لا يمكن إنشاء/تحديد المنتج.");
@@ -239,53 +245,118 @@ const ProductForm = () => {
       const currentOrganizationId = data.organization_id || organizationIdFromTenant;
       
       const imagesToSubmit = additionalImages.filter(url => typeof url === 'string' && url.length > 0);
+      
+      console.log('🎨 [ProductForm] Processing colors before submit:', {
+        originalProductColors: productColors,
+        hasVariants: data.has_variants
+      });
+      
       const colorsToSubmit = productColors.map(color => {
         // تنظيف بيانات اللون لضمان التوافق مع schema
-        const cleanedColor = {
+        const cleanedColor: any = {
           id: color.id,
-          name: color.name || '',
+          name: color.name?.trim() || '',
           color_code: color.color_code || '#000000',
           image_url: color.image_url || '',
           quantity: Number(color.quantity) || 0,
-          price: color.price !== undefined ? Number(color.price) : undefined,
-          purchase_price: color.purchase_price !== undefined ? Number(color.purchase_price) : undefined,
           is_default: Boolean(color.is_default),
           product_id: color.product_id,
-          barcode: color.barcode || undefined,
-          variant_number: color.variant_number !== undefined && color.variant_number !== null ? Number(color.variant_number) : undefined,
           has_sizes: Boolean(color.has_sizes),
-          sizes: color.sizes ? color.sizes.map(size => ({
-            id: size.id,
-            color_id: size.color_id,
-            product_id: size.product_id,
-            size_name: size.size_name || '',
-            quantity: Number(size.quantity) || 0,
-            price: size.price !== undefined ? Number(size.price) : undefined,
-            purchase_price: size.purchase_price !== undefined ? Number(size.purchase_price) : undefined,
-            barcode: size.barcode || undefined,
-            is_default: Boolean(size.is_default),
-          })) : undefined,
         };
-        
-        // إزالة الحقول undefined لتجنب مشاكل validation
-        Object.keys(cleanedColor).forEach(key => {
-          if (cleanedColor[key as keyof typeof cleanedColor] === undefined) {
-            delete cleanedColor[key as keyof typeof cleanedColor];
-          }
-        });
+
+        // تنظيف وإضافة الحقول الاختيارية فقط إذا كانت صحيحة
+        if (color.price !== undefined && color.price !== null) {
+          cleanedColor.price = Number(color.price);
+        }
+        if (color.purchase_price !== undefined && color.purchase_price !== null) {
+          cleanedColor.purchase_price = Number(color.purchase_price);
+        }
+        if (color.barcode && typeof color.barcode === 'string' && color.barcode.trim() && color.barcode !== 'null') {
+          cleanedColor.barcode = color.barcode.trim();
+        }
+        if (color.variant_number !== undefined && color.variant_number !== null) {
+          cleanedColor.variant_number = Number(color.variant_number);
+        }
+
+        // معالجة المقاسات إذا كانت موجودة
+        if (color.sizes && color.sizes.length > 0) {
+          cleanedColor.sizes = color.sizes.map(size => {
+            const cleanedSize: any = {
+              id: size.id,
+              color_id: size.color_id,
+              product_id: size.product_id,
+              size_name: size.size_name?.trim() || '',
+              quantity: Number(size.quantity) || 0,
+              is_default: Boolean(size.is_default),
+            };
+
+            // تنظيف وإضافة الحقول الاختيارية للمقاسات
+            if (size.price !== undefined && size.price !== null) {
+              cleanedSize.price = Number(size.price);
+            }
+            if (size.purchase_price !== undefined && size.purchase_price !== null) {
+              cleanedSize.purchase_price = Number(size.purchase_price);
+            }
+            if (size.barcode && typeof size.barcode === 'string' && size.barcode.trim() && size.barcode !== 'null') {
+              cleanedSize.barcode = size.barcode.trim();
+            }
+
+            return cleanedSize;
+          });
+        }
         
         return cleanedColor;
       });
+      
+      console.log('🎨 [ProductForm] Colors after cleaning:', {
+        colorsToSubmit,
+        colorsCount: colorsToSubmit.length,
+        originalColors: productColors
+      });
+      
       const wholesaleTiersToSubmit = wholesaleTiers.map(tier => ({
         ...tier,
         min_quantity: Number(tier.min_quantity),
         price_per_unit: Number(tier.price_per_unit),
       }));
 
+      // تحقق من صحة الألوان قبل الإرسال إذا كان المنتج يستخدم المتغيرات
+      if (data.has_variants && productColors.length > 0) {
+        console.log('🔍 [ProductForm] Validating colors for variants:', {
+          hasVariants: data.has_variants,
+          colorsLength: productColors.length,
+          colors: productColors
+        });
+        
+        const invalidColors = productColors.filter(color => 
+          !color.name?.trim() || 
+          !color.color_code ||
+          color.quantity === undefined || 
+          color.quantity < 0
+        );
+        
+        console.log('🔍 [ProductForm] Invalid colors found:', {
+          invalidColors,
+          invalidColorsCount: invalidColors.length
+        });
+        
+        if (invalidColors.length > 0) {
+          toast.error('يرجى التأكد من أن جميع الألوان لها اسم وكود لون وكمية صحيحة');
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       // تأكد من تمرير الألوان إلى النموذج قبل الإرسال
       
       // تحديث النموذج بالألوان المنظفة
       form.setValue('colors', colorsToSubmit, { shouldValidate: false });
+      
+      console.log('🎨 [ProductForm] Colors set in form before submission:', {
+        formColorsValue: form.getValues('colors'),
+        formIsValid: form.formState.isValid,
+        formErrors: form.formState.errors
+      });
 
       const submissionData = {
         ...data,
@@ -412,6 +483,25 @@ const ProductForm = () => {
   const onInvalid = useCallback((errors: any) => {
     const errorCount = Object.keys(errors).length;
     
+    console.log('🚨 [ProductForm] Form validation errors:', {
+      errors,
+      errorCount,
+      productColors,
+      formColorsValue: form.getValues('colors'),
+      hasVariants: form.getValues('has_variants'),
+      allFormValues: form.getValues()
+    });
+    
+    // تحقق خاص من أخطاء الألوان
+    if (errors.colors) {
+      console.log('🎨 [ProductForm] Colors validation error details:', {
+        colorsError: errors.colors,
+        currentProductColors: productColors,
+        formColorsValue: form.getValues('colors'),
+        productColorsLength: productColors.length
+      });
+    }
+    
     toast.error(`يرجى إصلاح ${errorCount} خطأ في النموذج`);
     
     // Focus on first error field
@@ -433,9 +523,37 @@ const ProductForm = () => {
   }, []);
 
   const handleProductColorsChange = useCallback((colors: ProductColor[]) => {
-    setProductColors(colors);
+    console.log('🎨 [ProductForm] handleProductColorsChange called:', {
+      newColors: colors,
+      newColorsLength: colors.length,
+      previousColors: productColors,
+      previousColorsLength: productColors.length,
+      hasVariants: form.getValues('has_variants')
+    });
+    
+    // تنظيف الألوان من قيم null قبل تعيينها
+    const cleanedColors = colors.map(color => ({
+      ...color,
+      barcode: color.barcode === null || color.barcode === 'null' ? undefined : color.barcode,
+      price: color.price === null ? undefined : color.price,
+      purchase_price: color.purchase_price === null ? undefined : color.purchase_price,
+      variant_number: color.variant_number === null ? undefined : color.variant_number,
+      sizes: color.sizes ? color.sizes.map(size => ({
+        ...size,
+        barcode: size.barcode === null || size.barcode === 'null' ? undefined : size.barcode,
+        price: size.price === null ? undefined : size.price,
+        purchase_price: size.purchase_price === null ? undefined : size.purchase_price,
+      })) : undefined
+    }));
+    
+    setProductColors(cleanedColors);
     // تحديث النموذج أيضاً
-    form.setValue('colors', colors, { shouldValidate: true, shouldDirty: true });
+    form.setValue('colors', cleanedColors, { shouldValidate: true, shouldDirty: true });
+    
+    console.log('🎨 [ProductForm] After setting colors in form:', {
+      formColorsValue: form.getValues('colors'),
+      formErrors: form.formState.errors
+    });
   }, [form]);
 
   const handleWholesaleTiersChange = useCallback((tiers: WholesaleTier[]) => {

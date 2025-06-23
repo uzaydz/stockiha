@@ -194,21 +194,38 @@ export const useProductFormInitialization = ({
     };
     form.reset(defaultValuesForForm);
 
-    if (productData) {
+        if (productData) {
       setAdditionalImages(productData.additional_images || []);
-      setProductColors(productData.colors || []);
+      
+      // تنظيف الألوان من قيم null قبل تعيينها
+      const rawColors = productData.colors || [];
+      const cleanedColors = rawColors.map((color: any) => ({
+        ...color,
+        barcode: color.barcode === null ? undefined : color.barcode,
+        price: color.price === null ? undefined : color.price,
+        purchase_price: color.purchase_price === null ? undefined : color.purchase_price,
+        variant_number: color.variant_number === null ? undefined : color.variant_number,
+        sizes: color.sizes ? color.sizes.map((size: any) => ({
+          ...size,
+          barcode: size.barcode === null ? undefined : size.barcode,
+          price: size.price === null ? undefined : size.price,
+          purchase_price: size.purchase_price === null ? undefined : size.purchase_price,
+        })) : undefined
+      })) as ProductColor[];
+      
+      setProductColors(cleanedColors);
       setWholesaleTiers(formWholesaleTiers); // Use the safe value
       setUseVariantPrices(formUseVariantPrices); // Use the safe value
       setUseSizes(productData.use_sizes || false);
       setHasVariantsState(productData.has_variants || false);
       setProductNameForTitle(productData.name || '');
           } else {
-        setAdditionalImages([]);
-        setProductColors([]);
-        setWholesaleTiers([]);
-        setUseVariantPrices(false);
-        setUseSizes(false);
-        setHasVariantsState(false);
+      setAdditionalImages([]);
+      setProductColors([]);
+      setWholesaleTiers([]);
+      setUseVariantPrices(false);
+      setUseSizes(false);
+      setHasVariantsState(false);
       setProductNameForTitle('');
     }
     setInitialDataSet(true);
@@ -229,11 +246,26 @@ export const useProductFormInitialization = ({
           // جلب الالوان منفصلاً
           const colors = await getProductColors(id);
           
+          // تنظيف الألوان من قيم null
+          const cleanedColors = (colors || []).map((color: any) => ({
+            ...color,
+            barcode: color.barcode === null ? undefined : color.barcode,
+            price: color.price === null ? undefined : color.price,
+            purchase_price: color.purchase_price === null ? undefined : color.purchase_price,
+            variant_number: color.variant_number === null ? undefined : color.variant_number,
+            sizes: color.sizes ? color.sizes.map((size: any) => ({
+              ...size,
+              barcode: size.barcode === null ? undefined : size.barcode,
+              price: size.price === null ? undefined : size.price,
+              purchase_price: size.purchase_price === null ? undefined : size.purchase_price,
+            })) : undefined
+          }));
+          
           // إضافة الألوان إلى بيانات المنتج
           const productWithColors = {
             ...fetchedProductData,
-            colors: colors || []
-          };
+            colors: cleanedColors
+          } as any;
           
           resetData(productWithColors);
         } else {

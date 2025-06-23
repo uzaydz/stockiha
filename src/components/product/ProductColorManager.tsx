@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, Check, Loader2, Ruler, Palette, Eye, Save, AlertCircle, Sparkles, Copy, RefreshCw } from 'lucide-react';
+import { Plus, Edit2, Trash2, Check, Loader2, Ruler, Palette, Eye, Save, AlertCircle, Sparkles, Copy, RefreshCw, ChevronRight, ChevronLeft, X } from 'lucide-react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -43,11 +43,11 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 // نموذج بيانات إدخال اللون
 const colorFormSchema = z.object({
   name: z.string().min(1, { message: 'اسم اللون مطلوب' }),
-  color_code: z.string(),
-  quantity: z.coerce.number().nonnegative({ message: 'الكمية يجب أن تكون صفر أو أكثر' }),
-  price: z.coerce.number().nonnegative({ message: 'السعر يجب أن يكون صفر أو أكثر' }),
-  purchase_price: z.coerce.number().nonnegative({ message: 'سعر الشراء يجب أن يكون صفر أو أكثر' }),
-  image_url: z.string(),
+  color_code: z.string().optional().default('#000000'),
+  quantity: z.coerce.number().nonnegative({ message: 'الكمية يجب أن تكون صفر أو أكثر' }).default(0),
+  price: z.coerce.number().nonnegative({ message: 'السعر يجب أن يكون صفر أو أكثر' }).optional(),
+  purchase_price: z.coerce.number().nonnegative({ message: 'سعر الشراء يجب أن يكون صفر أو أكثر' }).optional(),
+  image_url: z.string().optional(),
   barcode: z.string().optional(),
   is_default: z.boolean().default(false),
   has_sizes: z.boolean().default(false),
@@ -82,11 +82,31 @@ const ProductColorManager = ({
   const prevColorsRef = useRef<ProductColor[]>([]);
   const prevProductIdRef = useRef<string>('');
   
+  console.log('🎨 [ProductColorManager] Component rendered with props:', {
+    colors,
+    colorsLength: colors.length,
+    productId,
+    basePrice,
+    basePurchasePrice,
+    useVariantPrices,
+    useSizes
+  });
+  
   if (JSON.stringify(prevColorsRef.current) !== JSON.stringify(colors)) {
+    console.log('🎨 [ProductColorManager] Colors changed:', {
+      previousColors: prevColorsRef.current,
+      newColors: colors,
+      changeType: colors.length > prevColorsRef.current.length ? 'added' : 
+                  colors.length < prevColorsRef.current.length ? 'removed' : 'updated'
+    });
     prevColorsRef.current = colors;
   }
   
   if (prevProductIdRef.current !== productId) {
+    console.log('🎨 [ProductColorManager] ProductId changed:', {
+      previousId: prevProductIdRef.current,
+      newId: productId
+    });
     prevProductIdRef.current = productId || '';
   }
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -125,23 +145,24 @@ const ProductColorManager = ({
   });
 
   const onAddColorClick = () => {
+    console.log('🎨 [ProductColorManager] فتح dialog إضافة لون جديد');
+    setEditingColor(null);
+    setDialogStep(1);
+    setPreviewMode(false);
+    setUnsavedChanges(false);
     form.reset({
       name: '',
       color_code: '#000000',
       quantity: 0,
-      price: basePrice,
+      price: useVariantPrices ? 0 : basePrice,
       purchase_price: basePurchasePrice,
       image_url: '',
-      is_default: colors.length === 0, // Make first color default if none exists
-      has_sizes: useSizes,
+      barcode: '',
+      is_default: colors.length === 0,
+      has_sizes: false,
     });
-    setEditingColor(null);
-    setDialogStep(1);
-    setFormProgress(0);
-    setUnsavedChanges(false);
-    setDuplicateCheck({hasError: false, message: ''});
-    generateSuggestedColors();
     setIsAddDialogOpen(true);
+    generateSuggestedColors();
   };
 
   // توليد ألوان مقترحة بناءً على الألوان الموجودة
@@ -289,87 +310,77 @@ const ProductColorManager = ({
   };
 
   const onSubmit = async (values: ColorFormValues) => {
-    try {
-      setIsSaving(true);
-    let updatedColors: ProductColor[] = [...colors];
-    
-    if (editingColor) {
-      // Update existing color
-      updatedColors = updatedColors.map((c) => {
-        if (c.id === editingColor.id) {
-          return {
-            ...c,
-            name: values.name,
-            color_code: values.color_code,
-            quantity: values.quantity,
-            price: values.price,
-            purchase_price: values.purchase_price,
-            image_url: values.image_url,
-            is_default: values.is_default,
-            barcode: values.barcode || undefined,
-            has_sizes: values.has_sizes,
-          };
-        }
-        // If this color is not default, but we're setting a different color as default
-        if (values.is_default && c.id !== editingColor.id) {
-          return { ...c, is_default: false };
-        }
-        return c;
-      });
-    } else {
-      // Add new color
-      const newColor: ProductColor = {
-        id: `temp-${Date.now()}`, // Temporary ID until saved to database
-        name: values.name,
-        color_code: values.color_code,
-        quantity: values.quantity,
-        price: values.price,
-        purchase_price: values.purchase_price,
-        image_url: values.image_url,
-        is_default: values.is_default,
-        product_id: productId, // تحديث معرف المنتج مباشرة
-        has_sizes: values.has_sizes,
-        sizes: editingColor?.sizes || []
-      };
+    console.log('🎨 [ProductColorManager] onSubmit started:', {
+      values,
+      editingColor,
+      isEditing: !!editingColor,
+      currentColors: colors,
+      formErrors: form.formState.errors,
+      formIsValid: form.formState.isValid
+    });
 
-      // إضافة الباركود إذا تم توفيره
-      if (values.barcode) {
-        newColor.barcode = values.barcode;
-      }
-      
-      // إضافة مصفوفة المقاسات فارغة إذا تم تفعيل المقاسات
-      if (values.has_sizes) {
-        newColor.sizes = [];
-      }
-      
-      // If we're setting this color as default, unset any existing default
-      if (values.is_default) {
-        updatedColors = updatedColors.map((c) => ({
-          ...c,
-          is_default: false,
-        }));
-      }
-      
-      updatedColors.push(newColor);
+    if (duplicateCheck.hasError) {
+      toast.error(duplicateCheck.message);
+      return;
     }
+
+    setIsSaving(true);
     
-    // If no color is default, make the first one default
-    if (!updatedColors.some((c) => c.is_default) && updatedColors.length > 0) {
-      updatedColors[0].is_default = true;
-    }
-    
-    // تحديث الألوان في الذاكرة فقط، بدون حفظ تلقائي
-    onChange(updatedColors);
-    
-    // إغلاق مربع الحوار بعد الإضافة/التعديل
-    setIsAddDialogOpen(false);
+    try {
+      // Validate the form data against the schema
+      const validatedData = colorFormSchema.parse(values);
+      console.log('🎨 [ProductColorManager] Validated form data:', validatedData);
+
+      if (editingColor) {
+        // تحديث لون موجود
+        console.log('🎨 [ProductColorManager] Updating existing color:', {
+          editingColorId: editingColor.id,
+          newValues: validatedData
+        });
+        
+        const updatedColors = colors.map((color) =>
+          color.id === editingColor.id ? { ...color, ...validatedData } : color
+        );
+        
+                 console.log('🎨 [ProductColorManager] Updated colors array:', updatedColors);
+         console.log('🎨 [ProductColorManager] Calling onChange with updated colors');
+         onChange(updatedColors);
+      } else {
+        // إضافة لون جديد
+        const newColor: ProductColor = {
+          id: Date.now().toString(),
+          ...validatedData,
+          product_id: productId,
+        };
+        
+        console.log('🎨 [ProductColorManager] Creating new color:', newColor);
+        
+        const newColors = [...colors, newColor];
+        console.log('🎨 [ProductColorManager] New colors array:', newColors);
+        onChange(newColors);
+      }
+
+      setIsAddDialogOpen(false);
+      setEditingColor(null);
       setUnsavedChanges(false);
+      form.reset();
       
-      // إظهار رسالة نجاح
       toast.success(editingColor ? 'تم تحديث اللون بنجاح' : 'تم إضافة اللون بنجاح');
-      
     } catch (error) {
-      toast.error('حدث خطأ أثناء حفظ اللون. يرجى المحاولة مرة أخرى.');
+      console.error('🚨 [ProductColorManager] Form validation error:', {
+        error,
+        values,
+        formState: form.formState
+      });
+      
+      if (error instanceof z.ZodError) {
+        console.error('🚨 [ProductColorManager] Zod validation errors:', error.errors);
+        error.errors.forEach((err) => {
+          toast.error(`خطأ في ${err.path.join('.')}: ${err.message}`);
+        });
+      } else {
+        toast.error('حدث خطأ أثناء حفظ اللون');
+      }
     } finally {
       setIsSaving(false);
     }
@@ -625,90 +636,82 @@ const ProductColorManager = ({
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {colors.map((color) => (
-                <Card key={color.id} className="overflow-hidden">
+                <Card key={color.id} className="overflow-hidden group hover:shadow-lg transition-all duration-200 border-border/50 hover:border-primary/30 dark:hover:border-primary/40">
                   <div className="relative">
                     {color.image_url ? (
                       <img 
                         src={color.image_url} 
                         alt={color.name} 
-                        className="w-full h-40 object-cover"
+                        className="w-full h-40 object-cover group-hover:scale-105 transition-transform duration-200"
                       />
                     ) : (
                       <div 
-                        className="w-full h-40 flex items-center justify-center"
+                        className="w-full h-40 flex items-center justify-center group-hover:scale-105 transition-transform duration-200"
                         style={{ backgroundColor: color.color_code }}
                       >
-                        <span className="text-white text-lg font-bold">{color.name}</span>
+                        <span className="text-white text-lg font-bold drop-shadow-md">{color.name}</span>
                       </div>
                     )}
-                    <div className="absolute top-2 right-2 flex space-x-1 space-x-reverse">
+                    <div className="absolute top-2 right-2 flex flex-col gap-1">
                       {color.is_default && (
-                        <Badge variant="secondary" className="bg-white/80 text-primary">
+                        <Badge variant="secondary" className="bg-white/90 dark:bg-gray-900/90 text-primary border-primary/20 backdrop-blur-sm">
                           <Check className="h-3 w-3 ml-1" />
                           افتراضي
                         </Badge>
                       )}
                       {color.has_sizes && (
-                        <Badge variant="outline" className="bg-white/80 text-primary">
+                        <Badge variant="outline" className="bg-white/90 dark:bg-gray-900/90 text-primary border-primary/20 backdrop-blur-sm">
                           <Ruler className="h-3 w-3 ml-1" />
                           مقاسات
                         </Badge>
                       )}
                     </div>
+                    {/* Gradient overlay for better text readability */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
                   </div>
                   
                   <CardHeader className="pb-0 pt-3">
                     <div className="flex items-center justify-between">
-                      <h3 className="font-medium">{color.name}</h3>
-                      <div 
-                        className="w-6 h-6 rounded-full border"
-                        style={{ backgroundColor: color.color_code }}
-                      />
+                      <h3 className="font-medium text-foreground">{color.name}</h3>
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-6 h-6 rounded-full border-2 border-white dark:border-gray-700 shadow-sm"
+                          style={{ backgroundColor: color.color_code }}
+                        />
+                      </div>
                     </div>
                   </CardHeader>
                   
-                  <CardContent className="pt-2">
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div>
-                        <span className="text-muted-foreground">السعر:</span>{' '}
-                        <span className="font-medium">
-                          {color.price !== null ? `${color.price} دج` : `${basePrice} دج`}
-                        </span>
+                  <CardContent className="pt-2 space-y-3">
+                    <div className="flex justify-between items-center text-sm">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground">السعر:</span>
+                          <span className="font-semibold text-primary">{color.price} دج</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground">الكمية:</span>
+                          <span className="font-medium">{color.quantity}</span>
+                        </div>
+                        {color.purchase_price && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground text-xs">سعر الشراء:</span>
+                            <span className="text-xs font-medium">{color.purchase_price} دج</span>
+                          </div>
+                        )}
                       </div>
-                      <div>
-                        <span className="text-muted-foreground">الكمية:</span>{' '}
-                        <span className="font-medium">{color.quantity}</span>
+                      <div className="text-right">
+                        {color.barcode && (
+                          <div className="text-xs text-muted-foreground font-mono bg-muted/50 px-2 py-1 rounded">
+                            {color.barcode}
+                          </div>
+                        )}
                       </div>
                     </div>
                     
-                    <div className="flex justify-end mt-3 gap-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          onDeleteColorClick(color.id);
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                      {useSizes && color.has_sizes && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            onManageSizesClick(color.id);
-                          }}
-                        >
-                          <Ruler className="h-4 w-4 ml-1" />
-                          المقاسات
-                        </Button>
-                      )}
+                    <Separator />
+                    
+                    <div className="flex gap-2 flex-wrap">
                       <Button
                         type="button"
                         variant="outline"
@@ -718,9 +721,41 @@ const ProductColorManager = ({
                           e.stopPropagation();
                           onEditColorClick(color);
                         }}
+                        className="flex-1 min-w-0 bg-primary/5 hover:bg-primary/10 border-primary/20 text-primary hover:text-primary"
                       >
                         <Edit2 className="h-4 w-4 ml-2" />
                         تعديل
+                      </Button>
+                      
+                      {useSizes && color.has_sizes && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onManageSizesClick(color.id);
+                          }}
+                          className="bg-secondary/10 hover:bg-secondary/20 border-secondary/30 text-secondary-foreground"
+                        >
+                          <Ruler className="h-4 w-4 ml-1" />
+                          المقاسات
+                        </Button>
+                      )}
+                      
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onDeleteColorClick(color.id);
+                        }}
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </CardContent>
@@ -785,8 +820,8 @@ const ProductColorManager = ({
                         type="button"
                         className={`p-3 rounded-lg border-2 transition-all duration-200 ${
                           selectedColorId === color.id
-                            ? 'border-primary bg-primary/5 shadow-md'
-                            : 'border-border hover:border-primary/50 hover:shadow-sm'
+                            ? 'border-primary bg-primary/10 dark:bg-primary/20 shadow-md ring-2 ring-primary/20'
+                            : 'border-border hover:border-primary/50 hover:shadow-sm hover:bg-card/50 dark:hover:bg-card/30'
                         }`}
                         onClick={() => {
                           setSelectedColorId(color.id);
@@ -800,22 +835,45 @@ const ProductColorManager = ({
                         }}
                       >
                         <div className="flex items-center gap-3">
-                          <div 
-                            className="w-8 h-8 rounded-full border-2 border-white shadow-sm flex-shrink-0"
-                            style={{ backgroundColor: color.color_code }}
-                          />
+                          <div className="relative">
+                            {color.image_url ? (
+                              <div className="relative w-10 h-10">
+                                <img 
+                                  src={color.image_url} 
+                                  alt={color.name} 
+                                  className="w-full h-full object-cover rounded-lg border-2 border-white dark:border-gray-700 shadow-sm"
+                                />
+                                <div 
+                                  className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white dark:border-gray-700"
+                                  style={{ backgroundColor: color.color_code }}
+                                />
+                              </div>
+                            ) : (
+                              <div 
+                                className="w-10 h-10 rounded-lg border-2 border-white dark:border-gray-700 shadow-sm flex items-center justify-center text-white text-xs font-bold"
+                                style={{ backgroundColor: color.color_code }}
+                              >
+                                {color.name.charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                          </div>
                           <div className="flex-1 text-right">
-                            <div className="font-medium text-sm">{color.name}</div>
+                            <div className="font-medium text-sm text-foreground">{color.name}</div>
                             <div className="text-xs text-muted-foreground">
                               {color.has_sizes ? (
-                                <span className="text-green-600">مقاسات مفعلة</span>
+                                <span className="text-green-600 dark:text-green-400 flex items-center gap-1">
+                                  <Check className="h-3 w-3" />
+                                  مقاسات مفعلة
+                                </span>
                               ) : (
-                                <span className="text-amber-600">بدون مقاسات</span>
+                                <span className="text-amber-600 dark:text-amber-400">بدون مقاسات</span>
                               )}
                             </div>
                           </div>
                           {selectedColorId === color.id && (
-                            <Check className="h-4 w-4 text-primary" />
+                            <div className="w-5 h-5 bg-primary rounded-full flex items-center justify-center">
+                              <Check className="h-3 w-3 text-primary-foreground" />
+                            </div>
                           )}
                         </div>
                       </button>
@@ -882,7 +940,7 @@ const ProductColorManager = ({
         }
       }}>
         <DialogContent 
-          className="max-w-4xl max-h-[90vh] overflow-hidden"
+          className="max-w-4xl w-[95vw] h-[95vh] max-h-[800px] flex flex-col overflow-hidden"
           onPointerDownOutside={(e) => {
             // منع إغلاق مربع الحوار عند النقر خارجه عند وجود تغييرات غير محفوظة
             if (unsavedChanges) {
@@ -890,7 +948,7 @@ const ProductColorManager = ({
             }
           }}
         >
-          <DialogHeader className="border-b pb-4">
+          <DialogHeader className="flex-shrink-0 border-b pb-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-primary/10 rounded-lg">
@@ -908,7 +966,7 @@ const ProductColorManager = ({
               
               <div className="flex items-center gap-2">
                 {/* مفتاح المعاينة المباشرة */}
-                <div className="flex items-center gap-2 bg-muted/30 p-2 rounded-lg">
+                <div className="hidden md:flex items-center gap-2 bg-muted/30 p-2 rounded-lg">
                   <Eye className="h-4 w-4" />
                   <Switch
                     checked={previewMode}
@@ -918,28 +976,28 @@ const ProductColorManager = ({
                 </div>
                 
                 {/* مؤشر التقدم */}
-                <div className="flex items-center gap-2 min-w-[100px]">
+                <div className="hidden sm:flex items-center gap-2 min-w-[100px]">
                   <Progress value={formProgress} className="h-2" />
                   <span className="text-xs text-muted-foreground">{formProgress}%</span>
                 </div>
               </div>
             </div>
             
-            {/* شريط الخطوات */}
-            <div className="flex items-center gap-2 mt-4">
+            {/* شريط الخطوات - محسن للموبايل */}
+            <div className="flex items-center justify-center gap-1 sm:gap-2 mt-4">
               {[1, 2, 3].map((step) => (
                 <div key={step} className="flex items-center">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
+                  <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium transition-colors ${
                     dialogStep === step 
                       ? 'bg-primary text-primary-foreground' 
                       : dialogStep > step 
                         ? 'bg-primary/20 text-primary' 
                         : 'bg-muted text-muted-foreground'
                   }`}>
-                    {dialogStep > step ? <Check className="h-4 w-4" /> : step}
+                    {dialogStep > step ? <Check className="h-3 w-3 sm:h-4 sm:w-4" /> : step}
                   </div>
                   {step < 3 && (
-                    <div className={`w-12 h-0.5 mx-2 ${
+                    <div className={`w-8 sm:w-12 h-0.5 mx-1 sm:mx-2 ${
                       dialogStep > step ? 'bg-primary' : 'bg-muted'
                     }`} />
                   )}
@@ -947,107 +1005,135 @@ const ProductColorManager = ({
               ))}
             </div>
             
-            <div className="flex justify-between text-sm text-muted-foreground mt-2">
+            <div className="hidden sm:flex justify-between text-xs sm:text-sm text-muted-foreground mt-2">
               <span>المعلومات الأساسية</span>
               <span>الصور والتفاصيل</span>
               <span>المراجعة النهائية</span>
             </div>
           </DialogHeader>
           
-          <div className="flex-1 overflow-hidden">
-            <ScrollArea className="h-full max-h-[calc(90vh-200px)]">
-          <Form {...form}>
-            <form onSubmit={(e) => {
-              // منع السلوك الافتراضي لتقديم النموذج
-              e.preventDefault();
-              e.stopPropagation();
-                }} className="space-y-6 p-1">
-                  
-                  {/* معاينة اللون المباشرة */}
-                  {previewMode && (
-                    <Card className="border-2 border-dashed border-primary/30 bg-gradient-to-br from-primary/5 to-transparent">
-                      <CardContent className="p-6">
-                        <div className="flex items-center gap-4">
-                          <div 
-                            className="w-16 h-16 rounded-xl border-2 border-white shadow-lg flex items-center justify-center text-white font-bold text-lg"
-                            style={{ backgroundColor: form.watch('color_code') || '#000000' }}
-                          >
-                            {form.watch('name')?.charAt(0)?.toUpperCase() || '؟'}
-                          </div>
-                          <div className="flex-1">
-                            <h3 className="font-bold text-lg">{form.watch('name') || 'اسم اللون'}</h3>
-                            <p className="text-sm text-muted-foreground">{form.watch('color_code') || '#000000'}</p>
-                            <div className="flex gap-4 mt-2 text-sm">
-                              <span>السعر: {form.watch('price') || 0} دج</span>
-                              <span>الكمية: {form.watch('quantity') || 0}</span>
+          <div className="flex-1 overflow-hidden min-h-0">
+            <ScrollArea className="h-full">
+              <div className="p-4 sm:p-6">
+                <Form {...form}>
+                  <form onSubmit={(e) => {
+                    // منع السلوك الافتراضي لتقديم النموذج
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }} className="space-y-4 sm:space-y-6">
+                    
+                    {/* معاينة اللون المباشرة - محسنة للموبايل */}
+                    {previewMode && (
+                      <Card className="border-2 border-dashed border-primary/30 dark:border-primary/40 bg-gradient-to-br from-primary/5 to-secondary/5 dark:from-primary/10 dark:to-secondary/10 backdrop-blur-sm">
+                        <CardContent className="p-4 sm:p-6">
+                          <div className="flex flex-col sm:flex-row items-center gap-4">
+                            <div className="relative">
+                              {form.watch('image_url') ? (
+                                <div className="relative w-16 h-16 sm:w-20 sm:h-20">
+                                  <img 
+                                    src={form.watch('image_url')} 
+                                    alt="معاينة اللون" 
+                                    className="w-full h-full object-cover rounded-xl border-2 border-white dark:border-gray-700 shadow-lg"
+                                  />
+                                  <div 
+                                    className="absolute -bottom-2 -right-2 w-6 h-6 rounded-full border-2 border-white dark:border-gray-700 shadow-sm"
+                                    style={{ backgroundColor: form.watch('color_code') || '#000000' }}
+                                  />
+                                </div>
+                              ) : (
+                                <div 
+                                  className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl border-2 border-white dark:border-gray-700 shadow-lg flex items-center justify-center text-white font-bold text-sm sm:text-lg"
+                                  style={{ backgroundColor: form.watch('color_code') || '#000000' }}
+                                >
+                                  {form.watch('name')?.charAt(0)?.toUpperCase() || '؟'}
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex-1 text-center sm:text-right">
+                              <h3 className="font-bold text-base sm:text-lg text-foreground">{form.watch('name') || 'اسم اللون'}</h3>
+                              <p className="text-sm text-muted-foreground font-mono">{form.watch('color_code') || '#000000'}</p>
+                              <div className="flex justify-center sm:justify-start gap-4 mt-2 text-sm">
+                                <div className="flex items-center gap-1 px-2 py-1 bg-primary/10 dark:bg-primary/20 rounded-md">
+                                  <span className="text-xs text-muted-foreground">السعر:</span>
+                                  <span className="text-sm font-semibold text-primary">{form.watch('price') || 0} دج</span>
+                                </div>
+                                <div className="flex items-center gap-1 px-2 py-1 bg-secondary/50 dark:bg-secondary/30 rounded-md">
+                                  <span className="text-xs text-muted-foreground">الكمية:</span>
+                                  <span className="text-sm font-semibold">{form.watch('quantity') || 0}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              {form.watch('image_url') && (
+                                <Badge variant="secondary" className="bg-green-500/10 text-green-700 dark:text-green-300 border-green-500/20 text-xs">
+                                  <Check className="h-3 w-3 ml-1" />
+                                  صورة مرفقة
+                                </Badge>
+                              )}
+                              <Badge variant="outline" className="text-xs">
+                                <Eye className="h-3 w-3 ml-1" />
+                                معاينة مباشرة
+                              </Badge>
                             </div>
                           </div>
-                          {form.watch('image_url') && (
-                            <img 
-                              src={form.watch('image_url')} 
-                              alt="معاينة" 
-                              className="w-16 h-16 object-cover rounded-lg border"
-                            />
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
+                        </CardContent>
+                      </Card>
+                    )}
 
-                  {/* تحذير من الألوان المكررة */}
-                  {duplicateCheck.hasError && (
-                    <Alert className="border-destructive/50 bg-destructive/5">
-                      <AlertCircle className="h-4 w-4 text-destructive" />
-                      <AlertDescription className="text-destructive">
-                        {duplicateCheck.message}
-                      </AlertDescription>
-                    </Alert>
-                  )}
+                    {/* تحذير من الألوان المكررة */}
+                    {duplicateCheck.hasError && (
+                      <Alert className="border-destructive/50 bg-destructive/5">
+                        <AlertCircle className="h-4 w-4 text-destructive" />
+                        <AlertDescription className="text-destructive">
+                          {duplicateCheck.message}
+                        </AlertDescription>
+                      </Alert>
+                    )}
 
-                  {/* الخطوة الأولى: المعلومات الأساسية */}
-                  {dialogStep === 1 && (
-                    <div className="space-y-6">
-                      <Card className="border-primary/20">
-                        <CardHeader className="pb-3">
-                          <div className="flex items-center gap-2">
-                            <Sparkles className="h-5 w-5 text-primary" />
-                            <h3 className="font-semibold">المعلومات الأساسية</h3>
-                          </div>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>اسم اللون*</FormLabel>
-                      <FormControl>
-                                    <Input 
-                                      placeholder="مثال: أحمر" 
-                                      {...field} 
-                                      onChange={(e) => {
-                                        field.onChange(e);
-                                        setUnsavedChanges(true);
-                                        checkDuplicateColor(e.target.value, form.getValues('color_code'));
-                                        calculateFormProgress();
-                                      }}
-                                      className="text-lg font-medium"
-                                    />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="color_code"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>كود اللون*</FormLabel>
-                      <FormControl>
-                                    <div className="space-y-3">
+                    {/* الخطوة الأولى: المعلومات الأساسية */}
+                    {dialogStep === 1 && (
+                      <div className="space-y-4 sm:space-y-6">
+                        <Card className="border-primary/20">
+                          <CardHeader className="pb-3">
+                            <div className="flex items-center gap-2">
+                              <Sparkles className="h-5 w-5 text-primary" />
+                              <h3 className="font-semibold">المعلومات الأساسية</h3>
+                            </div>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>اسم اللون*</FormLabel>
+                        <FormControl>
+                                      <Input 
+                                        placeholder="مثال: أحمر" 
+                                        {...field} 
+                                        onChange={(e) => {
+                                          field.onChange(e);
+                                          setUnsavedChanges(true);
+                                          checkDuplicateColor(e.target.value, form.getValues('color_code'));
+                                          calculateFormProgress();
+                                        }}
+                                        className="text-base sm:text-lg font-medium"
+                                      />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="color_code"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>كود اللون*</FormLabel>
+                        <FormControl>
+                                      <div className="space-y-3">
                         <ColorPicker 
                           value={field.value} 
                                         onChange={(color) => {
@@ -1067,7 +1153,7 @@ const ProductColorManager = ({
                                               <button
                                                 key={index}
                                                 type="button"
-                                                className="w-8 h-8 rounded-full border-2 border-white shadow-sm hover:scale-110 transition-transform"
+                                                className="group relative w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-white dark:border-gray-700 shadow-md hover:scale-110 hover:shadow-lg transition-all duration-200 ring-2 ring-transparent hover:ring-primary/30"
                                                 style={{ backgroundColor: color }}
                                                 onClick={() => {
                                                   field.onChange(color);
@@ -1076,89 +1162,88 @@ const ProductColorManager = ({
                                                   calculateFormProgress();
                                                 }}
                                                 title={`استخدام اللون ${color}`}
-                                              />
+                                              >
+                                                <div className="absolute inset-0 rounded-full bg-white/20 dark:bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+                                                {field.value === color && (
+                                                  <div className="absolute inset-0 flex items-center justify-center">
+                                                    <Check className="h-3 w-3 sm:h-4 sm:w-4 text-white drop-shadow-md" />
+                                                  </div>
+                                                )}
+                                              </button>
                                             ))}
-                                            <Button
-                                              type="button"
-                                              variant="ghost"
-                                              size="sm"
-                                              onClick={generateSuggestedColors}
-                                              className="h-8 px-2"
-                                            >
-                                              <RefreshCw className="h-3 w-3" />
-                                            </Button>
                                           </div>
+                                          <p className="text-xs text-muted-foreground">اضغط على أي لون لاستخدامه</p>
                                         </div>
                                       )}
                                     </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                          </div>
-                        </CardContent>
-                      </Card>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                            </div>
+                          </CardContent>
+                        </Card>
 
-                      {/* الأسعار والكميات */}
-                      <Card>
-                        <CardHeader className="pb-3">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="p-1">
-                              <span className="text-xs">أسعار</span>
-                            </Badge>
-                            <h3 className="font-semibold">التسعير والكميات</h3>
-                          </div>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                
-                <FormField
-                  control={form.control}
-                  name="quantity"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>الكمية المتاحة*</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="number" 
-                          min="0" 
-                          {...field} 
-                          value={field.value === null ? '' : field.value}
-                          disabled={useSizes && form.getValues('has_sizes')}
-                                      onChange={(e) => {
-                                        field.onChange(e);
-                                        setUnsavedChanges(true);
-                                        calculateFormProgress();
-                                      }}
-                                      className="text-center font-medium"
-                        />
-                      </FormControl>
-                      {useSizes && form.getValues('has_sizes') && (
-                                    <FormDescription className="text-center">
-                          سيتم حساب الكمية تلقائياً من مجموع كميات المقاسات
-                        </FormDescription>
-                      )}
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="price"
-                  render={({ field }) => (
-                    <FormItem>
-                                  <FormLabel className="flex items-center gap-2">
-                                    سعر البيع*
-                                    {!useVariantPrices && (
-                                      <Badge variant="secondary" className="text-xs">
-                                        من السعر الأساسي
-                                      </Badge>
-                                    )}
-                                  </FormLabel>
-                      <FormControl>
-                                    <div className="relative">
+                        {/* الأسعار والكميات */}
+                        <Card>
+                          <CardHeader className="pb-3">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="p-1">
+                                <span className="text-xs">أسعار</span>
+                              </Badge>
+                              <h3 className="font-semibold">التسعير والكميات</h3>
+                            </div>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  
+                  <FormField
+                    control={form.control}
+                    name="quantity"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>الكمية المتاحة*</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="number" 
+                            min="0" 
+                            {...field} 
+                            value={field.value === null ? '' : field.value}
+                            disabled={useSizes && form.getValues('has_sizes')}
+                                        onChange={(e) => {
+                                          field.onChange(e);
+                                          setUnsavedChanges(true);
+                                          calculateFormProgress();
+                                        }}
+                                        className="text-center font-medium"
+                          />
+                        </FormControl>
+                        {useSizes && form.getValues('has_sizes') && (
+                                      <FormDescription className="text-center">
+                            سيتم حساب الكمية تلقائياً من مجموع كميات المقاسات
+                          </FormDescription>
+                        )}
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="price"
+                    render={({ field }) => (
+                      <FormItem>
+                                    <FormLabel className="flex items-center gap-2">
+                                      سعر البيع*
+                                      {!useVariantPrices && (
+                                        <Badge variant="secondary" className="text-xs">
+                                          من السعر الأساسي
+                                        </Badge>
+                                      )}
+                                    </FormLabel>
+                        <FormControl>
+                                      <div className="relative">
                         <Input 
                           type="number" 
                           min="0" 
@@ -1177,27 +1262,27 @@ const ProductColorManager = ({
                                         دج
                                       </span>
                                     </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="purchase_price"
-                  render={({ field }) => (
-                    <FormItem>
-                                  <FormLabel className="flex items-center gap-2">
-                                    سعر الشراء*
-                                    {!useVariantPrices && (
-                                      <Badge variant="secondary" className="text-xs">
-                                        من السعر الأساسي
-                                      </Badge>
-                                    )}
-                                  </FormLabel>
-                      <FormControl>
-                                    <div className="relative">
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="purchase_price"
+                    render={({ field }) => (
+                      <FormItem>
+                                    <FormLabel className="flex items-center gap-2">
+                                      سعر الشراء*
+                                      {!useVariantPrices && (
+                                        <Badge variant="secondary" className="text-xs">
+                                          من السعر الأساسي
+                                        </Badge>
+                                      )}
+                                    </FormLabel>
+                        <FormControl>
+                                      <div className="relative">
                         <Input 
                           type="number" 
                           min="0" 
@@ -1216,127 +1301,178 @@ const ProductColorManager = ({
                                         دج
                                       </span>
                                     </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              
-                          {/* عرض هامش الربح */}
-                          {useVariantPrices && form.watch('price') > 0 && form.watch('purchase_price') > 0 && (
-                            <div className="mt-4 p-3 bg-muted/30 rounded-lg">
-                              <div className="flex justify-between items-center text-sm">
-                                <span className="text-muted-foreground">هامش الربح:</span>
-                                <div className="text-right">
-                                  <span className="font-medium">
-                                    {((form.watch('price') - form.watch('purchase_price')) / form.watch('price') * 100).toFixed(1)}%
-                                  </span>
-                                  <span className="text-muted-foreground block">
-                                    ({form.watch('price') - form.watch('purchase_price')} دج)
-                                  </span>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                
+                            {/* عرض هامش الربح */}
+                            {useVariantPrices && form.watch('price') > 0 && form.watch('purchase_price') > 0 && (
+                              <div className="mt-4 p-3 bg-muted/30 rounded-lg">
+                                <div className="flex justify-between items-center text-sm">
+                                  <span className="text-muted-foreground">هامش الربح:</span>
+                                  <div className="text-right">
+                                    <span className="font-medium">
+                                      {((form.watch('price') - form.watch('purchase_price')) / form.watch('price') * 100).toFixed(1)}%
+                                    </span>
+                                    <span className="text-muted-foreground block">
+                                      ({form.watch('price') - form.watch('purchase_price')} دج)
+                                    </span>
+                                  </div>
                                 </div>
                               </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      </div>
+                    )}
+
+                    {/* الخطوة الثانية: الصور والتفاصيل */}
+                    {dialogStep === 2 && (
+                      <div className="space-y-4 sm:space-y-6">
+                        <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent dark:from-primary/10 dark:to-transparent">
+                          <CardHeader className="pb-3">
+                            <div className="flex items-center gap-2">
+                              <div className="p-2 bg-primary/10 dark:bg-primary/20 rounded-lg">
+                                <Eye className="h-5 w-5 text-primary" />
+                              </div>
+                              <div>
+                                <h3 className="font-semibold">الصور والمظهر</h3>
+                                <p className="text-xs text-muted-foreground">أضف صورة عالية الجودة للون</p>
+                              </div>
                             </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    </div>
-                  )}
+                          </CardHeader>
+                          <CardContent>
+                            <FormField
+                              control={form.control}
+                              name="image_url"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="flex items-center gap-2">
+                                    <span>صورة اللون</span>
+                                    <Badge variant="outline" className="text-xs">مستحسن</Badge>
+                                  </FormLabel>
+                                  <FormControl>
+                                    <div className="relative">
+                                      <ImageUploader
+                                        imageUrl={field.value}
+                                        onImageUploaded={(url) => {
+                                          field.onChange(url);
+                                          setUnsavedChanges(true);
+                                          calculateFormProgress();
+                                        }}
+                                        className="h-48 sm:h-56 border-2 border-dashed border-primary/30 dark:border-primary/40 bg-primary/5 dark:bg-primary/10 hover:border-primary/50 dark:hover:border-primary/60 transition-colors"
+                                      />
+                                      {field.value && (
+                                        <div className="absolute top-2 right-2 flex gap-2">
+                                          <Badge variant="secondary" className="bg-green-500/10 text-green-700 dark:text-green-300 border-green-500/20">
+                                            <Check className="h-3 w-3 ml-1" />
+                                            تم التحميل
+                                          </Badge>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </FormControl>
+                                  <FormDescription className="flex items-start gap-2">
+                                    <div className="w-1 h-4 bg-primary/50 rounded-full mt-0.5 flex-shrink-0"></div>
+                                    <div className="text-xs text-muted-foreground">
+                                      <p>• يُفضل استخدام صور بجودة عالية (1080x1080 بكسل أو أكثر)</p>
+                                      <p>• الصيغ المدعومة: JPG, PNG, WebP</p>
+                                      <p>• إذا لم تقم بتحميل صورة، سيتم استخدام لون خالص</p>
+                                    </div>
+                                  </FormDescription>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </CardContent>
+                        </Card>
 
-                  {/* الخطوة الثانية: الصور والتفاصيل */}
-                  {dialogStep === 2 && (
-                    <div className="space-y-6">
-                      <Card>
-                        <CardHeader className="pb-3">
-                          <div className="flex items-center gap-2">
-                            <Eye className="h-5 w-5 text-primary" />
-                            <h3 className="font-semibold">الصور والمظهر</h3>
-                          </div>
-                        </CardHeader>
-                        <CardContent>
-              <FormField
-                control={form.control}
-                name="image_url"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>صورة اللون*</FormLabel>
-                    <FormControl>
-                      <ImageUploader
-                        imageUrl={field.value}
-                                    onImageUploaded={(url) => {
-                                      field.onChange(url);
-                                      setUnsavedChanges(true);
-                                      calculateFormProgress();
-                                    }}
-                        className="h-48"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-                        </CardContent>
-                      </Card>
-
-                      <Card>
-                        <CardHeader className="pb-3">
-                          <div className="flex items-center gap-2">
-                            <Badge className="p-1">
-                              <span className="text-xs">إضافي</span>
-                            </Badge>
-                            <h3 className="font-semibold">الإعدادات المتقدمة</h3>
-                          </div>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-              <FormField
-                control={form.control}
-                name="barcode"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>الباركود (المتغير)</FormLabel>
-                    <div className="flex gap-2">
-                      <FormControl>
-                                    <Input 
-                                      placeholder="باركود متغير المنتج" 
-                                      {...field} 
-                                      value={field.value || ''} 
-                                      onChange={(e) => {
-                                        field.onChange(e);
-                                        setUnsavedChanges(true);
-                                      }}
-                                    />
-                      </FormControl>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleGenerateBarcode(editingColor?.product_id);
-                        }}
-                        disabled={generatingBarcode}
-                      >
-                        {generatingBarcode ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          'توليد'
-                        )}
-                      </Button>
-                    </div>
-                    <FormDescription>
-                      يمكنك ترك هذا الحقل فارغًا وسيتم توليد باركود تلقائيًا عند حفظ المنتج
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              {useSizes && (
+                        <Card className="border-secondary/20 dark:border-secondary/30">
+                          <CardHeader className="pb-3">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="p-1">
+                                <span className="text-xs">إضافي</span>
+                              </Badge>
+                              <h3 className="font-semibold">الإعدادات المتقدمة</h3>
+                            </div>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
                 <FormField
                   control={form.control}
-                  name="has_sizes"
+                  name="barcode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>الباركود (المتغير)</FormLabel>
+                      <div className="flex gap-2">
+                        <FormControl>
+                                      <Input 
+                                        placeholder="باركود متغير المنتج" 
+                                        {...field} 
+                                        value={field.value || ''} 
+                                        onChange={(e) => {
+                                          field.onChange(e);
+                                          setUnsavedChanges(true);
+                                        }}
+                                      />
+                        </FormControl>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleGenerateBarcode(editingColor?.product_id);
+                          }}
+                          disabled={generatingBarcode}
+                        >
+                          {generatingBarcode ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            'توليد'
+                          )}
+                        </Button>
+                      </div>
+                      <FormDescription>
+                        يمكنك ترك هذا الحقل فارغًا وسيتم توليد باركود تلقائيًا عند حفظ المنتج
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                {useSizes && (
+                  <FormField
+                    control={form.control}
+                    name="has_sizes"
+                    render={({ field }) => (
+                                  <FormItem className="flex flex-row items-start space-x-3 space-x-reverse space-y-0 p-4 border rounded-lg">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                                        onCheckedChange={(checked) => {
+                                          field.onChange(checked);
+                                          setUnsavedChanges(true);
+                                        }}
+                          />
+                        </FormControl>
+                        <div className="space-y-1 leading-none">
+                          <FormLabel>هذا اللون يحتوي على مقاسات متعددة</FormLabel>
+                          <p className="text-sm text-muted-foreground">
+                            تفعيل هذا الخيار سيسمح بإضافة مقاسات مختلفة لهذا اللون
+                          </p>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
+                )}
+                
+                <FormField
+                  control={form.control}
+                  name="is_default"
                   render={({ field }) => (
                                 <FormItem className="flex flex-row items-start space-x-3 space-x-reverse space-y-0 p-4 border rounded-lg">
                       <FormControl>
@@ -1346,119 +1482,157 @@ const ProductColorManager = ({
                                         field.onChange(checked);
                                         setUnsavedChanges(true);
                                       }}
+                          disabled={colors.length === 0}
                         />
                       </FormControl>
                       <div className="space-y-1 leading-none">
-                        <FormLabel>هذا اللون يحتوي على مقاسات متعددة</FormLabel>
+                        <FormLabel>اللون الافتراضي</FormLabel>
                         <p className="text-sm text-muted-foreground">
-                          تفعيل هذا الخيار سيسمح بإضافة مقاسات مختلفة لهذا اللون
+                          هذا اللون سيظهر افتراضياً عند عرض المنتج
                         </p>
                       </div>
                     </FormItem>
                   )}
                 />
-              )}
-              
-              <FormField
-                control={form.control}
-                name="is_default"
-                render={({ field }) => (
-                              <FormItem className="flex flex-row items-start space-x-3 space-x-reverse space-y-0 p-4 border rounded-lg">
-                    <FormControl>
-                      <Checkbox
-                        checked={field.value}
-                                    onCheckedChange={(checked) => {
-                                      field.onChange(checked);
-                                      setUnsavedChanges(true);
-                                    }}
-                        disabled={colors.length === 0}
-                      />
-                    </FormControl>
-                    <div className="space-y-1 leading-none">
-                      <FormLabel>اللون الافتراضي</FormLabel>
-                      <p className="text-sm text-muted-foreground">
-                        هذا اللون سيظهر افتراضياً عند عرض المنتج
-                      </p>
-                    </div>
-                  </FormItem>
-                )}
-              />
-                        </CardContent>
-                      </Card>
-                    </div>
-                  )}
+                          </CardContent>
+                        </Card>
+                      </div>
+                    )}
 
-                  {/* الخطوة الثالثة: المراجعة النهائية */}
-                  {dialogStep === 3 && (
-                    <div className="space-y-6">
-                      <Card className="border-primary/30 bg-primary/5">
-                        <CardHeader>
-                          <div className="flex items-center gap-2">
-                            <Check className="h-5 w-5 text-primary" />
-                            <h3 className="font-semibold">مراجعة المعلومات</h3>
-                          </div>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          <div className="flex items-center gap-4 p-4 bg-white rounded-lg border">
-                            <div 
-                              className="w-16 h-16 rounded-xl border-2 border-white shadow-lg flex items-center justify-center text-white font-bold text-lg"
-                              style={{ backgroundColor: form.watch('color_code') }}
-                            >
-                              {form.watch('name')?.charAt(0)?.toUpperCase()}
+                    {/* الخطوة الثالثة: المراجعة النهائية */}
+                    {dialogStep === 3 && (
+                      <div className="space-y-4 sm:space-y-6">
+                        <Card className="border-primary/30 bg-primary/5 dark:bg-primary/10">
+                          <CardHeader>
+                            <div className="flex items-center gap-2">
+                              <Check className="h-5 w-5 text-primary" />
+                              <h3 className="font-semibold">مراجعة المعلومات</h3>
                             </div>
-                            <div className="flex-1">
-                              <h3 className="font-bold text-lg">{form.watch('name')}</h3>
-                              <p className="text-sm text-muted-foreground">{form.watch('color_code')}</p>
-                              <div className="flex gap-4 mt-2 text-sm">
-                                <span>السعر: {form.watch('price')} دج</span>
-                                <span>الكمية: {form.watch('quantity')}</span>
-                              </div>
-                            </div>
-                            {form.watch('image_url') && (
-                              <img 
-                                src={form.watch('image_url')} 
-                                alt="معاينة" 
-                                className="w-16 h-16 object-cover rounded-lg border"
-                              />
-                            )}
-                          </div>
-                          
-                          <div className="grid grid-cols-2 gap-4 text-sm">
-                            <div className="p-3 bg-white rounded-lg">
-                              <span className="text-muted-foreground">الباركود:</span>
-                              <span className="block font-medium">{form.watch('barcode') || 'سيتم توليده تلقائياً'}</span>
-                            </div>
-                            <div className="p-3 bg-white rounded-lg">
-                              <span className="text-muted-foreground">الحالة:</span>
-                              <div className="flex gap-2 mt-1">
-                                {form.watch('is_default') && (
-                                  <Badge variant="secondary">افتراضي</Badge>
-                                )}
-                                {form.watch('has_sizes') && (
-                                  <Badge variant="outline">مقاسات</Badge>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            {/* معاينة اللون الرئيسية */}
+                            <div className="flex flex-col sm:flex-row items-center gap-4 p-4 bg-background/50 dark:bg-card/50 rounded-lg border border-border/50 backdrop-blur-sm">
+                              <div className="relative">
+                                {form.watch('image_url') ? (
+                                  <div className="relative w-16 h-16 sm:w-20 sm:h-20">
+                                    <img 
+                                      src={form.watch('image_url')} 
+                                      alt="معاينة اللون" 
+                                      className="w-full h-full object-cover rounded-xl border-2 border-white dark:border-gray-700 shadow-lg"
+                                    />
+                                    <div 
+                                      className="absolute -bottom-2 -right-2 w-6 h-6 rounded-full border-2 border-white dark:border-gray-700 shadow-sm"
+                                      style={{ backgroundColor: form.watch('color_code') }}
+                                    />
+                                  </div>
+                                ) : (
+                                  <div 
+                                    className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl border-2 border-white dark:border-gray-700 shadow-lg flex items-center justify-center text-white font-bold text-sm sm:text-lg"
+                                    style={{ backgroundColor: form.watch('color_code') }}
+                                  >
+                                    {form.watch('name')?.charAt(0)?.toUpperCase() || '؟'}
+                                  </div>
                                 )}
                               </div>
+                              
+                              <div className="flex-1 text-center sm:text-right">
+                                <h3 className="font-bold text-lg sm:text-xl text-foreground">{form.watch('name')}</h3>
+                                <p className="text-sm text-muted-foreground font-mono">{form.watch('color_code')}</p>
+                                <div className="flex justify-center sm:justify-start gap-4 mt-3">
+                                  <div className="flex items-center gap-1 px-2 py-1 bg-primary/10 dark:bg-primary/20 rounded-md">
+                                    <span className="text-xs text-muted-foreground">السعر:</span>
+                                    <span className="text-sm font-semibold text-primary">{form.watch('price')} دج</span>
+                                  </div>
+                                  <div className="flex items-center gap-1 px-2 py-1 bg-secondary/50 dark:bg-secondary/30 rounded-md">
+                                    <span className="text-xs text-muted-foreground">الكمية:</span>
+                                    <span className="text-sm font-semibold">{form.watch('quantity')}</span>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </div>
-                  )}
-                </form>
-              </Form>
+                            
+                            {/* تفاصيل إضافية */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div className="p-4 bg-card/50 dark:bg-card/30 rounded-lg border border-border/50">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <div className="w-2 h-2 bg-primary rounded-full"></div>
+                                  <span className="text-sm font-medium text-muted-foreground">معلومات المنتج</span>
+                                </div>
+                                <div className="space-y-2">
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-xs text-muted-foreground">الباركود:</span>
+                                    <span className="text-xs font-mono bg-muted/50 px-2 py-1 rounded">
+                                      {form.watch('barcode') || 'سيتم توليده تلقائياً'}
+                                    </span>
+                                  </div>
+                                  {form.watch('purchase_price') && (
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-xs text-muted-foreground">سعر الشراء:</span>
+                                      <span className="text-xs font-semibold">{form.watch('purchase_price')} دج</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              <div className="p-4 bg-card/50 dark:bg-card/30 rounded-lg border border-border/50">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <div className="w-2 h-2 bg-secondary rounded-full"></div>
+                                  <span className="text-sm font-medium text-muted-foreground">الحالة والخصائص</span>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  {form.watch('is_default') && (
+                                    <Badge variant="secondary" className="text-xs bg-primary/10 text-primary border-primary/20">
+                                      <Check className="h-3 w-3 ml-1" />
+                                      افتراضي
+                                    </Badge>
+                                  )}
+                                  {form.watch('has_sizes') && (
+                                    <Badge variant="outline" className="text-xs border-secondary/50 text-secondary-foreground">
+                                      <Ruler className="h-3 w-3 ml-1" />
+                                      مقاسات متعددة
+                                    </Badge>
+                                  )}
+                                  {!form.watch('is_default') && !form.watch('has_sizes') && (
+                                    <span className="text-xs text-muted-foreground italic">لا توجد خصائص إضافية</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* ملخص سريع */}
+                            <div className="p-3 bg-gradient-to-r from-primary/5 to-secondary/5 dark:from-primary/10 dark:to-secondary/10 rounded-lg border border-primary/10 dark:border-primary/20">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Sparkles className="h-4 w-4 text-primary" />
+                                <span className="text-sm font-medium">ملخص سريع</span>
+                              </div>
+                              <p className="text-xs text-muted-foreground leading-relaxed">
+                                سيتم إضافة اللون <strong className="text-foreground">{form.watch('name')}</strong> بسعر <strong className="text-primary">{form.watch('price')} دج</strong> وكمية <strong>{form.watch('quantity')}</strong> قطعة.
+                                {form.watch('is_default') && ' هذا اللون سيكون الافتراضي للمنتج.'}
+                                {form.watch('has_sizes') && ' يمكن إضافة مقاسات متعددة لهذا اللون لاحقاً.'}
+                              </p>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    )}
+                  </form>
+                </Form>
+              </div>
             </ScrollArea>
           </div>
 
-          <DialogFooter className="border-t pt-4">
-            <div className="flex justify-between items-center w-full">
-              <div className="flex gap-2">
+          <DialogFooter className="flex-shrink-0 border-t pt-4 bg-background">
+            <div className="flex flex-col sm:flex-row justify-between items-center w-full gap-3 sm:gap-0">
+              <div className="flex gap-2 order-2 sm:order-1">
                 {dialogStep > 1 && (
                   <Button 
                     type="button" 
                     variant="outline" 
                     onClick={() => setDialogStep(dialogStep - 1)}
                     size="sm"
+                    className="min-w-[80px]"
                   >
+                    <ChevronLeft className="h-4 w-4 ml-1" />
                     السابق
                   </Button>
                 )}
@@ -1466,23 +1640,25 @@ const ProductColorManager = ({
                   type="button" 
                   variant="outline" 
                   onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
+                    e.preventDefault();
+                    e.stopPropagation();
                     if (unsavedChanges) {
                       if (confirm('لديك تغييرات غير محفوظة. هل تريد المتابعة وفقدان هذه التغييرات؟')) {
-                  setIsAddDialogOpen(false);
+                        setIsAddDialogOpen(false);
                         setUnsavedChanges(false);
                       }
                     } else {
                       setIsAddDialogOpen(false);
                     }
                   }}
+                  className="min-w-[80px]"
                 >
+                  <X className="h-4 w-4 ml-1" />
                   إلغاء
                 </Button>
               </div>
               
-              <div className="flex gap-2">
+              <div className="flex gap-2 order-1 sm:order-2">
                 {dialogStep < 3 ? (
                   <Button 
                     type="button" 
@@ -1497,21 +1673,23 @@ const ProductColorManager = ({
                       }
                     }}
                     disabled={duplicateCheck.hasError}
+                    className="min-w-[100px]"
                   >
                     التالي
+                    <ChevronRight className="h-4 w-4 mr-1" />
                   </Button>
                 ) : (
                   <Button 
                     type="button" 
                     onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
+                      e.preventDefault();
+                      e.stopPropagation();
                       setIsSaving(true);
-                  
-                  form.handleSubmit((values) => {
-                    onSubmit(values);
+                      
+                      form.handleSubmit((values) => {
+                        onSubmit(values);
                         setIsSaving(false);
-                  })();
+                      })();
                     }}
                     disabled={isSaving || duplicateCheck.hasError}
                     className="min-w-[120px]"
@@ -1524,14 +1702,14 @@ const ProductColorManager = ({
                     ) : (
                       <>
                         <Save className="h-4 w-4 ml-2" />
-                  {editingColor ? 'تحديث اللون' : 'إضافة اللون'}
+                        {editingColor ? 'تحديث اللون' : 'إضافة اللون'}
                       </>
                     )}
-                </Button>
+                  </Button>
                 )}
               </div>
             </div>
-              </DialogFooter>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
