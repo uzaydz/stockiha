@@ -103,6 +103,7 @@ import QuickBarcodePrintPage from './pages/dashboard/QuickBarcodePrintPage';
 import OrderDistributionSettings from './pages/OrderDistributionSettings';
 import RepairServices from './pages/RepairServices';
 import RepairTrackingPage from './pages/RepairTrackingPage';
+import RepairComplete from './pages/RepairComplete';
 import StoreEditorDemo from '@/pages/admin/StoreEditorDemo';
 import AppsManagement from './pages/AppsManagement';
 import GameDownloadsPage from './pages/GameDownloadsPage';
@@ -543,6 +544,9 @@ const App = () => {
                   <Route path="/services" element={<PublicServiceTrackingPage />} />
                   <Route path="/repair-tracking" element={<RepairTrackingPage />} />
                   <Route path="/repair-tracking/:trackingCode" element={<RepairTrackingPage />} />
+                  
+                  {/* صفحة إنهاء التصليح عبر QR code */}
+                  <Route path="/repair-complete/:orderId" element={<RepairComplete />} />
 
                   {/* صفحة متجر تحميل الألعاب العامة */}
                   <Route path="/games" element={<PublicGameStorePage />} />

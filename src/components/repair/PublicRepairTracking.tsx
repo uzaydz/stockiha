@@ -24,7 +24,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { AlertCircle, CheckCircle, Clock, Search, XCircle, ArrowRight, Copy, Check, ChevronLeft, ChevronRight, Wrench, Phone, Settings, Info } from 'lucide-react';
+import { AlertCircle, CheckCircle, Clock, Search, XCircle, ArrowRight, Copy, Check, ChevronLeft, ChevronRight, Wrench, Phone, Settings, Info, Users, Timer, MapPin } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import { useTenant } from '@/context/TenantContext';
 import { useAuth } from '@/context/AuthContext';
@@ -117,6 +117,9 @@ interface RepairOrderResult {
   repair_notes?: string;
   repair_tracking_code?: string;
   organization_id: string;
+  // إضافة معلومات الطابور
+  queue_position?: number;
+  total_in_queue?: number;
   images?: {
     id: string;
     repair_order_id: string;
@@ -142,6 +145,7 @@ interface RepairOrderResult {
     description?: string;
     address?: string;
     phone?: string;
+    capacity?: number;
   };
   staff?: {
     id: string;
@@ -150,6 +154,52 @@ interface RepairOrderResult {
     phone?: string;
   };
 }
+
+// دالة لجلب معلومات الطابور للطلبية
+const getQueueInfo = async (orderId: string) => {
+  try {
+    // جلب معلومات الطلبية الحالية
+    const { data: currentOrder, error: currentOrderError } = await supabase
+      .from('repair_orders')
+      .select('repair_location_id, created_at, status')
+      .eq('id', orderId)
+      .single() as any;
+      
+    if (currentOrderError || !currentOrder) return null;
+    
+    // إذا كانت الطلبية مكتملة أو مستلمة، لا تعرض معلومات الطابور
+    if (currentOrder.status === 'مكتمل' || currentOrder.status === 'تم الاستلام' || currentOrder.status === 'ملغي') {
+      return null;
+    }
+    
+    // حساب عدد الطلبات التي تم إنشاؤها قبل هذه الطلبية في نفس المكان
+    const { data: ordersBeforeMe, error: beforeError } = await supabase
+      .from('repair_orders')
+      .select('id')
+      .eq('repair_location_id', currentOrder.repair_location_id)
+      .in('status', ['قيد الانتظار', 'جاري التصليح'])
+      .lt('created_at', currentOrder.created_at);
+      
+    // حساب إجمالي الطلبات النشطة في نفس المكان
+    const { data: totalActiveOrders, error: totalError } = await supabase
+      .from('repair_orders')
+      .select('id')
+      .eq('repair_location_id', currentOrder.repair_location_id)
+      .in('status', ['قيد الانتظار', 'جاري التصليح']);
+      
+    if (beforeError || totalError) return null;
+    
+    const queuePosition = (ordersBeforeMe?.length || 0) + 1;
+    const totalInQueue = totalActiveOrders?.length || 0;
+    
+    return {
+      queue_position: queuePosition,
+      total_in_queue: totalInQueue
+    };
+  } catch (error) {
+    return null;
+  }
+};
 
 // وظيفة تغيير حالة الطلبية
 const updateOrderStatus = async (orderId: string, newStatus: string, notes: string = '') => {
@@ -259,8 +309,14 @@ const PublicRepairTracking: React.FC = () => {
             phoneSearchData;
             
           if (orgOrders.length > 0) {
-            // اختر أحدث طلبية
-            setRepairOrder(orgOrders[0] as RepairOrderResult);
+            // اختر أحدث طلبية وجلب معلومات الطابور
+            const latestOrder = orgOrders[0];
+            const queueInfo = await getQueueInfo(latestOrder.id);
+            setRepairOrder({
+              ...latestOrder,
+              queue_position: queueInfo?.queue_position,
+              total_in_queue: queueInfo?.total_in_queue
+            } as RepairOrderResult);
           } else {
             setError('لم يتم العثور على طلبيات تصليح مرتبطة بهذا الرقم في المتجر الحالي');
           }
@@ -277,14 +333,20 @@ const PublicRepairTracking: React.FC = () => {
             *,
             images:repair_images(*),
             history:repair_status_history(*, users(name)),
-            repair_location:repair_locations(id, name, description, address, phone),
+            repair_location:repair_locations(*),
             staff:users(id, name, email, phone)
           `)
           .eq('repair_tracking_code', codeToSearch)
           .single();
 
         if (!trackingCodeError && trackingCodeData) {
-          setRepairOrder(trackingCodeData as RepairOrderResult);
+          // جلب معلومات الطابور
+          const queueInfo = await getQueueInfo(trackingCodeData.id);
+          setRepairOrder({
+            ...trackingCodeData,
+            queue_position: queueInfo?.queue_position,
+            total_in_queue: queueInfo?.total_in_queue
+          } as RepairOrderResult);
         } else {
           // 2. البحث برقم الطلبية
           const { data: orderNumberData, error: orderNumberError } = await supabase
@@ -300,7 +362,13 @@ const PublicRepairTracking: React.FC = () => {
             .single();
 
           if (!orderNumberError && orderNumberData) {
-            setRepairOrder(orderNumberData as RepairOrderResult);
+            // جلب معلومات الطابور
+            const queueInfo = await getQueueInfo(orderNumberData.id);
+            setRepairOrder({
+              ...orderNumberData,
+              queue_position: queueInfo?.queue_position,
+              total_in_queue: queueInfo?.total_in_queue
+            } as RepairOrderResult);
           } else {
             // 3. البحث بمعرف الطلبية مباشرة
             const { data: directIdData, error: directIdError } = await supabase
@@ -316,7 +384,13 @@ const PublicRepairTracking: React.FC = () => {
               .single();
 
             if (!directIdError && directIdData) {
-              setRepairOrder(directIdData as RepairOrderResult);
+              // جلب معلومات الطابور
+              const queueInfo = await getQueueInfo(directIdData.id);
+              setRepairOrder({
+                ...directIdData,
+                queue_position: queueInfo?.queue_position,
+                total_in_queue: queueInfo?.total_in_queue
+              } as RepairOrderResult);
             } else {
               setError('لم يتم العثور على طلبية تصليح بهذا الرمز');
             }
@@ -365,8 +439,8 @@ const PublicRepairTracking: React.FC = () => {
     const currentStepIndex = getCurrentStepIndex(repairOrder.status);
 
     return (
-      <Card className="mt-6 overflow-hidden shadow-lg border-border/50">
-        <CardHeader className="bg-primary/5 pb-4">
+      <Card className="mt-6 overflow-hidden shadow-lg border-border/50 dark:border-slate-700/50 dark:bg-slate-900/50">
+        <CardHeader className="bg-primary/5 dark:bg-slate-800/30 pb-4">
           <div className="flex justify-between items-start">
             <div>
               <CardTitle className="text-xl mb-1">
@@ -400,15 +474,15 @@ const PublicRepairTracking: React.FC = () => {
         
         {/* مؤشر تقدم المراحل */}
         {repairOrder.status !== 'ملغي' && (
-          <div className="px-6 py-4 border-t border-b bg-muted/20">
+          <div className="px-6 py-5 border-t border-b bg-muted/20 dark:bg-slate-800/20">
             <div className="relative">
               {/* خط الاتصال */}
-              <div className="absolute top-5 left-0 right-0 h-0.5 bg-muted-foreground/20"></div>
+              <div className="absolute top-5 left-0 right-0 h-0.5 bg-muted-foreground/20 dark:bg-slate-600/30"></div>
               
               {/* خط التقدم */}
               {currentStepIndex >= 0 && (
                 <div 
-                  className="absolute top-5 right-0 h-0.5 bg-primary transition-all duration-500" 
+                  className="absolute top-5 right-0 h-0.5 bg-primary dark:bg-blue-400 transition-all duration-500" 
                   style={{ 
                     width: currentStepIndex === 3 ? '100%' : 
                           currentStepIndex === 2 ? '75%' : 
@@ -429,15 +503,19 @@ const PublicRepairTracking: React.FC = () => {
                       <div 
                         className={`flex items-center justify-center w-10 h-10 rounded-full mb-2 transition-all ${
                           isCompleted 
-                            ? 'bg-primary text-primary-foreground' 
-                            : 'bg-muted-foreground/20 text-muted-foreground'
+                            ? 'bg-primary dark:bg-blue-500 text-primary-foreground dark:text-white' 
+                            : 'bg-muted-foreground/20 dark:bg-slate-700/50 text-muted-foreground dark:text-slate-400'
                         } ${
-                          isCurrent ? 'ring-2 ring-primary ring-offset-2' : ''
+                          isCurrent ? 'ring-2 ring-primary dark:ring-blue-400 ring-offset-2 dark:ring-offset-slate-900' : ''
                         }`}
                       >
                         {step.icon}
                       </div>
-                      <span className={`text-xs font-medium ${isCurrent ? 'text-primary' : isCompleted ? 'text-foreground' : 'text-muted-foreground'}`}>
+                      <span className={`text-xs font-medium ${
+                        isCurrent ? 'text-primary dark:text-blue-400' : 
+                        isCompleted ? 'text-foreground dark:text-slate-200' : 
+                        'text-muted-foreground dark:text-slate-400'
+                      }`}>
                         {step.label}
                       </span>
                     </div>
@@ -445,6 +523,97 @@ const PublicRepairTracking: React.FC = () => {
                 })}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* معلومات الطابور */}
+        {repairOrder.status !== 'ملغي' && repairOrder.status !== 'مكتمل' && repairOrder.status !== 'تم الاستلام' && 
+         (repairOrder.queue_position || repairOrder.total_in_queue) && (
+          <div className="px-6 py-5 bg-gradient-to-r from-blue-50/80 to-indigo-50/80 dark:from-slate-800/50 dark:to-slate-700/50 border-t border-b border-border/50">
+            <h3 className="text-base font-semibold text-foreground mb-4 flex items-center gap-2">
+              <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              معلومات الطابور
+            </h3>
+            
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               {/* موقع في الطابور */}
+               {repairOrder.queue_position ? (
+                 <div className="flex items-center gap-3 p-4 bg-background/50 dark:bg-slate-800/50 rounded-lg border border-blue-200 dark:border-blue-700/50 shadow-sm">
+                   <div className="flex items-center justify-center w-12 h-12 bg-blue-100 dark:bg-blue-900/50 rounded-full">
+                     <MapPin className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                   </div>
+                   <div>
+                     <div className="text-sm text-muted-foreground dark:text-slate-400">موقعك في الطابور</div>
+                     <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                       #{repairOrder.queue_position}
+                     </div>
+                   </div>
+                 </div>
+               ) : (
+                 <div className="flex items-center gap-3 p-4 bg-background/50 dark:bg-slate-800/50 rounded-lg border border-gray-200 dark:border-gray-700/50 shadow-sm">
+                   <div className="flex items-center justify-center w-12 h-12 bg-gray-100 dark:bg-gray-800/50 rounded-full">
+                     <Clock className="h-6 w-6 text-gray-600 dark:text-gray-400" />
+                   </div>
+                   <div>
+                     <div className="text-sm text-muted-foreground dark:text-slate-400">حالة الطابور</div>
+                     <div className="text-lg font-medium text-gray-600 dark:text-gray-400">
+                       قيد المعالجة
+                     </div>
+                   </div>
+                 </div>
+               )}
+               
+               {/* عدد الأشخاص أمامك */}
+               {repairOrder.queue_position && repairOrder.queue_position > 1 && (
+                 <div className="flex items-center gap-3 p-4 bg-background/50 dark:bg-slate-800/50 rounded-lg border border-orange-200 dark:border-orange-700/50 shadow-sm">
+                   <div className="flex items-center justify-center w-12 h-12 bg-orange-100 dark:bg-orange-900/50 rounded-full">
+                     <Users className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+                   </div>
+                   <div>
+                     <div className="text-sm text-muted-foreground dark:text-slate-400">أمامك في الطابور</div>
+                     <div className="text-xl font-bold text-orange-600 dark:text-orange-400">
+                       {repairOrder.queue_position - 1} شخص
+                     </div>
+                   </div>
+                 </div>
+               )}
+               
+               {/* إجمالي الطلبيات في الطابور */}
+               {repairOrder.total_in_queue && repairOrder.total_in_queue > 1 && (
+                 <div className="flex items-center gap-3 p-4 bg-background/50 dark:bg-slate-800/50 rounded-lg border border-purple-200 dark:border-purple-700/50 shadow-sm">
+                   <div className="flex items-center justify-center w-12 h-12 bg-purple-100 dark:bg-purple-900/50 rounded-full">
+                     <Users className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                   </div>
+                   <div>
+                     <div className="text-sm text-muted-foreground dark:text-slate-400">إجمالي الطابور</div>
+                     <div className="text-xl font-bold text-purple-600 dark:text-purple-400">
+                       {repairOrder.total_in_queue} طلبية
+                     </div>
+                   </div>
+                 </div>
+               )}
+             </div>
+            
+                         {/* رسالة تشجيعية */}
+             {repairOrder.queue_position === 1 && (
+               <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700/50 rounded-lg">
+                 <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
+                   <CheckCircle className="h-5 w-5" />
+                   <span className="text-sm font-medium">دورك قادم! جهازك الآن قيد المعالجة</span>
+                 </div>
+               </div>
+             )}
+             
+             {repairOrder.queue_position && repairOrder.queue_position > 1 && (
+               <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/50 rounded-lg">
+                 <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                   <Info className="h-5 w-5" />
+                   <span className="text-sm">
+                     سيتم البدء في إصلاح جهازك بمجرد انتهاء الطلبيات التي أمامك
+                   </span>
+                 </div>
+               </div>
+             )}
           </div>
         )}
         
@@ -634,10 +803,14 @@ const PublicRepairTracking: React.FC = () => {
                           
                           if (result.success) {
                             toast.success('تم تحديث حالة الطلبية بنجاح');
+                            // جلب معلومات الطابور المحدثة
+                            const updatedQueueInfo = await getQueueInfo(repairOrder.id);
                             // تحديث حالة الطلبية وتاريخها في الواجهة
                             setRepairOrder({
                               ...repairOrder,
                               status: selectedStatus,
+                              queue_position: updatedQueueInfo?.queue_position,
+                              total_in_queue: updatedQueueInfo?.total_in_queue,
                               history: [
                                 {
                                   id: `temp-${Date.now()}`,

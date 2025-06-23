@@ -11,6 +11,7 @@ interface RepairReceiptPrintProps {
   storeAddress?: string;
   storeLogo?: string;
   trackingUrl: string;
+  queuePosition?: number;
 }
 
 const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
@@ -19,10 +20,61 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
   storePhone,
   storeAddress,
   storeLogo,
-  trackingUrl
+  trackingUrl,
+  queuePosition
 }) => {
+  const { currentOrganization } = useTenant();
+  
   // الحصول على رمز التتبع
   const trackingCode = order.repair_tracking_code || order.order_number || order.id;
+
+  // بناء رابط المتجر الصحيح للـ QR code
+  const buildStoreUrl = () => {
+    const hostname = window.location.hostname;
+    const isLocalhost = hostname === 'localhost' || hostname.includes('127.0.0.1');
+    
+    // إذا كان هناك نطاق مخصص معرف في المنظمة
+    if (currentOrganization?.domain) {
+      return `https://${currentOrganization.domain}`;
+    } 
+    // إذا كان هناك نطاق فرعي معرف في المنظمة
+    else if (currentOrganization?.subdomain) {
+      // إذا كنا في بيئة تطوير محلية
+      if (isLocalhost) {
+        // استخدم النطاق الفرعي مع stockiha.com في بيئة التطوير
+        return `https://${currentOrganization.subdomain}.stockiha.com`;
+      } 
+      // إذا كنا في بيئة إنتاج
+      else {
+        // تحقق ما إذا كان اسم المضيف يحتوي بالفعل على النطاق الفرعي
+        if (hostname.startsWith(`${currentOrganization.subdomain}.`)) {
+          // استخدم النطاق الحالي كما هو
+          return window.location.origin;
+        } else {
+          // استخراج النطاق الرئيسي (مثل example.com)
+          const domainParts = hostname.split('.');
+          const mainDomain = domainParts.length >= 2 
+            ? domainParts.slice(-2).join('.') 
+            : hostname;
+          
+          return `https://${currentOrganization.subdomain}.${mainDomain}`;
+        }
+      }
+    } 
+    // إذا لم يكن هناك نطاق فرعي أو مخصص
+    else {
+      // في بيئة التطوير، استخدم stockiha.com
+      if (isLocalhost) {
+        return 'https://stockiha.com';
+      }
+      // في الإنتاج، استخدم النطاق الحالي
+      else {
+        return window.location.origin;
+      }
+    }
+  };
+
+  const storeUrl = buildStoreUrl();
 
   // تنسيق التاريخ - ميلادي عربي مع الأرقام الإنجليزية
   const formatDate = (dateString: string) => {
@@ -121,7 +173,7 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
               <p className="text-sm"><span className="font-bold">الهاتف:</span> <span className="receipt-numbers">{convertToEnglishNumbers(order.customer_phone)}</span></p>
             </div>
             <div className="text-left ltr">
-              <QRCodeSVG value={trackingUrl} size={60} />
+              <QRCodeSVG value={`${storeUrl}/repair-tracking/${trackingCode}`} size={60} />
             </div>
           </div>
         </div>
@@ -190,19 +242,33 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
       </div>
 
       {/* ====================== الجزء الثاني: لصقة الجهاز ====================== */}
-      <div className="device-label p-3 bg-yellow-50 border border-yellow-200 receipt-content">
+      <div className="device-label p-4 bg-yellow-50 border-2 border-yellow-300 receipt-content">
         {/* رأس اللصقة */}
         <div className="text-center mb-3">
-          <h2 className="text-base font-bold text-yellow-800 receipt-title">لصقة الجهاز</h2>
+          <h2 className="text-lg font-bold text-yellow-800 receipt-title">🏷️ لصقة الجهاز</h2>
           <p className="text-xs text-yellow-700">يُلصق على الجهاز المستلم</p>
         </div>
 
+        {/* رقم الطلبية بارز */}
+        <div className="bg-red-100 border-2 border-red-300 rounded-lg p-3 mb-3 text-center">
+          <p className="text-xs text-red-700 mb-1">رقم الطلبية</p>
+          <p className="text-2xl font-black text-red-600 receipt-numbers tracking-wider">
+            #{convertToEnglishNumbers(order.order_number || order.id.slice(0, 8))}
+          </p>
+        </div>
+
+        {/* ترتيب الطلبية في الطابور */}
+        {queuePosition && queuePosition > 0 && (
+          <div className="bg-blue-100 border-2 border-blue-300 rounded-lg p-2 mb-3 text-center">
+            <p className="text-xs text-blue-700 mb-1">ترتيبك في الطابور</p>
+            <p className="text-xl font-black text-blue-600 receipt-numbers">
+              {convertToEnglishNumbers(queuePosition)}
+            </p>
+          </div>
+        )}
+
         {/* المعلومات الأساسية */}
         <div className="space-y-2">
-          <div className="flex justify-between items-center border-b border-yellow-300 pb-1">
-            <span className="text-sm font-bold">رقم الطلبية:</span>
-            <span className="text-sm font-bold text-red-600 receipt-numbers">{convertToEnglishNumbers(order.order_number || order.id.slice(0, 8))}</span>
-          </div>
           
           <div className="flex justify-between items-center">
             <span className="text-xs">العميل:</span>
@@ -217,6 +283,20 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
           <div className="flex justify-between items-center">
             <span className="text-xs">تاريخ الاستلام:</span>
             <span className="text-xs">{formatDate(order.created_at)}</span>
+          </div>
+          
+          <div className="flex justify-between items-center">
+            <span className="text-xs">الحالة الحالية:</span>
+            <span className="text-xs font-bold px-2 py-1 rounded" style={{
+              backgroundColor: order.status === 'قيد الانتظار' ? '#fef3c7' : 
+                             order.status === 'جاري التصليح' ? '#dbeafe' :
+                             order.status === 'مكتمل' ? '#d1fae5' : '#fee2e2',
+              color: order.status === 'قيد الانتظار' ? '#d97706' : 
+                     order.status === 'جاري التصليح' ? '#2563eb' :
+                     order.status === 'مكتمل' ? '#059669' : '#dc2626'
+            }}>
+              {order.status}
+            </span>
           </div>
           
           {order.issue_description && (
@@ -249,8 +329,38 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
         </div>
 
         {/* كود التتبع */}
-        <div className="mt-3 p-2 bg-yellow-100 rounded text-center">
-          <p className="text-xs font-bold">كود التتبع: <span className="receipt-numbers">{convertToEnglishNumbers(trackingCode)}</span></p>
+        <div className="mt-3 p-2 bg-blue-100 border border-blue-300 rounded text-center">
+          <p className="text-xs font-bold text-blue-700">كود التتبع: <span className="receipt-numbers">{convertToEnglishNumbers(trackingCode)}</span></p>
+        </div>
+
+        {/* QR code لإنهاء التصليح */}
+        <div className="mt-3 p-2 bg-green-100 border border-green-300 rounded text-center">
+          <p className="text-xs font-bold text-green-700 mb-2">🔧 إنهاء التصليح</p>
+          <div className="flex justify-center mb-2">
+            <QRCodeSVG 
+              value={`${storeUrl}/repair-complete/${order.id}`} 
+              size={50}
+              level="M"
+            />
+          </div>
+          <p className="text-xs text-green-600">امسح لتحديث الحالة إلى "تم التصليح"</p>
+        </div>
+        
+        {/* مساحة لملاحظات الفني */}
+        <div className="mt-3 p-2 border-2 border-dashed border-gray-400 rounded">
+          <p className="text-xs font-bold text-gray-700 mb-2">ملاحظات الفني:</p>
+          <div className="space-y-1">
+            <div className="border-b border-gray-300" style={{height: '12px'}}></div>
+            <div className="border-b border-gray-300" style={{height: '12px'}}></div>
+            <div className="border-b border-gray-300" style={{height: '12px'}}></div>
+          </div>
+        </div>
+        
+        {/* تعليمات للفني */}
+        <div className="mt-3 p-2 bg-gray-100 border border-gray-300 rounded">
+          <p className="text-xs text-center text-gray-700">
+            ⚠️ <span className="font-bold">تنبيه:</span> احتفظ بهذه اللصقة مع الجهاز طوال فترة التصليح
+          </p>
         </div>
       </div>
     </div>

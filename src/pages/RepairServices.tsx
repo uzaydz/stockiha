@@ -194,6 +194,7 @@ const RepairServicesContent = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState<RepairOrder | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
   
   // الإحصائيات
   const [stats, setStats] = useState({
@@ -650,6 +651,8 @@ const RepairServicesContent = () => {
       setIsDeleting(false);
     }
   };
+
+
   
   return (
     <Layout>

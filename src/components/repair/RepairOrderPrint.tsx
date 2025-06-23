@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 
 interface RepairOrderPrintProps {
   order: RepairOrder;
+  queuePosition?: number;
 }
 
 // هوك آمن للوصول إلى POSData مع fallback
@@ -26,7 +27,7 @@ const useSafePOSData = () => {
   }
 };
 
-const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({ order }) => {
+const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({ order, queuePosition }) => {
   const { organizationId } = useUser();
   const { currentOrganization } = useTenant();
   const { posSettings, refreshPOSSettings } = useSafePOSData();
@@ -34,6 +35,7 @@ const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({ order }) => {
   const [isPrinting, setIsPrinting] = useState(false);
   const [isPrintSuccess, setIsPrintSuccess] = useState(false);
   const [fallbackPOSSettings, setFallbackPOSSettings] = useState<any>(null);
+  const [calculatedQueuePosition, setCalculatedQueuePosition] = useState<number>(queuePosition || 0);
 
   // جلب إعدادات نقطة البيع من قاعدة البيانات كبديل
   useEffect(() => {
@@ -73,6 +75,45 @@ const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({ order }) => {
       refreshPOSSettings();
     }
   }, [posSettings, organizationId, refreshPOSSettings]);
+
+  // حساب ترتيب الطلبية في الطابور (نفس الطريقة المستخدمة في التتبع العام)
+  useEffect(() => {
+    const calculateQueuePosition = async () => {
+      if (!organizationId || !order) return;
+
+      try {
+        // التحقق من أن الطلبية مؤهلة لتكون في الطابور
+        const activeStatuses = ['قيد الانتظار', 'جاري التصليح'];
+        if (!activeStatuses.includes(order.status)) {
+          setCalculatedQueuePosition(0);
+          return;
+        }
+
+        // حساب عدد الطلبات التي تم إنشاؤها قبل هذه الطلبية في نفس المكان
+        const { count, error } = await supabase
+          .from('repair_orders')
+          .select('*', { count: 'exact', head: true })
+          .eq('repair_location_id', order.repair_location_id)
+          .in('status', activeStatuses)
+          .lt('created_at', order.created_at);
+
+        if (error) {
+          console.error('خطأ في حساب ترتيب الطابور:', error);
+          setCalculatedQueuePosition(queuePosition || 0);
+          return;
+        }
+
+        const position = (count || 0) + 1;
+        console.log('ترتيب الطلبية المحسوب:', position, 'للطلبية:', order.id, 'في المكان:', order.repair_location_id);
+        setCalculatedQueuePosition(position);
+      } catch (error) {
+        console.error('خطأ في حساب ترتيب الطابور:', error);
+        setCalculatedQueuePosition(queuePosition || 0);
+      }
+    };
+
+    calculateQueuePosition();
+  }, [order, organizationId, queuePosition]);
 
   // إنشاء رابط التتبع
   const trackingCode = order.repair_tracking_code || order.order_number || order.id;
@@ -263,6 +304,7 @@ const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({ order }) => {
             storeAddress={storeAddress}
             storeLogo={storeLogo}
             trackingUrl={trackingUrl}
+            queuePosition={calculatedQueuePosition}
           />
         </div>
       </div>
