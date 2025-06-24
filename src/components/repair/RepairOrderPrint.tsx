@@ -6,6 +6,7 @@ import { useTenant } from '@/context/TenantContext';
 import { RepairOrder } from '@/types/repair';
 import RepairReceiptPrint from './RepairReceiptPrint';
 import { supabase } from '@/lib/supabase';
+import { buildStoreUrl, buildTrackingUrl } from '@/lib/utils/store-url';
 
 interface RepairOrderPrintProps {
   order: RepairOrder;
@@ -115,57 +116,9 @@ const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({ order, queuePositio
     calculateQueuePosition();
   }, [order, organizationId, queuePosition]);
 
-  // إنشاء رابط التتبع
+  // إنشاء رابط التتبع باستخدام الدالة المشتركة
   const trackingCode = order.repair_tracking_code || order.order_number || order.id;
-  
-  // بناء رابط المتجر
-  const storeUrl = (() => {
-    const hostname = window.location.hostname;
-    const isLocalhost = hostname === 'localhost' || hostname.includes('127.0.0.1');
-    
-    // إذا كان هناك نطاق مخصص معرف في المنظمة
-    if (currentOrganization?.domain) {
-      return `https://${currentOrganization.domain}`;
-    } 
-    // إذا كان هناك نطاق فرعي معرف في المنظمة
-    else if (currentOrganization?.subdomain) {
-      // إذا كنا في بيئة تطوير محلية
-      if (isLocalhost) {
-        // استخدم النطاق الفرعي مع stockiha.com في بيئة التطوير
-        return `https://${currentOrganization.subdomain}.stockiha.com`;
-      } 
-      // إذا كنا في بيئة إنتاج
-      else {
-        // تحقق ما إذا كان اسم المضيف يحتوي بالفعل على النطاق الفرعي
-        if (hostname.startsWith(`${currentOrganization.subdomain}.`)) {
-          // استخدم النطاق الحالي كما هو
-          return window.location.origin;
-        } else {
-          // استخراج النطاق الرئيسي (مثل example.com)
-          const domainParts = hostname.split('.');
-          const mainDomain = domainParts.length >= 2 
-            ? domainParts.slice(-2).join('.') 
-            : hostname;
-          
-          return `https://${currentOrganization.subdomain}.${mainDomain}`;
-        }
-      }
-    } 
-    // إذا لم يكن هناك نطاق فرعي أو مخصص
-    else {
-      // في بيئة التطوير، استخدم stockiha.com
-      if (isLocalhost) {
-        return 'https://stockiha.com';
-      }
-      // في الإنتاج، استخدم النطاق الحالي
-      else {
-        return window.location.origin;
-      }
-    }
-  })();
-  
-  // بناء رابط التتبع الكامل
-  const trackingUrl = `${storeUrl}/repair-tracking/${trackingCode}`;
+  const trackingUrl = buildTrackingUrl(trackingCode, currentOrganization);
 
   // الحصول على معلومات المتجر من إعدادات نقطة البيع أولاً، ثم المنظمة كبديل
   const getStoreInfo = () => {

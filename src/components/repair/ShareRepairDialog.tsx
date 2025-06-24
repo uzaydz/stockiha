@@ -11,6 +11,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { buildTrackingUrl } from '@/lib/utils/store-url';
+import { useAuth } from '@/context/AuthContext';
 
 interface ShareRepairDialogProps {
   open: boolean;
@@ -26,9 +28,10 @@ export const ShareRepairDialog: React.FC<ShareRepairDialogProps> = ({
   orderId,
 }) => {
   const [isCopied, setIsCopied] = useState(false);
+  const { currentOrganization } = useAuth();
   
-  // بناء رابط التتبع
-  const trackingUrl = `${window.location.origin}/repair-tracking/${trackingCode}`;
+  // بناء رابط التتبع باستخدام النطاق المخصص أو النطاق الفرعي
+  const trackingUrl = buildTrackingUrl(trackingCode, currentOrganization);
 
   // نسخ الرابط إلى الحافظة
   const copyToClipboard = () => {

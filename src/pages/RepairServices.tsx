@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useUser } from '../context/UserContext';
+import { useTenant } from '@/context/TenantContext';
 import { toast } from 'sonner';
 import { formatDate } from '@/lib/utils';
 
@@ -74,6 +75,7 @@ import {
 import RepairServiceDialog from '@/components/repair/RepairServiceDialog';
 import { ShareRepairDialog } from '@/components/repair/ShareRepairDialog';
 import RepairOrderPrint from '@/components/repair/RepairOrderPrint';
+import { buildTrackingUrl } from '@/lib/utils/store-url';
 
 // تعريف واجهات البيانات
 interface RepairLocation {
@@ -170,6 +172,7 @@ const statusOptions = [
 // مكون صفحة خدمات التصليح الرئيسي
 const RepairServicesContent = () => {
   const { user, organizationId } = useUser();
+  const { currentOrganization } = useTenant();
   
   // حالة الصفحة
   const [activeTab, setActiveTab] = useState('all');
@@ -376,7 +379,7 @@ const RepairServicesContent = () => {
   const shareTrackingLink = () => {
     if (!trackingInfo) return;
     
-    const trackingUrl = `${window.location.origin}/repair-tracking/${trackingInfo.trackingCode}`;
+    const trackingUrl = buildTrackingUrl(trackingInfo.trackingCode, currentOrganization);
     
     // نسخ الرابط إلى الحافظة
     navigator.clipboard.writeText(trackingUrl)

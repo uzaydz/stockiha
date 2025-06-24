@@ -3,6 +3,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { useUser } from '@/context/UserContext';
 import { useTenant } from '@/context/TenantContext';
 import { RepairOrder } from '@/types/repair';
+import { buildStoreUrl } from '@/lib/utils/store-url';
 import '@/styles/repair-print.css';
 
 interface RepairReceiptPrintProps {
@@ -29,53 +30,8 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
   // الحصول على رمز التتبع
   const trackingCode = order.repair_tracking_code || order.order_number || order.id;
 
-  // بناء رابط المتجر الصحيح للـ QR code
-  const buildStoreUrl = () => {
-    const hostname = window.location.hostname;
-    const isLocalhost = hostname === 'localhost' || hostname.includes('127.0.0.1');
-    
-    // إذا كان هناك نطاق مخصص معرف في المنظمة
-    if (currentOrganization?.domain) {
-      return `https://${currentOrganization.domain}`;
-    } 
-    // إذا كان هناك نطاق فرعي معرف في المنظمة
-    else if (currentOrganization?.subdomain) {
-      // إذا كنا في بيئة تطوير محلية
-      if (isLocalhost) {
-        // استخدم النطاق الفرعي مع stockiha.com في بيئة التطوير
-        return `https://${currentOrganization.subdomain}.stockiha.com`;
-      } 
-      // إذا كنا في بيئة إنتاج
-      else {
-        // تحقق ما إذا كان اسم المضيف يحتوي بالفعل على النطاق الفرعي
-        if (hostname.startsWith(`${currentOrganization.subdomain}.`)) {
-          // استخدم النطاق الحالي كما هو
-          return window.location.origin;
-        } else {
-          // استخراج النطاق الرئيسي (مثل example.com)
-          const domainParts = hostname.split('.');
-          const mainDomain = domainParts.length >= 2 
-            ? domainParts.slice(-2).join('.') 
-            : hostname;
-          
-          return `https://${currentOrganization.subdomain}.${mainDomain}`;
-        }
-      }
-    } 
-    // إذا لم يكن هناك نطاق فرعي أو مخصص
-    else {
-      // في بيئة التطوير، استخدم stockiha.com
-      if (isLocalhost) {
-        return 'https://stockiha.com';
-      }
-      // في الإنتاج، استخدم النطاق الحالي
-      else {
-        return window.location.origin;
-      }
-    }
-  };
-
-  const storeUrl = buildStoreUrl();
+  // بناء رابط المتجر الصحيح باستخدام الدالة المشتركة
+  const storeUrl = buildStoreUrl(currentOrganization);
 
   // تنسيق التاريخ - ميلادي عربي مع الأرقام الإنجليزية
   const formatDate = (dateString: string) => {
@@ -102,289 +58,451 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
 
   return (
     <div 
-      className="repair-receipt bg-white" 
+      className="repair-receipt" 
       dir="rtl"
       style={{
-        fontFamily: "'Cairo', 'Tahoma', sans-serif",
-        lineHeight: '1.4',
-        fontSize: '12px',
+        fontFamily: "'Amiri', 'Noto Sans Arabic', 'Cairo', 'Tahoma', sans-serif",
+        lineHeight: '1.6',
+        fontSize: '14px',
         width: '80mm',
         maxWidth: '300px',
-        margin: '0 auto'
+        margin: '0 auto',
+        backgroundColor: 'white',
+        color: 'black'
       }}
     >
-      {/* إضافة الخطوط العربية والتنسيقات */}
+      {/* إضافة الخطوط العربية المحسنة */}
       <style dangerouslySetInnerHTML={{
         __html: `
-          @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&display=swap');
+          @import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Noto+Sans+Arabic:wght@300;400;500;600;700&display=swap');
           
           .repair-receipt {
-            font-family: 'Cairo', 'Tahoma', sans-serif !important;
-            line-height: 1.4;
-            font-size: 12px;
+            font-family: 'Amiri', 'Noto Sans Arabic', 'Cairo', 'Tahoma', sans-serif !important;
+            line-height: 1.6;
+            font-size: 14px;
+            color: black !important;
           }
           
           .receipt-title {
-            font-family: 'Cairo', sans-serif !important;
-            font-weight: 600;
+            font-family: 'Amiri', 'Noto Sans Arabic', sans-serif !important;
+            font-weight: 700;
           }
           
           .receipt-content {
-            font-family: 'Cairo', sans-serif !important;
+            font-family: 'Noto Sans Arabic', 'Amiri', sans-serif !important;
+            font-weight: 400;
           }
           
           .receipt-numbers {
-            font-family: 'Cairo', sans-serif !important;
+            font-family: 'Noto Sans Arabic', sans-serif !important;
             direction: ltr;
             display: inline-block;
+            font-weight: 500;
+          }
+
+          .receipt-header {
+            text-align: center;
+            border-bottom: 2px solid black;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+          }
+
+          .receipt-section {
+            margin-bottom: 10px;
+            padding: 6px 0;
+          }
+
+          .receipt-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 4px 0;
+          }
+
+          .dashed-line {
+            border-top: 1px dashed black;
+            margin: 8px 0;
+          }
+
+          .solid-line {
+            border-top: 1px solid black;
+            margin: 6px 0;
+          }
+
+          .qr-section {
+            text-align: center;
+            margin: 12px 0;
           }
           
           @media print {
             .repair-receipt {
-              font-family: 'Cairo', 'Tahoma', sans-serif !important;
+              font-family: 'Amiri', 'Noto Sans Arabic', 'Tahoma', sans-serif !important;
               -webkit-print-color-adjust: exact;
               color-adjust: exact;
               width: 80mm;
-              font-size: 11px;
+              font-size: 13px;
+              background: white !important;
+              color: black !important;
             }
             
             .no-print {
               display: none !important;
+            }
+
+            * {
+              background: white !important;
+              color: black !important;
+              border-color: black !important;
             }
           }
         `
       }} />
 
       {/* ====================== الجزء الأول: إيصال العميل ====================== */}
-      <div className="customer-receipt p-3 border-b border-gray-300 receipt-content">
-        {/* رأس الوصل المحسن */}
-        <div className="text-center mb-3">
-          <div className="flex items-center justify-center gap-2 mb-2">
+      <div className="customer-receipt receipt-content">
+        
+        {/* رأس الوصل */}
+        <div className="receipt-header">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '6px' }}>
             {storeLogo && (
-              <img src={storeLogo} alt={storeName} className="h-8 w-8 object-contain" />
+              <img src={storeLogo} alt={storeName} style={{ height: '32px', width: '32px', objectFit: 'contain' }} />
             )}
-            <h1 className="text-base font-bold receipt-title">{storeName}</h1>
+            <h1 className="receipt-title" style={{ fontSize: '18px', margin: '0', fontWeight: '700' }}>
+              {storeName}
+            </h1>
           </div>
-          {storePhone && <p className="text-xs mb-1">📞 <span className="receipt-numbers">{convertToEnglishNumbers(storePhone)}</span></p>}
-          {storeAddress && <p className="text-xs text-gray-600">{storeAddress}</p>}
+          {storePhone && (
+            <p style={{ margin: '2px 0', fontSize: '12px' }}>
+              📞 <span className="receipt-numbers">{convertToEnglishNumbers(storePhone)}</span>
+            </p>
+          )}
+          {storeAddress && (
+            <p style={{ margin: '2px 0', fontSize: '11px', opacity: '0.8' }}>
+              📍 {storeAddress}
+            </p>
+          )}
         </div>
 
-        {/* عنوان الوصل المحسن */}
-        <div className="text-center bg-blue-50 border border-blue-200 rounded p-2 mb-3">
-          <h2 className="text-sm font-bold receipt-title text-blue-800">🔧 إيصال استلام جهاز للتصليح</h2>
-          <div className="flex justify-between items-center mt-1 text-xs">
-            <span>رقم: <span className="receipt-numbers font-bold">{convertToEnglishNumbers(order.order_number || order.id.slice(0, 8))}</span></span>
-            <span className="receipt-numbers">{formatDate(order.created_at)}</span>
-          </div>
+        {/* عنوان الوصل */}
+        <div style={{ textAlign: 'center', margin: '10px 0', padding: '6px', border: '1px solid black' }}>
+          <h2 className="receipt-title" style={{ fontSize: '16px', margin: '0', fontWeight: '700' }}>
+            🔧 إيصال استلام جهاز للتصليح
+          </h2>
         </div>
 
-        {/* بيانات العميل مع QR */}
-        <div className="flex justify-between items-start mb-3">
-          <div className="flex-1">
-            <h3 className="font-bold text-xs border-b pb-1 mb-1 receipt-title">بيانات العميل:</h3>
-            <p className="text-xs mb-1"><span className="font-bold">👤</span> {order.customer_name}</p>
-            <p className="text-xs"><span className="font-bold">📱</span> <span className="receipt-numbers">{convertToEnglishNumbers(order.customer_phone)}</span></p>
+        {/* معلومات الطلبية */}
+        <div className="receipt-section">
+          <div className="receipt-row">
+            <span className="receipt-title">رقم الطلبية:</span>
+            <span className="receipt-numbers" style={{ fontWeight: '700' }}>
+              #{convertToEnglishNumbers(order.order_number || order.id.slice(0, 8))}
+            </span>
           </div>
-          <div className="text-center">
-            <QRCodeSVG 
-              value={`${storeUrl}/repair-tracking/${trackingCode}`} 
-              size={45}
-              level="M"
-              className="border border-gray-200 rounded"
-            />
-            <p className="text-xs mt-1 text-gray-600">تتبع الطلبية</p>
+          <div className="receipt-row">
+            <span className="receipt-title">التاريخ:</span>
+            <span className="receipt-numbers" style={{ fontSize: '12px' }}>
+              {formatDate(order.created_at)}
+            </span>
           </div>
-        </div>
-
-        {/* تفاصيل العطل والدفع المحسنة */}
-        <div className="space-y-2 mb-3">
-          {/* وصف العطل */}
-          {order.issue_description && (
-            <div className="bg-gray-50 border border-gray-200 rounded p-2">
-              <h3 className="font-bold text-xs mb-1 receipt-title">🔍 وصف العطل:</h3>
-              <p className="text-xs">{order.issue_description}</p>
+          {queuePosition && queuePosition > 0 && (
+            <div className="receipt-row">
+              <span className="receipt-title">رقم الترتيب:</span>
+              <span className="receipt-numbers" style={{ fontWeight: '700', fontSize: '16px' }}>
+                {convertToEnglishNumbers(queuePosition)}
+              </span>
             </div>
           )}
-          
-          {/* تفاصيل الدفع */}
-          <div className="bg-green-50 border border-green-200 rounded p-2">
-            <h3 className="font-bold text-xs mb-1 receipt-title text-green-800">💰 تفاصيل الدفع:</h3>
-            {order.price_to_be_determined_later ? (
-              <div className="text-center">
-                <p className="text-xs font-bold text-amber-600">💡 السعر يحدد لاحقاً</p>
-              </div>
-            ) : (
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs">
-                  <span>السعر الكلي:</span>
-                  <span className="receipt-numbers font-bold">{convertToEnglishNumbers((order.total_price || 0).toLocaleString())} دج</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span>المدفوع:</span>
-                  <span className="receipt-numbers text-green-600 font-bold">{convertToEnglishNumbers((order.paid_amount || 0).toLocaleString())} دج</span>
-                </div>
-                {remainingAmount > 0 && (
-                  <div className="flex justify-between text-xs border-t border-green-300 pt-1">
-                    <span className="font-bold">المتبقي:</span>
-                    <span className="receipt-numbers text-red-600 font-bold">{convertToEnglishNumbers(remainingAmount.toLocaleString())} دج</span>
-                  </div>
-                )}
-              </div>
-            )}
+        </div>
+
+        <div className="dashed-line"></div>
+
+        {/* بيانات العميل */}
+        <div className="receipt-section">
+          <h3 className="receipt-title" style={{ fontSize: '14px', margin: '0 0 6px 0', fontWeight: '700' }}>
+            👤 بيانات العميل
+          </h3>
+          <div className="receipt-row">
+            <span>الاسم:</span>
+            <span style={{ fontWeight: '600' }}>{order.customer_name}</span>
+          </div>
+          <div className="receipt-row">
+            <span>الهاتف:</span>
+            <span className="receipt-numbers" style={{ fontWeight: '600' }}>
+              {convertToEnglishNumbers(order.customer_phone)}
+            </span>
           </div>
         </div>
 
-        {/* تعليمات التتبع المحسنة */}
-        <div className="border-t border-gray-300 pt-2 text-center">
-          <p className="text-xs mb-1">🔗 <span className="font-bold">رمز التتبع:</span> <span className="receipt-numbers font-bold">{convertToEnglishNumbers(trackingCode)}</span></p>
-          <p className="text-xs text-gray-600">امسح رمز QR أو ادخل على الموقع لمتابعة حالة التصليح</p>
+        {/* وصف العطل */}
+        {order.issue_description && (
+          <>
+            <div className="dashed-line"></div>
+            <div className="receipt-section">
+              <h3 className="receipt-title" style={{ fontSize: '14px', margin: '0 0 6px 0', fontWeight: '700' }}>
+                🔍 وصف العطل
+              </h3>
+              <p style={{ margin: '0', fontSize: '13px', lineHeight: '1.4' }}>
+                {order.issue_description}
+              </p>
+            </div>
+          </>
+        )}
+
+        {/* تفاصيل الدفع */}
+        <div className="dashed-line"></div>
+        <div className="receipt-section">
+          <h3 className="receipt-title" style={{ fontSize: '14px', margin: '0 0 6px 0', fontWeight: '700' }}>
+            💰 تفاصيل الدفع
+          </h3>
+          
+          {order.price_to_be_determined_later ? (
+            <div style={{ textAlign: 'center', padding: '8px', border: '1px dashed black' }}>
+              <p style={{ margin: '0', fontWeight: '700', fontSize: '14px' }}>
+                💡 السعر يحدد لاحقاً
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="receipt-row">
+                <span>السعر الكلي:</span>
+                <span className="receipt-numbers" style={{ fontWeight: '700' }}>
+                  {convertToEnglishNumbers((order.total_price || 0).toLocaleString())} دج
+                </span>
+              </div>
+              <div className="receipt-row">
+                <span>المدفوع:</span>
+                <span className="receipt-numbers" style={{ fontWeight: '700' }}>
+                  {convertToEnglishNumbers((order.paid_amount || 0).toLocaleString())} دج
+                </span>
+              </div>
+              {remainingAmount > 0 && (
+                <>
+                  <div className="solid-line"></div>
+                  <div className="receipt-row">
+                    <span style={{ fontWeight: '700' }}>المتبقي:</span>
+                    <span className="receipt-numbers" style={{ fontWeight: '700', fontSize: '16px' }}>
+                      {convertToEnglishNumbers(remainingAmount.toLocaleString())} دج
+                    </span>
+                  </div>
+                </>
+              )}
+            </>
+          )}
         </div>
 
-        {/* شروط الخدمة المختصرة */}
-        <div className="text-xs border-t border-gray-300 pt-2 mt-2 text-gray-600">
-          <p className="mb-1">• يجب تقديم هذا الإيصال عند الاستلام</p>
-          <p className="mb-1">• عدم المسؤولية عن فقدان البيانات</p>
-          <p>• الاستلام خلال 30 يوماً من الإشعار</p>
+        {/* QR Code */}
+        <div className="dashed-line"></div>
+        <div className="qr-section">
+          <QRCodeSVG 
+            value={`${storeUrl}/repair-tracking/${trackingCode}`} 
+            size={80}
+            level="M"
+            style={{ border: '1px solid black', padding: '4px' }}
+          />
+          <p style={{ margin: '6px 0 2px 0', fontSize: '12px', fontWeight: '600' }}>
+            🔗 كود التتبع: <span className="receipt-numbers">{convertToEnglishNumbers(trackingCode)}</span>
+          </p>
+          <p style={{ margin: '0', fontSize: '11px', opacity: '0.8' }}>
+            امسح الكود أو ادخل على الموقع لمتابعة حالة التصليح
+          </p>
+        </div>
+
+        {/* شروط الخدمة */}
+        <div className="dashed-line"></div>
+        <div style={{ fontSize: '11px', lineHeight: '1.4', textAlign: 'center' }}>
+          <p style={{ margin: '2px 0', fontWeight: '600' }}>
+            ⚠️ شروط مهمة
+          </p>
+          <p style={{ margin: '1px 0' }}>• يجب تقديم هذا الإيصال عند الاستلام</p>
+          <p style={{ margin: '1px 0' }}>• عدم المسؤولية عن فقدان البيانات</p>
+          <p style={{ margin: '1px 0' }}>• الاستلام خلال 30 يوماً من الإشعار</p>
         </div>
       </div>
 
       {/* ====================== خط الفصل للقطع ====================== */}
-      <div className="cut-line flex items-center justify-center py-1 bg-gray-100">
-        <div className="flex items-center w-full">
-          <div className="flex-1 border-t border-dashed border-gray-400"></div>
-          <div className="px-2 text-center">
-            <span className="text-sm">✂️</span>
-            <p className="text-xs text-gray-500">قص هنا</p>
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        padding: '8px 0',
+        margin: '12px 0'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+          <div style={{ flex: 1, borderTop: '1px dashed black' }}></div>
+          <div style={{ padding: '0 8px', textAlign: 'center' }}>
+            <span style={{ fontSize: '16px' }}>✂️</span>
+            <p style={{ fontSize: '10px', margin: '0', opacity: '0.7' }}>قص هنا</p>
           </div>
-          <div className="flex-1 border-t border-dashed border-gray-400"></div>
+          <div style={{ flex: 1, borderTop: '1px dashed black' }}></div>
         </div>
       </div>
 
-      {/* ====================== الجزء الثاني: لصقة الجهاز المحسنة ====================== */}
-      <div className="device-label p-3 bg-yellow-50 border-2 border-yellow-400 receipt-content">
+      {/* ====================== الجزء الثاني: لصقة الجهاز ====================== */}
+      <div className="device-label receipt-content" style={{ 
+        padding: '12px', 
+        border: '2px solid black',
+        marginTop: '8px'
+      }}>
+        
         {/* رأس اللصقة */}
-        <div className="text-center mb-2">
-          <h2 className="text-sm font-bold text-yellow-800 receipt-title">🏷️ لصقة الجهاز</h2>
+        <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+          <h2 className="receipt-title" style={{ fontSize: '16px', margin: '0', fontWeight: '700' }}>
+            🏷️ لصقة الجهاز
+          </h2>
         </div>
 
         {/* رقم الطلبية بارز */}
-        <div className="bg-red-500 text-white rounded-lg p-2 mb-2 text-center">
-          <p className="text-xs mb-1">رقم الطلبية</p>
-          <p className="text-xl font-black receipt-numbers tracking-wider">
+        <div style={{ 
+          border: '2px solid black', 
+          padding: '8px', 
+          marginBottom: '8px', 
+          textAlign: 'center',
+          backgroundColor: 'black',
+          color: 'white'
+        }}>
+          <p style={{ margin: '0 0 2px 0', fontSize: '11px' }}>رقم الطلبية</p>
+          <p className="receipt-numbers" style={{ 
+            fontSize: '20px', 
+            fontWeight: '900', 
+            margin: '0',
+            letterSpacing: '2px',
+            color: 'white'
+          }}>
             #{convertToEnglishNumbers(order.order_number || order.id.slice(0, 8))}
           </p>
         </div>
 
-        {/* ترتيب الطلبية في الجدول */}
-        {queuePosition !== undefined && queuePosition > 0 && (
-          <div className="bg-blue-500 text-white rounded-lg p-2 mb-2 text-center">
-            <p className="text-xs mb-1">رقم الترتيب</p>
-            <p className="text-lg font-black receipt-numbers">
+        {/* ترتيب الطلبية */}
+        {queuePosition && queuePosition > 0 && (
+          <div style={{ 
+            border: '1px solid black', 
+            padding: '6px', 
+            marginBottom: '8px', 
+            textAlign: 'center' 
+          }}>
+            <p style={{ margin: '0 0 2px 0', fontSize: '11px' }}>رقم الترتيب</p>
+            <p className="receipt-numbers" style={{ 
+              fontSize: '18px', 
+              fontWeight: '700', 
+              margin: '0'
+            }}>
               {convertToEnglishNumbers(queuePosition)}
             </p>
           </div>
         )}
 
-        {/* المعلومات الأساسية المحسنة */}
-        <div className="space-y-1 mb-2">
-          <div className="flex justify-between items-center text-xs">
+        {/* المعلومات الأساسية */}
+        <div style={{ fontSize: '12px' }}>
+          <div className="receipt-row">
             <span>👤 العميل:</span>
-            <span className="font-bold">{order.customer_name}</span>
+            <span style={{ fontWeight: '600' }}>{order.customer_name}</span>
           </div>
           
-          <div className="flex justify-between items-center text-xs">
+          <div className="receipt-row">
             <span>📱 الهاتف:</span>
-            <span className="font-bold receipt-numbers">{convertToEnglishNumbers(order.customer_phone)}</span>
+            <span className="receipt-numbers" style={{ fontWeight: '600' }}>
+              {convertToEnglishNumbers(order.customer_phone)}
+            </span>
           </div>
           
-          <div className="flex justify-between items-center text-xs">
+          <div className="receipt-row">
             <span>📅 التاريخ:</span>
-            <span className="receipt-numbers">{formatDate(order.created_at)}</span>
+            <span className="receipt-numbers" style={{ fontSize: '11px' }}>
+              {formatDate(order.created_at)}
+            </span>
           </div>
           
-          <div className="flex justify-between items-center text-xs">
+          <div className="receipt-row">
             <span>⚡ الحالة:</span>
-            <span className="font-bold px-2 py-1 rounded text-xs" style={{
-              backgroundColor: order.status === 'قيد الانتظار' ? '#fef3c7' : 
-                             order.status === 'جاري التصليح' ? '#dbeafe' :
-                             order.status === 'مكتمل' ? '#d1fae5' : '#fee2e2',
-              color: order.status === 'قيد الانتظار' ? '#d97706' : 
-                     order.status === 'جاري التصليح' ? '#2563eb' :
-                     order.status === 'مكتمل' ? '#059669' : '#dc2626'
-            }}>
+            <span style={{ fontWeight: '700', padding: '2px 6px', border: '1px solid black' }}>
               {order.status}
             </span>
           </div>
           
           {order.issue_description && (
-            <div className="border-t border-yellow-400 pt-1">
-              <p className="text-xs"><span className="font-bold">🔧 العطل:</span> {order.issue_description}</p>
-            </div>
+            <>
+              <div className="dashed-line"></div>
+              <p style={{ margin: '4px 0', fontSize: '11px' }}>
+                <span style={{ fontWeight: '700' }}>🔧 العطل:</span> {order.issue_description.slice(0, 50)}...
+              </p>
+            </>
           )}
         </div>
 
         {/* معلومات الدفع */}
-        {order.price_to_be_determined_later ? (
-          <div className="bg-amber-200 border border-amber-400 rounded p-1 mb-2 text-center">
-            <p className="text-xs font-bold text-amber-800">💡 السعر يحدد لاحقاً</p>
-          </div>
-        ) : (
-          <div className="bg-green-100 border border-green-300 rounded p-1 mb-2">
-            <div className="flex justify-between items-center text-xs">
-              <span>💰 مدفوع:</span>
-              <span className="font-bold text-green-600 receipt-numbers">{convertToEnglishNumbers((order.paid_amount || 0).toLocaleString())} دج</span>
+        <div className="dashed-line"></div>
+        <div style={{ fontSize: '12px' }}>
+          {order.price_to_be_determined_later ? (
+            <div style={{ textAlign: 'center', padding: '4px', border: '1px dashed black' }}>
+              <p style={{ margin: '0', fontWeight: '700' }}>💡 السعر يحدد لاحقاً</p>
             </div>
-            {remainingAmount > 0 && (
-              <div className="flex justify-between items-center text-xs">
-                <span>⏳ متبقي:</span>
-                <span className="font-bold text-red-600 receipt-numbers">{convertToEnglishNumbers(remainingAmount.toLocaleString())} دج</span>
+          ) : (
+            <>
+              <div className="receipt-row">
+                <span>💰 مدفوع:</span>
+                <span className="receipt-numbers" style={{ fontWeight: '700' }}>
+                  {convertToEnglishNumbers((order.paid_amount || 0).toLocaleString())} دج
+                </span>
               </div>
-            )}
-          </div>
-        )}
+              {remainingAmount > 0 && (
+                <div className="receipt-row">
+                  <span>⏳ متبقي:</span>
+                  <span className="receipt-numbers" style={{ fontWeight: '700' }}>
+                    {convertToEnglishNumbers(remainingAmount.toLocaleString())} دج
+                  </span>
+                </div>
+              )}
+            </>
+          )}
+        </div>
 
-        {/* QR codes محسنة */}
-        <div className="grid grid-cols-2 gap-2 mb-2">
+        {/* QR codes */}
+        <div className="dashed-line"></div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
           {/* QR للتتبع */}
-          <div className="bg-blue-100 border border-blue-300 rounded p-1 text-center">
+          <div style={{ textAlign: 'center', border: '1px solid black', padding: '6px' }}>
             <QRCodeSVG 
               value={`${storeUrl}/repair-tracking/${trackingCode}`} 
-              size={35}
+              size={65}
               level="M"
             />
-            <p className="text-xs text-blue-700 mt-1">📱 تتبع</p>
+            <p style={{ fontSize: '10px', margin: '3px 0', fontWeight: '600' }}>📱 تتبع</p>
           </div>
           
           {/* QR لإنهاء التصليح */}
-          <div className="bg-green-100 border border-green-300 rounded p-1 text-center">
+          <div style={{ textAlign: 'center', border: '1px solid black', padding: '6px' }}>
             <QRCodeSVG 
               value={`${storeUrl}/repair-complete/${order.id}`} 
-              size={35}
+              size={65}
               level="M"
             />
-            <p className="text-xs text-green-700 mt-1">✅ إنهاء</p>
+            <p style={{ fontSize: '10px', margin: '3px 0', fontWeight: '600' }}>✅ إنهاء</p>
           </div>
         </div>
 
         {/* كود التتبع */}
-        <div className="bg-gray-100 border border-gray-300 rounded p-1 text-center mb-2">
-          <p className="text-xs"><span className="font-bold">🔑 كود:</span> <span className="receipt-numbers font-bold">{convertToEnglishNumbers(trackingCode)}</span></p>
+        <div style={{ 
+          textAlign: 'center', 
+          border: '1px solid black', 
+          padding: '4px',
+          marginBottom: '8px'
+        }}>
+          <p style={{ fontSize: '11px', margin: '0' }}>
+            <span style={{ fontWeight: '700' }}>🔑 كود:</span> 
+            <span className="receipt-numbers" style={{ fontWeight: '700' }}>
+              {convertToEnglishNumbers(trackingCode)}
+            </span>
+          </p>
         </div>
 
         {/* مساحة لملاحظات الفني */}
-        <div className="border-2 border-dashed border-gray-400 rounded p-1">
-          <p className="text-xs font-bold text-gray-700 mb-1">📝 ملاحظات الفني:</p>
-          <div className="space-y-1">
-            <div className="border-b border-gray-300 h-2"></div>
-            <div className="border-b border-gray-300 h-2"></div>
-          </div>
-        </div>
-        
-        {/* تعليمات للفني */}
-        <div className="mt-2 p-1 bg-red-100 border border-red-300 rounded text-center">
-          <p className="text-xs text-red-700">
-            ⚠️ <span className="font-bold">احتفظ بهذه اللصقة مع الجهاز</span>
+        <div style={{ border: '1px dashed black', padding: '6px' }}>
+          <p style={{ fontSize: '11px', fontWeight: '700', margin: '0 0 4px 0' }}>
+            📝 ملاحظات الفني:
           </p>
+          <div style={{ borderBottom: '1px solid black', height: '8px', margin: '2px 0' }}></div>
+          <div style={{ borderBottom: '1px solid black', height: '8px', margin: '2px 0' }}></div>
+          <div style={{ borderBottom: '1px solid black', height: '8px', margin: '2px 0' }}></div>
         </div>
       </div>
     </div>
