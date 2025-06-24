@@ -280,7 +280,7 @@ export function NavbarMain({
     };
   }, [currentOrganization?.id, currentOrganization?.name]);
   
-  // Load product categories - مع تحسينات لتقليل الطلبات المتكررة
+  // Load product categories - محسن لتقليل الطلبات المتكررة
   useEffect(() => {
     const fetchCategories = async () => {
       // إذا كانت الفئات محملة من الخارج، استخدمها مباشرة
@@ -299,13 +299,13 @@ export function NavbarMain({
       
       setIsLoadingCategories(true);
       try {
-        // استخدام نظام التخزين المؤقت الجديد
+        // استخدام نظام التخزين المؤقت الجديد مع cache أطول
         const cacheKey = createCacheKey('navbar_categories', currentOrganization.id);
         
         const categoriesFromDB = await requestCache.get(
           cacheKey,
           () => getProductCategories(currentOrganization.id),
-          10 * 60 * 1000 // 10 دقائق
+          30 * 60 * 1000 // 30 دقيقة - زيادة cache time
         );
         
         if (categoriesFromDB && categoriesFromDB.length > 0) {
@@ -318,8 +318,8 @@ export function NavbarMain({
       }
     };
     
-    // تأخير طفيف لتجنب التحميل المتزامن مع مكونات أخرى
-    const timeoutId = setTimeout(fetchCategories, 100);
+    // تأخير أكبر لتجنب التحميل المتزامن مع مكونات أخرى
+    const timeoutId = setTimeout(fetchCategories, 500);
     
     return () => clearTimeout(timeoutId);
   }, [currentOrganization?.id, propCategories]); // إزالة storeCategories من التبعيات لتجنب التحديثات المتكررة

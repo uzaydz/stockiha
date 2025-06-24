@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Product } from '@/types';
-import { Search, Filter, ShoppingCart, Tag, Package, LayoutGrid, ListFilter, Percent, Users, Plus, ArrowUpDown, Layers, Grid3X3, Grid2X2, List, ChevronDown, Loader2, AlertCircle } from 'lucide-react';
+import { Search, Filter, ShoppingCart, Tag, Package, LayoutGrid, ListFilter, Percent, Users, Plus, ArrowUpDown, Layers, Grid3X3, Grid2X2, List, ChevronDown, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -22,18 +22,16 @@ import { useDebounce } from '@/hooks/useDebounce';
 
 interface ProductCatalogOptimizedProps {
   onAddToCart: (product: Product) => void;
+  onStockUpdate?: (productId: string, stockChange: number) => void; // إضافة callback لتحديث المخزون
 }
 
-export default function ProductCatalogOptimized({ onAddToCart }: ProductCatalogOptimizedProps) {
+export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate }: ProductCatalogOptimizedProps) {
   const { currentOrganization } = useTenant();
   
   // حالة البيانات
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [stats, setStats] = useState<any>(null);
-  
-  // مرجع لآخر تحديث للمنتجات
-  const lastUpdateRef = useRef<number>(0);
   
   // حالة Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -67,7 +65,11 @@ export default function ProductCatalogOptimized({ onAddToCart }: ProductCatalogO
   // مرجع للـ ScrollArea
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   
-  const pageSize = viewMode === 'grid' ? 50 : viewMode === 'compact' ? 80 : 30;
+  const pageSize = useMemo(() => {
+    return viewMode === 'grid' ? 50 : viewMode === 'compact' ? 80 : 30;
+  }, [viewMode]);
+  
+
   
   // جلب الفئات
   useEffect(() => {
@@ -102,21 +104,114 @@ export default function ProductCatalogOptimized({ onAddToCart }: ProductCatalogO
     fetchStats();
   }, [currentOrganization?.id]);
   
-  // جلب المنتجات
-  const fetchProducts = useCallback(async (page: number, reset: boolean = false) => {
+
+  
+  // تحميل الصفحة الأولى عند تغيير الفلاتر
+  useEffect(() => {
     if (!currentOrganization?.id) return;
     
-    try {
+    const loadFirstPage = async () => {
+      setCurrentPage(1);
+      setIsInitialLoading(true);
       setError(null);
       
-      if (page === 1) {
-        setIsInitialLoading(true);
-      } else {
-        setIsLoadingMore(true);
+      try {
+        const response = await getPaginatedProducts(currentOrganization.id, {
+          page: 1,
+          pageSize,
+          searchQuery: debouncedSearchQuery || undefined,
+          categoryId: selectedCategory !== 'all' ? selectedCategory : undefined,
+          sortBy: sortOption,
+          sortOrder: sortOrder,
+          includeVariants: true
+        });
+        
+        const transformedProducts = response.products.map(transformDatabaseProduct);
+        setProducts(transformedProducts);
+        
+        // إعادة التمرير إلى الأعلى عند إعادة التعيين
+        if (scrollAreaRef.current) {
+          scrollAreaRef.current.scrollTop = 0;
+        }
+        
+        setCurrentPage(response.currentPage);
+        setTotalPages(response.pageCount);
+        setTotalProducts(response.totalCount);
+        setHasNextPage(response.hasNextPage);
+      } catch (error) {
+        console.error('Error fetching products:', error);
+        setError('حدث خطأ في تحميل المنتجات. يرجى المحاولة مرة أخرى.');
+      } finally {
+        setIsInitialLoading(false);
       }
+    };
+    
+    loadFirstPage();
+  }, [debouncedSearchQuery, selectedCategory, sortOption, sortOrder, currentOrganization?.id, pageSize]); // هذا useEffect يحتاج dependencies لأنه المسؤول عن التحديث عند تغيير الفلاتر
+  
+  // تحميل المزيد عند الوصول لنهاية القائمة
+  useEffect(() => {
+    if (inView && hasNextPage && !isLoadingMore && !isInitialLoading && currentOrganization?.id) {
+      const loadMore = async () => {
+        setIsLoadingMore(true);
+        
+        try {
+          const response = await getPaginatedProducts(currentOrganization.id, {
+            page: currentPage + 1,
+            pageSize,
+            searchQuery: debouncedSearchQuery || undefined,
+            categoryId: selectedCategory !== 'all' ? selectedCategory : undefined,
+            sortBy: sortOption,
+            sortOrder: sortOrder,
+            includeVariants: true
+          });
+          
+          const transformedProducts = response.products.map(transformDatabaseProduct);
+          setProducts(prev => [...prev, ...transformedProducts]);
+          setCurrentPage(response.currentPage);
+          setTotalPages(response.pageCount);
+          setTotalProducts(response.totalCount);
+          setHasNextPage(response.hasNextPage);
+        } catch (error) {
+          console.error('Error loading more products:', error);
+        } finally {
+          setIsLoadingMore(false);
+        }
+      };
       
+      loadMore();
+    }
+  }, [inView, hasNextPage, isLoadingMore, isInitialLoading, currentPage, currentOrganization?.id, pageSize, debouncedSearchQuery, selectedCategory, sortOption, sortOrder]);
+
+  // دالة لتحديث المخزون محلياً (يمكن استدعاؤها من الخارج)
+  const updateLocalStock = useCallback((productId: string, stockChange: number) => {
+    setProducts(prevProducts => 
+      prevProducts.map(p => 
+        p.id === productId 
+          ? { ...p, stockQuantity: Math.max(0, p.stockQuantity + stockChange) }
+          : p
+      )
+    );
+  }, []);
+
+  // تمرير دالة تحديث المخزون للمكون الأب
+  useEffect(() => {
+    if (onStockUpdate) {
+      // إرسال مرجع للدالة للمكون الأب
+      onStockUpdate('__update_function__', updateLocalStock as any);
+    }
+  }, [onStockUpdate, updateLocalStock]);
+
+  // إضافة دالة للتحديث اليدوي
+  const handleManualRefresh = useCallback(async () => {
+    if (!currentOrganization?.id || isInitialLoading) return;
+    
+    setIsInitialLoading(true);
+    setError(null);
+    
+    try {
       const response = await getPaginatedProducts(currentOrganization.id, {
-        page,
+        page: 1,
         pageSize,
         searchQuery: debouncedSearchQuery || undefined,
         categoryId: selectedCategory !== 'all' ? selectedCategory : undefined,
@@ -126,72 +221,25 @@ export default function ProductCatalogOptimized({ onAddToCart }: ProductCatalogO
       });
       
       const transformedProducts = response.products.map(transformDatabaseProduct);
-      
-      if (reset) {
-        setProducts(transformedProducts);
-        // إعادة التمرير إلى الأعلى عند إعادة التعيين
-        if (scrollAreaRef.current) {
-          scrollAreaRef.current.scrollTop = 0;
-        }
-      } else {
-        setProducts(prev => [...prev, ...transformedProducts]);
-      }
-      
+      setProducts(transformedProducts);
       setCurrentPage(response.currentPage);
       setTotalPages(response.pageCount);
       setTotalProducts(response.totalCount);
       setHasNextPage(response.hasNextPage);
       
+      // إعادة التمرير إلى الأعلى
+      if (scrollAreaRef.current) {
+        scrollAreaRef.current.scrollTop = 0;
+      }
     } catch (error) {
-      console.error('Error fetching products:', error);
+      console.error('Error refreshing products:', error);
       setError('حدث خطأ في تحميل المنتجات. يرجى المحاولة مرة أخرى.');
     } finally {
       setIsInitialLoading(false);
-      setIsLoadingMore(false);
     }
-  }, [currentOrganization?.id, debouncedSearchQuery, selectedCategory, sortOption, sortOrder, pageSize]);
-  
-  // تحميل الصفحة الأولى عند تغيير الفلاتر
-  useEffect(() => {
-    setCurrentPage(1);
-    fetchProducts(1, true);
-  }, [debouncedSearchQuery, selectedCategory, sortOption, sortOrder, currentOrganization?.id]);
-  
-  // تحميل المزيد عند الوصول لنهاية القائمة
-  useEffect(() => {
-    if (inView && hasNextPage && !isLoadingMore && !isInitialLoading) {
-      fetchProducts(currentPage + 1, false);
-    }
-  }, [inView, hasNextPage, isLoadingMore, isInitialLoading, currentPage, fetchProducts]);
+  }, [currentOrganization?.id, pageSize, debouncedSearchQuery, selectedCategory, sortOption, sortOrder, isInitialLoading]);
 
-  // تحديث دوري للمنتجات كل 30 ثانية لضمان تحديث المخزون
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const now = Date.now();
-      // تحديث فقط إذا مر أكثر من 30 ثانية منذ آخر تحديث
-      if (now - lastUpdateRef.current > 30000) {
-        lastUpdateRef.current = now;
-        fetchProducts(1, true);
-      }
-    }, 30000);
 
-    return () => clearInterval(interval);
-  }, [fetchProducts]);
-
-  // تحديث فوري عند تغيير focus للنافذة (عند العودة للتطبيق)
-  useEffect(() => {
-    const handleFocus = () => {
-      const now = Date.now();
-      // تحديث فقط إذا مر أكثر من 10 ثوانٍ منذ آخر تحديث
-      if (now - lastUpdateRef.current > 10000) {
-        lastUpdateRef.current = now;
-        fetchProducts(1, true);
-      }
-    };
-
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [fetchProducts]);
   
   // دالة للحصول على الفئات المعروضة
   const displayCategories = useMemo(() => {
@@ -445,6 +493,16 @@ export default function ProductCatalogOptimized({ onAddToCart }: ProductCatalogO
             {viewMode === 'compact' && <Grid2X2 className="h-4 w-4" />}
             {viewMode === 'list' && <List className="h-4 w-4" />}
           </Button>
+          
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handleManualRefresh}
+            disabled={isInitialLoading}
+            className="flex-shrink-0 shadow-sm"
+          >
+            <RefreshCw className={cn("h-4 w-4", isInitialLoading && "animate-spin")} />
+          </Button>
         </div>
         
         {/* الفئات */}
@@ -604,7 +662,34 @@ export default function ProductCatalogOptimized({ onAddToCart }: ProductCatalogO
                 ) : (
                   <Button
                     variant="outline"
-                    onClick={() => fetchProducts(currentPage + 1, false)}
+                    onClick={async () => {
+                      if (currentOrganization?.id && !isLoadingMore) {
+                        setIsLoadingMore(true);
+                        
+                        try {
+                          const response = await getPaginatedProducts(currentOrganization.id, {
+                            page: currentPage + 1,
+                            pageSize,
+                            searchQuery: debouncedSearchQuery || undefined,
+                            categoryId: selectedCategory !== 'all' ? selectedCategory : undefined,
+                            sortBy: sortOption,
+                            sortOrder: sortOrder,
+                            includeVariants: true
+                          });
+                          
+                          const transformedProducts = response.products.map(transformDatabaseProduct);
+                          setProducts(prev => [...prev, ...transformedProducts]);
+                          setCurrentPage(response.currentPage);
+                          setTotalPages(response.pageCount);
+                          setTotalProducts(response.totalCount);
+                          setHasNextPage(response.hasNextPage);
+                        } catch (error) {
+                          console.error('Error loading more products:', error);
+                        } finally {
+                          setIsLoadingMore(false);
+                        }
+                      }
+                    }}
                     className="text-muted-foreground"
                   >
                     تحميل المزيد

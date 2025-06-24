@@ -588,28 +588,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           await signOutAndClearState();
         }
               } else {
-          // 3. If no token, check for an existing session from Supabase storage
-          const { data: { session: initialSession } } = await client.auth.getSession();
-          
-          if (!initialSession && !savedAuthState.session) {
-            // لا توجد جلسة محفوظة ولا جلسة في Supabase
+        // 3. If no token, استخدم البيانات المحفوظة بدلاً من استدعاء getSession مباشرة
+        if (!savedAuthState.session) {
+          // لا توجد جلسة محفوظة، استدعي getSession مرة واحدة فقط
+          try {
+            const { data: { session: initialSession } } = await client.auth.getSession();
+            
+            if (!initialSession) {
+              // لا توجد جلسة
+              setIsLoading(false);
+              setHasInitialSessionCheck(true);
+            } else {
+              // وجدت جلسة في Supabase
+              updateAuthState(initialSession, initialSession.user);
+              setHasInitialSessionCheck(true);
+            }
+          } catch (error) {
+            console.error('Error getting initial session:', error);
             setIsLoading(false);
             setHasInitialSessionCheck(true);
-          } else if (initialSession && !savedAuthState.session) {
-            // وجدت جلسة في Supabase لكن ليس محفوظة محلياً
-            updateAuthState(initialSession, initialSession.user);
-            setHasInitialSessionCheck(true);
-          } else if (savedAuthState.session && !initialSession) {
-            // جلسة محفوظة محلياً لكن غير صالحة في Supabase
-            updateAuthState(null, null, true);
-            setIsLoading(false);
-            setHasInitialSessionCheck(true);
-          } else {
-            // كلا الجلستين متوفرتان، استخدم الأحدث
-            setHasInitialSessionCheck(true);
-            setIsLoading(false);
           }
+        } else {
+          // لدينا جلسة محفوظة، لا نحتاج لاستدعاء getSession
+          // الـ onAuthStateChange listener سيتولى التحقق من صحتها
+          setHasInitialSessionCheck(true);
+          setIsLoading(false);
         }
+      }
 
         // إنهاء التهيئة
         isInitializingRef.current = false;

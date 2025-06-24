@@ -218,7 +218,7 @@ export function useOptimizedAuth(): OptimizedAuthState {
     } else if (!authLoading && !user) {
       setState(prev => ({ ...prev, isLoading: false }));
     }
-  }, [user, authLoading, fetchOrganizationId, state.userId, authManager]);
+  }, [user, authLoading, state.userId]); // إزالة fetchOrganizationId و authManager من dependencies
 
   return state;
 }

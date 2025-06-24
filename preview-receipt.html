@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>معاينة وصل التصليح</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Noto+Sans+Arabic:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            font-family: 'Amiri', 'Noto Sans Arabic', 'Cairo', 'Tahoma', sans-serif;
+        }
+
+        .repair-receipt {
+            font-family: 'Amiri', 'Noto Sans Arabic', 'Cairo', 'Tahoma', sans-serif;
+            line-height: 1.6;
+            font-size: 14px;
+            width: 80mm;
+            max-width: 300px;
+            margin: 0 auto;
+            background-color: white;
+            color: black;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #e5e7eb;
+        }
+        
+        .receipt-title {
+            font-family: 'Amiri', 'Noto Sans Arabic', sans-serif;
+            font-weight: 700;
+        }
+        
+        .receipt-content {
+            font-family: 'Noto Sans Arabic', 'Amiri', sans-serif;
+            font-weight: 400;
+        }
+        
+        .receipt-numbers {
+            font-family: 'Noto Sans Arabic', sans-serif;
+            direction: ltr;
+            display: inline-block;
+            font-weight: 500;
+        }
+
+        .receipt-header {
+            text-align: center;
+            border-bottom: 2px solid black;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+        }
+
+        .receipt-section {
+            margin-bottom: 10px;
+            padding: 6px 0;
+        }
+
+        .receipt-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 4px 0;
+        }
+
+        .dashed-line {
+            border-top: 1px dashed black;
+            margin: 8px 0;
+        }
+
+        .solid-line {
+            border-top: 1px solid black;
+            margin: 6px 0;
+        }
+
+        .qr-section {
+            text-align: center;
+            margin: 12px 0;
+        }
+
+        .customer-receipt {
+            padding: 12px;
+        }
+
+        .device-label {
+            padding: 12px;
+            border: 2px solid black;
+            margin-top: 8px;
+        }
+
+        .print-button {
+            display: block;
+            margin: 20px auto;
+            padding: 10px 20px;
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            .print-button {
+                display: none;
+            }
+            .repair-receipt {
+                box-shadow: none;
+                border-radius: 0;
+                border: none;
+                width: 80mm;
+                max-width: 80mm;
+                font-size: 13px;
+            }
+            * {
+                background: white !important;
+                color: black !important;
+                border-color: black !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <button class="print-button" onclick="window.print()">طباعة الوصل</button>
+    
+    <div class="repair-receipt" dir="rtl">
+        <!-- الجزء الأول: إيصال العميل -->
+        <div class="customer-receipt receipt-content">
+            
+            <!-- رأس الوصل -->
+            <div class="receipt-header">
+                <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 6px;">
+                    <h1 class="receipt-title" style="fontSize: 18px; margin: 0; font-weight: 700;">
+                        متجر فريد للإلكترونيات
+                    </h1>
+                </div>
+                <p style="margin: 2px 0; font-size: 12px;">
+                    📞 <span class="receipt-numbers">0555123456</span>
+                </p>
+                <p style="margin: 2px 0; font-size: 11px; opacity: 0.8;">
+                    📍 شارع الاستقلال، حي النصر، الجزائر العاصمة
+                </p>
+            </div>
+
+            <!-- عنوان الوصل -->
+            <div style="text-align: center; margin: 10px 0; padding: 6px; border: 1px solid black;">
+                <h2 class="receipt-title" style="font-size: 16px; margin: 0; font-weight: 700;">
+                    🔧 إيصال استلام جهاز للتصليح
+                </h2>
+            </div>
+
+            <!-- معلومات الطلبية -->
+            <div class="receipt-section">
+                <div class="receipt-row">
+                    <span class="receipt-title">رقم الطلبية:</span>
+                    <span class="receipt-numbers" style="font-weight: 700;">
+                        #TR-2506-183-7937
+                    </span>
+                </div>
+                <div class="receipt-row">
+                    <span class="receipt-title">التاريخ:</span>
+                    <span class="receipt-numbers" style="font-size: 12px;">
+                        25/06/2024 14:30
+                    </span>
+                </div>
+                <div class="receipt-row">
+                    <span class="receipt-title">رقم الترتيب:</span>
+                    <span class="receipt-numbers" style="font-weight: 700; font-size: 16px;">
+                        5
+                    </span>
+                </div>
+            </div>
+
+            <div class="dashed-line"></div>
+
+            <!-- بيانات العميل -->
+            <div class="receipt-section">
+                <h3 class="receipt-title" style="font-size: 14px; margin: 0 0 6px 0; font-weight: 700;">
+                    👤 بيانات العميل
+                </h3>
+                <div class="receipt-row">
+                    <span>الاسم:</span>
+                    <span style="font-weight: 600;">أحمد محمد</span>
+                </div>
+                <div class="receipt-row">
+                    <span>الهاتف:</span>
+                    <span class="receipt-numbers" style="font-weight: 600;">
+                        0661234567
+                    </span>
+                </div>
+            </div>
+
+            <!-- وصف العطل -->
+            <div class="dashed-line"></div>
+            <div class="receipt-section">
+                <h3 class="receipt-title" style="font-size: 14px; margin: 0 0 6px 0; font-weight: 700;">
+                    🔍 وصف العطل
+                </h3>
+                <p style="margin: 0; font-size: 13px; line-height: 1.4;">
+                    لا يشتغل الجهاز، شاشة سوداء، لا يوجد صوت
+                </p>
+            </div>
+
+            <!-- تفاصيل الدفع -->
+            <div class="dashed-line"></div>
+            <div class="receipt-section">
+                <h3 class="receipt-title" style="font-size: 14px; margin: 0 0 6px 0; font-weight: 700;">
+                    💰 تفاصيل الدفع
+                </h3>
+                
+                <div class="receipt-row">
+                    <span>السعر الكلي:</span>
+                    <span class="receipt-numbers" style="font-weight: 700;">
+                        5,000 دج
+                    </span>
+                </div>
+                <div class="receipt-row">
+                    <span>المدفوع:</span>
+                    <span class="receipt-numbers" style="font-weight: 700;">
+                        2,000 دج
+                    </span>
+                </div>
+                <div class="solid-line"></div>
+                <div class="receipt-row">
+                    <span style="font-weight: 700;">المتبقي:</span>
+                    <span class="receipt-numbers" style="font-weight: 700; font-size: 16px;">
+                        3,000 دج
+                    </span>
+                </div>
+            </div>
+
+            <!-- QR Code -->
+            <div class="dashed-line"></div>
+            <div class="qr-section">
+                <div style="width: 80px; height: 80px; border: 1px solid black; margin: 0 auto; display: flex; align-items: center; justify-content: center; background: #f0f0f0;">
+                    QR CODE
+                </div>
+                <p style="margin: 6px 0 2px 0; font-size: 12px; font-weight: 600;">
+                    🔗 كود التتبع: <span class="receipt-numbers">TR-2506-183-7937</span>
+                </p>
+                <p style="margin: 0; font-size: 11px; opacity: 0.8;">
+                    امسح الكود أو ادخل على الموقع لمتابعة حالة التصليح
+                </p>
+            </div>
+
+            <!-- شروط الخدمة -->
+            <div class="dashed-line"></div>
+            <div style="font-size: 11px; line-height: 1.4; text-align: center;">
+                <p style="margin: 2px 0; font-weight: 600;">
+                    ⚠️ شروط مهمة
+                </p>
+                <p style="margin: 1px 0;">• يجب تقديم هذا الإيصال عند الاستلام</p>
+                <p style="margin: 1px 0;">• عدم المسؤولية عن فقدان البيانات</p>
+                <p style="margin: 1px 0;">• الاستلام خلال 30 يوماً من الإشعار</p>
+            </div>
+        </div>
+
+        <!-- خط الفصل للقطع -->
+        <div style="display: flex; align-items: center; justify-content: center; padding: 8px 0; margin: 12px 0;">
+            <div style="display: flex; align-items: center; width: 100%;">
+                <div style="flex: 1; border-top: 1px dashed black;"></div>
+                <div style="padding: 0 8px; text-align: center;">
+                    <span style="font-size: 16px;">✂️</span>
+                    <p style="font-size: 10px; margin: 0; opacity: 0.7;">قص هنا</p>
+                </div>
+                <div style="flex: 1; border-top: 1px dashed black;"></div>
+            </div>
+        </div>
+
+        <!-- الجزء الثاني: لصقة الجهاز -->
+        <div class="device-label receipt-content">
+            
+            <!-- رأس اللصقة -->
+            <div style="text-align: center; margin-bottom: 8px;">
+                <h2 class="receipt-title" style="font-size: 16px; margin: 0; font-weight: 700;">
+                    🏷️ لصقة الجهاز
+                </h2>
+            </div>
+
+            <!-- رقم الطلبية بارز -->
+            <div style="border: 2px solid black; padding: 8px; margin-bottom: 8px; text-align: center; background-color: black; color: white;">
+                <p style="margin: 0 0 2px 0; font-size: 11px;">رقم الطلبية</p>
+                <p class="receipt-numbers" style="font-size: 20px; font-weight: 900; margin: 0; letter-spacing: 2px; color: white;">
+                    #TR-2506-183-7937
+                </p>
+            </div>
+
+            <!-- ترتيب الطلبية -->
+            <div style="border: 1px solid black; padding: 6px; margin-bottom: 8px; text-align: center;">
+                <p style="margin: 0 0 2px 0; font-size: 11px;">رقم الترتيب</p>
+                <p class="receipt-numbers" style="font-size: 18px; font-weight: 700; margin: 0;">
+                    5
+                </p>
+            </div>
+
+            <!-- المعلومات الأساسية -->
+            <div style="font-size: 12px;">
+                <div class="receipt-row">
+                    <span>👤 العميل:</span>
+                    <span style="font-weight: 600;">أحمد محمد</span>
+                </div>
+                
+                <div class="receipt-row">
+                    <span>📱 الهاتف:</span>
+                    <span class="receipt-numbers" style="font-weight: 600;">
+                        0661234567
+                    </span>
+                </div>
+                
+                <div class="receipt-row">
+                    <span>📅 التاريخ:</span>
+                    <span class="receipt-numbers" style="font-size: 11px;">
+                        25/06/2024
+                    </span>
+                </div>
+                
+                <div class="receipt-row">
+                    <span>⚡ الحالة:</span>
+                    <span style="font-weight: 700; padding: 2px 6px; border: 1px solid black;">
+                        قيد الانتظار
+                    </span>
+                </div>
+                
+                <div class="dashed-line"></div>
+                <p style="margin: 4px 0; font-size: 11px;">
+                    <span style="font-weight: 700;">🔧 العطل:</span> لا يشتغل الجهاز، شاشة سوداء...
+                </p>
+            </div>
+
+            <!-- معلومات الدفع -->
+            <div class="dashed-line"></div>
+            <div style="font-size: 12px;">
+                <div class="receipt-row">
+                    <span>💰 مدفوع:</span>
+                    <span class="receipt-numbers" style="font-weight: 700;">
+                        2,000 دج
+                    </span>
+                </div>
+                <div class="receipt-row">
+                    <span>⏳ متبقي:</span>
+                    <span class="receipt-numbers" style="font-weight: 700;">
+                        3,000 دج
+                    </span>
+                </div>
+            </div>
+
+            <!-- QR codes -->
+            <div class="dashed-line"></div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                <!-- QR للتتبع -->
+                <div style="text-align: center; border: 1px solid black; padding: 6px;">
+                    <div style="width: 65px; height: 65px; background: #f0f0f0; margin: 0 auto; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold;">QR</div>
+                    <p style="font-size: 10px; margin: 3px 0; font-weight: 600;">📱 تتبع</p>
+                </div>
+                
+                <!-- QR لإنهاء التصليح -->
+                <div style="text-align: center; border: 1px solid black; padding: 6px;">
+                    <div style="width: 65px; height: 65px; background: #f0f0f0; margin: 0 auto; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold;">QR</div>
+                    <p style="font-size: 10px; margin: 3px 0; font-weight: 600;">✅ إنهاء</p>
+                </div>
+            </div>
+
+            <!-- كود التتبع -->
+            <div style="text-align: center; border: 1px solid black; padding: 4px; margin-bottom: 8px;">
+                <p style="font-size: 11px; margin: 0;">
+                    <span style="font-weight: 700;">🔑 كود:</span> 
+                    <span class="receipt-numbers" style="font-weight: 700;">
+                        TR-2506-183-7937
+                    </span>
+                </p>
+            </div>
+
+            <!-- مساحة لملاحظات الفني -->
+            <div style="border: 1px dashed black; padding: 6px;">
+                <p style="font-size: 11px; font-weight: 700; margin: 0 0 4px 0;">
+                    📝 ملاحظات الفني:
+                </p>
+                <div style="border-bottom: 1px solid black; height: 8px; margin: 2px 0;"></div>
+                <div style="border-bottom: 1px solid black; height: 8px; margin: 2px 0;"></div>
+                <div style="border-bottom: 1px solid black; height: 8px; margin: 2px 0;"></div>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 

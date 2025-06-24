@@ -49,6 +49,7 @@ const Products = memo(() => {
   const abortControllerRef = useRef<AbortController | null>(null);
   const loadingRef = useRef(false);
   const lastRequestIdRef = useRef<string>('');
+  const currentPageRef = useRef(1);
   
   // Core state management
   const [products, setProducts] = useState<Product[]>([]);
@@ -63,6 +64,10 @@ const Products = memo(() => {
     stockFilter: searchParams.get('stock') || 'all',
     sortOption: searchParams.get('sort') || 'newest',
   }));
+
+  // Refs for stable references
+  const filtersRef = useRef<FilterState>(filters);
+  const debouncedSearchQueryRef = useRef('');
 
 
   
@@ -85,6 +90,19 @@ const Products = memo(() => {
 
   // Enhanced debounced search - زيادة التأخير لتحسين الأداء
   const debouncedSearchQuery = useDebounce(filters.searchQuery, DEBOUNCE_DELAY);
+
+  // تحديث refs عند تغيير القيم
+  useEffect(() => {
+    currentPageRef.current = currentPage;
+  }, [currentPage]);
+
+  useEffect(() => {
+    filtersRef.current = filters;
+  }, [filters]);
+
+  useEffect(() => {
+    debouncedSearchQueryRef.current = debouncedSearchQuery;
+  }, [debouncedSearchQuery]);
 
   // Memoized filter for URL updates
   const activeFilters = useMemo(() => ({
@@ -133,7 +151,7 @@ const Products = memo(() => {
 
   // Enhanced products fetching with better error handling
   const fetchProducts = useCallback(async (
-    page: number = currentPage,
+    page?: number,
     filterOverrides: Partial<FilterState> = {},
     forceRefresh: boolean = false
   ) => {
@@ -171,10 +189,15 @@ const Products = memo(() => {
     setLoadError(null);
 
     try {
-      const searchFilters = { ...filters, ...filterOverrides };
+      // استخدام القيم من refs للحصول على أحدث البيانات
+      const currentPageValue = page || currentPageRef.current;
+      const currentFilters = filtersRef.current;
+      const currentDebouncedQuery = debouncedSearchQueryRef.current;
+      
+      const searchFilters = { ...currentFilters, ...filterOverrides };
       
       console.log('🔄 جلب المنتجات:', { 
-        page, 
+        page: currentPageValue, 
         pageSize, 
         filters: searchFilters,
         requestId 
@@ -182,11 +205,11 @@ const Products = memo(() => {
 
       const result = await getProductsPaginated(
         currentOrganization.id,
-        page,
+        currentPageValue,
         pageSize,
         {
           includeInactive: false,
-          searchQuery: debouncedSearchQuery.trim(),
+          searchQuery: currentDebouncedQuery.trim(),
           categoryFilter: searchFilters.categoryFilter || '',
           stockFilter: searchFilters.stockFilter,
           sortOption: searchFilters.sortOption,
@@ -232,7 +255,7 @@ const Products = memo(() => {
         setIsRefreshing(false);
       }
     }
-  }, [currentOrganization?.id, currentPage, pageSize, filters, debouncedSearchQuery]);
+  }, [currentOrganization?.id]); // إزالة جميع dependencies عدا organization
 
   // Load categories optimized
   const loadCategories = useCallback(async () => {
@@ -344,13 +367,15 @@ const Products = memo(() => {
       // مسح state
       window.history.replaceState(null, '', window.location.pathname + window.location.search);
     }
-  }, [location.state, fetchProducts, currentPage]);
+  }, [location.state]); // إزالة fetchProducts و currentPage من dependencies
 
   // Product operation events listener
   useEffect(() => {
     const handleProductUpdated = (event: CustomEvent) => {
       console.log('🔄 تحديث المنتجات من event:', event.detail);
-      fetchProducts(currentPage, {}, true);
+      // استخدام ref للحصول على أحدث قيمة للصفحة الحالية
+      const currentPageValue = currentPageRef.current || 1;
+      fetchProducts(currentPageValue, {}, true);
     };
 
     window.addEventListener('products-updated', handleProductUpdated);
@@ -360,7 +385,7 @@ const Products = memo(() => {
       window.removeEventListener('products-updated', handleProductUpdated);
       window.removeEventListener('product-operation-completed', handleProductUpdated);
     };
-  }, [fetchProducts, currentPage]);
+  }, []); // إزالة جميع dependencies
 
   // Cleanup effect
   useEffect(() => {

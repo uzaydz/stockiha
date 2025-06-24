@@ -288,7 +288,7 @@ const LoadingIndicator = ({ isLoading, error, retryCount }: {
 };
 
 export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, loading: authLoading, currentSubdomain, organization: authOrganization } = useAuth();
+  const { user, isLoading: authLoading, currentSubdomain, organization: authOrganization } = useAuth();
   const { organizationId } = useUser();
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [isOrgAdmin, setIsOrgAdmin] = useState(false);
@@ -302,6 +302,24 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const abortController = useRef<AbortController | null>(null);
   const retryCount = useRef(0);
   const maxRetries = RETRY_CONFIG.MAX_RETRIES;
+  
+  // Refs للقيم المتغيرة لتجنب dependencies
+  const userRef = useRef(user);
+  const organizationRef = useRef(organization);
+  const authOrganizationRef = useRef(authOrganization);
+
+  // تحديث refs عند تغيير القيم
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
+  useEffect(() => {
+    organizationRef.current = organization;
+  }, [organization]);
+
+  useEffect(() => {
+    authOrganizationRef.current = authOrganization;
+  }, [authOrganization]);
 
   // تنظيف الموارد عند unmount
   useEffect(() => {
@@ -361,7 +379,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       initialized.current = true;
       setError(null);
     }
-  }, [authOrganization, organization]);
+  }, [authOrganization]); // إزالة organization من dependencies
 
   // تحديث وظيفة fetchOrganizationBySubdomain
   const fetchOrganizationBySubdomain = useCallback(async (subdomain: string | null) => {
@@ -412,14 +430,14 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     // إذا كان المكون قد تم تهيئته وهناك منظمة، لا نحتاج لإعادة التحميل
-    if (initialized.current && organization) {
+    if (initialized.current && organizationRef.current) {
       setIsLoading(false);
       return;
     }
     
     // تحقق فوري من localStorage في بداية كل محاولة تحميل
     const quickOrgCheck = localStorage.getItem('bazaar_organization_id');
-    if (quickOrgCheck && !organization && !loadingOrganization.current) {
+    if (quickOrgCheck && !organizationRef.current && !loadingOrganization.current) {
     }
     
     const loadTenantData = async () => {
@@ -485,8 +503,8 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           }
           
           // 1. محاولة التحميل من AuthContext
-          if (authOrganization) {
-            return updateOrganizationFromData(authOrganization);
+          if (authOrganizationRef.current) {
+            return updateOrganizationFromData(authOrganizationRef.current);
           }
 
           // 2. محاولة التحميل من النطاق الفرعي أو المجال المخصص
@@ -510,7 +528,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           updateLocalStorageOrgId(org.id);
 
           // تحقق ما إذا كان المستخدم الحالي هو مسؤول المؤسسة
-          if (user && user.id === org.owner_id) {
+          if (userRef.current && userRef.current.id === org.owner_id) {
             setIsOrgAdmin(true);
           }
 
@@ -544,7 +562,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
     
     loadTenantData();
-  }, [currentSubdomain, authLoading, user, organization, authOrganization, fetchOrganizationBySubdomain]);
+  }, [currentSubdomain, authLoading]); // تقليل dependencies لتجنب الطلبات المتكررة
 
   // دالة مساعدة لجلب المؤسسة بواسطة النطاق الفرعي
   const fetchOrgBySubdomain = useCallback(async (subdomain: string | null) => {

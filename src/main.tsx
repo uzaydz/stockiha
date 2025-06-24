@@ -481,6 +481,15 @@ initializeOptimizationSystems();
 // =================================================================
 // 🚀 CRITICAL: Force Production Initialization FIRST
 // =================================================================
+
+// ✅ تفعيل نظام منع التكرار العالمي أولاً قبل أي شيء آخر
+import './lib/requestDeduplicationGlobal';
+
+// Force تفعيل فوري للنظام
+if (typeof window !== 'undefined') {
+  console.log('🚀 Force initializing deduplication system...');
+}
+
 import '@/utils/forceProductionInit';
 import '@/utils/productionSystemCheck';
 
@@ -488,12 +497,9 @@ import '@/utils/productionSystemCheck';
 import './lib/cache/deduplication';
 import './context/POSDataContext';
 
-// ✅ تفعيل نظام منع التكرار العالمي أولاً قبل أي شيء
-import './lib/requestDeduplicationGlobal';
-
 import './i18n';
 import './lib/performance/optimizations';
-import { disableConsoleInProduction, batchDOMUpdates } from './lib/performance/optimizations';
+import { disableConsoleInProduction } from './lib/performance/optimizations';
 
 // تطبيق تحسينات الأداء
 disableConsoleInProduction();

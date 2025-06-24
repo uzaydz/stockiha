@@ -56,6 +56,9 @@ const POS = () => {
   const { isAppEnabled } = useApps();
   const { currentOrganization } = useTenant();
   
+  // مرجع لدالة تحديث المخزون في ProductCatalog
+  const productCatalogUpdateFunction = useRef<((productId: string, stockChange: number) => void) | null>(null);
+  
   // استخدام POSDataContext المحسن لمنع الطلبات المكررة
   const { 
     products, 
@@ -538,9 +541,15 @@ const POS = () => {
 
   // Eliminar producto del carrito
   const removeItemFromCart = (index: number) => {
+    const item = cartItems[index];
     const updatedCart = [...cartItems];
     updatedCart.splice(index, 1);
     setCartItems(updatedCart);
+    
+    // إرجاع المخزون للمنتج في ProductCatalog
+    if (productCatalogUpdateFunction.current) {
+      productCatalogUpdateFunction.current(item.product.id, item.quantity);
+    }
   };
 
   // Actualizar cantidad del producto en carrito
@@ -592,6 +601,13 @@ const POS = () => {
 
   // Limpiar carrito
   const clearCart = () => {
+    // إرجاع المخزون لجميع المنتجات في السلة
+    if (productCatalogUpdateFunction.current) {
+      cartItems.forEach(item => {
+        productCatalogUpdateFunction.current!(item.product.id, item.quantity);
+      });
+    }
+    
     setCartItems([]);
     setSelectedServices([]);
     setSelectedSubscriptions([]);
@@ -710,6 +726,13 @@ const POS = () => {
         service.id === serviceId ? { ...service, price } : service
       )
     );
+  };
+
+  // دالة لاستقبال دالة تحديث المخزون من ProductCatalogOptimized
+  const handleStockUpdate = (productId: string, updateFunction: any) => {
+    if (productId === '__update_function__') {
+      productCatalogUpdateFunction.current = updateFunction;
+    }
   };
 
   // Abrir un pedido existente
@@ -1573,6 +1596,7 @@ const POS = () => {
                   ) : (
                     <ProductCatalogOptimized 
                       onAddToCart={addItemToCart}
+                      onStockUpdate={handleStockUpdate}
                     />
                   )}
                 </TabsContent>
