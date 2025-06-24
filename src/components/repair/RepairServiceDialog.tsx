@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, Upload, Wrench, Trash2, Plus, Share2 } from 'lucide-react';
+import { Loader2, Upload, Wrench, Trash2, Plus, Share2, User, DollarSign } from 'lucide-react';
 
 // استيراد مدير أماكن التصليح
 import RepairLocationManager from '@/components/pos/RepairLocationManager';
@@ -448,7 +448,7 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-3xl overflow-hidden">
+      <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <Wrench className="h-5 w-5" />
@@ -459,25 +459,35 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
           </DialogDescription>
         </DialogHeader>
         
-        <ScrollArea className="max-h-[75vh] overflow-y-auto px-1">
-          <form id="repair-form" onSubmit={handleSubmit} className="space-y-6">
+        <div className="space-y-6">
+          <form id="repair-form" onSubmit={handleSubmit} className="space-y-6 py-4">
             {/* معلومات العميل */}
-            <div className="space-y-4 bg-muted/30 p-4 rounded-lg">
-              <h3 className="text-lg font-medium border-b pb-2">معلومات العميل</h3>
+            <div className="space-y-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 rounded-lg shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700 pb-2 flex items-center gap-2">
+                <div className="p-1.5 bg-blue-100 dark:bg-blue-900/50 rounded-md">
+                  <User className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                </div>
+                معلومات العميل
+              </h3>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="customer_name">اسم العميل <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="customer_name" className="text-sm font-medium">
+                    اسم العميل <span className="text-red-500">*</span>
+                  </Label>
                   <Input 
                     id="customer_name" 
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
                     placeholder="أدخل اسم العميل" 
                     required
+                    className="h-10"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="customer_phone">رقم الهاتف <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="customer_phone" className="text-sm font-medium">
+                    رقم الهاتف <span className="text-red-500">*</span>
+                  </Label>
                   <Input 
                     id="customer_phone" 
                     value={customerPhone}
@@ -486,72 +496,89 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
                     pattern="^[0-9]{10}$"
                     title="رقم الهاتف يجب أن يتكون من 10 أرقام"
                     required
+                    className="h-10"
                   />
                 </div>
               </div>
             </div>
             
             {/* معلومات التصليح */}
-            <div className="space-y-4 bg-muted/30 p-4 rounded-lg">
-              <h3 className="text-lg font-medium border-b pb-2">معلومات التصليح</h3>
+            <div className="space-y-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 rounded-lg shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700 pb-2 flex items-center gap-2">
+                <div className="p-1.5 bg-green-100 dark:bg-green-900/50 rounded-md">
+                  <Wrench className="h-4 w-4 text-green-600 dark:text-green-400" />
+                </div>
+                معلومات التصليح
+              </h3>
               
               <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="repair_location">مكان التصليح <span className="text-red-500">*</span></Label>
-                  <Select 
-                    value={repairLocation} 
-                    onValueChange={setRepairLocation}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="اختر مكان التصليح" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectLabel>أماكن التصليح</SelectLabel>
-                        {repairLocations.map(location => (
-                          <SelectItem key={location.id} value={location.id}>
-                            {location.name}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="repair_location" className="text-sm font-medium">
+                      مكان التصليح <span className="text-red-500">*</span>
+                    </Label>
+                    <Select 
+                      value={repairLocation} 
+                      onValueChange={setRepairLocation}
+                    >
+                      <SelectTrigger className="h-10">
+                        <SelectValue placeholder="اختر مكان التصليح" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectLabel>أماكن التصليح</SelectLabel>
+                          {repairLocations.map(location => (
+                            <SelectItem key={location.id} value={location.id}>
+                              {location.name}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                        <SelectSeparator />
+                        <SelectGroup>
+                          <SelectItem value="أخرى">مكان آخر (أدخل الاسم)</SelectItem>
+                          <SelectItem value="add_new" className="text-primary flex items-center gap-1">
+                            <Plus className="h-4 w-4" /> إضافة مكان جديد
                           </SelectItem>
-                        ))}
-                      </SelectGroup>
-                      <SelectSeparator />
-                      <SelectGroup>
-                        <SelectItem value="أخرى">مكان آخر (أدخل الاسم)</SelectItem>
-                        <SelectItem value="add_new" className="text-primary flex items-center gap-1">
-                          <Plus className="h-4 w-4" /> إضافة مكان جديد
-                        </SelectItem>
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {repairLocation === 'أخرى' && (
+                    <div className="space-y-2">
+                      <Label htmlFor="custom_location" className="text-sm font-medium">
+                        حدد مكان التصليح <span className="text-red-500">*</span>
+                      </Label>
+                      <Input 
+                        id="custom_location" 
+                        value={customLocation}
+                        onChange={(e) => setCustomLocation(e.target.value)}
+                        placeholder="أدخل مكان التصليح" 
+                        required={repairLocation === 'أخرى'}
+                        className="h-10"
+                      />
+                    </div>
+                  )}
                 </div>
                 
-                {repairLocation === 'أخرى' && (
-                  <div className="space-y-2">
-                    <Label htmlFor="custom_location">حدد مكان التصليح <span className="text-red-500">*</span></Label>
-                    <Input 
-                      id="custom_location" 
-                      value={customLocation}
-                      onChange={(e) => setCustomLocation(e.target.value)}
-                      placeholder="أدخل مكان التصليح" 
-                      required={repairLocation === 'أخرى'}
-                    />
-                  </div>
-                )}
-                
                 <div className="space-y-2">
-                  <Label htmlFor="issue_description">وصف العطل</Label>
+                  <Label htmlFor="issue_description" className="text-sm font-medium">
+                    وصف العطل
+                  </Label>
                   <Textarea 
                     id="issue_description" 
                     value={issueDescription}
                     onChange={(e) => setIssueDescription(e.target.value)}
                     placeholder="أدخل وصف العطل" 
-                    className="min-h-[100px]"
+                    className="min-h-[100px] resize-none"
                   />
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="repair_images">صور للجهاز</Label>
-                  <div className="border-2 border-dashed border-muted-foreground/20 rounded-lg p-4 text-center cursor-pointer hover:bg-muted/50 transition-colors">
+                  <Label htmlFor="repair_images" className="text-sm font-medium">
+                    صور للجهاز
+                  </Label>
+                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-400 dark:hover:border-gray-500 transition-all duration-200">
                     <Input
                       id="repair_images"
                       type="file"
@@ -561,28 +588,34 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
                       className="hidden"
                     />
                     <Label htmlFor="repair_images" className="w-full h-full cursor-pointer flex flex-col items-center justify-center">
-                      <Upload className="h-8 w-8 mb-2 text-muted-foreground" />
-                      <span className="text-muted-foreground">اضغط لإضافة صور</span>
-                      <span className="text-xs text-muted-foreground">أو اسحب الصور وأفلتها هنا</span>
+                      <div className="p-3 bg-gray-100 dark:bg-gray-700 rounded-full mb-3">
+                        <Upload className="h-6 w-6 text-gray-600 dark:text-gray-300" />
+                      </div>
+                      <span className="text-gray-700 dark:text-gray-200 font-medium">اضغط لإضافة صور</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">أو اسحب الصور وأفلتها هنا</span>
+                      <span className="text-xs text-gray-400 dark:text-gray-500 mt-2">PNG, JPG, JPEG حتى 10MB</span>
                     </Label>
                   </div>
                   
                   {filePreview.length > 0 && (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mt-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mt-4">
                       {filePreview.map((url, index) => (
                         <div key={index} className="relative group">
                           <img 
                             src={url} 
                             alt={`صورة ${index + 1}`} 
-                            className="w-full h-24 object-cover rounded-md"
+                            className="w-full h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
                           />
                           <button
                             type="button"
                             onClick={() => removeFile(index)}
-                            className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-lg"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-3 w-3" />
                           </button>
+                          <div className="absolute bottom-1 left-1 bg-black/50 text-white text-xs px-2 py-1 rounded">
+                            {index + 1}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -592,16 +625,21 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
             </div>
             
             {/* معلومات الدفع */}
-            <div className="space-y-4 bg-muted/30 p-4 rounded-lg">
-              <h3 className="text-lg font-medium border-b pb-2">معلومات الدفع</h3>
+            <div className="space-y-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 rounded-lg shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700 pb-2 flex items-center gap-2">
+                <div className="p-1.5 bg-amber-100 dark:bg-amber-900/50 rounded-md">
+                  <DollarSign className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                </div>
+                معلومات الدفع
+              </h3>
               
               {/* خيار السعر يحدد لاحقاً */}
               <div className="relative overflow-hidden">
                 <div className={`
-                  transition-all duration-300 ease-in-out rounded-xl border-2 p-4
+                  transition-all duration-200 rounded-lg border p-4
                   ${priceToBeDetLater 
-                    ? 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-300 shadow-md dark:from-amber-950/30 dark:to-orange-950/30 dark:border-amber-700' 
-                    : 'bg-gradient-to-r from-slate-50 to-gray-50 border-slate-200 hover:border-slate-300 dark:from-slate-900/50 dark:to-gray-900/50 dark:border-slate-700 dark:hover:border-slate-600'
+                    ? 'bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-700 shadow-sm' 
+                    : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700/50'
                   }
                 `}>
                   {/* أيقونة الخلفية الزخرفية */}
@@ -635,14 +673,14 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
                         <span className={`
                           transition-colors duration-200
                           ${priceToBeDetLater 
-                            ? 'text-amber-800 dark:text-amber-200' 
-                            : 'text-slate-700 group-hover:text-slate-900 dark:text-slate-300 dark:group-hover:text-slate-100'
+                            ? 'text-orange-700 dark:text-orange-300' 
+                            : 'text-gray-700 group-hover:text-gray-900 dark:text-gray-300 dark:group-hover:text-gray-100'
                           }
                         `}>
                           💡 السعر يحدد لاحقاً
                         </span>
                         {priceToBeDetLater && (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200 animate-pulse">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300">
                             مفعل
                           </span>
                         )}
@@ -651,15 +689,15 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
                       <p className={`
                         mt-2 text-sm leading-relaxed transition-colors duration-200
                         ${priceToBeDetLater 
-                          ? 'text-amber-700 dark:text-amber-300' 
-                          : 'text-slate-600 dark:text-slate-400'
+                          ? 'text-orange-600 dark:text-orange-400' 
+                          : 'text-gray-600 dark:text-gray-400'
                         }
                       `}>
                         <span className="font-medium">اختر هذا الخيار</span> إذا كان السعر سيتم تحديده بعد فحص الجهاز وتشخيص العطل
                       </p>
                       
                       {priceToBeDetLater && (
-                        <div className="mt-3 flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 animate-fade-in">
+                        <div className="mt-3 flex items-center gap-2 text-xs text-orange-600 dark:text-orange-400">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
@@ -671,9 +709,10 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
                 </div>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
                 <div className="space-y-2">
-                  <Label htmlFor="total_price">
+                  <Label htmlFor="total_price" className="text-sm font-medium flex items-center gap-1">
+                    <DollarSign className="h-4 w-4 text-green-600 dark:text-green-400" />
                     سعر التصليح الكلي 
                     {!priceToBeDetLater && <span className="text-red-500">*</span>}
                   </Label>
@@ -687,10 +726,14 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
                     placeholder={priceToBeDetLater ? "سيتم تحديده لاحقاً" : "أدخل السعر الكلي"}
                     disabled={priceToBeDetLater}
                     required={!priceToBeDetLater}
+                    className="h-10"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="paid_amount">المبلغ المدفوع الآن</Label>
+                  <Label htmlFor="paid_amount" className="text-sm font-medium flex items-center gap-1">
+                    <DollarSign className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    المبلغ المدفوع الآن
+                  </Label>
                   <Input 
                     id="paid_amount" 
                     type="number"
@@ -701,69 +744,74 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
                     onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)}
                     placeholder={priceToBeDetLater ? "لا يمكن الدفع مسبقاً" : "أدخل المبلغ المدفوع"}
                     disabled={priceToBeDetLater}
+                    className="h-10"
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="payment_method" className="text-sm font-medium">
+                    طريقة الدفع
+                  </Label>
+                  <Select 
+                    value={paymentMethod} 
+                    onValueChange={setPaymentMethod}
+                  >
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="اختر طريقة الدفع" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="نقدًا">نقدًا</SelectItem>
+                      <SelectItem value="تحويل">تحويل</SelectItem>
+                      <SelectItem value="بطاقة">بطاقة</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               
               {!priceToBeDetLater && (
-                <div className="bg-background p-3 rounded-md text-center font-medium">
+                <div className="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 p-3 rounded-lg text-center font-medium text-gray-700 dark:text-gray-300">
                   المبلغ المتبقي: {((totalPrice || 0) - (paidAmount || 0)).toLocaleString()} دج
                 </div>
               )}
               
               {priceToBeDetLater && (
-                <div className="bg-amber-100 border border-amber-300 p-3 rounded-md text-center font-medium text-amber-800">
+                <div className="bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-700 p-3 rounded-lg text-center font-medium text-orange-700 dark:text-orange-300">
                   💡 سيتم تحديد السعر والدفع لاحقاً بعد فحص الجهاز
                 </div>
               )}
-              
-              <div className="space-y-2">
-                <Label htmlFor="payment_method">طريقة الدفع</Label>
-                <Select 
-                  value={paymentMethod} 
-                  onValueChange={setPaymentMethod}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="اختر طريقة الدفع" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="نقدًا">نقدًا</SelectItem>
-                    <SelectItem value="تحويل">تحويل</SelectItem>
-                    <SelectItem value="بطاقة">بطاقة</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
-          </form>
-        </ScrollArea>
+            </form>
+        </div>
         
-        <DialogFooter className="sm:justify-between">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onClose}
-            disabled={isSubmitting}
-          >
-            إلغاء
-          </Button>
-          <Button
-            type="submit"
-            variant="default"
-            form="repair-form"
-            disabled={isSubmitting}
-            className="flex gap-2 items-center"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                جاري الحفظ...
-              </>
-            ) : (
-              <>
-                {editMode ? 'تحديث الطلبية' : 'حفظ طلبية التصليح'}
-              </>
-            )}
-          </Button>
+        <DialogFooter className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-6">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-between gap-3 w-full">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="w-full sm:w-auto"
+            >
+              إلغاء
+            </Button>
+            <Button
+              type="submit"
+              variant="default"
+              form="repair-form"
+              disabled={isSubmitting}
+              className="flex gap-2 items-center w-full sm:w-auto"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  جاري الحفظ...
+                </>
+              ) : (
+                <>
+                  {editMode ? 'تحديث الطلبية' : 'حفظ طلبية التصليح'}
+                </>
+              )}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
       

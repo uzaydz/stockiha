@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Search, Upload, Star, Package } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, Upload, Star, Package, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useUser } from '@/context/UserContext';
@@ -58,12 +59,15 @@ export default function GamesCatalog() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedPlatform, setSelectedPlatform] = useState('all');
+  const [activeTab, setActiveTab] = useState('games');
   
   // Dialog states
   const [showGameDialog, setShowGameDialog] = useState(false);
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showDeleteCategoryDialog, setShowDeleteCategoryDialog] = useState(false);
   const [gameToDelete, setGameToDelete] = useState<Game | null>(null);
+  const [categoryToDelete, setCategoryToDelete] = useState<GameCategory | null>(null);
   
   // Form states
   const [editingGame, setEditingGame] = useState<Game | null>(null);
@@ -216,19 +220,76 @@ export default function GamesCatalog() {
     if (!gameToDelete) return;
 
     try {
+      // التحقق من وجود طلبات تحميل مرتبطة بهذه اللعبة (للعلم فقط)
+      const { data: relatedOrders } = await supabase
+        .from('game_download_orders')
+        .select('id, tracking_number, status')
+        .eq('game_id', gameToDelete.id);
+
+      // حذف اللعبة مباشرة (الطلبات ستبقى مع game_id = NULL)
       const { error } = await supabase
         .from('games_catalog')
         .delete()
         .eq('id', gameToDelete.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('خطأ في حذف اللعبة:', error);
+        toast.error(`فشل في حذف اللعبة: ${error.message}`);
+        return;
+      }
 
-      toast.success('تم حذف اللعبة بنجاح');
+      // رسالة نجاح مع معلومات عن الطلبات المرتبطة
+      if (relatedOrders && relatedOrders.length > 0) {
+        toast.success(
+          `تم حذف اللعبة بنجاح. الطلبات المرتبطة (${relatedOrders.length}) تم الاحتفاظ بها مع معلومات اللعبة.`
+        );
+      } else {
+        toast.success('تم حذف اللعبة بنجاح');
+      }
+
       setShowDeleteDialog(false);
       setGameToDelete(null);
       fetchGames();
     } catch (error: any) {
-      toast.error('فشل في حذف اللعبة');
+      console.error('خطأ عام في حذف اللعبة:', error);
+      toast.error(`فشل في حذف اللعبة: ${error.message || 'خطأ غير معروف'}`);
+    }
+  };
+
+  const handleDeleteCategory = async () => {
+    if (!categoryToDelete) return;
+
+    try {
+      // التحقق من وجود ألعاب مرتبطة بهذه الفئة
+      const { data: gamesInCategory, error: checkError } = await supabase
+        .from('games_catalog')
+        .select('id, name')
+        .eq('category_id', categoryToDelete.id)
+        .eq('organization_id', organizationId);
+
+      if (checkError) throw checkError;
+
+      if (gamesInCategory && gamesInCategory.length > 0) {
+        toast.error(`لا يمكن حذف هذه الفئة لأنها تحتوي على ${gamesInCategory.length} لعبة. يرجى نقل الألعاب لفئة أخرى أولاً.`);
+        setShowDeleteCategoryDialog(false);
+        setCategoryToDelete(null);
+        return;
+      }
+
+      const { error } = await supabase
+        .from('game_categories')
+        .delete()
+        .eq('id', categoryToDelete.id);
+
+      if (error) throw error;
+
+      toast.success(`تم حذف الفئة "${categoryToDelete.name}" بنجاح`);
+      setShowDeleteCategoryDialog(false);
+      setCategoryToDelete(null);
+      fetchCategories();
+    } catch (error: any) {
+      console.error('Error deleting category:', error);
+      toast.error('فشل في حذف الفئة');
     }
   };
 
@@ -327,17 +388,31 @@ export default function GamesCatalog() {
             <h2 className="text-3xl font-bold tracking-tight">كتالوج الألعاب</h2>
             <p className="text-muted-foreground">إدارة الألعاب والفئات</p>
           </div>
-          <div className="flex gap-2">
-            <Button onClick={() => setShowCategoryDialog(true)} variant="outline">
-              <Plus className="ml-2 h-4 w-4" />
-              إضافة فئة
-            </Button>
-            <Button onClick={() => setShowGameDialog(true)}>
-              <Plus className="ml-2 h-4 w-4" />
-              إضافة لعبة
-            </Button>
-          </div>
         </div>
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="games" className="flex items-center gap-2">
+              <Package className="h-4 w-4" />
+              الألعاب
+            </TabsTrigger>
+            <TabsTrigger value="categories" className="flex items-center gap-2">
+              <Tag className="h-4 w-4" />
+              الفئات
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="games" className="space-y-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <h3 className="text-xl font-semibold">إدارة الألعاب</h3>
+                <p className="text-muted-foreground">عرض وإدارة جميع الألعاب في الكتالوج</p>
+              </div>
+              <Button onClick={() => setShowGameDialog(true)}>
+                <Plus className="ml-2 h-4 w-4" />
+                إضافة لعبة
+              </Button>
+            </div>
 
         <Card>
           <CardHeader>
@@ -504,6 +579,120 @@ export default function GamesCatalog() {
             </div>
           </CardContent>
         </Card>
+          </TabsContent>
+
+          <TabsContent value="categories" className="space-y-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <h3 className="text-xl font-semibold">إدارة الفئات</h3>
+                <p className="text-muted-foreground">عرض وإدارة فئات الألعاب</p>
+              </div>
+              <Button onClick={() => setShowCategoryDialog(true)}>
+                <Plus className="ml-2 h-4 w-4" />
+                إضافة فئة
+              </Button>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>قائمة الفئات</CardTitle>
+                <CardDescription>عدد الفئات: {categories.length}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>الفئة</TableHead>
+                        <TableHead>الوصف</TableHead>
+                        <TableHead>عدد الألعاب</TableHead>
+                        <TableHead>الترتيب</TableHead>
+                        <TableHead>الحالة</TableHead>
+                        <TableHead>الإجراءات</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {categories.map((category) => {
+                        const gamesCount = games.filter(game => game.category_id === category.id).length;
+                        return (
+                          <TableRow key={category.id}>
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                {category.icon && (
+                                  <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                                    <Tag className="h-4 w-4 text-primary" />
+                                  </div>
+                                )}
+                                <div>
+                                  <div className="font-medium">{category.name}</div>
+                                  <div className="text-sm text-muted-foreground">
+                                    {category.slug}
+                                  </div>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="max-w-xs">
+                                {category.description || '-'}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">
+                                {gamesCount} لعبة
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{category.display_order}</TableCell>
+                            <TableCell>
+                              <Badge variant={category.is_active ? 'default' : 'secondary'}>
+                                {category.is_active ? 'نشط' : 'غير نشط'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setEditingCategory(category);
+                                    setCategoryForm({
+                                      name: category.name,
+                                      description: category.description || '',
+                                      icon: category.icon || '',
+                                      display_order: category.display_order,
+                                      is_active: category.is_active,
+                                    });
+                                    setShowCategoryDialog(true);
+                                  }}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setCategoryToDelete(category);
+                                    setShowDeleteCategoryDialog(true);
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                  {categories.length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      لا توجد فئات مضافة بعد
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Game Dialog */}
@@ -801,10 +990,26 @@ export default function GamesCatalog() {
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>هل أنت متأكد؟</AlertDialogTitle>
-            <AlertDialogDescription>
-              سيتم حذف اللعبة "{gameToDelete?.name}" نهائياً. لا يمكن التراجع عن هذا الإجراء.
-            </AlertDialogDescription>
+            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="h-5 w-5" />
+              تأكيد حذف اللعبة
+            </AlertDialogTitle>
+                         <AlertDialogDescription className="space-y-2">
+               <p>سيتم حذف اللعبة "<strong>{gameToDelete?.name}</strong>" من الكتالوج نهائياً.</p>
+               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-blue-800">
+                 <div className="flex items-start gap-2">
+                   <div className="text-blue-600 mt-0.5">ℹ️</div>
+                   <div className="space-y-1">
+                     <p className="font-medium">معلومات مهمة:</p>
+                     <ul className="text-sm space-y-1 list-disc list-inside">
+                       <li>طلبات التحميل المرتبطة <strong>لن تُحذف</strong></li>
+                       <li>سيتم الاحتفاظ بمعلومات اللعبة في الطلبات الموجودة</li>
+                       <li>لا يمكن التراجع عن حذف اللعبة من الكتالوج</li>
+                     </ul>
+                   </div>
+                 </div>
+               </div>
+             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => {
@@ -813,8 +1018,53 @@ export default function GamesCatalog() {
             }}>
               إلغاء
             </AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteGame}>
-              حذف
+            <AlertDialogAction 
+              onClick={handleDeleteGame}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              تأكيد الحذف
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Category Confirmation Dialog */}
+      <AlertDialog open={showDeleteCategoryDialog} onOpenChange={setShowDeleteCategoryDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="h-5 w-5" />
+              تأكيد حذف الفئة
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>سيتم حذف الفئة "<strong>{categoryToDelete?.name}</strong>" نهائياً.</p>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-yellow-800">
+                <div className="flex items-start gap-2">
+                  <div className="text-yellow-600 mt-0.5">⚠️</div>
+                  <div className="space-y-1">
+                    <p className="font-medium">تنبيه مهم:</p>
+                    <ul className="text-sm space-y-1 list-disc list-inside">
+                      <li>لا يمكن حذف الفئة إذا كانت تحتوي على ألعاب</li>
+                      <li>يجب نقل جميع الألعاب لفئة أخرى أولاً</li>
+                      <li>لا يمكن التراجع عن حذف الفئة</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowDeleteCategoryDialog(false);
+              setCategoryToDelete(null);
+            }}>
+              إلغاء
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteCategory}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              تأكيد الحذف
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

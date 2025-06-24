@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from "sonner";
 import { Link } from 'react-router-dom';
@@ -1042,14 +1042,44 @@ const POS = () => {
   };
 
   // استماع عالمي لأحداث قارئ الباركود
+  // استخدام useRef للحفاظ على قيم محدثة في event handler
+  const barcodeBufferRef = useRef('');
+  const lastKeyTimeRef = useRef(0);
+  const productsRef = useRef(products);
+  const cartItemsRef = useRef(cartItems);
+  const currentOrganizationRef = useRef(currentOrganization);
+
+  // تحديث refs عند تغير القيم
+  useEffect(() => {
+    barcodeBufferRef.current = barcodeBuffer;
+  }, [barcodeBuffer]);
+
+  useEffect(() => {
+    lastKeyTimeRef.current = lastKeyTime;
+  }, [lastKeyTime]);
+
+  useEffect(() => {
+    productsRef.current = products;
+  }, [products]);
+
+  useEffect(() => {
+    cartItemsRef.current = cartItems;
+  }, [cartItems]);
+
+  useEffect(() => {
+    currentOrganizationRef.current = currentOrganization;
+  }, [currentOrganization]);
+
   useEffect(() => {
     const handleKeyPress = async (event: KeyboardEvent) => {
+      
       const currentTime = Date.now();
-      const timeDiff = currentTime - lastKeyTime;
+      const timeDiff = currentTime - lastKeyTimeRef.current;
       
       // إذا مرت أكثر من 200ms منذ آخر مفتاح، ابدأ باركود جديد
       if (timeDiff > 200) {
         setBarcodeBuffer('');
+        barcodeBufferRef.current = '';
       }
       
       // تجاهل المفاتيح الخاصة والتركيز على الحقول
@@ -1057,34 +1087,35 @@ const POS = () => {
         return;
       }
       
-      // تجاهل إذا كان المستخدم يكتب في حقل إدخال
+      // تجاهل فقط إذا كان المستخدم يكتب في حقل إدخال نصي فعلاً
       const target = event.target as HTMLElement;
       if (target && (
-        target.tagName === 'INPUT' || 
+        (target.tagName === 'INPUT' && ['text', 'search', 'email', 'password', 'url', 'tel'].includes((target as HTMLInputElement).type)) ||
         target.tagName === 'TEXTAREA' || 
         target.contentEditable === 'true' ||
-        target.closest('[contenteditable="true"]') ||
-        target.closest('input') ||
-        target.closest('textarea')
+        target.closest('[contenteditable="true"]')
       )) {
         return;
       }
       
       setLastKeyTime(currentTime);
+      lastKeyTimeRef.current = currentTime;
       
       // إذا كان Enter، قم بمعالجة الباركود المتراكم
       if (event.key === 'Enter') {
         event.preventDefault();
-        if (barcodeBuffer.length > 0) {
+        const currentBuffer = barcodeBufferRef.current;
+        if (currentBuffer.length > 0) {
           // استخدام نفس وظيفة التنظيف المحدثة مع تسجيل تشخيصي
-          const barcode = cleanBarcodeInput(barcodeBuffer);
+          const barcode = cleanBarcodeInput(currentBuffer);
           
-          console.log('[BARCODE SCANNER] الباركود الأصلي:', barcodeBuffer);
+          console.log('[BARCODE SCANNER] الباركود الأصلي:', currentBuffer);
           console.log('[BARCODE SCANNER] الباركود بعد التنظيف:', barcode);
           
           if (barcode) {
+            const currentProducts = productsRef.current;
             // البحث في المنتجات الأساسية أولاً - مع مقارنة case-insensitive
-            const product = products.find(p => 
+            const product = currentProducts.find(p => 
               (p.barcode && p.barcode.toLowerCase() === barcode.toLowerCase()) || 
               (p.sku && p.sku.toLowerCase() === barcode.toLowerCase())
             );
@@ -1115,7 +1146,7 @@ const POS = () => {
               // البحث في متغيرات المنتجات (نفس المنطق من handleBarcodeScanned)
               let foundVariant = false;
               
-              for (const prod of products) {
+              for (const prod of currentProducts) {
                 // البحث في الألوان
                 if (prod.colors && prod.colors.length > 0) {
                   const color = prod.colors.find(c => c.barcode && c.barcode.toLowerCase() === barcode.toLowerCase());
@@ -1168,9 +1199,10 @@ const POS = () => {
                 // البحث المباشر في قاعدة البيانات كـ fallback
                 console.log('[BARCODE SCANNER] لم يُعثر على المنتج في الكاش، البحث في قاعدة البيانات...');
                 
-                if (currentOrganization?.id) {
+                const currentOrg = currentOrganizationRef.current;
+                if (currentOrg?.id) {
                   try {
-                    const searchResult = await searchProductByBarcode(currentOrganization.id, barcode);
+                    const searchResult = await searchProductByBarcode(currentOrg.id, barcode);
                     
                     if (searchResult) {
                       console.log('[BARCODE SCANNER] تم العثور على المنتج في قاعدة البيانات:', searchResult.name);
@@ -1183,6 +1215,7 @@ const POS = () => {
                       toast.success(`تمت إضافة "${foundProduct.name}" إلى السلة`);
                       
                       setBarcodeBuffer('');
+                      barcodeBufferRef.current = '';
                       return; // خروج من الدالة بعد النجاح
                     }
                   } catch (error) {
@@ -1192,7 +1225,7 @@ const POS = () => {
                 
                 // عرض الباركودات المتاحة للتشخيص (نفس منطق handleBarcodeScanned)
                 console.log('[BARCODE SCANNER] الباركودات المتاحة في المنتجات المحملة:');
-                products.forEach(p => {
+                currentProducts.forEach(p => {
                   if (p.barcode) {
                     console.log(`- ${p.name}: ${p.barcode}`);
                   }
@@ -1221,29 +1254,210 @@ const POS = () => {
             }
           }
           setBarcodeBuffer('');
+          barcodeBufferRef.current = '';
         }
         return;
       }
       
       // إضافة الحرف إلى buffer إذا كان صالحاً
       if (event.key.length === 1) {
-        setBarcodeBuffer(prev => prev + event.key);
+        const newBuffer = barcodeBufferRef.current + event.key;
+        setBarcodeBuffer(newBuffer);
+        barcodeBufferRef.current = newBuffer;
+        
+        // إذا كان الباركود طويل بما فيه الكفاية ولم يتم الضغط على مفتاح لفترة قصيرة
+        // معالجة فورية للباركودات الطويلة
+        if (newBuffer.length >= 13 && timeDiff < 50) { // باركودات EAN-13 أو أطول
+          console.log('[BARCODE SCANNER] معالجة فورية للباركود الطويل:', newBuffer);
+          setTimeout(() => {
+            if (barcodeBufferRef.current === newBuffer) { // التأكد أن الـ buffer لم يتغير
+              handleBarcodeProcessing(newBuffer);
+              setBarcodeBuffer('');
+              barcodeBufferRef.current = '';
+            }
+          }, 20); // معالجة سريعة جداً
+        }
       }
     };
 
-    // إضافة مستمع الأحداث
+    // إضافة مستمع الأحداث مرة واحدة فقط
     document.addEventListener('keypress', handleKeyPress);
     
-    // تنظيف buffer بعد فترة من عدم النشاط
-    const clearBufferTimeout = setTimeout(() => {
-      setBarcodeBuffer('');
-    }, 500);
-
     return () => {
       document.removeEventListener('keypress', handleKeyPress);
-      clearTimeout(clearBufferTimeout);
     };
-  }, [barcodeBuffer, lastKeyTime, products]);
+  }, []); // dependency array فارغ لتجنب إعادة التسجيل
+
+  // useEffect منفصل لتنظيف buffer بعد فترة من عدم النشاط
+  // وأيضاً معالجة الباركود إذا كان طوله مناسب
+  useEffect(() => {
+    if (barcodeBuffer.length > 0) {
+              const clearBufferTimeout = setTimeout(() => {
+          // إذا كان الباركود طوله مناسب، عالجه قبل المسح
+          if (barcodeBuffer.length >= 6) { // تقليل الحد الأدنى إلى 6 أحرف
+            handleBarcodeProcessing(barcodeBuffer);
+          }
+          setBarcodeBuffer('');
+          barcodeBufferRef.current = '';
+        }, 80); // تقليل المدة إلى 80ms فقط
+
+      return () => {
+        clearTimeout(clearBufferTimeout);
+      };
+    }
+  }, [barcodeBuffer]);
+
+  // دالة مساعدة لمعالجة الباركود
+  const handleBarcodeProcessing = async (rawBarcode: string) => {
+    const barcode = cleanBarcodeInput(rawBarcode);
+    
+              if (!barcode) return;
+
+     const currentProducts = productsRef.current;
+     // البحث في المنتجات الأساسية أولاً - مع مقارنة case-insensitive
+     const product = currentProducts.find(p => 
+       (p.barcode && p.barcode.toLowerCase() === barcode.toLowerCase()) || 
+       (p.sku && p.sku.toLowerCase() === barcode.toLowerCase())
+     );
+     
+
+     
+     if (product) {
+      // التحقق من المخزون والإضافة للسلة
+      if (product.stock_quantity <= 0) {
+        toast.error(`المنتج "${product.name}" غير متوفر في المخزون`);
+      } else {
+        // استخدام setCartItems مباشرة
+        setCartItems(prevCart => {
+          const existingItem = prevCart.find(item => item.product.id === product.id);
+          if (existingItem) {
+            if (existingItem.quantity >= product.stock_quantity) {
+              toast.error(`لا يمكن إضافة المزيد من "${product.name}". الكمية المتاحة: ${product.stock_quantity}`);
+              return prevCart;
+            }
+            toast.success(`تمت إضافة "${product.name}" إلى السلة`);
+            return prevCart.map(item =>
+              item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+            );
+          } else {
+            toast.success(`تمت إضافة "${product.name}" إلى السلة`);
+            return [...prevCart, { product, quantity: 1 }];
+          }
+        });
+      }
+      return;
+    }
+
+         // البحث في متغيرات المنتجات
+     console.log('[BARCODE SCANNER] بدء البحث في متغيرات المنتجات...');
+     let foundVariant = false;
+     
+     for (const prod of currentProducts) {
+      // البحث في الألوان
+      if (prod.colors && prod.colors.length > 0) {
+        const color = prod.colors.find(c => c.barcode && c.barcode.toLowerCase() === barcode.toLowerCase());
+        if (color) {
+          // إضافة المتغير للسلة
+          setCartItems(prevCart => [...prevCart, {
+            product: prod,
+            quantity: 1,
+            colorId: color.id,
+            colorName: color.name,
+            colorCode: color.color_code,
+            variantPrice: color.price,
+            variantImage: color.image_url
+          }]);
+          toast.success(`تمت إضافة "${color.name} - ${prod.name}" إلى السلة`);
+          foundVariant = true;
+          break;
+        }
+        
+        // البحث في المقاسات
+        if (prod.use_sizes) {
+          for (const color of prod.colors) {
+            if (color.sizes && color.sizes.length > 0) {
+              const size = color.sizes.find(s => s.barcode && s.barcode.toLowerCase() === barcode.toLowerCase());
+              if (size) {
+                // إضافة المتغير للسلة مع المقاس
+                setCartItems(prevCart => [...prevCart, {
+                  product: prod,
+                  quantity: 1,
+                  colorId: color.id,
+                  colorName: color.name,
+                  colorCode: color.color_code,
+                  sizeId: size.id,
+                  sizeName: size.size_name || 'مقاس',
+                  variantPrice: size.price,
+                  variantImage: color.image_url
+                }]);
+                toast.success(`تمت إضافة "${size.size_name || 'مقاس'} - ${color.name} - ${prod.name}" إلى السلة`);
+                foundVariant = true;
+                break;
+              }
+            }
+          }
+          if (foundVariant) break;
+        }
+      }
+    }
+    
+    console.log('[BARCODE SCANNER] نتيجة البحث في المتغيرات:', foundVariant ? 'وُجد متغير' : 'لم يُعثر على متغير');
+    
+    if (!foundVariant) {
+      // البحث المباشر في قاعدة البيانات كـ fallback
+      console.log('[BARCODE SCANNER] لم يُعثر على المنتج في الكاش، البحث في قاعدة البيانات...');
+      
+      const currentOrg = currentOrganizationRef.current;
+      console.log('[BARCODE SCANNER] معرف المنظمة:', currentOrg?.id);
+      if (currentOrg?.id) {
+        try {
+          const searchResult = await searchProductByBarcode(currentOrg.id, barcode);
+          
+          if (searchResult) {
+            console.log('[BARCODE SCANNER] تم العثور على المنتج في قاعدة البيانات:', searchResult.name);
+            
+            // تحويل النتيجة إلى منتج وإضافته للسلة
+            const foundProduct = convertSearchResultToProduct(searchResult);
+            
+            // إضافة المنتج للسلة مباشرة
+            setCartItems(prevCart => [...prevCart, { product: foundProduct, quantity: 1 }]);
+            toast.success(`تمت إضافة "${foundProduct.name}" إلى السلة`);
+            return;
+          }
+        } catch (error) {
+          console.error('[BARCODE SCANNER] خطأ في البحث المباشر:', error);
+        }
+      }
+      
+      // عرض الباركودات المتاحة للتشخيص
+      console.log('[BARCODE SCANNER] الباركودات المتاحة في المنتجات المحملة:');
+      currentProducts.forEach(p => {
+        if (p.barcode) {
+          console.log(`- ${p.name}: ${p.barcode}`);
+        }
+        if (p.sku) {
+          console.log(`- ${p.name} (SKU): ${p.sku}`);
+        }
+        // عرض باركودات الألوان والمقاسات أيضاً
+        if (p.colors && p.colors.length > 0) {
+          p.colors.forEach(color => {
+            if (color.barcode) {
+              console.log(`- ${p.name} - ${color.name}: ${color.barcode}`);
+            }
+            if (color.sizes && color.sizes.length > 0) {
+              color.sizes.forEach(size => {
+                if (size.barcode) {
+                  console.log(`- ${p.name} - ${color.name} - ${size.size_name}: ${size.barcode}`);
+                }
+              });
+            }
+          });
+        }
+      });
+      
+      toast.error(`لم يتم العثور على منتج بالباركود: ${barcode}`);
+    }
+  };
 
   return (
     <Layout>

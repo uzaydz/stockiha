@@ -57,17 +57,26 @@ export const ShareRepairDialog: React.FC<ShareRepairDialogProps> = ({
         </DialogHeader>
         
         <div className="py-4 space-y-4">
-          <div className="bg-muted p-3 rounded-md mb-2 text-sm break-all font-mono ltr">
+          <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-3 rounded-lg mb-2 text-sm break-all font-mono ltr text-gray-700 dark:text-gray-300">
             {trackingUrl}
           </div>
           
           <div className="flex justify-center">
-            <QRCodeSVG value={trackingUrl} size={150} />
+            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+              <QRCodeSVG 
+                value={trackingUrl} 
+                size={150}
+                bgColor="white"
+                fgColor="black"
+              />
+            </div>
           </div>
           
-          <p className="text-sm text-muted-foreground">
-            سيتمكن العميل من متابعة حالة الطلبية وتحديثاتها من خلال هذا الرابط
-          </p>
+          <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 p-3 rounded-lg">
+            <p className="text-sm text-blue-600 dark:text-blue-400 text-center">
+              💡 سيتمكن العميل من متابعة حالة الطلبية وتحديثاتها من خلال هذا الرابط
+            </p>
+          </div>
         </div>
         
         <DialogFooter className="flex flex-col sm:flex-row gap-2">

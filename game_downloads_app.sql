@@ -47,7 +47,10 @@ CREATE TABLE IF NOT EXISTS game_download_orders (
     customer_name VARCHAR(255) NOT NULL,
     customer_phone VARCHAR(20) NOT NULL,
     customer_email VARCHAR(255),
-    game_id UUID NOT NULL REFERENCES games_catalog(id) ON DELETE RESTRICT,
+    game_id UUID REFERENCES games_catalog(id) ON DELETE SET NULL,
+    game_name VARCHAR(255), -- اسم اللعبة وقت الطلب
+    game_platform VARCHAR(50), -- منصة اللعبة وقت الطلب
+    game_price DECIMAL(10,2), -- سعر اللعبة وقت الطلب
     device_type VARCHAR(100), -- نوع الجهاز
     device_specs TEXT, -- مواصفات الجهاز
     notes TEXT, -- ملاحظات العميل

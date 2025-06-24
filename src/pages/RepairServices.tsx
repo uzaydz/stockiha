@@ -189,6 +189,7 @@ const RepairServicesContent = () => {
   const [paymentAmount, setPaymentAmount] = useState<number>(0);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
+  const [queuePosition, setQueuePosition] = useState<number>(0);
   
   // حالة نافذة تأكيد الحذف
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -288,10 +289,6 @@ const RepairServicesContent = () => {
   // التعامل مع إضافة طلبية جديدة
   const handleAddSuccess = async (orderId: string, trackingCode: string) => {
     try {
-      // تخزين معلومات التتبع للمشاركة
-      setTrackingInfo({ orderId, trackingCode });
-      setIsShareDialogOpen(true);
-      
       // جلب الطلبية الجديدة
       const { data, error } = await supabase
         .from('repair_orders')
@@ -318,10 +315,19 @@ const RepairServicesContent = () => {
           total: prev.total + 1,
           pending: typedData.status === 'قيد الانتظار' ? prev.pending + 1 : prev.pending,
         }));
+
+        // تحديد الطلبية المحددة لفتح نافذة الطباعة
+        setSelectedOrder(typedData);
+        calculateQueuePosition(typedData);
+        
+        // فتح نافذة الطباعة مباشرة
+        setIsPrintDialogOpen(true);
       }
       
       toast.success('تم إضافة طلبية التصليح بنجاح');
     } catch (error) {
+      console.error('خطأ في إضافة طلبية التصليح:', error);
+      toast.error('حدث خطأ أثناء إضافة الطلبية');
     }
   };
   
@@ -386,12 +392,30 @@ const RepairServicesContent = () => {
   const handleViewOrder = (order: RepairOrder) => {
     setSelectedOrder(order);
     setIsViewDialogOpen(true);
+    // حساب ترتيب الطابور
+    calculateQueuePosition(order);
   };
   
   // التعامل مع تعديل طلبية
   const handleEditOrder = (order: RepairOrder) => {
     setSelectedOrder(order);
     setIsEditDialogOpen(true);
+  };
+
+  // حساب ترتيب الطلبية في الجدول
+  const calculateQueuePosition = (order: RepairOrder) => {
+    // البحث عن ترتيب الطلبية في قائمة الطلبيات المفلترة
+    const orderIndex = filteredOrders.findIndex(o => o.id === order.id);
+    const position = orderIndex >= 0 ? orderIndex + 1 : 0;
+    
+    console.log('[calculateQueuePosition] ترتيب الطلبية في الجدول:', {
+      orderId: order.id,
+      orderIndex,
+      position,
+      totalOrders: filteredOrders.length
+    });
+    
+    setQueuePosition(position);
   };
   
   // تحديث حالة طلبية التصليح
@@ -903,6 +927,7 @@ const RepairServicesContent = () => {
                               <DropdownMenuItem onClick={(e) => {
                                 e.stopPropagation();
                                 setSelectedOrder(order);
+                                calculateQueuePosition(order);
                                 setIsPrintDialogOpen(true);
                               }}>
                                 <Printer className="h-4 w-4 mr-2" />
@@ -1211,7 +1236,12 @@ const RepairServicesContent = () => {
             
             <DialogFooter className="gap-2 sm:gap-0">
               <div className="flex gap-2 flex-wrap">
-                <Button variant="outline" className="gap-1" onClick={() => setIsPrintDialogOpen(true)}>
+                <Button variant="outline" className="gap-1" onClick={() => {
+                  if (selectedOrder) {
+                    calculateQueuePosition(selectedOrder);
+                  }
+                  setIsPrintDialogOpen(true);
+                }}>
                   <Printer className="h-4 w-4" />
                   طباعة
                 </Button>
@@ -1425,10 +1455,10 @@ const RepairServicesContent = () => {
         </Dialog>
       )}
 
-      {/* نافذة طباعة الوصل */}
+      {/* نافذة طباعة الوصل المحسنة */}
       {selectedOrder && (
         <Dialog open={isPrintDialogOpen} onOpenChange={setIsPrintDialogOpen}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Printer className="h-5 w-5" />
@@ -1440,29 +1470,131 @@ const RepairServicesContent = () => {
             </DialogHeader>
             
             <div className="py-4">
-              <p className="text-sm text-muted-foreground mb-4">
-                ستتم طباعة وصل بالمعلومات التالية:
-              </p>
-              <ul className="text-sm space-y-2 list-disc list-inside mr-4 mb-4">
-                <li>معلومات العميل والمتجر</li>
-                <li>تفاصيل الجهاز والعطل</li>
-                <li>المبلغ المدفوع والمتبقي</li>
-                <li>رمز QR لتتبع الطلبية</li>
-                <li>شروط الخدمة</li>
-              </ul>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* معاينة الوصل */}
+                <div className="order-2 lg:order-1">
+                  <h3 className="font-bold text-sm mb-3 flex items-center gap-2">
+                    <span>👁️</span>
+                    معاينة الوصل
+                  </h3>
+                  <div className="border rounded-md p-2 bg-gray-50 max-h-96 overflow-y-auto">
+                    <div className="transform scale-75 origin-top-right">
+                      <RepairOrderPrint order={selectedOrder} queuePosition={queuePosition} />
+                    </div>
+                  </div>
+                </div>
 
-              <div className="border rounded-md p-3 bg-muted/30">
-                <RepairOrderPrint order={selectedOrder} />
+                {/* معلومات الطباعة */}
+                <div className="order-1 lg:order-2">
+                  <h3 className="font-bold text-sm mb-3 flex items-center gap-2">
+                    <span>📋</span>
+                    محتويات الوصل
+                  </h3>
+                  <div className="space-y-3">
+                    {/* إيصال العميل */}
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <h4 className="font-bold text-sm text-blue-800 mb-2 flex items-center gap-2">
+                        <span>🧾</span>
+                        إيصال العميل
+                      </h4>
+                      <ul className="text-xs space-y-1 text-blue-700 mr-4">
+                        <li>• معلومات المتجر والعميل</li>
+                        <li>• تفاصيل العطل والدفع</li>
+                        <li>• رمز QR للتتبع</li>
+                        <li>• شروط الخدمة</li>
+                      </ul>
+                    </div>
+
+                    {/* لصقة الجهاز */}
+                    <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-3">
+                      <h4 className="font-bold text-sm text-yellow-800 mb-2 flex items-center gap-2">
+                        <span>🏷️</span>
+                        لصقة الجهاز
+                      </h4>
+                      <ul className="text-xs space-y-1 text-yellow-700 mr-4">
+                        <li>• رقم الطلبية بارز</li>
+                        <li>• معلومات العميل المختصرة</li>
+                        <li>• QR للتتبع والإنهاء</li>
+                        <li>• مساحة لملاحظات الفني</li>
+                        <li className="font-bold">• رقم الترتيب: {queuePosition || 'غير محدد'}</li>
+                      </ul>
+                    </div>
+
+                    {/* نصائح الطباعة */}
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                      <h4 className="font-bold text-sm text-green-800 mb-2 flex items-center gap-2">
+                        <span>💡</span>
+                        نصائح الطباعة
+                      </h4>
+                      <ul className="text-xs space-y-1 text-green-700 mr-4">
+                        <li>• استخدم ورق حراري عرض 80mm</li>
+                        <li>• تأكد من وضوح رموز QR</li>
+                        <li>• اقطع عند الخط المتقطع</li>
+                        <li>• الصق الجزء السفلي على الجهاز</li>
+                      </ul>
+                    </div>
+
+                    {/* إحصائيات سريعة */}
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                      <h4 className="font-bold text-sm text-gray-800 mb-2 flex items-center gap-2">
+                        <span>📊</span>
+                        ملخص الطلبية
+                      </h4>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <span className="text-gray-600">الحالة:</span>
+                          <span className="font-bold mr-1">{selectedOrder.status}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">التاريخ:</span>
+                          <span className="font-bold mr-1">{new Date(selectedOrder.created_at).toLocaleDateString('ar-EG')}</span>
+                        </div>
+                        {!selectedOrder.price_to_be_determined_later && (
+                          <>
+                            <div>
+                              <span className="text-gray-600">المبلغ:</span>
+                              <span className="font-bold mr-1">{selectedOrder.total_price.toLocaleString()} دج</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-600">المدفوع:</span>
+                              <span className="font-bold mr-1 text-green-600">{selectedOrder.paid_amount.toLocaleString()} دج</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             
-            <DialogFooter>
-              <Button 
-                variant="outline" 
-                onClick={() => setIsPrintDialogOpen(false)}
-              >
-                إغلاق
-              </Button>
+                         <DialogFooter className="gap-2">
+              <div className="flex justify-between items-center w-full">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsPrintDialogOpen(false)}
+                >
+                  إغلاق
+                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="gap-1"
+                    onClick={() => {
+                      const trackingCode = selectedOrder.repair_tracking_code || selectedOrder.order_number || selectedOrder.id;
+                      setTrackingInfo({
+                        orderId: selectedOrder.id, 
+                        trackingCode: trackingCode
+                      });
+                      setIsShareDialogOpen(true);
+                    }}
+                  >
+                    <Share2 className="h-4 w-4" />
+                    مشاركة رابط التتبع
+                  </Button>
+                  <RepairOrderPrint order={selectedOrder} queuePosition={queuePosition} />
+                </div>
+              </div>
             </DialogFooter>
           </DialogContent>
         </Dialog>
