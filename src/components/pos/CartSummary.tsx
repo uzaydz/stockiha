@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { ShoppingBag, CreditCard, Loader2, ArrowRight, Receipt, Percent, Calculator } from 'lucide-react';
+import { ShoppingBag, CreditCard, Loader2, ArrowRight, Receipt, Percent, Calculator, RotateCcw } from 'lucide-react';
 import { formatPrice } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect, useState } from 'react';
@@ -19,6 +19,7 @@ interface CartSummaryProps {
   onApplyCoupon?: (code: string) => void;
   onSaveCart?: () => void;
   onQuickCheckout?: (method: string) => void;
+  isReturnMode?: boolean;
 }
 
 export default function CartSummary({ 
@@ -32,7 +33,8 @@ export default function CartSummary({
   isProcessing = false,
   onApplyCoupon,
   onSaveCart,
-  onQuickCheckout
+  onQuickCheckout,
+  isReturnMode
 }: CartSummaryProps) {
   const [animate, setAnimate] = useState(false);
   const [previousTotals, setPreviousTotals] = useState({
@@ -161,18 +163,29 @@ export default function CartSummary({
             className={cn(
               "transition-all shadow-md hover:shadow-lg",
               isCartEmpty ? "h-11" : "h-11", // جعل الارتفاع موحد في كل الحالات
+              isReturnMode ? 
+              "bg-orange-500 hover:bg-orange-600 text-white font-semibold" :
               "bg-primary hover:bg-primary/90 dark:bg-primary dark:hover:bg-primary/90 text-primary-foreground dark:text-primary-foreground font-semibold"
             )}
           >
             {isProcessing ? (
               <div className="flex items-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span>جاري الدفع...</span>
+                <span>{isReturnMode ? 'جاري الإرجاع...' : 'جاري الدفع...'}</span>
               </div>
             ) : (
               <div className="flex items-center justify-center gap-2">
-                <CreditCard className="h-4 w-4" />
-                <span>{isCartEmpty ? "طلب جديد" : "الدفع"}</span>
+                {isReturnMode ? (
+                  <RotateCcw className="h-4 w-4" />
+                ) : (
+                  <CreditCard className="h-4 w-4" />
+                )}
+                <span>
+                  {isCartEmpty 
+                    ? (isReturnMode ? "إرجاع جديد" : "طلب جديد")
+                    : (isReturnMode ? "تأكيد الإرجاع" : "الدفع")
+                  }
+                </span>
                 <ArrowRight className="h-4 w-4 mr-0.5" />
               </div>
             )}
@@ -185,7 +198,7 @@ export default function CartSummary({
               size="sm"
               className="text-muted-foreground dark:text-muted-foreground border-border dark:border-border hover:bg-accent dark:hover:bg-accent hover:text-red-500 dark:hover:text-red-400 h-9 font-medium"
             >
-              إفراغ السلة
+              {isReturnMode ? 'إفراغ سلة الإرجاع' : 'إفراغ السلة'}
             </Button>
           )}
         </div>

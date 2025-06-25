@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
-  Receipt, AlertCircle, CreditCard, Banknote, UserPlus, Wallet, Receipt as ReceiptIcon 
+  Receipt, AlertCircle, CreditCard, Banknote, UserPlus, Wallet, Receipt as ReceiptIcon, RotateCcw 
 } from 'lucide-react';
 
 interface PaymentDialogProps {
@@ -58,6 +58,8 @@ interface PaymentDialogProps {
     password: string;
     notes: string;
   }) => void;
+  // إضافة خاصية وضع الإرجاع
+  isReturnMode?: boolean;
 }
 
 export default function PaymentDialog({
@@ -91,7 +93,8 @@ export default function PaymentDialog({
   filteredCustomers,
   hasSubscriptionServices,
   subscriptionAccountInfo,
-  setSubscriptionAccountInfo
+  setSubscriptionAccountInfo,
+  isReturnMode = false
 }: PaymentDialogProps) {
   // حالة تركيز حقل المبلغ المدفوع
   const [isAmountFocused, setIsAmountFocused] = useState(false);
@@ -135,18 +138,37 @@ export default function PaymentDialog({
       <DialogContent className="max-w-md overflow-y-auto max-h-[85vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <ReceiptIcon className="h-5 w-5 text-primary" />
-            <span>إتمام الطلب</span>
+            {isReturnMode ? (
+              <>
+                <RotateCcw className="h-5 w-5 text-orange-500" />
+                <span>إتمام الإرجاع</span>
+              </>
+            ) : (
+              <>
+                <ReceiptIcon className="h-5 w-5 text-primary" />
+                <span>إتمام الطلب</span>
+              </>
+            )}
           </DialogTitle>
           <DialogDescription>
-            تحديد طريقة الدفع وإتمام الطلب
+            {isReturnMode 
+              ? "تحديد المبلغ المُسترد وإتمام عملية الإرجاع"
+              : "تحديد طريقة الدفع وإتمام الطلب"
+            }
           </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-5 pt-2">
           {/* اختيار العميل */}
           <div className="space-y-1.5">
-            <Label className="text-sm font-medium">العميل</Label>
+            <Label className="text-sm font-medium">
+              العميل
+              {isReturnMode && (
+                <span className="text-xs text-orange-600 dark:text-orange-400 font-normal mr-2">
+                  (اختياري في وضع الإرجاع)
+                </span>
+              )}
+            </Label>
             <div className="flex gap-2">
               <Select
                 value={selectedCustomer?.id || 'guest'}
@@ -232,7 +254,9 @@ export default function PaymentDialog({
                   {/* المبلغ المدفوع */}
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <Label>المبلغ المدفوع</Label>
+                      <Label>
+                        {isReturnMode ? 'المبلغ المُسترد للعميل' : 'المبلغ المدفوع'}
+                      </Label>
                       <Input
                         type="number"
                         value={amountPaid}
@@ -244,10 +268,13 @@ export default function PaymentDialog({
                           isAmountFocused && "border-primary ring-1 ring-primary"
                         )}
                         dir="ltr"
+                        placeholder={isReturnMode ? "المبلغ الذي دفعه العميل فعلياً" : ""}
                       />
                     </div>
                     <div>
-                      <Label>الباقي</Label>
+                      <Label>
+                        {isReturnMode ? 'الفرق' : 'الباقي'}
+                      </Label>
                       <Input
                         value={isPartialPayment ? `${formatPrice(remainingAmount)} (متبقي)` : formatPrice(change)}
                         readOnly
@@ -296,8 +323,26 @@ export default function PaymentDialog({
                     </Button>
                   </div>
                   
+                  {/* رسالة خاصة بوضع الإرجاع */}
+                  {isReturnMode && (
+                    <div className="bg-orange-50 dark:bg-orange-900/20 p-3 rounded-md border border-orange-200 dark:border-orange-800 text-orange-800 dark:text-orange-200 text-sm mt-3">
+                      <div className="flex items-start gap-2">
+                        <RotateCcw className="h-5 w-5 flex-shrink-0 mt-0.5 text-orange-600 dark:text-orange-400" />
+                        <div>
+                          <p className="font-medium">إرجاع مباشر من نقطة البيع</p>
+                          <p className="mt-1">
+                            إجمالي المنتجات: {formatPrice(total)} - أدخل المبلغ الذي دفعه العميل فعلياً
+                          </p>
+                          <p className="mt-1 text-xs opacity-80">
+                            💡 إذا كان العميل دفع مبلغاً أقل، سيتم اعتبار الفرق تخفيضاً كان حصل عليه
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
                   {/* رسالة الدفع الجزئي */}
-                  {isPartialPayment && (
+                  {isPartialPayment && !isReturnMode && (
                     <div className="bg-amber-50 p-3 rounded-md border border-amber-200 text-amber-800 text-sm mt-3">
                       <div className="flex items-start gap-2">
                         <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
@@ -548,18 +593,27 @@ export default function PaymentDialog({
           <Button 
             type="button"
             onClick={handlePaymentComplete}
-            disabled={isProcessing || (isPartialPayment && considerRemainingAsPartial && !selectedCustomer)}
-            className="w-full sm:w-auto min-w-32 bg-gradient-to-r from-primary to-primary/90"
+            disabled={isProcessing || (isPartialPayment && considerRemainingAsPartial && !selectedCustomer && !isReturnMode)}
+            className={cn(
+              "w-full sm:w-auto min-w-32",
+              isReturnMode 
+                ? "bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700" 
+                : "bg-gradient-to-r from-primary to-primary/90"
+            )}
           >
             {isProcessing ? (
               <>
                 <span className="animate-spin ml-2">⏳</span>
-                جاري المعالجة...
+                {isReturnMode ? 'جاري معالجة الإرجاع...' : 'جاري المعالجة...'}
               </>
             ) : (
               <>
-                <Receipt className="h-4 w-4 ml-2" />
-                إتمام الطلب
+                {isReturnMode ? (
+                  <RotateCcw className="h-4 w-4 ml-2" />
+                ) : (
+                  <Receipt className="h-4 w-4 ml-2" />
+                )}
+                {isReturnMode ? 'إتمام الإرجاع' : 'إتمام الطلب'}
               </>
             )}
           </Button>

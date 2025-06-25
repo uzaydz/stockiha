@@ -110,6 +110,12 @@ const POS = () => {
   // حالة نافذة الإرجاع السريع
   const [isQuickReturnOpen, setIsQuickReturnOpen] = useState(false);
 
+  // ✅ إضافة حالة وضع الإرجاع
+  const [isReturnMode, setIsReturnMode] = useState(false);
+  const [returnItems, setReturnItems] = useState<CartItem[]>([]);
+  const [returnReason, setReturnReason] = useState('customer_request');
+  const [returnNotes, setReturnNotes] = useState('');
+
   // ✅ لا حاجة لجلب البيانات يدوياً - POSDataContext يتولى كل شيء
   // جلب البيانات يتم تلقائياً عبر POSDataContext مع منع الطلبات المكررة
 
@@ -1482,6 +1488,262 @@ const POS = () => {
     }
   };
 
+  // إدراج عناصر الإرجاع
+  const addItemToReturnCart = (product: Product) => {
+    // في وضع الإرجاع، لا نحتاج للتحقق من المخزون
+    const existingItem = returnItems.find(item => 
+      item.product.id === product.id && 
+      !item.colorId && 
+      !item.sizeId
+    );
+    
+    if (existingItem) {
+      const updatedReturnCart = returnItems.map(item =>
+        item.product.id === product.id && !item.colorId && !item.sizeId 
+          ? { ...item, quantity: item.quantity + 1 } 
+          : item
+      );
+      setReturnItems(updatedReturnCart);
+    } else {
+      setReturnItems([...returnItems, { product, quantity: 1 }]);
+    }
+    
+    toast.success(`تم إضافة ${product.name} لسلة الإرجاع`);
+  };
+
+  // تحديث كمية عنصر الإرجاع
+  const updateReturnItemQuantity = (index: number, quantity: number) => {
+    if (quantity <= 0) {
+      removeReturnItem(index);
+      return;
+    }
+    
+    const oldQuantity = returnItems[index].quantity;
+    const quantityDifference = quantity - oldQuantity;
+    
+    const updatedItems = [...returnItems];
+    updatedItems[index].quantity = quantity;
+    setReturnItems(updatedItems);
+    
+    // تحديث المخزون في الواجهة حسب الفرق في الكمية
+    if (productCatalogUpdateFunction.current && quantityDifference !== 0) {
+      productCatalogUpdateFunction.current(returnItems[index].product.id, quantityDifference);
+    }
+  };
+
+  // إزالة عنصر من سلة الإرجاع
+  const removeReturnItem = (index: number) => {
+    const removedItem = returnItems[index];
+    const updatedItems = returnItems.filter((_, i) => i !== index);
+    setReturnItems(updatedItems);
+    
+    // تحديث المخزون في الواجهة عند حذف منتج من سلة الإرجاع
+    if (productCatalogUpdateFunction.current && removedItem) {
+      productCatalogUpdateFunction.current(removedItem.product.id, -removedItem.quantity);
+    }
+  };
+
+  // مسح سلة الإرجاع
+  const clearReturnCart = () => {
+    setReturnItems([]);
+    setReturnNotes('');
+  };
+
+  // التبديل بين وضع البيع ووضع الإرجاع
+  const toggleReturnMode = () => {
+    if (!isReturnMode) {
+      // الانتقال لوضع الإرجاع
+      setIsReturnMode(true);
+      clearCart(); // مسح سلة البيع
+      toast.info('تم التبديل إلى وضع الإرجاع');
+    } else {
+      // العودة لوضع البيع
+      setIsReturnMode(false);
+      clearReturnCart(); // مسح سلة الإرجاع
+      toast.info('تم العودة إلى وضع البيع');
+    }
+  };
+
+  // معالجة إرجاع العناصر
+  const processReturn = async (orderDetails?: Partial<Order>): Promise<{orderId: string, customerOrderNumber: number}> => {
+    if (!returnItems.length || !user?.id || !currentOrganization?.id) {
+      toast.error('يجب إضافة عناصر للإرجاع');
+      throw new Error('No items to return');
+    }
+
+    try {
+      // حساب المبلغ الإجمالي الأصلي للإرجاع
+      const originalAmount = returnItems.reduce((sum, item) => 
+        sum + ((item.variantPrice || item.product.price) * item.quantity), 0);
+      
+      // استخدام المبلغ المعدل من PaymentDialog إذا كان متوفراً، وإلا استخدم المبلغ الأصلي
+      const returnAmount = orderDetails?.total || originalAmount;
+      
+      // إنشاء رقم الإرجاع
+      const returnNumber = `RET-DIRECT-${Date.now()}`;
+      
+      // إنشاء بيانات طلب الإرجاع في قاعدة البيانات
+      const returnData = {
+        return_number: returnNumber,
+        original_order_id: null, // إرجاع مباشر بدون طلبية أصلية
+        customer_name: orderDetails?.customer_name || 'زائر',
+        return_type: 'direct',
+        return_reason: returnReason || 'customer_request',
+        return_reason_description: returnNotes || null,
+        original_total: originalAmount, // المبلغ الأصلي للمنتجات
+        return_amount: returnAmount, // المبلغ المعدل الذي سيُسترد فعلياً
+        refund_amount: returnAmount, // نفس مبلغ الإرجاع
+        restocking_fee: originalAmount - returnAmount, // الفرق كرسوم أو تخفيض سابق
+        status: 'completed', // الإرجاع المباشر يُعتبر مكتمل مباشرة
+        refund_method: orderDetails?.paymentMethod || 'cash',
+        notes: returnNotes || null,
+        requires_manager_approval: false,
+        organization_id: currentOrganization.id,
+        created_by: user.id
+      };
+
+      // إدراج طلب الإرجاع في قاعدة البيانات
+      const { data: returnRecord, error: returnError } = await supabase
+        .from('returns')
+        .insert([returnData])
+        .select()
+        .single();
+
+      if (returnError) {
+        throw new Error(`فشل في إنشاء طلب الإرجاع: ${returnError.message}`);
+      }
+
+      console.log('تم إنشاء طلب الإرجاع:', returnRecord);
+
+      // إدراج عناصر الإرجاع
+      const returnItemsData = returnItems.map(item => {
+        const originalItemPrice = item.variantPrice || item.product.price;
+        const totalOriginalPrice = originalItemPrice * item.quantity;
+        // حساب نسبة السعر المعدل للعنصر
+        const adjustedItemPrice = (returnAmount / originalAmount) * originalItemPrice;
+        const adjustedTotalPrice = adjustedItemPrice * item.quantity;
+        
+        return {
+          return_id: returnRecord.id,
+          original_order_item_id: null, // إرجاع مباشر بدون عنصر طلبية أصلي
+          product_id: item.product.id,
+          product_name: item.product.name,
+          product_sku: item.product.sku || null,
+          original_quantity: item.quantity,
+          return_quantity: item.quantity,
+          original_unit_price: originalItemPrice, // السعر الأصلي
+          return_unit_price: adjustedItemPrice, // السعر المعدل
+          total_return_amount: adjustedTotalPrice, // المبلغ الإجمالي المعدل
+          // حفظ معلومات المتغيرات في variant_info كـ JSON
+          variant_info: {
+            color_id: item.colorId || null,
+            size_id: item.sizeId || null,
+            color_name: item.colorName || null,
+            size_name: item.sizeName || null,
+            variant_display_name: item.colorName || item.sizeName ? 
+              `${item.colorName || ''} ${item.sizeName || ''}`.trim() : null,
+            type: 'direct_return'
+          },
+          condition_status: 'good',
+          resellable: true,
+          inventory_returned: true,
+          inventory_returned_at: new Date().toISOString()
+        };
+      });
+
+      const { error: itemsError } = await supabase
+        .from('return_items')
+        .insert(returnItemsData);
+
+      if (itemsError) {
+        console.error('خطأ في إدراج عناصر الإرجاع:', itemsError);
+        // لا نوقف العملية إذا فشل إدراج العناصر
+      }
+
+      // تحديث المخزون للمنتجات المرجعة
+      for (const item of returnItems) {
+        try {
+          // تحديث المخزون الأساسي للمنتج
+          const { data: currentProduct } = await supabase
+            .from('products')
+            .select('stock_quantity')
+            .eq('id', item.product.id)
+            .single();
+
+          if (currentProduct) {
+            await supabase
+              .from('products')
+              .update({ 
+                stock_quantity: (currentProduct.stock_quantity || 0) + item.quantity 
+              })
+              .eq('id', item.product.id);
+          }
+
+          // تحديث مخزون المتغيرات إذا كانت موجودة
+          if (item.colorId && item.sizeId) {
+            // تحديث مخزون المقاس
+            const { data: currentSize } = await supabase
+              .from('product_sizes')
+              .select('quantity')
+              .eq('color_id', item.colorId)
+              .eq('id', item.sizeId)
+              .single();
+
+            if (currentSize) {
+              await supabase
+                .from('product_sizes')
+                .update({ 
+                  quantity: (currentSize.quantity || 0) + item.quantity 
+                })
+                .eq('color_id', item.colorId)
+                .eq('id', item.sizeId);
+            }
+          } else if (item.colorId) {
+            // تحديث مخزون اللون فقط
+            const { data: currentColor } = await supabase
+              .from('product_colors')
+              .select('quantity')
+              .eq('product_id', item.product.id)
+              .eq('id', item.colorId)
+              .single();
+
+            if (currentColor) {
+              await supabase
+                .from('product_colors')
+                .update({ 
+                  quantity: (currentColor.quantity || 0) + item.quantity 
+                })
+                .eq('product_id', item.product.id)
+                .eq('id', item.colorId);
+            }
+          }
+        } catch (stockError) {
+          console.error('خطأ في تحديث المخزون:', stockError);
+          // لا نوقف العملية في حالة خطأ تحديث المخزون
+        }
+      }
+
+      toast.success(`تم إنشاء إرجاع مباشر رقم ${returnNumber} بنجاح`);
+      clearReturnCart();
+      setIsReturnMode(false);
+      
+      // تحديث البيانات
+      if (refreshPOSData) {
+        refreshPOSData();
+      }
+      
+      return {
+        orderId: returnRecord.id,
+        customerOrderNumber: parseInt(returnNumber.replace(/[^\d]/g, '')) || 0
+      };
+      
+    } catch (error) {
+      console.error('Error processing return:', error);
+      toast.error(`حدث خطأ في معالجة الإرجاع: ${error instanceof Error ? error.message : 'خطأ غير معروف'}`);
+      throw error;
+    }
+  };
+
   return (
     <Layout>
       {isLoading ? (
@@ -1493,6 +1755,36 @@ const POS = () => {
         </div>
       ) : (
         <div className="mx-auto">
+          {/* شريط تنبيه وضع الإرجاع */}
+          {isReturnMode && (
+            <div className="bg-orange-500/10 dark:bg-orange-500/20 border border-orange-200 dark:border-orange-800 p-4 mb-4 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="bg-orange-500/20 dark:bg-orange-500/30 p-2 rounded-full">
+                    <RotateCcw className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-orange-800 dark:text-orange-200">وضع الإرجاع المباشر</h3>
+                    <p className="text-orange-700 dark:text-orange-300 text-sm">يمكنك مسح المنتجات لإضافتها إلى سلة الإرجاع وإرجاعها للمخزون</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="bg-orange-500/20 dark:bg-orange-500/30 px-3 py-1 rounded-full text-sm font-medium text-orange-800 dark:text-orange-200">
+                    {returnItems.length} عنصر في سلة الإرجاع
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={toggleReturnMode}
+                    className="border-orange-300 dark:border-orange-700 text-orange-700 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-900/20"
+                  >
+                    العودة للبيع
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+          
           <div className="flex justify-between items-center mb-4">
             {/* أزرار خدمات التصليح - تظهر فقط إذا كان التطبيق مفعّل */}
             {isAppEnabled('repair-services') && (
@@ -1519,6 +1811,22 @@ const POS = () => {
                 <RotateCcw className="h-4 w-4 mr-2" />
                 إرجاع سريع
               </Button>
+              
+              {/* ✅ زر التبديل لوضع الإرجاع */}
+              <Button 
+                size="sm"
+                variant={isReturnMode ? "default" : "outline"}
+                onClick={toggleReturnMode}
+                className={cn(
+                  isReturnMode 
+                    ? "bg-orange-500 hover:bg-orange-600 text-white border-orange-500" 
+                    : "border-orange-300 dark:border-orange-700 text-orange-700 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-900/20"
+                )}
+              >
+                <RotateCcw className="h-4 w-4 mr-2" />
+                {isReturnMode ? 'العودة للبيع' : 'وضع الإرجاع'}
+              </Button>
+              
               <Button 
                 size="sm"
                 variant="outline"
@@ -1552,17 +1860,40 @@ const POS = () => {
                 dir="rtl"
               >
                 <TabsList className={cn(
-                  "mb-4 w-full bg-muted/50 p-1 rounded-lg border",
+                  "mb-4 w-full p-1 rounded-lg border transition-all duration-300",
+                  isReturnMode 
+                    ? "bg-orange-500/5 dark:bg-orange-500/10 border-orange-200 dark:border-orange-800" 
+                    : "bg-muted/50",
                   isAppEnabled('subscription-services') ? "grid grid-cols-2" : "grid grid-cols-1"
                 )}>
                   <TabsTrigger 
                     value="products" 
-                    className="flex items-center gap-2 py-3 px-4 transition-all duration-200 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border/50"
+                    className={cn(
+                      "flex items-center gap-2 py-3 px-4 transition-all duration-200",
+                      "data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border/50",
+                      isReturnMode 
+                        ? "data-[state=active]:bg-orange-50 dark:data-[state=active]:bg-orange-900/20 data-[state=active]:border-orange-200 dark:data-[state=active]:border-orange-700" 
+                        : "data-[state=active]:bg-background"
+                    )}
                   >
-                    <ShoppingCart className="h-4 w-4" />
-                    <span className="font-medium">المنتجات</span>
+                    {isReturnMode ? (
+                      <RotateCcw className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                    ) : (
+                      <ShoppingCart className="h-4 w-4" />
+                    )}
+                    <span className={cn(
+                      "font-medium",
+                      isReturnMode && "text-orange-800 dark:text-orange-200"
+                    )}>
+                      {isReturnMode ? 'منتجات الإرجاع' : 'المنتجات'}
+                    </span>
                     {products.length > 0 && (
-                      <span className="ml-auto bg-primary/10 text-primary text-xs px-2 py-0.5 rounded-full">
+                      <span className={cn(
+                        "ml-auto text-xs px-2 py-0.5 rounded-full",
+                        isReturnMode 
+                          ? "bg-orange-500/10 dark:bg-orange-500/20 text-orange-600 dark:text-orange-400" 
+                          : "bg-primary/10 text-primary"
+                      )}>
                         {products.length}
                       </span>
                     )}
@@ -1587,16 +1918,41 @@ const POS = () => {
                 <TabsContent value="products" className="flex-1 flex mt-0 data-[state=active]:block data-[state=inactive]:hidden">
                   {products.length === 0 ? (
                     <div className="h-full flex items-center justify-center">
-                      <div className="text-center p-6 bg-muted/30 rounded-lg">
-                        <ShoppingCart className="h-12 w-12 mb-3 mx-auto opacity-20" />
-                        <h3 className="text-xl font-medium mb-2">لا توجد منتجات</h3>
-                        <p className="text-sm text-muted-foreground">لم يتم العثور على أي منتجات في قاعدة البيانات.</p>
+                      <div className={cn(
+                        "text-center p-6 rounded-lg",
+                        isReturnMode 
+                          ? "bg-orange-50/30 dark:bg-orange-900/10 border border-orange-200/50 dark:border-orange-800/50" 
+                          : "bg-muted/30"
+                      )}>
+                        {isReturnMode ? (
+                          <RotateCcw className="h-12 w-12 mb-3 mx-auto opacity-20 text-orange-500 dark:text-orange-400" />
+                        ) : (
+                          <ShoppingCart className="h-12 w-12 mb-3 mx-auto opacity-20" />
+                        )}
+                        <h3 className={cn(
+                          "text-xl font-medium mb-2",
+                          isReturnMode && "text-orange-800 dark:text-orange-200"
+                        )}>
+                          {isReturnMode ? 'لا توجد منتجات للإرجاع' : 'لا توجد منتجات'}
+                        </h3>
+                        <p className={cn(
+                          "text-sm",
+                          isReturnMode 
+                            ? "text-orange-700 dark:text-orange-300" 
+                            : "text-muted-foreground"
+                        )}>
+                          {isReturnMode 
+                            ? 'يمكنك مسح باركود المنتجات لإضافتها إلى سلة الإرجاع'
+                            : 'لم يتم العثور على أي منتجات في قاعدة البيانات.'
+                          }
+                        </p>
                       </div>
                     </div>
                   ) : (
                     <ProductCatalogOptimized 
-                      onAddToCart={addItemToCart}
+                      onAddToCart={isReturnMode ? addItemToReturnCart : addItemToCart}
                       onStockUpdate={handleStockUpdate}
+                      isReturnMode={isReturnMode}
                     />
                   )}
                 </TabsContent>
@@ -1672,7 +2028,7 @@ const POS = () => {
                 {/* سلة المشتريات - المكون الرئيسي - تغيير طريقة العرض لضمان التمرير الصحيح */}
                 <div className="flex-1 overflow-hidden flex flex-col border bg-card/30 rounded-lg">
                   <Cart 
-                    cartItems={cartItems}
+                    cartItems={isReturnMode ? returnItems : cartItems}
                     customers={(users || []).filter(u => {
                       // Si el usuario no tiene organization_id, inclúyelo de todas formas (compatibilidad)
                       if (!u.organization_id) {
@@ -1684,10 +2040,10 @@ const POS = () => {
                       
                       return u.role === 'customer' && u.organization_id === currentOrgId;
                     })}
-                    updateItemQuantity={updateItemQuantity}
-                    removeItemFromCart={removeItemFromCart}
-                    clearCart={clearCart}
-                    submitOrder={submitOrder}
+                    updateItemQuantity={isReturnMode ? updateReturnItemQuantity : updateItemQuantity}
+                    removeItemFromCart={isReturnMode ? removeReturnItem : removeItemFromCart}
+                    clearCart={isReturnMode ? clearReturnCart : clearCart}
+                    submitOrder={isReturnMode ? processReturn : submitOrder}
                     currentUser={user ? {
                       id: user.id,
                       name: user.user_metadata?.name || 'User',
@@ -1704,6 +2060,11 @@ const POS = () => {
                     selectedSubscriptions={selectedSubscriptions}
                     removeSubscription={removeSubscriptionFromCart}
                     updateSubscriptionPrice={updateSubscriptionPrice}
+                    isReturnMode={isReturnMode}
+                    returnReason={returnReason}
+                    setReturnReason={setReturnReason}
+                    returnNotes={returnNotes}
+                    setReturnNotes={setReturnNotes}
                   />
                 </div>
               </div>
@@ -1712,7 +2073,7 @@ const POS = () => {
         </div>
       )}
 
-      {/* نافذة اختيار المتغيرات */}
+      {/* نافذة ختيار المتغيرات */}
       <Dialog open={isVariantDialogOpen} onOpenChange={setIsVariantDialogOpen}>
         <DialogContent 
           className="sm:max-w-2xl max-h-[85vh] overflow-y-auto"

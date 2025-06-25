@@ -23,9 +23,10 @@ import { useDebounce } from '@/hooks/useDebounce';
 interface ProductCatalogOptimizedProps {
   onAddToCart: (product: Product) => void;
   onStockUpdate?: (productId: string, stockChange: number) => void; // إضافة callback لتحديث المخزون
+  isReturnMode?: boolean; // إضافة خاصية وضع الإرجاع
 }
 
-export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate }: ProductCatalogOptimizedProps) {
+export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, isReturnMode = false }: ProductCatalogOptimizedProps) {
   const { currentOrganization } = useTenant();
   
   // حالة البيانات
@@ -282,19 +283,29 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate }: 
   
   // معالج إضافة المنتج للسلة
   const handleProductClick = useCallback((product: Product) => {
-    if (product.stockQuantity > 0) {
-      onAddToCart(product);
-      
-      // تحديث المخزون محلياً فوراً لتحسين تجربة المستخدم
-      setProducts(prevProducts => 
-        prevProducts.map(p => 
-          p.id === product.id 
-            ? { ...p, stockQuantity: Math.max(0, p.stockQuantity - 1) }
-            : p
-        )
-      );
+    // في وضع الإرجاع، لا نحتاج للتحقق من المخزون
+    if (!isReturnMode && product.stockQuantity <= 0) {
+      return;
     }
-  }, [onAddToCart]);
+    
+    onAddToCart(product);
+    
+    // تحديث المخزون محلياً فوراً لتحسين تجربة المستخدم
+    setProducts(prevProducts => 
+      prevProducts.map(p => 
+        p.id === product.id 
+          ? { 
+              ...p, 
+              stockQuantity: Math.max(0, 
+                isReturnMode 
+                  ? p.stockQuantity + 1  // في وضع الإرجاع: زيادة المخزون
+                  : p.stockQuantity - 1  // في وضع البيع: تقليل المخزون
+              ) 
+            }
+          : p
+      )
+    );
+  }, [onAddToCart, isReturnMode]);
   
     // مكون لعرض المنتج الواحد
   const ProductCard = useCallback(({ product }: { product: Product }) => {
@@ -356,21 +367,33 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate }: 
           </div>
           
           {/* زر الإضافة للسلة */}
-          {product.stockQuantity > 0 && (
+          {(isReturnMode || product.stockQuantity > 0) && (
             <Button 
               size="sm" 
               variant="ghost" 
-              className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 bg-primary text-primary-foreground hover:bg-primary/90 transition-all rounded-full w-8 h-8 p-0 shadow-md"
+              className={cn(
+                "absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-all rounded-full w-8 h-8 p-0 shadow-md",
+                isReturnMode 
+                  ? "bg-orange-500 text-white hover:bg-orange-600" 
+                  : "bg-primary text-primary-foreground hover:bg-primary/90"
+              )}
               onClick={(e) => {
                 e.stopPropagation();
-                if (product.stockQuantity > 0) {
+                if (isReturnMode || product.stockQuantity > 0) {
                   onAddToCart(product);
                   
                   // تحديث المخزون محلياً فوراً
                   setProducts(prevProducts => 
                     prevProducts.map(p => 
                       p.id === product.id 
-                        ? { ...p, stockQuantity: Math.max(0, p.stockQuantity - 1) }
+                        ? { 
+                            ...p, 
+                            stockQuantity: Math.max(0, 
+                              isReturnMode 
+                                ? p.stockQuantity + 1  // في وضع الإرجاع: زيادة المخزون
+                                : p.stockQuantity - 1  // في وضع البيع: تقليل المخزون
+                            ) 
+                          }
                         : p
                     )
                   );
@@ -378,7 +401,7 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate }: 
               }}
             >
               <Plus className="h-4 w-4" />
-              <span className="sr-only">إضافة إلى السلة</span>
+              <span className="sr-only">{isReturnMode ? 'إضافة للإرجاع' : 'إضافة إلى السلة'}</span>
             </Button>
           )}
         </div>

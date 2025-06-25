@@ -41,7 +41,7 @@ import { supabase } from '@/lib/supabase';
 interface Return {
   id: string;
   return_number: string;
-  original_order_id: string;
+  original_order_id?: string; // جعله اختياري للإرجاع المباشر
   original_order_number?: string;
   customer_id?: string;
   customer_name?: string;
@@ -72,12 +72,13 @@ interface Return {
   rejected_by?: string;
   rejected_at?: string;
   items_count?: number; // مؤقت - سيتم حسابها
+  is_direct_return?: boolean; // للإرجاع المباشر من نقطة البيع
 }
 
 interface ReturnItem {
   id: string;
   return_id: string;
-  original_order_item_id: string;
+  original_order_item_id?: string; // اختياري للإرجاع المباشر
   product_id: string;
   product_name: string;
   product_sku?: string;
@@ -86,6 +87,12 @@ interface ReturnItem {
   original_unit_price: number;
   return_unit_price: number;
   total_return_amount: number;
+  // معلومات المتغيرات مباشرة في ReturnItem للإرجاع المباشر
+  color_id?: string;
+  size_id?: string;
+  color_name?: string;
+  size_name?: string;
+  variant_display_name?: string;
   variant_info?: {
     color_id?: string;
     size_id?: string;
@@ -161,7 +168,9 @@ const ProductReturns: React.FC = () => {
     approved: 0,
     completed: 0,
     rejected: 0,
-    totalAmount: 0
+    direct: 0,
+    totalAmount: 0,
+    directAmount: 0
   });
 
   // Create return form
@@ -200,30 +209,75 @@ const ProductReturns: React.FC = () => {
 
     setLoading(true);
     try {
-      // استخدام جدول returns الصحيح
-      const { data, error } = await supabase
+      let query = supabase
         .from('returns')
-        .select('*')
-        .eq('organization_id', currentOrganization.id)
-        .order('created_at', { ascending: false });
+        .select(`
+          *,
+          return_items(count)
+        `)
+        .eq('organization_id', currentOrganization.id);
+
+      // تطبيق الفلاتر
+      if (statusFilter && statusFilter !== 'all') {
+        query = query.eq('status', statusFilter);
+      }
+
+      if (typeFilter && typeFilter !== 'all') {
+        query = query.eq('return_type', typeFilter);
+      }
+
+      // البحث النصي
+      if (searchQuery.trim()) {
+        query = query.or(`
+          return_number.ilike.%${searchQuery}%,
+          customer_name.ilike.%${searchQuery}%,
+          original_order_number.ilike.%${searchQuery}%
+        `);
+      }
+
+      // فلتر التاريخ
+      if (dateRange.from) {
+        query = query.gte('created_at', dateRange.from);
+      }
+      if (dateRange.to) {
+        query = query.lte('created_at', dateRange.to + 'T23:59:59');
+      }
+
+      const { data, error } = await query
+        .order('created_at', { ascending: false })
+        .range((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage - 1);
 
       if (error) throw error;
       
       // تحويل البيانات لتتطابق مع Return interface
       const returnsData = data?.map((item: any) => ({
         ...item,
-        items_count: 0, // سيتم جلبها من return_items لاحقاً
-        customer_name: item.customer_name || 'غير محدد'
+        items_count: item.return_items?.[0]?.count || 0,
+        customer_name: item.customer_name || 'غير محدد',
+        // تحديد نوع الإرجاع بناءً على وجود original_order_id
+        return_type: item.original_order_id ? item.return_type || 'partial' : 'direct',
+        // إضافة علامة للإرجاع المباشر
+        is_direct_return: !item.original_order_id
       })) || [];
       
       setReturns(returnsData as Return[]);
+
+      // حساب العدد الكلي للصفحات
+      const { count } = await supabase
+        .from('returns')
+        .select('*', { count: 'exact', head: true })
+        .eq('organization_id', currentOrganization.id);
+      
+      setTotalPages(Math.ceil((count || 0) / itemsPerPage));
+      
     } catch (error) {
       setReturns([]);
+      console.error('خطأ في جلب طلبات الإرجاع:', error);
       // toast.error('حدث خطأ في جلب طلبات الإرجاع');
     } finally {
       setLoading(false);
     }
-  }, [currentOrganization?.id, statusFilter, typeFilter, currentPage]);
+  }, [currentOrganization?.id, statusFilter, typeFilter, currentPage, searchQuery, dateRange]);
 
   // Fetch stats
   const fetchStats = useCallback(async () => {
@@ -232,12 +286,17 @@ const ProductReturns: React.FC = () => {
     try {
       const { data: returns } = await supabase
         .from('returns')
-        .select('status, return_amount')
+        .select('status, return_amount, return_type, original_order_id')
         .eq('organization_id', currentOrganization.id);
 
       if (returns) {
         const stats = returns.reduce((acc: any, r: any) => {
           acc.total++;
+          
+          // تحديد نوع الإرجاع
+          const isDirect = !r.original_order_id;
+          if (isDirect) acc.direct++;
+          
           // تحويل الحالات لتتطابق مع الحالات المتوقعة
           if (r.status === 'pending') acc.pending++;
           else if (r.status === 'approved') acc.approved++;
@@ -245,6 +304,8 @@ const ProductReturns: React.FC = () => {
           else if (r.status === 'rejected') acc.rejected++;
           
           acc.totalAmount += parseFloat(r.return_amount || '0');
+          if (isDirect) acc.directAmount += parseFloat(r.return_amount || '0');
+          
           return acc;
         }, {
           total: 0,
@@ -252,7 +313,9 @@ const ProductReturns: React.FC = () => {
           approved: 0,
           completed: 0,
           rejected: 0,
-          totalAmount: 0
+          direct: 0, // إحصائية الإرجاع المباشر
+          totalAmount: 0,
+          directAmount: 0 // قيمة الإرجاع المباشر
         });
 
         setStats(stats);
@@ -265,7 +328,9 @@ const ProductReturns: React.FC = () => {
         approved: 0,
         completed: 0,
         rejected: 0,
-        totalAmount: 0
+        direct: 0,
+        totalAmount: 0,
+        directAmount: 0
       });
     }
   }, [currentOrganization?.id]);
@@ -511,7 +576,17 @@ const ProductReturns: React.FC = () => {
         condition_status: item.condition_status || 'good',
         resellable: item.resellable !== undefined ? item.resellable : true,
         inventory_returned: item.inventory_returned || false,
-        variant_info: item.variant_info || null
+        // دعم المتغيرات للإرجاع المباشر
+        color_name: item.color_name || item.variant_info?.color_name,
+        size_name: item.size_name || item.variant_info?.size_name,
+        variant_display_name: item.variant_display_name || item.variant_info?.variant_display_name,
+        variant_info: item.variant_info || {
+          color_id: item.color_id,
+          size_id: item.size_id,
+          color_name: item.color_name,
+          size_name: item.size_name,
+          variant_display_name: item.variant_display_name
+        }
       })) || [];
       
       setReturnItems(returnItemsData as ReturnItem[]);
@@ -596,7 +671,12 @@ const ProductReturns: React.FC = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <ArrowLeft className="h-6 w-6" />
-            <h1 className="text-2xl font-bold">إدارة إرجاع المنتجات</h1>
+            <div>
+              <h1 className="text-2xl font-bold">إدارة إرجاع المنتجات</h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                إدارة طلبات الإرجاع من الطلبيات والإرجاع المباشر من نقطة البيع
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <Button 
@@ -865,7 +945,7 @@ const ProductReturns: React.FC = () => {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-2">
@@ -873,6 +953,18 @@ const ProductReturns: React.FC = () => {
                 <div>
                   <p className="text-sm text-muted-foreground">إجمالي الطلبات</p>
                   <p className="text-2xl font-bold">{stats.total}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <Package className="h-5 w-5 text-orange-600" />
+                <div>
+                  <p className="text-sm text-muted-foreground">إرجاع مباشر</p>
+                  <p className="text-2xl font-bold text-orange-700">{stats.direct}</p>
                 </div>
               </div>
             </CardContent>
@@ -970,6 +1062,7 @@ const ProductReturns: React.FC = () => {
                   <SelectItem value="all">جميع الأنواع</SelectItem>
                   <SelectItem value="full">إرجاع كامل</SelectItem>
                   <SelectItem value="partial">إرجاع جزئي</SelectItem>
+                  <SelectItem value="direct">إرجاع مباشر</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -1002,6 +1095,7 @@ const ProductReturns: React.FC = () => {
                       <TableHead>الطلبية الأصلية</TableHead>
                       <TableHead>العميل</TableHead>
                       <TableHead>النوع</TableHead>
+                      <TableHead>المصدر</TableHead>
                       <TableHead>السبب</TableHead>
                       <TableHead>المبلغ</TableHead>
                       <TableHead>الحالة</TableHead>
@@ -1015,12 +1109,34 @@ const ProductReturns: React.FC = () => {
                         <TableCell className="font-medium">
                           {returnItem.return_number}
                         </TableCell>
-                        <TableCell>#{returnItem.original_order_number}</TableCell>
+                        <TableCell>
+                          {returnItem.is_direct_return ? (
+                            <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                              إرجاع مباشر
+                            </Badge>
+                          ) : (
+                            `#${returnItem.original_order_number}`
+                          )}
+                        </TableCell>
                         <TableCell>{returnItem.customer_name}</TableCell>
                         <TableCell>
-                          <Badge variant={returnItem.return_type === 'full' ? 'default' : 'secondary'}>
-                            {returnItem.return_type === 'full' ? 'كامل' : 'جزئي'}
+                          <Badge variant={returnItem.return_type === 'full' ? 'default' : returnItem.return_type === 'direct' ? 'outline' : 'secondary'}>
+                            {returnItem.return_type === 'full' ? 'كامل' : 
+                             returnItem.return_type === 'direct' ? 'مباشر' : 'جزئي'}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {returnItem.is_direct_return ? (
+                            <div className="flex items-center gap-1">
+                              <Package className="h-4 w-4 text-orange-600" />
+                              <span className="text-orange-700 font-medium">نقطة البيع</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <ShoppingCart className="h-4 w-4 text-blue-600" />
+                              <span className="text-blue-700 font-medium">طلبية</span>
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell>{getReasonLabel(returnItem.return_reason)}</TableCell>
                         <TableCell>{formatCurrency(returnItem.return_amount)}</TableCell>
@@ -1094,12 +1210,19 @@ const ProductReturns: React.FC = () => {
                       </div>
                       <div className="flex justify-between">
                         <span>الطلبية الأصلية:</span>
-                        <span className="font-medium">#{selectedReturn.original_order_number}</span>
+                        {selectedReturn.is_direct_return ? (
+                          <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                            إرجاع مباشر - نقطة البيع
+                          </Badge>
+                        ) : (
+                          <span className="font-medium">#{selectedReturn.original_order_number}</span>
+                        )}
                       </div>
                       <div className="flex justify-between">
                         <span>النوع:</span>
-                        <Badge variant={selectedReturn.return_type === 'full' ? 'default' : 'secondary'}>
-                          {selectedReturn.return_type === 'full' ? 'إرجاع كامل' : 'إرجاع جزئي'}
+                        <Badge variant={selectedReturn.return_type === 'full' ? 'default' : selectedReturn.return_type === 'direct' ? 'outline' : 'secondary'}>
+                          {selectedReturn.return_type === 'full' ? 'إرجاع كامل' : 
+                           selectedReturn.return_type === 'direct' ? 'إرجاع مباشر' : 'إرجاع جزئي'}
                         </Badge>
                       </div>
                       <div className="flex justify-between">

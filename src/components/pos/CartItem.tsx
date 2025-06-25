@@ -17,6 +17,7 @@ export interface CartItemType {
   sizeName?: string;
   variantPrice?: number;
   variantImage?: string;
+  customReturnPrice?: number; // سعر مخصص للإرجاع
 }
 
 interface CartItemProps {

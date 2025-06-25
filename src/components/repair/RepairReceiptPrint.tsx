@@ -398,9 +398,12 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
                     lineHeight: '1.4',
                     margin: '0',
                     fontWeight: '500',
-                    textAlign: 'center'
+                    textAlign: 'center',
+                    wordWrap: 'break-word',
+                    overflowWrap: 'break-word',
+                    whiteSpace: 'pre-wrap'
                   }}>
-                    {truncateText(order.issue_description, 100)}
+                    {order.issue_description}
                   </p>
                 </div>
               </div>
@@ -759,9 +762,13 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
                   <div className="info-value center-item" style={{ 
                     fontSize: '10px',
                     fontWeight: '500',
-                    lineHeight: '1.3'
+                    lineHeight: '1.3',
+                    wordWrap: 'break-word',
+                    overflowWrap: 'break-word',
+                    whiteSpace: 'pre-wrap',
+                    textAlign: 'center'
                   }}>
-                    {truncateText(order.issue_description, 40)}
+                    {order.issue_description}
                   </div>
                 </div>
               )}

@@ -1,12 +1,13 @@
-import { ShoppingBasket, ShoppingCart } from 'lucide-react';
+import { ShoppingBasket, ShoppingCart, RotateCcw } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 
 interface EmptyCartProps {
   onAddProduct?: () => void;
+  isReturnMode?: boolean;
 }
 
-export default function EmptyCart({ onAddProduct }: EmptyCartProps) {
+export default function EmptyCart({ onAddProduct, isReturnMode = false }: EmptyCartProps) {
   return (
     <div className="flex-1 flex items-center justify-center p-6">
       <motion.div
@@ -22,9 +23,13 @@ export default function EmptyCart({ onAddProduct }: EmptyCartProps) {
           className="relative mb-6"
         >
           {/* الدائرة الخارجية */}
-          <div className="w-24 h-24 rounded-full bg-primary/10 dark:bg-primary/5 flex items-center justify-center shadow-sm">
+          <div className={`w-24 h-24 rounded-full ${isReturnMode ? 'bg-orange-100' : 'bg-primary/10'} dark:bg-primary/5 flex items-center justify-center shadow-sm`}>
             {/* الأيقونة */}
-            <ShoppingCart className="h-10 w-10 text-primary/60 dark:text-primary/50" strokeWidth={1.5} />
+            {isReturnMode ? (
+              <RotateCcw className="h-10 w-10 text-orange-500" strokeWidth={1.5} />
+            ) : (
+              <ShoppingCart className="h-10 w-10 text-primary/60 dark:text-primary/50" strokeWidth={1.5} />
+            )}
           </div>
           
           {/* عداد الصفر */}
@@ -48,7 +53,7 @@ export default function EmptyCart({ onAddProduct }: EmptyCartProps) {
             transition={{ delay: 0.2 }}
             className="text-lg font-medium text-foreground dark:text-zinc-200"
           >
-            السلة فارغة
+            {isReturnMode ? 'سلة الإرجاع فارغة' : 'السلة فارغة'}
           </motion.h3>
           
           <motion.p
@@ -57,7 +62,10 @@ export default function EmptyCart({ onAddProduct }: EmptyCartProps) {
             transition={{ delay: 0.3 }}
             className="text-sm text-muted-foreground dark:text-zinc-400"
           >
-            لم تقم بإضافة أي منتجات إلى سلة التسوق الخاصة بك بعد
+            {isReturnMode ? 
+              'قم بمسح أو إدخال المنتجات المراد إرجاعها' : 
+              'لم تقم بإضافة أي منتجات إلى سلة التسوق الخاصة بك بعد'
+            }
           </motion.p>
         </div>
 
@@ -73,9 +81,13 @@ export default function EmptyCart({ onAddProduct }: EmptyCartProps) {
               onClick={onAddProduct}
               variant="default"
               size="sm"
-              className="w-full shadow-md py-5 transition-all bg-primary hover:bg-primary/90 dark:bg-primary/90 dark:hover:bg-primary/80 text-primary-foreground rounded-full"
+              className={`w-full shadow-md py-5 transition-all text-primary-foreground rounded-full ${
+                isReturnMode ? 
+                'bg-orange-500 hover:bg-orange-600' : 
+                'bg-primary hover:bg-primary/90 dark:bg-primary/90 dark:hover:bg-primary/80'
+              }`}
             >
-              استكشاف المنتجات
+              {isReturnMode ? 'استكشاف المنتجات للإرجاع' : 'استكشاف المنتجات'}
             </Button>
           </motion.div>
         )}

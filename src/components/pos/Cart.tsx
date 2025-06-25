@@ -4,7 +4,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useShop } from '@/context/ShopContext';
 import { toast } from "sonner";
 import { motion } from 'framer-motion';
-import { ShoppingCart, Save, Clock, X, Filter } from 'lucide-react';
+import { ShoppingCart, Save, Clock, X, Filter, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 import { Separator } from '@/components/ui/separator';
@@ -38,6 +38,11 @@ interface CartProps {
   selectedSubscriptions?: any[];
   removeSubscription?: (subscriptionId: string) => void;
   updateSubscriptionPrice?: (subscriptionId: string, price: number) => void;
+  isReturnMode?: boolean;
+  returnReason?: string;
+  setReturnReason?: (reason: string) => void;
+  returnNotes?: string;
+  setReturnNotes?: (notes: string) => void;
 }
 
 export default function Cart({
@@ -53,7 +58,12 @@ export default function Cart({
   updateServicePrice = () => {},
   selectedSubscriptions = [],
   removeSubscription = () => {},
-  updateSubscriptionPrice = () => {}
+  updateSubscriptionPrice = () => {},
+  isReturnMode = false,
+  returnReason = '',
+  setReturnReason = () => {},
+  returnNotes = '',
+  setReturnNotes = () => {}
 }: CartProps) {
   const { createCustomer } = useShop();
   
@@ -345,8 +355,8 @@ export default function Cart({
         return;
       }
 
-      // التحقق من أن الدفع الجزئي يتطلب اختيار عميل (فقط إذا تم اعتباره دفعة جزئية)
-      if (isPartialPayment && considerRemainingAsPartial && !selectedCustomer) {
+      // التحقق من أن الدفع الجزئي يتطلب اختيار عميل (فقط إذا تم اعتباره دفعة جزئية وليس في وضع الإرجاع)
+      if (isPartialPayment && considerRemainingAsPartial && !selectedCustomer && !isReturnMode) {
         toast.error("يجب اختيار عميل لتسجيل المبلغ المتبقي عند اختيار الدفعة الجزئية");
         setIsProcessing(false);
         return;
@@ -481,21 +491,29 @@ export default function Cart({
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="bg-primary/10 dark:bg-primary/10 p-1.5 rounded-lg shadow-sm">
-              <ShoppingCart className="h-4 w-4 text-primary dark:text-primary" />
+            <div className={`p-1.5 rounded-lg shadow-sm ${isReturnMode ? 'bg-orange-100' : 'bg-primary/10'}`}>
+              {isReturnMode ? (
+                <RotateCcw className="h-4 w-4 text-orange-500" />
+              ) : (
+                <ShoppingCart className="h-4 w-4 text-primary dark:text-primary" />
+              )}
             </div>
             <h2 className="text-base font-semibold text-foreground dark:text-foreground">
-              سلة المشتريات
+              {isReturnMode ? 'سلة الإرجاع' : 'سلة المشتريات'}
             </h2>
           </div>
           
           {!isCartEmpty ? (
-            <div className="bg-primary/10 dark:bg-primary/10 text-primary dark:text-primary text-xs font-semibold px-3 py-1.5 rounded-full shadow-sm border border-primary/20 dark:border-primary/20">
-              {cartItems.reduce((sum, item) => sum + item.quantity, 0) + selectedServices.length + selectedSubscriptions.length} عنصر
+            <div className={`text-xs font-semibold px-3 py-1.5 rounded-full shadow-sm border ${
+              isReturnMode ? 
+              'bg-orange-100 text-orange-800 border-orange-300' : 
+              'bg-primary/10 dark:bg-primary/10 text-primary dark:text-primary border-primary/20 dark:border-primary/20'
+            }`}>
+              {cartItems.reduce((sum, item) => sum + item.quantity, 0) + selectedServices.length + selectedSubscriptions.length} {isReturnMode ? 'منتج للإرجاع' : 'عنصر'}
             </div>
           ) : (
             <div className="text-xs text-muted-foreground dark:text-muted-foreground">
-              إضافة منتجات للسلة
+              {isReturnMode ? 'أضف منتجات للإرجاع' : 'إضافة منتجات للسلة'}
             </div>
           )}
         </div>
@@ -505,7 +523,10 @@ export default function Cart({
       
       {/* محتوى السلة - محسن مع مساحات أفضل ورسائل واضحة */}
       {isCartEmpty ? (
-        <EmptyCart onAddProduct={() => {}} />
+        <EmptyCart 
+          onAddProduct={() => {}} 
+          isReturnMode={isReturnMode}
+        />
       ) : (
         <div className="flex-1 flex flex-col overflow-hidden min-h-0">
           <ScrollArea className="flex-1 h-full overflow-y-auto">
@@ -578,6 +599,7 @@ export default function Cart({
         onApplyCoupon={handleApplyCoupon}
         onSaveCart={handleSaveCart}
         onQuickCheckout={handleQuickCheckout}
+        isReturnMode={isReturnMode}
       />
       
       {/* نوافذ حوارية */}
@@ -613,6 +635,7 @@ export default function Cart({
         hasSubscriptionServices={hasSubscriptionServices}
         subscriptionAccountInfo={subscriptionAccountInfo}
         setSubscriptionAccountInfo={setSubscriptionAccountInfo}
+        isReturnMode={isReturnMode}
       />
       
       <NewCustomerDialog
