@@ -157,7 +157,7 @@ const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({ order, queuePositio
     storeLogo: storeLogo ? 'موجود' : 'غير موجود'
   });
 
-  // وظيفة الطباعة المباشرة
+  // وظيفة الطباعة المباشرة المحسنة
   const handlePrintClick = () => {
     if (isPrinting) return;
     
@@ -178,28 +178,99 @@ const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({ order, queuePositio
         return;
       }
       
-      // استنساخ تنسيقات CSS للنافذة الجديدة
-      const styles = Array.from(document.styleSheets)
-        .map(styleSheet => {
-          try {
-            return Array.from(styleSheet.cssRules)
-              .map(rule => rule.cssText)
-              .join('\n');
-          } catch (e) {
-            // تخطي أوراق الأنماط المقيدة CORS
-            return '';
-          }
-        })
-        .filter(Boolean)
-        .join('\n');
+      // استنساخ تنسيقات CSS للنافذة الجديدة مع التركيز على تنسيقات الطباعة
+      const printCSS = `
+        @import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Noto+Sans+Arabic:wght@300;400;500;600;700&display=swap');
+        
+        @page {
+          size: 80mm auto;
+          margin: 0;
+        }
+        
+        body {
+          margin: 0;
+          padding: 0;
+          font-family: 'Amiri', 'Noto Sans Arabic', 'Cairo', 'Tahoma', sans-serif;
+          background: white;
+          color: black;
+        }
+        
+        .repair-receipt {
+          font-family: 'Amiri', 'Noto Sans Arabic', 'Cairo', 'Tahoma', sans-serif !important;
+          font-size: 12px !important;
+          line-height: 1.3 !important;
+          width: 78mm !important;
+          max-width: 78mm !important;
+          min-width: 78mm !important;
+          margin: 0 !important;
+          padding: 4mm !important;
+          background: white !important;
+          color: black !important;
+          box-sizing: border-box !important;
+          overflow: visible !important;
+        }
+        
+        .repair-receipt * {
+          background: white !important;
+          color: black !important;
+          border-color: black !important;
+          max-width: 70mm !important;
+          box-sizing: border-box !important;
+          word-wrap: break-word !important;
+          overflow-wrap: break-word !important;
+        }
+        
+        .receipt-row {
+          display: flex !important;
+          justify-content: space-between !important;
+          align-items: flex-start !important;
+          margin: 2px 0 !important;
+          width: 100% !important;
+          max-width: 70mm !important;
+          flex-wrap: wrap !important;
+        }
+        
+        .receipt-section {
+          margin-bottom: 6px !important;
+          padding: 2px 0 !important;
+          width: 100% !important;
+          max-width: 70mm !important;
+        }
+        
+        .dashed-line {
+          border-top: 1px dashed black !important;
+          margin: 4px 0 !important;
+          width: 100% !important;
+          max-width: 70mm !important;
+        }
+        
+        .solid-line {
+          border-top: 1px solid black !important;
+          margin: 3px 0 !important;
+          width: 100% !important;
+          max-width: 70mm !important;
+        }
+        
+        svg {
+          border: 1px solid black !important;
+        }
+        
+        img {
+          max-width: 25mm !important;
+          max-height: 25mm !important;
+          object-fit: contain !important;
+        }
+      `;
       
-      // إنشاء محتوى HTML للنافذة الجديدة
+      // إنشاء محتوى HTML للنافذة الجديدة مع تحسينات أفضل
       printWindow.document.write(`
         <!DOCTYPE html>
-        <html dir="rtl">
+        <html dir="rtl" lang="ar">
           <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>وصل تصليح - ${order.customer_name}</title>
-            <style>${styles}</style>
+            <style>${printCSS}</style>
           </head>
           <body>
             ${contentToPrint.innerHTML}
@@ -207,21 +278,39 @@ const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({ order, queuePositio
         </html>
       `);
       
-      // الانتظار لتحميل الصور
+      // إغلاق الكتابة وانتظار التحميل
       printWindow.document.close();
       
-      // طباعة النافذة بعد تحميل المحتوى
+      // طباعة النافذة بعد تحميل المحتوى مع وقت انتظار أطول للخطوط
       printWindow.onload = () => {
+        // انتظار إضافي لتحميل الخطوط والصور
         setTimeout(() => {
           printWindow.print();
-          printWindow.onafterprint = () => {
+          
+          // التعامل مع أحداث ما بعد الطباعة
+          const handleAfterPrint = () => {
             printWindow.close();
             setIsPrinting(false);
             setIsPrintSuccess(true);
             setTimeout(() => setIsPrintSuccess(false), 2000);
           };
-        }, 500);
+          
+          // استخدام onafterprint إذا كان متاحاً، وإلا استخدام timeout
+          if (printWindow.onafterprint !== undefined) {
+            printWindow.onafterprint = handleAfterPrint;
+          } else {
+            setTimeout(handleAfterPrint, 2000);
+          }
+        }, 1000); // زيادة وقت الانتظار لضمان تحميل الخطوط
       };
+      
+      // التعامل مع خطأ التحميل
+      printWindow.onerror = () => {
+        console.error('[RepairOrderPrint] خطأ في تحميل نافذة الطباعة');
+        printWindow.close();
+        setIsPrinting(false);
+      };
+      
     } catch (error) {
       console.error('[RepairOrderPrint] خطأ في الطباعة:', error);
       setIsPrinting(false);

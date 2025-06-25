@@ -53,459 +53,898 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
     return num.toString().replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString());
   };
 
+  // اختصار النصوص الطويلة
+  const truncateText = (text: string, maxLength: number) => {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
+  };
+
   // حساب المبلغ المتبقي (فقط إذا لم يكن السعر مؤجل التحديد)
   const remainingAmount = order.price_to_be_determined_later ? 0 : ((order.total_price || 0) - (order.paid_amount || 0));
 
   return (
-    <div 
-      className="repair-receipt" 
-      dir="rtl"
-      style={{
-        fontFamily: "'Amiri', 'Noto Sans Arabic', 'Cairo', 'Tahoma', sans-serif",
-        lineHeight: '1.6',
-        fontSize: '14px',
-        width: '80mm',
-        maxWidth: '300px',
-        margin: '0 auto',
-        backgroundColor: 'white',
-        color: 'black'
-      }}
-    >
-      {/* إضافة الخطوط العربية المحسنة */}
-      <style dangerouslySetInnerHTML={{
-        __html: `
-          @import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Noto+Sans+Arabic:wght@300;400;500;600;700&display=swap');
-          
-          .repair-receipt {
-            font-family: 'Amiri', 'Noto Sans Arabic', 'Cairo', 'Tahoma', sans-serif !important;
-            line-height: 1.6;
-            font-size: 14px;
-            color: black !important;
-          }
-          
-          .receipt-title {
-            font-family: 'Amiri', 'Noto Sans Arabic', sans-serif !important;
-            font-weight: 700;
-          }
-          
-          .receipt-content {
-            font-family: 'Noto Sans Arabic', 'Amiri', sans-serif !important;
-            font-weight: 400;
-          }
-          
-          .receipt-numbers {
-            font-family: 'Noto Sans Arabic', sans-serif !important;
-            direction: ltr;
-            display: inline-block;
-            font-weight: 500;
-          }
-
-          .receipt-header {
-            text-align: center;
-            border-bottom: 2px solid black;
-            padding-bottom: 8px;
-            margin-bottom: 12px;
-          }
-
-          .receipt-section {
-            margin-bottom: 10px;
-            padding: 6px 0;
-          }
-
-          .receipt-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin: 4px 0;
-          }
-
-          .dashed-line {
-            border-top: 1px dashed black;
-            margin: 8px 0;
-          }
-
-          .solid-line {
-            border-top: 1px solid black;
-            margin: 6px 0;
-          }
-
-          .qr-section {
-            text-align: center;
-            margin: 12px 0;
-          }
-          
-          @media print {
-            .repair-receipt {
-              font-family: 'Amiri', 'Noto Sans Arabic', 'Tahoma', sans-serif !important;
-              -webkit-print-color-adjust: exact;
-              color-adjust: exact;
-              width: 80mm;
-              font-size: 13px;
-              background: white !important;
-              color: black !important;
+    <>
+      {/* تحميل خط Tajawal من Google Fonts */}
+      <link
+        href="https://fonts.googleapis.com/css2?family=Tajawal:wght@200;300;400;500;600;700;800;900&display=swap"
+        rel="stylesheet"
+      />
+      
+      <div 
+        className="repair-receipt" 
+        dir="rtl"
+        style={{
+          fontFamily: "'Tajawal', Arial, sans-serif",
+          lineHeight: '1.5',
+          fontSize: '13px',
+          width: '76mm',
+          maxWidth: '76mm',
+          margin: '0 auto',
+          backgroundColor: 'white',
+          color: 'black',
+          padding: '4mm',
+          boxSizing: 'border-box',
+          position: 'relative',
+          overflow: 'visible',
+          textAlign: 'center'
+        }}
+      >
+        {/* تطبيق خط Tajawal بقوة */}
+        <style dangerouslySetInnerHTML={{
+          __html: `
+            @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@200;300;400;500;600;700;800;900&display=swap');
+            
+            *, *::before, *::after {
+              font-family: 'Tajawal', Arial, sans-serif !important;
+              text-align: center !important;
+              box-sizing: border-box !important;
             }
             
-            .no-print {
-              display: none !important;
+            .repair-receipt {
+              font-family: 'Tajawal', Arial, sans-serif !important;
+              text-align: center !important;
+              direction: rtl !important;
             }
-
-            * {
-              background: white !important;
+            
+            .repair-receipt * {
+              font-family: 'Tajawal', Arial, sans-serif !important;
+              text-align: center !important;
+              margin-left: auto !important;
+              margin-right: auto !important;
+            }
+            
+            .center-item {
+              text-align: center !important;
+              display: block !important;
+              margin: 0 auto !important;
+              width: 100% !important;
+            }
+            
+            .center-flex {
+              display: flex !important;
+              flex-direction: column !important;
+              align-items: center !important;
+              justify-content: center !important;
+              text-align: center !important;
+              width: 100% !important;
+            }
+            
+            .info-row {
+              display: flex !important;
+              flex-direction: column !important;
+              align-items: center !important;
+              justify-content: center !important;
+              text-align: center !important;
+              margin: 3mm 0 !important;
+              width: 100% !important;
+            }
+            
+            .info-label {
+              font-size: 11px !important;
+              font-weight: 500 !important;
+              color: #666 !important;
+              margin-bottom: 1mm !important;
+              text-align: center !important;
+            }
+            
+            .info-value {
+              font-size: 14px !important;
+              font-weight: 700 !important;
               color: black !important;
-              border-color: black !important;
+              text-align: center !important;
             }
-          }
-        `
-      }} />
+            
+            .section-title {
+              font-size: 16px !important;
+              font-weight: 800 !important;
+              text-align: center !important;
+              margin: 4mm 0 !important;
+              padding: 2mm !important;
+              border: 2px solid black !important;
+              border-radius: 3mm !important;
+              background: #f8f9fa !important;
+            }
+            
+            .line-separator {
+              border-top: 2px dashed black !important;
+              margin: 4mm 0 !important;
+              width: 100% !important;
+              height: 0 !important;
+            }
+            
+            @media print {
+              *, *::before, *::after {
+                font-family: 'Tajawal', Arial, sans-serif !important;
+                text-align: center !important;
+                -webkit-print-color-adjust: exact !important;
+                color-adjust: exact !important;
+              }
+              
+              .repair-receipt {
+                font-family: 'Tajawal', Arial, sans-serif !important;
+                width: 76mm !important;
+                max-width: 76mm !important;
+                font-size: 13px !important;
+                background: white !important;
+                color: black !important;
+                padding: 4mm !important;
+                text-align: center !important;
+                overflow: visible !important;
+              }
+              
+              .no-print {
+                display: none !important;
+              }
+            }
+          `
+        }} />
 
-      {/* ====================== الجزء الأول: إيصال العميل ====================== */}
-      <div className="customer-receipt receipt-content">
-        
-        {/* رأس الوصل */}
-        <div className="receipt-header">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '6px' }}>
+        {/* ====================== الجزء الأول: إيصال العميل ====================== */}
+        <div className="center-item">
+          
+          {/* رأس الوصل */}
+          <div className="center-flex" style={{ 
+            borderBottom: '3px solid black', 
+            paddingBottom: '4mm', 
+            marginBottom: '5mm' 
+          }}>
             {storeLogo && (
-              <img src={storeLogo} alt={storeName} style={{ height: '32px', width: '32px', objectFit: 'contain' }} />
+              <div className="center-item" style={{ marginBottom: '3mm' }}>
+                <img 
+                  src={storeLogo} 
+                  alt={storeName} 
+                  className="center-item"
+                  style={{ 
+                    height: '25mm', 
+                    width: '25mm', 
+                    objectFit: 'contain',
+                    display: 'block',
+                    margin: '0 auto'
+                  }} 
+                />
+              </div>
             )}
-            <h1 className="receipt-title" style={{ fontSize: '18px', margin: '0', fontWeight: '700' }}>
-              {storeName}
-            </h1>
-          </div>
-          {storePhone && (
-            <p style={{ margin: '2px 0', fontSize: '12px' }}>
-              📞 <span className="receipt-numbers">{convertToEnglishNumbers(storePhone)}</span>
-            </p>
-          )}
-          {storeAddress && (
-            <p style={{ margin: '2px 0', fontSize: '11px', opacity: '0.8' }}>
-              📍 {storeAddress}
-            </p>
-          )}
-        </div>
-
-        {/* عنوان الوصل */}
-        <div style={{ textAlign: 'center', margin: '10px 0', padding: '6px', border: '1px solid black' }}>
-          <h2 className="receipt-title" style={{ fontSize: '16px', margin: '0', fontWeight: '700' }}>
-            🔧 إيصال استلام جهاز للتصليح
-          </h2>
-        </div>
-
-        {/* معلومات الطلبية */}
-        <div className="receipt-section">
-          <div className="receipt-row">
-            <span className="receipt-title">رقم الطلبية:</span>
-            <span className="receipt-numbers" style={{ fontWeight: '700' }}>
-              #{convertToEnglishNumbers(order.order_number || order.id.slice(0, 8))}
-            </span>
-          </div>
-          <div className="receipt-row">
-            <span className="receipt-title">التاريخ:</span>
-            <span className="receipt-numbers" style={{ fontSize: '12px' }}>
-              {formatDate(order.created_at)}
-            </span>
-          </div>
-          {queuePosition && queuePosition > 0 && (
-            <div className="receipt-row">
-              <span className="receipt-title">رقم الترتيب:</span>
-              <span className="receipt-numbers" style={{ fontWeight: '700', fontSize: '16px' }}>
-                {convertToEnglishNumbers(queuePosition)}
-              </span>
+            
+            <div className="center-item">
+              <h1 className="center-item" style={{ 
+                fontSize: '18px', 
+                fontWeight: '900', 
+                margin: '0 0 2mm 0',
+                textAlign: 'center',
+                fontFamily: "'Tajawal', Arial, sans-serif"
+              }}>
+                {truncateText(storeName, 25)}
+              </h1>
             </div>
-          )}
-        </div>
-
-        <div className="dashed-line"></div>
-
-        {/* بيانات العميل */}
-        <div className="receipt-section">
-          <h3 className="receipt-title" style={{ fontSize: '14px', margin: '0 0 6px 0', fontWeight: '700' }}>
-            👤 بيانات العميل
-          </h3>
-          <div className="receipt-row">
-            <span>الاسم:</span>
-            <span style={{ fontWeight: '600' }}>{order.customer_name}</span>
-          </div>
-          <div className="receipt-row">
-            <span>الهاتف:</span>
-            <span className="receipt-numbers" style={{ fontWeight: '600' }}>
-              {convertToEnglishNumbers(order.customer_phone)}
-            </span>
-          </div>
-        </div>
-
-        {/* وصف العطل */}
-        {order.issue_description && (
-          <>
-            <div className="dashed-line"></div>
-            <div className="receipt-section">
-              <h3 className="receipt-title" style={{ fontSize: '14px', margin: '0 0 6px 0', fontWeight: '700' }}>
-                🔍 وصف العطل
-              </h3>
-              <p style={{ margin: '0', fontSize: '13px', lineHeight: '1.4' }}>
-                {order.issue_description}
-              </p>
-            </div>
-          </>
-        )}
-
-        {/* تفاصيل الدفع */}
-        <div className="dashed-line"></div>
-        <div className="receipt-section">
-          <h3 className="receipt-title" style={{ fontSize: '14px', margin: '0 0 6px 0', fontWeight: '700' }}>
-            💰 تفاصيل الدفع
-          </h3>
-          
-          {order.price_to_be_determined_later ? (
-            <div style={{ textAlign: 'center', padding: '8px', border: '1px dashed black' }}>
-              <p style={{ margin: '0', fontWeight: '700', fontSize: '14px' }}>
-                💡 السعر يحدد لاحقاً
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="receipt-row">
-                <span>السعر الكلي:</span>
-                <span className="receipt-numbers" style={{ fontWeight: '700' }}>
-                  {convertToEnglishNumbers((order.total_price || 0).toLocaleString())} دج
-                </span>
+            
+            {storePhone && (
+              <div className="center-item" style={{ marginTop: '2mm' }}>
+                <p className="center-item" style={{ 
+                  fontSize: '12px', 
+                  fontWeight: '600',
+                  margin: '0',
+                  textAlign: 'center'
+                }}>
+                  📞 {convertToEnglishNumbers(storePhone)}
+                </p>
               </div>
-              <div className="receipt-row">
-                <span>المدفوع:</span>
-                <span className="receipt-numbers" style={{ fontWeight: '700' }}>
-                  {convertToEnglishNumbers((order.paid_amount || 0).toLocaleString())} دج
-                </span>
+            )}
+            
+            {storeAddress && (
+              <div className="center-item" style={{ marginTop: '1mm' }}>
+                <p className="center-item" style={{ 
+                  fontSize: '11px', 
+                  margin: '0',
+                  opacity: '0.8',
+                  textAlign: 'center'
+                }}>
+                  📍 {truncateText(storeAddress, 50)}
+                </p>
               </div>
-              {remainingAmount > 0 && (
-                <>
-                  <div className="solid-line"></div>
-                  <div className="receipt-row">
-                    <span style={{ fontWeight: '700' }}>المتبقي:</span>
-                    <span className="receipt-numbers" style={{ fontWeight: '700', fontSize: '16px' }}>
-                      {convertToEnglishNumbers(remainingAmount.toLocaleString())} دج
-                    </span>
-                  </div>
-                </>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* QR Code */}
-        <div className="dashed-line"></div>
-        <div className="qr-section">
-          <QRCodeSVG 
-            value={`${storeUrl}/repair-tracking/${trackingCode}`} 
-            size={80}
-            level="M"
-            style={{ border: '1px solid black', padding: '4px' }}
-          />
-          <p style={{ margin: '6px 0 2px 0', fontSize: '12px', fontWeight: '600' }}>
-            🔗 كود التتبع: <span className="receipt-numbers">{convertToEnglishNumbers(trackingCode)}</span>
-          </p>
-          <p style={{ margin: '0', fontSize: '11px', opacity: '0.8' }}>
-            امسح الكود أو ادخل على الموقع لمتابعة حالة التصليح
-          </p>
-        </div>
-
-        {/* شروط الخدمة */}
-        <div className="dashed-line"></div>
-        <div style={{ fontSize: '11px', lineHeight: '1.4', textAlign: 'center' }}>
-          <p style={{ margin: '2px 0', fontWeight: '600' }}>
-            ⚠️ شروط مهمة
-          </p>
-          <p style={{ margin: '1px 0' }}>• يجب تقديم هذا الإيصال عند الاستلام</p>
-          <p style={{ margin: '1px 0' }}>• عدم المسؤولية عن فقدان البيانات</p>
-          <p style={{ margin: '1px 0' }}>• الاستلام خلال 30 يوماً من الإشعار</p>
-        </div>
-      </div>
-
-      {/* ====================== خط الفصل للقطع ====================== */}
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        padding: '8px 0',
-        margin: '12px 0'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-          <div style={{ flex: 1, borderTop: '1px dashed black' }}></div>
-          <div style={{ padding: '0 8px', textAlign: 'center' }}>
-            <span style={{ fontSize: '16px' }}>✂️</span>
-            <p style={{ fontSize: '10px', margin: '0', opacity: '0.7' }}>قص هنا</p>
+            )}
           </div>
-          <div style={{ flex: 1, borderTop: '1px dashed black' }}></div>
-        </div>
-      </div>
 
-      {/* ====================== الجزء الثاني: لصقة الجهاز ====================== */}
-      <div className="device-label receipt-content" style={{ 
-        padding: '12px', 
-        border: '2px solid black',
-        marginTop: '8px'
-      }}>
-        
-        {/* رأس اللصقة */}
-        <div style={{ textAlign: 'center', marginBottom: '8px' }}>
-          <h2 className="receipt-title" style={{ fontSize: '16px', margin: '0', fontWeight: '700' }}>
-            🏷️ لصقة الجهاز
-          </h2>
-        </div>
+          {/* عنوان الوصل */}
+          <div className="center-item" style={{ marginBottom: '5mm' }}>
+            <div className="section-title center-item">
+              🔧 إيصال استلام جهاز للتصليح
+            </div>
+          </div>
 
-        {/* رقم الطلبية بارز */}
-        <div style={{ 
-          border: '2px solid black', 
-          padding: '8px', 
-          marginBottom: '8px', 
-          textAlign: 'center',
-          backgroundColor: 'black',
-          color: 'white'
-        }}>
-          <p style={{ margin: '0 0 2px 0', fontSize: '11px' }}>رقم الطلبية</p>
-          <p className="receipt-numbers" style={{ 
-            fontSize: '20px', 
-            fontWeight: '900', 
-            margin: '0',
-            letterSpacing: '2px',
-            color: 'white'
-          }}>
-            #{convertToEnglishNumbers(order.order_number || order.id.slice(0, 8))}
-          </p>
-        </div>
-
-        {/* ترتيب الطلبية */}
-        {queuePosition && queuePosition > 0 && (
-          <div style={{ 
-            border: '1px solid black', 
-            padding: '6px', 
-            marginBottom: '8px', 
-            textAlign: 'center' 
-          }}>
-            <p style={{ margin: '0 0 2px 0', fontSize: '11px' }}>رقم الترتيب</p>
-            <p className="receipt-numbers" style={{ 
-              fontSize: '18px', 
-              fontWeight: '700', 
-              margin: '0'
+          {/* رقم الطلبية المميز */}
+          <div className="center-item" style={{ marginBottom: '5mm' }}>
+            <div className="center-flex" style={{
+              background: 'black',
+              color: 'white',
+              padding: '4mm',
+              borderRadius: '4mm',
+              border: '3px solid black'
             }}>
-              {convertToEnglishNumbers(queuePosition)}
-            </p>
+              <div className="center-item" style={{ 
+                fontSize: '12px', 
+                fontWeight: '500',
+                marginBottom: '1mm',
+                color: 'white'
+              }}>
+                رقم الطلبية
+              </div>
+              <div className="center-item" style={{ 
+                fontSize: '20px', 
+                fontWeight: '900',
+                color: 'white',
+                fontFamily: "'Tajawal', Arial, sans-serif",
+                letterSpacing: '1px'
+              }}>
+                #{convertToEnglishNumbers(order.order_number || order.id.slice(0, 8))}
+              </div>
+            </div>
           </div>
-        )}
 
-        {/* المعلومات الأساسية */}
-        <div style={{ fontSize: '12px' }}>
-          <div className="receipt-row">
-            <span>👤 العميل:</span>
-            <span style={{ fontWeight: '600' }}>{order.customer_name}</span>
-          </div>
-          
-          <div className="receipt-row">
-            <span>📱 الهاتف:</span>
-            <span className="receipt-numbers" style={{ fontWeight: '600' }}>
-              {convertToEnglishNumbers(order.customer_phone)}
-            </span>
-          </div>
-          
-          <div className="receipt-row">
-            <span>📅 التاريخ:</span>
-            <span className="receipt-numbers" style={{ fontSize: '11px' }}>
+          {/* التاريخ */}
+          <div className="info-row center-item">
+            <div className="info-label center-item">📅 التاريخ والوقت</div>
+            <div className="info-value center-item" style={{ 
+              fontSize: '12px',
+              fontFamily: "'Tajawal', Arial, sans-serif",
+              direction: 'ltr',
+              display: 'inline-block'
+            }}>
               {formatDate(order.created_at)}
-            </span>
+            </div>
           </div>
-          
-          <div className="receipt-row">
-            <span>⚡ الحالة:</span>
-            <span style={{ fontWeight: '700', padding: '2px 6px', border: '1px solid black' }}>
-              {order.status}
-            </span>
+
+          {/* رقم الترتيب */}
+          {queuePosition && queuePosition > 0 && (
+            <div className="center-item" style={{ marginBottom: '5mm' }}>
+              <div className="center-flex" style={{
+                background: '#fef2f2',
+                border: '3px solid #dc2626',
+                padding: '4mm',
+                borderRadius: '4mm'
+              }}>
+                <div className="center-item" style={{ 
+                  fontSize: '12px', 
+                  fontWeight: '500',
+                  marginBottom: '1mm',
+                  color: '#7f1d1d'
+                }}>
+                  رقم الترتيب في الطابور
+                </div>
+                <div className="center-item" style={{ 
+                  fontSize: '24px', 
+                  fontWeight: '900',
+                  color: '#dc2626',
+                  fontFamily: "'Tajawal', Arial, sans-serif"
+                }}>
+                  {convertToEnglishNumbers(queuePosition)}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="line-separator"></div>
+
+          {/* بيانات العميل */}
+          <div className="center-item" style={{ marginBottom: '5mm' }}>
+            <div className="section-title center-item" style={{ 
+              background: '#ecfdf5',
+              borderColor: '#059669',
+              color: '#059669'
+            }}>
+              👤 بيانات العميل
+            </div>
+            
+            <div className="info-row center-item">
+              <div className="info-label center-item">الاسم الكامل</div>
+              <div className="info-value center-item">
+                {truncateText(order.customer_name, 20)}
+              </div>
+            </div>
+            
+            <div className="info-row center-item">
+              <div className="info-label center-item">رقم الهاتف</div>
+              <div className="info-value center-item" style={{ 
+                fontFamily: "'Tajawal', Arial, sans-serif",
+                direction: 'ltr',
+                display: 'inline-block'
+              }}>
+                {convertToEnglishNumbers(order.customer_phone)}
+              </div>
+            </div>
           </div>
-          
+
+          {/* وصف العطل */}
           {order.issue_description && (
             <>
-              <div className="dashed-line"></div>
-              <p style={{ margin: '4px 0', fontSize: '11px' }}>
-                <span style={{ fontWeight: '700' }}>🔧 العطل:</span> {order.issue_description.slice(0, 50)}...
-              </p>
+              <div className="line-separator"></div>
+              <div className="center-item" style={{ marginBottom: '5mm' }}>
+                <div className="section-title center-item" style={{ 
+                  background: '#fef2f2',
+                  borderColor: '#dc2626',
+                  color: '#dc2626'
+                }}>
+                  🔍 وصف العطل المطلوب إصلاحه
+                </div>
+                
+                <div className="center-item" style={{
+                  border: '2px dashed #999',
+                  padding: '4mm',
+                  borderRadius: '3mm',
+                  background: '#f9fafb',
+                  marginTop: '3mm'
+                }}>
+                  <p className="center-item" style={{ 
+                    fontSize: '13px', 
+                    lineHeight: '1.4',
+                    margin: '0',
+                    fontWeight: '500',
+                    textAlign: 'center'
+                  }}>
+                    {truncateText(order.issue_description, 100)}
+                  </p>
+                </div>
+              </div>
             </>
           )}
+
+          {/* تفاصيل الدفع */}
+          <div className="line-separator"></div>
+          <div className="center-item" style={{ marginBottom: '5mm' }}>
+            <div className="section-title center-item" style={{ 
+              background: '#f0f9ff',
+              borderColor: '#2563eb',
+              color: '#2563eb'
+            }}>
+              💰 تفاصيل الدفع والتكلفة
+            </div>
+            
+            {order.price_to_be_determined_later ? (
+              <div className="center-item" style={{ marginTop: '3mm' }}>
+                <div className="center-flex" style={{
+                  background: '#fef3c7',
+                  border: '3px dashed #f59e0b',
+                  padding: '4mm',
+                  borderRadius: '4mm'
+                }}>
+                  <div className="center-item" style={{ 
+                    fontSize: '14px', 
+                    fontWeight: '800',
+                    color: '#92400e'
+                  }}>
+                    💡 السعر سيتم تحديده بعد الكشف والفحص
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="center-item" style={{ marginTop: '3mm' }}>
+                <div className="center-flex" style={{
+                  border: '2px solid #e5e7eb',
+                  borderRadius: '3mm',
+                  padding: '4mm',
+                  background: '#f9fafb'
+                }}>
+                  <div className="info-row center-item">
+                    <div className="info-label center-item">السعر الإجمالي</div>
+                    <div className="info-value center-item" style={{ 
+                      color: '#059669',
+                      fontSize: '16px',
+                      fontFamily: "'Tajawal', Arial, sans-serif",
+                      direction: 'ltr',
+                      display: 'inline-block'
+                    }}>
+                      {convertToEnglishNumbers((order.total_price || 0).toLocaleString())} دج
+                    </div>
+                  </div>
+                  
+                  <div className="info-row center-item">
+                    <div className="info-label center-item">المبلغ المدفوع</div>
+                    <div className="info-value center-item" style={{ 
+                      color: '#2563eb',
+                      fontSize: '16px',
+                      fontFamily: "'Tajawal', Arial, sans-serif",
+                      direction: 'ltr',
+                      display: 'inline-block'
+                    }}>
+                      {convertToEnglishNumbers((order.paid_amount || 0).toLocaleString())} دج
+                    </div>
+                  </div>
+                  
+                  {remainingAmount > 0 && (
+                    <div className="center-item" style={{ marginTop: '3mm' }}>
+                      <div className="center-flex" style={{
+                        background: '#fef2f2',
+                        border: '3px solid #dc2626',
+                        padding: '3mm',
+                        borderRadius: '3mm'
+                      }}>
+                        <div className="info-label center-item" style={{ color: '#7f1d1d' }}>
+                          المبلغ المتبقي المطلوب دفعه
+                        </div>
+                        <div className="info-value center-item" style={{ 
+                          color: '#dc2626',
+                          fontSize: '18px',
+                          fontWeight: '900',
+                          fontFamily: "'Tajawal', Arial, sans-serif",
+                          direction: 'ltr',
+                          display: 'inline-block'
+                        }}>
+                          {convertToEnglishNumbers(remainingAmount.toLocaleString())} دج
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* QR Code للتتبع */}
+          <div className="line-separator"></div>
+          <div className="center-item" style={{ marginBottom: '5mm' }}>
+            <div className="section-title center-item" style={{ 
+              background: '#ecfdf5',
+              borderColor: '#059669',
+              color: '#059669'
+            }}>
+              🔗 تتبع حالة التصليح
+            </div>
+            
+            <div className="center-item" style={{ marginTop: '3mm' }}>
+              <div className="center-flex" style={{
+                border: '3px solid #059669',
+                borderRadius: '4mm',
+                padding: '4mm',
+                background: '#ecfdf5'
+              }}>
+                <div className="center-item" style={{ marginBottom: '3mm' }}>
+                  <QRCodeSVG 
+                    value={`${storeUrl}/repair-tracking/${trackingCode}`} 
+                    size={100}
+                    level="M"
+                    style={{ 
+                      display: 'block',
+                      margin: '0 auto',
+                      border: '2px solid black',
+                      borderRadius: '2mm',
+                      padding: '2mm'
+                    }}
+                  />
+                </div>
+                
+                <div className="center-item" style={{ marginTop: '3mm' }}>
+                  <div className="info-label center-item">كود التتبع</div>
+                  <div className="info-value center-item" style={{ 
+                    color: '#059669',
+                    fontSize: '16px',
+                    fontWeight: '900',
+                    fontFamily: "'Tajawal', Arial, sans-serif",
+                    direction: 'ltr',
+                    display: 'inline-block'
+                  }}>
+                    {convertToEnglishNumbers(trackingCode)}
+                  </div>
+                </div>
+                
+                <div className="center-item" style={{ marginTop: '2mm' }}>
+                  <p className="center-item" style={{ 
+                    fontSize: '10px', 
+                    margin: '0',
+                    opacity: '0.8',
+                    textAlign: 'center'
+                  }}>
+                    امسح الكود أو اكتب الرقم لمتابعة حالة التصليح
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* شروط الخدمة */}
+          <div className="line-separator"></div>
+          <div className="center-item" style={{ marginBottom: '5mm' }}>
+            <div className="center-flex" style={{
+              border: '2px solid #e5e7eb',
+              padding: '4mm',
+              borderRadius: '3mm',
+              background: '#f9fafb'
+            }}>
+              <div className="center-item" style={{ 
+                fontSize: '12px', 
+                fontWeight: '800',
+                marginBottom: '2mm',
+                color: '#dc2626'
+              }}>
+                ⚠️ شروط مهمة - يرجى القراءة بعناية
+              </div>
+              
+              <div className="center-item" style={{ fontSize: '10px', lineHeight: '1.4' }}>
+                <p className="center-item" style={{ margin: '1mm 0' }}>
+                  • يجب تقديم هذا الإيصال عند الاستلام
+                </p>
+                <p className="center-item" style={{ margin: '1mm 0' }}>
+                  • غير مسؤولين عن فقدان البيانات المخزنة
+                </p>
+                <p className="center-item" style={{ margin: '1mm 0' }}>
+                  • الاستلام خلال 30 يوماً من الإشعار
+                </p>
+                <p className="center-item" style={{ margin: '1mm 0' }}>
+                  • فحص الجهاز جيداً قبل المغادرة
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* معلومات الدفع */}
-        <div className="dashed-line"></div>
-        <div style={{ fontSize: '12px' }}>
-          {order.price_to_be_determined_later ? (
-            <div style={{ textAlign: 'center', padding: '4px', border: '1px dashed black' }}>
-              <p style={{ margin: '0', fontWeight: '700' }}>💡 السعر يحدد لاحقاً</p>
-            </div>
-          ) : (
-            <>
-              <div className="receipt-row">
-                <span>💰 مدفوع:</span>
-                <span className="receipt-numbers" style={{ fontWeight: '700' }}>
-                  {convertToEnglishNumbers((order.paid_amount || 0).toLocaleString())} دج
-                </span>
+        {/* ====================== خط الفصل للقطع ====================== */}
+        <div className="center-item" style={{ 
+          margin: '6mm 0',
+          padding: '4mm 0'
+        }}>
+          <div className="center-flex">
+            <div style={{ 
+              width: '100%', 
+              height: '0', 
+              borderTop: '3px dashed black',
+              position: 'relative'
+            }}>
+              <div style={{ 
+                position: 'absolute',
+                top: '-8px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                background: 'white',
+                padding: '0 4mm',
+                fontSize: '12px'
+              }}>
+                ✂️ اقطع هنا
               </div>
-              {remainingAmount > 0 && (
-                <div className="receipt-row">
-                  <span>⏳ متبقي:</span>
-                  <span className="receipt-numbers" style={{ fontWeight: '700' }}>
-                    {convertToEnglishNumbers(remainingAmount.toLocaleString())} دج
-                  </span>
+            </div>
+          </div>
+        </div>
+
+        {/* ====================== الجزء الثاني: لصقة الجهاز ====================== */}
+        <div className="center-item" style={{ 
+          border: '4px solid black',
+          borderRadius: '4mm',
+          padding: '4mm',
+          background: '#fafafa'
+        }}>
+          
+          {/* رأس اللصقة */}
+          <div className="center-item" style={{ marginBottom: '4mm' }}>
+            <div className="section-title center-item" style={{ 
+              background: '#1f2937',
+              color: 'white',
+              borderColor: '#1f2937'
+            }}>
+              🏷️ لصقة الجهاز - للفني المختص
+            </div>
+          </div>
+
+          {/* رقم الطلبية بارز */}
+          <div className="center-item" style={{ marginBottom: '4mm' }}>
+            <div className="center-flex" style={{
+              background: 'black',
+              color: 'white',
+              padding: '4mm',
+              borderRadius: '4mm',
+              border: '3px solid black'
+            }}>
+              <div className="center-item" style={{ 
+                fontSize: '12px', 
+                fontWeight: '500',
+                marginBottom: '1mm',
+                color: 'white'
+              }}>
+                رقم الطلبية
+              </div>
+              <div className="center-item" style={{ 
+                fontSize: '22px', 
+                fontWeight: '900',
+                color: 'white',
+                fontFamily: "'Tajawal', Arial, sans-serif",
+                letterSpacing: '2px'
+              }}>
+                #{convertToEnglishNumbers(order.order_number || order.id.slice(0, 8))}
+              </div>
+            </div>
+          </div>
+
+          {/* ترتيب الطلبية */}
+          {queuePosition && queuePosition > 0 && (
+            <div className="center-item" style={{ marginBottom: '4mm' }}>
+              <div className="center-flex" style={{
+                background: '#fef2f2',
+                border: '3px solid #dc2626',
+                padding: '3mm',
+                borderRadius: '3mm'
+              }}>
+                <div className="center-item" style={{ 
+                  fontSize: '11px', 
+                  fontWeight: '500',
+                  marginBottom: '1mm',
+                  color: '#7f1d1d'
+                }}>
+                  رقم الترتيب
+                </div>
+                <div className="center-item" style={{ 
+                  fontSize: '18px', 
+                  fontWeight: '900',
+                  color: '#dc2626',
+                  fontFamily: "'Tajawal', Arial, sans-serif"
+                }}>
+                  {convertToEnglishNumbers(queuePosition)}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* المعلومات الأساسية */}
+          <div className="center-item" style={{ marginBottom: '4mm' }}>
+            <div className="center-flex" style={{
+              border: '2px solid #e5e7eb',
+              padding: '4mm',
+              borderRadius: '3mm',
+              background: '#f9fafb'
+            }}>
+              <div className="info-row center-item">
+                <div className="info-label center-item">👤 اسم العميل</div>
+                <div className="info-value center-item" style={{ fontSize: '12px' }}>
+                  {truncateText(order.customer_name, 15)}
+                </div>
+              </div>
+              
+              <div className="info-row center-item">
+                <div className="info-label center-item">📱 رقم الهاتف</div>
+                <div className="info-value center-item" style={{ 
+                  fontSize: '12px',
+                  fontFamily: "'Tajawal', Arial, sans-serif",
+                  direction: 'ltr',
+                  display: 'inline-block'
+                }}>
+                  {convertToEnglishNumbers(order.customer_phone)}
+                </div>
+              </div>
+              
+              <div className="info-row center-item">
+                <div className="info-label center-item">📅 تاريخ الاستلام</div>
+                <div className="info-value center-item" style={{ 
+                  fontSize: '10px',
+                  fontFamily: "'Tajawal', Arial, sans-serif",
+                  direction: 'ltr',
+                  display: 'inline-block'
+                }}>
+                  {formatDate(order.created_at)}
+                </div>
+              </div>
+              
+              <div className="info-row center-item">
+                <div className="info-label center-item">⚡ حالة التصليح</div>
+                <div className="center-item" style={{ 
+                  fontSize: '11px',
+                  fontWeight: '800', 
+                  padding: '2mm', 
+                  border: '2px solid black', 
+                  borderRadius: '2mm',
+                  background: '#fbbf24',
+                  color: 'black'
+                }}>
+                  {order.status}
+                </div>
+              </div>
+              
+              {order.issue_description && (
+                <div className="info-row center-item">
+                  <div className="info-label center-item">🔧 وصف العطل</div>
+                  <div className="info-value center-item" style={{ 
+                    fontSize: '10px',
+                    fontWeight: '500',
+                    lineHeight: '1.3'
+                  }}>
+                    {truncateText(order.issue_description, 40)}
+                  </div>
                 </div>
               )}
-            </>
-          )}
-        </div>
-
-        {/* QR codes */}
-        <div className="dashed-line"></div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
-          {/* QR للتتبع */}
-          <div style={{ textAlign: 'center', border: '1px solid black', padding: '6px' }}>
-            <QRCodeSVG 
-              value={`${storeUrl}/repair-tracking/${trackingCode}`} 
-              size={65}
-              level="M"
-            />
-            <p style={{ fontSize: '10px', margin: '3px 0', fontWeight: '600' }}>📱 تتبع</p>
+            </div>
           </div>
-          
-          {/* QR لإنهاء التصليح */}
-          <div style={{ textAlign: 'center', border: '1px solid black', padding: '6px' }}>
-            <QRCodeSVG 
-              value={`${storeUrl}/repair-complete/${order.id}`} 
-              size={65}
-              level="M"
-            />
-            <p style={{ fontSize: '10px', margin: '3px 0', fontWeight: '600' }}>✅ إنهاء</p>
+
+          {/* معلومات الدفع */}
+          <div className="center-item" style={{ marginBottom: '4mm' }}>
+            <div className="center-flex" style={{
+              border: '2px solid #2563eb',
+              padding: '3mm',
+              borderRadius: '3mm',
+              background: '#f0f9ff'
+            }}>
+              {order.price_to_be_determined_later ? (
+                <div className="center-item">
+                  <div className="center-flex" style={{
+                    background: '#fef3c7',
+                    border: '2px dashed #f59e0b',
+                    padding: '3mm',
+                    borderRadius: '3mm'
+                  }}>
+                    <div className="center-item" style={{ 
+                      fontSize: '11px', 
+                      fontWeight: '800',
+                      color: '#92400e'
+                    }}>
+                      💡 السعر يحدد لاحقاً
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="info-row center-item">
+                    <div className="info-label center-item">💰 المبلغ المدفوع</div>
+                    <div className="info-value center-item" style={{ 
+                      color: '#059669',
+                      fontSize: '12px',
+                      fontFamily: "'Tajawal', Arial, sans-serif",
+                      direction: 'ltr',
+                      display: 'inline-block'
+                    }}>
+                      {convertToEnglishNumbers((order.paid_amount || 0).toLocaleString())} دج
+                    </div>
+                  </div>
+                  
+                  {remainingAmount > 0 && (
+                    <div className="info-row center-item">
+                      <div className="info-label center-item">⏳ المبلغ المتبقي</div>
+                      <div className="info-value center-item" style={{ 
+                        color: '#dc2626',
+                        fontSize: '12px',
+                        fontFamily: "'Tajawal', Arial, sans-serif",
+                        direction: 'ltr',
+                        display: 'inline-block'
+                      }}>
+                        {convertToEnglishNumbers(remainingAmount.toLocaleString())} دج
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* كود التتبع */}
-        <div style={{ 
-          textAlign: 'center', 
-          border: '1px solid black', 
-          padding: '4px',
-          marginBottom: '8px'
-        }}>
-          <p style={{ fontSize: '11px', margin: '0' }}>
-            <span style={{ fontWeight: '700' }}>🔑 كود:</span> 
-            <span className="receipt-numbers" style={{ fontWeight: '700' }}>
-              {convertToEnglishNumbers(trackingCode)}
-            </span>
-          </p>
-        </div>
+          {/* QR codes للفني */}
+          <div className="center-item" style={{ marginBottom: '4mm' }}>
+            <div className="center-item" style={{ 
+              fontSize: '12px', 
+              fontWeight: '700',
+              marginBottom: '3mm'
+            }}>
+              أكواد سريعة للفني
+            </div>
+            
+            <div className="center-flex" style={{ gap: '3mm' }}>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '3mm', width: '100%' }}>
+                {/* QR للتتبع */}
+                <div className="center-item" style={{ 
+                  border: '2px solid #059669', 
+                  padding: '2mm', 
+                  borderRadius: '3mm',
+                  background: '#ecfdf5',
+                  flex: '1'
+                }}>
+                  <QRCodeSVG 
+                    value={`${storeUrl}/repair-tracking/${trackingCode}`} 
+                    size={50}
+                    level="M"
+                    style={{ display: 'block', margin: '0 auto' }}
+                  />
+                  <div className="center-item" style={{ 
+                    fontSize: '8px', 
+                    marginTop: '1mm',
+                    fontWeight: '700',
+                    color: '#059669'
+                  }}>
+                    📱 تتبع
+                  </div>
+                </div>
+                
+                {/* QR لإنهاء التصليح */}
+                <div className="center-item" style={{ 
+                  border: '2px solid #dc2626', 
+                  padding: '2mm', 
+                  borderRadius: '3mm',
+                  background: '#fef2f2',
+                  flex: '1'
+                }}>
+                  <QRCodeSVG 
+                    value={`${storeUrl}/repair-complete/${order.id}`} 
+                    size={50}
+                    level="M"
+                    style={{ display: 'block', margin: '0 auto' }}
+                  />
+                  <div className="center-item" style={{ 
+                    fontSize: '8px', 
+                    marginTop: '1mm',
+                    fontWeight: '700',
+                    color: '#dc2626'
+                  }}>
+                    ✅ إنهاء
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
-        {/* مساحة لملاحظات الفني */}
-        <div style={{ border: '1px dashed black', padding: '6px' }}>
-          <p style={{ fontSize: '11px', fontWeight: '700', margin: '0 0 4px 0' }}>
-            📝 ملاحظات الفني:
-          </p>
-          <div style={{ borderBottom: '1px solid black', height: '8px', margin: '2px 0' }}></div>
-          <div style={{ borderBottom: '1px solid black', height: '8px', margin: '2px 0' }}></div>
-          <div style={{ borderBottom: '1px solid black', height: '8px', margin: '2px 0' }}></div>
+          {/* كود التتبع */}
+          <div className="center-item" style={{ marginBottom: '4mm' }}>
+            <div className="center-flex" style={{
+              border: '2px solid #1f2937',
+              padding: '3mm',
+              borderRadius: '3mm',
+              background: '#f3f4f6'
+            }}>
+              <div className="center-item" style={{ 
+                fontSize: '11px', 
+                fontWeight: '700'
+              }}>
+                🔑 كود التتبع
+              </div>
+              <div className="center-item" style={{ 
+                fontSize: '14px',
+                fontWeight: '900',
+                color: '#1f2937',
+                fontFamily: "'Tajawal', Arial, sans-serif",
+                direction: 'ltr',
+                display: 'inline-block'
+              }}>
+                {convertToEnglishNumbers(trackingCode)}
+              </div>
+            </div>
+          </div>
+
+          {/* مساحة لملاحظات الفني */}
+          <div className="center-item">
+            <div className="center-flex" style={{
+              border: '2px dashed #6b7280',
+              padding: '4mm',
+              borderRadius: '3mm',
+              background: '#f9fafb'
+            }}>
+              <div className="center-item" style={{ 
+                fontSize: '12px', 
+                fontWeight: '800',
+                marginBottom: '3mm',
+                color: '#374151'
+              }}>
+                📝 ملاحظات الفني
+              </div>
+              
+              <div className="center-item" style={{ width: '100%' }}>
+                <div style={{ borderBottom: '1px solid black', height: '6mm', margin: '1mm 0' }}></div>
+                <div style={{ borderBottom: '1px solid black', height: '6mm', margin: '1mm 0' }}></div>
+                <div style={{ borderBottom: '1px solid black', height: '6mm', margin: '1mm 0' }}></div>
+                <div style={{ borderBottom: '1px solid black', height: '6mm', margin: '1mm 0' }}></div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 

@@ -103,16 +103,12 @@ const ProductCard = React.memo(({
           <div className="flex p-4 gap-4">
             {/* صورة المنتج */}
             <div className="relative w-32 h-32 flex-shrink-0">
-              <div className="w-full h-full bg-muted rounded-lg overflow-hidden">
+              <div className="w-full h-full bg-white dark:bg-gray-50 border border-gray-100 dark:border-gray-200 rounded-lg overflow-hidden flex items-center justify-center p-2">
                 <OptimizedImage
                   src={product.thumbnail_image || product.images?.[0] || '/placeholder.svg'}
                   alt={product.name}
-                  className="w-full h-full object-cover transition-all duration-300 group-hover:scale-105"
-                  placeholder={
-                    <div className="w-full h-full flex items-center justify-center bg-muted">
-                      <Package className="h-8 w-8 text-muted-foreground" />
-                    </div>
-                  }
+                  className="max-w-full max-h-full object-contain transition-all duration-300 group-hover:scale-105"
+                  placeholder="/placeholder.svg"
                 />
               </div>
               
@@ -205,16 +201,12 @@ const ProductCard = React.memo(({
       >
         {/* صورة المنتج */}
         <div className="relative aspect-square">
-          <div className="w-full h-full bg-muted overflow-hidden">
+          <div className="w-full h-full bg-white dark:bg-gray-50 border border-gray-100 dark:border-gray-200 overflow-hidden rounded-t-lg flex items-center justify-center p-2">
             <OptimizedImage
               src={product.thumbnail_image || product.images?.[0] || '/placeholder.svg'}
               alt={product.name}
-              className="w-full h-full object-cover transition-all duration-300 group-hover:scale-110"
-              placeholder={
-                <div className="w-full h-full flex items-center justify-center bg-muted">
-                  <Package className="h-12 w-12 text-muted-foreground" />
-                </div>
-              }
+              className="max-w-full max-h-full object-contain transition-all duration-300 group-hover:scale-105"
+              placeholder="/placeholder.svg"
             />
           </div>
           

@@ -1481,7 +1481,7 @@ const RepairServicesContent = () => {
                     معاينة الوصل
                   </h3>
                   <div className="border rounded-md p-2 bg-gray-50 max-h-96 overflow-y-auto">
-                    <div className="transform scale-75 origin-top-right">
+                    <div className="transform scale-90 origin-top-right flex justify-center">
                       <RepairOrderPrint order={selectedOrder} queuePosition={queuePosition} />
                     </div>
                   </div>

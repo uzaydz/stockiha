@@ -1,187 +1,203 @@
-/* تنسيقات طباعة وصل التصليح المحدثة للطباعة الحرارية */
-@import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Noto+Sans+Arabic:wght@300;400;500;600;700&display=swap');
+/* تحميل خط Tajawal */
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@200;300;400;500;600;700;800;900&display=swap');
 
-/* تنسيقات عامة للطباعة الحرارية */
+/* ====================== إعدادات عامة للطباعة الحرارية ====================== */
+.repair-receipt {
+  font-family: 'Tajawal', Arial, sans-serif !important;
+  width: 76mm !important;
+  max-width: 76mm !important;
+  min-width: 76mm !important;
+  direction: rtl !important;
+  text-align: center !important;
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+  color: black !important;
+  background: white !important;
+  margin: 0 auto !important;
+  padding: 4mm !important;
+  box-sizing: border-box !important;
+  overflow: visible !important;
+  position: relative !important;
+}
+
+/* تطبيق الخط والتوسيط على جميع العناصر */
+.repair-receipt *,
+.repair-receipt *::before,
+.repair-receipt *::after {
+  font-family: 'Tajawal', Arial, sans-serif !important;
+  text-align: center !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  box-sizing: border-box !important;
+}
+
+/* كلاسات مساعدة للتوسيط */
+.center-item {
+  text-align: center !important;
+  display: block !important;
+  margin: 0 auto !important;
+  width: 100% !important;
+}
+
+.center-flex {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  width: 100% !important;
+}
+
+/* صفوف المعلومات */
+.info-row {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  margin: 3mm 0 !important;
+  width: 100% !important;
+}
+
+.info-label {
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  color: #666 !important;
+  margin-bottom: 1mm !important;
+  text-align: center !important;
+}
+
+.info-value {
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  color: black !important;
+  text-align: center !important;
+}
+
+/* عناوين الأقسام */
+.section-title {
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  text-align: center !important;
+  margin: 4mm 0 !important;
+  padding: 2mm !important;
+  border: 2px solid black !important;
+  border-radius: 3mm !important;
+  background: #f8f9fa !important;
+  display: block !important;
+  width: 100% !important;
+}
+
+/* خطوط الفصل */
+.line-separator {
+  border-top: 2px dashed black !important;
+  margin: 4mm 0 !important;
+  width: 100% !important;
+  height: 0 !important;
+  display: block !important;
+}
+
+/* تحسين تصميم QR codes */
+.repair-receipt svg {
+  display: block !important;
+  margin: 0 auto !important;
+}
+
+/* إعدادات الطباعة */
 @media print {
+  /* تطبيق الخط في الطباعة */
+  * {
+    font-family: 'Tajawal', Arial, sans-serif !important;
+    text-align: center !important;
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+  
   .repair-receipt {
-    font-family: 'Amiri', 'Noto Sans Arabic', 'Cairo', 'Tahoma', sans-serif !important;
+    font-family: 'Tajawal', Arial, sans-serif !important;
+    width: 76mm !important;
+    max-width: 76mm !important;
+    min-width: 76mm !important;
     font-size: 13px !important;
-    line-height: 1.5 !important;
-    width: 80mm !important;
-    max-width: 80mm !important;
+    background: white !important;
+    color: black !important;
+    padding: 4mm !important;
+    text-align: center !important;
+    overflow: visible !important;
     margin: 0 !important;
-    padding: 0 !important;
-    background: white !important;
-    color: black !important;
-    -webkit-print-color-adjust: exact !important;
-    color-adjust: exact !important;
-    print-color-adjust: exact !important;
+    box-sizing: border-box !important;
   }
-
-  /* إزالة جميع الألوان والخلفيات للطباعة الحرارية */
-  .repair-receipt * {
-    background: white !important;
-    color: black !important;
-    border-color: black !important;
-    -webkit-print-color-adjust: exact !important;
-    color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-
-  /* إخفاء العناصر غير المرغوب فيها */
+  
+  /* إخفاء عناصر غير مطلوبة للطباعة */
   .no-print {
     display: none !important;
   }
-
-  /* تحسين عرض الحدود */
-  .repair-receipt .solid-line {
-    border-top: 1px solid black !important;
-    margin: 4px 0 !important;
+  
+  /* ضمان ظهور الألوان والحدود */
+  .repair-receipt * {
+    background: inherit !important;
+    border-color: inherit !important;
+    color: inherit !important;
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
   }
-
-  .repair-receipt .dashed-line {
-    border-top: 1px dashed black !important;
-    margin: 6px 0 !important;
+  
+  /* تحسين الطباعة للطابعات الحرارية الصغيرة */
+  @page {
+    size: 76mm auto;
+    margin: 0;
+    padding: 0;
   }
-
-  /* تحسين عرض العناوين */
-  .repair-receipt .receipt-title {
-    font-family: 'Amiri', 'Noto Sans Arabic', sans-serif !important;
-    font-weight: 700 !important;
-    color: black !important;
-  }
-
-  .repair-receipt .receipt-content {
-    font-family: 'Noto Sans Arabic', 'Amiri', sans-serif !important;
-    font-weight: 400 !important;
-    color: black !important;
-  }
-
-  .repair-receipt .receipt-numbers {
-    font-family: 'Noto Sans Arabic', sans-serif !important;
-    font-weight: 500 !important;
-    direction: ltr !important;
-    display: inline-block !important;
-    color: black !important;
-  }
-
-  /* تحسين عرض الصفوف */
-  .repair-receipt .receipt-row {
-    display: flex !important;
-    justify-content: space-between !important;
-    align-items: center !important;
-    margin: 3px 0 !important;
-  }
-
-  /* تحسين عرض الأقسام */
-  .repair-receipt .receipt-section {
-    margin-bottom: 8px !important;
-    padding: 4px 0 !important;
-  }
-
-  /* تحسين عرض رأس الوصل */
-  .repair-receipt .receipt-header {
-    text-align: center !important;
-    border-bottom: 2px solid black !important;
-    padding-bottom: 6px !important;
-    margin-bottom: 10px !important;
-  }
-
-  /* تحسين عرض QR codes */
-  .repair-receipt .qr-section {
-    text-align: center !important;
-    margin: 10px 0 !important;
-  }
-
-  .repair-receipt svg {
-    width: auto !important;
-    height: auto !important;
-    border: 1px solid black !important;
-  }
-
-  /* تحسين عرض الجداول والشبكات */
-  .repair-receipt .grid {
-    display: grid !important;
-  }
-
-  .repair-receipt .grid-cols-2 {
-    grid-template-columns: 1fr 1fr !important;
-  }
-
-  .repair-receipt .flex {
-    display: flex !important;
-  }
-
-  .repair-receipt .justify-between {
-    justify-content: space-between !important;
-  }
-
-  .repair-receipt .items-center {
-    align-items: center !important;
-  }
-
-  .repair-receipt .text-center {
-    text-align: center !important;
-  }
-
-  /* منع كسر الصفحة داخل العناصر المهمة */
-  .repair-receipt .customer-receipt,
-  .repair-receipt .device-label {
-    page-break-inside: avoid !important;
-  }
-
-  /* السماح بكسر الصفحة عند خط القطع */
-  .repair-receipt .cut-line {
-    page-break-before: auto !important;
-    page-break-after: auto !important;
-  }
-
-  /* تحسين المسافات للطباعة الحرارية */
-  .repair-receipt h1 {
-    font-size: 16px !important;
-    margin: 0 !important;
-  }
-
-  .repair-receipt h2 {
-    font-size: 14px !important;
-    margin: 0 !important;
-  }
-
-  .repair-receipt h3 {
-    font-size: 12px !important;
-    margin: 0 0 4px 0 !important;
-  }
-
-  .repair-receipt p {
-    margin: 2px 0 !important;
-  }
-
-  /* تحسين الحدود والإطارات */
-  .repair-receipt [style*="border"] {
-    border-color: black !important;
-  }
-
-  /* تحسين لصقة الجهاز */
-  .repair-receipt .device-label {
-    border: 2px solid black !important;
-    padding: 10px !important;
-    margin-top: 6px !important;
-  }
-
-  /* تحسين رقم الطلبية المميز */
-  .repair-receipt .device-label [style*="background"] {
-    background: black !important;
-    color: white !important;
-    border: 2px solid black !important;
+  
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Tajawal', Arial, sans-serif !important;
   }
 }
 
-/* تنسيقات الشاشة المحدثة */
+/* إعدادات للطابعات الحرارية */
+@media print and (max-width: 80mm) {
+  .repair-receipt {
+    width: 72mm !important;
+    max-width: 72mm !important;
+    padding: 3mm !important;
+    font-size: 12px !important;
+  }
+  
+  .section-title {
+    font-size: 14px !important;
+    padding: 2mm !important;
+  }
+  
+  .info-value {
+    font-size: 12px !important;
+  }
+}
+
+/* إعدادات خاصة للطابعات العربية */
+@supports (font-display: swap) {
+  @font-face {
+    font-family: 'Tajawal';
+    font-display: swap;
+    src: url('https://fonts.gstatic.com/s/tajawal/v9/Iura6YBj_oCad4k1l_6gLi5V.woff2') format('woff2');
+  }
+}
+
+/* ضمان عدم كسر المحتوى */
+.repair-receipt * {
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  hyphens: auto !important;
+  page-break-inside: avoid !important;
+}
+
+/* تنسيقات الشاشة المحدثة مع خط Tajawal */
 @media screen {
   .repair-receipt {
-    font-family: 'Amiri', 'Noto Sans Arabic', 'Cairo', 'Tahoma', sans-serif;
-    font-size: 14px;
-    line-height: 1.6;
+    font-family: 'Tajawal', 'Amiri', 'Noto Sans Arabic', 'Tahoma', sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
     width: 80mm;
     max-width: 300px;
     margin: 0 auto;
@@ -191,27 +207,34 @@
     border-radius: 8px;
     overflow: hidden;
     border: 1px solid #e5e7eb;
+    padding: 8px;
+    box-sizing: border-box;
+    text-align: center;
   }
 
   /* تحسين عرض الخطوط على الشاشة */
   .repair-receipt .receipt-title {
-    font-family: 'Amiri', 'Noto Sans Arabic', sans-serif;
+    font-family: 'Tajawal', 'Amiri', sans-serif;
     font-weight: 700;
     color: #1f2937;
+    text-align: center;
   }
 
   .repair-receipt .receipt-content {
-    font-family: 'Noto Sans Arabic', 'Amiri', sans-serif;
+    font-family: 'Tajawal', 'Amiri', sans-serif;
     font-weight: 400;
     color: #374151;
+    text-align: center;
   }
 
   .repair-receipt .receipt-numbers {
-    font-family: 'Noto Sans Arabic', sans-serif;
-    font-weight: 500;
+    font-family: 'Tajawal', sans-serif;
+    font-weight: 600;
     direction: ltr;
     display: inline-block;
     color: #1f2937;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
   }
 
   /* تحسين عرض الخطوط والحدود */
@@ -226,17 +249,19 @@
   }
 
   /* تحسين عرض الصفوف */
-  .repair-receipt .receipt-row {
+  .repair-receipt .receipt-row-flex {
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
     margin: 4px 0;
+    text-align: center;
   }
 
   /* تحسين عرض الأقسام */
   .repair-receipt .receipt-section {
-    margin-bottom: 10px;
+    margin-bottom: 12px;
     padding: 6px 0;
+    text-align: center;
   }
 
   /* تحسين عرض رأس الوصل */
@@ -261,78 +286,13 @@
   .repair-receipt [style*="border: '2px solid black'"] {
     border-color: #1f2937 !important;
   }
-}
 
-/* تنسيقات خاصة للطابعات الحرارية الصغيرة */
-@media print and (max-width: 80mm) {
-  .repair-receipt {
-    font-size: 12px !important;
-    width: 78mm !important;
+  .repair-receipt .order-number-highlight {
+    background: #1f2937 !important;
+    color: white !important;
   }
 
-  .repair-receipt h1 {
-    font-size: 15px !important;
-  }
-
-  .repair-receipt h2 {
-    font-size: 13px !important;
-  }
-
-  .repair-receipt h3 {
-    font-size: 11px !important;
-  }
-
-  .repair-receipt .receipt-section {
-    margin-bottom: 6px !important;
-    padding: 3px 0 !important;
-  }
-
-  .repair-receipt .dashed-line {
-    margin: 4px 0 !important;
-  }
-
-  .repair-receipt .solid-line {
-    margin: 3px 0 !important;
-  }
-
-  .repair-receipt svg {
-    width: 60px !important;
-    height: 60px !important;
-  }
-
-     .repair-receipt .device-label svg {
-     width: 55px !important;
-     height: 55px !important;
-   }
-}
-
-/* تحسينات إضافية للطباعة الحرارية */
-@media print {
-  /* إزالة أي تأثيرات بصرية غير مرغوب فيها */
-  .repair-receipt {
-    box-shadow: none !important;
-    border-radius: 0 !important;
-    border: none !important;
-  }
-
-  /* تحسين وضوح النص */
   .repair-receipt * {
-    text-shadow: none !important;
-    filter: none !important;
-  }
-
-  /* ضمان عدم قطع المحتوى */
-  .repair-receipt {
-    overflow: visible !important;
-  }
-
-  /* تحسين المسافات الداخلية */
-  .repair-receipt .customer-receipt {
-    padding: 8px !important;
-  }
-
-  .repair-receipt .device-label {
-    padding: 8px !important;
-    margin-top: 4px !important;
+    text-align: center;
   }
 } 
