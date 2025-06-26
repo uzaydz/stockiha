@@ -846,106 +846,56 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
             
             <div className="center-flex" style={{ gap: '3mm' }}>
               <div style={{ display: 'flex', justifyContent: 'center', gap: '3mm', width: '100%' }}>
-                {/* QR للتتبع */}
-                <div className="center-item" style={{ 
-                  border: '2px solid #059669', 
-                  padding: '2mm', 
-                  borderRadius: '3mm',
-                  background: '#ecfdf5',
-                  flex: '1'
-                }}>
-                  <QRCodeSVG 
-                    value={`${storeUrl}/repair-tracking/${trackingCode}`} 
-                    size={50}
-                    level="M"
-                    style={{ display: 'block', margin: '0 auto' }}
-                  />
-                  <div className="center-item" style={{ 
-                    fontSize: '8px', 
-                    marginTop: '1mm',
-                    fontWeight: '700',
-                    color: '#059669'
-                  }}>
-                    📱 تتبع
-                  </div>
-                </div>
-                
-                {/* QR لإنهاء التصليح */}
+                {/* QR لإنهاء التصليح فقط */}
                 <div className="center-item" style={{ 
                   border: '2px solid #dc2626', 
-                  padding: '2mm', 
+                  padding: '3mm', 
                   borderRadius: '3mm',
                   background: '#fef2f2',
-                  flex: '1'
+                  width: '100%'
                 }}>
                   <QRCodeSVG 
                     value={`${storeUrl}/repair-complete/${order.id}`} 
-                    size={50}
+                    size={60}
                     level="M"
                     style={{ display: 'block', margin: '0 auto' }}
                   />
                   <div className="center-item" style={{ 
-                    fontSize: '8px', 
-                    marginTop: '1mm',
+                    fontSize: '10px', 
+                    marginTop: '2mm',
                     fontWeight: '700',
                     color: '#dc2626'
                   }}>
-                    ✅ إنهاء
+                    ✅ إنهاء التصليح
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* كود التتبع */}
-          <div className="center-item" style={{ marginBottom: '4mm' }}>
-            <div className="center-flex" style={{
-              border: '2px solid #1f2937',
-              padding: '3mm',
-              borderRadius: '3mm',
-              background: '#f3f4f6'
-            }}>
-              <div className="center-item" style={{ 
-                fontSize: '11px', 
-                fontWeight: '700'
-              }}>
-                🔑 كود التتبع
-              </div>
-              <div className="center-item" style={{ 
-                fontSize: '14px',
-                fontWeight: '900',
-                color: '#1f2937',
-                fontFamily: "'Tajawal', Arial, sans-serif",
-                direction: 'ltr',
-                display: 'inline-block'
-              }}>
-                {convertToEnglishNumbers(trackingCode)}
-              </div>
-            </div>
-          </div>
+
 
           {/* مساحة لملاحظات الفني */}
           <div className="center-item">
             <div className="center-flex" style={{
               border: '2px dashed #6b7280',
-              padding: '4mm',
+              padding: '3mm',
               borderRadius: '3mm',
               background: '#f9fafb'
             }}>
               <div className="center-item" style={{ 
-                fontSize: '12px', 
+                fontSize: '11px', 
                 fontWeight: '800',
-                marginBottom: '3mm',
+                marginBottom: '2mm',
                 color: '#374151'
               }}>
                 📝 ملاحظات الفني
               </div>
               
               <div className="center-item" style={{ width: '100%' }}>
-                <div style={{ borderBottom: '1px solid black', height: '6mm', margin: '1mm 0' }}></div>
-                <div style={{ borderBottom: '1px solid black', height: '6mm', margin: '1mm 0' }}></div>
-                <div style={{ borderBottom: '1px solid black', height: '6mm', margin: '1mm 0' }}></div>
-                <div style={{ borderBottom: '1px solid black', height: '6mm', margin: '1mm 0' }}></div>
+                <div style={{ borderBottom: '1px solid black', height: '5mm', margin: '1mm 0' }}></div>
+                <div style={{ borderBottom: '1px solid black', height: '5mm', margin: '1mm 0' }}></div>
+                <div style={{ borderBottom: '1px solid black', height: '5mm', margin: '1mm 0' }}></div>
               </div>
             </div>
           </div>
