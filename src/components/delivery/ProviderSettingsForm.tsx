@@ -99,10 +99,10 @@ export default function ProviderSettingsForm({
     switch (providerCode.toLowerCase()) {
       case 'yalidine':
         return {
-          token: 'رمز API (API Token)',
-          key: 'مفتاح API (API Key)',
-          tokenPlaceholder: 'أدخل رمز API الخاص بياليدين',
-          keyPlaceholder: 'أدخل مفتاح API الخاص بياليدين'
+          token: 'مفتاح API (API Key)*',
+          key: 'توكن API (API Token)*',
+          tokenPlaceholder: 'أدخل مفتاح API الخاص بياليدين',
+          keyPlaceholder: 'أدخل توكن API الخاص بياليدين'
         };
       case 'zrexpress':
         return {

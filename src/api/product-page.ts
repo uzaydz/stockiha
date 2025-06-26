@@ -410,7 +410,17 @@ export async function calculateShippingFee(
           }
         }
 
+        console.log('📞 استدعاء دالة calculate_shipping_fee مع المعاملات:', {
+          organizationId,
+          toWilayaId,
+          toMunicipalityId,
+          deliveryType,
+          weight,
+          weightType: typeof weight
+        });
+
         // استدعاء دالة حساب رسوم الشحن الموحدة في قاعدة البيانات
+        // تحويل الوزن إلى عدد صحيح لحل مشكلة التعارض في أنواع البيانات
         const { data, error } = await supabase.rpc(
           'calculate_shipping_fee' as any,
           {
@@ -418,15 +428,19 @@ export async function calculateShippingFee(
             p_to_wilaya_id: toWilayaId,
             p_to_municipality_id: toMunicipalityId,
             p_delivery_type: deliveryType,
-            p_weight: weight
+            p_weight: Math.round(weight) // تحويل إلى عدد صحيح
           }
         );
 
+        console.log('📡 نتيجة دالة calculate_shipping_fee:', { data, error });
+
         if (error) {
+          console.error('❌ خطأ في دالة calculate_shipping_fee:', error);
           throw new Error(`فشل في حساب سعر التوصيل: ${error.message}`);
         }
         
         const calculatedFee = typeof data === 'number' ? data : 0;
+        console.log('💰 السعر المحسوب من قاعدة البيانات:', calculatedFee);
         
         // التعامل مع النتيجة 0 - الدالة الجديدة ترجع 0 عندما لا تجد بيانات
         if (calculatedFee === 0) {

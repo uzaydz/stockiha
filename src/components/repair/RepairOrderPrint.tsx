@@ -77,39 +77,66 @@ const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({ order, queuePositio
     }
   }, [posSettings, organizationId, refreshPOSSettings]);
 
-  // حساب ترتيب الطلبية في الطابور (نفس الطريقة المستخدمة في التتبع العام)
+  // حساب ترتيب الطلبية في الطابور
   useEffect(() => {
     const calculateQueuePosition = async () => {
-      if (!organizationId || !order) return;
+      console.log('🔄 بدء حساب ترتيب الطابور...', { organizationId, orderId: order?.id });
+      
+      if (!organizationId || !order) {
+        console.log('❌ معرف المؤسسة أو الطلبية غير متوفر');
+        return;
+      }
 
       try {
         // التحقق من أن الطلبية مؤهلة لتكون في الطابور
         const activeStatuses = ['قيد الانتظار', 'جاري التصليح'];
+        console.log('📋 حالة الطلبية:', order.status, 'حالات نشطة:', activeStatuses);
+        
         if (!activeStatuses.includes(order.status)) {
+          console.log('⚠️ الطلبية غير مؤهلة للطابور، تعيين الترتيب إلى 0');
           setCalculatedQueuePosition(0);
           return;
         }
 
-        // حساب عدد الطلبات التي تم إنشاؤها قبل هذه الطلبية في نفس المكان
-        const { count, error } = await supabase
+        console.log('🔍 البحث عن جميع الطلبات السابقة...');
+        
+        // جلب جميع الطلبات في المؤسسة (بغض النظر عن الحالة) مع تواريخها للفحص
+        const { data: allOrders, error: allError } = await supabase
           .from('repair_orders')
-          .select('*', { count: 'exact', head: true })
-          .eq('repair_location_id', order.repair_location_id)
-          .in('status', activeStatuses)
-          .lt('created_at', order.created_at);
+          .select('id, created_at, order_number, status')
+          .eq('organization_id', organizationId)
+          .order('created_at', { ascending: true });
 
-        if (error) {
-          console.error('خطأ في حساب ترتيب الطابور:', error);
-          setCalculatedQueuePosition(queuePosition || 0);
+        if (allError) {
+          console.error('❌ خطأ في جلب جميع الطلبات:', allError);
+          setCalculatedQueuePosition(queuePosition || 1);
           return;
         }
 
-        const position = (count || 0) + 1;
-        console.log('ترتيب الطلبية المحسوب:', position, 'للطلبية:', order.id, 'في المكان:', order.repair_location_id);
+        console.log('📊 إجمالي الطلبات في المؤسسة:', allOrders?.length || 0);
+        console.log('📋 قائمة جميع الطلبات:', allOrders?.map(o => ({
+          id: o.id,
+          order_number: o.order_number,
+          created_at: o.created_at,
+          status: o.status
+        })));
+
+        // العثور على ترتيب الطلبية الحالية في القائمة الإجمالية
+        const currentOrderIndex = allOrders?.findIndex(o => o.id === order.id);
+        const position = currentOrderIndex !== undefined && currentOrderIndex >= 0 ? currentOrderIndex + 1 : 1;
+
+                 console.log('🎯 النتيجة النهائية:', {
+           currentOrderId: order.id,
+           currentOrderCreatedAt: order.created_at,
+           foundIndex: currentOrderIndex,
+           finalPosition: position,
+           totalOrders: allOrders?.length || 0
+         });
+
         setCalculatedQueuePosition(position);
       } catch (error) {
-        console.error('خطأ في حساب ترتيب الطابور:', error);
-        setCalculatedQueuePosition(queuePosition || 0);
+        console.error('❌ خطأ عام في حساب ترتيب الطابور:', error);
+        setCalculatedQueuePosition(queuePosition || 1);
       }
     };
 

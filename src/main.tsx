@@ -129,6 +129,7 @@ if (typeof window !== 'undefined') {
 // تصريح بـ React للتأكد من وجوده في النطاق العالمي
 import React from 'react'; // يجب أن يكون هذا من أوائل الاستيرادات
 import ReactDOM from 'react-dom/client';
+import { StrictMode } from 'react';
 
 // إذا كنت بحاجة ماسة لجعل React متاحًا عالميًا (غير مستحسن بشكل عام):
 (window as any).React = React; // إلغاء تعليق هذا وتفعيله
@@ -482,8 +483,18 @@ initializeOptimizationSystems();
 // 🚀 CRITICAL: Force Production Initialization FIRST
 // =================================================================
 
-// ✅ تفعيل نظام منع التكرار العالمي أولاً قبل أي شيء آخر
+// 🚨 تحميل نظام منع التكرار المحسن أولاً قبل أي شيء آخر
+console.log('🚀 Force initializing deduplication system...');
 import './lib/requestDeduplicationGlobal';
+import './lib/supabaseRequestInterceptor';
+
+// إضافة مدير الطلبات الشامل الجديد
+import('./lib/requestManager').then((module) => {
+  module.initializeRequestManager();
+  console.log('🚀 Request Manager initialized with advanced caching');
+}).catch((error) => {
+  console.warn('⚠️ Request Manager failed to load:', error);
+});
 
 // Force تفعيل فوري للنظام
 if (typeof window !== 'undefined') {
@@ -503,3 +514,11 @@ import { disableConsoleInProduction } from './lib/performance/optimizations';
 
 // تطبيق تحسينات الأداء
 disableConsoleInProduction();
+
+// تأكيد أن النظام يعمل
+if (typeof window !== 'undefined') {
+  console.log('✅ Request deduplication system loaded');
+  console.log('📊 Available debug functions:', Object.keys(window).filter(key => 
+    key.includes('deduplication') || key === 'requestManager'
+  ));
+}

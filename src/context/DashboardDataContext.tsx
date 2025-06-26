@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useCallback, useMemo, useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTenant } from '@/context/TenantContext';
 import { supabase } from '@/lib/supabase';
@@ -325,6 +325,20 @@ export const DashboardDataProvider: React.FC<DashboardDataProviderProps> = ({
   const { currentOrganization } = useTenant();
   const queryClient = useQueryClient();
   const orgId = currentOrganization?.id;
+  
+  // تأخير بسيط لتجنب التحميل المتزامن مع مكونات أخرى
+  const [isInitialized, setIsInitialized] = useState(false);
+  
+  useEffect(() => {
+    if (orgId) {
+      // تأخير 100ms لإعطاء الأولوية لطلبات أخرى مهمة
+      const timeoutId = setTimeout(() => {
+        setIsInitialized(true);
+      }, 100);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [orgId]);
 
   // React Query لجلب الإحصائيات - أولوية عالية
   const {
@@ -334,12 +348,14 @@ export const DashboardDataProvider: React.FC<DashboardDataProviderProps> = ({
   } = useQuery({
     queryKey: ['dashboard-stats', orgId, period],
     queryFn: () => fetchDashboardStats(orgId!, period),
-    enabled: !!orgId,
-    staleTime: 10 * 60 * 1000, // 10 دقائق - زيادة staleTime
+    enabled: !!orgId && isInitialized,
+    staleTime: 15 * 60 * 1000, // 15 دقيقة - زيادة staleTime أكثر
     gcTime: 60 * 60 * 1000, // ساعة واحدة
+    refetchOnWindowFocus: false, // منع إعادة التحميل عند التركيز
+    refetchOnMount: false, // منع إعادة التحميل عند mount إذا كانت البيانات موجودة
   });
 
-  // React Query لجلب المنتجات - تأخير قليل
+  // React Query لجلب المنتجات - تأخير أكبر
   const {
     data: products = [],
     isLoading: isProductsLoading,
@@ -347,9 +363,11 @@ export const DashboardDataProvider: React.FC<DashboardDataProviderProps> = ({
   } = useQuery({
     queryKey: ['dashboard-products', orgId],
     queryFn: () => fetchProducts(orgId!),
-    enabled: !!orgId && !isStatsLoading, // انتظار الإحصائيات أولاً
-    staleTime: 20 * 60 * 1000, // 20 دقيقة للمنتجات
+    enabled: !!orgId && isInitialized && !isStatsLoading, // انتظار الإحصائيات أولاً
+    staleTime: 30 * 60 * 1000, // 30 دقيقة للمنتجات
     gcTime: 2 * 60 * 60 * 1000, // ساعتان
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   // React Query لجلب الطلبات - تأخير أكبر
@@ -360,9 +378,11 @@ export const DashboardDataProvider: React.FC<DashboardDataProviderProps> = ({
   } = useQuery({
     queryKey: ['dashboard-orders', orgId],
     queryFn: () => fetchOrders(orgId!),
-    enabled: !!orgId && !isStatsLoading && !isProductsLoading, // انتظار الطلبات السابقة
-    staleTime: 5 * 60 * 1000, // 5 دقائق للطلبات
+    enabled: !!orgId && isInitialized && !isStatsLoading && !isProductsLoading, // انتظار الطلبات السابقة
+    staleTime: 10 * 60 * 1000, // 10 دقائق للطلبات
     gcTime: 30 * 60 * 1000, // 30 دقيقة
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   // React Query لجلب الطلبات الأونلاين - تأخير أكبر
@@ -373,12 +393,14 @@ export const DashboardDataProvider: React.FC<DashboardDataProviderProps> = ({
   } = useQuery({
     queryKey: ['dashboard-online-orders', orgId],
     queryFn: () => fetchOnlineOrders(orgId!, 5),
-    enabled: !!orgId && !isStatsLoading && !isProductsLoading, // انتظار الطلبات السابقة
-    staleTime: 5 * 60 * 1000,
+    enabled: !!orgId && isInitialized && !isStatsLoading && !isProductsLoading, // انتظار الطلبات السابقة
+    staleTime: 10 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
-  // React Query لجلب بيانات الولايات - أولوية منخفضة
+  // React Query لجلب بيانات الولايات - أولوية منخفضة جداً
   const {
     data: provinceData = [],
     isLoading: isProvinceDataLoading,
@@ -386,12 +408,14 @@ export const DashboardDataProvider: React.FC<DashboardDataProviderProps> = ({
   } = useQuery({
     queryKey: ['dashboard-province-data', orgId],
     queryFn: () => fetchProvinceData(orgId!, 5),
-    enabled: !!orgId && !isStatsLoading && !isOrdersLoading, // انتظار البيانات الأساسية
-    staleTime: 30 * 60 * 1000, // 30 دقيقة
-    gcTime: 2 * 60 * 60 * 1000, // ساعتان
+    enabled: !!orgId && isInitialized && !isStatsLoading && !isOrdersLoading, // انتظار البيانات الأساسية
+    staleTime: 60 * 60 * 1000, // ساعة واحدة
+    gcTime: 4 * 60 * 60 * 1000, // 4 ساعات
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
-  // React Query لجلب بيانات خريطة الطلبات - أولوية منخفضة
+  // React Query لجلب بيانات خريطة الطلبات - أولوية منخفضة جداً
   const {
     data: orderHeatmapData = [],
     isLoading: isHeatmapLoading,
@@ -399,9 +423,11 @@ export const DashboardDataProvider: React.FC<DashboardDataProviderProps> = ({
   } = useQuery({
     queryKey: ['dashboard-order-heatmap', orgId],
     queryFn: () => fetchOrderHeatmapData(orgId!),
-    enabled: !!orgId && !isStatsLoading && !isOrdersLoading, // انتظار البيانات الأساسية
-    staleTime: 60 * 60 * 1000, // ساعة واحدة
-    gcTime: 4 * 60 * 60 * 1000, // 4 ساعات
+    enabled: !!orgId && isInitialized && !isStatsLoading && !isOrdersLoading, // انتظار البيانات الأساسية
+    staleTime: 2 * 60 * 60 * 1000, // ساعتان
+    gcTime: 8 * 60 * 60 * 1000, // 8 ساعات
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   // دوال التحديث

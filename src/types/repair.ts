@@ -34,6 +34,7 @@ export interface RepairOrder {
   order_number?: string;
   customer_name: string;
   customer_phone: string;
+  device_type?: string;
   repair_location_id?: string;
   custom_location?: string;
   issue_description?: string;

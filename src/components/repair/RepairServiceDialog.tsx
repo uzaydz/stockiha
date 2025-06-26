@@ -50,6 +50,7 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
   // حالة النموذج
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [deviceType, setDeviceType] = useState('');
   const [repairLocation, setRepairLocation] = useState<string>('');
   const [customLocation, setCustomLocation] = useState('');
   const [issueDescription, setIssueDescription] = useState('');
@@ -105,6 +106,7 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
       if (editMode && repairOrder) {
         setCustomerName(repairOrder.customer_name || '');
         setCustomerPhone(repairOrder.customer_phone || '');
+        setDeviceType(repairOrder.device_type || '');
         
         // التعامل مع مكان التصليح بشكل صحيح
         if (repairOrder.custom_location) {
@@ -138,6 +140,7 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
   const resetForm = () => {
     setCustomerName('');
     setCustomerPhone('');
+    setDeviceType('');
     setRepairLocation('');
     setCustomLocation('');
     setIssueDescription('');
@@ -211,6 +214,11 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
       return;
     }
     
+    if (!deviceType?.trim()) {
+      toast.error('يرجى اختيار نوع الجهاز');
+      return;
+    }
+    
     if (!priceToBeDetLater && (!totalPrice || totalPrice <= 0)) {
       toast.error('يرجى إدخال سعر التصليح أو اختيار "السعر يحدد لاحقاً"');
       return;
@@ -259,6 +267,7 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
         const updateData: any = {
           customer_name: customerName,
           customer_phone: customerPhone,
+          device_type: deviceType || null,
           issue_description: issueDescription || null,
           total_price: priceToBeDetLater ? null : totalPrice,
           paid_amount: priceToBeDetLater ? 0 : (paidAmount || 0),
@@ -308,6 +317,7 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
           organization_id: organizationId,
           customer_name: customerName,
           customer_phone: customerPhone,
+          device_type: deviceType || null,
           repair_location_id: repairLocation === 'أخرى' ? null : repairLocation,
           custom_location: repairLocation === 'أخرى' ? customLocation : null,
           issue_description: issueDescription,
@@ -499,6 +509,35 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
                     className="h-10"
                   />
                 </div>
+              </div>
+            </div>
+            
+            {/* معلومات الجهاز */}
+            <div className="space-y-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 rounded-lg shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700 pb-2 flex items-center gap-2">
+                <div className="p-1.5 bg-purple-100 dark:bg-purple-900/50 rounded-md">
+                  <svg className="h-4 w-4 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                معلومات الجهاز
+              </h3>
+              
+              <div className="space-y-2">
+                <Label htmlFor="device_type" className="text-sm font-medium">
+                  نوع الجهاز <span className="text-red-500">*</span>
+                </Label>
+                <Input 
+                  id="device_type" 
+                  value={deviceType}
+                  onChange={(e) => setDeviceType(e.target.value)}
+                  placeholder="أدخل نوع الجهاز (مثل: آيفون 14، لابتوب HP، سامسونغ A54، إلخ)" 
+                  required
+                  className="h-10"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  أدخل نوع الجهاز بالتفصيل (العلامة التجارية والموديل إن أمكن)
+                </p>
               </div>
             </div>
             

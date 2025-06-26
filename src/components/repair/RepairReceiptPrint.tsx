@@ -373,6 +373,33 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
             </div>
           </div>
 
+          {/* معلومات الجهاز */}
+          {order.device_type && (
+            <>
+              <div className="line-separator"></div>
+              <div className="center-item" style={{ marginBottom: '5mm' }}>
+                <div className="section-title center-item" style={{ 
+                  background: '#f3e8ff',
+                  borderColor: '#7c3aed',
+                  color: '#7c3aed'
+                }}>
+                  📱 معلومات الجهاز
+                </div>
+                
+                <div className="info-row center-item">
+                  <div className="info-label center-item">نوع الجهاز</div>
+                  <div className="info-value center-item" style={{ 
+                    color: '#7c3aed',
+                    fontSize: '16px',
+                    fontWeight: '700'
+                  }}>
+                    {order.device_type}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
           {/* وصف العطل */}
           {order.issue_description && (
             <>

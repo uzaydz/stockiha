@@ -155,9 +155,9 @@ const createDirectRestRequest = async (key: string): Promise<any> => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.access_token) {
         authToken = session.access_token;
-      } else {
       }
     } catch (e) {
+      // إذا فشل الحصول على session، استخدم anonymous key
     }
 
     const response = await fetch(url, {
@@ -174,16 +174,31 @@ const createDirectRestRequest = async (key: string): Promise<any> => {
       
       // معالجة خاصة للجداول غير الموجودة أو عدم وجود صلاحيات
       if (response.status === 400 || response.status === 404) {
-        return [];
+        // للـ categories و subcategories، إرجاع array فارغ
+        if (key.includes('categories') || key.includes('apps') || key.includes('users')) {
+          return [];
+        }
+        // للـ settings، إرجاع null
+        return null;
       } else if (response.status === 401 || response.status === 403) {
-        return [];
+        if (key.includes('categories') || key.includes('apps') || key.includes('users')) {
+          return [];
+        }
+        return null;
       }
       throw new Error(`REST API error: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
     const data = await response.json();
     
-    if (endpoint === 'organization_apps') {
+    // التأكد من إرجاع الصيغة الصحيحة
+    if (key.includes('categories') || key.includes('subcategories') || key.includes('apps') || key.includes('users')) {
+      // للـ arrays، تأكد من إرجاع array
+      if (!Array.isArray(data)) {
+        console.warn(`Expected array for ${key}, got:`, typeof data, data);
+        return [];
+      }
+      return data;
     }
     
     // معالجة خاصة للمستخدم الواحد
@@ -193,11 +208,18 @@ const createDirectRestRequest = async (key: string): Promise<any> => {
     
     return data;
   } catch (error) {
-    // لطلبات المستخدم الواحد، إرجاع null بدلاً من array فارغ
+    console.error(`Error in createDirectRestRequest for ${key}:`, error);
+    
+    // إرجاع القيم الافتراضية المناسبة حسب نوع الطلب
     if (key.startsWith('unified_user_')) {
       return null;
     }
-    return [];
+    
+    if (key.includes('categories') || key.includes('subcategories') || key.includes('apps') || key.includes('users')) {
+      return [];
+    }
+    
+    return null;
   }
 };
 
@@ -408,8 +430,7 @@ export class UnifiedRequestManager {
 
         return data;
       },
-      30000, // 30 second timeout
-      10 * 60 * 1000 // 10 minutes cache
+      30000 // 30 second timeout
     );
   }
   
@@ -653,8 +674,7 @@ export class UnifiedRequestManager {
         
         return categories;
       },
-      30000, // 30 second timeout
-      10 * 60 * 1000 // 10 minutes cache لأن هذا استعلام ثقيل
+      30000 // 30 second timeout لأن هذا استعلام ثقيل
     );
   }
 }

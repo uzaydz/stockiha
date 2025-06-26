@@ -183,14 +183,20 @@ const getQueueInfo = async (orderId: string) => {
     // حساب إجمالي الطلبات النشطة في نفس المكان
     const { data: totalActiveOrders, error: totalError } = await supabase
       .from('repair_orders')
-      .select('id')
+      .select('id, created_at')
       .eq('repair_location_id', currentOrder.repair_location_id)
       .in('status', ['قيد الانتظار', 'جاري التصليح']);
       
     if (beforeError || totalError) return null;
     
-    const queuePosition = (ordersBeforeMe?.length || 0) + 1;
     const totalInQueue = totalActiveOrders?.length || 0;
+    
+    // حساب الترتيب الصحيح: المجموع الكلي - عدد الطلبات بعد هذه الطلبية
+    const ordersAfterMe = totalActiveOrders?.filter(order => {
+      return new Date(order.created_at) > new Date(currentOrder.created_at);
+    }) || [];
+    
+    const queuePosition = totalInQueue - ordersAfterMe.length;
     
     return {
       queue_position: queuePosition,

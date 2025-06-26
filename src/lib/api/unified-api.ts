@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase';
 
 // إعادة تصدير الأنواع المطلوبة
 export type { Category, Subcategory } from '@/lib/api/categories';
-export type { OrganizationSettings } from '@/lib/api/settings';
+export type { OrganizationSettings } from '@/types/settings';
 
 // ===== وظائف الفئات الموحدة =====
 
@@ -40,16 +40,27 @@ export const getCategories = async (organizationId?: string) => {
     organizationId = userData.organization_id;
   }
 
-  const categories = await UnifiedRequestManager.getProductCategories(organizationId);
+  try {
+    const categoriesResult = await UnifiedRequestManager.getProductCategories(organizationId);
 
-  // تحويل البيانات لتناسب النوع المطلوب
-  const mappedCategories = (categories || []).map((item: any) => ({
-    ...item,
-    type: item.type === 'service' ? 'service' : 'product',
-    product_count: item.product_count || 0
-  }));
+    // التأكد من أن النتيجة array قبل استخدام .map()
+    if (!categoriesResult || !Array.isArray(categoriesResult)) {
+      console.warn('Categories result is not an array:', categoriesResult);
+      return [];
+    }
 
-  return mappedCategories;
+    // تحويل البيانات لتناسب النوع المطلوب
+    const mappedCategories = categoriesResult.map((item: any) => ({
+      ...item,
+      type: item.type === 'service' ? 'service' : 'product',
+      product_count: item.product_count || 0
+    }));
+
+    return mappedCategories;
+  } catch (error) {
+    console.error('Error in getCategories:', error);
+    return [];
+  }
 };
 
 /**

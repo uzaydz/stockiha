@@ -25,6 +25,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { requestCache, createCacheKey } from '@/lib/cache/requestCache';
+import { usePhaseLoader } from '../LoadingController';
+import type { OrganizationSettings } from '@/types/settings';
 
 interface NavbarMainProps {
   className?: string;
@@ -32,14 +34,18 @@ interface NavbarMainProps {
   isSidebarOpen?: boolean;
   categories?: Category[];
   isMobile?: boolean;
+  organizationSettings?: OrganizationSettings | null;
+  hideCategories?: boolean;
 }
 
 export function NavbarMain({
   className,
   toggleSidebar,
   isSidebarOpen,
-  categories: propCategories,
-  isMobile
+  categories: propCategories = [],
+  isMobile,
+  organizationSettings: propOrganizationSettings,
+  hideCategories = false
 }: NavbarMainProps) {
   const { user, userProfile } = useAuth();
   const { t } = useTranslation();
@@ -72,14 +78,24 @@ export function NavbarMain({
   const [orgLogo, setOrgLogo] = useState<string>('');
   const [siteName, setSiteName] = useState<string>('');
   const [displayTextWithLogo, setDisplayTextWithLogo] = useState<boolean>(true);
-  const [storeCategories, setStoreCategories] = useState<Category[]>([]);
+  const [storeCategories, setStoreCategories] = useState<Category[]>(propCategories);
+  const [organizationSettings, setOrganizationSettings] = useState<OrganizationSettings | null>(propOrganizationSettings || null);
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
 
   const isAdminPage = location.pathname.startsWith('/dashboard');
   const isAdmin = userProfile?.role === 'admin';
   const isEmployee = userProfile?.role === 'employee';
   const isStaff = isAdmin || isEmployee;
+  
+  // استخدام نظام التحكم في التحميل للتنسيق مع باقي المكونات
+  const {
+    canStartLoading: canLoadNavigation,
+    startLoading: startNavigationLoading,
+    finishLoading: finishNavigationLoading,
+    hasAttemptedLoad: hasAttemptedNavigationLoad
+  } = usePhaseLoader('navigation');
   
   // إضافة المساحة المطلوبة للمحتوى تحت النافبار الثابت
   useEffect(() => {
@@ -280,8 +296,12 @@ export function NavbarMain({
     };
   }, [currentOrganization?.id, currentOrganization?.name]);
   
-  // Load product categories - محسن لتقليل الطلبات المتكررة
+  // Load product categories - محسن مع نظام التحكم في التحميل
   useEffect(() => {
+    if (!canLoadNavigation || hasAttemptedNavigationLoad) {
+      return;
+    }
+    
     const fetchCategories = async () => {
       // إذا كانت الفئات محملة من الخارج، استخدمها مباشرة
       if (propCategories?.length) {
@@ -293,8 +313,13 @@ export function NavbarMain({
       if (!currentOrganization?.id) return;
       
       // إذا كانت الفئات محملة بالفعل ولم تتغير المؤسسة، لا نحمل مرة أخرى
-      if (storeCategories.length > 0 && isLoadingCategories === false) {
+      if (storeCategories.length > 0) {
         return;
+      }
+      
+      // بدء التحميل مع التنسيق
+      if (!startNavigationLoading()) {
+        return; // إذا لم يستطع البدء، انتظار
       }
       
       setIsLoadingCategories(true);
@@ -305,24 +330,29 @@ export function NavbarMain({
         const categoriesFromDB = await requestCache.get(
           cacheKey,
           () => getProductCategories(currentOrganization.id),
-          30 * 60 * 1000 // 30 دقيقة - زيادة cache time
+          300000 // 5 دقائق cache
         );
         
-        if (categoriesFromDB && categoriesFromDB.length > 0) {
-          setStoreCategories(categoriesFromDB);
+        setStoreCategories(categoriesFromDB || []);
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log('✅ تم تحميل فئات الـ Navbar بنجاح:', categoriesFromDB?.length || 0);
         }
       } catch (error) {
-        // معالجة صامتة للأخطاء
+        console.error('خطأ في تحميل فئات الـ Navbar:', error);
+        setStoreCategories([]);
       } finally {
         setIsLoadingCategories(false);
+        finishNavigationLoading(); // إنهاء التحميل
       }
     };
-    
-    // تأخير أكبر لتجنب التحميل المتزامن مع مكونات أخرى
-    const timeoutId = setTimeout(fetchCategories, 500);
+
+    // تأخير بسيط للسماح للمكونات الأعلى أولوية بالتحميل أولاً
+    const timeoutId = setTimeout(fetchCategories, 200);
     
     return () => clearTimeout(timeoutId);
-  }, [currentOrganization?.id, propCategories]); // إزالة storeCategories من التبعيات لتجنب التحديثات المتكررة
+  }, [currentOrganization?.id, propCategories, canLoadNavigation, hasAttemptedNavigationLoad, 
+      startNavigationLoading, finishNavigationLoading]);
 
   // Enhanced notification sample data
   const sampleNotifications = [

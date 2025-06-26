@@ -82,35 +82,77 @@ export default defineConfig(({ command, mode }) => {
         '/yalidine-api': {
           target: 'https://api.yalidine.app/v1',
           changeOrigin: true,
-          secure: false,
+          secure: true,
           rewrite: (path: string) => path.replace(/^\/yalidine-api/, ''),
           headers: {
-            // إضافة رؤوس إضافية هنا إذا لزم الأمر
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'en-US,en;q=0.9,ar;q=0.8',
           },
           onProxyReq: (proxyReq: any, req: any) => {
-            // نسخ الرؤوس من الطلب الأصلي إلى طلب الوكيل
             if (req.headers['x-api-id']) {
               proxyReq.setHeader('X-API-ID', req.headers['x-api-id'] as string);
+              console.log('🔑 Setting X-API-ID:', req.headers['x-api-id']);
             }
             if (req.headers['x-api-token']) {
               proxyReq.setHeader('X-API-TOKEN', req.headers['x-api-token'] as string);
+              console.log('🔑 Setting X-API-TOKEN:', req.headers['x-api-token']?.substring(0, 10) + '...');
             }
-            // تنظيف رأس Origin لتجنب مشاكل CORS
+            
+            proxyReq.setHeader('Content-Type', 'application/json');
+            
             proxyReq.removeHeader('origin');
+            proxyReq.removeHeader('referer');
+            proxyReq.removeHeader('host');
+            
+            console.log('🌐 Proxying request to:', proxyReq.path);
           },
           configure: (proxy: any, _options: any) => {
-            proxy.on('error', (err: any, _req: any, _res: any) => {
+            proxy.on('error', (err: any, req: any, res: any) => {
+              console.error('❌ Proxy error:', err.message);
+              console.error('❌ Request URL:', req.url);
               
+              if (!res.headersSent) {
+                res.writeHead(500, {
+                  'Access-Control-Allow-Origin': '*',
+                  'Content-Type': 'application/json'
+                });
+                res.end(JSON.stringify({
+                  error: true,
+                  message: 'خطأ في الاتصال بـ API ياليدين',
+                  details: err.message,
+                  timestamp: new Date().toISOString()
+                }));
+              }
             });
+            
             proxy.on('proxyReq', (proxyReq: any, req: any, _res: any) => {
-              
+              console.log('📡 Sending request to Yalidine API:', {
+                method: req.method,
+                url: req.url,
+                target: proxyReq.path,
+                headers: {
+                  'X-API-ID': proxyReq.getHeader('X-API-ID') ? '***' : 'missing',
+                  'X-API-TOKEN': proxyReq.getHeader('X-API-TOKEN') ? '***' : 'missing'
+                }
+              });
             });
+            
             proxy.on('proxyRes', (proxyRes: any, req: any, _res: any) => {
+              console.log('📥 Received response from Yalidine API:', {
+                status: proxyRes.statusCode,
+                url: req.url,
+                headers: {
+                  'content-type': proxyRes.headers['content-type'],
+                  'day-quota-left': proxyRes.headers['day-quota-left'],
+                  'hour-quota-left': proxyRes.headers['hour-quota-left']
+                }
+              });
               
-              // إضافة رؤوس CORS للاستجابة
               proxyRes.headers['Access-Control-Allow-Origin'] = '*';
               proxyRes.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, PATCH, OPTIONS';
-              proxyRes.headers['Access-Control-Allow-Headers'] = 'X-API-ID, X-API-TOKEN, Content-Type, Accept';
+              proxyRes.headers['Access-Control-Allow-Headers'] = 'X-API-ID, X-API-TOKEN, Content-Type, Accept, Authorization';
+              proxyRes.headers['Access-Control-Expose-Headers'] = 'day-quota-left, hour-quota-left, minute-quota-left, second-quota-left';
             });
           }
         },

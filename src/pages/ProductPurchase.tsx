@@ -45,6 +45,9 @@ import {
 // استيراد getSupabaseClient
 import { getSupabaseClient } from '@/lib/supabase';
 
+// استيراد مزود البيانات الموحد
+import { ProductPurchaseDataProvider } from '@/components/store/order-form/ProductPurchaseDataProvider';
+
 // Lazy-loaded components
 const OrderForm = lazy(() => import('@/components/store/OrderForm'));
 const QuantityOffersDisplay = lazy(() => import('@/components/store/product/QuantityOffersDisplay'));
@@ -247,12 +250,13 @@ const ProductPurchase = () => {
   const shouldShowFullContent = !isLoading && !error && product;
 
   return (
-    <div className="w-full min-h-screen relative">
-      {/* الخلفية المتحركة */}
-      <AnimatedBackground />
-      
-      {/* المحتوى الرئيسي */}
-      <div className="relative z-10">
+    <ProductPurchaseDataProvider productId={effectiveProduct?.id || product?.id}>
+      <div className="w-full min-h-screen relative">
+        {/* الخلفية المتحركة */}
+        <AnimatedBackground />
+        
+        {/* المحتوى الرئيسي */}
+        <div className="relative z-10">
         <Navbar />
         <LoadingProgressBar isVisible={isLoading || isOrganizationLoading} />
       <div className="container mx-auto py-4 px-4 md:px-6 relative z-20">
@@ -578,6 +582,7 @@ const ProductPurchase = () => {
       }, [footerSettings, currentOrganization])}
       </div>
     </div>
+    </ProductPurchaseDataProvider>
   );
 };
 

@@ -32,6 +32,9 @@ export interface RepairLocation {
   id: string;
   name: string;
   description?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
   is_default?: boolean;
   is_active?: boolean;
   created_at?: string;
@@ -56,6 +59,9 @@ const RepairLocationManager = ({ isOpen, onClose, onSelectLocation }: RepairLoca
   const [currentLocation, setCurrentLocation] = useState<RepairLocation | null>(null);
   const [locationName, setLocationName] = useState('');
   const [locationDescription, setLocationDescription] = useState('');
+  const [locationAddress, setLocationAddress] = useState('');
+  const [locationPhone, setLocationPhone] = useState('');
+  const [locationEmail, setLocationEmail] = useState('');
   const [isDefault, setIsDefault] = useState(false);
   const [isAddFormVisible, setIsAddFormVisible] = useState(false);
 
@@ -71,12 +77,14 @@ const RepairLocationManager = ({ isOpen, onClose, onSelectLocation }: RepairLoca
           .select('*')
           .eq('organization_id', organizationId)
           .eq('is_active', true)
+          .order('is_default', { ascending: false })
           .order('created_at', { ascending: false });
           
         if (error) throw error;
         
         setLocations(data || []);
       } catch (error) {
+        console.error('خطأ في جلب أماكن التصليح:', error);
         toast.error('فشل في جلب أماكن التصليح');
       } finally {
         setIsLoading(false);
@@ -92,6 +100,9 @@ const RepairLocationManager = ({ isOpen, onClose, onSelectLocation }: RepairLoca
   const resetForm = () => {
     setLocationName('');
     setLocationDescription('');
+    setLocationAddress('');
+    setLocationPhone('');
+    setLocationEmail('');
     setIsDefault(false);
     setCurrentLocation(null);
     setIsEditMode(false);
@@ -108,6 +119,9 @@ const RepairLocationManager = ({ isOpen, onClose, onSelectLocation }: RepairLoca
     setCurrentLocation(location);
     setLocationName(location.name);
     setLocationDescription(location.description || '');
+    setLocationAddress(location.address || '');
+    setLocationPhone(location.phone || '');
+    setLocationEmail(location.email || '');
     setIsDefault(location.is_default || false);
     setIsEditMode(true);
     setIsAddFormVisible(true);
@@ -131,6 +145,7 @@ const RepairLocationManager = ({ isOpen, onClose, onSelectLocation }: RepairLoca
       setLocations(locations.filter(loc => loc.id !== location.id));
       toast.success('تم حذف مكان التصليح بنجاح');
     } catch (error) {
+      console.error('خطأ في حذف مكان التصليح:', error);
       toast.error('فشل في حذف مكان التصليح');
     }
   };
@@ -161,6 +176,9 @@ const RepairLocationManager = ({ isOpen, onClose, onSelectLocation }: RepairLoca
           .update({
             name: locationName,
             description: locationDescription,
+            address: locationAddress,
+            phone: locationPhone,
+            email: locationEmail,
             is_default: isDefault,
           })
           .eq('id', currentLocation.id);
@@ -170,7 +188,15 @@ const RepairLocationManager = ({ isOpen, onClose, onSelectLocation }: RepairLoca
         // تحديث القائمة المحلية
         setLocations(locations.map(loc => 
           loc.id === currentLocation.id 
-            ? { ...loc, name: locationName, description: locationDescription, is_default: isDefault }
+            ? { 
+                ...loc, 
+                name: locationName, 
+                description: locationDescription,
+                address: locationAddress,
+                phone: locationPhone,
+                email: locationEmail,
+                is_default: isDefault 
+              }
             : isDefault ? { ...loc, is_default: false } : loc
         ));
         
@@ -181,6 +207,9 @@ const RepairLocationManager = ({ isOpen, onClose, onSelectLocation }: RepairLoca
           id: uuidv4(),
           name: locationName,
           description: locationDescription,
+          address: locationAddress,
+          phone: locationPhone,
+          email: locationEmail,
           is_default: isDefault,
           is_active: true,
           organization_id: organizationId,
@@ -205,6 +234,7 @@ const RepairLocationManager = ({ isOpen, onClose, onSelectLocation }: RepairLoca
       resetForm();
       setIsAddFormVisible(false);
     } catch (error) {
+      console.error('خطأ في حفظ مكان التصليح:', error);
       toast.error('فشل في حفظ مكان التصليح');
     } finally {
       setIsSubmitting(false);
@@ -220,7 +250,7 @@ const RepairLocationManager = ({ isOpen, onClose, onSelectLocation }: RepairLoca
   
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-2xl overflow-hidden">
+      <DialogContent className="sm:max-w-4xl overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <Building className="h-5 w-5" />
@@ -247,7 +277,7 @@ const RepairLocationManager = ({ isOpen, onClose, onSelectLocation }: RepairLoca
         {isAddFormVisible && (
           <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
             <h4 className="font-medium">{isEditMode ? 'تعديل مكان' : 'إضافة مكان جديد'}</h4>
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="location_name">اسم المكان <span className="text-red-500">*</span></Label>
                 <Input 
@@ -260,12 +290,43 @@ const RepairLocationManager = ({ isOpen, onClose, onSelectLocation }: RepairLoca
               </div>
               
               <div className="space-y-2">
+                <Label htmlFor="location_phone">رقم الهاتف</Label>
+                <Input 
+                  id="location_phone" 
+                  value={locationPhone}
+                  onChange={(e) => setLocationPhone(e.target.value)}
+                  placeholder="أدخل رقم الهاتف" 
+                />
+              </div>
+              
+              <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="location_description">وصف المكان</Label>
                 <Input 
                   id="location_description" 
                   value={locationDescription}
                   onChange={(e) => setLocationDescription(e.target.value)}
                   placeholder="أدخل وصف المكان (اختياري)" 
+                />
+              </div>
+              
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="location_address">العنوان</Label>
+                <Input 
+                  id="location_address" 
+                  value={locationAddress}
+                  onChange={(e) => setLocationAddress(e.target.value)}
+                  placeholder="أدخل عنوان المكان" 
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="location_email">البريد الإلكتروني</Label>
+                <Input 
+                  id="location_email" 
+                  type="email"
+                  value={locationEmail}
+                  onChange={(e) => setLocationEmail(e.target.value)}
+                  placeholder="أدخل البريد الإلكتروني" 
                 />
               </div>
               
@@ -277,37 +338,37 @@ const RepairLocationManager = ({ isOpen, onClose, onSelectLocation }: RepairLoca
                 />
                 <Label htmlFor="is_default">تعيين كمكان افتراضي</Label>
               </div>
-              
-              <div className="flex justify-end gap-2">
-                <Button 
-                  variant="outline" 
-                  onClick={toggleAddForm}
-                  disabled={isSubmitting}
-                >
-                  إلغاء
-                </Button>
-                <Button 
-                  onClick={handleSave}
-                  disabled={isSubmitting}
-                  className="flex gap-2 items-center"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      جاري الحفظ...
-                    </>
-                  ) : (
-                    <>
-                      حفظ
-                    </>
-                  )}
-                </Button>
-              </div>
+            </div>
+            
+            <div className="flex justify-end gap-2">
+              <Button 
+                variant="outline" 
+                onClick={toggleAddForm}
+                disabled={isSubmitting}
+              >
+                إلغاء
+              </Button>
+              <Button 
+                onClick={handleSave}
+                disabled={isSubmitting}
+                className="flex gap-2 items-center"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    جاري الحفظ...
+                  </>
+                ) : (
+                  <>
+                    حفظ
+                  </>
+                )}
+              </Button>
             </div>
           </div>
         )}
         
-        <ScrollArea className="h-[300px]">
+        <ScrollArea className="h-[400px]">
           {isLoading ? (
             <div className="flex items-center justify-center h-full">
               <Loader2 className="h-8 w-8 animate-spin opacity-50" />
@@ -321,6 +382,8 @@ const RepairLocationManager = ({ isOpen, onClose, onSelectLocation }: RepairLoca
               <TableHeader>
                 <TableRow>
                   <TableHead>الاسم</TableHead>
+                  <TableHead>العنوان</TableHead>
+                  <TableHead>الهاتف</TableHead>
                   <TableHead>الوصف</TableHead>
                   <TableHead>افتراضي</TableHead>
                   <TableHead>الإجراءات</TableHead>
@@ -330,6 +393,8 @@ const RepairLocationManager = ({ isOpen, onClose, onSelectLocation }: RepairLoca
                 {locations.map((location) => (
                   <TableRow key={location.id} className="cursor-pointer" onClick={() => handleSelectLocation(location)}>
                     <TableCell className="font-medium">{location.name}</TableCell>
+                    <TableCell>{location.address || '-'}</TableCell>
+                    <TableCell>{location.phone || '-'}</TableCell>
                     <TableCell>{location.description || '-'}</TableCell>
                     <TableCell>{location.is_default ? 'نعم' : 'لا'}</TableCell>
                     <TableCell>

@@ -18,6 +18,7 @@ import PrintReceipt from '@/components/pos/PrintReceipt';
 import ProductVariantSelector from '@/components/pos/ProductVariantSelector';
 import POSSettings from '@/components/pos/settings/POSSettings';
 import RepairServiceDialog from '@/components/repair/RepairServiceDialog';
+import RepairOrderPrint from '@/components/repair/RepairOrderPrint';
 import { useApps } from '@/context/AppsContext';
 import QuickReturnDialog from '@/components/pos/QuickReturnDialog';
 import {
@@ -106,6 +107,11 @@ const POS = () => {
 
   // حالة نافذة خدمة التصليح
   const [isRepairDialogOpen, setIsRepairDialogOpen] = useState(false);
+  
+  // حالة نافذة طباعة وصل التصليح
+  const [isRepairPrintDialogOpen, setIsRepairPrintDialogOpen] = useState(false);
+  const [selectedRepairOrder, setSelectedRepairOrder] = useState(null);
+  const [repairQueuePosition, setRepairQueuePosition] = useState(0);
 
   // حالة نافذة الإرجاع السريع
   const [isQuickReturnOpen, setIsQuickReturnOpen] = useState(false);
@@ -738,6 +744,45 @@ const POS = () => {
   const handleStockUpdate = (productId: string, updateFunction: any) => {
     if (productId === '__update_function__') {
       productCatalogUpdateFunction.current = updateFunction;
+    }
+  };
+
+  // دالة معالجة نجاح إضافة خدمة التصليح مع فتح نافذة الطباعة
+  const handleRepairServiceSuccess = async (orderId: string, trackingCode: string) => {
+    try {
+      // جلب بيانات الطلبية الجديدة من قاعدة البيانات
+      const { data, error } = await supabase
+        .from('repair_orders')
+        .select(`
+          *,
+          images:repair_images(*),
+          history:repair_status_history(*, users(name)),
+          repair_location:repair_locations(id, name, description, address, phone),
+          staff:users(id, name, email, phone)
+        `)
+        .eq('id', orderId)
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        // تحديد الطلبية المحددة
+        setSelectedRepairOrder(data);
+        
+        // حساب ترتيب الطابور (يمكن تحسينه لاحقاً)
+        setRepairQueuePosition(1); // قيمة افتراضية
+        
+        // فتح نافذة الطباعة
+        setIsRepairPrintDialogOpen(true);
+      }
+
+      // إغلاق نافذة إضافة الخدمة
+      setIsRepairDialogOpen(false);
+      toast.success('تم إنشاء طلبية تصليح جديدة بنجاح');
+    } catch (error) {
+      console.error('خطأ في جلب بيانات الطلبية:', error);
+      setIsRepairDialogOpen(false);
+      toast.success('تم إنشاء طلبية تصليح جديدة بنجاح');
     }
   };
 
@@ -2115,10 +2160,7 @@ const POS = () => {
         <RepairServiceDialog
           isOpen={isRepairDialogOpen}
           onClose={() => setIsRepairDialogOpen(false)}
-          onSuccess={(orderId) => {
-            setIsRepairDialogOpen(false);
-            toast.success('تم إنشاء طلبية تصليح جديدة بنجاح');
-          }}
+          onSuccess={handleRepairServiceSuccess}
         />
       )}
 
@@ -2131,6 +2173,134 @@ const POS = () => {
           toast.success('تم إنشاء طلب الإرجاع بنجاح');
         }}
       />
+
+      {/* نافذة طباعة وصل التصليح */}
+      {selectedRepairOrder && (
+        <Dialog open={isRepairPrintDialogOpen} onOpenChange={setIsRepairPrintDialogOpen}>
+          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Wrench className="h-5 w-5" />
+                طباعة وصل التصليح
+              </DialogTitle>
+              <DialogDescription>
+                رقم الطلبية: {selectedRepairOrder.order_number || selectedRepairOrder.id.slice(0, 8)} | {selectedRepairOrder.customer_name}
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="py-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* معاينة الوصل */}
+                <div className="order-2 lg:order-1">
+                  <h3 className="font-bold text-sm mb-3 flex items-center gap-2">
+                    <span>👁️</span>
+                    معاينة الوصل
+                  </h3>
+                  <div className="border rounded-md p-2 bg-gray-50 max-h-96 overflow-y-auto">
+                    <div className="transform scale-90 origin-top-right flex justify-center">
+                      <RepairOrderPrint order={selectedRepairOrder} queuePosition={repairQueuePosition} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* معلومات الطباعة */}
+                <div className="order-1 lg:order-2">
+                  <h3 className="font-bold text-sm mb-3 flex items-center gap-2">
+                    <span>📋</span>
+                    محتويات الوصل
+                  </h3>
+                  <div className="space-y-3">
+                    {/* إيصال العميل */}
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <h4 className="font-bold text-sm text-blue-800 mb-2 flex items-center gap-2">
+                        <span>🧾</span>
+                        إيصال العميل
+                      </h4>
+                      <ul className="text-xs space-y-1 text-blue-700 mr-4">
+                        <li>• معلومات المتجر والعميل</li>
+                        <li>• تفاصيل العطل والدفع</li>
+                        <li>• رمز QR للتتبع</li>
+                        <li>• شروط الخدمة</li>
+                      </ul>
+                    </div>
+
+                    {/* لصقة الجهاز */}
+                    <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-3">
+                      <h4 className="font-bold text-sm text-yellow-800 mb-2 flex items-center gap-2">
+                        <span>🏷️</span>
+                        لصقة الجهاز
+                      </h4>
+                      <ul className="text-xs space-y-1 text-yellow-700 mr-4">
+                        <li>• رقم الطلبية بارز</li>
+                        <li>• معلومات العميل المختصرة</li>
+                        <li>• QR للتتبع والإنهاء</li>
+                        <li>• مساحة لملاحظات الفني</li>
+                        <li className="font-bold">• رقم الترتيب: {repairQueuePosition || 'غير محدد'}</li>
+                      </ul>
+                    </div>
+
+                    {/* نصائح الطباعة */}
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                      <h4 className="font-bold text-sm text-green-800 mb-2 flex items-center gap-2">
+                        <span>💡</span>
+                        نصائح الطباعة
+                      </h4>
+                      <ul className="text-xs space-y-1 text-green-700 mr-4">
+                        <li>• استخدم ورق حراري عرض 80mm</li>
+                        <li>• تأكد من وضوح رموز QR</li>
+                        <li>• اقطع عند الخط المتقطع</li>
+                        <li>• الصق الجزء السفلي على الجهاز</li>
+                      </ul>
+                    </div>
+
+                    {/* إحصائيات سريعة */}
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                      <h4 className="font-bold text-sm text-gray-800 mb-2 flex items-center gap-2">
+                        <span>📊</span>
+                        ملخص الطلبية
+                      </h4>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <span className="text-gray-600">الحالة:</span>
+                          <span className="font-bold mr-1">{selectedRepairOrder.status}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">التاريخ:</span>
+                          <span className="font-bold mr-1">{new Date(selectedRepairOrder.created_at).toLocaleDateString('ar-EG')}</span>
+                        </div>
+                        {!selectedRepairOrder.price_to_be_determined_later && (
+                          <>
+                            <div>
+                              <span className="text-gray-600">المبلغ:</span>
+                              <span className="font-bold mr-1">{selectedRepairOrder.total_price.toLocaleString()} دج</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-600">المدفوع:</span>
+                              <span className="font-bold mr-1 text-green-600">{selectedRepairOrder.paid_amount.toLocaleString()} دج</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex justify-between items-center">
+              <Button 
+                variant="outline" 
+                onClick={() => setIsRepairPrintDialogOpen(false)}
+              >
+                إغلاق
+              </Button>
+              <div className="flex gap-2">
+                <RepairOrderPrint order={selectedRepairOrder} queuePosition={repairQueuePosition} />
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </Layout>
   );
 };
