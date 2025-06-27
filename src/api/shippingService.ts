@@ -345,57 +345,98 @@ export class ZRExpressShippingService extends BaseShippingService {
   private apiClient;
   
   constructor(credentials: ProviderCredentials) {
+    console.log('🔧 إنشاء ZR Express Service...');
     super(
       ShippingProvider.ZREXPRESS,
       'https://procolis.com/api_v1/',
       credentials
     );
     
+    // استخدام proxy في بيئة التطوير لحل مشكلة CORS
+    const baseURL = import.meta.env.DEV 
+      ? '/api/proxy/procolis'  // استخدام proxy في التطوير
+      : 'https://procolis.com/api_v1/';  // استخدام المسار المباشر في الإنتاج
+    
+    console.log('🔧 ZR Express: إعداد API Client...', {
+      isDev: import.meta.env.DEV,
+      baseURL,
+      hasToken: !!credentials.token,
+      hasKey: !!credentials.key
+    });
+    
     this.apiClient = axios.create({
-      baseURL: this.baseUrl,
+      baseURL,
       headers: {
         'token': credentials.token || '',     // token في ZR Express
         'key': credentials.key || '',         // key في ZR Express
         'Content-Type': 'application/json'
       },
-      timeout: 8000 // زيادة مهلة الانتظار إلى 8 ثواني
+      timeout: 15000 // زيادة مهلة الانتظار إلى 15 ثانية لتجنب timeout
     });
+    
+    console.log('✅ ZR Express Service تم إنشاؤه بنجاح');
   }
   
   /**
    * Test if the API credentials are valid by fetching tarification data
    */
   async testCredentials(): Promise<TestCredentialsResult> {
+    console.log('🔍 ZR Express: بدء اختبار البيانات...');
+    console.log('🔍 ZR Express: Base URL:', this.apiClient.defaults.baseURL);
+    console.log('🔍 ZR Express: Headers:', {
+      token: this.apiClient.defaults.headers['token'] ? `${String(this.apiClient.defaults.headers['token']).substring(0, 8)}...` : 'غير موجود',
+      key: this.apiClient.defaults.headers['key'] ? `${String(this.apiClient.defaults.headers['key']).substring(0, 8)}...` : 'غير موجود'
+    });
+
     try {
-      const response = await this.apiClient.get('tarification');
+      console.log('🚀 ZR Express: إرسال طلب POST إلى /tarification...');
+      
+      // استخدام POST بدلاً من GET كما هو مطلوب من ZR Express API
+      const response = await this.apiClient.post('tarification', {});
+      
+      console.log('📥 ZR Express: تم استلام الاستجابة:', {
+        status: response.status,
+        dataType: Array.isArray(response.data) ? 'array' : typeof response.data,
+        dataLength: Array.isArray(response.data) ? response.data.length : 'غير محدد'
+      });
       
       // تحقق من نجاح الاتصال بناءً على بنية البيانات الصحيحة من ZR Express
       if (response.status === 200 && Array.isArray(response.data)) {
+        console.log('✅ ZR Express: اختبار الاتصال نجح!');
         return {
           success: true,
           message: 'تم الاتصال بنجاح بخدمة ZR Express'
         };
       }
       
+      console.log('❌ ZR Express: اختبار الاتصال فشل - استجابة غير صحيحة');
       return {
         success: false,
         message: 'الاتصال غير ناجح، تحقق من بيانات الاعتماد'
       };
     } catch (error: any) {
+      console.error('❌ ZR Express: خطأ في الاتصال:', error);
       
       // معلومات تفصيلية عن الخطأ
       if (error.response) {
+        console.error('❌ ZR Express: خطأ في الاستجابة:', {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          data: error.response.data
+        });
         
         return {
           success: false,
           message: `خطأ ${error.response.status}: ${error.response.data?.message || error.response.statusText}`
         };
       } else if (error.request) {
+        console.error('❌ ZR Express: لا توجد استجابة:', error.request);
         return {
           success: false,
           message: 'لا توجد استجابة من خدمة ZR Express، تحقق من اتصال الإنترنت'
         };
       } else {
+        console.error('❌ ZR Express: خطأ في إعداد الطلب:', error.message);
         return {
           success: false,
           message: `فشل إعداد الطلب: ${error.message}`
@@ -458,7 +499,8 @@ export class ZRExpressShippingService extends BaseShippingService {
    */
   async getWilayas(): Promise<any[]> {
     try {
-      const response = await this.apiClient.get('tarification');
+      // استخدام POST بدلاً من GET كما هو مطلوب من ZR Express API
+      const response = await this.apiClient.post('tarification', {});
       
       // تحويل البيانات إلى تنسيق موحد
       return response.data.map((item: any) => ({
@@ -753,12 +795,23 @@ export function createShippingService(
   provider: ShippingProvider, 
   credentials: ProviderCredentials
 ): IShippingService {
+  console.log('🏭 إنشاء خدمة الشحن:', {
+    provider,
+    hasToken: !!credentials.token,
+    hasKey: !!credentials.key,
+    tokenLength: credentials.token?.length || 0,
+    keyLength: credentials.key?.length || 0
+  });
+
   switch (provider) {
     case ShippingProvider.YALIDINE:
+      console.log('✅ إنشاء خدمة Yalidine...');
       return new YalidineShippingService(credentials);
     case ShippingProvider.ZREXPRESS:
+      console.log('✅ إنشاء خدمة ZR Express...');
       return new ZRExpressShippingService(credentials);
     case ShippingProvider.ECOTRACK:
+      console.log('✅ إنشاء خدمة Ecotrack...');
       return new EcotrackShippingService(provider, 'https://api.ecotrack.dz', credentials);
     // Ecotrack-integrated providers
     case ShippingProvider.ANDERSON_DELIVERY:

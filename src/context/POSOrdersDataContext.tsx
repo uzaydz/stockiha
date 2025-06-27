@@ -738,7 +738,34 @@ const fetchOrderDetails = async (orderId: string): Promise<any[]> => {
   return deduplicateRequest(`order-details-${orderId}`, async () => {
     
     try {
-      const { data: orderItems, error } = await supabase
+      console.log('🔍 جاري جلب تفاصيل الطلبية:', orderId);
+      
+      // أولاً: جلب بيانات الطلبية الأساسية للتحقق من النوع
+      const { data: orderInfo, error: orderError } = await supabase
+        .from('orders')
+        .select(`
+          id,
+          metadata,
+          is_online,
+          employee_id,
+          customer_id,
+          created_at,
+          total,
+          status,
+          payment_status
+        `)
+        .eq('id', orderId)
+        .single();
+
+      if (orderError) {
+        console.error('❌ خطأ في جلب معلومات الطلبية:', orderError);
+        return [];
+      }
+
+      console.log('📋 معلومات الطلبية:', orderInfo);
+
+      // ثانياً: جلب عناصر المنتجات من order_items
+      const { data: orderItems, error: itemsError } = await supabase
         .from('order_items')
         .select(`
           id,
@@ -753,17 +780,131 @@ const fetchOrderDetails = async (orderId: string): Promise<any[]> => {
           color_id,
           color_name,
           size_id,
-          size_name
+          size_name,
+          slug,
+          original_price
         `)
         .eq('order_id', orderId)
         .order('created_at');
 
-      if (error) {
-        return [];
+      if (itemsError) {
+        console.error('❌ خطأ في جلب عناصر الطلبية:', itemsError);
       }
 
-      return orderItems || [];
+      console.log('🛍️ عناصر المنتجات:', orderItems?.length || 0);
+
+      // ثالثاً: التحقق من وجود اشتراكات مرتبطة بالطلبية
+      let subscriptionItems: any[] = [];
+      
+      if (orderInfo?.metadata && typeof orderInfo.metadata === 'object') {
+        // التحقق من وجود معلومات اشتراك في metadata
+        const metadata = orderInfo.metadata as any;
+        if (metadata.subscriptionAccountInfo) {
+          console.log('🔔 طلبية اشتراك - البحث عن الاشتراكات...');
+          
+          // البحث عن معاملات الاشتراك المرتبطة بهذه الطلبية
+          const orderDate = new Date(orderInfo.created_at);
+          const startTime = new Date(orderDate.getTime() - 2 * 60 * 1000); // قبل دقيقتين
+          const endTime = new Date(orderDate.getTime() + 2 * 60 * 1000); // بعد دقيقتين
+
+          const { data: subscriptions, error: subsError } = await supabase
+            .from('subscription_transactions')
+            .select(`
+              id,
+              service_id,
+              amount,
+              quantity,
+              description,
+              transaction_date,
+              customer_name,
+              processed_by,
+              service:services(name, description)
+            `)
+            .eq('transaction_type', 'sale')
+            .eq('processed_by', orderInfo.employee_id)
+            .gte('transaction_date', startTime.toISOString())
+            .lte('transaction_date', endTime.toISOString())
+            .order('transaction_date');
+
+          if (!subsError && subscriptions) {
+            subscriptionItems = subscriptions.map(sub => ({
+              id: `sub_${sub.id}`,
+              product_id: sub.service_id,
+              product_name: sub.service?.name || sub.description,
+              name: sub.service?.name || sub.description,
+              quantity: sub.quantity || 1,
+              unit_price: parseFloat(sub.amount || '0'),
+              total_price: parseFloat(sub.amount || '0') * (sub.quantity || 1),
+              is_wholesale: false,
+              slug: `SUB-${sub.id.toString().slice(-8)}`,
+              original_price: parseFloat(sub.amount || '0'),
+              variant_info: null,
+              color_id: null,
+              color_name: null,
+              size_id: null,
+              size_name: null,
+              item_type: 'subscription' // إضافة نوع العنصر
+            }));
+            
+            console.log('🔔 تم العثور على اشتراكات:', subscriptionItems.length);
+          } else if (subsError) {
+            console.error('❌ خطأ في جلب الاشتراكات:', subsError);
+          }
+        }
+      }
+
+      // رابعاً: دمج جميع العناصر
+      const productItems = (orderItems || []).map(item => ({
+        ...item,
+        item_type: 'product' // إضافة نوع العنصر
+      }));
+
+      const allItems = [...productItems, ...subscriptionItems];
+      
+      console.log('📦 إجمالي العناصر:', {
+        products: productItems.length,
+        subscriptions: subscriptionItems.length,
+        total: allItems.length
+      });
+
+      // خامساً: إذا لم نجد أي عناصر، نحقق من حالات خاصة
+      if (allItems.length === 0) {
+        console.warn('⚠️ لم يتم العثور على عناصر للطلبية:', orderId);
+        
+        // التحقق من إعدادات الطلبية
+        if (orderInfo?.metadata) {
+          console.log('🔍 metadata الطلبية:', orderInfo.metadata);
+        }
+        
+        // قد تكون طلبية خدمة رقمية أو نوع خاص آخر
+        if (orderInfo?.total && parseFloat(orderInfo.total) > 0) {
+          console.log('💰 الطلبية لها قيمة مالية لكن بدون عناصر - قد تكون خدمة رقمية');
+          
+          // إنشاء عنصر وهمي للخدمة الرقمية
+          return [{
+            id: `digital_service_${orderId}`,
+            product_id: 'digital_service',
+            product_name: 'خدمة رقمية',
+            name: 'خدمة رقمية',
+            quantity: 1,
+            unit_price: parseFloat(orderInfo.total),
+            total_price: parseFloat(orderInfo.total),
+            is_wholesale: false,
+            slug: 'DIGITAL-SERVICE',
+            original_price: parseFloat(orderInfo.total),
+            variant_info: null,
+            color_id: null,
+            color_name: null,
+            size_id: null,
+            size_name: null,
+            item_type: 'digital_service'
+          }];
+        }
+      }
+
+      return allItems;
     } catch (error) {
+      console.error('❌ خطأ عام في جلب تفاصيل الطلبية:', error);
       return [];
     }
   });

@@ -121,11 +121,17 @@ export const POSOrderDetails: React.FC<POSOrderDetailsProps> = ({
     if (open && order && order.id) {
       const loadOrderItems = async () => {
         setIsLoadingItems(true);
+        setItemsError(null);
+        
         try {
+          console.log('🔍 بدء تحميل عناصر الطلبية:', order.id);
           const items = await fetchOrderDetails(order.id);
+          console.log('✅ تم تحميل العناصر بنجاح:', items?.length || 0);
           setOrderItems(items || []);
         } catch (error) {
+          console.error('❌ خطأ في تحميل عناصر الطلبية:', error);
           setOrderItems([]);
+          setItemsError(error instanceof Error ? error.message : 'حدث خطأ في تحميل العناصر');
         } finally {
           setIsLoadingItems(false);
         }
@@ -282,7 +288,7 @@ export const POSOrderDetails: React.FC<POSOrderDetailsProps> = ({
                     <span>{formatCurrency(String(order.subtotal))}</span>
                   </div>
                   
-                  {parseFloat(order.tax) > 0 && (
+                  {parseFloat(String(order.tax)) > 0 && (
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">الضريبة:</span>
                       <span>{formatCurrency(String(order.tax))}</span>
@@ -564,7 +570,7 @@ export const POSOrderDetails: React.FC<POSOrderDetailsProps> = ({
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-[50px]">#</TableHead>
-                        <TableHead>المنتج</TableHead>
+                        <TableHead>المنتج/الخدمة</TableHead>
                         <TableHead className="text-center">الكمية</TableHead>
                         <TableHead className="text-right">السعر الوحدة</TableHead>
                         <TableHead className="text-right">المجموع</TableHead>
@@ -572,18 +578,45 @@ export const POSOrderDetails: React.FC<POSOrderDetailsProps> = ({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {orderItems.map((item, index) => (
-                        <TableRow key={item.id}>
-                          <TableCell className="font-medium">{index + 1}</TableCell>
-                          <TableCell>
-                            <div>
-                              <p className="font-medium">{item.product_name || item.name}</p>
-                              {item.slug && (
-                                <p className="text-xs text-muted-foreground">كود: {item.slug}</p>
-                              )}
-                              {/* عرض معلومات الألوان والمقاسات */}
-                              {((item as any).color_name || (item as any).size_name) && (
-                                                                  <div className="flex flex-wrap gap-1 mt-1">
+                      {orderItems.map((item, index) => {
+                        // تحديد نوع العنصر
+                        const itemType = (item as any).item_type || 'product';
+                        const isSubscription = itemType === 'subscription';
+                        const isDigitalService = itemType === 'digital_service';
+                        const isProduct = itemType === 'product';
+
+                        return (
+                          <TableRow key={item.id}>
+                            <TableCell className="font-medium">{index + 1}</TableCell>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">{item.product_name || item.name}</p>
+                                {item.slug && (
+                                  <p className="text-xs text-muted-foreground">كود: {item.slug}</p>
+                                )}
+                                
+                                {/* شارة نوع العنصر */}
+                                <div className="flex items-center gap-2 mt-1">
+                                  {isSubscription && (
+                                    <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+                                      🔔 اشتراك
+                                    </Badge>
+                                  )}
+                                  {isDigitalService && (
+                                    <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                      💻 خدمة رقمية
+                                    </Badge>
+                                  )}
+                                  {isProduct && (
+                                    <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                                      📦 منتج
+                                    </Badge>
+                                  )}
+                                </div>
+                                
+                                {/* عرض معلومات الألوان والمقاسات للمنتجات فقط */}
+                                {isProduct && ((item as any).color_name || (item as any).size_name) && (
+                                  <div className="flex flex-wrap gap-1 mt-1">
                                     {(item as any).color_name && (
                                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800 border border-blue-200">
                                         <span className="w-2 h-2 rounded-full bg-blue-600 mr-1"></span>
@@ -598,8 +631,9 @@ export const POSOrderDetails: React.FC<POSOrderDetailsProps> = ({
                                     )}
                                   </div>
                                 )}
+                                
                                 {/* عرض معلومات إضافية من variant_info إذا كانت متوفرة */}
-                                {item.variant_info && typeof item.variant_info === 'object' && (
+                                {isProduct && item.variant_info && typeof item.variant_info === 'object' && (
                                   <div className="text-xs text-muted-foreground mt-1">
                                     {(item.variant_info as any).colorCode && (
                                       <span className="mr-2">
@@ -608,36 +642,56 @@ export const POSOrderDetails: React.FC<POSOrderDetailsProps> = ({
                                     )}
                                   </div>
                                 )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-center">{item.quantity}</TableCell>
-                          <TableCell className="text-right">
-                            {formatCurrency(item.unit_price)}
-                            {item.original_price && parseFloat(item.original_price) !== parseFloat(item.unit_price) && (
-                              <div className="text-xs text-muted-foreground line-through">
-                                {formatCurrency(item.original_price)}
                               </div>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right font-medium">
-                            {formatCurrency(item.total_price)}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {item.is_wholesale ? (
-                              <Badge variant="outline" className="text-xs">جملة</Badge>
-                            ) : (
-                              <Badge variant="secondary" className="text-xs">تجزئة</Badge>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                            </TableCell>
+                            <TableCell className="text-center">{item.quantity}</TableCell>
+                            <TableCell className="text-right">
+                              {formatCurrency(String(item.unit_price))}
+                              {item.original_price && parseFloat(item.original_price) !== parseFloat(item.unit_price) && (
+                                <div className="text-xs text-muted-foreground line-through">
+                                  {formatCurrency(String(item.original_price))}
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              {formatCurrency(String(item.total_price))}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {item.is_wholesale ? (
+                                <Badge variant="outline" className="text-xs">جملة</Badge>
+                              ) : (
+                                <Badge variant="secondary" className="text-xs">تجزئة</Badge>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
                     <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
                     <p>لا توجد عناصر في هذه الطلبية</p>
-                    <p className="text-xs mt-2">قد تكون هذه طلبية اشتراك أو خدمة رقمية</p>
+                    <p className="text-xs mt-2">
+                      قد تكون هذه طلبية خاصة أو تحتاج إلى مراجعة البيانات
+                    </p>
+                    
+                    {/* معلومات تشخيصية */}
+                    <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-left">
+                      <p className="text-xs text-amber-800 font-medium mb-2">معلومات تشخيصية:</p>
+                      <div className="text-xs text-amber-700 space-y-1">
+                        <p>• رقم الطلبية: {order.id}</p>
+                        <p>• إجمالي المبلغ: {formatCurrency(String(order.total))}</p>
+                        <p>• عدد العناصر المسجل: {order.items_count || 0}</p>
+                        <p>• نوع الطلبية: {order.is_online ? 'أونلاين' : 'نقطة البيع'}</p>
+                        {(order as any).sale_type && (
+                          <p>• نوع البيع: {(order as any).sale_type === 'subscription' ? 'اشتراك' : 'منتج'}</p>
+                        )}
+                        {order.metadata && (
+                          <p>• يحتوي على بيانات إضافية: نعم</p>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
               </CardContent>

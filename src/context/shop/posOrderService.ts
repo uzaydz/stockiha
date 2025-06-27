@@ -74,12 +74,17 @@ export const createPOSOrder = async (
     // إضافة عناصر الطلب بشكل منفصل وآمن
     if (order.items && order.items.length > 0) {
       try {
+        console.log(`🔄 بدء إدراج ${order.items.length} عنصر للطلبية ${newOrderId}`);
         
         // إدراج العناصر واحد تلو الآخر بالحقول الأساسية فقط
         for (let index = 0; index < order.items.length; index++) {
           const item = order.items[index];
-
+          
+          // توليد ID للعنصر إذا لم يكن موجوداً
+          const itemId = item.id || uuidv4();
+          
           const itemData = {
+            id: itemId, // إضافة ID المطلوب
             order_id: newOrderId,
             product_id: item.productId,
             product_name: item.productName || item.name || 'منتج',
@@ -88,23 +93,40 @@ export const createPOSOrder = async (
             unit_price: item.unitPrice,
             total_price: item.unitPrice * item.quantity,
             is_digital: item.isDigital || false,
-            organization_id: currentOrganizationId, // التأكد من أنه ليس null
-            slug: `item-${Date.now()}-${index}`
+            organization_id: currentOrganizationId,
+            slug: item.slug || `item-${Date.now()}-${index}`,
+            // إضافة الحقول الاختيارية إذا كانت موجودة
+            color_id: item.variant_info?.colorId || null,
+            size_id: item.variant_info?.sizeId || null,
+            variant_info: item.variant_info ? JSON.stringify(item.variant_info) : null,
+            is_wholesale: item.isWholesale || false,
+            original_price: item.originalPrice || item.unitPrice
           };
 
+          console.log(`📝 إدراج العنصر ${index + 1}: ${item.productName} - الكمية: ${item.quantity}`);
+          
           const { error: itemError } = await supabase
             .from('order_items')
             .insert(itemData);
 
           if (itemError) {
-            // نستمر في إضافة باقي العناصر حتى لو فشل أحدها
+            console.error(`❌ خطأ في إدراج العنصر ${index + 1}:`, itemError);
+            // رمي الخطأ لإيقاف العملية
+            throw new Error(`فشل في إدراج العنصر: ${item.productName} - ${itemError.message}`);
           } else {
+            console.log(`✅ تم إدراج العنصر ${index + 1} بنجاح`);
           }
         }
 
+        console.log(`✅ تم إدراج جميع العناصر (${order.items.length}) بنجاح`);
+        
         // تحديث المخزون - مع logs للتتبع وتطبيق FIFO
         await updateInventoryForOrder(order.items, newOrderId, currentOrganizationId);
       } catch (error) {
+        console.error('❌ خطأ في إضافة عناصر الطلب:', error);
+        // حذف الطلبية إذا فشل إدراج العناصر
+        await supabase.from('orders').delete().eq('id', newOrderId);
+        throw new Error(`فشل في إنشاء عناصر الطلبية: ${error instanceof Error ? error.message : 'خطأ غير معروف'}`);
       }
     }
     

@@ -136,7 +136,11 @@ export function usePOSOrderFast(currentUser: User | null) {
         p_customer_id: orderDetails.customerId === 'guest' ? null : orderDetails.customerId,
         p_payment_method: orderDetails.paymentMethod,
         p_payment_status: orderDetails.paymentStatus,
-        p_notes: orderDetails.notes || ''
+        p_notes: orderDetails.notes || '',
+        p_amount_paid: orderDetails.partialPayment?.amountPaid || orderDetails.total,
+        p_discount: orderDetails.discount || 0,
+        p_subtotal: orderDetails.subtotal || orderDetails.total,
+        p_consider_remaining_as_partial: orderDetails.considerRemainingAsPartial || false
       };
 
       console.log('🔧 معاملات الدالة المُرسلة:', rpcParams);

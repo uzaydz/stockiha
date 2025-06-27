@@ -265,7 +265,7 @@ export default function Cart({
       }
       
       const numAmountPaid = parseFloat(amountPaid);
-      const paymentStatus = (numAmountPaid >= total || (isPartialPayment && !considerRemainingAsPartial)) ? 'paid' : 'pending';
+      const paymentStatus = (numAmountPaid >= finalTotal || (isPartialPayment && !considerRemainingAsPartial)) ? 'paid' : 'pending';
 
       // 🚀 تحضير بيانات الطلب بشكل محسن
       const orderDetails = {

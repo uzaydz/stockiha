@@ -146,6 +146,16 @@ export default defineConfig(({ command, mode }) => {
           secure: true,
           rewrite: (path: string) => path.replace(/^\/api\/proxy\/procolis/, '/api_v1'),
           onProxyReq: (proxyReq: any, req: any) => {
+            console.log('🔄 Proxy Request:', {
+              method: req.method,
+              url: req.url,
+              headers: {
+                token: req.headers['token'] ? `${req.headers['token'].substring(0, 8)}...` : 'missing',
+                key: req.headers['key'] ? `${req.headers['key'].substring(0, 8)}...` : 'missing',
+                'content-type': req.headers['content-type']
+              }
+            });
+            
             // نقل رؤوس الطلب الأصلي إلى طلب الوسيط
             if (req.headers['token']) {
               proxyReq.setHeader('token', req.headers['token'] as string);
@@ -153,13 +163,41 @@ export default defineConfig(({ command, mode }) => {
             if (req.headers['key']) {
               proxyReq.setHeader('key', req.headers['key'] as string);
             }
-            // إزالة رأس Origin لتجنب مشاكل CORS
+            if (req.headers['content-type']) {
+              proxyReq.setHeader('Content-Type', req.headers['content-type']);
+            }
+            
+            // إزالة رؤوس قد تسبب مشاكل
             proxyReq.removeHeader('origin');
+            proxyReq.removeHeader('referer');
           },
           configure: (proxy: any, _options: any) => {
-            proxy.on('error', (err: any, _req: any, _res: any) => {
+            proxy.on('error', (err: any, req: any, res: any) => {
+              console.error('❌ Proxy Error:', {
+                error: err.message,
+                url: req.url,
+                method: req.method
+              });
             });
-            proxy.on('proxyRes', (proxyRes: any, _req: any, _res: any) => {
+            
+            proxy.on('proxyReq', (proxyReq: any, req: any, res: any) => {
+              console.log('🚀 Sending to target:', {
+                method: proxyReq.method,
+                path: proxyReq.path,
+                headers: {
+                  token: proxyReq.getHeader('token') ? `${String(proxyReq.getHeader('token')).substring(0, 8)}...` : 'missing',
+                  key: proxyReq.getHeader('key') ? `${String(proxyReq.getHeader('key')).substring(0, 8)}...` : 'missing'
+                }
+              });
+            });
+            
+            proxy.on('proxyRes', (proxyRes: any, req: any, res: any) => {
+              console.log('📥 Response from target:', {
+                status: proxyRes.statusCode,
+                headers: proxyRes.headers,
+                url: req.url
+              });
+              
               // إضافة رؤوس CORS للاستجابة
               proxyRes.headers['Access-Control-Allow-Origin'] = '*';
               proxyRes.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, PATCH, OPTIONS';
