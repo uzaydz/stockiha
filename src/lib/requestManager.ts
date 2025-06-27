@@ -42,7 +42,6 @@ class RequestManager {
     if (existingRequest && !forceNew) {
       // التحقق من انتهاء صلاحية الطلب المعلق
       if (Date.now() - existingRequest.timestamp < ttl) {
-        console.log(`♻️ استخدام طلب معلق: ${key}`);
         return existingRequest.promise;
       } else {
         // حذف الطلب المنتهي الصلاحية
@@ -52,7 +51,6 @@ class RequestManager {
 
     // إذا كنا في حد الطلبات المتزامنة، أضف للطابور
     if (this.currentRequests >= this.maxConcurrentRequests) {
-      console.log(`⏳ إضافة للطابور: ${key} (أولوية: ${priority})`);
       return new Promise((resolve, reject) => {
         this.requestQueue.push({ key, priority, fn: requestFn, resolve, reject });
         // ترتيب الطابور حسب الأولوية
@@ -65,7 +63,6 @@ class RequestManager {
 
   private async executeRequestDirectly<T>(key: string, requestFn: () => Promise<T>, priority: number): Promise<T> {
     this.currentRequests++;
-    console.log(`🚀 تنفيذ طلب: ${key} (${this.currentRequests}/${this.maxConcurrentRequests})`);
 
     const pendingRequest: PendingRequest = {
       promise: requestFn().finally(() => {
@@ -223,7 +220,6 @@ function cleanExpiredCache(): void {
   }
   
   if (cleanedCount > 0) {
-    console.log(`🧹 تم تنظيف ${cleanedCount} إدخالات منتهية الصلاحية من cache`);
   }
 }
 
@@ -241,13 +237,10 @@ async function interceptedFetch(input: RequestInfo | URL, init?: RequestInit): P
   stats.totalRequests++;
   const cacheKey = createCacheKey(url, init);
   const tableName = extractTableName(new URL(url).pathname);
-  
-  console.log(`🔍 اعتراض طلب: ${tableName} | مفتاح: ${cacheKey.substring(0, 80)}...`);
-  
+
   // التحقق من وجود البيانات في cache
   const cachedEntry = requestsCache.get(cacheKey);
   if (cachedEntry && isValidCacheEntry(cachedEntry)) {
-    console.log(`✅ إرجاع بيانات محفوظة: ${tableName}`);
     stats.cachedResponses++;
     stats.duplicatesPrevented++;
     
@@ -260,7 +253,6 @@ async function interceptedFetch(input: RequestInfo | URL, init?: RequestInit): P
   }
   
   // تنفيذ الطلب الأصلي
-  console.log(`📡 تنفيذ طلب جديد: ${tableName}`);
   const response = await originalFetch(input, init);
   
   // حفظ النتيجة في cache إذا كان الطلب ناجحاً
@@ -276,9 +268,7 @@ async function interceptedFetch(input: RequestInfo | URL, init?: RequestInit): P
         ttl
       });
       
-      console.log(`💾 تم حفظ النتيجة في cache: ${tableName} (TTL: ${ttl/1000/60} دقيقة)`);
     } catch (error) {
-      console.warn(`⚠️ فشل في حفظ البيانات: ${error}`);
     }
   }
   
@@ -293,33 +283,27 @@ function interceptSupabaseClient() {
     // اعتراض العمليات الأساسية
     const originalFrom = supabase.from;
     supabase.from = function(table: string) {
-      console.log(`🎯 Supabase.from('${table}') تم استدعاؤها`);
       
       const query = originalFrom.call(this, table);
       
       // اعتراض select operations
       const originalSelect = query.select;
       query.select = function(columns?: string) {
-        console.log(`📋 تحديد الأعمدة: ${columns || '*'} من ${table}`);
         return originalSelect.call(this, columns);
       };
       
       return query;
     };
     
-    console.log(`🔧 تم اعتراض Supabase client بنجاح`);
   } catch (error) {
-    console.error(`❌ فشل في اعتراض Supabase client:`, error);
   }
 }
 
 // تشغيل النظام
 export function initializeRequestManager(): void {
-  console.log(`🚀 بدء تشغيل مدير الطلبات الشامل...`);
   
   // استبدال fetch العادي
   globalThis.fetch = interceptedFetch;
-  console.log(`✅ تم استبدال fetch العادي`);
   
   // اعتراض Supabase client
   interceptSupabaseClient();
@@ -329,28 +313,19 @@ export function initializeRequestManager(): void {
   
   // تعريف دوال التشخيص عالمياً
   (globalThis as any).requestManagerStats = () => {
-    console.log(`📊 إحصائيات مدير الطلبات:`, {
-      ...stats,
-      cacheSize: requestsCache.size,
-      hitRate: ((stats.cachedResponses / Math.max(stats.totalRequests, 1)) * 100).toFixed(2) + '%'
-    });
     
-    console.log(`📝 تفاصيل Cache:`);
     let tableStats: Record<string, number> = {};
     for (const [key] of requestsCache.entries()) {
       const table = key.split(':')[1] || 'unknown';
       tableStats[table] = (tableStats[table] || 0) + 1;
     }
-    console.table(tableStats);
   };
   
   (globalThis as any).clearRequestCache = () => {
     const size = requestsCache.size;
     requestsCache.clear();
-    console.log(`🧹 تم مسح ${size} إدخالات من cache`);
   };
   
-  console.log(`🛠️ الدوال المتاحة: requestManagerStats(), clearRequestCache()`);
 }
 
 // إحصائيات سريعة
@@ -365,4 +340,4 @@ export function getRequestStats() {
 export default {
   initializeRequestManager,
   getRequestStats
-}; 
+};

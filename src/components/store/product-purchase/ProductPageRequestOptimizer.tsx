@@ -79,8 +79,6 @@ export const ProductPageRequestOptimizer: React.FC<ProductPageRequestOptimizerPr
         // لا يوجد cache، متابعة التحميل
       }
 
-      console.log('🔄 تحميل بيانات صفحة المنتج بشكل محسن...');
-
       // تحميل البيانات بشكل متوازي مع تجميع الطلبات
       const promises = [];
 
@@ -172,7 +170,6 @@ export const ProductPageRequestOptimizer: React.FC<ProductPageRequestOptimizerPr
           if (data.shippingProviders) newData.shippingProviders = data.shippingProviders;
           if (data.productConfig) newData.productConfig = data.productConfig;
         } else {
-          console.warn(`فشل طلب ${index}:`, result.reason);
         }
       });
 
@@ -180,10 +177,8 @@ export const ProductPageRequestOptimizer: React.FC<ProductPageRequestOptimizerPr
       await requestCache.set(cacheKey, newData, 10 * 60 * 1000); // 10 دقائق
 
       setData(newData);
-      console.log('✅ تم تحميل بيانات صفحة المنتج بنجاح');
 
     } catch (error) {
-      console.error('❌ خطأ في تحميل بيانات صفحة المنتج:', error);
       setError(error instanceof Error ? error.message : 'حدث خطأ غير متوقع');
     } finally {
       setIsLoading(false);
@@ -277,4 +272,4 @@ export const useOptimizedProductConfig = (productId?: string) => {
   };
 };
 
-export default ProductPageRequestOptimizer; 
+export default ProductPageRequestOptimizer;

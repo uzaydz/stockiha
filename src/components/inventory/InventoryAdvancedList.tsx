@@ -713,4 +713,4 @@ const InventoryAdvancedList: React.FC<InventoryAdvancedListProps> = ({
   );
 };
 
-export default InventoryAdvancedList; 
+export default InventoryAdvancedList;

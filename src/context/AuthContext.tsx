@@ -604,7 +604,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               setHasInitialSessionCheck(true);
             }
           } catch (error) {
-            console.error('Error getting initial session:', error);
             setIsLoading(false);
             setHasInitialSessionCheck(true);
           }

@@ -219,39 +219,27 @@ const OrderRow = React.memo<{
     const remainingAmount = parseFloat(order.remaining_amount?.toString() || '0');
     
     // إضافة تسجيل للتحقق من البيانات
-    console.log(`🔍 [getPaymentType] طلبية ${order.slug || order.id}:`, {
-      total,
-      amountPaid,
-      remainingAmount,
-      consider_remaining_as_partial: order.consider_remaining_as_partial,
-      payment_status: order.payment_status
-    });
     
     // إذا كان المبلغ المدفوع أقل من المجموع وتم تعيين consider_remaining_as_partial
     if (amountPaid < total && order.consider_remaining_as_partial === true) {
-      console.log(`✅ [getPaymentType] ${order.slug || order.id}: دفعة جزئية`);
       return { type: 'partial', label: 'دفعة جزئية', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300' };
     }
     
     // إذا كان المبلغ المدفوع أقل من المجموع ولم يتم تعيين consider_remaining_as_partial (تخفيض)
     if (amountPaid < total && order.consider_remaining_as_partial !== true) {
-      console.log(`✅ [getPaymentType] ${order.slug || order.id}: تخفيض`);
       return { type: 'discount', label: 'تخفيض', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' };
     }
     
     // إذا كان المبلغ المدفوع يساوي أو أكبر من المجموع
     if (amountPaid >= total) {
-      console.log(`✅ [getPaymentType] ${order.slug || order.id}: دفع كامل`);
       return { type: 'full', label: 'دفع كامل', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' };
     }
     
     // إذا لم يتم الدفع أصلاً
     if (amountPaid === 0) {
-      console.log(`✅ [getPaymentType] ${order.slug || order.id}: لم يتم الدفع`);
       return { type: 'unpaid', label: 'لم يتم الدفع', color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' };
     }
     
-    console.log(`⚠️ [getPaymentType] ${order.slug || order.id}: غير محدد`);
     return { type: 'unknown', label: 'غير محدد', color: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300' };
   };
 
@@ -399,9 +387,6 @@ export const POSOrdersTableOptimized = React.memo<POSOrdersTableProps>(({
   onStatusUpdate,
 }) => {
   // إضافة debugging للتحقق من البيانات المُمررة للمكون
-  console.log('🔍 Debug POSOrdersTableOptimized - Received orders:', orders?.slice(0, 2));
-  console.log('🔍 Debug POSOrdersTableOptimized - First order:', orders?.[0]);
-  console.log('🔍 Debug POSOrdersTableOptimized - First order metadata:', orders?.[0]?.metadata);
   // Pagination helpers
   const paginationRange = useMemo(() => {
     const delta = 2;

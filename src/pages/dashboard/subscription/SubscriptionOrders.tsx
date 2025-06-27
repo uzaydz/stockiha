@@ -153,7 +153,6 @@ const SubscriptionOrdersPage = () => {
 
       setOrders((ordersData || []) as any);
     } catch (error) {
-      console.error('Error fetching orders:', error);
       toast({
         title: "خطأ",
         description: "حدث خطأ في جلب طلبيات الاشتراكات",
@@ -188,7 +187,6 @@ const SubscriptionOrdersPage = () => {
 
       setStats(stats);
     } catch (error) {
-      console.error('Error fetching stats:', error);
     }
   };
 
@@ -714,4 +712,4 @@ const SubscriptionOrdersPage = () => {
   );
 };
 
-export default SubscriptionOrdersPage; 
+export default SubscriptionOrdersPage;

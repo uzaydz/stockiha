@@ -82,4 +82,122 @@ input[inputmode="tel"]::placeholder {
 
 .dark .sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
   background-color: rgba(255, 255, 255, 0.25);
+}
+
+/* إخفاء شريط التمرير الأفقي */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* Internet Explorer 10+ */
+  scrollbar-width: none;     /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;             /* Safari and Chrome */
+}
+
+/* تحسينات للتبويبات */
+.cart-tab {
+  transition: all 0.2s ease-in-out;
+  cursor: pointer;
+}
+
+.cart-tab:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.cart-tab.active {
+  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary)) 100%);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* رسوم متحركة للشارات */
+.cart-badge {
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+/* تحسينات الأداء للتبويبات */
+.cart-tabs-container {
+  contain: layout style paint;
+  will-change: transform;
+}
+
+/* تحسين النصوص العربية */
+.cart-tab-text {
+  direction: rtl;
+  text-align: right;
+}
+
+/* أساليب للحالات الخاصة */
+.cart-tab-new-customer {
+  border-left: 3px solid hsl(var(--muted));
+}
+
+.cart-tab-with-customer {
+  border-left: 3px solid hsl(var(--primary));
+}
+
+/* تأثيرات الإجراءات السريعة */
+.quick-action-btn {
+  transition: all 0.15s ease;
+  transform-origin: center;
+}
+
+.quick-action-btn:hover {
+  transform: scale(1.05);
+}
+
+.quick-action-btn:active {
+  transform: scale(0.95);
+}
+
+/* تحسين أداء الرسوم المتحركة */
+.cart-animation {
+  backface-visibility: hidden;
+  perspective: 1000px;
+  transform-style: preserve-3d;
+}
+
+/* حاوي التبويبات المرن */
+.tabs-scrollable {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  scroll-behavior: smooth;
+}
+
+.tabs-scrollable::-webkit-scrollbar {
+  display: none;
+}
+
+/* تحسينات للواجهة المظلمة */
+@media (prefers-color-scheme: dark) {
+  .cart-tab:hover {
+    box-shadow: 0 4px 8px rgba(255, 255, 255, 0.1);
+  }
+  
+  .cart-tab.active {
+    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.15);
+  }
+}
+
+/* تحسينات للشاشات الصغيرة */
+@media (max-width: 768px) {
+  .cart-tab {
+    min-width: 100px;
+    font-size: 0.75rem;
+  }
+  
+  .cart-badge {
+    font-size: 0.6rem;
+    min-width: 16px;
+    height: 16px;
+  }
 } 

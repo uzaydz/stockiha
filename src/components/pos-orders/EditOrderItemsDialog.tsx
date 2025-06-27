@@ -163,7 +163,6 @@ export const EditOrderItemsDialog: React.FC<EditOrderItemsDialogProps> = ({
       if (error) throw error;
       setProducts(data || []);
     } catch (error) {
-      console.error('Error loading products:', error);
       toast.error('فشل في تحميل المنتجات');
     } finally {
       setSearchLoading(false);
@@ -192,7 +191,6 @@ export const EditOrderItemsDialog: React.FC<EditOrderItemsDialogProps> = ({
       if (error) throw error;
       setProducts(data || []);
     } catch (error) {
-      console.error('Error searching products:', error);
       toast.error('فشل في البحث عن المنتجات');
     } finally {
       setSearchLoading(false);
@@ -280,7 +278,6 @@ export const EditOrderItemsDialog: React.FC<EditOrderItemsDialogProps> = ({
         toast.error('فشل في تحديث عناصر الطلبية');
       }
     } catch (error) {
-      console.error('Error saving order items:', error);
       toast.error('حدث خطأ أثناء حفظ التغييرات');
     } finally {
       setLoading(false);

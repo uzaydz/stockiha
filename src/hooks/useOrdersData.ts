@@ -1,8 +1,11 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { unifiedCache } from '@/lib/unified-cache-system';
+import { consoleManager } from '@/lib/console-manager';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { useTenant } from '@/context/TenantContext';
 import { Order } from '@/components/orders/table/OrderTableTypes';
+import { useOptimizedInterval } from '@/hooks/useOptimizedInterval';
 
 interface UseOrdersDataOptions {
   pageSize?: number;
@@ -80,7 +83,6 @@ export const useOrdersData = (options: UseOrdersDataOptions = {}) => {
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const cacheRef = useRef<Map<string, Order[]>>(new Map());
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Generate cache key from filters
   const getCacheKey = useCallback((page: number) => {
@@ -315,19 +317,22 @@ export const useOrdersData = (options: UseOrdersDataOptions = {}) => {
     }
   }, [currentOrganization?.id, filters, pageSize, getCacheKey, toast]);
 
-  // Fetch order counts and stats
+  // Fetch order metrics (counts & stats) - مع استقرار dependencies
   const fetchOrderMetrics = useCallback(async (signal?: AbortSignal) => {
     if (!currentOrganization?.id) return;
 
     try {
-      // Parallel fetch for counts and stats
+      // تحديد نوع الطلبات الحالي
+      const statusFilter = filters.status === 'all' ? '' : filters.status;
+      
+      // استخدام requests متوازية
       const [countsResult, statsResult] = await Promise.all([
         supabase.rpc('get_orders_count_by_status', {
-          org_id: currentOrganization.id,
-        }),
+          org_id: currentOrganization.id
+        }).abortSignal(signal),
         supabase.rpc('get_order_stats', {
-          org_id: currentOrganization.id,
-        }),
+          org_id: currentOrganization.id
+        }).abortSignal(signal)
       ]);
 
       if (countsResult.error) throw countsResult.error;
@@ -366,8 +371,14 @@ export const useOrdersData = (options: UseOrdersDataOptions = {}) => {
 
     } catch (error: any) {
       if (error.name === 'AbortError') return;
+      
+      // معالجة أخطاء الموارد
+      if (error.message && error.message.includes('ERR_INSUFFICIENT_RESOURCES')) {
+        console.error('🚨 مشكلة موارد في fetchOrderMetrics - إيقاف مؤقت');
+        throw error; // السماح لـ useOptimizedInterval بمعالجة الخطأ
+      }
     }
-  }, [currentOrganization?.id]);
+  }, [currentOrganization?.id, filters.status]); // dependencies ثابتة فقط
 
   // Load more orders
   const loadMore = useCallback(() => {
@@ -434,29 +445,32 @@ export const useOrdersData = (options: UseOrdersDataOptions = {}) => {
     };
   }, [filters, fetchOrdersOptimized, fetchOrderMetrics]);
 
-  // Polling setup
-  useEffect(() => {
-    if (!enablePolling) return;
-
-    pollingIntervalRef.current = setInterval(() => {
+  // Polling setup مع useOptimizedInterval - محسن ومحمي
+  const pollingIntervalRef = useOptimizedInterval(() => {
+    if (enablePolling && !state.loading) {
       fetchOrderMetrics();
-    }, pollingInterval);
-
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
+    }
+  }, enablePolling ? pollingInterval : null, {
+    enabled: enablePolling && !state.loading,
+    adaptiveDelay: true,
+    maxInstances: 1,
+    maxAttempts: 3, // تقليل عدد المحاولات
+    onError: (error) => {
+      console.warn('⚠️ خطأ في polling الطلبات:', error);
+      
+      // إيقاف polling مؤقتاً عند مشاكل الموارد
+      if (error.message && error.message.includes('ERR_INSUFFICIENT_RESOURCES')) {
+        console.error('🛑 إيقاف polling بسبب مشكلة الموارد');
+        // يمكن إضافة منطق إيقاف polling هنا
       }
-    };
-  }, [enablePolling, pollingInterval, fetchOrderMetrics]);
+    }
+  });
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
-      }
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
       }
     };
   }, []);

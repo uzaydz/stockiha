@@ -194,4 +194,4 @@ const SubscriptionServicesPage = () => {
   );
 };
 
-export default SubscriptionServicesPage; 
+export default SubscriptionServicesPage;

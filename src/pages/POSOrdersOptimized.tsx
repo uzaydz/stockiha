@@ -293,7 +293,6 @@ export const POSOrdersOptimized: React.FC = () => {
       }
       return false;
     } catch (error) {
-      console.error('Error saving order items:', error);
       return false;
     }
   }, [refreshOrders]);
@@ -571,7 +570,6 @@ export const POSOrdersOptimized: React.FC = () => {
           }}
           order={dialogState.selectedOrder}
           onOrderUpdated={(updatedOrder) => {
-            console.log('📥 [POSOrdersOptimized] استلام الطلبية المحدثة:', updatedOrder);
             
             // تحديث البيانات محلياً بدلاً من إعادة تحميل كل شيء
             updateOrderInCache(updatedOrder);

@@ -201,14 +201,7 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
         colors: [],
         additional_images: [],
       };
-      
-      console.log('🏗️ Form defaultValues initialized:', {
-        productId: product?.id,
-        stockQuantity: defaults.stock_quantity,
-        originalProductStock: product?.stock_quantity,
-        hasVariants: defaults.has_variants
-      });
-      
+
       return defaults;
     })()
   });
@@ -235,13 +228,6 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
   
   // استرجاع بيانات المنتج عند الفتح
   useEffect(() => {
-    console.log('🔄 Main product loading useEffect triggered:', {
-      productExists: !!product,
-      open,
-      productId: product?.id,
-      productStock: product?.stock_quantity,
-      currentFormStock: form.getValues('stock_quantity')
-    });
     
     if (product && open) {
       // تعيين الصورة الرئيسية مباشرة من معلومات المنتج
@@ -249,15 +235,9 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
       
       const loadProductDetails = async () => {
         try {
-          console.log('📦 Loading product details for editing:', {
-            productId: product.id,
-            productStockQuantity: product.stock_quantity,
-            productHasVariants: product.has_variants
-          });
           
           // تحميل الألوان
           const colors = await getProductColors(product.id);
-          console.log('🎨 Loaded colors from database:', colors);
           
           setProductColors(colors);
           setOriginalProductColors(colors);
@@ -409,34 +389,20 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
 
   // تحديث كمية المخزون بناءً على كميات الألوان عند استخدام المتغيرات
   useEffect(() => {
-    console.log('🔥 EditProductDialog useEffect - Color quantity update:', {
-      watchHasVariants,
-      productColorsLength: productColors.length,
-      productColors,
-      currentStockQuantity: form.getValues('stock_quantity')
-    });
     
     if (watchHasVariants && productColors.length > 0) {
       const totalQuantity = productColors.reduce((total, color) => total + color.quantity, 0);
-      console.log('🚨 Setting stock_quantity to:', totalQuantity, 'from colors:', productColors);
       form.setValue('stock_quantity', totalQuantity);
     }
   }, [productColors, watchHasVariants, form]);
 
   // تحديث السعر في الألوان عند تغيير السعر الأساسي وعدم استخدام أسعار متغيرة
   useEffect(() => {
-    console.log('💰 Price update useEffect triggered:', {
-      useVariantPrices,
-      productColorsLength: productColors.length,
-      watchPrice,
-      currentStock: form.getValues('stock_quantity')
-    });
     
     if (!useVariantPrices && productColors.length > 0) {
       // Only update if at least one color has a different price than watchPrice
       const needsUpdate = productColors.some(color => color.price !== watchPrice);
       if (needsUpdate) {
-        console.log('💰 Updating product colors prices');
         const updatedColors = productColors.map(color => ({
           ...color,
           price: watchPrice
@@ -462,11 +428,6 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
   };
 
   const handleProductColorsChange = (colors: ProductColor[]) => {
-    console.log('🎨 handleProductColorsChange called:', {
-      newColors: colors,
-      watchHasVariants,
-      currentStockQuantity: form.getValues('stock_quantity')
-    });
 
     // تأكد من حفظ مقاسات كل لون إذا كان له مقاسات
     const updatedColors = colors.map(color => {
@@ -487,7 +448,6 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
     
     if (watchHasVariants && updatedColors.length > 0) {
       const totalQuantity = updatedColors.reduce((total, color) => total + color.quantity, 0);
-      console.log('🚨 handleProductColorsChange - Setting stock_quantity to:', totalQuantity);
       form.setValue('stock_quantity', totalQuantity);
     }
   };
@@ -558,12 +518,6 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
   }, [product]);
 
   const onSubmit = async (values: ProductFormValues) => {
-    console.log('💾 onSubmit called with values:', {
-      stockQuantity: values.stock_quantity,
-      hasVariants: values.has_variants,
-      productColorsLength: productColors.length,
-      productColors: productColors.map(c => ({ id: c.id, name: c.name, quantity: c.quantity }))
-    });
     
     setIsSubmitting(true);
 
@@ -625,12 +579,6 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
         use_sizes: values.use_sizes,
         updated_at: new Date().toISOString(),
       };
-      
-      console.log('📝 Prepared updateData:', {
-        stock_quantity: updateData.stock_quantity,
-        has_variants: updateData.has_variants,
-        fullUpdateData: updateData
-      });
 
       // إذا تم تغيير SKU، تحقق من عدم وجود تكرار
       if (values.sku !== product.sku) {
@@ -741,7 +689,6 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
       }
 
       // تحديث الألوان
-      console.log('🎨 بدء تحديث الألوان - has_variants:', values.has_variants, 'عدد الألوان:', productColors.length);
       if (values.has_variants) {
         // حذف الألوان القديمة
         for (const color of originalProductColors) {
@@ -832,13 +779,10 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
         }
       } else {
         // إذا تم تعطيل المتغيرات، احذف كل الألوان
-        console.log('🗑️ حذف جميع الألوان لأن has_variants = false');
         for (const color of originalProductColors) {
           await deleteProductColor(color.id);
         }
       }
-      
-      console.log('✅ انتهى تحديث الألوان بنجاح');
 
       // تحديث الصور الإضافية في جدول product_images
       try {

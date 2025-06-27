@@ -140,4 +140,4 @@ export const TransactionStatsCards: React.FC<TransactionStatsCardsProps> = ({ st
       </motion.div>
     </div>
   );
-}; 
+};

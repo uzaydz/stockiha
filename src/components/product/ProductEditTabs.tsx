@@ -53,14 +53,6 @@ const ProductEditTabs: React.FC<ProductEditTabsProps> = ({
   const hasVariants = form.watch('has_variants');
   
   // Console logs للتتبع
-  console.log('📋 ProductEditTabs - Rendering with values:', {
-    productId,
-    organizationId,
-    hasVariants,
-    currentStockQuantity: form.getValues('stock_quantity'),
-    watchedStockQuantity: form.watch('stock_quantity'),
-    formValues: form.getValues()
-  });
   
   return (
     <Tabs defaultValue="basic" className="w-full">

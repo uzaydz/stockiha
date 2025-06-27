@@ -677,4 +677,4 @@ const ProductInventoryDetails: React.FC<ProductInventoryDetailsProps> = ({
   );
 };
 
-export default ProductInventoryDetails; 
+export default ProductInventoryDetails;

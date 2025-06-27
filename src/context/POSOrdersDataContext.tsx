@@ -953,7 +953,6 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
 
   const deleteOrder = useCallback(async (orderId: string): Promise<boolean> => {
     try {
-      console.log('🗑️ Debug deleteOrder - Starting deletion for order:', orderId);
 
       // 1. جلب عناصر الطلبية قبل الحذف لإعادة المخزون
       const { data: orderItems, error: fetchItemsError } = await supabase
@@ -968,16 +967,12 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
         .eq('order_id', orderId);
 
       if (fetchItemsError) {
-        console.error('🔴 Error fetching order items for stock restoration:', fetchItemsError);
       } else {
-        console.log('📦 Order items to restore stock for:', orderItems);
 
         // 2. إعادة الكميات إلى المخزون قبل الحذف
         if (orderItems && orderItems.length > 0) {
-          console.log(`🔄 Starting stock restoration for ${orderItems.length} products`);
           
           for (const item of orderItems) {
-            console.log(`📈 Attempting to restore ${item.quantity} units of product ${item.product_id}`);
             
             try {
               // جلب المخزون الحالي قبل التحديث
@@ -988,11 +983,8 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
                 .single();
 
               if (fetchError) {
-                console.error(`❌ Error fetching product ${item.product_id}:`, fetchError);
                 continue;
               }
-
-              console.log(`📊 Current stock for product ${productBefore?.name}: ${productBefore?.stock_quantity}`);
 
               // استدعاء دالة إعادة المخزون
               const { data: restoreResult, error: stockError } = await supabase.rpc('restore_product_stock_safe' as any, {
@@ -1001,10 +993,8 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
               });
 
               if (stockError) {
-                console.error(`❌ Error calling restore function for product ${item.product_id}:`, stockError);
                 
                 // محاولة بديلة: تحديث المخزون يدوياً
-                console.log(`🔄 Attempting manual stock update for product ${item.product_id}`);
                 const { error: manualUpdateError } = await supabase
                   .from('products')
                   .update({ 
@@ -1015,15 +1005,11 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
                   .eq('id', item.product_id);
 
                 if (manualUpdateError) {
-                  console.error(`❌ Manual update failed for product ${item.product_id}:`, manualUpdateError);
                 } else {
-                  console.log(`✅ Manual update successful for product ${item.product_id}`);
                 }
               } else if (!restoreResult) {
-                console.warn(`⚠️ Restore function returned false for product ${item.product_id}`);
                 
                 // محاولة بديلة: تحديث المخزون يدوياً
-                console.log(`🔄 Attempting manual stock update for product ${item.product_id}`);
                 const { error: manualUpdateError } = await supabase
                   .from('products')
                   .update({ 
@@ -1034,12 +1020,9 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
                   .eq('id', item.product_id);
 
                 if (manualUpdateError) {
-                  console.error(`❌ Manual update failed for product ${item.product_id}:`, manualUpdateError);
                 } else {
-                  console.log(`✅ Manual update successful for product ${item.product_id}`);
                 }
               } else {
-                console.log(`✅ Stock restored successfully for product ${item.product_id} via function`);
               }
 
               // التحقق من النتيجة النهائية
@@ -1049,16 +1032,11 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
                 .eq('id', item.product_id)
                 .single();
 
-              console.log(`📊 Stock after update for product ${item.product_id}: ${productAfter?.stock_quantity}`);
-
             } catch (error) {
-              console.error(`❌ General error restoring stock for product ${item.product_id}:`, error);
             }
           }
           
-          console.log(`✅ Finished stock restoration for all products`);
         } else {
-          console.warn('⚠️ No items found in this order to restore stock for');
         }
       }
 
@@ -1069,10 +1047,8 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
         .eq('order_id', orderId);
 
       if (itemsError) {
-        console.error('🔴 Error deleting order_items:', itemsError);
         // لا نرجع false هنا لأن العناصر قد تكون فارغة أصلاً
       } else {
-        console.log('✅ Order items deleted successfully');
       }
 
       // 2. حذف المعاملات المالية المرتبطة
@@ -1082,7 +1058,6 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
         .eq('order_id', orderId);
 
       if (transactionsError) {
-        console.error('🔴 Error deleting transactions:', transactionsError);
         // نتابع حتى لو فشل حذف المعاملات
       }
 
@@ -1093,7 +1068,6 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
         .eq('order_id', orderId);
 
       if (bookingsError) {
-        console.error('🔴 Error deleting service_bookings:', bookingsError);
         // نتابع حتى لو فشل حذف الحجوزات
       }
 
@@ -1104,7 +1078,6 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
         .eq('original_order_id', orderId);
 
       if (returnsError) {
-        console.error('🔴 Error deleting returns:', returnsError);
         // نتابع حتى لو فشل حذف المرتجعات
       }
 
@@ -1131,12 +1104,10 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
             .lte('transaction_date', endTime.toISOString());
 
           if (subscriptionError) {
-            console.error('🔴 Error deleting subscription_transactions:', subscriptionError);
             // نتابع حتى لو فشل حذف معاملات الاشتراك
           }
         }
       } catch (subscriptionDeleteError) {
-        console.error('🔴 Error in subscription deletion logic:', subscriptionDeleteError);
         // نتابع حتى لو فشل منطق حذف الاشتراكات
       }
 
@@ -1147,53 +1118,33 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
         .eq('id', orderId);
 
       if (orderError) {
-        console.error('🔴 Error deleting order:', orderError);
         return false;
       }
-
-      console.log('✅ Order deleted successfully:', orderId);
 
       // إعادة تحميل البيانات
       await Promise.all([refetchStats(), refetchOrders()]);
       
       return true;
     } catch (error) {
-      console.error('🔴 Error in deleteOrder:', error);
       return false;
     }
   }, [refetchStats, refetchOrders]);
 
   // تحديث طلبية في الكاش بدلاً من إعادة تحميل كل البيانات
   const updateOrderInCache = useCallback((updatedOrder: POSOrderWithDetails) => {
-    console.log('🔄 [POSOrdersDataContext] تحديث الطلبية في الكاش:', updatedOrder.id);
-    console.log('📋 [POSOrdersDataContext] البيانات المحدثة:', {
-      status: updatedOrder.status,
-      payment_status: updatedOrder.payment_status,
-      payment_method: updatedOrder.payment_method,
-      amount_paid: updatedOrder.amount_paid,
-      remaining_amount: updatedOrder.remaining_amount,
-      consider_remaining_as_partial: updatedOrder.consider_remaining_as_partial,
-      total: updatedOrder.total
-    });
     
     // تحديث البيانات محلياً في React Query cache
     queryClient.setQueryData(
       ['pos-orders', orgId, currentPage, filters],
       (oldData: any) => {
         if (!oldData) {
-          console.log('⚠️ [POSOrdersDataContext] لا توجد بيانات قديمة في الكاش');
           return oldData;
         }
         
         const updatedOrders = oldData.orders.map((order: POSOrderWithDetails) => 
           order.id === updatedOrder.id ? updatedOrder : order
         );
-        
-        console.log('✅ [POSOrdersDataContext] تم تحديث الكاش محلياً');
-        console.log('🔍 [POSOrdersDataContext] الطلبية المحدثة في الكاش:', 
-          updatedOrders.find((o: POSOrderWithDetails) => o.id === updatedOrder.id)
-        );
-        
+
         return {
           ...oldData,
           orders: updatedOrders

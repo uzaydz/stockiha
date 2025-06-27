@@ -116,9 +116,6 @@ export const POSOrders: React.FC = () => {
       );
 
       // إضافة debugging للتحقق من البيانات
-      console.log('🔍 Debug fetchOrders - Received orders:', result.orders?.slice(0, 2));
-      console.log('🔍 Debug fetchOrders - First order:', result.orders?.[0]);
-      console.log('🔍 Debug fetchOrders - First order metadata:', result.orders?.[0]?.metadata);
 
       updateState({
         orders: result.orders,

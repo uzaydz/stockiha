@@ -572,7 +572,6 @@ export const InventoryAdvanced = () => {
       setBulkQuantity('');
       clearSelection();
     } catch (error) {
-      console.error('Bulk update failed:', error);
     }
   }, [bulkQuantity, selectedProducts, bulkReason, bulkUpdate, clearSelection]);
 
@@ -968,4 +967,4 @@ export const InventoryAdvanced = () => {
   );
 };
 
-export default InventoryAdvanced; 
+export default InventoryAdvanced;

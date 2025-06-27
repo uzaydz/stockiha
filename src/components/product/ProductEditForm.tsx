@@ -96,26 +96,13 @@ const ProductEditForm: React.FC<ProductEditFormProps> = ({
         colors: [],
         additional_images: [],
       };
-      
-      console.log('🏗️ ProductEditForm - Form defaultValues:', {
-        productId: product?.id,
-        originalStock: product?.stock_quantity,
-        defaultStock: defaults.stock_quantity,
-        hasVariants: defaults.has_variants
-      });
-      
+
       return defaults;
     })()
   });
 
   // تعيين الصورة الرئيسية والصور الإضافية في النموذج
   useEffect(() => {
-    console.log('🖼️ ProductEditForm - Setting images in form:', {
-      productId: product?.id,
-      thumbnailImage: product.thumbnail_image,
-      additionalImagesCount: additionalImages.length,
-      currentStockQuantity: form.getValues('stock_quantity')
-    });
     
     form.setValue('thumbnail_image', product.thumbnail_image || '');
     form.setValue('additional_images', additionalImages);
@@ -129,12 +116,6 @@ const ProductEditForm: React.FC<ProductEditFormProps> = ({
   };
 
   const handleProductColorsChange = (colors: ProductColor[]) => {
-    console.log('🎨 ProductEditForm - handleProductColorsChange:', {
-      hasVariants: form.watch('has_variants'),
-      newColorsLength: colors.length,
-      currentStock: form.getValues('stock_quantity'),
-      originalProductColorsLength: originalProductColors.length
-    });
     
     // تأكد من حفظ مقاسات كل لون إذا كان له مقاسات
     const updatedColors = colors.map(color => {
@@ -151,11 +132,9 @@ const ProductEditForm: React.FC<ProductEditFormProps> = ({
     // تحديث كمية المخزون فقط إذا كان المنتج يستخدم المتغيرات ولديه ألوان فعلاً
     if (form.watch('has_variants') && updatedColors.length > 0) {
       const totalQuantity = updatedColors.reduce((total, color) => total + color.quantity, 0);
-      console.log('🚨 ProductEditForm - Setting stock_quantity to:', totalQuantity, 'from colors');
       form.setValue('stock_quantity', totalQuantity);
     } else if (!form.watch('has_variants')) {
       // إذا لم يكن يستخدم المتغيرات، احتفظ بالكمية الأصلية من المنتج
-      console.log('ℹ️ ProductEditForm - No variants, keeping original stock');
     }
   };
 

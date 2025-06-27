@@ -66,6 +66,7 @@ interface SupplierPaymentDialogProps {
   suppliers: Supplier[];
   supplierPurchases?: SupplierPurchase[];
   selectedSupplierId?: string | null;
+  selectedPurchaseId?: string | null;
   onSave: (data: FormValues) => Promise<void>;
   onClose?: () => void;
   isLoading?: boolean;
@@ -78,6 +79,7 @@ export function SupplierPaymentDialog({
   suppliers,
   supplierPurchases = [],
   selectedSupplierId,
+  selectedPurchaseId,
   onSave,
   onClose,
   isLoading = false,
@@ -112,11 +114,24 @@ export function SupplierPaymentDialog({
         reference_number: payment.reference_number || '',
         notes: payment.notes || '',
       });
-    } else if (selectedSupplierId) {
+    } else {
       // إذا كان هناك مورد محدد
-      form.setValue('supplier_id', selectedSupplierId);
+      if (selectedSupplierId) {
+        form.setValue('supplier_id', selectedSupplierId);
+      }
+      
+      // إذا كان هناك مشتريات محددة
+      if (selectedPurchaseId) {
+        form.setValue('purchase_id', selectedPurchaseId);
+        
+        // تعيين المبلغ للمبلغ المتبقي
+        const selectedPurchase = supplierPurchases.find(p => p.id === selectedPurchaseId);
+        if (selectedPurchase && selectedPurchase.balance_due > 0) {
+          form.setValue('amount', selectedPurchase.balance_due);
+        }
+      }
     }
-  }, [payment, selectedSupplierId, form]);
+  }, [payment, selectedSupplierId, selectedPurchaseId, form, supplierPurchases]);
   
   // تحديث المشتريات المتاحة عند تغيير المورد
   useEffect(() => {

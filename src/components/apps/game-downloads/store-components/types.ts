@@ -66,4 +66,4 @@ export const statusInfo = {
   ready: { label: 'جاهز للتسليم', color: 'bg-purple-500', icon: 'CheckCircle' },
   delivered: { label: 'تم التسليم', color: 'bg-green-500', icon: 'Truck' },
   cancelled: { label: 'ملغي', color: 'bg-red-500', icon: 'XCircle' },
-}; 
+};

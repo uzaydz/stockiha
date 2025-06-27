@@ -27,27 +27,12 @@ export default function ProductInventory({
   const hasVariantsEnabled = form.watch('has_variants');
 
   // Console logs للتتبع
-  console.log('🔍 ProductInventory - Current Values:', {
-    stockQuantity,
-    hasVariants,
-    hasVariantsEnabled,
-    productId,
-    formValues: form.getValues(),
-    watchedStockQuantity: form.watch('stock_quantity')
-  });
 
   // تتبع التغييرات في stock_quantity
   useEffect(() => {
-    console.log('🎯 useEffect - stock_quantity changed to:', form.watch('stock_quantity'));
     
     const subscription = form.watch((value, { name, type }) => {
       if (name === 'stock_quantity') {
-        console.log('📝 Form watch - stock_quantity:', {
-          name,
-          type,
-          value: value.stock_quantity,
-          allValues: value
-        });
       }
     });
     
@@ -56,7 +41,6 @@ export default function ProductInventory({
 
   const getStockStatus = () => {
     const currentStock = form.watch('stock_quantity');
-    console.log('📊 getStockStatus - currentStock:', currentStock, typeof currentStock);
     if (currentStock === undefined || currentStock === null) return 'not-set';
     if (currentStock === 0) return 'out-of-stock';
     if (currentStock <= 10) return 'low-stock';
@@ -126,13 +110,6 @@ export default function ProductInventory({
                           control={form.control}
                           name="stock_quantity"
                           render={({ field }) => {
-                            console.log('🎨 FormField render - field:', {
-                              fieldValue: field.value,
-                              fieldName: field.name,
-                              hasVariants,
-                              hasVariantsEnabled,
-                              isDisabled: hasVariants && hasVariantsEnabled
-                            });
                             return (
                     <FormItem className="space-y-2">
                       <FormLabel className="text-sm font-medium text-foreground flex items-center gap-2">
@@ -169,54 +146,25 @@ export default function ProductInventory({
                             value={(() => {
                               // استخدام ?? بدلاً من || للتمييز بين 0 و null/undefined
                               const inputValue = field.value ?? '';
-                              console.log('💡 Input value being rendered:', {
-                                fieldValue: field.value,
-                                inputValue,
-                                typeOfFieldValue: typeof field.value,
-                                isUndefined: field.value === undefined,
-                                isNull: field.value === null,
-                                isEmptyString: String(field.value) === '',
-                                isZero: field.value === 0
-                              });
                               return inputValue;
                             })()}
                             disabled={hasVariants && hasVariantsEnabled}
                             onChange={(e) => {
                               const inputValue = e.target.value;
-                              console.log('🔄 Input onChange:', {
-                                inputValue,
-                                inputType: typeof inputValue,
-                                fieldValue: field.value,
-                                currentFormStock: form.getValues('stock_quantity')
-                              });
                               
                               if (inputValue === '') {
-                                console.log('⚠️ Setting field to undefined because input is empty');
                                 field.onChange(undefined); // احتفظ بالقيمة فارغة
                               } else {
                                 const numValue = parseInt(inputValue, 10);
-                                console.log('🔢 Parsing number:', {
-                                  inputValue,
-                                  numValue,
-                                  isNaN: isNaN(numValue),
-                                  isValidRange: numValue >= 0
-                                });
                                 
                                 if (!isNaN(numValue) && numValue >= 0) {
-                                  console.log('✅ Setting field value to:', numValue);
                                   field.onChange(numValue);
                                 } else {
-                                  console.log('❌ Invalid number, not setting value');
                                 }
                               }
                               
                               // تحقق من القيمة بعد التغيير
                               setTimeout(() => {
-                                console.log('⏰ After onChange - Form values:', {
-                                  stockQuantity: form.getValues('stock_quantity'),
-                                  watchedValue: form.watch('stock_quantity'),
-                                  fieldValue: field.value
-                                });
                               }, 0);
                             }}
                           />

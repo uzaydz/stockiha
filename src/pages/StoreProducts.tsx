@@ -164,22 +164,12 @@ const useProductsData = (organizationId: string | undefined, filters: FilterStat
       sortOption: filterState.sortOption
     })}`;
 
-    console.log('🔄 [StoreProducts] fetchProducts called:', { 
-      orgId, 
-      page, 
-      filterState, 
-      cacheKey,
-      requestId,
-      timestamp: new Date().toISOString() 
-    });
-    
     // Cleanup cache periodically
     cleanupCache();
 
     // Check cache first
     const cachedData = resultsCache.get(cacheKey);
     if (cachedData && Date.now() - cachedData.timestamp < CACHE_DURATION) {
-      console.log('✅ [StoreProducts] عائد من الـ cache');
       setData(cachedData.data);
       setIsLoading(false);
       return;
@@ -198,7 +188,6 @@ const useProductsData = (organizationId: string | undefined, filters: FilterStat
 
       // Check if request was cancelled or superseded
       if (lastRequestIdRef.current !== requestId) {
-        console.log('🚫 [StoreProducts] طلب ملغى أو مستبدل');
         return;
       }
 
@@ -210,14 +199,9 @@ const useProductsData = (organizationId: string | undefined, filters: FilterStat
       });
 
       setData(result);
-      console.log('✅ [StoreProducts] نجح جلب المنتجات:', {
-        products: result.products.length,
-        totalCount: result.totalCount
-      });
 
     } catch (err) {
       if (lastRequestIdRef.current === requestId) {
-        console.error('❌ [StoreProducts] خطأ في جلب المنتجات:', err);
         setError('حدث خطأ أثناء تحميل المنتجات');
       }
     } finally {
@@ -234,7 +218,6 @@ const useProductsData = (organizationId: string | undefined, filters: FilterStat
 
     // Prevent concurrent requests
     if (loadingRef.current) {
-      console.log('⏸️ [StoreProducts] طلب آخر جاري، تم تجاهل الطلب');
       return;
     }
 
@@ -411,14 +394,12 @@ const StoreProducts = () => {
   const organizationId = useMemo(() => {
     // 1. Try from TenantContext
     if (currentOrganization?.id) {
-      console.log('🏢 [StoreProducts] Organization من TenantContext:', currentOrganization.id);
       return currentOrganization.id;
     }
     
     // 2. Try from localStorage
     const storedOrgId = localStorage.getItem('bazaar_organization_id');
     if (storedOrgId) {
-      console.log('🏢 [StoreProducts] Organization من localStorage:', storedOrgId);
       return storedOrgId;
     }
     
@@ -426,11 +407,9 @@ const StoreProducts = () => {
     const hostname = window.location.hostname;
     if (hostname.includes('asraycollection')) {
       const knownId = '560e2c06-d13c-4853-abcf-d41f017469cf';
-      console.log('🏢 [StoreProducts] Organization من domain mapping:', knownId);
       return knownId;
     }
     
-    console.warn('⚠️ [StoreProducts] لم يتم العثور على معرف المؤسسة');
     return null;
   }, [currentOrganization?.id]);
 
@@ -460,7 +439,6 @@ const StoreProducts = () => {
         }
       } catch (error) {
         if (!isCancelled) {
-          console.error('❌ [StoreProducts] خطأ في جلب الفئات:', error);
           toast.error('حدث خطأ في جلب الفئات');
         }
       } finally {

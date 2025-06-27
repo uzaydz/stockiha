@@ -316,7 +316,6 @@ export function useInventoryVariants(
 
       if (result.error_count > 0) {
         toast.error(`فشل في تحديث ${result.error_count} متغير`);
-        console.error('Bulk update errors:', result.errors);
       }
 
     } catch (error: any) {
@@ -522,7 +521,6 @@ export function useInventoryVariants(
       const summary = await getInventoryQuickSummary(state.inventoryDetails.product_id);
       setState(prev => ({ ...prev, quickSummary: summary }));
     } catch (error) {
-      console.error('Quick refresh failed:', error);
     }
   }, [state.inventoryDetails?.product_id]);
 
@@ -592,4 +590,4 @@ export function useInventoryVariants(
   };
 }
 
-export default useInventoryVariants; 
+export default useInventoryVariants;

@@ -205,4 +205,4 @@ export default function GameCard({ game, cart, onAddToCart, primaryColor, second
       </div>
     </Card>
   );
-} 
+}

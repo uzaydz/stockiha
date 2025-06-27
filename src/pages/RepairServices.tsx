@@ -199,7 +199,6 @@ const RepairServicesContent = () => {
   const [orderToDelete, setOrderToDelete] = useState<RepairOrder | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  
   // الإحصائيات
   const [stats, setStats] = useState({
     total: 0,
@@ -329,7 +328,6 @@ const RepairServicesContent = () => {
       
       toast.success('تم إضافة طلبية التصليح بنجاح');
     } catch (error) {
-      console.error('خطأ في إضافة طلبية التصليح:', error);
       toast.error('حدث خطأ أثناء إضافة الطلبية');
     }
   };
@@ -410,14 +408,7 @@ const RepairServicesContent = () => {
     // البحث عن ترتيب الطلبية في قائمة الطلبيات المفلترة
     const orderIndex = filteredOrders.findIndex(o => o.id === order.id);
     const position = orderIndex >= 0 ? orderIndex + 1 : 0;
-    
-    console.log('[calculateQueuePosition] ترتيب الطلبية في الجدول:', {
-      orderId: order.id,
-      orderIndex,
-      position,
-      totalOrders: filteredOrders.length
-    });
-    
+
     setQueuePosition(position);
   };
   
@@ -622,7 +613,6 @@ const RepairServicesContent = () => {
             .remove([filePath]);
             
           if (error) {
-            console.error('خطأ في حذف الصورة:', error);
           }
         });
         
@@ -682,8 +672,6 @@ const RepairServicesContent = () => {
     }
   };
 
-
-  
   return (
     <Layout>
       <div className="flex flex-col h-full">

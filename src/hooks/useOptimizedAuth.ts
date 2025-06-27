@@ -83,13 +83,11 @@ class AuthManager {
         .single();
 
       if (error) {
-        console.error('Error fetching user organization:', error);
         return null;
       }
 
       return data?.organization_id || null;
     } catch (error) {
-      console.error('Error in fetchUserOrganization:', error);
       return null;
     }
   }
@@ -166,7 +164,6 @@ export function useOptimizedAuth(): OptimizedAuthState {
         setState(prev => ({ ...prev, organizationData: orgData }));
       }
     } catch (error) {
-      console.error('Error fetching organization:', error);
       setState(prev => ({ 
         ...prev, 
         error: error instanceof Error ? error.message : 'خطأ في جلب بيانات المؤسسة',
@@ -198,7 +195,6 @@ export function useOptimizedAuth(): OptimizedAuthState {
            authManager.getOrganizationData(cachedOrgId).then(orgData => {
              setState(prev => ({ ...prev, organizationData: orgData }));
            }).catch(error => {
-             console.error('Error fetching cached organization data:', error);
            });
          }
        } else {
@@ -307,4 +303,4 @@ export function useAuthCleanup() {
       authManager.clearOrganizationCache(orgId);
     }
   }, [authManager]);
-} 
+}

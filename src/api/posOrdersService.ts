@@ -246,8 +246,6 @@ export class POSOrdersService {
     // if (cached) return cached;
 
     try {
-      console.log('🔍 Debug getPOSOrders - organizationId:', organizationId);
-      console.log('🔍 Debug getPOSOrders - About to execute query...');
       
       let query = supabase
         .from('orders')
@@ -293,8 +291,6 @@ export class POSOrdersService {
         .eq('organization_id', organizationId)
         .eq('is_online', false)
         .order('created_at', { ascending: false });
-
-      console.log('🔍 Debug getPOSOrders - Query created, applying filters...');
 
       // تطبيق الفلاتر
       if (filters.status) {
@@ -343,12 +339,6 @@ export class POSOrdersService {
       const { data: orders, error } = await query
         .range((page - 1) * limit, page * limit - 1);
 
-      console.log('🔍 Debug getPOSOrders - Query executed');
-      console.log('🔍 Debug getPOSOrders - Error:', error);
-      console.log('🔍 Debug getPOSOrders - Raw orders count:', orders?.length);
-      console.log('🔍 Debug getPOSOrders - Sample order:', orders?.[0]);
-      console.log('🔍 Debug getPOSOrders - Sample metadata:', orders?.[0]?.metadata);
-
       if (error) throw error;
 
       // حساب حالة المرتجعات لكل طلبية
@@ -393,8 +383,6 @@ export class POSOrdersService {
       }
 
       // إضافة debugging للتحقق من البيانات
-      console.log('🔍 Debug posOrdersService - Raw orders data:', orders?.slice(0, 1));
-      console.log('🔍 Debug posOrdersService - First order metadata:', orders?.[0]?.metadata);
 
       // معالجة البيانات وحساب الإحصائيات
       const processedOrders = (orders || []).map(order => {
@@ -413,8 +401,6 @@ export class POSOrdersService {
                  timeDiff < 60000 && // أقل من دقيقة
                  sub.customer_name === (order.customer?.name || 'زائر');
         });
-
-        console.log(`🔍 Debug - Order ${order.id} related subscriptions:`, relatedSubscriptions);
 
         // إضافة عناصر الاشتراك إلى order_items
         const subscriptionItems = relatedSubscriptions.map(sub => ({
@@ -456,8 +442,6 @@ export class POSOrdersService {
           total_returned_amount: totalReturnedAmount
         };
 
-        console.log(`🔍 Debug posOrdersService - Order ${order.id} metadata:`, order.metadata);
-        
         return processedOrder;
       }) as any;
 
@@ -488,7 +472,6 @@ export class POSOrdersService {
     // if (cached) return cached;
 
     try {
-      console.log('🔍 Debug getPOSOrderById - Starting query for:', orderId);
       
       const { data: order, error } = await supabase
         .from('orders')
@@ -539,10 +522,6 @@ export class POSOrdersService {
         .eq('id', orderId)
         .eq('is_online', false)
         .single();
-
-      console.log('🔍 Debug getPOSOrderById - Raw response:', { data: order, error });
-      console.log('🔍 Debug getPOSOrderById - Order metadata:', order?.metadata);
-      console.log('🔍 Debug getPOSOrderById - Order items:', order?.order_items);
 
       if (error) throw error;
       if (!order) return null;
@@ -649,7 +628,6 @@ export class POSOrdersService {
    */
   async deleteOrder(orderId: string): Promise<boolean> {
     try {
-      console.log('🗑️ [POSOrdersService] بدء حذف الطلبية:', orderId);
 
       // 1. جلب عناصر الطلبية قبل الحذف لإعادة المخزون (مع معلومات المنتج)
       const { data: orderItems, error: itemsError } = await supabase
@@ -664,15 +642,11 @@ export class POSOrdersService {
         .eq('order_id', orderId);
 
       if (itemsError) {
-        console.error('❌ خطأ في جلب عناصر الطلبية:', itemsError);
         throw itemsError;
       }
 
-      console.log('📦 عناصر الطلبية المراد إعادة مخزونها:', orderItems);
-
       // التحقق من وجود عناصر
       if (!orderItems || orderItems.length === 0) {
-        console.warn('⚠️ لا توجد عناصر في هذه الطلبية لإعادة مخزونها');
         
         // جلب معلومات الطلبية للتحقق
         const { data: orderInfo } = await supabase
@@ -680,19 +654,15 @@ export class POSOrdersService {
           .select('id, slug, total, status, metadata')
           .eq('id', orderId)
           .single();
-          
-        console.log('📋 معلومات الطلبية:', orderInfo);
-        
+
         // إذا كانت طلبية اشتراك، فقد لا تحتوي على عناصر منتجات
         // نتابع عملية الحذف
       }
 
       // 2. إعادة الكميات إلى المخزون باستخدام الدالة الجديدة
       if (orderItems && orderItems.length > 0) {
-        console.log(`🔄 بدء إعادة المخزون لـ ${orderItems.length} منتج`);
         
         for (const item of orderItems) {
-          console.log(`📈 محاولة إعادة ${item.quantity} من المنتج ${item.product_id} إلى المخزون`);
           
           try {
             // جلب المخزون الحالي قبل التحديث
@@ -703,11 +673,8 @@ export class POSOrdersService {
               .single();
 
             if (fetchError) {
-              console.error(`❌ خطأ في جلب بيانات المنتج ${item.product_id}:`, fetchError);
               continue;
             }
-
-            console.log(`📊 المخزون الحالي للمنتج ${productBefore?.name}: ${productBefore?.stock_quantity}`);
 
             // استدعاء دالة إعادة المخزون
             const { data: restoreResult, error: stockError } = await supabase.rpc('restore_product_stock_safe' as any, {
@@ -715,13 +682,9 @@ export class POSOrdersService {
               p_quantity_to_restore: item.quantity, // كمية موجبة للإعادة
             });
 
-            console.log(`🔍 نتيجة استدعاء دالة الإعادة:`, { restoreResult, stockError });
-
             if (stockError) {
-              console.error(`❌ خطأ في استدعاء دالة إعادة المخزون للمنتج ${item.product_id}:`, stockError);
               
               // محاولة بديلة: تحديث المخزون يدوياً
-              console.log(`🔄 محاولة تحديث المخزون يدوياً للمنتج ${item.product_id}`);
               const { error: manualUpdateError } = await supabase
                 .from('products')
                 .update({ 
@@ -732,15 +695,11 @@ export class POSOrdersService {
                 .eq('id', item.product_id);
 
               if (manualUpdateError) {
-                console.error(`❌ فشل التحديث اليدوي للمنتج ${item.product_id}:`, manualUpdateError);
               } else {
-                console.log(`✅ تم التحديث اليدوي للمنتج ${item.product_id} بنجاح`);
               }
             } else if (!restoreResult) {
-              console.warn(`⚠️ دالة إعادة المخزون أرجعت false للمنتج ${item.product_id}`);
               
               // محاولة بديلة: تحديث المخزون يدوياً
-              console.log(`🔄 محاولة تحديث المخزون يدوياً للمنتج ${item.product_id}`);
               const { error: manualUpdateError } = await supabase
                 .from('products')
                 .update({ 
@@ -751,12 +710,9 @@ export class POSOrdersService {
                 .eq('id', item.product_id);
 
               if (manualUpdateError) {
-                console.error(`❌ فشل التحديث اليدوي للمنتج ${item.product_id}:`, manualUpdateError);
               } else {
-                console.log(`✅ تم التحديث اليدوي للمنتج ${item.product_id} بنجاح`);
               }
             } else {
-              console.log(`✅ تم إعادة مخزون المنتج ${item.product_id} بنجاح عبر الدالة`);
             }
 
             // التحقق من النتيجة النهائية
@@ -766,14 +722,10 @@ export class POSOrdersService {
               .eq('id', item.product_id)
               .single();
 
-            console.log(`📊 المخزون بعد التحديث للمنتج ${item.product_id}: ${productAfter?.stock_quantity}`);
-
           } catch (error) {
-            console.error(`❌ خطأ عام في إعادة مخزون المنتج ${item.product_id}:`, error);
           }
         }
         
-        console.log(`✅ انتهت عملية إعادة المخزون لجميع المنتجات`);
       }
 
       // 3. حذف عناصر الطلبية
@@ -783,10 +735,8 @@ export class POSOrdersService {
         .eq('order_id', orderId);
 
       if (deleteItemsError) {
-        console.error('❌ خطأ في حذف عناصر الطلبية:', deleteItemsError);
         // نتابع الحذف حتى لو فشل حذف العناصر
       } else {
-        console.log('✅ تم حذف عناصر الطلبية بنجاح');
       }
 
       // 4. حذف المعاملات المالية المرتبطة
@@ -796,7 +746,6 @@ export class POSOrdersService {
         .eq('order_id', orderId);
 
       if (transactionsError) {
-        console.error('❌ خطأ في حذف المعاملات المالية:', transactionsError);
         // نتابع الحذف
       }
 
@@ -811,15 +760,12 @@ export class POSOrdersService {
         .eq('is_online', false);
 
       if (deleteOrderError) {
-        console.error('❌ خطأ في حذف الطلبية:', deleteOrderError);
         throw deleteOrderError;
       }
 
-      console.log('✅ تم حذف الطلبية بنجاح مع إعادة المخزون');
       this.clearCacheForOrder(orderId);
       return true;
     } catch (error) {
-      console.error('❌ فشل في حذف الطلبية:', error);
       return false;
     }
   }
@@ -1116,7 +1062,6 @@ export class POSOrdersService {
       
       return true;
     } catch (error) {
-      console.error('Error updating order items:', error);
       return false;
     }
   }

@@ -69,8 +69,6 @@ const Products = memo(() => {
   const filtersRef = useRef<FilterState>(filters);
   const debouncedSearchQueryRef = useRef('');
 
-
-  
   // Pagination state
   const [currentPage, setCurrentPage] = useState(Number(searchParams.get('page')) || 1);
   const [pageSize, setPageSize] = useState(Number(searchParams.get('pageSize')) || DEFAULT_PAGE_SIZE);
@@ -157,7 +155,6 @@ const Products = memo(() => {
   ) => {
     // منع الطلبات المتكررة
     if (loadingRef.current && !forceRefresh) {
-      console.log('⏸️ طلب آخر جاري، تم تجاهل الطلب');
       return;
     }
 
@@ -195,13 +192,6 @@ const Products = memo(() => {
       const currentDebouncedQuery = debouncedSearchQueryRef.current;
       
       const searchFilters = { ...currentFilters, ...filterOverrides };
-      
-      console.log('🔄 جلب المنتجات:', { 
-        page: currentPageValue, 
-        pageSize, 
-        filters: searchFilters,
-        requestId 
-      });
 
       const result = await getProductsPaginated(
         currentOrganization.id,
@@ -218,7 +208,6 @@ const Products = memo(() => {
 
       // التحقق من عدم إلغاء الطلب أو تغيير الطلب
       if (signal.aborted || lastRequestIdRef.current !== requestId) {
-        console.log('🚫 تم إلغاء الطلب أو استبداله');
         loadingRef.current = false;
         return;
       }
@@ -231,20 +220,12 @@ const Products = memo(() => {
       setHasNextPage(result.hasNextPage);
       setHasPreviousPage(result.hasPreviousPage);
 
-      console.log('✅ تم جلب المنتجات بنجاح:', {
-        products: result.products.length,
-        totalCount: result.totalCount,
-        currentPage: result.currentPage
-      });
-
     } catch (error: any) {
       if (error.name === 'AbortError' || signal.aborted) {
-        console.log('🚫 تم إلغاء الطلب');
         loadingRef.current = false;
         return;
       }
 
-      console.error('❌ خطأ في جلب المنتجات:', error);
       setLoadError('حدث خطأ أثناء تحميل المنتجات');
       toast.error('حدث خطأ أثناء تحميل المنتجات');
     } finally {
@@ -273,7 +254,6 @@ const Products = memo(() => {
         slug: cat.slug || ''
       })));
     } catch (error) {
-      console.error('❌ خطأ في جلب الفئات:', error);
     } finally {
       setCategoriesLoading(false);
     }
@@ -285,7 +265,6 @@ const Products = memo(() => {
 
     // منع تنشيط الـ effect أكثر من مرة في وقت قصير
     if (loadingRef.current) {
-      console.log('⏸️ تم تجاهل useEffect - طلب آخر جاري');
       return;
     }
 
@@ -297,7 +276,6 @@ const Products = memo(() => {
           loadCategories()
         ]);
       } catch (error) {
-        console.error('❌ خطأ في تحميل البيانات:', error);
       }
     };
 
@@ -361,7 +339,6 @@ const Products = memo(() => {
     const locationState = location.state as { refreshData?: boolean; timestamp?: number } | null;
     
     if (locationState?.refreshData && locationState?.timestamp) {
-      console.log('🔄 تحديث من navigation state');
       fetchProducts(currentPage, {}, true);
       
       // مسح state
@@ -372,7 +349,6 @@ const Products = memo(() => {
   // Product operation events listener
   useEffect(() => {
     const handleProductUpdated = (event: CustomEvent) => {
-      console.log('🔄 تحديث المنتجات من event:', event.detail);
       // استخدام ref للحصول على أحدث قيمة للصفحة الحالية
       const currentPageValue = currentPageRef.current || 1;
       fetchProducts(currentPageValue, {}, true);

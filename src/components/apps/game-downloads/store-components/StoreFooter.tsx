@@ -22,4 +22,4 @@ export default function StoreFooter({ settings }: StoreFooterProps) {
       </div>
     </footer>
   );
-} 
+}

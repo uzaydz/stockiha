@@ -133,7 +133,6 @@ export function usePOSInfiniteProducts({
         return;
       }
       
-      console.error('Error fetching products:', err);
       setError(err.message || 'حدث خطأ في تحميل المنتجات');
     } finally {
       if (!abortController.signal.aborted) {
@@ -211,4 +210,4 @@ export function useAutoLoadMore(
       loadMore();
     }
   }, [inView, hasNextPage, isLoadingMore, isLoading, loadMore]);
-} 
+}

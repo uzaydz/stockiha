@@ -226,12 +226,6 @@ const ProductForm = () => {
 
   // Enhanced submit handler
   const onSubmit = async (data: ProductFormValues) => {
-    console.log('🚀 [ProductForm] onSubmit started:', {
-      formData: data,
-      productColors,
-      hasVariants: data.has_variants,
-      productColorsLength: productColors.length
-    });
 
     if (!organizationIdFromTenant && !data.organization_id) {
       toast.error("خطأ حرج: معرّف المؤسسة مفقود. لا يمكن إنشاء/تحديد المنتج.");
@@ -245,12 +239,7 @@ const ProductForm = () => {
       const currentOrganizationId = data.organization_id || organizationIdFromTenant;
       
       const imagesToSubmit = additionalImages.filter(url => typeof url === 'string' && url.length > 0);
-      
-      console.log('🎨 [ProductForm] Processing colors before submit:', {
-        originalProductColors: productColors,
-        hasVariants: data.has_variants
-      });
-      
+
       const colorsToSubmit = productColors.map(color => {
         // تنظيف بيانات اللون لضمان التوافق مع schema
         const cleanedColor: any = {
@@ -307,13 +296,7 @@ const ProductForm = () => {
         
         return cleanedColor;
       });
-      
-      console.log('🎨 [ProductForm] Colors after cleaning:', {
-        colorsToSubmit,
-        colorsCount: colorsToSubmit.length,
-        originalColors: productColors
-      });
-      
+
       const wholesaleTiersToSubmit = wholesaleTiers.map(tier => ({
         ...tier,
         min_quantity: Number(tier.min_quantity),
@@ -322,11 +305,6 @@ const ProductForm = () => {
 
       // تحقق من صحة الألوان قبل الإرسال إذا كان المنتج يستخدم المتغيرات
       if (data.has_variants && productColors.length > 0) {
-        console.log('🔍 [ProductForm] Validating colors for variants:', {
-          hasVariants: data.has_variants,
-          colorsLength: productColors.length,
-          colors: productColors
-        });
         
         const invalidColors = productColors.filter(color => 
           !color.name?.trim() || 
@@ -334,12 +312,7 @@ const ProductForm = () => {
           color.quantity === undefined || 
           color.quantity < 0
         );
-        
-        console.log('🔍 [ProductForm] Invalid colors found:', {
-          invalidColors,
-          invalidColorsCount: invalidColors.length
-        });
-        
+
         if (invalidColors.length > 0) {
           toast.error('يرجى التأكد من أن جميع الألوان لها اسم وكود لون وكمية صحيحة');
           setIsSubmitting(false);
@@ -351,12 +324,6 @@ const ProductForm = () => {
       
       // تحديث النموذج بالألوان المنظفة
       form.setValue('colors', colorsToSubmit, { shouldValidate: false });
-      
-      console.log('🎨 [ProductForm] Colors set in form before submission:', {
-        formColorsValue: form.getValues('colors'),
-        formIsValid: form.formState.isValid,
-        formErrors: form.formState.errors
-      });
 
       const submissionData = {
         ...data,
@@ -427,7 +394,6 @@ const ProductForm = () => {
 
         // 🚀 تحديث محسن: تجنب التكرار
         try {
-          console.log('🔄 [ProductForm] تحديث البيانات...');
           
           // فقط إشعار بسيط للمكونات - التحديث الفعلي سيحدث في createProduct/updateProduct
           const operation = isEditMode ? 'update' : 'create';
@@ -436,9 +402,7 @@ const ProductForm = () => {
           });
           window.dispatchEvent(customEvent);
           
-          console.log('✅ [ProductForm] تم إرسال إشعار التحديث');
         } catch (refreshError) {
-          console.warn('⚠️ [ProductForm] خطأ في إرسال الإشعار:', refreshError);
         }
 
         // التوجه السلس لصفحة المنتجات (بدون إعادة تحميل)
@@ -482,24 +446,9 @@ const ProductForm = () => {
   // Enhanced error handler
   const onInvalid = useCallback((errors: any) => {
     const errorCount = Object.keys(errors).length;
-    
-    console.log('🚨 [ProductForm] Form validation errors:', {
-      errors,
-      errorCount,
-      productColors,
-      formColorsValue: form.getValues('colors'),
-      hasVariants: form.getValues('has_variants'),
-      allFormValues: form.getValues()
-    });
-    
+
     // تحقق خاص من أخطاء الألوان
     if (errors.colors) {
-      console.log('🎨 [ProductForm] Colors validation error details:', {
-        colorsError: errors.colors,
-        currentProductColors: productColors,
-        formColorsValue: form.getValues('colors'),
-        productColorsLength: productColors.length
-      });
     }
     
     toast.error(`يرجى إصلاح ${errorCount} خطأ في النموذج`);
@@ -523,13 +472,6 @@ const ProductForm = () => {
   }, []);
 
   const handleProductColorsChange = useCallback((colors: ProductColor[]) => {
-    console.log('🎨 [ProductForm] handleProductColorsChange called:', {
-      newColors: colors,
-      newColorsLength: colors.length,
-      previousColors: productColors,
-      previousColorsLength: productColors.length,
-      hasVariants: form.getValues('has_variants')
-    });
     
     // تنظيف الألوان من قيم null قبل تعيينها
     const cleanedColors = colors.map(color => ({
@@ -550,10 +492,6 @@ const ProductForm = () => {
     // تحديث النموذج أيضاً
     form.setValue('colors', cleanedColors, { shouldValidate: true, shouldDirty: true });
     
-    console.log('🎨 [ProductForm] After setting colors in form:', {
-      formColorsValue: form.getValues('colors'),
-      formErrors: form.formState.errors
-    });
   }, [form]);
 
   const handleWholesaleTiersChange = useCallback((tiers: WholesaleTier[]) => {

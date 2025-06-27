@@ -148,4 +148,4 @@ export class SubscriptionServicesAPI {
       today_revenue: todayRevenue
     };
   }
-} 
+}

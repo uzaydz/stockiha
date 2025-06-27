@@ -20,7 +20,6 @@ const useSafePOSData = () => {
     return usePOSData();
   } catch (error) {
     // إذا لم يكن POSDataProvider متاحاً، أرجع قيم افتراضية
-    console.warn('[RepairOrderPrint] POSDataProvider غير متاح، استخدام القيم الافتراضية');
     return {
       posSettings: null,
       refreshPOSSettings: () => {}
@@ -44,7 +43,6 @@ const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({ order, queuePositio
       if (!organizationId) return;
       
       try {
-        console.log('[RepairOrderPrint] جلب إعدادات نقطة البيع من قاعدة البيانات...');
         
         const { data, error } = await supabase
           .from('pos_settings')
@@ -53,13 +51,10 @@ const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({ order, queuePositio
           .single();
 
         if (error) {
-          console.log('[RepairOrderPrint] لم يتم العثور على إعدادات نقطة البيع:', error.message);
         } else {
-          console.log('[RepairOrderPrint] تم جلب إعدادات نقطة البيع:', data);
           setFallbackPOSSettings(data);
         }
       } catch (error) {
-        console.error('[RepairOrderPrint] خطأ في جلب إعدادات نقطة البيع:', error);
       }
     };
 
@@ -72,7 +67,6 @@ const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({ order, queuePositio
   // تحديث إعدادات نقطة البيع إذا لم تكن موجودة (فقط إذا كان POSDataProvider متاحاً)
   useEffect(() => {
     if (!posSettings && organizationId && refreshPOSSettings && typeof refreshPOSSettings === 'function') {
-      console.log('[RepairOrderPrint] إعدادات نقطة البيع غير موجودة، جاري إنشاؤها...');
       refreshPOSSettings();
     }
   }, [posSettings, organizationId, refreshPOSSettings]);
@@ -80,26 +74,20 @@ const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({ order, queuePositio
   // حساب ترتيب الطلبية في الطابور
   useEffect(() => {
     const calculateQueuePosition = async () => {
-      console.log('🔄 بدء حساب ترتيب الطابور...', { organizationId, orderId: order?.id });
       
       if (!organizationId || !order) {
-        console.log('❌ معرف المؤسسة أو الطلبية غير متوفر');
         return;
       }
 
       try {
         // التحقق من أن الطلبية مؤهلة لتكون في الطابور
         const activeStatuses = ['قيد الانتظار', 'جاري التصليح'];
-        console.log('📋 حالة الطلبية:', order.status, 'حالات نشطة:', activeStatuses);
         
         if (!activeStatuses.includes(order.status)) {
-          console.log('⚠️ الطلبية غير مؤهلة للطابور، تعيين الترتيب إلى 0');
           setCalculatedQueuePosition(0);
           return;
         }
 
-        console.log('🔍 البحث عن جميع الطلبات السابقة...');
-        
         // جلب جميع الطلبات في المؤسسة (بغض النظر عن الحالة) مع تواريخها للفحص
         const { data: allOrders, error: allError } = await supabase
           .from('repair_orders')
@@ -108,34 +96,16 @@ const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({ order, queuePositio
           .order('created_at', { ascending: true });
 
         if (allError) {
-          console.error('❌ خطأ في جلب جميع الطلبات:', allError);
           setCalculatedQueuePosition(queuePosition || 1);
           return;
         }
-
-        console.log('📊 إجمالي الطلبات في المؤسسة:', allOrders?.length || 0);
-        console.log('📋 قائمة جميع الطلبات:', allOrders?.map(o => ({
-          id: o.id,
-          order_number: o.order_number,
-          created_at: o.created_at,
-          status: o.status
-        })));
 
         // العثور على ترتيب الطلبية الحالية في القائمة الإجمالية
         const currentOrderIndex = allOrders?.findIndex(o => o.id === order.id);
         const position = currentOrderIndex !== undefined && currentOrderIndex >= 0 ? currentOrderIndex + 1 : 1;
 
-                 console.log('🎯 النتيجة النهائية:', {
-           currentOrderId: order.id,
-           currentOrderCreatedAt: order.created_at,
-           foundIndex: currentOrderIndex,
-           finalPosition: position,
-           totalOrders: allOrders?.length || 0
-         });
-
         setCalculatedQueuePosition(position);
       } catch (error) {
-        console.error('❌ خطأ عام في حساب ترتيب الطابور:', error);
         setCalculatedQueuePosition(queuePosition || 1);
       }
     };
@@ -153,14 +123,6 @@ const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({ order, queuePositio
     const activePOSSettings = posSettings || fallbackPOSSettings;
     
     // تسجيل تفصيلي للبيانات الأولية
-    console.log('[RepairOrderPrint] البيانات الأولية:', {
-      'posSettings': posSettings,
-      'fallbackPOSSettings': fallbackPOSSettings,
-      'activePOSSettings': activePOSSettings,
-      'currentOrganization?.name': currentOrganization?.name,
-      'currentOrganization?.settings': currentOrganization?.settings,
-      'currentOrganization?.logo_url': currentOrganization?.logo_url
-    });
 
     const storeInfo = {
       storeName: activePOSSettings?.store_name || currentOrganization?.name || 'متجرك للإلكترونيات',
@@ -169,20 +131,10 @@ const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({ order, queuePositio
       storeLogo: activePOSSettings?.store_logo_url || currentOrganization?.logo_url || ''
     };
 
-    console.log('[RepairOrderPrint] معلومات المتجر النهائية:', storeInfo);
-    
     return storeInfo;
   };
 
   const { storeName, storePhone, storeAddress, storeLogo } = getStoreInfo();
-
-  console.log('[RepairOrderPrint] ملخص معلومات المتجر:', {
-    posSettings: posSettings ? 'موجود' : 'غير موجود',
-    storeName,
-    storePhone,
-    storeAddress,
-    storeLogo: storeLogo ? 'موجود' : 'غير موجود'
-  });
 
   // وظيفة الطباعة المباشرة المحسنة
   const handlePrintClick = () => {
@@ -333,13 +285,11 @@ const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({ order, queuePositio
       
       // التعامل مع خطأ التحميل
       printWindow.onerror = () => {
-        console.error('[RepairOrderPrint] خطأ في تحميل نافذة الطباعة');
         printWindow.close();
         setIsPrinting(false);
       };
       
     } catch (error) {
-      console.error('[RepairOrderPrint] خطأ في الطباعة:', error);
       setIsPrinting(false);
     }
   };

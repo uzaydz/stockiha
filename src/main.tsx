@@ -174,6 +174,12 @@ import './utils/debugChunkLoader';
 // 🛠️ أدوات تشخيص تحديث البيانات
 import './utils/debugDataRefresh';
 
+// 🚀 تهيئة أنظمة الأداء المتقدمة
+import { initPerformanceSystems } from './lib/performance-config';
+
+// 🚨 Emergency Interval Protection - الحماية الطارئة
+// import './lib/emergency-interval-killer';
+
 // إضافة التعريفات اللازمة للمتغيرات العالمية
 declare global {
   interface Window {
@@ -193,6 +199,15 @@ declare global {
     __originalReplaceState?: typeof window.history.replaceState;
     __lastState?: any;
     __latestUrl?: string;
+  }
+}
+
+// 🚀 تفعيل أنظمة الأداء فوراً
+if (typeof window !== 'undefined') {
+  // تفعيل فوري لأنظمة الأداء
+  try {
+    initPerformanceSystems();
+  } catch (error) {
   }
 }
 
@@ -484,21 +499,17 @@ initializeOptimizationSystems();
 // =================================================================
 
 // 🚨 تحميل نظام منع التكرار المحسن أولاً قبل أي شيء آخر
-console.log('🚀 Force initializing deduplication system...');
 import './lib/requestDeduplicationGlobal';
 import './lib/supabaseRequestInterceptor';
 
 // إضافة مدير الطلبات الشامل الجديد
 import('./lib/requestManager').then((module) => {
   module.initializeRequestManager();
-  console.log('🚀 Request Manager initialized with advanced caching');
 }).catch((error) => {
-  console.warn('⚠️ Request Manager failed to load:', error);
 });
 
 // Force تفعيل فوري للنظام
 if (typeof window !== 'undefined') {
-  console.log('🚀 Force initializing deduplication system...');
 }
 
 import '@/utils/forceProductionInit';
@@ -517,8 +528,4 @@ disableConsoleInProduction();
 
 // تأكيد أن النظام يعمل
 if (typeof window !== 'undefined') {
-  console.log('✅ Request deduplication system loaded');
-  console.log('📊 Available debug functions:', Object.keys(window).filter(key => 
-    key.includes('deduplication') || key === 'requestManager'
-  ));
 }

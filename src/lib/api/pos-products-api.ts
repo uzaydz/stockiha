@@ -60,7 +60,6 @@ export async function getPaginatedProducts(
     });
 
     if (error) {
-      console.error('Error fetching paginated products:', error);
       throw error;
     }
 
@@ -102,7 +101,6 @@ export async function searchProductsAutocomplete(
     });
 
     if (error) {
-      console.error('Error searching products:', error);
       throw error;
     }
 
@@ -120,7 +118,6 @@ export async function getProductsStats(organizationId: string): Promise<ProductS
     });
 
     if (error) {
-      console.error('Error fetching products stats:', error);
       throw error;
     }
 
@@ -204,4 +201,4 @@ export function transformDatabaseProduct(dbProduct: any): any {
     total_variants_stock: stockQuantity,
     low_stock_warning: stockQuantity <= 5
   };
-} 
+}

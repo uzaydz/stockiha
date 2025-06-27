@@ -239,4 +239,4 @@ export default function FiltersAndSearch({
       </Card>
     </div>
   );
-} 
+}

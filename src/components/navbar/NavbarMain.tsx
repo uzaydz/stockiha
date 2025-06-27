@@ -336,10 +336,8 @@ export function NavbarMain({
         setStoreCategories(categoriesFromDB || []);
         
         if (process.env.NODE_ENV === 'development') {
-          console.log('✅ تم تحميل فئات الـ Navbar بنجاح:', categoriesFromDB?.length || 0);
         }
       } catch (error) {
-        console.error('خطأ في تحميل فئات الـ Navbar:', error);
         setStoreCategories([]);
       } finally {
         setIsLoadingCategories(false);

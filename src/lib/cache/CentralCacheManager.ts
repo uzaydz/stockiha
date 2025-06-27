@@ -202,7 +202,6 @@ class CentralCacheManager {
       this.invalidateDependents(pattern);
     }
     
-    console.log('🗑️ [CentralCache] Invalidated patterns:', patternsArray);
   }
 
   /**

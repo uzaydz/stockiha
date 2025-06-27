@@ -227,9 +227,8 @@ export async function cacheWithFallback<T>(
     
     return data;
   } catch (error) {
-    console.error(`Error fetching data for key ${key}:`, error);
     throw error;
   }
 }
 
-export default AdvancedCacheSystem; 
+export default AdvancedCacheSystem;

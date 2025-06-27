@@ -23,11 +23,9 @@ export const optimizedLocalStorage = {
       const serialized = JSON.stringify(value);
       // التحقق من حجم البيانات قبل الحفظ
       if (serialized.length > 1024 * 1024) { // 1MB
-        console.warn(`Large data being stored in localStorage: ${key}`);
       }
       localStorage.setItem(key, serialized);
     } catch (error) {
-      console.error('Error saving to localStorage:', error);
     }
   },
 
@@ -36,7 +34,6 @@ export const optimizedLocalStorage = {
       const item = localStorage.getItem(key);
       return item ? JSON.parse(item) : null;
     } catch (error) {
-      console.error('Error reading from localStorage:', error);
       return null;
     }
   },
@@ -45,7 +42,6 @@ export const optimizedLocalStorage = {
     try {
       localStorage.removeItem(key);
     } catch (error) {
-      console.error('Error removing from localStorage:', error);
     }
   },
 
@@ -155,4 +151,4 @@ export function initializePerformanceOptimizations() {
     optimizedLocalStorage.cleanup('product_page_');
     optimizedLocalStorage.cleanup('shipping_');
   }, 60 * 60 * 1000); // كل ساعة
-} 
+}

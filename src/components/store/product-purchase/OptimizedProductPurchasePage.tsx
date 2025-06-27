@@ -13,11 +13,6 @@ const OptimizedOrderForm: React.FC<{ productId: string }> = ({ productId }) => {
   // استخدام البيانات المحسنة بدلاً من طلبات منفصلة
   const { provinces } = useOptimizedProvinces();
   const { providers } = useOptimizedShippingProviders();
-  
-  console.log('🎯 استخدام بيانات محسنة:', {
-    provincesCount: provinces.length,
-    providersCount: providers.length
-  });
 
   // باقي منطق النموذج...
   return (
@@ -52,4 +47,4 @@ export const OptimizedProductPurchasePage: React.FC<OptimizedProductPurchasePage
   );
 };
 
-export default OptimizedProductPurchasePage; 
+export default OptimizedProductPurchasePage;

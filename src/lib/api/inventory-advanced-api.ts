@@ -111,7 +111,6 @@ async function getCurrentUserOrganizationId(): Promise<string | null> {
 
     return userProfile?.organization_id || null;
   } catch (error) {
-    console.error('Error getting user organization:', error);
     return null;
   }
 }
@@ -152,7 +151,6 @@ export async function getInventoryProductsPaginated(
     });
 
     if (error) {
-      console.error('Error fetching inventory products:', error);
       throw new Error(`خطأ في جلب منتجات المخزون: ${error.message}`);
     }
 
@@ -213,7 +211,6 @@ export async function getInventoryProductsPaginated(
 
     return response;
   } catch (error) {
-    console.error('Error in getInventoryProductsPaginated:', error);
     throw error;
   }
 }
@@ -267,7 +264,6 @@ export async function searchInventoryAutocomplete(
     });
 
     if (error) {
-      console.error('Error in autocomplete search:', error);
       return [];
     }
 
@@ -276,7 +272,6 @@ export async function searchInventoryAutocomplete(
 
     return results;
   } catch (error) {
-    console.error('Error in searchInventoryAutocomplete:', error);
     return [];
   }
 }
@@ -303,7 +298,6 @@ export async function getInventoryAdvancedStats(): Promise<InventoryAdvancedStat
     });
 
     if (error) {
-      console.error('Error fetching inventory stats:', error);
       throw new Error(`خطأ في جلب إحصائيات المخزون: ${error.message}`);
     }
 
@@ -343,7 +337,6 @@ export async function getInventoryAdvancedStats(): Promise<InventoryAdvancedStat
 
     return result;
   } catch (error) {
-    console.error('Error in getInventoryAdvancedStats:', error);
     throw error;
   }
 }
@@ -372,7 +365,6 @@ export async function bulkUpdateInventory(
     });
 
     if (error) {
-      console.error('Error in bulk update:', error);
       throw new Error(`خطأ في التحديث المجمع: ${error.message}`);
     }
 
@@ -392,7 +384,6 @@ export async function bulkUpdateInventory(
       message: result.message || 'تم التحديث'
     };
   } catch (error) {
-    console.error('Error in bulkUpdateInventory:', error);
     throw error;
   }
 }
@@ -414,7 +405,6 @@ export async function exportInventoryData(
       return generateExcel(response.products);
     }
   } catch (error) {
-    console.error('Error exporting inventory:', error);
     throw error;
   }
 }
@@ -483,4 +473,4 @@ export function getCacheInfo(): { size: number; keys: string[] } {
     size: inventoryKeys.length,
     keys: inventoryKeys
   };
-} 
+}

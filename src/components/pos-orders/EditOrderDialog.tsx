@@ -158,18 +158,14 @@ export default function EditOrderDialog({
   // جلب العملاء
   const fetchCustomers = useCallback(async () => {
     try {
-      console.log('🔍 [fetchCustomers] بدء جلب العملاء');
       
       // الحصول على معرف المؤسسة من localStorage كما هو مستخدم في customers.ts
       const organizationId = localStorage.getItem('bazaar_organization_id');
       
       if (!organizationId) {
-        console.log('⚠️ [fetchCustomers] لا يوجد معرف مؤسسة في localStorage');
         return;
       }
-      
-      console.log('🔍 [fetchCustomers] جلب العملاء للمؤسسة:', organizationId);
-      
+
       // جلب العملاء من جدول customers
       const { data: orgCustomers, error: orgError } = await supabase
         .from('customers')
@@ -178,7 +174,6 @@ export default function EditOrderDialog({
         .order('created_at', { ascending: false });
 
       if (orgError) {
-        console.error('❌ [fetchCustomers] خطأ في جلب عملاء المؤسسة:', orgError);
         throw orgError;
       }
       
@@ -191,7 +186,6 @@ export default function EditOrderDialog({
         .order('created_at', { ascending: false });
 
       if (userError) {
-        console.error('❌ [fetchCustomers] خطأ في جلب عملاء المستخدمين:', userError);
         // لا نرمي الخطأ هنا، نكمل مع عملاء المؤسسة فقط
       }
       
@@ -228,13 +222,9 @@ export default function EditOrderDialog({
       
       // ترتيب العملاء حسب الاسم
       uniqueCustomers.sort((a, b) => a.name.localeCompare(b.name));
-      
-      console.log('✅ [fetchCustomers] تم جلب العملاء:', uniqueCustomers.length, 'عميل');
-      console.log('📋 [fetchCustomers] قائمة العملاء:', uniqueCustomers.map(c => ({ id: c.id, name: c.name })));
-      
+
       setCustomers(uniqueCustomers);
     } catch (error) {
-      console.error('❌ [fetchCustomers] خطأ في جلب العملاء:', error);
       setCustomers([]);
     }
   }, []);
@@ -242,7 +232,6 @@ export default function EditOrderDialog({
   // تحديث قائمة العملاء عند فتح النافذة
   useEffect(() => {
     if (isOpen) {
-      console.log('🔄 [EditOrderDialog] فتح النافذة - جلب العملاء');
       fetchCustomers();
     }
   }, [isOpen, fetchCustomers]);
@@ -253,10 +242,8 @@ export default function EditOrderDialog({
       // البحث عن العميل في قائمة العملاء المجلبة
       const foundCustomer = customers.find(c => c.id === order.customer?.id);
       if (foundCustomer) {
-        console.log('🔄 [EditOrderDialog] تم العثور على العميل في القائمة:', foundCustomer);
         setSelectedCustomer(foundCustomer);
       } else {
-        console.log('⚠️ [EditOrderDialog] العميل غير موجود في القائمة، استخدام بيانات الطلبية:', order.customer);
         setSelectedCustomer(order.customer as User);
       }
     }
@@ -265,28 +252,7 @@ export default function EditOrderDialog({
   // تحديث البيانات عند فتح النافذة أو تغيير الطلبية
   useEffect(() => {
     if (isOpen && order) {
-      console.log('🔄 [EditOrderDialog] تحميل بيانات الطلبية:', order);
-      console.log('📋 البيانات المستلمة:', {
-        id: order.id,
-        status: order.status,
-        payment_status: order.payment_status,
-        payment_method: order.payment_method,
-        total: order.total,
-        subtotal: order.subtotal,
-        tax: order.tax,
-        discount: order.discount,
-        amount_paid: order.amount_paid,
-        remaining_amount: order.remaining_amount,
-        customer: order.customer,
-        notes: order.notes
-      });
-      
-      console.log('🔍 فحص القيم الفردية:');
-      console.log('  - subtotal:', order.subtotal, typeof order.subtotal);
-      console.log('  - tax:', order.tax, typeof order.tax);
-      console.log('  - discount:', order.discount, typeof order.discount);
-      console.log('  - amount_paid:', order.amount_paid, typeof order.amount_paid);
-      
+
       // تحديث البيانات من الطلبية مع معالجة القيم المفقودة
       setOrderStatus(order.status || 'pending');
       setPaymentStatus(order.payment_status || 'pending');
@@ -299,14 +265,7 @@ export default function EditOrderDialog({
       const orderTax = order.tax !== undefined ? order.tax : 0;
       const orderDiscount = order.discount !== undefined ? order.discount : 0;
       const orderAmountPaid = order.amount_paid !== undefined ? order.amount_paid : orderTotal;
-      
-      console.log('💰 القيم المالية المحسوبة:');
-      console.log('  - total:', orderTotal);
-      console.log('  - subtotal:', orderSubtotal);
-      console.log('  - tax:', orderTax);
-      console.log('  - discount:', orderDiscount);
-      console.log('  - amount_paid:', orderAmountPaid);
-      
+
       setDiscount(orderDiscount);
       setSubtotal(orderSubtotal);
       setTax(orderTax);
@@ -314,14 +273,11 @@ export default function EditOrderDialog({
       
       // تحديد العميل المحدد (سيتم تحديثه بعد جلب العملاء)
       if (order.customer) {
-        console.log('👤 تحديد العميل:', order.customer);
         setSelectedCustomer(order.customer as User);
       } else {
-        console.log('👤 لا يوجد عميل محدد - سيتم عرض "زائر"');
         setSelectedCustomer(null);
       }
     } else {
-      console.log('⚠️ [EditOrderDialog] لا توجد بيانات طلبية أو النافذة مغلقة');
     }
   }, [isOpen, order]);
 
@@ -353,20 +309,13 @@ export default function EditOrderDialog({
         setQuickCalcValue('');
       }
     } catch (error) {
-      console.error('خطأ في الحساب:', error);
     }
   };
 
   // فلترة العملاء
   const filteredCustomers = useCallback(() => {
-    console.log('🔍 [filteredCustomers] البحث في العملاء:', {
-      totalCustomers: customers.length,
-      searchQuery: searchCustomer,
-      customers: customers.map(c => ({ id: c.id, name: c.name }))
-    });
     
     if (!searchCustomer.trim()) {
-      console.log('📋 [filteredCustomers] عرض جميع العملاء:', customers.length);
       return customers;
     }
     
@@ -377,7 +326,6 @@ export default function EditOrderDialog({
       customer.email?.toLowerCase().includes(query)
     );
     
-    console.log('🔍 [filteredCustomers] نتائج البحث:', filtered.length, 'من أصل', customers.length);
     return filtered;
   }, [customers, searchCustomer]);
 
@@ -404,17 +352,6 @@ export default function EditOrderDialog({
         updated_at: new Date().toISOString()
       };
 
-      console.log('🔄 [EditOrderDialog] تحديث الطلبية:', order.id);
-      console.log('💰 [EditOrderDialog] تفاصيل الدفع:', {
-        paidAmount,
-        total,
-        remainingAmount,
-        isPartialPayment,
-        considerRemainingAsPartial,
-        paymentStatus
-      });
-      console.log('📋 البيانات المحدثة:', updatedData);
-
       // تحديث الطلبية في قاعدة البيانات
       const { data, error } = await supabase
         .from('orders')
@@ -428,12 +365,9 @@ export default function EditOrderDialog({
         .single();
 
       if (error) {
-        console.error('❌ خطأ في تحديث الطلبية:', error);
         throw error;
       }
 
-      console.log('✅ تم تحديث الطلبية بنجاح:', data);
-      
       // إنشاء الطلبية المحدثة مع البيانات الكاملة
       const updatedOrder: POSOrderWithDetails = {
         ...order,
@@ -450,9 +384,7 @@ export default function EditOrderDialog({
         total_returned_amount: order.total_returned_amount,
         order_items: order.order_items
       };
-      
-      console.log('📤 إرسال البيانات المحدثة:', updatedOrder);
-      
+
       // إشعار بالنجاح
       toast.success('تم تحديث الطلبية بنجاح');
       
@@ -463,7 +395,6 @@ export default function EditOrderDialog({
       onOpenChange(false);
       
     } catch (error: any) {
-      console.error('❌ خطأ في حفظ التعديلات:', error);
       toast.error(error.message || 'حدث خطأ أثناء تحديث الطلبية');
     } finally {
       setIsProcessing(false);
@@ -493,18 +424,15 @@ export default function EditOrderDialog({
       });
       
       if (customer) {
-        console.log('✅ [handleAddCustomer] تم إنشاء العميل:', customer);
         
         // إضافة العميل الجديد إلى قائمة العملاء
         setCustomers(prev => {
           const updatedCustomers = [customer, ...prev];
-          console.log('📋 [handleAddCustomer] قائمة العملاء المحدثة:', updatedCustomers.length, 'عميل');
           return updatedCustomers;
         });
         
         // اختيار العميل الجديد
         setSelectedCustomer(customer);
-        console.log('👤 [handleAddCustomer] تم اختيار العميل الجديد:', customer.name);
         
         // إغلاق النافذة وإعادة تعيين البيانات
         setIsNewCustomerDialogOpen(false);
@@ -513,7 +441,6 @@ export default function EditOrderDialog({
         toast.success(`تم إضافة العميل "${customer.name}" بنجاح`);
       }
     } catch (error: any) {
-      console.error('خطأ في إضافة العميل:', error);
       toast.error(error.message || "حدث خطأ أثناء إضافة العميل");
     } finally {
       setIsAddingCustomer(false);
@@ -1051,4 +978,4 @@ export default function EditOrderDialog({
       </Dialog>
     </Dialog>
   );
-} 
+}

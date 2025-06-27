@@ -48,16 +48,13 @@ export const useFormEventHandlers = ({
           
           // إذا كان الـ cache صالح (أقل من 30 دقيقة)، لا نعيد الحساب
           if (cacheAge < 30 * 60 * 1000) {
-            console.log('⚡ FormEventHandler: تجاهل إعادة الحساب - الولاية محفوظة في الـ cache:', parsedCache.price);
             return;
           }
         } catch (error) {
-          console.warn('⚠️ خطأ في قراءة cache الولاية:', error);
         }
       }
       
       // إذا لم يوجد cache صالح، نقوم بإعادة الحساب
-      console.log('🔄 FormEventHandler: إعادة حساب السعر - لا يوجد cache صالح');
       recalculateAndSetDeliveryPrice(deliveryType, provinceId, municipalityId);
     }, 300),
     [recalculateAndSetDeliveryPrice]
@@ -251,16 +248,13 @@ export const useFormEventHandlers = ({
           const cacheAge = Date.now() - parsedCache.timestamp;
           
           if (cacheAge < 30 * 60 * 1000) {
-            console.log('⚡ handleMunicipalityChange: تجاهل إعادة الحساب - استخدام cache الولاية:', parsedCache.price);
             return; // لا نعيد الحساب لأن السعر نفسه لكل البلديات في الولاية
           }
         } catch (error) {
-          console.warn('⚠️ خطأ في قراءة cache الولاية عند تغيير البلدية:', error);
         }
       }
       
       // إذا لم يوجد cache صالح، نستدعي الدالة المؤجلة لإعادة حساب السعر
-      console.log('🔄 handleMunicipalityChange: إعادة حساب السعر - لا يوجد cache صالح');
       debouncedRecalculatePrice(selectedDeliveryType, provinceId, municipalityId);
     } catch (error) {
     }

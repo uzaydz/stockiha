@@ -144,7 +144,6 @@ async function getCurrentUserOrganizationId(): Promise<string | null> {
 
     return userProfile?.organization_id || null;
   } catch (error) {
-    console.error('Error getting user organization:', error);
     return null;
   }
 }
@@ -167,7 +166,6 @@ export async function getProductInventoryDetails(
     });
 
     if (error) {
-      console.error('Error fetching product inventory details:', error);
       throw new Error(`خطأ في جلب تفاصيل مخزون المنتج: ${error.message}`);
     }
 
@@ -204,7 +202,6 @@ export async function getProductInventoryDetails(
       average_purchase_price: parseFloat(details.average_purchase_price || '0')
     };
   } catch (error) {
-    console.error('Error in getProductInventoryDetails:', error);
     throw error;
   }
 }
@@ -237,7 +234,6 @@ export async function updateVariantInventory(
     });
 
     if (error) {
-      console.error('Error updating variant inventory:', error);
       throw new Error(`خطأ في تحديث المخزون: ${error.message}`);
     }
 
@@ -259,7 +255,6 @@ export async function updateVariantInventory(
       affected_levels: result.affected_levels || {}
     };
   } catch (error) {
-    console.error('Error in updateVariantInventory:', error);
     throw error;
   }
 }
@@ -284,7 +279,6 @@ export async function syncInventoryLevels(productId: string): Promise<{
     });
 
     if (error) {
-      console.error('Error syncing inventory levels:', error);
       throw new Error(`خطأ في مزامنة المخزون: ${error.message}`);
     }
 
@@ -294,7 +288,6 @@ export async function syncInventoryLevels(productId: string): Promise<{
 
     return data[0];
   } catch (error) {
-    console.error('Error in syncInventoryLevels:', error);
     throw error;
   }
 }
@@ -323,7 +316,6 @@ export async function getInventoryVariantsLog(
     });
 
     if (error) {
-      console.error('Error fetching inventory log:', error);
       throw new Error(`خطأ في جلب سجل المخزون: ${error.message}`);
     }
 
@@ -345,7 +337,6 @@ export async function getInventoryVariantsLog(
       reference_info: entry.reference_info || {}
     }));
   } catch (error) {
-    console.error('Error in getInventoryVariantsLog:', error);
     throw error;
   }
 }
@@ -373,7 +364,6 @@ export async function getInventoryQuickSummary(productId: string): Promise<{
       last_update: details.last_inventory_update
     };
   } catch (error) {
-    console.error('Error in getInventoryQuickSummary:', error);
     throw error;
   }
 }
@@ -424,7 +414,6 @@ export async function bulkUpdateVariants(updates: Array<{
       errors
     };
   } catch (error) {
-    console.error('Error in bulkUpdateVariants:', error);
     throw error;
   }
 }
@@ -475,4 +464,4 @@ export function getStockStatusText(status: string): string {
     default:
       return 'غير محدد';
   }
-} 
+}

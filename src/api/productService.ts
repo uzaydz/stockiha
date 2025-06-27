@@ -6,6 +6,7 @@ export interface Product {
   name: string;
   description?: string;
   price: number;
+  purchase_price?: number; // سعر الشراء
   wholesale_price?: number;
   partial_wholesale_price?: number;
   min_wholesale_quantity?: number;
@@ -22,6 +23,7 @@ export interface Product {
   stock_quantity: number;
   min_stock_level?: number;
   is_active?: boolean;
+  is_digital?: boolean;
   created_at: string;
   updated_at: string;
   organization_id: string;

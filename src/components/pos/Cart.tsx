@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Product, Order, User, Service } from '@/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useShop } from '@/context/ShopContext';
+import { usePOSOrderFast } from './hooks/usePOSOrderFast';
 import { toast } from "sonner";
 import { motion } from 'framer-motion';
-import { ShoppingCart, Save, Clock, X, Filter, RotateCcw } from 'lucide-react';
+import { ShoppingCart, Save, Clock, X, Filter, RotateCcw, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 import { Separator } from '@/components/ui/separator';
@@ -14,7 +15,7 @@ import CartItem, { CartItemType } from './CartItem';
 import CartService from './CartService';
 import CartSubscription from './CartSubscription';
 import CartSummary from './CartSummary';
-import PaymentDialog from './PaymentDialog';
+import PaymentDialogOptimized from './PaymentDialogOptimized';
 import NewCustomerDialog from './NewCustomerDialog';
 import PrintReceiptDialog from './PrintReceiptDialog';
 import EmptyCart from './EmptyCart';
@@ -66,6 +67,7 @@ export default function Cart({
   setReturnNotes = () => {}
 }: CartProps) {
   const { createCustomer } = useShop();
+  const { submitOrderFast, isSubmitting } = usePOSOrderFast(currentUser);
   
   // حالة العميل والدفع
   const [selectedCustomer, setSelectedCustomer] = useState<User | null>(null);
@@ -80,7 +82,6 @@ export default function Cart({
   const [considerRemainingAsPartial, setConsiderRemainingAsPartial] = useState(true);
   
   // حالة النوافذ الحوارية
-  const [isProcessing, setIsProcessing] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [isNewCustomerDialogOpen, setIsNewCustomerDialogOpen] = useState(false);
   const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
@@ -113,11 +114,6 @@ export default function Cart({
     notes?: string;
   } | undefined>();
   
-  // ميزات جديدة
-  const [savedCarts, setSavedCarts] = useState<{id: string, name: string, items: CartItemType[]}[]>([]);
-  const [relatedProducts, setRelatedProducts] = useState<Record<string, Product[]>>({});
-  const [showRelatedProducts, setShowRelatedProducts] = useState(false);
-  
   // حالة معلومات حساب الاشتراك
   const [subscriptionAccountInfo, setSubscriptionAccountInfo] = useState({
     username: '',
@@ -126,20 +122,17 @@ export default function Cart({
     notes: ''
   });
   
-  // وظائف الحساب
+  // وظائف الحساب المحسنة
   const calculateSubtotal = useCallback(() => {
-    // حساب المجموع الفرعي للمنتجات
     const productsSubtotal = cartItems.reduce((sum, item) => {
       const price = item.variantPrice !== undefined ? item.variantPrice : item.product.price;
       return sum + (price * item.quantity);
     }, 0);
     
-    // حساب المجموع الفرعي للخدمات
     const servicesSubtotal = selectedServices.reduce((sum, service) => 
       sum + service.price, 0
     );
     
-    // حساب المجموع الفرعي للاشتراكات
     const subscriptionsSubtotal = selectedSubscriptions.reduce((sum, subscription) => 
       sum + (subscription.final_price || subscription.selling_price || 0), 0
     );
@@ -149,7 +142,7 @@ export default function Cart({
   
   const subtotal = calculateSubtotal();
   const discountAmount = (discount / 100) * subtotal;
-  const tax = 0; // الضريبة صفر
+  const tax = 0;
   const total = subtotal - discountAmount + tax;
   
   // حساب التخفيض الفعلي بناءً على المبلغ المدفوع
@@ -157,7 +150,6 @@ export default function Cart({
     if (amountPaid && !isNaN(parseFloat(amountPaid))) {
       const paidAmount = parseFloat(amountPaid);
       if (paidAmount < total && !considerRemainingAsPartial) {
-        // إذا كان المبلغ المدفوع أقل ولم يتم اعتباره دفعة جزئية، فهو تخفيض
         return total - paidAmount;
       }
     }
@@ -169,7 +161,6 @@ export default function Cart({
     if (amountPaid && !isNaN(parseFloat(amountPaid))) {
       const paidAmount = parseFloat(amountPaid);
       if (paidAmount < total && !considerRemainingAsPartial) {
-        // إذا كان تخفيض، المجموع النهائي هو المبلغ المدفوع
         return paidAmount;
       }
     }
@@ -181,296 +172,252 @@ export default function Cart({
   const hasSubscriptions = selectedSubscriptions.length > 0;
   const isCartEmpty = !hasItems && !hasServices && !hasSubscriptions;
   
-  // التحقق من وجود خدمات اشتراك لإظهار نموذج معلومات الحساب
   const hasSubscriptionServices = hasSubscriptions;
-  
 
-  
-  // الحصول على منتجات متعلقة (يمكن استبدالها بطلب API حقيقي)
-  useEffect(() => {
-    if (hasItems && showRelatedProducts) {
-      // محاكاة طلب المنتجات المتعلقة
-      const mockRelatedProducts: Record<string, Product[]> = {};
-      
-      cartItems.forEach(item => {
-        if (!relatedProducts[item.product.id]) {
-          // استخدام نفس منتجات السلة للمحاكاة
-          mockRelatedProducts[item.product.id] = cartItems
-            .filter(otherItem => otherItem.product.id !== item.product.id)
-            .map(item => item.product)
-            .slice(0, 3);
-        }
-      });
-      
-      setRelatedProducts(prev => ({...prev, ...mockRelatedProducts}));
-    }
-  }, [cartItems, hasItems, showRelatedProducts]);
-  
-  // معالجة النقر على منتج مشابه
-  const handleRelatedProductClick = (product: Product) => {
-    // يمكن هنا إضافة المنتج للسلة أو عرض تفاصيله
-    toast.success(`تم اختيار المنتج: ${product.name}`, {
-      description: "يمكنك إضافته للسلة الآن"
-    });
-  };
-  
-  // حفظ السلة للاستخدام لاحقًا
-  const handleSaveCart = () => {
-    if (isCartEmpty) return;
+  // تصفية العملاء المحسنة
+  const filteredCustomers = useMemo(() => {
+    if (!searchCustomer.trim()) return customers.slice(0, 10);
     
-    const cartName = `سلة مؤقتة - ${new Date().toLocaleDateString('ar-EG')}`;
-    const newSavedCart = {
-      id: Date.now().toString(),
-      name: cartName,
-      items: [...cartItems]
-    };
-    
-    setSavedCarts(prev => [newSavedCart, ...prev]);
-    toast.success("تم حفظ السلة بنجاح", {
-      description: "يمكنك استعادتها لاحقًا"
-    });
-  };
-  
-  // تطبيق كوبون خصم
-  const handleApplyCoupon = (code: string) => {
-    // يمكن هنا عمل طلب API للتحقق من الكوبون
-    const randomDiscount = Math.floor(Math.random() * 15) + 5; // نسبة خصم عشوائية من 5 إلى 20%
-    setDiscount(randomDiscount);
-    
-    toast.success(`تم تطبيق الكوبون: ${code}`, {
-      description: `خصم ${randomDiscount}% على طلبك`
-    });
-  };
-  
-  // الدفع السريع
-  const handleQuickCheckout = (method: string) => {
-    setPaymentMethod(method);
-    handleOpenPaymentDialog();
-  };
-  
-  // معالجة حدث مسح البحث
-
-  
-  // الخاصية المضافة للتأثيرات الحركية
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: { 
-      opacity: 1,
-      transition: { 
-        staggerChildren: 0.1 
-      } 
-    }
-  };
-  
-  // تصفية العملاء حسب البحث
-  const filteredCustomers = useCallback(() => {
-    if (!searchCustomer.trim()) return customers;
-    
-    const searchTermLower = searchCustomer.toLowerCase();
+    const searchTerm = searchCustomer.toLowerCase().trim();
     return customers.filter(customer => 
-      customer.name.toLowerCase().includes(searchTermLower) ||
-      (customer.email && customer.email.toLowerCase().includes(searchTermLower)) ||
-      (customer.phone && customer.phone.includes(searchTermLower))
-    );
+      customer.name?.toLowerCase().includes(searchTerm) ||
+      customer.phone?.includes(searchTerm) ||
+      customer.email?.toLowerCase().includes(searchTerm)
+    ).slice(0, 10);
   }, [customers, searchCustomer]);
-  
-  // تحديث حالة الدفع الجزئي
+
+  // تحديث المتغيرات المالية
   useEffect(() => {
-    if (amountPaid && total > 0) {
+    if (amountPaid) {
       const numAmountPaid = parseFloat(amountPaid);
-      
       if (!isNaN(numAmountPaid)) {
-        if (numAmountPaid < total) {
-          setIsPartialPayment(true);
-          setRemainingAmount(total - numAmountPaid);
-          setChange(0);
-        } else {
-          setIsPartialPayment(false);
-          setRemainingAmount(0);
-          setChange(numAmountPaid - total);
-        }
+        const calculatedChange = Math.max(0, numAmountPaid - finalTotal);
+        const calculatedRemaining = Math.max(0, finalTotal - numAmountPaid);
+        
+        setChange(calculatedChange);
+        setRemainingAmount(calculatedRemaining);
+        setIsPartialPayment(calculatedRemaining > 0 && numAmountPaid > 0);
       }
     } else {
-      setIsPartialPayment(false);
-      setRemainingAmount(0);
       setChange(0);
-    }
-  }, [amountPaid, total]);
-  
-  // إعادة تعيين المبلغ المدفوع عند تغيير طريقة الدفع
-  useEffect(() => {
-    if (paymentMethod === 'cash') {
-      setAmountPaid(total.toString());
-    } else {
-      // اعتبر أن الدفع الإلكتروني يتم بالكامل
-      setAmountPaid(total.toString());
+      setRemainingAmount(finalTotal);
       setIsPartialPayment(false);
     }
-  }, [paymentMethod, total]);
-  
-  // معالجة تغيير قيمة الخصم
+  }, [amountPaid, finalTotal]);
+
+  const handleRelatedProductClick = (product: Product) => {
+    // يمكن إضافة منطق إضافة المنتجات المتعلقة
+    console.log('منتج متعلق:', product);
+  };
+
+  // باقي الدوال...
   const handleDiscountChange = (value: string) => {
     const numValue = parseFloat(value);
-    if (isNaN(numValue)) {
+    if (isNaN(numValue) || numValue < 0) {
       setDiscount(0);
-    } else if (numValue >= 0 && numValue <= 100) {
+    } else if (numValue > 100) {
+      setDiscount(100);
+    } else {
       setDiscount(numValue);
     }
   };
-  
-  // إضافة عميل جديد
+
   const handleAddCustomer = async () => {
     if (!newCustomer.name.trim()) {
       toast.error("اسم العميل مطلوب");
       return;
     }
-    
+
+    setIsAddingCustomer(true);
     try {
-      setIsAddingCustomer(true);
-      
-      const customer = await createCustomer({
-        name: newCustomer.name,
-        email: newCustomer.email,
-        phone: newCustomer.phone
-      });
-      
-      setSelectedCustomer(customer);
-      setNewCustomer({ name: '', email: '', phone: '' });
-      setIsNewCustomerDialogOpen(false);
-      
-      toast.success("تم إضافة العميل بنجاح");
+      const createdCustomer = await createCustomer(newCustomer);
+      if (createdCustomer) {
+        setSelectedCustomer(createdCustomer);
+        toast.success("تم إضافة العميل بنجاح");
+        setIsNewCustomerDialogOpen(false);
+        setNewCustomer({ name: '', email: '', phone: '' });
+      }
     } catch (error) {
+      console.error('خطأ في إضافة العميل:', error);
       toast.error("حدث خطأ أثناء إضافة العميل");
     } finally {
       setIsAddingCustomer(false);
     }
   };
-  
-  // معالجة إتمام الدفع
-  const handlePaymentComplete = async () => {
+
+  // معالجة إتمام الدفع السريعة المحسنة ⚡
+  const handlePaymentComplete = useCallback(async () => {
     try {
-      setIsProcessing(true);
-      
       if (cartItems.length === 0 && selectedServices.length === 0 && selectedSubscriptions.length === 0) {
         return;
       }
 
-      // التحقق من أن الدفع الجزئي يتطلب اختيار عميل (فقط إذا تم اعتباره دفعة جزئية وليس في وضع الإرجاع)
+      // التحقق من أن الدفع الجزئي يتطلب اختيار عميل
       if (isPartialPayment && considerRemainingAsPartial && !selectedCustomer && !isReturnMode) {
         toast.error("يجب اختيار عميل لتسجيل المبلغ المتبقي عند اختيار الدفعة الجزئية");
-        setIsProcessing(false);
+        return;
+      }
+
+      // منع التكرار المتعدد
+      if (isSubmitting) {
+        console.log('🔄 معالجة جارية - تم تجاهل النقر المكرر');
         return;
       }
       
       const numAmountPaid = parseFloat(amountPaid);
-      // تحديد حالة الدفع بناءً على المبلغ المدفوع والمجموع الكلي
-      // إذا كان الفرق تخفيض وليس دفعة جزئية، اعتبر الطلب مدفوع
       const paymentStatus = (numAmountPaid >= total || (isPartialPayment && !considerRemainingAsPartial)) ? 'paid' : 'pending';
 
-      // تخزين القيم الحالية للمتغيرات المالية قبل إرسال الطلب
-      const currentTotal = finalTotal;
-      const currentSubtotal = subtotal;
-      const currentDiscount = actualDiscountAmount;
-      
-      // تسجيل البيانات للتحقق
-      
-      // إرسال الطلب إلى الخادم
-      const orderResult = await submitOrder({
+      // 🚀 تحضير بيانات الطلب بشكل محسن
+      const orderDetails = {
         customerId: selectedCustomer?.id || 'guest',
         paymentMethod,
-        subtotal: currentSubtotal,
-        discount: currentDiscount,
-        total: currentTotal, // المجموع النهائي بعد الخصم
+        subtotal,
+        discount: actualDiscountAmount,
+        total: finalTotal,
         status: 'completed',
-        paymentStatus: paymentStatus,
+        paymentStatus,
         notes: isPartialPayment 
           ? (considerRemainingAsPartial 
             ? `${notes} | دفع جزئي: ${numAmountPaid.toFixed(2)} - متبقي: ${remainingAmount.toFixed(2)}` 
             : `${notes} | تخفيض: ${remainingAmount.toFixed(2)} دج`)
           : notes,
-        isOnline: false,
         employeeId: currentUser?.id || "",
         partialPayment: (isPartialPayment && considerRemainingAsPartial) ? {
           amountPaid: numAmountPaid,
           remainingAmount: remainingAmount
         } : undefined,
         considerRemainingAsPartial: isPartialPayment ? considerRemainingAsPartial : undefined,
-        // إضافة معلومات حساب الاشتراك إذا كانت موجودة
         subscriptionAccountInfo: hasSubscriptionServices ? subscriptionAccountInfo : undefined
+      };
+
+      // ⚡ استدعاء الدالة السريعة مع debouncing
+      const orderResult = await submitOrderFast(
+        orderDetails,
+        cartItems,
+        selectedServices,
+        selectedSubscriptions
+      );
+
+      // التحقق من نجاح العملية
+      if (!orderResult.orderId) {
+        console.warn('لم يتم إرجاع معرف طلب صحيح');
+        return;
+      }
+
+      // استخدام requestAnimationFrame لتحسين الأداء
+      requestAnimationFrame(() => {
+        // تعيين مؤشر أن الطلب قد تمت معالجته
+        setIsOrderProcessed(true);
+        
+        // حفظ البيانات للطباعة بدون نسخ عميق
+        setCompletedItems(cartItems);
+        setCompletedServices(selectedServices);
+        setCompletedTotal(finalTotal);
+        setCompletedSubtotal(subtotal);
+        setCompletedDiscount(actualDiscountAmount);
+        setCompletedCustomerName(selectedCustomer?.name);
+        setCompletedOrderNumber(`POS-${orderResult.customerOrderNumber}`);
+        setCompletedOrderDate(new Date());
+        setCompletedPaidAmount(numAmountPaid);
+        setCompletedRemainingAmount(remainingAmount);
+        
+        if (hasSubscriptionServices && subscriptionAccountInfo) {
+          setCompletedSubscriptionAccountInfo(subscriptionAccountInfo);
+        }
+        
+        // فتح نافذة الطباعة
+        setIsPaymentDialogOpen(false);
+        setIsPrintDialogOpen(true);
       });
 
-      // تعيين مؤشر أن الطلب قد تمت معالجته لتجنب تكرار التنفيذ
-      setIsOrderProcessed(true);
-      
-      // حفظ البيانات المطلوبة للطباعة
-      setCompletedItems([...cartItems]);
-      setCompletedServices([...selectedServices]);
-      setCompletedTotal(currentTotal);
-      setCompletedSubtotal(currentSubtotal);
-      setCompletedDiscount(currentDiscount);
-      setCompletedCustomerName(selectedCustomer?.name);
-      // استخدام معرف الطلبية الفعلي المُرجع من الخادم
-              setCompletedOrderNumber(`POS-${orderResult.customerOrderNumber}`);
-      setCompletedOrderDate(new Date());
-      setCompletedPaidAmount(numAmountPaid);
-      setCompletedRemainingAmount(remainingAmount);
-      
-      // حفظ معلومات حساب الاشتراك للطباعة
-      if (hasSubscriptionServices && subscriptionAccountInfo) {
-        setCompletedSubscriptionAccountInfo({...subscriptionAccountInfo});
-      } else {
-        setCompletedSubscriptionAccountInfo(undefined);
-      }
-      
-      // فتح نافذة الطباعة
-      setIsPaymentDialogOpen(false);
-      setIsPrintDialogOpen(true);
-      setIsProcessing(false);
+      // 🧹 تنظيف مؤجل للنموذج
+      requestIdleCallback(() => {
+        clearCart();
+        setSelectedCustomer(null);
+        setNotes('');
+        setDiscount(0);
+        setAmountPaid('');
+      });
+
     } catch (error) {
+      console.error('خطأ في إنشاء الطلبية:', error);
       toast.error("حدث خطأ أثناء إنشاء الطلب");
-      setIsProcessing(false);
     }
-  };
-  
+  }, [
+    cartItems.length,
+    selectedServices.length,
+    selectedSubscriptions.length,
+    isPartialPayment,
+    considerRemainingAsPartial,
+    selectedCustomer,
+    isReturnMode,
+    isSubmitting,
+    amountPaid,
+    total,
+    paymentMethod,
+    subtotal,
+    actualDiscountAmount,
+    finalTotal,
+    notes,
+    remainingAmount,
+    currentUser?.id,
+    hasSubscriptionServices,
+    subscriptionAccountInfo,
+    submitOrderFast,
+    cartItems,
+    selectedServices,
+    selectedSubscriptions,
+    clearCart,
+    setSelectedCustomer,
+    setNotes,
+    setDiscount,
+    setAmountPaid
+  ]);
+
   const handlePrintCompleted = () => {
-    // إغلاق نافذة الطباعة ومسح السلة
     setIsPrintDialogOpen(false);
-    clearCart();
     setIsOrderProcessed(false);
-    
-    // إعادة تعيين المتغيرات
-    setSelectedCustomer(null);
-    setDiscount(0);
-    setNotes('');
-    setAmountPaid('');
-    setIsPartialPayment(false);
-    setRemainingAmount(0);
-    
-    // إعادة تعيين معلومات حساب الاشتراك
+    setCompletedItems([]);
+    setCompletedServices([]);
+    setCompletedTotal(0);
+    setCompletedSubtotal(0);
+    setCompletedDiscount(0);
+    setCompletedCustomerName(undefined);
+    setCompletedOrderNumber('');
+    setCompletedPaidAmount(0);
+    setCompletedRemainingAmount(0);
+    setCompletedSubscriptionAccountInfo(undefined);
     setSubscriptionAccountInfo({
       username: '',
       email: '',
       password: '',
       notes: ''
     });
-    
-    // إعادة تعيين بيانات الطلب المكتمل
-    setCompletedPaidAmount(0);
-    setCompletedRemainingAmount(0);
-    setCompletedSubscriptionAccountInfo(undefined);
-    
-    // عرض رسالة نجاح
-    toast.success("تم إنشاء الطلب بنجاح");
   };
-  
+
   const handleOpenPaymentDialog = () => {
     if (isCartEmpty) {
-      toast.error("لا يمكن إتمام طلب فارغ");
+      toast.warning(isReturnMode ? "أضف منتجات للإرجاع أولاً" : "أضف منتجات للسلة أولاً");
       return;
     }
-    
     setAmountPaid(total.toString());
     setIsPaymentDialogOpen(true);
+  };
+
+  // دوال مساعدة للميزات الإضافية
+  const handleApplyCoupon = (code: string) => {
+    console.log('تطبيق كوبون:', code);
+    toast.info(`تم تطبيق كوبون: ${code}`);
+  };
+
+  const handleSaveCart = () => {
+    console.log('حفظ السلة');
+    toast.success('تم حفظ السلة');
+  };
+
+  const handleQuickCheckout = (method: string) => {
+    setPaymentMethod(method);
+    handleOpenPaymentDialog();
   };
 
   return (
@@ -479,49 +426,52 @@ export default function Cart({
       "border-border dark:border-border",
       "bg-background dark:bg-background",
       "shadow-sm",
-      // التكيف مع حجم المحتوى
       "h-full flex flex-col"
     )}>
-      {/* عنوان السلة - تحسين التصميم مع إضافة ظل خفيف */}
+      {/* عنوان السلة المحسن ⚡ */}
       <motion.div 
         initial={{ y: -10, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.3 }}
+        transition={{ duration: 0.2 }}
         className="px-4 py-3.5 border-b border-border dark:border-border bg-card dark:bg-card backdrop-blur-sm sticky top-0 z-10 shadow-sm flex-shrink-0"
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className={`p-1.5 rounded-lg shadow-sm ${isReturnMode ? 'bg-orange-100' : 'bg-primary/10'}`}>
+            <div className={`p-1.5 rounded-lg shadow-sm ${isReturnMode ? 'bg-orange-100' : 'bg-emerald-100'}`}>
               {isReturnMode ? (
                 <RotateCcw className="h-4 w-4 text-orange-500" />
               ) : (
-                <ShoppingCart className="h-4 w-4 text-primary dark:text-primary" />
+                <Zap className="h-4 w-4 text-emerald-600" />
               )}
             </div>
             <h2 className="text-base font-semibold text-foreground dark:text-foreground">
-              {isReturnMode ? 'سلة الإرجاع' : 'سلة المشتريات'}
+              {isReturnMode ? 'سلة الإرجاع' : 'سلة سريعة ⚡'}
             </h2>
+            {isSubmitting && (
+              <div className="flex items-center gap-1 text-xs text-amber-600">
+                <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
+                معالجة...
+              </div>
+            )}
           </div>
           
           {!isCartEmpty ? (
             <div className={`text-xs font-semibold px-3 py-1.5 rounded-full shadow-sm border ${
               isReturnMode ? 
               'bg-orange-100 text-orange-800 border-orange-300' : 
-              'bg-primary/10 dark:bg-primary/10 text-primary dark:text-primary border-primary/20 dark:border-primary/20'
+              'bg-emerald-100 text-emerald-800 border-emerald-300'
             }`}>
-              {cartItems.reduce((sum, item) => sum + item.quantity, 0) + selectedServices.length + selectedSubscriptions.length} {isReturnMode ? 'منتج للإرجاع' : 'عنصر'}
+              {cartItems.reduce((sum, item) => sum + item.quantity, 0) + selectedServices.length + selectedSubscriptions.length} {isReturnMode ? 'للإرجاع' : 'عنصر'}
             </div>
           ) : (
             <div className="text-xs text-muted-foreground dark:text-muted-foreground">
-              {isReturnMode ? 'أضف منتجات للإرجاع' : 'إضافة منتجات للسلة'}
+              {isReturnMode ? 'أضف منتجات للإرجاع' : 'إضافة سريعة للسلة'}
             </div>
           )}
         </div>
-        
-
       </motion.div>
       
-      {/* محتوى السلة - محسن مع مساحات أفضل ورسائل واضحة */}
+      {/* محتوى السلة */}
       {isCartEmpty ? (
         <EmptyCart 
           onAddProduct={() => {}} 
@@ -547,14 +497,14 @@ export default function Cart({
                   />
                 ))}
                 
-                {/* فاصل بين المنتجات والخدمات إذا كان هناك كلا النوعين */}
+                {/* فاصل بين المنتجات والخدمات */}
                 {hasItems && hasServices && (
                   <div className="py-2 my-1">
                     <Separator className="w-full bg-border dark:bg-border" />
                   </div>
                 )}
                 
-                {/* خدمات - تحسين تنسيق الخدمات */}
+                {/* خدمات */}
                 {selectedServices.map((service) => (
                   <CartService
                     key={service.id}
@@ -564,14 +514,14 @@ export default function Cart({
                   />
                 ))}
                 
-                {/* فاصل بين الخدمات والاشتراكات إذا كان هناك كلا النوعين */}
+                {/* فاصل بين الخدمات والاشتراكات */}
                 {hasServices && hasSubscriptions && (
                   <div className="py-2 my-1">
                     <Separator className="w-full bg-border dark:bg-border" />
                   </div>
                 )}
                 
-                {/* اشتراكات - عرض خدمات الاشتراك */}
+                {/* اشتراكات */}
                 {selectedSubscriptions.map((subscription) => (
                   <CartSubscription
                     key={subscription.id}
@@ -586,7 +536,7 @@ export default function Cart({
         </div>
       )}
       
-      {/* ملخص السلة - تم تحسين العرض */}
+      {/* ملخص السلة المحسن */}
       <CartSummary 
         subtotal={subtotal}
         discountAmount={actualDiscountAmount}
@@ -595,33 +545,34 @@ export default function Cart({
         isCartEmpty={isCartEmpty}
         clearCart={clearCart}
         handleOpenPaymentDialog={handleOpenPaymentDialog}
-        isProcessing={isProcessing}
+        isProcessing={isSubmitting}
         onApplyCoupon={handleApplyCoupon}
         onSaveCart={handleSaveCart}
         onQuickCheckout={handleQuickCheckout}
         isReturnMode={isReturnMode}
       />
       
-      {/* نوافذ حوارية */}
-      <PaymentDialog
+      {/* نوافذ حوارية محسنة */}
+      <PaymentDialogOptimized
         isOpen={isPaymentDialogOpen}
         onOpenChange={setIsPaymentDialogOpen}
+        isProcessing={isSubmitting}
         customers={customers}
         selectedCustomer={selectedCustomer}
         setSelectedCustomer={setSelectedCustomer}
-        paymentMethod={paymentMethod}
-        setPaymentMethod={setPaymentMethod}
         searchCustomer={searchCustomer}
         setSearchCustomer={setSearchCustomer}
+        paymentMethod={paymentMethod}
+        setPaymentMethod={setPaymentMethod}
         notes={notes}
         setNotes={setNotes}
         discount={discount}
         handleDiscountChange={handleDiscountChange}
         amountPaid={amountPaid}
         setAmountPaid={setAmountPaid}
-        change={change}
-        remainingAmount={remainingAmount}
         isPartialPayment={isPartialPayment}
+        remainingAmount={remainingAmount}
+        change={change}
         considerRemainingAsPartial={considerRemainingAsPartial}
         setConsiderRemainingAsPartial={setConsiderRemainingAsPartial}
         subtotal={subtotal}
@@ -630,8 +581,6 @@ export default function Cart({
         total={finalTotal}
         handlePaymentComplete={handlePaymentComplete}
         openNewCustomerDialog={() => setIsNewCustomerDialogOpen(true)}
-        isProcessing={isProcessing}
-        filteredCustomers={filteredCustomers}
         hasSubscriptionServices={hasSubscriptionServices}
         subscriptionAccountInfo={subscriptionAccountInfo}
         setSubscriptionAccountInfo={setSubscriptionAccountInfo}

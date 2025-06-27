@@ -27,4 +27,4 @@ export default WSClass;
 export const WebSocket = WSInstance;
 
 // تصدير مُسمى للتوافق مع مكتبات مختلفة
-export const ws = WSInstance; 
+export const ws = WSInstance;

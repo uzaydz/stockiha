@@ -638,4 +638,4 @@ const InventoryPerformanceOptimized: React.FC<InventoryPerformanceOptimizedProps
   );
 };
 
-export default InventoryPerformanceOptimized; 
+export default InventoryPerformanceOptimized;

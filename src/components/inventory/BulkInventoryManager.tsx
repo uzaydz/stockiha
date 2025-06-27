@@ -120,7 +120,6 @@ const BulkInventoryManager: React.FC<BulkInventoryManagerProps> = ({
       setCurrentStep('configure');
     } catch (error) {
       toast.error('حدث خطأ أثناء تحميل بيانات المنتجات');
-      console.error(error);
     }
   }, [selectedProducts]);
 
@@ -755,4 +754,4 @@ const BulkInventoryManager: React.FC<BulkInventoryManagerProps> = ({
   );
 };
 
-export default BulkInventoryManager; 
+export default BulkInventoryManager;

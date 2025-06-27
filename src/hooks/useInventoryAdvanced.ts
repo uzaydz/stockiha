@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { consoleManager } from '@/lib/console-manager';
 import { toast } from 'sonner';
 import { 
   getInventoryProductsPaginated,
@@ -14,6 +15,7 @@ import {
   type BulkUpdateResult
 } from '@/lib/api/inventory-advanced-api';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useOptimizedInterval } from '@/hooks/useOptimizedInterval';
 
 interface UseInventoryAdvancedOptions {
   initialPageSize?: number;
@@ -140,7 +142,6 @@ export function useInventoryAdvanced(
 
   // مراجع للتحكم
   const abortControllerRef = useRef<AbortController | null>(null);
-  const autoRefreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastRequestTimeRef = useRef<number>(0);
   const cacheHitsRef = useRef<number>(0);
   const totalRequestsRef = useRef<number>(0);
@@ -153,9 +154,6 @@ export function useInventoryAdvanced(
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
-      }
-      if (autoRefreshIntervalRef.current) {
-        clearInterval(autoRefreshIntervalRef.current);
       }
     };
   }, []);
@@ -175,7 +173,7 @@ export function useInventoryAdvanced(
           const results = await searchInventoryAutocomplete(state.searchQuery, 10);
           setState(prev => ({ ...prev, autocompleteResults: results }));
         } catch (error) {
-          console.error('Autocomplete search failed:', error);
+          consoleManager.error('Autocomplete search failed:', error);
         }
       };
 
@@ -268,7 +266,7 @@ export function useInventoryAdvanced(
     } catch (error: any) {
       if (error.name === 'AbortError') return;
       
-      console.error('Error loading products:', error);
+      consoleManager.error('Error loading products:', error);
       setState(prev => ({
         ...prev,
         isLoading: false,
@@ -286,7 +284,7 @@ export function useInventoryAdvanced(
       const stats = await getInventoryAdvancedStats();
       setState(prev => ({ ...prev, stats }));
     } catch (error) {
-      console.error('Error loading stats:', error);
+      consoleManager.error('Error loading stats:', error);
     }
   }, []);
 
@@ -386,7 +384,7 @@ export function useInventoryAdvanced(
       
       toast.success('تم تصدير البيانات بنجاح');
     } catch (error) {
-      console.error('Export error:', error);
+      consoleManager.error('Export error:', error);
       toast.error('حدث خطأ أثناء تصدير البيانات');
     }
   }, [state.filters]);
@@ -404,38 +402,29 @@ export function useInventoryAdvanced(
     setState(prev => ({ ...prev, cacheHitRate: 0, requestsCount: 0 }));
   }, []);
 
-  // بدء التحديث التلقائي
-  const startAutoRefresh = useCallback(() => {
-    if (autoRefreshIntervalRef.current) {
-      clearInterval(autoRefreshIntervalRef.current);
+  // التحديث التلقائي مع useOptimizedInterval
+  useOptimizedInterval(() => {
+    if (config.enableRealTimeStats) {
+      loadStats();
     }
-    
-    autoRefreshIntervalRef.current = setInterval(() => {
-      if (config.enableRealTimeStats) {
-        loadStats();
-      }
-    }, config.autoRefreshInterval);
-  }, [config.autoRefreshInterval, config.enableRealTimeStats, loadStats]);
+  }, config.enableRealTimeStats ? config.autoRefreshInterval : null, {
+    enabled: config.enableRealTimeStats,
+    adaptiveDelay: true,
+    maxInstances: 1
+  });
 
-  // إيقاف التحديث التلقائي
+  // دوال فارغة للتوافق مع API السابق
+  const startAutoRefresh = useCallback(() => {
+    // لم تعد هناك حاجة لتنفيذ - يدار بـ useOptimizedInterval
+  }, []);
+
   const stopAutoRefresh = useCallback(() => {
-    if (autoRefreshIntervalRef.current) {
-      clearInterval(autoRefreshIntervalRef.current);
-      autoRefreshIntervalRef.current = null;
-    }
+    // لم تعد هناك حاجة لتنفيذ - يدار بـ useOptimizedInterval
   }, []);
 
   // تحميل أولي
   useEffect(() => {
     loadProducts(true);
-    
-    if (config.enableRealTimeStats) {
-      startAutoRefresh();
-    }
-
-    return () => {
-      stopAutoRefresh();
-    };
   }, [state.filters]);
 
   return {
@@ -458,4 +447,4 @@ export function useInventoryAdvanced(
   };
 }
 
-export default useInventoryAdvanced; 
+export default useInventoryAdvanced;

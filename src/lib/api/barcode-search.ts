@@ -75,7 +75,6 @@ export async function searchProductByBarcode(
         .limit(1);
 
       if (productError) {
-        console.error('Error searching product by barcode:', productError);
         return null;
       }
 
@@ -137,7 +136,6 @@ export async function searchProductByBarcode(
       return null;
 
     } catch (error) {
-      console.error('Error in searchProductByBarcode:', error);
       return null;
     }
   });
@@ -278,4 +276,4 @@ function transformSizeResultToSearchResult(sizeResult: any): BarcodeSearchResult
     is_active: product.is_active,
     colors: [colorWithSize]
   };
-} 
+}

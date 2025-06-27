@@ -380,13 +380,10 @@ export function AppsProvider({ children }: AppsProviderProps) {
         .insert([defaultSettings]);
 
       if (error) {
-        console.error('خطأ في إنشاء إعدادات تطبيق الألعاب:', error);
         throw error;
       }
 
-      console.log('✅ تم إنشاء إعدادات تطبيق الألعاب بنجاح');
     } catch (error) {
-      console.error('فشل في إنشاء إعدادات تطبيق الألعاب:', error);
       throw error;
     }
   };
@@ -439,7 +436,6 @@ export function AppsProvider({ children }: AppsProviderProps) {
             .single();
 
           if (orgError) {
-            console.warn('لا يمكن الحصول على معلومات المؤسسة:', orgError);
           }
 
           // التحقق من عدم وجود إعدادات مسبقة
@@ -458,7 +454,6 @@ export function AppsProvider({ children }: AppsProviderProps) {
             );
           }
         } catch (settingsError) {
-          console.warn('تحذير: لم يتم إنشاء الإعدادات الافتراضية لتطبيق الألعاب:', settingsError);
           // لا نريد إيقاف تفعيل التطبيق بسبب فشل إنشاء الإعدادات
         }
       }

@@ -592,13 +592,22 @@ export default function PaymentDialog({
           </Button>
           <Button 
             type="button"
-            onClick={handlePaymentComplete}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              // استخدام requestIdleCallback لتحسين الأداء
+              if ('requestIdleCallback' in window) {
+                requestIdleCallback(() => handlePaymentComplete());
+              } else {
+                setTimeout(() => handlePaymentComplete(), 0);
+              }
+            }}
             disabled={isProcessing || (isPartialPayment && considerRemainingAsPartial && !selectedCustomer && !isReturnMode)}
             className={cn(
-              "w-full sm:w-auto min-w-32",
+              "w-full sm:w-auto min-w-32 will-change-transform",
               isReturnMode 
-                ? "bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700" 
-                : "bg-gradient-to-r from-primary to-primary/90"
+                ? "bg-orange-500 hover:bg-orange-600" 
+                : "bg-primary hover:bg-primary/90"
             )}
           >
             {isProcessing ? (

@@ -233,7 +233,6 @@ export default function GamesCatalog() {
         .eq('id', gameToDelete.id);
 
       if (error) {
-        console.error('خطأ في حذف اللعبة:', error);
         toast.error(`فشل في حذف اللعبة: ${error.message}`);
         return;
       }
@@ -251,7 +250,6 @@ export default function GamesCatalog() {
       setGameToDelete(null);
       fetchGames();
     } catch (error: any) {
-      console.error('خطأ عام في حذف اللعبة:', error);
       toast.error(`فشل في حذف اللعبة: ${error.message || 'خطأ غير معروف'}`);
     }
   };
@@ -288,7 +286,6 @@ export default function GamesCatalog() {
       setCategoryToDelete(null);
       fetchCategories();
     } catch (error: any) {
-      console.error('Error deleting category:', error);
       toast.error('فشل في حذف الفئة');
     }
   };

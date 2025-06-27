@@ -74,16 +74,11 @@ export const createPOSOrder = async (
     // إضافة عناصر الطلب بشكل منفصل وآمن
     if (order.items && order.items.length > 0) {
       try {
-        console.log('🔍 Debug createPOSOrder - Inserting order items:', order.items);
-        console.log('🔍 Debug createPOSOrder - Order ID:', newOrderId);
-        console.log('🔍 Debug createPOSOrder - Organization ID:', currentOrganizationId);
         
         // إدراج العناصر واحد تلو الآخر بالحقول الأساسية فقط
         for (let index = 0; index < order.items.length; index++) {
           const item = order.items[index];
-          
-          console.log(`🔍 Debug createPOSOrder - Processing item ${index}:`, item);
-          
+
           const itemData = {
             order_id: newOrderId,
             product_id: item.productId,
@@ -97,24 +92,18 @@ export const createPOSOrder = async (
             slug: `item-${Date.now()}-${index}`
           };
 
-          console.log(`🔍 Debug createPOSOrder - Item data to insert:`, itemData);
-
           const { error: itemError } = await supabase
             .from('order_items')
             .insert(itemData);
 
           if (itemError) {
-            console.error(`🔴 Error inserting item ${index}:`, itemError);
             // نستمر في إضافة باقي العناصر حتى لو فشل أحدها
           } else {
-            console.log(`✅ Successfully inserted item ${index}`);
           }
         }
 
-        // تحديث المخزون - مع logs للتتبع
-        console.log(`🏪 [createPOSOrder] بدء تحديث مخزون ${order.items.length} منتج`);
-        await updateInventoryForOrder(order.items);
-        console.log(`✅ [createPOSOrder] انتهى تحديث المخزون`);
+        // تحديث المخزون - مع logs للتتبع وتطبيق FIFO
+        await updateInventoryForOrder(order.items, newOrderId, currentOrganizationId);
       } catch (error) {
       }
     }
@@ -158,10 +147,9 @@ export const createPOSOrder = async (
   }
 };
 
-// دالة لتحديث المخزون - مع حماية من التحديث المضاعف
-async function updateInventoryForOrder(items: OrderItem[]) {
+// دالة لتحديث المخزون مع نظام FIFO - مع حماية من التحديث المضاعف
+async function updateInventoryForOrder(items: OrderItem[], orderId?: string, organizationId?: string) {
   const updateId = `${Date.now()}-${Math.random()}`;
-  console.log(`📦 [updateInventoryForOrder ${updateId}] بدء معالجة ${items.length} عنصر`);
   
   for (let index = 0; index < items.length; index++) {
     const item = items[index];
@@ -175,51 +163,88 @@ async function updateInventoryForOrder(items: OrderItem[]) {
       }
       
       processedInventoryUpdates.add(itemUpdateKey);
-      console.log(`🔄 [${index + 1}/${items.length}] تحديث مخزون المنتج ${item.productId} - الكمية: ${item.quantity}`);
+      const variantInfo = item.variant_info ? 
+        ` - ${item.variant_info.colorName || 'بدون لون'}${item.variant_info.sizeName ? ` (${item.variant_info.sizeName})` : ''}` : '';
+      console.log(`🔄 [${index + 1}/${items.length}] تحديث مخزون المنتج ${item.productId} - الكمية: ${item.quantity} (FIFO)${variantInfo}`);
       
       // جلب الكمية الحالية قبل التحديث للمراقبة
       const { data: currentProduct } = await supabase
         .from('products')
-        .select('stock_quantity')
+        .select('stock_quantity, organization_id')
         .eq('id', item.productId)
         .single();
       
       const stockBefore = currentProduct?.stock_quantity || 0;
+      const productOrgId = organizationId || currentProduct?.organization_id;
+      
       console.log(`📊 المخزون الحالي قبل التحديث: ${stockBefore}`);
       
-      // استخدام الدالة الآمنة لتحديث مخزون المنتج
-      const { error } = await supabase.rpc('update_product_stock_safe', {
-        p_product_id: item.productId,
-        p_quantity_sold: item.quantity
-      });
-      
-      if (error) {
-        console.error(`❌ خطأ في تحديث مخزون المنتج ${item.productId}:`, error);
-        // إزالة من Set في حالة الخطأ للسماح بإعادة المحاولة
-        processedInventoryUpdates.delete(itemUpdateKey);
-      } else {
-        // التحقق من النتيجة
-        const { data: updatedProduct } = await supabase
-          .from('products')
-          .select('stock_quantity')
-          .eq('id', item.productId)
-          .single();
+      // استخدام الدالة المحسنة مع دعم المتغيرات والـ FIFO
+      try {
+        const { data: fifoResult, error } = await supabase.rpc('process_pos_sale_with_variants_fifo' as any, {
+          p_product_id: item.productId,
+          p_quantity: item.quantity,
+          p_organization_id: productOrgId,
+          p_color_id: item.variant_info?.colorId || null,
+          p_size_id: item.variant_info?.sizeId || null,
+          p_order_id: orderId || null,
+          p_unit_price: item.unitPrice
+        }) as { data: any, error: any };
         
-        const stockAfter = updatedProduct?.stock_quantity || 0;
-        console.log(`✅ تم التحديث بنجاح. المخزون بعد التحديث: ${stockAfter} (تم خصم ${stockBefore - stockAfter})`);
-        
-        // تنظيف Set بعد 30 ثانية لمنع تراكم البيانات
-        setTimeout(() => {
+        if (error) {
+          console.error(`❌ خطأ في معالجة FIFO للمنتج ${item.productId}:`, error);
+          // العودة للطريقة القديمة كبديل
+          const { error: fallbackError } = await supabase.rpc('update_product_stock_safe', {
+            p_product_id: item.productId,
+            p_quantity_sold: item.quantity
+          });
+          
+          if (fallbackError) {
+            console.error(`❌ فشل أيضاً في الطريقة البديلة:`, fallbackError);
+          } else {
+            console.log(`✅ تم التحديث بالطريقة البديلة (بدون FIFO)`);
+          }
+          
           processedInventoryUpdates.delete(itemUpdateKey);
-        }, 30000);
+        } else if (fifoResult && (fifoResult as any).success) {
+          const result = fifoResult as any;
+          console.log(`✅ تم تطبيق FIFO بنجاح:`, {
+            من_المخزون_الأولي: result.quantity_from_initial_stock,
+            من_الباتشات: result.quantity_from_batches,
+            التكلفة_الإجمالية: result.total_cost,
+            متوسط_التكلفة: result.average_cost_per_unit
+          });
+          
+          // تنظيف Set بعد 30 ثانية لمنع تراكم البيانات
+          setTimeout(() => {
+            processedInventoryUpdates.delete(itemUpdateKey);
+          }, 30000);
+        } else {
+          console.error(`❌ فشل في معالجة FIFO:`, fifoResult);
+          processedInventoryUpdates.delete(itemUpdateKey);
+        }
+      } catch (fifoError) {
+        console.error(`❌ خطأ في استدعاء دالة FIFO، استخدام الطريقة القديمة:`, fifoError);
+        // العودة للطريقة القديمة
+        const { error: fallbackError } = await supabase.rpc('update_product_stock_safe', {
+          p_product_id: item.productId,
+          p_quantity_sold: item.quantity
+        });
+        
+        if (fallbackError) {
+          console.error(`❌ فشل في الطريقة البديلة أيضاً:`, fallbackError);
+        } else {
+          console.log(`✅ تم التحديث بالطريقة البديلة (بدون FIFO)`);
+        }
+        
+        processedInventoryUpdates.delete(itemUpdateKey);
       }
     } catch (error) {
-      console.error(`❌ خطأ عام في معالجة العنصر ${index + 1}:`, error);
+      console.error(`❌ خطأ عام في تحديث المخزون للمنتج ${item.productId}:`, error);
       processedInventoryUpdates.delete(itemUpdateKey);
     }
   }
   
-  console.log(`🎉 [updateInventoryForOrder ${updateId}] انتهت معالجة جميع العناصر`);
 }
 
 // دالة لإضافة حجوزات الخدمات

@@ -275,4 +275,4 @@ export const ServicesDisplay: React.FC<ServicesDisplayProps> = ({
       </CardContent>
     </Card>
   );
-}; 
+};

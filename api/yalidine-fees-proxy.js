@@ -14,7 +14,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    console.log(`🌐 Proxy request to Yalidine API: from=${from_wilaya_id}, to=${to_wilaya_id}`);
     
     // إنشاء URL لـ API ياليدين
     const yalidineUrl = `https://api.yalidine.app/v1/fees/?from_wilaya_id=${from_wilaya_id}&to_wilaya_id=${to_wilaya_id}`;
@@ -31,11 +30,8 @@ export default async function handler(req, res) {
       }
     });
 
-    console.log(`📡 Yalidine API response status: ${response.status}`);
-
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`❌ Yalidine API error: ${response.status} - ${errorText}`);
       return res.status(response.status).json({ 
         error: 'Yalidine API error', 
         status: response.status,
@@ -45,11 +41,9 @@ export default async function handler(req, res) {
 
     // قراءة الاستجابة
     const data = await response.json();
-    console.log(`📊 Yalidine API data:`, JSON.stringify(data, null, 2));
 
     // التحقق من صحة البيانات المستلمة
     if (!data || Object.keys(data).length === 0 || !data.per_commune) {
-      console.warn(`⚠️ Empty or invalid response from Yalidine API`);
       return res.status(404).json({ 
         error: 'No fees data available for this route',
         from_wilaya_id: parseInt(from_wilaya_id),
@@ -102,8 +96,6 @@ export default async function handler(req, res) {
       source: 'yalidine_api_direct'
     };
 
-    console.log(`✅ Proxy response successful:`, JSON.stringify(responseData, null, 2));
-
     // إعداد CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET');
@@ -112,11 +104,10 @@ export default async function handler(req, res) {
     return res.status(200).json(responseData);
 
   } catch (error) {
-    console.error(`💥 Proxy error:`, error);
     return res.status(500).json({ 
       error: 'Internal proxy error', 
       details: error.message,
       timestamp: new Date().toISOString()
     });
   }
-} 
+}

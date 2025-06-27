@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { 
@@ -6,8 +6,10 @@ import {
   Supplier, 
   getSupplierPurchases, 
   getSuppliers,
-  updatePurchaseStatus
+  updatePurchaseStatus,
+  recordPayment
 } from '@/api/supplierService';
+import { SupplierPaymentDialog } from './SupplierPaymentDialog';
 import { 
   Card, 
   CardContent, 
@@ -38,26 +40,61 @@ import {
   BanIcon, 
   CheckCircle2, 
   ClipboardCheck, 
-  AlertCircle 
+  AlertCircle,
+  CreditCard,
+  DollarSign,
+  RefreshCw
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
-export function SupplierPurchasesList() {
+interface SupplierPurchasesListProps {
+  onPurchaseCreate?: () => void; // callback عند إنشاء مشتريات جديدة
+  refreshTrigger?: number; // trigger لإعادة التحميل
+}
+
+export function SupplierPurchasesList({ onPurchaseCreate, refreshTrigger }: SupplierPurchasesListProps = {}) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
   const [organizationId, setOrganizationId] = useState<string | undefined>(undefined);
   
   const [purchases, setPurchases] = useState<SupplierPurchase[]>([]);
-  const [filteredPurchases, setFilteredPurchases] = useState<SupplierPurchase[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false); // للتمييز بين التحميل الأولي وإعادة التحميل
+  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null); // لـ debouncing التحديثات
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
   const [selectedSupplierId, setSelectedSupplierId] = useState('all');
+  
+  // حالات جديدة للدفعات والتأكيدات
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [selectedPurchaseForPayment, setSelectedPurchaseForPayment] = useState<SupplierPurchase | null>(null);
+  const [processingPayment, setProcessingPayment] = useState<string | null>(null); // معرف المشتريات التي يتم معالجة دفعتها
+  const [confirmationDialog, setConfirmationDialog] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    onConfirm: () => void;
+  }>({
+    open: false,
+    title: '',
+    description: '',
+    onConfirm: () => {}
+  });
   
   // تحديد organization_id عند تهيئة المكون
   useEffect(() => {
@@ -81,38 +118,68 @@ export function SupplierPurchasesList() {
     setOrganizationId("10c02497-45d4-417a-857b-ad383816d7a0");
   }, [user]);
   
+  // دالة تحميل البيانات
+  const loadData = useCallback(async (isRefresh = false) => {
+    if (!organizationId) return;
+    
+    if (isRefresh) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
+    
+    try {
+      // جلب الموردين
+      const suppliersData = await getSuppliers(organizationId);
+      setSuppliers(suppliersData);
+      
+      // جلب المشتريات
+      const purchasesData = await getSupplierPurchases(organizationId);
+      setPurchases(purchasesData);
+    } catch (error) {
+      toast({
+        title: 'خطأ',
+        description: 'حدث خطأ أثناء تحميل البيانات',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [organizationId, toast]);
+
   // جلب البيانات عند التهيئة
   useEffect(() => {
-    const loadData = async () => {
-      if (!organizationId) return;
+    loadData();
+  }, [loadData]);
+
+  // إزالة التحديث التلقائي المفرط - سيتم التحديث فقط عند الحاجة الفعلية
+
+  // إعادة تحميل البيانات عند تغيير refreshTrigger مع debouncing
+  useEffect(() => {
+    if (refreshTrigger > 0) { // تحديث فقط عندما يكون هناك trigger فعلي
+      // إلغاء أي timeout سابق
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
       
-      setIsLoading(true);
-      try {
-        // جلب الموردين
-        const suppliersData = await getSuppliers(organizationId);
-        setSuppliers(suppliersData);
-        
-        // جلب المشتريات
-        const purchasesData = await getSupplierPurchases(organizationId);
-        setPurchases(purchasesData);
-        setFilteredPurchases(purchasesData);
-      } catch (error) {
-        toast({
-          title: 'خطأ',
-          description: 'حدث خطأ أثناء تحميل البيانات',
-          variant: 'destructive',
-        });
-      } finally {
-        setIsLoading(false);
+      // تأخير التحديث لتجنب التحديثات المتعددة
+      refreshTimeoutRef.current = setTimeout(() => {
+        loadData(true); // تمرير true للإشارة أنها عملية تحديث
+      }, 300); // تأخير 300ms
+    }
+    
+    // تنظيف timeout عند unmount
+    return () => {
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
       }
     };
-    
-    loadData();
-  }, [organizationId]);
+  }, [refreshTrigger, loadData]);
   
-  // تطبيق الفلترة
-  useEffect(() => {
-    if (!purchases.length) return;
+  // تطبيق الفلترة باستخدام useMemo لتحسين الأداء
+  const filteredPurchases = useMemo(() => {
+    if (!purchases.length) return [];
     
     let filtered = [...purchases];
     
@@ -161,15 +228,45 @@ export function SupplierPurchasesList() {
       });
     }
     
-    setFilteredPurchases(filtered);
+    return filtered;
   }, [purchases, searchQuery, statusFilter, dateFilter, selectedSupplierId]);
   
-  // تغيير حالة المشتريات
+  // تغيير حالة المشتريات مع التأكيد
   const handleStatusChange = async (purchaseId: string, newStatus: SupplierPurchase['status']) => {
     if (!organizationId) return;
     
+    const purchase = purchases.find(p => p.id === purchaseId);
+    if (!purchase) return;
+
+    // إظهار تأكيد للحالات الحساسة
+    if (newStatus === 'paid') {
+      setConfirmationDialog({
+        open: true,
+        title: 'تأكيد الدفع الكامل',
+        description: `هل أنت متأكد من أنك تريد تسديد المبلغ الكامل (${purchase.balance_due.toFixed(2)} دج) لفاتورة ${purchase.purchase_number}؟ سيتم تسجيل دفعة تلقائيًا.`,
+        onConfirm: () => handleFullPayment(purchase)
+      });
+      return;
+    }
+    
+    if (newStatus === 'cancelled') {
+      setConfirmationDialog({
+        open: true,
+        title: 'تأكيد الإلغاء',
+        description: `هل أنت متأكد من أنك تريد إلغاء فاتورة ${purchase.purchase_number}؟ لا يمكن التراجع عن هذا الإجراء.`,
+        onConfirm: () => performStatusChange(purchaseId, newStatus)
+      });
+      return;
+    }
+
+    // للحالات الأخرى، تنفيذ التغيير مباشرة
+    performStatusChange(purchaseId, newStatus);
+  };
+
+  // تنفيذ تغيير الحالة
+  const performStatusChange = async (purchaseId: string, newStatus: SupplierPurchase['status']) => {
     try {
-      await updatePurchaseStatus(organizationId, purchaseId, newStatus);
+      await updatePurchaseStatus(organizationId!, purchaseId, newStatus);
       
       // تحديث القائمة
       setPurchases(prevPurchases => 
@@ -192,12 +289,127 @@ export function SupplierPurchasesList() {
       });
     }
   };
+
+  // معالجة الدفع الكامل
+  const handleFullPayment = async (purchase: SupplierPurchase) => {
+    if (!organizationId || purchase.balance_due <= 0) return;
+
+    setProcessingPayment(purchase.id);
+    try {
+      // تسجيل دفعة تلقائية للمبلغ المتبقي
+      const result = await recordPayment(organizationId, {
+        supplier_id: purchase.supplier_id,
+        purchase_id: purchase.id,
+        payment_date: new Date().toISOString(),
+        amount: purchase.balance_due,
+        payment_method: 'cash',
+        notes: 'دفع كامل تلقائي من الجدول',
+        is_full_payment: true
+      });
+
+      if (result) {
+        // تحديث البيانات محلياً
+        setPurchases(prevPurchases => 
+          prevPurchases.map(p => 
+            p.id === purchase.id 
+              ? { 
+                  ...p, 
+                  paid_amount: p.total_amount,
+                  balance_due: 0,
+                  status: 'paid' as SupplierPurchase['status'],
+                  payment_status: 'paid' as SupplierPurchase['payment_status']
+                }
+              : p
+          )
+        );
+      }
+
+      toast({
+        title: 'تم الدفع',
+        description: 'تم تسجيل الدفعة وتحديث حالة المشتريات بنجاح',
+      });
+    } catch (error) {
+      toast({
+        title: 'خطأ',
+        description: 'حدث خطأ أثناء تسجيل الدفعة',
+        variant: 'destructive',
+      });
+    } finally {
+      setProcessingPayment(null);
+    }
+  };
+
+  // فتح حوار الدفع لمشتريات محددة
+  const handleAddPayment = (purchase: SupplierPurchase) => {
+    setSelectedPurchaseForPayment(purchase);
+    setPaymentDialogOpen(true);
+  };
+
+  // حفظ دفعة جديدة
+  const handleSavePayment = async (paymentData: any) => {
+    if (!organizationId) return;
+
+    try {
+      const result = await recordPayment(organizationId, paymentData);
+      
+      if (result && paymentData.purchase_id) {
+        // تحديث البيانات محلياً بدلاً من إعادة التحميل الكاملة
+        setPurchases(prevPurchases => 
+          prevPurchases.map(purchase => {
+            if (purchase.id === paymentData.purchase_id) {
+              const newPaidAmount = Number(purchase.paid_amount) + Number(paymentData.amount);
+              const newBalanceDue = Math.max(0, Number(purchase.total_amount) - newPaidAmount);
+              
+              // تحديد الحالة الجديدة
+              let newStatus = purchase.status;
+              let newPaymentStatus = 'partially_paid';
+              
+              if (newBalanceDue < 0.01) {
+                newStatus = 'paid';
+                newPaymentStatus = 'paid';
+              } else if (newPaidAmount === 0) {
+                newPaymentStatus = 'unpaid';
+              }
+              
+              return {
+                ...purchase,
+                paid_amount: newPaidAmount,
+                balance_due: newBalanceDue,
+                status: newStatus as SupplierPurchase['status'],
+                payment_status: newPaymentStatus as SupplierPurchase['payment_status']
+              };
+            }
+            return purchase;
+          })
+        );
+      } else {
+        // في حالة عدم الربط بمشتريات، إعادة تحميل البيانات
+        const purchasesData = await getSupplierPurchases(organizationId);
+        setPurchases(purchasesData);
+      }
+
+      setPaymentDialogOpen(false);
+      setSelectedPurchaseForPayment(null);
+
+      toast({
+        title: 'تم الحفظ',
+        description: 'تم تسجيل الدفعة بنجاح',
+      });
+    } catch (error) {
+      toast({
+        title: 'خطأ',
+        description: 'حدث خطأ أثناء تسجيل الدفعة',
+        variant: 'destructive',
+      });
+      throw error;
+    }
+  };
   
   // الحصول على اسم المورد من معرفه
-  const getSupplierName = (supplierId: string) => {
+  const getSupplierName = useCallback((supplierId: string) => {
     const supplier = suppliers.find(s => s.id === supplierId);
     return supplier ? supplier.name : 'غير معروف';
-  };
+  }, [suppliers]);
   
   // عرض حالة المشتريات بشكل ملائم
   const renderStatusBadge = (status: SupplierPurchase['status']) => {
@@ -219,15 +431,66 @@ export function SupplierPurchasesList() {
     }
   };
 
+  // عرض شارة حالة الدفع
+  const renderPaymentStatusBadge = (purchase: SupplierPurchase) => {
+    const paymentStatus = purchase.payment_status || 'unpaid';
+    
+    switch (paymentStatus) {
+      case 'unpaid':
+        return <Badge variant="outline" className="text-red-600 border-red-200">غير مدفوع</Badge>;
+      case 'partially_paid':
+        return <Badge variant="secondary" className="text-orange-600">جزئي</Badge>;
+      case 'paid':
+        return <Badge variant="default" className="bg-green-100 text-green-800">مدفوع</Badge>;
+      default:
+        return <Badge variant="outline">{paymentStatus}</Badge>;
+    }
+  };
+
+  // تحديد ما إذا كانت المشتريات متأخرة
+  const isOverdue = useCallback((purchase: SupplierPurchase) => {
+    if (!purchase.due_date || purchase.status === 'paid' || purchase.status === 'cancelled') {
+      return false;
+    }
+    return new Date(purchase.due_date) < new Date() && purchase.balance_due > 0;
+  }, []);
+
   return (
     <Card>
       <CardHeader>
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <CardTitle>قائمة المشتريات</CardTitle>
-            <CardDescription>إدارة مشتريات الموردين وتتبع حالتها</CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              قائمة المشتريات
+              {isRefreshing && (
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              )}
+            </CardTitle>
+            <CardDescription>
+              إدارة مشتريات الموردين وتتبع حالتها
+              {isRefreshing && (
+                <span className="text-blue-600 mr-2">• جاري التحديث...</span>
+              )}
+            </CardDescription>
           </div>
-          <Button onClick={() => {
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                // تحديث فوري عند الضغط على الزر
+                loadData(true);
+                toast({
+                  title: 'تم التحديث',
+                  description: 'تم تحديث قائمة المشتريات',
+                });
+              }}
+              disabled={isLoading || isRefreshing}
+              title="تحديث القائمة"
+            >
+              <RefreshCw className={`h-4 w-4 ml-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+              تحديث
+            </Button>
+            <Button onClick={() => {
             
             try {
               // نتأكد من أننا نستخدم window.location بدلاً من navigate في حالة وجود مشاكل مع الـ React Router
@@ -252,6 +515,7 @@ export function SupplierPurchasesList() {
             <Plus className="h-4 w-4 ml-2" />
             إضافة مشتريات
           </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -327,25 +591,71 @@ export function SupplierPurchasesList() {
                   <TableHead>رقم الفاتورة</TableHead>
                   <TableHead>المورد</TableHead>
                   <TableHead>التاريخ</TableHead>
+                  <TableHead>الاستحقاق</TableHead>
                   <TableHead>المبلغ الإجمالي</TableHead>
                   <TableHead>المدفوع</TableHead>
                   <TableHead>المتبقي</TableHead>
-                  <TableHead>الحالة</TableHead>
+                  <TableHead>حالة الطلب</TableHead>
+                  <TableHead>حالة الدفع</TableHead>
+                  <TableHead>دفع سريع</TableHead>
                   <TableHead className="text-left">الإجراءات</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredPurchases.map((purchase) => (
-                  <TableRow key={purchase.id}>
+                  <TableRow key={purchase.id} className={isOverdue(purchase) ? 'bg-red-50' : ''}>
                     <TableCell className="font-medium">{purchase.purchase_number}</TableCell>
                     <TableCell>{getSupplierName(purchase.supplier_id)}</TableCell>
                     <TableCell>
                       {format(new Date(purchase.purchase_date), 'dd/MM/yyyy', { locale: ar })}
                     </TableCell>
-                    <TableCell>{purchase.total_amount.toFixed(2)}</TableCell>
-                    <TableCell>{purchase.paid_amount.toFixed(2)}</TableCell>
-                    <TableCell>{purchase.balance_due.toFixed(2)}</TableCell>
+                    <TableCell>
+                      {purchase.due_date ? (
+                        <div className={isOverdue(purchase) ? 'text-red-600 font-medium' : ''}>
+                          {format(new Date(purchase.due_date), 'dd/MM/yyyy', { locale: ar })}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="font-medium">{purchase.total_amount.toFixed(2)} دج</TableCell>
+                    <TableCell className="text-green-600">{purchase.paid_amount.toFixed(2)} دج</TableCell>
+                    <TableCell className={purchase.balance_due > 0 ? 'text-red-600 font-medium' : 'text-green-600'}>
+                      {purchase.balance_due.toFixed(2)} دج
+                    </TableCell>
                     <TableCell>{renderStatusBadge(purchase.status)}</TableCell>
+                    <TableCell>{renderPaymentStatusBadge(purchase)}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        {purchase.balance_due > 0 && purchase.status !== 'cancelled' && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleAddPayment(purchase)}
+                              title="إضافة دفعة"
+                              disabled={processingPayment === purchase.id}
+                            >
+                              <CreditCard className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={() => handleStatusChange(purchase.id, 'paid')}
+                              title="دفع كامل"
+                              className="bg-green-600 hover:bg-green-700"
+                              disabled={processingPayment === purchase.id}
+                            >
+                              {processingPayment === purchase.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <DollarSign className="h-3 w-3" />
+                              )}
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -355,33 +665,45 @@ export function SupplierPurchasesList() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>خيارات</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
+                          <DropdownMenuLabel>العرض والتعديل</DropdownMenuLabel>
                           <DropdownMenuItem onClick={() => navigate(`/dashboard/suppliers/purchases/${purchase.id}`)}>
                             <Eye className="ml-2 h-4 w-4" />
                             <span>عرض التفاصيل</span>
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => navigate(`/dashboard/suppliers/purchases/${purchase.id}/edit`)}>
-                            <FileEdit className="ml-2 h-4 w-4" />
-                            <span>تعديل</span>
-                          </DropdownMenuItem>
+                          {purchase.status !== 'cancelled' && (
+                            <DropdownMenuItem onClick={() => navigate(`/dashboard/suppliers/purchases/${purchase.id}/edit`)}>
+                              <FileEdit className="ml-2 h-4 w-4" />
+                              <span>تعديل</span>
+                            </DropdownMenuItem>
+                          )}
+                          
+                          {/* خيارات الدفع */}
+                          {purchase.balance_due > 0 && purchase.status !== 'cancelled' && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuLabel>إدارة المدفوعات</DropdownMenuLabel>
+                              <DropdownMenuItem onClick={() => handleAddPayment(purchase)}>
+                                <CreditCard className="ml-2 h-4 w-4 text-blue-600" />
+                                <span>إضافة دفعة</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleStatusChange(purchase.id, 'paid')}>
+                                <CheckCircle2 className="ml-2 h-4 w-4 text-green-600" />
+                                <span>تسديد كامل ({purchase.balance_due.toFixed(2)} دج)</span>
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          
                           <DropdownMenuSeparator />
                           
                           {/* خيارات تغيير الحالة */}
                           <DropdownMenuLabel>تغيير الحالة</DropdownMenuLabel>
-                          {purchase.status !== 'confirmed' && (
+                          {purchase.status !== 'confirmed' && purchase.status !== 'cancelled' && (
                             <DropdownMenuItem onClick={() => handleStatusChange(purchase.id, 'confirmed')}>
                               <ClipboardCheck className="ml-2 h-4 w-4 text-green-600" />
-                              <span>تأكيد</span>
+                              <span>تأكيد الطلب</span>
                             </DropdownMenuItem>
                           )}
-                          {['draft', 'confirmed'].includes(purchase.status) && (
-                            <DropdownMenuItem onClick={() => handleStatusChange(purchase.id, 'paid')}>
-                              <CheckCircle2 className="ml-2 h-4 w-4 text-green-600" />
-                              <span>تسديد كامل</span>
-                            </DropdownMenuItem>
-                          )}
-                          {purchase.status !== 'overdue' && purchase.balance_due > 0 && (
+                          {purchase.status !== 'overdue' && purchase.balance_due > 0 && purchase.status !== 'cancelled' && (
                             <DropdownMenuItem onClick={() => handleStatusChange(purchase.id, 'overdue')}>
                               <AlertCircle className="ml-2 h-4 w-4 text-amber-600" />
                               <span>تأخير الدفع</span>
@@ -390,7 +712,7 @@ export function SupplierPurchasesList() {
                           {purchase.status !== 'cancelled' && (
                             <DropdownMenuItem onClick={() => handleStatusChange(purchase.id, 'cancelled')}>
                               <BanIcon className="ml-2 h-4 w-4 text-red-600" />
-                              <span>إلغاء</span>
+                              <span>إلغاء الطلب</span>
                             </DropdownMenuItem>
                           )}
                         </DropdownMenuContent>
@@ -403,6 +725,50 @@ export function SupplierPurchasesList() {
           </div>
         )}
       </CardContent>
+
+      {/* حوار تأكيد العمليات */}
+      <AlertDialog open={confirmationDialog.open} onOpenChange={(open) => 
+        setConfirmationDialog(prev => ({ ...prev, open }))
+      }>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmationDialog.title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmationDialog.description}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel 
+              onClick={() => setConfirmationDialog(prev => ({ ...prev, open: false }))}
+            >
+              إلغاء
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => {
+                confirmationDialog.onConfirm();
+                setConfirmationDialog(prev => ({ ...prev, open: false }));
+              }}
+            >
+              تأكيد
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* حوار إضافة دفعة */}
+      <SupplierPaymentDialog
+        open={paymentDialogOpen}
+        onOpenChange={setPaymentDialogOpen}
+        suppliers={suppliers}
+        supplierPurchases={purchases}
+        selectedSupplierId={selectedPurchaseForPayment?.supplier_id}
+        selectedPurchaseId={selectedPurchaseForPayment?.id}
+        onSave={handleSavePayment}
+        onClose={() => {
+          setPaymentDialogOpen(false);
+          setSelectedPurchaseForPayment(null);
+        }}
+      />
     </Card>
   );
 }

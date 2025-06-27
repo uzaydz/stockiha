@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { 
@@ -12,6 +12,7 @@ import {
   getSupplierById, 
   getPurchaseById, 
   createPurchase, 
+  createSupplier,
   Supplier, 
   SupplierPurchase, 
   SupplierPurchaseItem,
@@ -61,6 +62,8 @@ export default function SupplierPurchases() {
   const [selectedPurchase, setSelectedPurchase] = useState<SupplierPurchase | null>(null);
   const [selectedPurchaseItems, setSelectedPurchaseItems] = useState<SupplierPurchaseItem[]>([]);
   const [selectedSupplier, setSelectedSupplier] = useState<string | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0); // trigger لإعادة تحميل قائمة المشتريات
+  const [hasChanges, setHasChanges] = useState(false); // متابعة وجود تغييرات فعلية
   
   // تحميل البيانات الأولية
   useEffect(() => {
@@ -149,14 +152,21 @@ export default function SupplierPurchases() {
   }, [location.pathname, purchaseId]);
   
   // إغلاق النافذة المنبثقة والعودة إلى قائمة المشتريات
-  const handleCloseDialog = () => {
+  const handleCloseDialog = useCallback(() => {
     
     setDialogOpen(false);
     setSelectedPurchase(null);
     setSelectedPurchaseItems([]);
+    
+    // تحديث قائمة المشتريات فقط إذا كان هناك تغييرات فعلية
+    if (hasChanges) {
+      setRefreshTrigger(prev => prev + 1);
+      setHasChanges(false);
+    }
+    
     // إعادة توجيه المستخدم إلى صفحة قائمة المشتريات
     navigate('/dashboard/suppliers/purchases');
-  };
+  }, [navigate, hasChanges]);
   
   // حفظ المشتريات
   const handleSavePurchase = async (data: any) => {
@@ -196,7 +206,7 @@ export default function SupplierPurchases() {
           due_date: data.due_date ? data.due_date.toISOString() : undefined,
           payment_terms: data.payment_terms,
           notes: data.notes,
-          status: 'draft', // تعيين الحالة الأولية دائمًا إلى "مسودة"
+          status: 'draft' as const, // تعيين الحالة الأولية دائمًا إلى "مسودة"
           total_amount: calculateTotalAmount(data.items),
           paid_amount: data.paid_amount || 0,
         };
@@ -256,6 +266,13 @@ export default function SupplierPurchases() {
               title: 'تم الإضافة',
               description: 'تمت إضافة المشتريات بنجاح',
             });
+            
+            // تسجيل أن هناك تغييرات وتحديث قائمة المشتريات
+            setHasChanges(true);
+            setTimeout(() => {
+              setRefreshTrigger(prev => prev + 1);
+            }, 500);
+            
             navigate('/dashboard/suppliers/purchases');
           }
         } catch (purchaseError: any) {
@@ -297,6 +314,50 @@ export default function SupplierPurchases() {
       return total + subtotal + taxAmount;
     }, 0);
   };
+
+  // إنشاء مورد جديد
+  const handleCreateSupplier = async (supplierData: any) => {
+    if (!organizationId) {
+      toast({
+        title: 'خطأ',
+        description: 'معرف المؤسسة غير متوفر',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      const newSupplier = await createSupplier(organizationId, supplierData);
+      
+      // تحديث قائمة الموردين
+      setSuppliers(prev => [...prev, newSupplier]);
+      setHasChanges(true); // تسجيل وجود تغييرات
+      
+      toast({
+        title: 'تم الإنشاء',
+        description: 'تم إنشاء المورد بنجاح',
+      });
+    } catch (error) {
+      toast({
+        title: 'خطأ',
+        description: 'حدث خطأ أثناء إنشاء المورد',
+        variant: 'destructive',
+      });
+      throw error;
+    }
+  };
+
+  // تحديث قائمة الموردين
+  const refreshSuppliers = async () => {
+    if (!organizationId) return;
+    
+    try {
+      const suppliersData = await getSuppliers(organizationId);
+      setSuppliers(suppliersData);
+    } catch (error) {
+      console.error('Error refreshing suppliers:', error);
+    }
+  };
   
   // إعداد بيانات المشتريات للحوار
   const purchaseForDialog = selectedPurchase ? {
@@ -304,10 +365,22 @@ export default function SupplierPurchases() {
     items: selectedPurchaseItems
   } : null;
   
+  // callback عند إنشاء مشتريات جديدة (فقط عند الحاجة الفعلية)
+  const handlePurchaseCreate = useCallback(() => {
+    if (hasChanges) { // تحديث فقط إذا كان هناك تغييرات
+      setRefreshTrigger(prev => prev + 1);
+    }
+  }, [hasChanges]);
+
   return (
     <Layout>
-      <SupplierPurchasesList />
+      {/* إظهار القائمة فقط عندما لا يكون الحوار مفتوحاً أو عند إغلاقه */}
+      <SupplierPurchasesList 
+        refreshTrigger={refreshTrigger}
+        onPurchaseCreate={handlePurchaseCreate}
+      />
       
+      {/* حوار إنشاء/تعديل المشتريات */}
       <SupplierPurchaseDialog
         open={dialogOpen}
         onOpenChange={(open) => {
@@ -324,6 +397,8 @@ export default function SupplierPurchases() {
         onSave={handleSavePurchase}
         onClose={handleCloseDialog}
         calculateTotalAmount={calculateTotalAmount}
+        onCreateSupplier={handleCreateSupplier}
+        onSuppliersUpdate={refreshSuppliers}
       />
     </Layout>
   );

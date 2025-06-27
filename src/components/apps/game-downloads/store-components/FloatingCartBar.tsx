@@ -81,4 +81,4 @@ export default function FloatingCartBar({
       </div>
     </div>
   );
-} 
+}

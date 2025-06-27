@@ -192,4 +192,4 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
       </CardContent>
     </Card>
   );
-}; 
+};

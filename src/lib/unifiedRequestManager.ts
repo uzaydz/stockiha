@@ -169,6 +169,19 @@ const createDirectRestRequest = async (key: string): Promise<any> => {
       }
     });
 
+    const endTime = performance.now();
+    console.log('⏱️ انتهى الطلب في:', endTime.toFixed(2), 'ms');
+
+    // طباعة تفاصيل Response headers بالكامل
+    const responseHeaders = Object.fromEntries(response.headers.entries());
+    console.log('📡 Response Headers الكاملة:', responseHeaders);
+    console.log('📊 Response Status التفصيلي:', {
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok,
+      url: response.url
+    });
+
     if (!response.ok) {
       const errorText = await response.text();
       
@@ -191,11 +204,21 @@ const createDirectRestRequest = async (key: string): Promise<any> => {
 
     const data = await response.json();
     
+    // طباعة تفاصيل البيانات المستلمة بشكل مفصل
+    console.log('📋 تحليل البيانات المستلمة:', {
+      rawData: data,
+      dataType: typeof data,
+      isArray: Array.isArray(data),
+      dataKeys: Object.keys(data || {}),
+      dataLength: Array.isArray(data) ? data.length : 'not array',
+      firstItem: Array.isArray(data) && data[0] ? data[0] : null,
+      stringified: JSON.stringify(data)
+    });
+    
     // التأكد من إرجاع الصيغة الصحيحة
     if (key.includes('categories') || key.includes('subcategories') || key.includes('apps') || key.includes('users')) {
       // للـ arrays، تأكد من إرجاع array
       if (!Array.isArray(data)) {
-        console.warn(`Expected array for ${key}, got:`, typeof data, data);
         return [];
       }
       return data;
@@ -208,7 +231,6 @@ const createDirectRestRequest = async (key: string): Promise<any> => {
     
     return data;
   } catch (error) {
-    console.error(`Error in createDirectRestRequest for ${key}:`, error);
     
     // إرجاع القيم الافتراضية المناسبة حسب نوع الطلب
     if (key.startsWith('unified_user_')) {
@@ -245,17 +267,20 @@ const executeRequest = async <T>(
     }
   }
 
-  // التحقق من الطلبات المكررة - نسخة محسنة
-  if (globalRequestDeduplication.has(key)) {
-    const existingRequest = globalRequestDeduplication.get(key)!;
-    // التحقق من أن الطلب ليس قديماً جداً
-    if ((Date.now() - existingRequest.timestamp) < 30000) { // 30 ثانية
-      if (import.meta.env.DEV) {
+  // استثناء خاص للفئات - لا نطبق deduplication على الفئات
+  if (!key.includes('categories')) {
+    // التحقق من الطلبات المكررة - نسخة محسنة
+    if (globalRequestDeduplication.has(key)) {
+      const existingRequest = globalRequestDeduplication.get(key)!;
+      // التحقق من أن الطلب ليس قديماً جداً
+      if ((Date.now() - existingRequest.timestamp) < 30000) { // 30 ثانية
+        if (import.meta.env.DEV) {
+        }
+        return existingRequest.promise;
+      } else {
+        // إزالة الطلب القديم
+        globalRequestDeduplication.delete(key);
       }
-      return existingRequest.promise;
-    } else {
-      // إزالة الطلب القديم
-      globalRequestDeduplication.delete(key);
     }
   }
 
@@ -267,8 +292,10 @@ const executeRequest = async <T>(
   }
 
   // 🔧 استخدام REST API مباشر بدلاً من Supabase client للطلبات المعطلة
-  if (key.includes('categories') || key.includes('apps') || key.includes('settings') || key.includes('subscriptions') || key.includes('users')) {
+  // تعطيل مؤقت للـ categories للسماح للكود الجديد بالعمل
+  if (key.includes('apps') || key.includes('settings') || key.includes('subscriptions') || (key.includes('users') && !key.includes('categories'))) {
     
+    console.log('🔀 استخدام createDirectRestRequest للمفتاح:', key);
     const promise = createDirectRestRequest(key)
       .then(result => {
         // حفظ في الكاش
@@ -347,58 +374,116 @@ export class UnifiedRequestManager {
    * جلب فئات المنتجات - موحد
    */
   static async getProductCategories(orgId: string) {
-    
     if (!orgId) {
+      console.error('❌ Organization ID مطلوب للفئات');
       return [];
     }
+
+    const cacheKey = `unified_categories_${orgId}`;
     
-    return executeRequest(
-      `unified_categories_${orgId}`,
-      async () => {
-        
-        try {
-          
-          // اختبار بسيط للاتصال
-          
-          // اختبار المصادقة
-          try {
-            const authStartTime = performance.now();
-            const { data: authData, error: authError } = await supabase.auth.getUser();
-            const authDuration = performance.now() - authStartTime;
-          } catch (authErr) {
-          }
-          
-          // معلومات الشبكة
-          
-          const query = supabase
-            .from('product_categories')
-            .select('*')
-            .eq('organization_id', orgId)
-            .eq('is_active', true)
-            .order('name');
-
-          // قياس وقت الاستعلام
-          const startTime = performance.now();
-          
-          const result = await query;
-          
-          const endTime = performance.now();
-          const duration = endTime - startTime;
-
-          const { data, error } = result;
-          
-          if (error) {
-            throw error;
-          }
-          
-          return data || [];
-          
-        } catch (error) {
-          throw error;
-        }
-      },
-      10 * 60 * 1000 // 10 دقائق
+    // مسح الكاش للتأكد من عدم وجود بيانات قديمة
+    console.log('🧹 مسح cache للمفتاح:', cacheKey);
+    globalCache.delete(cacheKey);
+    
+    // مسح أي cache keys ذات صلة
+    const keysToDelete = Array.from(globalCache.keys()).filter(key => 
+      typeof key === 'string' && (key.includes('categories') || key.includes(orgId))
     );
+    keysToDelete.forEach(key => globalCache.delete(key));
+    console.log('🧹 تم مسح', keysToDelete.length, 'cache keys إضافية');
+
+    console.log('🚀 تجاوز executeRequest - استدعاء مباشر للفئات');
+    console.log('🔍 محاولة جلب الفئات للمؤسسة:', orgId);
+
+    try {
+      // استخدام REST API مباشر بدون أي تعامل مع Supabase client لتجنب الحلقة اللا نهائية
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseKey) {
+        console.error('❌ مفقود Supabase configuration');
+        return [];
+      }
+
+      // استخدام anonymous key بدلاً من محاولة الحصول على access token
+      const authToken = supabaseKey;
+      console.log('🔐 استخدام anonymous key');
+
+      // إنشاء URL صحيح بدون cache busting parameters مشكوك فيها
+      const url = `${supabaseUrl}/rest/v1/product_categories?select=*&organization_id=eq.${orgId}&is_active=eq.true&order=name.asc&limit=1000`;
+      
+      console.log('🌐 طلب REST API:', url);
+
+      const headers = {
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${authToken}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation',
+        'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        'If-None-Match': '*',
+        'X-Cache-Bypass': 'true',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-Client-Info': `unified-categories-${Date.now()}`,
+        'X-Request-ID': `${Date.now()}-${Math.random()}`,
+        'X-Session-ID': Math.random().toString(36)
+      };
+
+      const startTime = performance.now();
+      const response = await fetch(url, { 
+        method: 'GET',
+        headers,
+        cache: 'no-store'
+      });
+      
+      const endTime = performance.now();
+      console.log('⏱️ انتهى الطلب في:', (endTime - startTime).toFixed(2), 'ms');
+
+      // طباعة تفاصيل Response headers بالكامل
+      const responseHeaders = Object.fromEntries(response.headers.entries());
+      console.log('📡 Response Headers الكاملة:', responseHeaders);
+      console.log('📊 Response Status التفصيلي:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        url: response.url
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ خطأ في REST API:', response.status, errorText);
+        return [];
+      }
+
+      const data = await response.json();
+      
+      // طباعة تفاصيل البيانات المستلمة بشكل مفصل
+      console.log('📋 تحليل البيانات المستلمة:', {
+        rawData: data,
+        dataType: typeof data,
+        isArray: Array.isArray(data),
+        dataKeys: Object.keys(data || {}),
+        dataLength: Array.isArray(data) ? data.length : 'not array',
+        firstItem: Array.isArray(data) && data[0] ? data[0] : null,
+        stringified: JSON.stringify(data)
+      });
+      
+      if (Array.isArray(data)) {
+        console.log('✅ تم جلب الفئات بنجاح، العدد:', data.length);
+        
+        // حفظ في الكاش
+        globalCache.set(cacheKey, { data, timestamp: Date.now(), ttl: 300000 }); // 5 دقائق
+        
+        return data;
+      } else {
+        console.warn('⚠️ البيانات ليست array:', data);
+        return [];
+      }
+    } catch (error) {
+      console.error('❌ خطأ في جلب الفئات:', error);
+      return [];
+    }
   }
   
   /**

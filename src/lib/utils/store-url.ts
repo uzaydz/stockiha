@@ -74,4 +74,4 @@ export const buildTrackingUrl = (trackingCode: string, organization?: {
 }) => {
   const storeUrl = buildStoreUrl(organization);
   return `${storeUrl}/repair-tracking/${trackingCode}`;
-}; 
+};

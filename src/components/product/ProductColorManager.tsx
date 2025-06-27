@@ -81,32 +81,12 @@ const ProductColorManager = ({
   // تسجيل البيانات المُستلمة للتحقق (فقط عند التغيير الفعلي)
   const prevColorsRef = useRef<ProductColor[]>([]);
   const prevProductIdRef = useRef<string>('');
-  
-  console.log('🎨 [ProductColorManager] Component rendered with props:', {
-    colors,
-    colorsLength: colors.length,
-    productId,
-    basePrice,
-    basePurchasePrice,
-    useVariantPrices,
-    useSizes
-  });
-  
+
   if (JSON.stringify(prevColorsRef.current) !== JSON.stringify(colors)) {
-    console.log('🎨 [ProductColorManager] Colors changed:', {
-      previousColors: prevColorsRef.current,
-      newColors: colors,
-      changeType: colors.length > prevColorsRef.current.length ? 'added' : 
-                  colors.length < prevColorsRef.current.length ? 'removed' : 'updated'
-    });
     prevColorsRef.current = colors;
   }
   
   if (prevProductIdRef.current !== productId) {
-    console.log('🎨 [ProductColorManager] ProductId changed:', {
-      previousId: prevProductIdRef.current,
-      newId: productId
-    });
     prevProductIdRef.current = productId || '';
   }
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -145,7 +125,6 @@ const ProductColorManager = ({
   });
 
   const onAddColorClick = () => {
-    console.log('🎨 [ProductColorManager] فتح dialog إضافة لون جديد');
     setEditingColor(null);
     setDialogStep(1);
     setPreviewMode(false);
@@ -310,14 +289,6 @@ const ProductColorManager = ({
   };
 
   const onSubmit = async (values: ColorFormValues) => {
-    console.log('🎨 [ProductColorManager] onSubmit started:', {
-      values,
-      editingColor,
-      isEditing: !!editingColor,
-      currentColors: colors,
-      formErrors: form.formState.errors,
-      formIsValid: form.formState.isValid
-    });
 
     if (duplicateCheck.hasError) {
       toast.error(duplicateCheck.message);
@@ -329,21 +300,14 @@ const ProductColorManager = ({
     try {
       // Validate the form data against the schema
       const validatedData = colorFormSchema.parse(values);
-      console.log('🎨 [ProductColorManager] Validated form data:', validatedData);
 
       if (editingColor) {
         // تحديث لون موجود
-        console.log('🎨 [ProductColorManager] Updating existing color:', {
-          editingColorId: editingColor.id,
-          newValues: validatedData
-        });
         
         const updatedColors = colors.map((color) =>
           color.id === editingColor.id ? { ...color, ...validatedData } : color
         );
         
-                 console.log('🎨 [ProductColorManager] Updated colors array:', updatedColors);
-         console.log('🎨 [ProductColorManager] Calling onChange with updated colors');
          onChange(updatedColors);
       } else {
         // إضافة لون جديد
@@ -352,11 +316,8 @@ const ProductColorManager = ({
           ...validatedData,
           product_id: productId,
         };
-        
-        console.log('🎨 [ProductColorManager] Creating new color:', newColor);
-        
+
         const newColors = [...colors, newColor];
-        console.log('🎨 [ProductColorManager] New colors array:', newColors);
         onChange(newColors);
       }
 
@@ -367,14 +328,8 @@ const ProductColorManager = ({
       
       toast.success(editingColor ? 'تم تحديث اللون بنجاح' : 'تم إضافة اللون بنجاح');
     } catch (error) {
-      console.error('🚨 [ProductColorManager] Form validation error:', {
-        error,
-        values,
-        formState: form.formState
-      });
       
       if (error instanceof z.ZodError) {
-        console.error('🚨 [ProductColorManager] Zod validation errors:', error.errors);
         error.errors.forEach((err) => {
           toast.error(`خطأ في ${err.path.join('.')}: ${err.message}`);
         });

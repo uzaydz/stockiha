@@ -272,7 +272,6 @@ const ProductReturns: React.FC = () => {
       
     } catch (error) {
       setReturns([]);
-      console.error('خطأ في جلب طلبات الإرجاع:', error);
       // toast.error('حدث خطأ في جلب طلبات الإرجاع');
     } finally {
       setLoading(false);

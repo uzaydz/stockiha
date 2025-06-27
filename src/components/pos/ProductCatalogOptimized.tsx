@@ -69,9 +69,7 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
   const pageSize = useMemo(() => {
     return viewMode === 'grid' ? 50 : viewMode === 'compact' ? 80 : 30;
   }, [viewMode]);
-  
 
-  
   // جلب الفئات
   useEffect(() => {
     const fetchCategories = async () => {
@@ -81,7 +79,6 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
         const fetchedCategories = await getCategories(currentOrganization.id);
         setCategories(fetchedCategories);
       } catch (error) {
-        console.error('Error fetching categories:', error);
         setCategories([]);
       }
     };
@@ -98,15 +95,12 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
         const stats = await getProductsStats(currentOrganization.id);
         setStats(stats);
       } catch (error) {
-        console.error('Error fetching stats:', error);
       }
     };
 
     fetchStats();
   }, [currentOrganization?.id]);
-  
 
-  
   // تحميل الصفحة الأولى عند تغيير الفلاتر
   useEffect(() => {
     if (!currentOrganization?.id) return;
@@ -140,7 +134,6 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
         setTotalProducts(response.totalCount);
         setHasNextPage(response.hasNextPage);
       } catch (error) {
-        console.error('Error fetching products:', error);
         setError('حدث خطأ في تحميل المنتجات. يرجى المحاولة مرة أخرى.');
       } finally {
         setIsInitialLoading(false);
@@ -174,7 +167,6 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
           setTotalProducts(response.totalCount);
           setHasNextPage(response.hasNextPage);
         } catch (error) {
-          console.error('Error loading more products:', error);
         } finally {
           setIsLoadingMore(false);
         }
@@ -233,15 +225,12 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
         scrollAreaRef.current.scrollTop = 0;
       }
     } catch (error) {
-      console.error('Error refreshing products:', error);
       setError('حدث خطأ في تحميل المنتجات. يرجى المحاولة مرة أخرى.');
     } finally {
       setIsInitialLoading(false);
     }
   }, [currentOrganization?.id, pageSize, debouncedSearchQuery, selectedCategory, sortOption, sortOrder, isInitialLoading]);
 
-
-  
   // دالة للحصول على الفئات المعروضة
   const displayCategories = useMemo(() => {
     if (!categories.length) return [];
@@ -707,7 +696,6 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
                           setTotalProducts(response.totalCount);
                           setHasNextPage(response.hasNextPage);
                         } catch (error) {
-                          console.error('Error loading more products:', error);
                         } finally {
                           setIsLoadingMore(false);
                         }
@@ -725,4 +713,4 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
       </ScrollArea>
     </div>
   );
-} 
+}

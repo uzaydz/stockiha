@@ -900,8 +900,6 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
             </div>
           </div>
 
-
-
           {/* مساحة لملاحظات الفني */}
           <div className="center-item">
             <div className="center-flex" style={{

@@ -84,7 +84,6 @@ const RepairLocationManager = ({ isOpen, onClose, onSelectLocation }: RepairLoca
         
         setLocations(data || []);
       } catch (error) {
-        console.error('خطأ في جلب أماكن التصليح:', error);
         toast.error('فشل في جلب أماكن التصليح');
       } finally {
         setIsLoading(false);
@@ -145,7 +144,6 @@ const RepairLocationManager = ({ isOpen, onClose, onSelectLocation }: RepairLoca
       setLocations(locations.filter(loc => loc.id !== location.id));
       toast.success('تم حذف مكان التصليح بنجاح');
     } catch (error) {
-      console.error('خطأ في حذف مكان التصليح:', error);
       toast.error('فشل في حذف مكان التصليح');
     }
   };
@@ -234,7 +232,6 @@ const RepairLocationManager = ({ isOpen, onClose, onSelectLocation }: RepairLoca
       resetForm();
       setIsAddFormVisible(false);
     } catch (error) {
-      console.error('خطأ في حفظ مكان التصليح:', error);
       toast.error('فشل في حفظ مكان التصليح');
     } finally {
       setIsSubmitting(false);

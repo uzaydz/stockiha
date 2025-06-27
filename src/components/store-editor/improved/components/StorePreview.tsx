@@ -1193,7 +1193,6 @@ export const StorePreview: React.FC<StorePreviewProps> = React.memo(({ organizat
           {/* أدوات إضافية */}
           <div className="flex items-center gap-1">
 
-            
           {/* شبكة المحاذاة */}
             <Tooltip>
               <TooltipTrigger asChild>

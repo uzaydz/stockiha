@@ -104,9 +104,7 @@ export const UniversalDataUpdateProvider: React.FC<{ children: React.ReactNode }
         }
       }
 
-      console.log('✅ [UniversalDataUpdate] تم تحديث React Query cache:', dataType, queryKeys);
     } catch (error) {
-      console.error('❌ [UniversalDataUpdate] خطأ في تحديث React Query cache:', error);
     }
   }, [queryClient, currentOrganization?.id]);
 
@@ -164,9 +162,7 @@ export const UniversalDataUpdateProvider: React.FC<{ children: React.ReactNode }
         }
       }
 
-      console.log('✅ [UniversalDataUpdate] تم تنظيف localStorage cache:', dataType, keysToRemove);
     } catch (error) {
-      console.error('❌ [UniversalDataUpdate] خطأ في تنظيف localStorage cache:', error);
     }
   }, [currentOrganization?.id]);
 

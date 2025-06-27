@@ -57,6 +57,11 @@ export interface SupplierPurchaseItem {
   total_price: number;
   tax_rate: number;
   tax_amount: number;
+  batch_id?: string;
+  color_id?: string;
+  size_id?: string;
+  variant_type?: 'simple' | 'color_only' | 'size_only' | 'color_size';
+  variant_display_name?: string;
 }
 
 export interface SupplierPayment {
@@ -391,14 +396,19 @@ export async function createPurchase(
           const unit_price = Number(item.unit_price) || 0;
           const tax_rate = Number(item.tax_rate) || 0;
 
-          // Don't include tax_amount and total_price as they are generated columns
+          // Include new variant fields with default values
           return {
             purchase_id: purchaseResult.id,
             product_id: item.product_id, // يمكن أن يكون null ولكن يجب أن يكون معرفاً
             description: item.description || '',
             quantity,
             unit_price,
-            tax_rate
+            tax_rate,
+            // إضافة الحقول الجديدة مع قيم افتراضية
+            color_id: (item as any).color_id || null,
+            size_id: (item as any).size_id || null,
+            variant_type: (item as any).variant_type || 'simple',
+            variant_display_name: (item as any).variant_display_name || null
           };
         });
         
@@ -631,6 +641,12 @@ export async function recordPayment(
     // استخراج معلمة is_full_payment (إذا كانت موجودة)
     const { is_full_payment, ...paymentData } = payment;
     
+    // التأكد من وجود organization_id في البيانات
+    const safePaymentData = {
+      ...paymentData,
+      organization_id: organizationId
+    };
+    
     // If it's a full payment and linked to a purchase, get the purchase details first
     if (is_full_payment && payment.purchase_id) {
       // الحصول على تفاصيل المشتريات
@@ -660,10 +676,9 @@ export async function recordPayment(
       const { data: paymentData, error: paymentError } = await supabase
         .from('supplier_payments')
         .insert({
-          ...payment,
+          ...safePaymentData,
           amount: remainingAmount,
-          notes: payment.notes ? `${payment.notes} (تسديد كامل)` : 'تسديد كامل',
-          organization_id: organizationId
+          notes: safePaymentData.notes ? `${safePaymentData.notes} (تسديد كامل)` : 'تسديد كامل'
         })
         .select()
         .single();
@@ -689,10 +704,7 @@ export async function recordPayment(
       // First create the payment record
       const { data: paymentData, error: paymentError } = await supabase
         .from('supplier_payments')
-        .insert({
-          ...payment,
-          organization_id: organizationId
-        })
+        .insert(safePaymentData)
         .select()
         .single();
       

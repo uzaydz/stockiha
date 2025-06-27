@@ -160,8 +160,6 @@ export const refreshAfterProductOperation = async (
 ) => {
   const { organizationId, immediate = true } = options;
 
-  console.log('🎯 [refreshAfterProductOperation] بدء التحديث:', { operation, organizationId });
-
   const delay = immediate ? 0 : 50; // تقليل التأخير
   
   setTimeout(async () => {
@@ -172,8 +170,6 @@ export const refreshAfterProductOperation = async (
         'dashboard-products',
         `products-${organizationId}`
       ];
-
-      console.log('🔄 [refreshAfterProductOperation] تحديث المفاتيح الأساسية:', essentialKeys);
 
       // تحديث واحد فقط لكل مفتاح
       await Promise.all(
@@ -188,10 +184,7 @@ export const refreshAfterProductOperation = async (
       });
       window.dispatchEvent(customEvent);
 
-      console.log('✅ [refreshAfterProductOperation] تم التحديث بنجاح');
-
     } catch (error) {
-      console.error('❌ [refreshAfterProductOperation] خطأ في التحديث:', error);
     }
   }, delay);
 };

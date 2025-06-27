@@ -308,28 +308,17 @@ export const getProductsPaginated = async (
     sortOption
   })}`;
 
-  console.log('🔄 [getProductsPaginated] API called:', { 
-    organizationId, 
-    page, 
-    limit, 
-    options,
-    cacheKey,
-    timestamp: new Date().toISOString() 
-  });
-
   // تنظيف الـ cache دورياً
   cleanupCache();
 
   // فحص الـ cache أولاً
   const cachedResult = resultsCache.get(cacheKey);
   if (cachedResult && Date.now() - cachedResult.timestamp < CACHE_DURATION) {
-    console.log('✅ [getProductsPaginated] عائد من الـ cache');
     return cachedResult.data;
   }
 
   // تجنب الطلبات المتزامنة المتعددة لنفس البيانات
   if (ongoingRequests.has(cacheKey)) {
-    console.log('⏳ [getProductsPaginated] طلب جاري، انتظار...');
     try {
       const result = await ongoingRequests.get(cacheKey);
       return result;
@@ -381,25 +370,16 @@ export const getProductsPaginated = async (
           .replace(/[^\u0600-\u06FFa-zA-Z0-9\s]/g, ' ') // استبدال الرموز الخاصة بمسافات
           .replace(/\s+/g, ' ') // تنظيف المسافات المتعددة
           .trim();
-        
-        console.log('🔍 [البحث الذكي]:', {
-          original: cleanSearchQuery,
-          normalized: normalizedSearchQuery
-        });
-        
+
         if (normalizedSearchQuery.length >= 2) {
           // تقسيم النص إلى كلمات منفصلة للبحث الذكي
           const searchWords = normalizedSearchQuery
             .split(' ')
             .filter(word => word.length >= 1);
-          
-          console.log('📝 [كلمات البحث]:', searchWords);
-          
+
           // البحث الذكي المحسن مع نظام أولويات
           const allWords = searchWords.join(' ');
-          
-          console.log('🎯 [البحث الكامل في الاسم]:', `name.ilike.%${allWords}%`);
-          
+
           // بحث مبسط وقوي: تركيز أساسي على الاسم
           let searchConditions: string[] = [];
           
@@ -425,9 +405,6 @@ export const getProductsPaginated = async (
           
           query = query.or(searchConditions.join(','));
           
-          console.log('🎯 [البحث المبسط القوي]');
-          console.log(`📊 الاسم: ${searchWords.length * 5} شروط، SKU: ${searchWords.length} شروط`);
-          console.log('🔥 وزن الاسم أعلى 5 مرات من باقي الحقول');
         } else {
           // للنصوص القصيرة، استخدام البحث التقليدي
           query = query.or(`name.ilike.%${cleanSearchQuery}%,sku.ilike.%${cleanSearchQuery}%,barcode.ilike.%${cleanSearchQuery}%`);
@@ -467,8 +444,6 @@ export const getProductsPaginated = async (
           .order('is_featured', { ascending: false }) // المنتجات المميزة أولاً
           .order('created_at', { ascending: false }); // الأحدث أخيراً
           
-        console.log('🎯 [ترتيب محسن للبحث: أبجدي + مخزون + مميز + تاريخ]');
-        console.log('🔍 هذا سيضع "Glass - 11 Pro" في المقدمة عند البحث عن "glass 11 pro"');
       } else {
         // الترتيب العادي عند عدم وجود بحث
         switch (sortOption) {
@@ -513,7 +488,6 @@ export const getProductsPaginated = async (
       const { data, error, count } = await query;
 
       if (error) {
-        console.error('❌ [getProductsPaginated] Database error:', error);
         throw error;
       }
 
@@ -538,17 +512,9 @@ export const getProductsPaginated = async (
         searchParams: cacheKey
       });
 
-      console.log('✅ [getProductsPaginated] نجح الاستعلام:', {
-        products: result.products.length,
-        totalCount: result.totalCount,
-        totalPages: result.totalPages,
-        cached: true
-      });
-
       return result;
 
     } catch (error) {
-      console.error('❌ [getProductsPaginated] خطأ:', error);
       return {
         products: [],
         totalCount: 0,
@@ -1128,8 +1094,6 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
     purchase_page_config: createdProduct.purchase_page_config ? JSON.parse(JSON.stringify(createdProduct.purchase_page_config)) : null,
   };
 
-  console.log('🔄 [createProduct] تحديث الكاش بعد الإنشاء...');
-
   // تحديث محسن: فقط الكاش الضروري
   cacheManager.invalidate('products*');
   
@@ -1140,7 +1104,6 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
   }
 
   toast.success("تم إنشاء المنتج بنجاح!");
-  console.log('✅ [createProduct] تم تحديث الكاش بنجاح');
 
   // 🎯 استخدام النظام الموحد للتحديث التلقائي
   if ((window as any).unifiedUpdate) {
@@ -1151,11 +1114,6 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
 };
 
 export const updateProduct = async (id: string, updates: UpdateProduct): Promise<Product> => {
-  console.log('🔧 updateProduct called with:', {
-    id,
-    stock_quantity: updates.stock_quantity,
-    fullUpdates: updates
-  });
 
   const { 
     colors,
@@ -1165,11 +1123,6 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
     marketingSettings, // Destructure marketingSettings
     ...mainProductUpdates 
   } = updates;
-
-  console.log('🔧 mainProductUpdates after destructuring:', {
-    stock_quantity: mainProductUpdates.stock_quantity,
-    mainProductUpdates
-  });
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {

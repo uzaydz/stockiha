@@ -58,7 +58,6 @@ export const useShippingLogic = (
   
   // دالة محسنة لـ setCurrentDeliveryFee مع حماية من التجاوز
   const setCurrentDeliveryFee = useCallback((newFee: number) => {
-    console.log('🔍 محاولة تحديث رسوم التوصيل:', { newFee, currentFee: currentDeliveryFee });
     
     // فحص إذا كان هناك حماية ضد التجاوز
     const currentProvince = form.getValues('province');
@@ -71,16 +70,10 @@ export const useShippingLogic = (
       
       // إذا كانت الحماية حديثة (أقل من 10 ثواني) ولدينا سعر أعلى محفوظ
       if (protectionAge < 10000 && protection.price > newFee && protection.price > 500) {
-        console.log('🛡️ حماية السعر: تجاهل السعر المنخفض:', { 
-          newFee, 
-          protectedPrice: protection.price,
-          protectionAge: Math.round(protectionAge / 1000) + 's'
-        });
         return; // لا نحدث السعر
       }
     }
     
-    console.log('✅ تحديث رسوم التوصيل:', newFee);
     setCurrentDeliveryFeeInternal(newFee);
   }, [form, tenantId, priceProtection, currentDeliveryFee]);
   const [communesList, setCommunesList] = useState<any[]>([]);
@@ -116,7 +109,6 @@ export const useShippingLogic = (
       const cacheAge = Date.now() - cached.timestamp;
       // استخدام الـ cache إذا كان عمره أقل من 30 دقيقة
       if (cacheAge < 30 * 60 * 1000) {
-        console.log('📦 استخدام سعر الولاية المحفوظ محلياً:', cached[deliveryType]);
         return cached[deliveryType];
       } else {
         // إزالة الـ cache المنتهي الصلاحية
@@ -140,27 +132,17 @@ export const useShippingLogic = (
         timestamp: Date.now()
       }
     }));
-    console.log('💾 تم حفظ أسعار الولاية محلياً:', { homePrice, deskPrice });
   }, [tenantId]);
 
   // نقل تعريف updateDeliveryFee هنا قبل استخدامها
   // نقل تعريف updateDeliveryFee قبل استخدامه
   const updateDeliveryFee = useCallback(async (provinceId: string | number, municipalityId: string | number | null) => {
-    console.log('🚀 updateDeliveryFee بدء حساب رسوم التوصيل:', {
-      provinceId,
-      municipalityId,
-      tenantId,
-      productId,
-      quantity,
-      currentDeliveryOption: form.getValues("deliveryOption")
-    });
 
     // التحقق من cache الولاية أولاً لتسريع العملية
     const currentDeliveryOption = form.getValues("deliveryOption") || 'home';
     const cachedPrice = getWilayaCachedPrice(provinceId, currentDeliveryOption);
     
     if (cachedPrice !== null) {
-      console.log('⚡ استخدام السعر المحفوظ للولاية - تجاوز جميع الطلبات');
       setCurrentDeliveryFee(cachedPrice);
       
       // حفظ الحماية ضد التجاوز
@@ -177,7 +159,6 @@ export const useShippingLogic = (
     }
 
     if (!provinceId || !tenantId) {
-      console.log('⚠️ updateDeliveryFee: معاملات ناقصة - إلغاء الحساب');
       return;
     }
 
@@ -185,7 +166,6 @@ export const useShippingLogic = (
     
     // إضافة timeout للـ loading state لتجنب التعليق
     const loadingTimeout = setTimeout(() => {
-      console.warn('⏰ انتهت مهلة حساب أسعار التوصيل، استخدام سعر افتراضي');
       const currentDeliveryOption = form.getValues("deliveryOption") || 'home';
       setCurrentDeliveryFee(currentDeliveryOption === 'home' ? 650 : 450);
       setIsLoadingDeliveryFee(false);
@@ -201,14 +181,11 @@ export const useShippingLogic = (
 
       // التحقق من إعدادات المنتج أولاً
       if (productId) {
-        console.log('🔍 التحقق من إعدادات شركة الشحن للمنتج:', productId);
         const { data: productData, error: productError } = await supabase
           .from('products')
           .select('shipping_provider_id, shipping_method_type')
           .eq('id', productId)
           .single();
-        
-        console.log('📦 بيانات إعدادات شحن المنتج:', { productData, productError });
 
         if (!productError && productData) {
           // التحقق من نوع طريقة الشحن أولاً
@@ -287,7 +264,6 @@ export const useShippingLogic = (
             // إضافة تحقق من صحة ID قبل النداء على قاعدة البيانات
             const providerId = Number(productData.shipping_provider_id);
             if (isNaN(providerId) || providerId <= 0) {
-              console.log('⚠️ معرف مزود الشحن غير صالح:', providerId);
             } else {
               const { data: providerData } = await supabase
                 .from('shipping_providers')
@@ -295,10 +271,7 @@ export const useShippingLogic = (
                 .eq('id', providerId)
                 .single();
 
-              console.log('🏢 بيانات مزود الشحن:', { providerData, providerId });
-
               if (providerData && providerData.code === 'yalidine') {
-                console.log('🟡 المنتج مرتبط بياليدين - استخدام API ياليدين مباشرة');
                 
                 // التحقق من صحة municipalityId
                 const validMunicipalityId = municipalityId && !isNaN(Number(municipalityId)) ? Number(municipalityId) : null;
@@ -316,12 +289,10 @@ export const useShippingLogic = (
                       form.setValue('municipality', finalMunicipalityId.toString());
                     }
                   } catch (error) {
-                    console.warn('⚠️ فشل في جلب البلديات:', error);
                   }
                 }
                 
                 if (!finalMunicipalityId) {
-                  console.warn('⚠️ لا توجد بلدية محددة لياليدين');
                   // استخدام السعر الافتراضي
                   setCurrentDeliveryFee(currentDeliveryOption === 'home' ? 400 : 350);
                   return;
@@ -339,7 +310,6 @@ export const useShippingLogic = (
                   );
                   
                   if (yalidinePrice && yalidinePrice > 0) {
-                    console.log('✅ سعر ياليدين من API:', yalidinePrice);
                     setCurrentDeliveryFee(yalidinePrice);
                     
                     // حفظ السعر في cache الولاية (جلب سعر النوع الآخر أيضاً)
@@ -370,10 +340,8 @@ export const useShippingLogic = (
                     
                     return;
                   } else {
-                    console.log('⚠️ ياليدين API أرجع سعر 0 أو null');
                   }
                 } catch (yalidineError) {
-                  console.error('❌ خطأ في API ياليدين:', yalidineError);
                 }
               } else if (providerData && providerData.code === 'zrexpress') {
                 
@@ -494,7 +462,6 @@ export const useShippingLogic = (
 
       // استدعاء دالة حساب السعر مع معالجة الأخطاء
       try {
-        console.log('🔄 محاولة حساب السعر من API ياليدين مباشرة قبل استخدام قاعدة البيانات...');
         
         // أولاً: محاولة استخدام API ياليدين مباشرة لأن دالة قاعدة البيانات معطلة
         let fee = null;
@@ -509,9 +476,7 @@ export const useShippingLogic = (
             estimatedWeight // weight
           );
           
-          console.log('✅ نجح حساب السعر من API ياليدين:', fee);
         } catch (yalidineError) {
-          console.log('⚠️ فشل API ياليدين، العودة لقاعدة البيانات:', yalidineError);
           
           // العودة لدالة قاعدة البيانات كـ fallback
           fee = await calculateShippingFee(
@@ -546,7 +511,6 @@ export const useShippingLogic = (
         throw shippingError;
       }
     } catch (error) {
-      console.error('❌ خطأ في حساب رسوم التوصيل في useShippingLogic:', error);
       
       // معالجة أكثر تفصيلاً للأخطاء
       const currentDeliveryOption = form.getValues("deliveryOption") || 'home';
@@ -573,22 +537,13 @@ export const useShippingLogic = (
         // افتراضي عام
         fallbackPrice = isHomeDelivery ? 500 : 400;
       }
-      
-      console.log('🔄 استخدام السعر الافتراضي المحسن في useShippingLogic:', { 
-        fallbackPrice, 
-        isHomeDelivery, 
-        province: currentProvince,
-        errorType: error instanceof Error ? error.name : 'Unknown'
-      });
-      
+
       setCurrentDeliveryFee(fallbackPrice);
     } finally {
       clearTimeout(loadingTimeout); // إلغاء الـ timeout عند اكتمال العملية
       setIsLoadingDeliveryFee(false);
     }
   }, [tenantId, form, quantity, selectedDeliveryType, initialDeliveryFee, productId, shippingProviderSettings, formSettings]);
-
-
 
   // تحميل قائمة الولايات
   useEffect(() => {
@@ -647,10 +602,8 @@ export const useShippingLogic = (
           } else {
           }
         } catch (error) {
-          console.error('❌ خطأ في إعادة حساب رسوم التوصيل عند تغيير النوع:', error);
           const isHomeDelivery = value === 'home';
           const fallbackPrice = isHomeDelivery ? 400 : 350;
-          console.log('🔄 استخدام السعر الافتراضي عند تغيير نوع التوصيل:', { fallbackPrice, isHomeDelivery, value });
           setCurrentDeliveryFee(fallbackPrice);
         } finally {
           setIsLoadingDeliveryFee(false);

@@ -3,6 +3,8 @@
  * يتدخل في جميع طلبات HTTP ويمنع الطلبات المكررة بذكاء
  */
 
+import { consoleManager } from './console-manager';
+
 // أنواع الطلبات المختلفة
 type RequestType = 'auth' | 'data' | 'api' | 'other';
 
@@ -60,7 +62,7 @@ let stats = {
 
 // معرفات خاصة للطلبات المتكررة الشائعة
 const COMMON_DUPLICATE_PATTERNS = [
-  'product_categories?select=*&order=name.asc',
+  // 'product_categories?select=*&order=name.asc', // تم تعطيل منع التكرار للفئات
   'organizations?select=id&subdomain=eq',
   'organization_settings?organization_id=eq',
   'organizations?select=id%2Corganization_settings',
@@ -206,11 +208,13 @@ function createRequestKey(url: string, options?: RequestInit): string {
       }
     }
     
-    // معالجة خاصة للبيانات
+    // معالجة خاصة للبيانات (الفئات مستثناة من منع التكرار)
     if (url.includes('product_categories')) {
+      // إنشاء مفتاح فريد لكل طلب فئات لضمان عدم الحجب
+      const timestamp = Date.now();
       const orgMatch = url.match(/organization_id=eq\.([^&]+)/);
       const orgId = orgMatch ? orgMatch[1] : 'global';
-      return `DATA:CATEGORIES:${orgId}`;
+      return `DATA:CATEGORIES:${orgId}:${timestamp}`;
     }
     if (url.includes('organization_settings')) {
       const orgMatch = url.match(/organization_id=eq\.([^&]+)/);
@@ -360,6 +364,11 @@ function shouldBlockRequest(key: string, type: RequestType, url: string): boolea
   const now = Date.now();
   const config = DEDUPLICATION_CONFIG[type];
   
+  // استثناء خاص للفئات - لا نحجب طلبات الفئات أبداً
+  if (url.includes('product_categories')) {
+    return false;
+  }
+  
   // تحقق من قواعد صفحة شراء المنتج أولاً
   for (const rule of PRODUCT_PAGE_DEDUPLICATION_RULES) {
     if (key.startsWith(rule.category)) {
@@ -368,7 +377,6 @@ function shouldBlockRequest(key: string, type: RequestType, url: string): boolea
         hideRequestFromConsole(url);
         stats.globalInterceptions++;
         if (SYSTEM_CONFIG.logLevel === 'verbose') {
-          console.log(`🚫 منع طلب صفحة منتج (${rule.description}): ${key}`);
         }
         return true;
       }
@@ -384,7 +392,6 @@ function shouldBlockRequest(key: string, type: RequestType, url: string): boolea
         hideRequestFromConsole(url);
         stats.globalInterceptions++;
         if (SYSTEM_CONFIG.logLevel === 'verbose' || process.env.NODE_ENV === 'development') {
-          console.log(`🚫 منع طلب شائع متكرر: ${pattern}`);
         }
         return true;
       }
@@ -404,7 +411,6 @@ function shouldBlockRequest(key: string, type: RequestType, url: string): boolea
     hideRequestFromConsole(url);
     stats.globalInterceptions++;
     if (process.env.NODE_ENV === 'development') {
-      console.log(`⏳ منع طلب معلق: ${key}`);
     }
     return true;
   }
@@ -480,7 +486,6 @@ const enhancedFetch = async function(input: RequestInfo | URL, init?: RequestIni
   
   // طباعة معلومات التشخيص في بيئة التطوير
   if (SYSTEM_CONFIG.logLevel === 'verbose' || process.env.NODE_ENV === 'development') {
-    console.log(`🔍 طلب جديد: ${key} | نوع: ${requestType}`);
   }
   
   // التحقق من الـ cache للـ Auth requests
@@ -490,7 +495,6 @@ const enhancedFetch = async function(input: RequestInfo | URL, init?: RequestIni
       stats.cacheHits++;
       logRequest(url, method, requestType, true, 'fetch-cache');
       if (SYSTEM_CONFIG.logLevel === 'verbose') {
-        console.log(`🎯 استخدام Auth Cache للطلب: ${key}`);
       }
       return createCachedResponse(cached.response, url);
     }
@@ -501,12 +505,10 @@ const enhancedFetch = async function(input: RequestInfo | URL, init?: RequestIni
     logRequest(url, method, requestType, true, 'fetch-block');
     
     if (SYSTEM_CONFIG.logLevel === 'verbose' && requestType === 'auth') {
-      console.log(`🚫 منع طلب Auth مكرر: ${key}`);
     }
     
     // طباعة رسالة واضحة في بيئة التطوير
     if (process.env.NODE_ENV === 'development') {
-      console.log(`❌ تم منع طلب مكرر: ${url.split('/').pop()}`);
     }
     
     // انتظار الطلب المعلق إن وجد
@@ -524,7 +526,6 @@ const enhancedFetch = async function(input: RequestInfo | URL, init?: RequestIni
       const cached = authResponseCache.get(key);
       if (cached) {
         if (SYSTEM_CONFIG.logLevel === 'verbose') {
-          console.log(`🎯 استخدام Auth Cache للطلب المحظور: ${key}`);
         }
         return createCachedResponse(cached.response, url);
       }
@@ -532,7 +533,6 @@ const enhancedFetch = async function(input: RequestInfo | URL, init?: RequestIni
     
     // إرجاع response فارغ للطلبات المحظورة مع تأثير بصري
     if (process.env.NODE_ENV === 'development') {
-      console.log(`🛑 BLOCKED: ${url}`);
     }
     
     return new Response('{}', { 
@@ -552,7 +552,6 @@ const enhancedFetch = async function(input: RequestInfo | URL, init?: RequestIni
   
   // طباعة رسالة في بيئة التطوير للطلبات المسموحة
   if (process.env.NODE_ENV === 'development') {
-    console.log(`✅ طلب مسموح: ${url.split('/').pop()}`);
   }
   
   // تنفيذ الطلب مع منع التكرار
@@ -568,7 +567,6 @@ const enhancedFetch = async function(input: RequestInfo | URL, init?: RequestIni
           ttl: config.cacheTtl
         });
         if (SYSTEM_CONFIG.logLevel === 'verbose') {
-          console.log(`💾 حفظ Auth Response في Cache: ${key}`);
         }
       } catch (error) {
         // معالجة صامتة للأخطاء
@@ -605,22 +603,18 @@ if (typeof window !== 'undefined') {
     
     globalObjects.forEach(obj => {
       if (obj && obj.fetch && obj.fetch !== enhancedFetch) {
-        console.log('🔄 تم العثور على fetch إضافي، يتم استبداله...');
         obj.fetch = enhancedFetch;
       }
     });
     
     // اعتراض خاص لمكتبة Supabase إذا كانت متاحة
     if ((window as any).supabase || (globalThis as any).supabase) {
-      console.log('🔧 اعتراض طلبات Supabase...');
     }
   }, 100);
 }
 
 // إضافة رسائل التأكيد
 if (process.env.NODE_ENV === 'development') {
-  console.log('🔧 تم استبدال window.fetch بنظام منع التكرار');
-  console.log('🎛️ للحصول على إحصائيات: deduplicationStats()');
 }
 
 // تدخل في XMLHttpRequest (اختياري)
@@ -684,13 +678,11 @@ const performanceObserver = new PerformanceObserver((list) => {
       
       // إحصائيات مفصلة في بيئة التطوير
       if (process.env.NODE_ENV === 'development') {
-        console.log(`🌐 طلب PerformanceObserver: ${url.split('/').pop()}`);
         
         // تحقق من الطلبات المكررة
         const now = Date.now();
         const lastRequest = recentRequests.get(key);
         if (lastRequest && (now - lastRequest) < 5000) { // 5 ثوان
-          console.log(`⚠️ طلب مكرر تم اكتشافه عبر PerformanceObserver: ${key}`);
         }
       }
       
@@ -706,10 +698,8 @@ if (typeof window !== 'undefined' && 'PerformanceObserver' in window) {
   try {
     performanceObserver.observe({ entryTypes: ['resource'] });
     if (process.env.NODE_ENV === 'development') {
-      console.log('👁️ مراقب الأداء نشط لرصد جميع الطلبات');
     }
   } catch (error) {
-    console.warn('فشل في بدء مراقب الأداء:', error);
   }
 }
 
@@ -736,12 +726,6 @@ if (SYSTEM_CONFIG.enablePeriodicLogs) {
                      stats.cacheHits !== lastPrintedStats.cacheHits;
     
     if (stats.totalRequests > 0 && hasChange) {
-      console.log(`📈 إحصائيات منع التكرار:`);
-      console.log(`   📊 المجموع: ${stats.totalRequests} طلب`);
-      console.log(`   🚫 محظور: ${stats.blockedRequests} (${totalBlockPercentage}%)`);
-      console.log(`   🔐 Auth: ${stats.authBlocked}/${stats.authRequests} محظور (${authBlockPercentage}%)`);
-      console.log(`   💾 Cache hits: ${stats.cacheHits}`);
-      console.log(`   🔄 معلق: ${pendingRequests.size}, حديث: ${recentRequests.size}, Auth cache: ${authResponseCache.size}`);
       
       // تحديث آخر إحصائيات مطبوعة
       lastPrintedStats = {
@@ -773,44 +757,26 @@ window.deduplicationStats = () => {
   const now = Date.now();
   const uptime = Math.round((now - stats.lastReset) / 1000);
   
-  console.group('📊 إحصائيات نظام منع التكرار العالمي');
-  console.log(`⏱️ وقت التشغيل: ${uptime} ثانية`);
-  console.log(`📥 إجمالي الطلبات: ${stats.totalRequests}`);
-  console.log(`🚫 الطلبات المحظورة: ${stats.blockedRequests} (${Math.round((stats.blockedRequests / stats.totalRequests) * 100)}%)`);
-  console.log(`🔐 طلبات Auth: ${stats.authRequests}`);
-  console.log(`🚫 Auth محظور: ${stats.authBlocked} (${Math.round((stats.authBlocked / stats.authRequests) * 100)}%)`);
-  console.log(`💾 Cache hits: ${stats.cacheHits}`);
-  console.log(`🔄 طلبات معلقة: ${pendingRequests.size}`);
-  console.log(`⚡ طلبات حديثة: ${recentRequests.size}`);
-  console.log(`🗄️ Auth cache: ${authResponseCache.size} entries`);
-  console.groupEnd();
 };
 
 // إحصائيات الـ Auth Cache
 window.getAuthCacheStats = () => {
-  console.group('🔐 إحصائيات Auth Cache');
-  console.log(`📦 عدد العناصر المحفوظة: ${authResponseCache.size}`);
   
   authResponseCache.forEach((entry, key) => {
     const age = Math.round((Date.now() - entry.timestamp) / 1000);
     const remaining = Math.round((entry.ttl - (Date.now() - entry.timestamp)) / 1000);
-    console.log(`🔑 ${key}: عمر ${age}ث، باقي ${remaining}ث`);
   });
-  console.groupEnd();
 };
 
 // سجل الطلبات الأخيرة
 window.getRequestLogs = () => {
-  console.group('📋 سجل الطلبات الأخيرة (آخر 20)');
   const recent = requestLogs.slice(-20);
   
   for (const log of recent) {
     const time = new Date(log.timestamp).toLocaleTimeString();
     const status = log.blocked ? '🚫' : '✅';
     const typeIcon = log.type === 'auth' ? '🔐' : log.type === 'data' ? '📊' : '🌐';
-    console.log(`${status} ${typeIcon} [${time}] ${log.method} ${log.url} (${log.source})`);
   }
-  console.groupEnd();
 };
 
 // مسح الـ cache
@@ -827,61 +793,35 @@ window.clearDeduplicationCache = () => {
     globalInterceptions: 0,
     lastReset: Date.now()
   };
-  console.log('🧹 تم مسح جميع بيانات منع التكرار');
 };
 
 // عرض الإعدادات
 window.getDeduplicationConfig = () => {
-  console.group('⚙️ إعدادات منع التكرار');
-  console.log('إعدادات النظام:', SYSTEM_CONFIG);
   for (const [type, config] of Object.entries(DEDUPLICATION_CONFIG)) {
-    console.log(`${type}:`, {
-      TTL: `${config.ttl}ms`,
-      'Cache TTL': `${config.cacheTtl}ms`,
-      'Immediate Block': `${config.immediateBlockTtl}ms`
-    });
   }
-  console.groupEnd();
 };
 
 // تمكين/تعطيل الطباعة الدورية
 window.togglePeriodicLogs = (enabled?: boolean) => {
   SYSTEM_CONFIG.enablePeriodicLogs = enabled !== undefined ? enabled : !SYSTEM_CONFIG.enablePeriodicLogs;
-  console.log(`📊 الطباعة الدورية: ${SYSTEM_CONFIG.enablePeriodicLogs ? 'مفعلة' : 'معطلة'}`);
 };
 
 // تغيير مستوى السجل
 window.setLogLevel = (level: 'minimal' | 'normal' | 'verbose') => {
   SYSTEM_CONFIG.logLevel = level;
-  console.log(`📝 مستوى السجل: ${level}`);
 };
 
 if (SYSTEM_CONFIG.logLevel !== 'minimal') {
-  console.log('🚀 تم تفعيل نظام منع التكرار العالمي المتقدم');
-  console.log('💡 استخدم deduplicationStats() لعرض الإحصائيات');
 }
 
 // دالة لعرض إحصائيات مفصلة ومراقبة شاملة
 (window as any).deduplicationStats = () => {
-  console.group('📊 إحصائيات نظام منع التكرار المتقدمة');
-  
-  console.log(`📈 إجمالي الطلبات: ${stats.totalRequests}`);
-  console.log(`🚫 الطلبات المحظورة: ${stats.blockedRequests} (${((stats.blockedRequests / stats.totalRequests) * 100).toFixed(1)}%)`);
-  console.log(`🔐 طلبات Auth: ${stats.authRequests} (محظور: ${stats.authBlocked})`);
-  console.log(`💾 استخدام Cache: ${stats.cacheHits}`);
-  console.log(`🌐 اعتراضات عالمية: ${stats.globalInterceptions}`);
-  
-  console.group('🗂️ الطلبات المعلقة الحالية');
-  console.log(`عدد: ${pendingRequests.size}`);
+
   if (pendingRequests.size > 0) {
     pendingRequests.forEach((_, key) => {
-      console.log(`⏳ ${key}`);
     });
   }
-  console.groupEnd();
   
-  console.group('🕐 الطلبات الحديثة');
-  console.log(`عدد: ${recentRequests.size}`);
   if (recentRequests.size > 0) {
     const now = Date.now();
     const recentArray = Array.from(recentRequests.entries())
@@ -894,27 +834,15 @@ if (SYSTEM_CONFIG.logLevel !== 'minimal') {
       .slice(0, 10); // أظهر آخر 10 فقط
     
     recentArray.forEach(({ key, age }) => {
-      console.log(`🕒 ${key} (عمر: ${age}ث)`);
     });
   }
-  console.groupEnd();
-  
-  console.group('🎯 التتبع العالمي');
-  console.log(`عدد المتتبعة: ${globalRequestTracker.size}`);
-  console.groupEnd();
-  
-  console.group('🔐 إحصائيات Auth Cache');
-  console.log(`📦 عدد العناصر المحفوظة: ${authResponseCache.size}`);
-  
+
   authResponseCache.forEach((entry, key) => {
     const age = Math.round((Date.now() - entry.timestamp) / 1000);
     const remaining = Math.round((entry.ttl - (Date.now() - entry.timestamp)) / 1000);
-    console.log(`🔑 ${key}: عمر ${age}ث، باقي ${remaining}ث`);
   });
-  console.groupEnd();
   
   // تحليل الطلبات الشائعة المكررة
-  console.group('🔍 تحليل الطلبات المكررة');
   const requestCounts = new Map<string, number>();
   requestLogs.forEach(log => {
     const count = requestCounts.get(log.url) || 0;
@@ -927,17 +855,11 @@ if (SYSTEM_CONFIG.logLevel !== 'minimal') {
     .slice(0, 5);
   
   if (duplicates.length > 0) {
-    console.log('🔥 أكثر الطلبات تكراراً:');
     duplicates.forEach(([url, count]) => {
-      console.log(`📊 ${count}x: ${url}`);
     });
   } else {
-    console.log('✅ لا توجد طلبات مكررة مسجلة');
   }
-  console.groupEnd();
-  
-  console.groupEnd();
-  
+
   return {
     stats,
     pendingCount: pendingRequests.size,
@@ -950,7 +872,6 @@ if (SYSTEM_CONFIG.logLevel !== 'minimal') {
 
 // دالة مراقبة مباشرة للطلبات
 (window as any).watchRequests = (duration = 10000) => {
-  console.log(`👁️ بدء مراقبة الطلبات لمدة ${duration/1000} ثانية...`);
   
   const startStats = { ...stats };
   const startTime = Date.now();
@@ -960,17 +881,11 @@ if (SYSTEM_CONFIG.logLevel !== 'minimal') {
     const newRequests = stats.totalRequests - startStats.totalRequests;
     const newBlocked = stats.blockedRequests - startStats.blockedRequests;
     
-    console.group(`📈 تقرير المراقبة (${(endTime - startTime)/1000}ث)`);
-    console.log(`🆕 طلبات جديدة: ${newRequests}`);
-    console.log(`🚫 طلبات محظورة: ${newBlocked}`);
-    console.log(`📊 معدل المنع: ${newRequests > 0 ? ((newBlocked / newRequests) * 100).toFixed(1) : 0}%`);
-    console.groupEnd();
   }, duration);
 };
 
 // تفعيل الدوال للاستخدام العالمي
 if (process.env.NODE_ENV === 'development') {
-  console.log('🛠️ الدوال المتاحة: deduplicationStats(), watchRequests(duration)');
 }
 
 export { };

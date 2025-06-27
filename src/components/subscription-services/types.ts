@@ -21,8 +21,10 @@ export interface SubscriptionServicePricing {
 export interface SubscriptionServiceCategory {
   id: string;
   name: string;
-  description: string;
-  icon: string;
+  description?: string;
+  icon?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface SubscriptionService {
@@ -121,4 +123,4 @@ export interface PricingFormData {
   discount_percentage: number;
   promo_text: string;
   bonus_days: number;
-} 
+}

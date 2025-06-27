@@ -42,7 +42,6 @@ export const useSubscriptionServices = (organizationId: string | undefined) => {
       const data = await SubscriptionServicesAPI.fetchCategories(organizationId);
       setCategories(data);
     } catch (error) {
-      console.error('Error fetching categories:', error);
       toast({
         title: "خطأ",
         description: "حدث خطأ في جلب فئات الخدمات",
@@ -64,7 +63,6 @@ export const useSubscriptionServices = (organizationId: string | undefined) => {
       const stats = SubscriptionServicesAPI.calculateServiceStats(data);
       setServiceStats(stats);
     } catch (error) {
-      console.error('Error fetching services:', error);
       toast({
         title: "خطأ",
         description: "حدث خطأ في جلب خدمات الاشتراكات",
@@ -88,7 +86,6 @@ export const useSubscriptionServices = (organizationId: string | undefined) => {
       const stats = SubscriptionServicesAPI.calculateTransactionStats(data);
       setTransactionStats(stats);
     } catch (error) {
-      console.error('Error fetching transactions:', error);
       toast({
         title: "خطأ",
         description: "حدث خطأ في جلب معاملات الاشتراكات",
@@ -184,4 +181,4 @@ export const useSubscriptionServices = (organizationId: string | undefined) => {
       fetchTransactions();
     }
   };
-}; 
+};

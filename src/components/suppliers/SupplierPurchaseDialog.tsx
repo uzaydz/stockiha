@@ -36,6 +36,8 @@ import {
 import { Calendar } from '@/components/ui/calendar';
 import { CalendarIcon, Loader2, Plus, Trash2 } from 'lucide-react';
 import { Supplier, SupplierPurchase, SupplierPurchaseItem } from '@/api/supplierService';
+import { SupplierDialog } from './SupplierDialog';
+import { ProductVariantSelector } from './ProductVariantSelector';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { ar } from 'date-fns/locale';
@@ -67,6 +69,9 @@ interface Product {
   id: string;
   name: string;
   price: number;
+  purchase_price?: number; // سعر الشراء
+  has_variants?: boolean;
+  use_sizes?: boolean;
 }
 
 interface SupplierPurchaseDialogProps {
@@ -83,6 +88,8 @@ interface SupplierPurchaseDialogProps {
   onClose?: () => void;
   isLoading?: boolean;
   calculateTotalAmount?: (items: any[]) => number;
+  onCreateSupplier?: (supplierData: any) => Promise<void>;
+  onSuppliersUpdate?: () => void;
 }
 
 export function SupplierPurchaseDialog({
@@ -96,9 +103,15 @@ export function SupplierPurchaseDialog({
   onClose,
   isLoading = false,
   calculateTotalAmount,
+  onCreateSupplier,
+  onSuppliersUpdate,
 }: SupplierPurchaseDialogProps) {
   const isEditing = !!purchase;
   const [totalAmount, setTotalAmount] = useState(0);
+  const [supplierDialogOpen, setSupplierDialogOpen] = useState(false);
+  const [isCreatingSupplier, setIsCreatingSupplier] = useState(false);
+  const [itemVariants, setItemVariants] = useState<Record<number, any[]>>({});
+  const [showVariantSelector, setShowVariantSelector] = useState<Record<number, boolean>>({});
   
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -221,7 +234,13 @@ export function SupplierPurchaseDialog({
     }
     
     try {
-      await onSave(data);
+      // إضافة بيانات المتغيرات إلى البيانات المرسلة
+      const enhancedData = {
+        ...data,
+        item_variants: itemVariants
+      };
+      
+      await onSave(enhancedData);
     } catch (error) {
     }
   };
@@ -246,6 +265,10 @@ export function SupplierPurchaseDialog({
       // تعيين product_id إلى null صراحةً
       form.setValue(`items.${index}.product_id`, null);
       
+      // إخفاء محدد المتغيرات
+      setShowVariantSelector(prev => ({ ...prev, [index]: false }));
+      setItemVariants(prev => ({ ...prev, [index]: [] }));
+      
       return;
     }
     
@@ -255,9 +278,53 @@ export function SupplierPurchaseDialog({
       // تعيين قيمة product_id صراحةً أولاً
       form.setValue(`items.${index}.product_id`, productId);
       form.setValue(`items.${index}.description`, product.name);
-      form.setValue(`items.${index}.unit_price`, product.price);
+      
+      // إذا كان المنتج له متغيرات، أظهر محدد المتغيرات
+      if (product.has_variants) {
+        setShowVariantSelector(prev => ({ ...prev, [index]: true }));
+        setItemVariants(prev => ({ ...prev, [index]: [] }));
+        
+        // إعادة تعيين الكمية والسعر
+        form.setValue(`items.${index}.quantity`, 0);
+        form.setValue(`items.${index}.unit_price`, 0);
+      } else {
+        // منتج بسيط بدون متغيرات
+        setShowVariantSelector(prev => ({ ...prev, [index]: false }));
+        setItemVariants(prev => ({ ...prev, [index]: [] }));
+        
+        // استخدام سعر الشراء إذا كان متوفراً، وإلا استخدام سعر البيع
+        const priceToUse = product.purchase_price || product.price;
+        form.setValue(`items.${index}.unit_price`, priceToUse);
+        form.setValue(`items.${index}.quantity`, 1);
+        
+        // إظهار تنبيه إذا لم يكن سعر الشراء متوفراً
+        if (!product.purchase_price) {
+          console.warn(`تحذير: سعر الشراء غير متوفر للمنتج "${product.name}". سيتم استخدام سعر البيع (${product.price}) مؤقتاً.`);
+        }
+      }
       
     } else {
+    }
+  };
+
+  // التعامل مع تغيير متغيرات المنتج
+  const handleVariantsChange = (index: number, variants: any[]) => {
+    setItemVariants(prev => ({ ...prev, [index]: variants }));
+    
+    // حساب الكمية الإجمالية والسعر المتوسط
+    const totalQuantity = variants.reduce((sum, v) => sum + v.quantity, 0);
+    const totalValue = variants.reduce((sum, v) => sum + (v.quantity * v.unit_price), 0);
+    const averagePrice = totalQuantity > 0 ? totalValue / totalQuantity : 0;
+    
+    // تحديث النموذج
+    form.setValue(`items.${index}.quantity`, totalQuantity);
+    form.setValue(`items.${index}.unit_price`, averagePrice);
+    
+    // تحديث الوصف ليشمل المتغيرات
+    const product = products.find(p => p.id === form.getValues(`items.${index}.product_id`));
+    if (product && variants.length > 0) {
+      const variantNames = variants.map(v => `${v.display_name} (${v.quantity})`).join(' + ');
+      form.setValue(`items.${index}.description`, variantNames);
     }
   };
   
@@ -270,6 +337,26 @@ export function SupplierPurchaseDialog({
       unit_price: 0,
       tax_rate: 0,
     });
+  };
+
+  // التعامل مع إنشاء مورد جديد
+  const handleCreateSupplier = async (supplierData: any) => {
+    if (!onCreateSupplier) return;
+    
+    try {
+      setIsCreatingSupplier(true);
+      await onCreateSupplier(supplierData);
+      setSupplierDialogOpen(false);
+      
+      // تحديث قائمة الموردين إذا كانت الدالة متوفرة
+      if (onSuppliersUpdate) {
+        onSuppliersUpdate();
+      }
+    } catch (error) {
+      console.error('Error creating supplier:', error);
+    } finally {
+      setIsCreatingSupplier(false);
+    }
   };
   
   return (
@@ -315,24 +402,38 @@ export function SupplierPurchaseDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>المورّد*</FormLabel>
-                    <Select 
-                      onValueChange={field.onChange} 
-                      defaultValue={field.value}
-                      value={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="اختر المورد" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {suppliers.map((supplier) => (
-                          <SelectItem key={supplier.id} value={supplier.id}>
-                            {supplier.name} {supplier.company_name ? `(${supplier.company_name})` : ''}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="flex gap-2">
+                      <Select 
+                        onValueChange={field.onChange} 
+                        defaultValue={field.value}
+                        value={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="flex-1">
+                            <SelectValue placeholder="اختر المورد" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {suppliers.map((supplier) => (
+                            <SelectItem key={supplier.id} value={supplier.id}>
+                              {supplier.name} {supplier.company_name ? `(${supplier.company_name})` : ''}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {onCreateSupplier && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setSupplierDialogOpen(true)}
+                          title="إضافة مورد جديد"
+                          disabled={isLoading}
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -502,141 +603,159 @@ export function SupplierPurchaseDialog({
               
               <div className="space-y-4">
                 {fields.map((field, index) => (
-                  <div key={field.id} className="grid grid-cols-12 gap-4 items-start border-b pb-4">
-                    {/* المنتج */}
-                    <div className="col-span-12 md:col-span-4">
-                      <FormField
-                        control={form.control}
-                        name={`items.${index}.product_id`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className={index !== 0 ? 'sr-only' : ''}>المنتج</FormLabel>
-                            <Select 
-                              onValueChange={(value) => {
-                                field.onChange(value);
-                                handleProductSelect(index, value);
-                              }}
-                              value={field.value}
-                            >
+                  <div key={field.id} className="space-y-4">
+                    <div className="grid grid-cols-12 gap-4 items-start border-b pb-4">
+                      {/* المنتج */}
+                      <div className="col-span-12 md:col-span-4">
+                        <FormField
+                          control={form.control}
+                          name={`items.${index}.product_id`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className={index !== 0 ? 'sr-only' : ''}>المنتج</FormLabel>
+                              <Select 
+                                onValueChange={(value) => {
+                                  field.onChange(value);
+                                  handleProductSelect(index, value);
+                                }}
+                                value={field.value}
+                              >
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="اختر المنتج" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="none">-- بدون منتج --</SelectItem>
+                                  {products.map((product) => (
+                                    <SelectItem key={product.id} value={product.id}>
+                                      {product.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      
+                      {/* الوصف */}
+                      <div className="col-span-12 md:col-span-3">
+                        <FormField
+                          control={form.control}
+                          name={`items.${index}.description`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className={index !== 0 ? 'sr-only' : ''}>الوصف*</FormLabel>
                               <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="اختر المنتج" />
-                                </SelectTrigger>
+                                <Input placeholder="وصف المنتج" {...field} />
                               </FormControl>
-                              <SelectContent>
-                                <SelectItem value="none">-- بدون منتج --</SelectItem>
-                                {products.map((product) => (
-                                  <SelectItem key={product.id} value={product.id}>
-                                    {product.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      
+                      {/* الكمية */}
+                      <div className="col-span-4 md:col-span-1">
+                        <FormField
+                          control={form.control}
+                          name={`items.${index}.quantity`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className={index !== 0 ? 'sr-only' : ''}>الكمية*</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  min="0.01"
+                                  step="0.01"
+                                  onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                                  value={field.value}
+                                  disabled={showVariantSelector[index]}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      
+                      {/* سعر الوحدة */}
+                      <div className="col-span-4 md:col-span-2">
+                        <FormField
+                          control={form.control}
+                          name={`items.${index}.unit_price`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className={index !== 0 ? 'sr-only' : ''}>السعر*</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                                  value={field.value}
+                                  disabled={showVariantSelector[index]}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      
+                      {/* نسبة الضريبة */}
+                      <div className="col-span-3 md:col-span-1">
+                        <FormField
+                          control={form.control}
+                          name={`items.${index}.tax_rate`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className={index !== 0 ? 'sr-only' : ''}>الضريبة %</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                                  value={field.value}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      
+                      {/* زر حذف العنصر */}
+                      <div className="col-span-1 pt-8">
+                        {fields.length > 1 && (
+                          <Button 
+                            type="button" 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => remove(index)}
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
                         )}
-                      />
+                      </div>
                     </div>
                     
-                    {/* الوصف */}
-                    <div className="col-span-12 md:col-span-3">
-                      <FormField
-                        control={form.control}
-                        name={`items.${index}.description`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className={index !== 0 ? 'sr-only' : ''}>الوصف*</FormLabel>
-                            <FormControl>
-                              <Input placeholder="وصف المنتج" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                    
-                    {/* الكمية */}
-                    <div className="col-span-4 md:col-span-1">
-                      <FormField
-                        control={form.control}
-                        name={`items.${index}.quantity`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className={index !== 0 ? 'sr-only' : ''}>الكمية*</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                min="0.01"
-                                step="0.01"
-                                onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                                value={field.value}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                    
-                    {/* سعر الوحدة */}
-                    <div className="col-span-4 md:col-span-2">
-                      <FormField
-                        control={form.control}
-                        name={`items.${index}.unit_price`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className={index !== 0 ? 'sr-only' : ''}>السعر*</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                                value={field.value}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                    
-                    {/* نسبة الضريبة */}
-                    <div className="col-span-3 md:col-span-1">
-                      <FormField
-                        control={form.control}
-                        name={`items.${index}.tax_rate`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className={index !== 0 ? 'sr-only' : ''}>الضريبة %</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                                value={field.value}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                    
-                    {/* زر حذف العنصر */}
-                    <div className="col-span-1 pt-8">
-                      {fields.length > 1 && (
-                        <Button 
-                          type="button" 
-                          variant="ghost" 
-                          size="icon"
-                          onClick={() => remove(index)}
-                        >
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
-                      )}
-                    </div>
+                    {/* محدد المتغيرات */}
+                    {showVariantSelector[index] && (
+                      <div className="mt-4 border rounded-lg p-4 bg-gray-50">
+                        <ProductVariantSelector
+                          productId={form.getValues(`items.${index}.product_id`)}
+                          productName={products.find(p => p.id === form.getValues(`items.${index}.product_id`))?.name || ''}
+                          productPrice={products.find(p => p.id === form.getValues(`items.${index}.product_id`))?.price || 0}
+                          productPurchasePrice={products.find(p => p.id === form.getValues(`items.${index}.product_id`))?.purchase_price}
+                          onVariantsChange={(variants) => handleVariantsChange(index, variants)}
+                          initialVariants={itemVariants[index] || []}
+                        />
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -675,8 +794,35 @@ export function SupplierPurchaseDialog({
                   
                   <div className="flex justify-between font-medium border-t pt-2">
                     <span>المتبقي:</span>
-                    <span>{(totalAmount - form.watch('paid_amount')).toFixed(2)} دج</span>
+                    <span className={
+                      (totalAmount - form.watch('paid_amount')) > 0 
+                        ? 'text-red-600' 
+                        : 'text-green-600'
+                    }>
+                      {(totalAmount - form.watch('paid_amount')).toFixed(2)} دج
+                    </span>
                   </div>
+                  
+                  {(totalAmount - form.watch('paid_amount')) > 0 && (
+                    <div className="flex gap-2 pt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => form.setValue('paid_amount', totalAmount)}
+                      >
+                        دفع المبلغ كاملاً
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => form.setValue('paid_amount', totalAmount / 2)}
+                      >
+                        دفع نصف المبلغ
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -698,6 +844,14 @@ export function SupplierPurchaseDialog({
           </form>
         </Form>
       </DialogContent>
+      
+      {/* حوار إضافة مورد جديد */}
+      <SupplierDialog
+        open={supplierDialogOpen}
+        onOpenChange={setSupplierDialogOpen}
+        onSave={handleCreateSupplier}
+        isLoading={isCreatingSupplier}
+      />
     </Dialog>
   );
 }

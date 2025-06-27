@@ -125,7 +125,6 @@ export const POSOrderDetails: React.FC<POSOrderDetailsProps> = ({
           const items = await fetchOrderDetails(order.id);
           setOrderItems(items || []);
         } catch (error) {
-          console.error('خطأ في جلب عناصر الطلبية:', error);
           setOrderItems([]);
         } finally {
           setIsLoadingItems(false);

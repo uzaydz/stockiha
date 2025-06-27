@@ -85,7 +85,6 @@ export const LoadingControllerProvider: React.FC<LoadingControllerProviderProps>
     ));
     setActiveLoadingCount(prev => prev + 1);
     
-    console.log(`🔄 بدء تحميل المرحلة: ${phaseId}`);
   };
 
   // تسجيل انتهاء التحميل
@@ -97,7 +96,6 @@ export const LoadingControllerProvider: React.FC<LoadingControllerProviderProps>
     ));
     setActiveLoadingCount(prev => Math.max(0, prev - 1));
     
-    console.log(`✅ انتهى تحميل المرحلة: ${phaseId}`);
   };
 
   // التحقق من حالة التحميل لمرحلة معينة
@@ -156,4 +154,4 @@ export const usePhaseLoader = (phaseId: string) => {
   };
 };
 
-export default LoadingControllerProvider; 
+export default LoadingControllerProvider;

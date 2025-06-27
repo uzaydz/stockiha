@@ -72,17 +72,14 @@ class DatabaseTracker {
 
   startTracking() {
     // تعطيل مؤقت للمراقبة لتجنب المشاكل
-    console.log('Database tracking disabled temporarily');
     return;
     
     if (this.isTracking) return;
     this.isTracking = true;
-    console.log('Database tracking started');
   }
 
   stopTracking() {
     this.isTracking = false;
-    console.log('Database tracking stopped');
   }
 
   private setupInterceptors() {

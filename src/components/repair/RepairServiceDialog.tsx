@@ -240,18 +240,7 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
     }
     
     setIsSubmitting(true);
-    
-    console.log('🔧 [RepairServiceDialog] بدء حفظ طلبية التصليح...');
-    console.log('📋 البيانات:', {
-      customerName,
-      customerPhone,
-      repairLocation,
-      customLocation,
-      totalPrice,
-      paidAmount,
-      organizationId
-    });
-    
+
     try {
       let repairOrderId: string;
       let orderNumber: string;
@@ -286,8 +275,6 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
         }
 
         // تحديث الطلبية في قاعدة البيانات
-        console.log('Updating repair order with data:', updateData);
-        console.log('Repair order ID:', repairOrderId);
         
         const { error: updateError } = await supabase
           .from('repair_orders')
@@ -295,7 +282,6 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
           .eq('id', repairOrderId);
 
         if (updateError) {
-          console.error('Update error:', updateError);
           throw new Error(`فشل في تحديث طلبية التصليح: ${updateError.message}`);
         }
       } else {
@@ -332,8 +318,6 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
         };
 
         // إدراج الطلبية في قاعدة البيانات
-        console.log('💾 [RepairServiceDialog] إدراج البيانات في قاعدة البيانات...');
-        console.log('📄 بيانات الطلبية:', repairOrderData);
         
         const { data: insertedData, error: insertError } = await supabase
           .from('repair_orders')
@@ -342,15 +326,12 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
           .single();
 
         if (insertError) {
-          console.error('❌ خطأ في إدراج البيانات:', insertError);
           throw new Error(`فشل في إضافة طلبية التصليح: ${insertError.message}`);
         }
         
-        console.log('✅ تم إدراج الطلبية بنجاح:', insertedData);
       }
 
       // إنشاء سجل تاريخ
-      console.log('📚 [RepairServiceDialog] إضافة سجل التاريخ...');
       const historyEntry = {
         repair_order_id: repairOrderId,
         status: editMode ? 'تم التحديث' : 'قيد الانتظار',
@@ -363,10 +344,8 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
         .insert(historyEntry);
 
       if (historyError) {
-        console.error('⚠️ خطأ في إضافة سجل التاريخ:', historyError);
         // لا نوقف العملية بسبب خطأ في السجل
       } else {
-        console.log('✅ تم إضافة سجل التاريخ بنجاح');
       }
 
       // رفع الصور إذا كانت موجودة (في كل من الإضافة والتعديل)
@@ -413,7 +392,6 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
         await Promise.all(imagePromises);
       }
 
-      console.log('🎉 [RepairServiceDialog] تمت العملية بنجاح!');
       toast.success(editMode ? 'تم تحديث طلبية التصليح بنجاح' : 'تم إضافة طلبية التصليح بنجاح');
         
       // استدعاء دالة النجاح مع معرّف الطلبية ورمز التتبع
@@ -423,7 +401,6 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
       onClose();
       resetForm();
     } catch (error: any) {
-      console.error('❌ [RepairServiceDialog] خطأ في حفظ طلبية التصليح:', error);
       toast.error(error.message || 'حدث خطأ أثناء حفظ طلبية التصليح');
     } finally {
       setIsSubmitting(false);

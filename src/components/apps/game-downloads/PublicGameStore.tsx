@@ -146,7 +146,6 @@ export default function PublicGameStore({ organizationId }: PublicGameStoreProps
         .single();
 
       if (orgError && orgError.code !== 'PGRST116') {
-        console.warn('لم يتم العثور على إعدادات المؤسسة:', orgError);
       }
 
       // دمج الإعدادات
@@ -169,7 +168,6 @@ export default function PublicGameStore({ organizationId }: PublicGameStoreProps
         }
       }
     } catch (error: any) {
-      console.error('Error fetching settings:', error);
     }
   };
 
@@ -186,7 +184,6 @@ export default function PublicGameStore({ organizationId }: PublicGameStoreProps
       if (error) throw error;
       setGames(data || []);
     } catch (error: any) {
-      console.error('Error fetching games:', error);
     }
   };
 
@@ -202,7 +199,6 @@ export default function PublicGameStore({ organizationId }: PublicGameStoreProps
       if (error) throw error;
       setCategories(data || []);
     } catch (error: any) {
-      console.error('Error fetching categories:', error);
     }
   };
 

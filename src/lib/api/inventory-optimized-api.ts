@@ -425,4 +425,4 @@ export const searchInventoryAutocomplete = (query: string, limit?: number) =>
 export const bulkUpdateInventory = (updates: any[], updatedBy?: string) => 
   optimizedInventoryAPI.bulkUpdateInventory(updates, updatedBy);
 
-export default optimizedInventoryAPI; 
+export default optimizedInventoryAPI;

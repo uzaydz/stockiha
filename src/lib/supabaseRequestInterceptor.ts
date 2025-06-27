@@ -92,27 +92,28 @@ globalThis.fetch = async function(input: RequestInfo | URL, init?: RequestInit):
     return originalFetch(input, init);
   }
   
+  // استثناء خاص للفئات - لا نعترض عليها أبداً
+  if (url.includes('product_categories')) {
+    return originalFetch(input, init);
+  }
+  
   interceptorStats.totalInterceptions++;
   
   const cacheKey = createCacheKey(url, init);
   const tableName = extractTableName(url);
-  
-  console.log(`🔍 اعتراض Supabase: ${tableName}`);
-  
+
   // التحقق من cache موجود وصالح
   const cachedEntry = requestCache.get(cacheKey);
   if (cachedEntry && isCacheValid(cachedEntry, tableName)) {
     
     // إذا كان الطلب في الانتظار، ارجع نفس Promise
     if (cachedEntry.status === 'pending' && cachedEntry.promise) {
-      console.log(`⏳ انتظار طلب معلق: ${tableName}`);
       interceptorStats.pendingPrevented++;
       return cachedEntry.promise;
     }
     
     // إذا كان مكتمل، ارجع البيانات من cache
     if (cachedEntry.status === 'completed') {
-      console.log(`✅ إرجاع من cache: ${tableName}`);
       interceptorStats.cacheHits++;
       interceptorStats.duplicatesPrevented++;
       
@@ -128,7 +129,6 @@ globalThis.fetch = async function(input: RequestInfo | URL, init?: RequestInit):
   }
   
   // إنشاء طلب جديد
-  console.log(`📡 طلب جديد للسيرفر: ${tableName}`);
   
   const requestPromise = originalFetch(input, init).then(async (response) => {
     const responseClone = response.clone();
@@ -144,7 +144,6 @@ globalThis.fetch = async function(input: RequestInfo | URL, init?: RequestInit):
           status: 'completed'
         });
         
-        console.log(`💾 حفظ في cache: ${tableName}`);
       } else {
         // حفظ الخطأ أيضاً لمنع إعادة المحاولة
         requestCache.set(cacheKey, {
@@ -154,7 +153,6 @@ globalThis.fetch = async function(input: RequestInfo | URL, init?: RequestInit):
         });
       }
     } catch (error) {
-      console.warn(`⚠️ فشل في معالجة الاستجابة: ${error}`);
     }
     
     return response;
@@ -185,7 +183,6 @@ setInterval(() => {
   }
   
   if (cleanedCount > 0) {
-    console.log(`🧹 تنظيف cache: حذف ${cleanedCount} إدخالات منتهية الصلاحية`);
   }
 }, 5 * 60 * 1000); // كل 5 دقائق
 
@@ -205,7 +202,6 @@ const OriginalXHR = window.XMLHttpRequest;
       const cachedEntry = requestCache.get(cacheKey);
       
       if (cachedEntry && isCacheValid(cachedEntry, tableName) && cachedEntry.status === 'completed') {
-        console.log(`✅ منع XHR مكرر: ${tableName}`);
         interceptorStats.duplicatesPrevented++;
         
         // محاكاة استجابة ناجحة
@@ -234,11 +230,6 @@ const OriginalXHR = window.XMLHttpRequest;
 
 // دوال التشخيص العامة
 (globalThis as any).supabaseInterceptorStats = () => {
-  console.log('📊 إحصائيات اعتراض Supabase:', {
-    ...interceptorStats,
-    cacheSize: requestCache.size,
-    preventionRate: ((interceptorStats.duplicatesPrevented / Math.max(interceptorStats.totalInterceptions, 1)) * 100).toFixed(2) + '%'
-  });
   
   // تفاصيل cache حسب الجدول
   const tableStats: Record<string, number> = {};
@@ -247,21 +238,15 @@ const OriginalXHR = window.XMLHttpRequest;
     tableStats[table] = (tableStats[table] || 0) + 1;
   }
   
-  console.log('📝 cache حسب الجدول:');
-  console.table(tableStats);
 };
 
 (globalThis as any).clearSupabaseCache = () => {
   const size = requestCache.size;
   requestCache.clear();
-  console.log(`🧹 تم مسح ${size} إدخالات من Supabase cache`);
 };
-
-console.log('🔧 تم اعتراض XMLHttpRequest للتحكم في طلبات Supabase');
 
 // تصدير الدوال للاستخدام الخارجي
 export const interceptSupabaseRequests = () => {
-  console.log('✅ تم تفعيل اعتراض Supabase');
 };
 
 export const getInterceptorStats = () => interceptorStats;
@@ -271,4 +256,4 @@ export default {
   getInterceptorStats,
   supabaseInterceptorStats: (globalThis as any).supabaseInterceptorStats,
   clearSupabaseCache: (globalThis as any).clearSupabaseCache
-}; 
+};

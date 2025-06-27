@@ -377,11 +377,6 @@ async function fetchYalidineFeesFromAPI(
   fromWilayaId: number,
   toWilayaId: number
 ): Promise<any | null> {
-  console.log('🔐 fetchYalidineFeesFromAPI - بدء جلب بيانات الاعتماد:', {
-    organizationId,
-    fromWilayaId,
-    toWilayaId
-  });
 
   try {
     // جلب معرف مزود ياليدين أولاً
@@ -391,10 +386,7 @@ async function fetchYalidineFeesFromAPI(
       .eq('code', 'yalidine')
       .single();
 
-    console.log('🏢 بيانات مزود ياليدين:', { providerData, providerError });
-
     if (providerError || !providerData) {
-      console.error('❌ فشل في العثور على مزود ياليدين:', providerError);
       return null;
     }
 
@@ -407,43 +399,18 @@ async function fetchYalidineFeesFromAPI(
       .eq('is_enabled', true)
       .single();
 
-    console.log('🔑 إعدادات ياليدين للمؤسسة:', { 
-      settings: settings ? {
-        hasApiToken: !!settings.api_token,
-        hasApiKey: !!settings.api_key,
-        isEnabled: settings.is_enabled
-      } : null, 
-      settingsError 
-    });
-
     if (settingsError || !settings) {
-      console.error('❌ فشل في جلب إعدادات ياليدين:', settingsError);
       return null;
     }
 
     if (!settings.api_token || !settings.api_key) {
-      console.error('❌ بيانات الاعتماد ناقصة:', {
-        hasApiToken: !!settings.api_token,
-        hasApiKey: !!settings.api_key
-      });
       return null;
     }
 
     // استخدام Vite proxy مع timestamp فريد لتجنب request deduplication
     const uniqueTimestamp = Date.now();
     const proxyUrl = `/yalidine-api/fees/?from_wilaya_id=${fromWilayaId}&to_wilaya_id=${toWilayaId}&_t=${uniqueTimestamp}`;
-    
-    console.log('🌐 إرسال طلب فريد عبر Vite proxy إلى API ياليدين:', { 
-      proxyUrl,
-      fromWilayaId,
-      toWilayaId,
-      timestamp: uniqueTimestamp,
-      headers: {
-        'x-api-id': settings.api_token.substring(0, 8) + '...',
-        'x-api-token': settings.api_key.substring(0, 8) + '...'
-      }
-    });
-    
+
     // إضافة timeout controller للسرعة
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000); // timeout 8 ثواني
@@ -466,29 +433,15 @@ async function fetchYalidineFeesFromAPI(
     
     clearTimeout(timeoutId); // إلغاء الـ timeout عند النجاح
 
-    console.log('📡 استجابة API ياليدين:', {
-      status: response.status,
-      statusText: response.statusText,
-      ok: response.ok
-    });
-
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ خطأ في API ياليدين:', {
-        status: response.status,
-        statusText: response.statusText,
-        body: errorText
-      });
       return null;
     }
 
     let rawData = await response.json();
-    console.log('📊 بيانات خام من API ياليدين:', rawData);
     
     // التحقق من صحة الاستجابة (بدون محاولة ثانية - لأن الطلب الآن فريد من البداية)
     if (!rawData || Object.keys(rawData).length === 0 || !rawData.per_commune) {
-      console.log('⚠️ استجابة غير صالحة من API ياليدين:', rawData);
-      console.log('❌ الطلب الفريد فشل - لا حاجة لمحاولة ثانية');
       return null;
     }
 
@@ -535,17 +488,13 @@ async function fetchYalidineFeesFromAPI(
       source: 'yalidine_api_via_proxy'
     };
 
-    console.log('📊 بيانات محولة لـ API ياليدين:', processedData);
     return processedData;
 
   } catch (error) {
-    console.error('❌ خطأ في جلب الأسعار من API ياليدين:', error);
     
     // تسجيل معلومات إضافية عن الخطأ
     if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-      console.error('🌐 خطأ في الاتصال - قد يكون مشكلة في الشبكة أو CORS');
     } else if (error instanceof SyntaxError) {
-      console.error('📄 خطأ في تحليل الاستجابة - قد تكون استجابة غير صالحة');
     }
     
     return null;
@@ -571,14 +520,6 @@ export async function calculateDeliveryPrice(
   deliveryType: DeliveryType,
   weight: number
 ): Promise<number | null> {
-  console.log('🚀 calculateDeliveryPrice بدء حساب الأسعار:', {
-    organizationId,
-    fromProvinceId,
-    toProvinceId,
-    toCommuneId,
-    deliveryType,
-    weight
-  });
 
   // إضافة cache على مستوى الولاية (لأن كل البلديات لها نفس السعر)
   const wilayaCacheKey = `yalidine_wilaya_${fromProvinceId}_${toProvinceId}_${deliveryType}`;
@@ -590,7 +531,6 @@ export async function calculateDeliveryPrice(
     
     // استخدام الـ cache إذا كان عمره أقل من 30 دقيقة (أطول لأنه على مستوى الولاية)
     if (cacheAge < 30 * 60 * 1000) {
-      console.log('📦 استخدام سعر الولاية المحفوظ من الـ cache:', parsedCache.price);
       return parsedCache.price;
     } else {
       // إزالة الـ cache المنتهي الصلاحية
@@ -608,51 +548,33 @@ export async function calculateDeliveryPrice(
       .select('origin_wilaya_id')
       .eq('organization_id', organizationId)
       .single();
-    
-    console.log('📋 نتيجة استعلام إعدادات ولاية المصدر:', { settingsData, settingsError });
-    
+
     if (settingsError) {
-      console.log('❌ خطأ في جلب إعدادات ولاية المصدر:', settingsError);
       originWilayaId = parseInt(fromProvinceId, 10);
     } else if (!settingsData || !settingsData.origin_wilaya_id) {
-      console.log('⚠️ لا توجد ولاية مصدر محددة، استخدام ولاية افتراضية');
       originWilayaId = parseInt(fromProvinceId, 10);
     } else {
       originWilayaId = settingsData.origin_wilaya_id;
-      console.log('✅ تم العثور على ولاية المصدر:', originWilayaId);
     }
   } catch (error) {
-    console.log('❌ خطأ في استعلام إعدادات ولاية المصدر:', error);
     originWilayaId = parseInt(fromProvinceId, 10);
   }
 
   const toWilayaIdNum = parseInt(toProvinceId, 10);
-  console.log('🗺️ ولايات الحساب:', { 
-    originWilayaId, 
-    toWilayaIdNum, 
-    toCommuneId: parseInt(toCommuneId, 10) 
-  });
 
   // في وضع التطوير، استخدم البيانات الوهمية
   if (DEV_MODE) {
-    console.log('🧪 وضع التطوير مفعل - استخدام البيانات الوهمية');
     const mockKey = `${originWilayaId}-${toWilayaIdNum}`;
     const feesForRoute = MOCK_DELIVERY_FEES_CALC[mockKey];
-    
-    console.log('🔍 البحث عن البيانات الوهمية:', { mockKey, feesFound: !!feesForRoute });
-    
+
     if (feesForRoute) {
       const toCommuneIdNum = parseInt(toCommuneId, 10);
       const feeData = feesForRoute.find(f => f.commune_id === toCommuneIdNum);
-      
-      console.log('📊 البيانات الوهمية المطابقة:', { feeData, toCommuneIdNum });
-      
+
       if (feeData) {
         let basePrice = deliveryType === 'home' ? feeData.express_home : feeData.express_desk;
-        console.log('💰 السعر الأساسي الوهمي:', { basePrice, deliveryType });
         
         if (basePrice === null || basePrice === undefined) {
-          console.log('❌ لا يوجد سعر أساسي متاح');
           return null;
         }
         
@@ -662,39 +584,30 @@ export async function calculateDeliveryPrice(
         if (weight > BASE_WEIGHT_LIMIT_KG && feeData.oversize_fee) {
           const extraWeight = weight - BASE_WEIGHT_LIMIT_KG;
           oversizeCharge = extraWeight * feeData.oversize_fee;
-          console.log('⚖️ رسوم الوزن الزائد:', { extraWeight, oversizeCharge });
         }
         
         const finalPrice = basePrice + oversizeCharge;
-        console.log('✅ السعر النهائي الوهمي:', finalPrice);
         return finalPrice;
       }
     }
     
     // سعر وهمي افتراضي
-    console.log('⚠️ لم يتم العثور على بيانات وهمية، استخدام السعر الافتراضي: 750');
     return 750;
   }
 
   // في وضع الإنتاج، استخدم API ياليدين مباشرة (أولوية قصوى للسرعة)
-  console.log('🚀 وضع الإنتاج - استخدام API ياليدين مباشرة (تجاوز قاعدة البيانات للسرعة)');
   
   try {
     const apiData = await fetchYalidineFeesFromAPI(organizationId, originWilayaId, toWilayaIdNum);
-    
-    console.log('📡 استجابة API ياليدين:', { apiData });
-    
+
     if (!apiData) {
-      console.log('❌ فشل في جلب البيانات من API ياليدين، استخدام سعر افتراضي سريع');
       // بدلاً من انتظار قاعدة البيانات، استخدام سعر افتراضي سريع
       const quickFallbackPrice = deliveryType === 'home' ? 600 : 450;
-      console.log('⚡ سعر افتراضي سريع:', quickFallbackPrice);
       return quickFallbackPrice;
     }
 
     // تحليل استجابة API ياليدين الحقيقية (format جديد)
     if (apiData && apiData.success && apiData.data) {
-      console.log('✅ استجابة API صحيحة، استخراج الأسعار');
       
       let basePrice = 0;
       let usedCommuneData = null;
@@ -702,18 +615,12 @@ export async function calculateDeliveryPrice(
       // محاولة الحصول على أسعار البلدية المطلوبة من per_commune
       if (apiData.data.per_commune && apiData.data.per_commune[toCommuneId]) {
         usedCommuneData = apiData.data.per_commune[toCommuneId];
-        console.log('📊 بيانات البلدية المحددة:', { toCommuneId, usedCommuneData });
       } else {
         // إذا لم تكن البلدية المطلوبة متاحة، استخدم أول بلدية متاحة
         const communeEntries = Object.entries(apiData.data.per_commune || {});
         if (communeEntries.length > 0) {
           const [firstCommuneId, firstCommuneData] = communeEntries[0];
           usedCommuneData = firstCommuneData;
-          console.log('⚠️ البلدية المطلوبة غير متاحة، استخدام أول بلدية:', { 
-            requestedCommune: toCommuneId, 
-            usedCommune: firstCommuneId, 
-            usedCommuneData 
-          });
         }
       }
 
@@ -721,15 +628,12 @@ export async function calculateDeliveryPrice(
       if (usedCommuneData) {
         if (deliveryType === 'home') {
           basePrice = usedCommuneData.express_home || 0;
-          console.log('🏠 سعر التوصيل المنزلي للبلدية:', basePrice);
         } else if (deliveryType === 'desk') {
           basePrice = usedCommuneData.express_desk || 0;
-          console.log('🏢 سعر التوصيل لمكتب للبلدية:', basePrice);
         }
       } else {
         // استخدام الأسعار العامة من البيانات المحولة كـ fallback أخير
         const fees = apiData.data.fees;
-        console.log('📊 استخدام الأسعار العامة كـ fallback:', { fees });
 
         if (deliveryType === 'home') {
           basePrice = fees?.home_delivery?.price || 0;
@@ -739,10 +643,8 @@ export async function calculateDeliveryPrice(
       }
 
       if (basePrice === 0) {
-        console.log('❌ لا توجد أسعار متاحة لهذا المسار في API ياليدين');
         // استخدام سعر افتراضي سريع بدلاً من قاعدة البيانات
         const quickFallbackPrice = deliveryType === 'home' ? 650 : 450;
-        console.log('⚡ سعر افتراضي سريع عند عدم توفر أسعار في API:', quickFallbackPrice);
         return quickFallbackPrice;
       }
 
@@ -753,11 +655,9 @@ export async function calculateDeliveryPrice(
         const oversizeRate = apiData.data.oversize_fee || 50; // استخدام oversize_fee من الاستجابة أو 50 كافتراضي
         const extraWeight = weight - BASE_WEIGHT_LIMIT_KG;
         oversizeCharge = extraWeight * oversizeRate;
-        console.log('⚖️ رسوم الوزن الزائد من API:', { extraWeight, oversizeRate, oversizeCharge });
       }
 
       const finalPrice = basePrice + oversizeCharge;
-      console.log('✅ السعر النهائي من API ياليدين:', { basePrice, oversizeCharge, finalPrice });
       
       // حفظ النتيجة في الـ cache لتسريع الطلبات المستقبلية
       try {
@@ -766,21 +666,17 @@ export async function calculateDeliveryPrice(
           timestamp: Date.now()
         };
         sessionStorage.setItem(wilayaCacheKey, JSON.stringify(cacheData));
-        console.log('💾 تم حفظ السعر في الـ cache لـ 5 دقائق');
       } catch (error) {
-        console.warn('⚠️ فشل في حفظ الـ cache:', error);
       }
       
       return finalPrice;
 
     } else {
-      console.log('❌ استجابة غير صالحة من API ياليدين:', apiData);
       // العودة لقاعدة البيانات المحلية
       return await calculateDeliveryPriceFromDatabase(organizationId, originWilayaId, toWilayaIdNum, parseInt(toCommuneId, 10), deliveryType, weight);
     }
 
   } catch (error) {
-    console.error('❌ خطأ في جلب الأسعار من API ياليدين:', error);
     // العودة لقاعدة البيانات المحلية كـ fallback
     return await calculateDeliveryPriceFromDatabase(organizationId, originWilayaId, toWilayaIdNum, parseInt(toCommuneId, 10), deliveryType, weight);
   }
@@ -797,14 +693,6 @@ async function calculateDeliveryPriceFromDatabase(
   deliveryType: DeliveryType,
   weight: number
 ): Promise<number | null> {
-  console.log('🗄️ calculateDeliveryPriceFromDatabase - البحث في قاعدة البيانات المحلية:', {
-    organizationId,
-    originWilayaId,
-    toWilayaIdNum,
-    toCommuneIdNum,
-    deliveryType,
-    weight
-  });
 
   try {
       const { data, error } = await supabase
@@ -816,43 +704,32 @@ async function calculateDeliveryPriceFromDatabase(
         .eq('commune_id', toCommuneIdNum)
       .single();
 
-    console.log('📋 نتيجة استعلام قاعدة البيانات:', { data, error });
-
       if (error) {
         if (error.code === 'PGRST116') {
-        console.log('⚠️ لا توجد أسعار في قاعدة البيانات لهذا المسار');
             return null;
         } 
-      console.error('❌ خطأ في استعلام قاعدة البيانات:', error);
       throw error;
       }
 
       if (!data) {
-      console.log('⚠️ لا توجد بيانات مرجعة من قاعدة البيانات');
       return null;
   }
 
     const feeData = data as DeliveryFee;
-    console.log('📊 بيانات الأسعار من قاعدة البيانات:', feeData);
 
   let basePrice = 0;
 
   if (deliveryType === 'home') {
     if (feeData.express_home === null || feeData.express_home === undefined) {
-        console.log('❌ لا يوجد سعر توصيل منزلي في قاعدة البيانات');
         return null;
     }
     basePrice = feeData.express_home;
-      console.log('🏠 سعر التوصيل المنزلي من قاعدة البيانات:', basePrice);
   } else if (deliveryType === 'desk') {
     if (feeData.express_desk === null || feeData.express_desk === undefined) {
-        console.log('❌ لا يوجد سعر توصيل مكتب في قاعدة البيانات');
         return null;
     }
     basePrice = feeData.express_desk;
-      console.log('🏢 سعر التوصيل للمكتب من قاعدة البيانات:', basePrice);
   } else {
-      console.log('❌ نوع توصيل غير صحيح:', deliveryType);
     return null;
   }
 
@@ -864,16 +741,13 @@ async function calculateDeliveryPriceFromDatabase(
       if (feeData.oversize_fee && feeData.oversize_fee > 0) {
         const extraWeight = weight - BASE_WEIGHT_LIMIT_KG;
         oversizeCharge = extraWeight * feeData.oversize_fee;
-        console.log('⚖️ رسوم الوزن الزائد من قاعدة البيانات:', { extraWeight, oversizeCharge });
     }
   }
 
     const finalPrice = basePrice + oversizeCharge;
-    console.log('✅ السعر النهائي من قاعدة البيانات:', finalPrice);
     return finalPrice;
   
   } catch (error) {
-    console.error('❌ خطأ في جلب الأسعار من قاعدة البيانات:', error);
     return null;
   }
 }

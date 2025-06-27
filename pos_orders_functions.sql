@@ -2,6 +2,11 @@
 -- وظائف نقطة البيع - POS Orders Functions
 -- ===================================================
 
+-- حذف الدوال القديمة أولاً لتجنب مشاكل نوع الإرجاع
+DROP FUNCTION IF EXISTS get_pos_order_stats(UUID);
+DROP FUNCTION IF EXISTS get_daily_pos_summary(UUID, DATE);
+DROP FUNCTION IF EXISTS search_pos_orders(UUID, TEXT, TEXT, TEXT, UUID, DATE, DATE, INTEGER, INTEGER);
+
 -- دالة لجلب إحصائيات طلبيات نقطة البيع
 CREATE OR REPLACE FUNCTION get_pos_order_stats(p_organization_id UUID)
 RETURNS TABLE (
@@ -29,7 +34,7 @@ BEGIN
       COUNT(CASE WHEN o.payment_method = 'card' THEN 1 END)::INTEGER as card_count
     FROM orders o
     WHERE o.organization_id = p_organization_id 
-      AND o.is_online = false
+      AND (o.is_online = false OR o.is_online IS NULL)
   ),
   today_stats AS (
     SELECT 
@@ -37,7 +42,7 @@ BEGIN
       COALESCE(SUM(o.total), 0) as today_rev
     FROM orders o
     WHERE o.organization_id = p_organization_id 
-      AND o.is_online = false
+      AND (o.is_online = false OR o.is_online IS NULL)
       AND DATE(o.created_at) = CURRENT_DATE
   )
   SELECT 
@@ -82,7 +87,7 @@ BEGIN
     COUNT(CASE WHEN o.status = 'pending' THEN 1 END)::INTEGER as pending_orders
   FROM orders o
   WHERE o.organization_id = p_organization_id 
-    AND o.is_online = false
+    AND (o.is_online = false OR o.is_online IS NULL)
     AND DATE(o.created_at) = p_date;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -90,41 +95,70 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- إنشاء فهارس لتحسين الأداء
 CREATE INDEX IF NOT EXISTS idx_orders_pos_org_date 
 ON orders(organization_id, created_at) 
-WHERE is_online = false;
+WHERE (is_online = false OR is_online IS NULL);
 
 CREATE INDEX IF NOT EXISTS idx_orders_pos_status 
 ON orders(organization_id, status) 
-WHERE is_online = false;
+WHERE (is_online = false OR is_online IS NULL);
 
 CREATE INDEX IF NOT EXISTS idx_orders_pos_payment_method 
 ON orders(organization_id, payment_method) 
-WHERE is_online = false;
+WHERE (is_online = false OR is_online IS NULL);
 
 CREATE INDEX IF NOT EXISTS idx_orders_pos_employee 
 ON orders(organization_id, employee_id) 
-WHERE is_online = false;
+WHERE (is_online = false OR is_online IS NULL);
 
 -- إضافة تعليقات للوظائف
 COMMENT ON FUNCTION get_pos_order_stats IS 'جلب إحصائيات شاملة لطلبيات نقطة البيع لمؤسسة معينة';
 COMMENT ON FUNCTION get_daily_pos_summary IS 'جلب ملخص المبيعات اليومية لنقطة البيع لتاريخ معين';
 
--- إنشاء view محسن لطلبيات نقطة البيع مع التفاصيل
+-- حذف الـ view والـ trigger القديمة أولاً
+DROP VIEW IF EXISTS pos_orders_with_details CASCADE;
+DROP TRIGGER IF EXISTS update_pos_stats_trigger ON orders;
+
+-- إنشاء view محسن لطلبيات نقطة البيع مع التفاصيل (استخدام users بدلاً من employees)
 CREATE OR REPLACE VIEW pos_orders_with_details AS
 SELECT 
-  o.*,
+  o.id,
+  o.organization_id,
+  o.customer_id,
+  o.employee_id,
+  o.slug,
+  o.customer_order_number,
+  o.status,
+  o.payment_status,
+  o.payment_method,
+  o.total,
+  o.subtotal,
+  o.tax,
+  o.discount,
+  o.amount_paid,
+  o.remaining_amount,
+  o.pos_order_type,
+  o.notes,
+  o.is_online,
+  o.created_at,
+  o.updated_at,
+  o.completed_at,
   c.name as customer_name,
   c.phone as customer_phone,
   c.email as customer_email,
-  e.name as employee_name,
-  e.email as employee_email,
+  u.name as employee_name,
+  u.email as employee_email,
   COUNT(oi.id) as items_count,
   COALESCE(SUM(oi.quantity), 0) as total_quantity
 FROM orders o
 LEFT JOIN customers c ON c.id = o.customer_id
-LEFT JOIN employees e ON e.id = o.employee_id
+LEFT JOIN users u ON u.id = o.employee_id
 LEFT JOIN order_items oi ON oi.order_id = o.id
-WHERE o.is_online = false
-GROUP BY o.id, c.name, c.phone, c.email, e.name, e.email;
+WHERE (o.is_online = false OR o.is_online IS NULL)
+GROUP BY 
+  o.id, o.organization_id, o.customer_id, o.employee_id, o.slug, 
+  o.customer_order_number, o.status, o.payment_status, o.payment_method,
+  o.total, o.subtotal, o.tax, o.discount, o.amount_paid, o.remaining_amount,
+  o.pos_order_type, o.notes, o.is_online, o.created_at, o.updated_at, o.completed_at,
+  c.name, c.phone, c.email, u.name, u.email;
 
 -- إضافة تعليق للـ view
 COMMENT ON VIEW pos_orders_with_details IS 'عرض محسن لطلبيات نقطة البيع مع تفاصيل العملاء والموظفين والعناصر';
@@ -146,7 +180,7 @@ CREATE TRIGGER update_pos_stats_trigger
   FOR EACH ROW
   EXECUTE FUNCTION update_pos_order_stats();
 
--- دالة للبحث في طلبيات نقطة البيع
+-- دالة للبحث في طلبيات نقطة البيع (استخدام users بدلاً من employees)
 CREATE OR REPLACE FUNCTION search_pos_orders(
   p_organization_id UUID,
   p_search_term TEXT DEFAULT NULL,
@@ -193,14 +227,14 @@ BEGIN
     o.updated_at,
     o.slug,
     c.name as customer_name,
-    e.name as employee_name,
+    u.name as employee_name,
     COUNT(oi.id) as items_count
   FROM orders o
   LEFT JOIN customers c ON c.id = o.customer_id
-  LEFT JOIN employees e ON e.id = o.employee_id
+  LEFT JOIN users u ON u.id = o.employee_id
   LEFT JOIN order_items oi ON oi.order_id = o.id
   WHERE o.organization_id = p_organization_id 
-    AND o.is_online = false
+    AND (o.is_online = false OR o.is_online IS NULL)
     AND (p_search_term IS NULL OR (
       o.slug ILIKE '%' || p_search_term || '%' OR
       o.notes ILIKE '%' || p_search_term || '%' OR
@@ -211,7 +245,10 @@ BEGIN
     AND (p_employee_id IS NULL OR o.employee_id = p_employee_id)
     AND (p_date_from IS NULL OR DATE(o.created_at) >= p_date_from)
     AND (p_date_to IS NULL OR DATE(o.created_at) <= p_date_to)
-  GROUP BY o.id, c.name, e.name
+  GROUP BY 
+    o.id, o.customer_id, o.subtotal, o.tax, o.discount, o.total,
+    o.status, o.payment_method, o.payment_status, o.employee_id,
+    o.created_at, o.updated_at, o.slug, c.name, u.name
   ORDER BY o.created_at DESC
   LIMIT p_limit
   OFFSET p_offset;

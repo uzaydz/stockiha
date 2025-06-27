@@ -92,11 +92,9 @@ export default defineConfig(({ command, mode }) => {
           onProxyReq: (proxyReq: any, req: any) => {
             if (req.headers['x-api-id']) {
               proxyReq.setHeader('X-API-ID', req.headers['x-api-id'] as string);
-              console.log('🔑 Setting X-API-ID:', req.headers['x-api-id']);
             }
             if (req.headers['x-api-token']) {
               proxyReq.setHeader('X-API-TOKEN', req.headers['x-api-token'] as string);
-              console.log('🔑 Setting X-API-TOKEN:', req.headers['x-api-token']?.substring(0, 10) + '...');
             }
             
             proxyReq.setHeader('Content-Type', 'application/json');
@@ -105,12 +103,9 @@ export default defineConfig(({ command, mode }) => {
             proxyReq.removeHeader('referer');
             proxyReq.removeHeader('host');
             
-            console.log('🌐 Proxying request to:', proxyReq.path);
           },
           configure: (proxy: any, _options: any) => {
             proxy.on('error', (err: any, req: any, res: any) => {
-              console.error('❌ Proxy error:', err.message);
-              console.error('❌ Request URL:', req.url);
               
               if (!res.headersSent) {
                 res.writeHead(500, {
@@ -127,27 +122,9 @@ export default defineConfig(({ command, mode }) => {
             });
             
             proxy.on('proxyReq', (proxyReq: any, req: any, _res: any) => {
-              console.log('📡 Sending request to Yalidine API:', {
-                method: req.method,
-                url: req.url,
-                target: proxyReq.path,
-                headers: {
-                  'X-API-ID': proxyReq.getHeader('X-API-ID') ? '***' : 'missing',
-                  'X-API-TOKEN': proxyReq.getHeader('X-API-TOKEN') ? '***' : 'missing'
-                }
-              });
             });
             
             proxy.on('proxyRes', (proxyRes: any, req: any, _res: any) => {
-              console.log('📥 Received response from Yalidine API:', {
-                status: proxyRes.statusCode,
-                url: req.url,
-                headers: {
-                  'content-type': proxyRes.headers['content-type'],
-                  'day-quota-left': proxyRes.headers['day-quota-left'],
-                  'hour-quota-left': proxyRes.headers['hour-quota-left']
-                }
-              });
               
               proxyRes.headers['Access-Control-Allow-Origin'] = '*';
               proxyRes.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, PATCH, OPTIONS';
