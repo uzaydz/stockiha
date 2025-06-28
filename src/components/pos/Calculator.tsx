@@ -294,4 +294,4 @@ const CalculatorComponent: React.FC<CalculatorProps> = ({ isOpen, onOpenChange }
   );
 };
 
-export default CalculatorComponent; 
+export default CalculatorComponent;

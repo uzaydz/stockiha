@@ -14,7 +14,7 @@ type RequireTenantProps = {
  */
 const RequireTenant = ({ children }: RequireTenantProps) => {
   const { currentOrganization, isLoading, error } = useTenant();
-  const { currentSubdomain, isTenant, organization } = useAuth();
+  const { currentSubdomain, organization } = useAuth();
   const navigate = useNavigate();
   
   // التحقق من وجود مؤسسة في أي من السياقين
@@ -70,8 +70,7 @@ const RequireTenant = ({ children }: RequireTenantProps) => {
   }
 
   // إذا لم تكن هناك مؤسسة، تحقق من وجود مؤسسة في AuthContext قبل إعادة التوجيه
-  if (!currentOrganization && !isTenant) {
-    
+  if (!currentOrganization && !organization) {
     return <Navigate to="/dashboard" replace />;
   }
 

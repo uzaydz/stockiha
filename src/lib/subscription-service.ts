@@ -391,5 +391,142 @@ export const SubscriptionService = {
         source: 'subscription'
       };
     }
+  },
+
+  /**
+   * حساب الأيام المتبقية الإجمالية للمؤسسة (فترة تجريبية + اشتراك)
+   * الحل النهائي الشامل مع إصلاح مشكلة Cache
+   */
+  async calculateTotalDaysLeft(
+    organizationData: any,
+    currentSubscription?: any
+  ): Promise<{
+    totalDaysLeft: number;
+    trialDaysLeft: number;
+    subscriptionDaysLeft: number;
+    status: 'trial' | 'active' | 'expired';
+    message: string;
+  }> {
+    console.log('[SubscriptionService] بدء حساب الأيام المتبقية للمؤسسة:', organizationData?.id);
+    
+    let trialDaysLeft = 0;
+    let subscriptionDaysLeft = 0;
+    let status: 'trial' | 'active' | 'expired' = 'expired';
+    let message = '';
+
+    // أولاً: التحقق من وجود اشتراك نشط باستخدام RPC function
+    try {
+      console.log('[SubscriptionService] جلب الاشتراك من قاعدة البيانات للمؤسسة:', organizationData.id);
+      
+      // استخدام RPC function للحصول على بيانات الاشتراك (تتجاوز RLS policies)
+      const { data: subscriptionData, error } = await supabase.rpc('get_organization_subscription_details', {
+        org_id: organizationData.id
+      });
+
+      console.log('[SubscriptionService] نتيجة جلب الاشتراكات:', { subscriptionData, error });
+
+      // التحقق من وجود اشتراك نشط صحيح
+      if (error) {
+        console.error('[SubscriptionService] خطأ في جلب الاشتراكات:', error);
+      } else if (subscriptionData && subscriptionData.subscription_id) {
+        const endDate = new Date(subscriptionData.end_date);
+        const now = new Date();
+        
+        if (endDate > now && subscriptionData.status === 'active') {
+          subscriptionDaysLeft = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          
+          console.log('[SubscriptionService] تم العثور على اشتراك نشط:', {
+            subscription_id: subscriptionData.subscription_id,
+            end_date: subscriptionData.end_date,
+            subscriptionDaysLeft
+          });
+
+          // إذا كان هناك اشتراك نشط، فهو الأولوية
+          return {
+            totalDaysLeft: subscriptionDaysLeft,
+            trialDaysLeft: 0,
+            subscriptionDaysLeft,
+            status: 'active',
+            message: `اشتراك نشط - ${subscriptionDaysLeft} يوم متبقية`
+          };
+        }
+      } else {
+        console.log('[SubscriptionService] لم يتم العثور على اشتراكات نشطة - البيانات:', subscriptionData);
+      }
+    } catch (error) {
+      console.error('[SubscriptionService] خطأ في جلب بيانات الاشتراك:', error);
+    }
+
+    // ثانياً: حساب أيام الفترة التجريبية إذا لم يكن هناك اشتراك نشط
+    if (organizationData?.settings?.trial_end_date) {
+      const trialEndDate = new Date(organizationData.settings.trial_end_date);
+      const now = new Date();
+      
+      const trialEndDateOnly = new Date(trialEndDate.setHours(23, 59, 59));
+      const nowDateOnly = new Date(now.setHours(0, 0, 0, 0));
+      
+      if (trialEndDateOnly >= nowDateOnly) {
+        trialDaysLeft = Math.ceil((trialEndDateOnly.getTime() - nowDateOnly.getTime()) / (1000 * 60 * 60 * 24));
+        
+        console.log('[SubscriptionService] حساب الفترة التجريبية من settings:', {
+          trial_end_date: organizationData.settings.trial_end_date,
+          trialDaysLeft
+        });
+      }
+    }
+
+    // تحديد الحالة والرسالة النهائية
+    if (subscriptionDaysLeft > 0) {
+      status = 'active';
+      message = `اشتراك نشط - ${subscriptionDaysLeft} يوم متبقية`;
+    } else if (trialDaysLeft > 0) {
+      status = 'trial';
+      message = `فترة تجريبية - ${trialDaysLeft} يوم متبقية`;
+    } else {
+      status = 'expired';
+      message = 'انتهت صلاحية الاشتراك';
+    }
+
+    const result = {
+      totalDaysLeft: Math.max(subscriptionDaysLeft, trialDaysLeft),
+      trialDaysLeft,
+      subscriptionDaysLeft,
+      status,
+      message
+    };
+
+    console.log('[SubscriptionService] النتيجة النهائية:', result);
+    return result;
+  },
+
+  /**
+   * دالة مساعدة للتحقق من حالة الاشتراك مباشرة من قاعدة البيانات
+   * تُستخدم كـ fallback في حالة فشل الطريقة الأساسية
+   */
+  async getActiveSubscriptionDirect(organizationId: string): Promise<any> {
+    try {
+      const { data, error } = await supabase
+        .from('organization_subscriptions')
+        .select(`
+          *,
+          subscription_plans(*)
+        `)
+        .eq('organization_id', organizationId)
+        .eq('status', 'active')
+        .gt('end_date', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error) {
+        console.log('[SubscriptionService] لا يوجد اشتراك نشط:', error.message);
+        return null;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('[SubscriptionService] خطأ في جلب الاشتراك المباشر:', error);
+      return null;
+    }
   }
 };

@@ -374,7 +374,6 @@ export const useOrdersData = (options: UseOrdersDataOptions = {}) => {
       
       // معالجة أخطاء الموارد
       if (error.message && error.message.includes('ERR_INSUFFICIENT_RESOURCES')) {
-        console.error('🚨 مشكلة موارد في fetchOrderMetrics - إيقاف مؤقت');
         throw error; // السماح لـ useOptimizedInterval بمعالجة الخطأ
       }
     }
@@ -456,11 +455,9 @@ export const useOrdersData = (options: UseOrdersDataOptions = {}) => {
     maxInstances: 1,
     maxAttempts: 3, // تقليل عدد المحاولات
     onError: (error) => {
-      console.warn('⚠️ خطأ في polling الطلبات:', error);
       
       // إيقاف polling مؤقتاً عند مشاكل الموارد
       if (error.message && error.message.includes('ERR_INSUFFICIENT_RESOURCES')) {
-        console.error('🛑 إيقاف polling بسبب مشكلة الموارد');
         // يمكن إضافة منطق إيقاف polling هنا
       }
     }

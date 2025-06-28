@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { AnimatePresence } from 'framer-motion';
 import { registerTenant } from '@/lib/api/tenant-fixed';
+import { useAuth } from '@/context/AuthContext';
 
 // المكونات الفرعية
 import RegistrationHeader from './RegistrationHeader';
@@ -36,6 +37,7 @@ type FormValues = z.infer<typeof formSchema>;
 
 const TenantRegistrationForm = () => {
   const navigate = useNavigate();
+  const { refreshData } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -57,7 +59,7 @@ const TenantRegistrationForm = () => {
   // التحقق من صحة الخطوة الأولى
   const validateFirstStep = () => {
     const { name, email, password, confirmPassword } = form.getValues();
-    
+
     // التحقق من حقول الخطوة الأولى
     if (!name || name.length < 3) {
       form.setError('name', { 
@@ -98,6 +100,7 @@ const TenantRegistrationForm = () => {
   const handleNext = () => {
     if (validateFirstStep()) {
       setCurrentStep(2);
+    } else {
     }
   };
 
@@ -108,17 +111,19 @@ const TenantRegistrationForm = () => {
 
   // معالجة إرسال النموذج
   const handleSubmit = async () => {
+    
     // التحقق من صحة كل الحقول قبل الإرسال
     const isValid = await form.trigger();
     
     if (!isValid) {
+      const errors = form.formState.errors;
       toast.error('يرجى التأكد من صحة جميع البيانات المدخلة');
       return;
     }
     
     setIsLoading(true);
     const values = form.getValues();
-    
+
     try {
       const { success, error } = await registerTenant({
         name: values.name,
@@ -128,16 +133,23 @@ const TenantRegistrationForm = () => {
         organizationName: values.organizationName,
         subdomain: values.subdomain,
       });
-      
+
       if (success) {
         toast.success('🎉 تم إنشاء حساب المسؤول بنجاح! مرحباً بك في ستوكيها');
+        
+        // تحديث بيانات AuthContext لجلب المؤسسة الجديدة
+        try {
+          await refreshData();
+        } catch (error) {
+        }
         
         // التوجيه إلى stockiha.com/dashboard بدلاً من النطاق الفرعي
         setTimeout(() => {
           navigate('/dashboard');
         }, 1000); // تأخير قصير لإظهار رسالة النجاح
       } else {
-        toast.error(`فشل التسجيل: ${error?.message || 'حدث خطأ'}`);
+        const errorMessage = error || 'حدث خطأ غير متوقع أثناء التسجيل';
+        toast.error(`فشل التسجيل: ${errorMessage}`);
       }
     } catch (error) {
       toast.error('حدث خطأ أثناء التسجيل');

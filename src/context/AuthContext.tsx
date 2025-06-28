@@ -317,6 +317,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // دالة تحديث البيانات
   const refreshData = useCallback(async () => {
+    
     if (!user || !session) {
       return;
     }
@@ -324,14 +325,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     
     try {
-      let profile = await getCurrentUserProfile();
+      // مسح cache localStorage لضمان جلب البيانات الطازجة
+      localStorage.removeItem('current_user_profile');
+      localStorage.removeItem('current_organization');
       
-                // إضافة بيانات وكيل مركز الاتصال إذا كان موجوداً
-          if (profile) {
-            profile = await addCallCenterAgentData(profile);
-          }
-          
-          setUserProfile(profile as UserProfile);
+      let profile = await getCurrentUserProfile();
+
+      // إضافة بيانات وكيل مركز الاتصال إذا كان موجوداً
+      if (profile) {
+        profile = await addCallCenterAgentData(profile);
+      }
+      
+      setUserProfile(profile as UserProfile);
       
       // حفظ في localStorage للمرات القادمة
       if (profile) {
@@ -673,16 +678,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Effect to fetch user profile and organization with debouncing
   useEffect(() => {
     const fetchUserData = async () => {
+      
       if (user && session) {
         // منع multiple fetches في نفس الوقت
         if (fetchingUserDataRef.current) {
           return;
         }
 
-        // إذا كانت البيانات محملة بالفعل، لا نحتاج لإعادة تحميلها
-        if (userProfile && userProfile.id === user.id) {
+        // إذا كانت البيانات محملة بالفعل والمؤسسة موجودة، لا نحتاج لإعادة تحميلها
+        if (userProfile && userProfile.id === user.id && organization && userProfile.organization_id) {
           setIsLoading(false);
           return;
+        }
+
+        // إذا كان userProfile موجود لكن organization غير موجود، نحتاج لإعادة التحميل
+        if (userProfile && userProfile.id === user.id && (!organization || !userProfile.organization_id)) {
         }
 
         // إذا كان لدينا profile محفوظ وصالح للمستخدم الحالي، استخدمه مؤقتاً
@@ -699,7 +709,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsLoading(true);
         
         try {
-          let profile = await getCurrentUserProfile();
+          
+          // إضافة timeout لـ getCurrentUserProfile
+          const profilePromise = getCurrentUserProfile();
+          const timeoutPromise = new Promise<null>((_, reject) => 
+            setTimeout(() => reject(new Error('getCurrentUserProfile timeout')), 5000)
+          );
+          
+          let profile = await Promise.race([profilePromise, timeoutPromise]);
           
           // إضافة بيانات وكيل مركز الاتصال إذا كان موجوداً
           if (profile) {
@@ -711,6 +728,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (profile?.organization_id) {
             const org = await getOrganizationById(profile.organization_id);
             setOrganization(org);
+            
+            // كونسول لمراقبة بيانات المؤسسة من AuthContext
             
             // حفظ جميع بيانات المستخدم مرة واحدة
             saveUserDataToStorage(profile, org, profile.organization_id);

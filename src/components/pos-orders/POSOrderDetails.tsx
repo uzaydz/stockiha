@@ -124,12 +124,9 @@ export const POSOrderDetails: React.FC<POSOrderDetailsProps> = ({
         setItemsError(null);
         
         try {
-          console.log('🔍 بدء تحميل عناصر الطلبية:', order.id);
           const items = await fetchOrderDetails(order.id);
-          console.log('✅ تم تحميل العناصر بنجاح:', items?.length || 0);
           setOrderItems(items || []);
         } catch (error) {
-          console.error('❌ خطأ في تحميل عناصر الطلبية:', error);
           setOrderItems([]);
           setItemsError(error instanceof Error ? error.message : 'حدث خطأ في تحميل العناصر');
         } finally {

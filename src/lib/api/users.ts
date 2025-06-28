@@ -209,8 +209,8 @@ export const getCurrentUserProfile = async (): Promise<User | null> => {
             return cachedProfile.data;
           }
         }
-      } catch (sessionError) {
-      }
+              } catch (sessionError) {
+        }
     }
 
     // إذا لم نجد بيانات أصلاً، محاولة أخيرة سريعة من مفاتيح تخزين أخرى

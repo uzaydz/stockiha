@@ -154,12 +154,10 @@ export function usePOSOrderOptimized() {
       });
 
       if (error) {
-        console.error('خطأ في إنشاء الطلبية:', error);
         throw new Error(`فشل في إنشاء الطلبية: ${error.message}`);
       }
 
       if (!result?.success) {
-        console.error('فشل في إنشاء الطلبية:', result);
         throw new Error(result?.error || 'فشل في إنشاء الطلبية');
       }
 
@@ -177,7 +175,6 @@ export function usePOSOrderOptimized() {
               .eq('id', service.id);
               
             if (serviceError) {
-              console.warn('تحذير: فشل في تحديث حالة الخدمة:', serviceError);
             }
           }
         });
@@ -195,7 +192,6 @@ export function usePOSOrderOptimized() {
       };
 
     } catch (error: any) {
-      console.error('خطأ في معالجة الطلبية:', error);
       toast.error(error.message || 'حدث خطأ في معالجة الطلبية');
       throw error;
     } finally {
@@ -249,7 +245,6 @@ export function usePOSOrderOptimized() {
       if (error) throw error;
       return data || [];
     } catch (error: any) {
-      console.error('خطأ في جلب الطلبيات:', error);
       return [];
     }
   }, [currentTenant]);
@@ -260,4 +255,4 @@ export function usePOSOrderOptimized() {
     getRecentOrders,
     isProcessing
   };
-} 
+}

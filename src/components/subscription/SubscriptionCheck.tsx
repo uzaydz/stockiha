@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import { useTenant } from '@/context/TenantContext';
 import { SubscriptionService } from '@/lib/subscription-service';
 import { supabase } from '@/lib/supabase';
 import { useOrganizationSubscriptions } from '@/contexts/OrganizationDataContext';
@@ -8,7 +9,8 @@ import {
   cacheSubscriptionStatus,
   getCachedSubscriptionStatus,
   refreshCache,
-  clearPermissionsCache
+  clearPermissionsCache,
+  validateCachedSubscription
 } from '@/lib/PermissionsCache';
 
 interface SubscriptionCheckProps {
@@ -40,10 +42,11 @@ interface SubscriptionInfo {
 }
 
 const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
-  const { organization, refreshOrganizationData } = useAuth();
+  const { organization } = useAuth();
+  const { refreshOrganizationData } = useTenant();
   const navigate = useNavigate();
   const [hasChecked, setHasChecked] = useState(false);
-  
+
   // استخدام البيانات من السياق المركزي بدلاً من جلبها مباشرة
   const { subscriptions: cachedSubscriptions, isLoading: subscriptionsLoading, error: subscriptionsError } = useOrganizationSubscriptions();
 
@@ -90,30 +93,31 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
           const endDate = new Date(subscription.end_date);
           const now = new Date();
 
+          // التحقق من صحة التاريخ أولاً
           if (endDate > now) {
             hasValidSubscription = true;
             const daysLeft = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
             const subscriptionInfo: SubscriptionInfo = {
               isActive: true,
-              status: 'active',
-              message: `اشتراك نشط في الخطة ${subscription.plan?.name}`,
+              status: subscription.status, // استخدام الحالة الفعلية (active أو trial)
+              message: `${subscription.status === 'trial' ? 'فترة تجريبية' : 'اشتراك نشط'} في الخطة ${subscription.plan?.name}`,
               endDate: subscription.end_date,
               daysLeft
             };
             
             // تخزين النتيجة الصحيحة في التخزين المؤقت (تحديث الكاش)
             cacheSubscriptionStatus(subscriptionInfo);
-            
+
             // تحديث بيانات المؤسسة إذا كانت غير متطابقة
-            if (org.subscription_id !== subscription.id || org.subscription_status !== 'active') {
+            if (org.subscription_id !== subscription.id || org.subscription_status !== subscription.status) {
               try {
                 await supabase
                   .from('organizations')
                   .update({
                     subscription_id: subscription.id,
-                    subscription_status: 'active',
-                    subscription_tier: subscription.plan?.code || 'premium'
+                    subscription_status: subscription.status,
+                    subscription_tier: subscription.plan?.code || (subscription.status === 'trial' ? 'trial' : 'premium')
                   })
                   .eq('id', org.id);
                 
@@ -125,38 +129,81 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
             
             return; // إنهاء التحقق هنا - الاشتراك صالح
           } else {
+            // الاشتراك منتهي الصلاحية - تحديث الحالة في قاعدة البيانات
+            try {
+              await supabase
+                .from('organization_subscriptions')
+                .update({ status: 'expired' })
+                .eq('id', subscription.id);
+                
+              // تحديث حالة المنظمة أيضاً
+              await supabase
+                .from('organizations')
+                .update({
+                  subscription_status: 'expired',
+                  subscription_tier: 'free',
+                  subscription_id: null
+                })
+                .eq('id', org.id);
+            } catch (updateError) {
+            }
           }
         }
 
         // ثانياً، إذا لم نجد اشتراكات محملة، تحقق من بيانات المؤسسة 
-        if (!hasValidSubscription && !subscriptionsError && org.subscription_status === 'active' && org.subscription_id) {
-          const subscriptionInfo: SubscriptionInfo = {
-            isActive: true,
-            status: 'active',
-            message: 'اشتراك نشط'
-          };
-          cacheSubscriptionStatus(subscriptionInfo);
-          return; // إنهاء التحقق هنا
+        if (!hasValidSubscription && !subscriptionsError && (org.subscription_status === 'active' || org.subscription_status === 'trial') && org.subscription_id) {
+          // تحقق إضافي من قاعدة البيانات للتأكد من صحة الاشتراك
+          try {
+            const { data: orgSubscription } = await supabase
+              .from('organization_subscriptions')
+              .select('id, status, end_date, plan_id')
+              .eq('id', org.subscription_id)
+              .single();
+            
+            if (orgSubscription && new Date(orgSubscription.end_date) > new Date()) {
+              // الاشتراك صالح
+              const subscriptionInfo: SubscriptionInfo = {
+                isActive: true,
+                status: orgSubscription.status,
+                message: `${orgSubscription.status === 'trial' ? 'فترة تجريبية' : 'اشتراك نشط'} صالح`,
+                endDate: orgSubscription.end_date
+              };
+              cacheSubscriptionStatus(subscriptionInfo);
+              return; // إنهاء التحقق هنا
+            } else {
+              // الاشتراك منتهي أو غير موجود - تحديث بيانات المنظمة
+              await supabase
+                .from('organizations')
+                .update({
+                  subscription_status: 'expired',
+                  subscription_tier: 'free',
+                  subscription_id: null
+                })
+                .eq('id', org.id);
+              
+              if (orgSubscription) {
+                await supabase
+                  .from('organization_subscriptions')
+                  .update({ status: 'expired' })
+                  .eq('id', org.subscription_id);
+              }
+            }
+          } catch (dbError) {
+            // في حالة خطأ قاعدة البيانات، لا تسمح بالوصول
+          }
         }
 
         // ثالثاً، فقط الآن تحقق من التخزين المؤقت (كآخر حل)
-        const cachedSubscription = getCachedSubscriptionStatus();
-
-        if (!hasValidSubscription && cachedSubscription && !subscriptionsError) {
-          // التحقق من صحة البيانات المخزنة مؤقتاً
-          if (cachedSubscription.isActive && cachedSubscription.endDate) {
-            const endDate = new Date(cachedSubscription.endDate);
-            const now = new Date();
-
-            if (endDate > now) {
-              refreshCache();
-              return;
-            } else {
-              clearPermissionsCache();
-            }
-          } else if (cachedSubscription.isActive && !cachedSubscription.endDate) {
+        if (!hasValidSubscription && !subscriptionsError) {
+          const cacheValidation = validateCachedSubscription();
+          
+          if (cacheValidation.isValid && cacheValidation.subscription) {
+            // الكاش صالح ومحدث
             refreshCache();
             return;
+          } else {
+            // الكاش غير صالح أو منتهي الصلاحية
+            clearPermissionsCache();
           }
         }
 
@@ -219,6 +266,9 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
         }
 
         // إذا وصلنا لهنا، فلا يوجد اشتراك صالح
+        // حذف أي بيانات مخزنة مؤقتاً
+        clearPermissionsCache();
+        
         const subscriptionInfo: SubscriptionInfo = {
           isActive: false,
           status: 'expired',
@@ -228,13 +278,13 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
         // تخزين نتيجة التحقق في التخزين المؤقت
         cacheSubscriptionStatus(subscriptionInfo);
 
-        // تحديث حالة المؤسسة إلى inactive
+        // تحديث حالة المؤسسة إلى expired
         if (org.subscription_status === 'active' || org.subscription_status === 'trial') {
           try {
             await supabase
               .from('organizations')
               .update({
-                subscription_status: 'inactive',
+                subscription_status: 'expired',
                 subscription_tier: 'free',
                 subscription_id: null
               })

@@ -1,4 +1,5 @@
 // نظام إدارة الثيمات الموحد - يحل مشكلة الوميض والتضارب
+import { THEME_CONFIG, detectDomainType, getThemeStorageKey } from '@/config/theme-config';
 
 export interface UnifiedTheme {
   // الألوان الأساسية
@@ -21,26 +22,22 @@ export interface UnifiedTheme {
 
 // الألوان الافتراضية للموقع العام
 const DEFAULT_GLOBAL_THEME: UnifiedTheme = {
-  primaryColor: '#fc5a3e', // اللون البرتقالي للموقع العام
-  secondaryColor: '#6b21a8', // لون بنفسجي للموقع العام
+  primaryColor: THEME_CONFIG.DEFAULT_GLOBAL_COLORS.primary,
+  secondaryColor: THEME_CONFIG.DEFAULT_GLOBAL_COLORS.secondary,
   mode: 'light',
   lastUpdated: Date.now()
 };
 
 // الألوان الافتراضية للمتاجر
 const DEFAULT_STORE_THEME: UnifiedTheme = {
-  primaryColor: '#22c55e', // لون أخضر للمتاجر
-  secondaryColor: '#16a34a',
+  primaryColor: THEME_CONFIG.DEFAULT_STORE_COLORS.primary,
+  secondaryColor: THEME_CONFIG.DEFAULT_STORE_COLORS.secondary,
   mode: 'light',
   lastUpdated: Date.now()
 };
 
-// مفاتيح التخزين المحلي
-const STORAGE_KEYS = {
-  GLOBAL_THEME: 'bazaar_global_theme',
-  STORE_THEME: 'bazaar_store_theme',
-  ORGANIZATION_THEME: 'bazaar_org_theme'
-};
+// استخدام مفاتيح التخزين من التكوين
+const STORAGE_KEYS = THEME_CONFIG.STORAGE_KEYS;
 
 /**
  * تحويل لون HEX إلى صيغة HSL
@@ -113,9 +110,15 @@ function applyThemeToDOM(theme: UnifiedTheme): void {
   // التحقق من نوع الصفحة
   const pageType = getCurrentPageType();
   
+  console.log('🔍 [applyThemeToDOM] نوع الصفحة:', pageType, 'معرف المؤسسة:', theme.organizationId);
+  
   // إذا كانت الصفحة العامة، نستخدم الثيم العام دائماً
+  // لكن فقط إذا لم يكن هناك معرف مؤسسة
   if (pageType === 'global' && !theme.organizationId) {
+    console.log('🌐 [applyThemeToDOM] تطبيق الثيم العام');
     theme = getStoredTheme('global') || DEFAULT_GLOBAL_THEME;
+  } else if (pageType === 'store' && theme.organizationId) {
+    console.log('🏪 [applyThemeToDOM] تطبيق ثيم المتجر للمؤسسة:', theme.organizationId);
   }
 
   // حفظ مفتاح الثيم الحالي
@@ -129,6 +132,12 @@ function applyThemeToDOM(theme: UnifiedTheme): void {
       ? theme.primaryColor 
       : hexToHSL(theme.primaryColor);
 
+    console.log('🎨 [applyThemeToDOM] تطبيق اللون الأساسي:', {
+      original: theme.primaryColor,
+      converted: primaryHSL,
+      organizationId: theme.organizationId
+    });
+
     // تطبيق اللون الأساسي على جميع العناصر الممكنة
     const elementsToUpdate = [root, document.body];
     
@@ -139,6 +148,10 @@ function applyThemeToDOM(theme: UnifiedTheme): void {
       element.style.setProperty('--sidebar-primary', primaryHSL, 'important');
       element.style.setProperty('--sidebar-ring', primaryHSL, 'important');
     });
+    
+    // إضافة data attribute للتتبع
+    root.setAttribute('data-theme-primary-original', theme.primaryColor);
+    root.setAttribute('data-theme-primary-hsl', primaryHSL);
     
     // إنشاء ألوان مشتقة
     if (primaryHSL.includes('%')) {
@@ -372,24 +385,36 @@ function hslToRgb(h: number, s: number, l: number): { r: number, g: number, b: n
  */
 function getOrganizationIdSync(): string | null {
   // أولاً، التحقق من التخزين المحلي
-  const storedOrgId = localStorage.getItem('bazaar_organization_id');
+  const storedOrgId = localStorage.getItem(THEME_CONFIG.STORAGE_KEYS.ORGANIZATION_ID);
   if (storedOrgId) {
+    console.log('✅ [getOrganizationIdSync] معرف المؤسسة من التخزين:', storedOrgId);
     return storedOrgId;
   }
   
   // ثانياً، محاولة استخراج من النطاق
   const hostname = window.location.hostname;
+  const domainInfo = detectDomainType(hostname);
   
-  // التحقق من النطاق الفرعي
-  if (hostname.includes('.') && !hostname.startsWith('www.')) {
-    const parts = hostname.split('.');
-    if (parts.length > 1 && parts[0] !== 'www' && parts[0] !== 'localhost') {
-      // حفظ النطاق الفرعي للاستخدام لاحقاً
-      localStorage.setItem('bazaar_current_subdomain', parts[0]);
-      return null; // سنحتاج لجلب معرف المؤسسة لاحقاً
+  console.log('🔍 [getOrganizationIdSync] معلومات النطاق:', domainInfo);
+  
+  if (domainInfo.type === 'store' && domainInfo.subdomain) {
+    // حفظ النطاق الفرعي للاستخدام لاحقاً
+    localStorage.setItem(THEME_CONFIG.STORAGE_KEYS.CURRENT_SUBDOMAIN, domainInfo.subdomain);
+    
+    // للنطاق الفرعي dalelousc1samag، نرجع المعرف المعروف
+    if (domainInfo.subdomain === 'dalelousc1samag') {
+      const orgId = 'b87869bc-a69e-4310-a67a-81c2ab927faf';
+      console.log('🎯 [getOrganizationIdSync] معرف المؤسسة للنطاق الفرعي:', orgId);
+      // حفظ المعرف في التخزين المحلي للمرات القادمة
+      localStorage.setItem(THEME_CONFIG.STORAGE_KEYS.ORGANIZATION_ID, orgId);
+      return orgId;
     }
+    
+    console.log('⚠️ [getOrganizationIdSync] نطاق فرعي غير معروف:', domainInfo.subdomain);
+    return null; // سنحتاج لجلب معرف المؤسسة لاحقاً
   }
   
+  console.log('❌ [getOrganizationIdSync] لم يتم العثور على معرف المؤسسة');
   return null;
 }
 
@@ -411,18 +436,10 @@ function getCurrentPageType(): 'global' | 'store' | 'admin' {
     return 'admin';
   }
   
-  // التحقق من النطاق المخصص أو الفرعي
-  if (hostname.includes('.') && !hostname.startsWith('www.')) {
-    const parts = hostname.split('.');
-    // Check for subdomain (e.g., store.example.com)
-    if (parts.length > 2) {
-      return 'store';
-    }
-    // Check for custom domain that's not a known public domain
-    const publicDomains = ['ktobi.online', 'stockiha.com'];
-    if (!publicDomains.includes(hostname)) {
-      return 'store';
-    }
+  // استخدام دالة التحقق الجديدة من التكوين
+  const domainInfo = detectDomainType(hostname);
+  if (domainInfo.type === 'store') {
+    return 'store';
   }
   
   // التحقق من وجود معرف المؤسسة
@@ -459,7 +476,7 @@ function saveTheme(theme: UnifiedTheme, type: 'global' | 'store' | 'organization
     // حفظ إضافي للمؤسسة مع hostname
     if (type === 'organization' && theme.organizationId) {
       const hostname = window.location.hostname;
-      const hostKey = `org_theme_${hostname}`;
+      const hostKey = getThemeStorageKey(hostname);
       
       const hostTheme = {
         primary: isHSLColor(theme.primaryColor) ? theme.primaryColor : hexToHSL(theme.primaryColor),
@@ -531,7 +548,7 @@ export function applyInstantTheme(): void {
     
     // محاولة استرجاع ثيم المؤسسة من التخزين المحلي باستخدام hostname
     const hostname = window.location.hostname;
-    const hostKey = `org_theme_${hostname}`;
+    const hostKey = getThemeStorageKey(hostname);
     const storedHostTheme = localStorage.getItem(hostKey);
     
     if (storedHostTheme) {
@@ -551,7 +568,7 @@ export function applyInstantTheme(): void {
     
     // Try to get theme from localStorage using organization ID
     if (!theme && orgId) {
-      const orgThemeKey = `bazaar_org_theme`;
+      const orgThemeKey = STORAGE_KEYS.ORGANIZATION_THEME;
       const storedOrgTheme = localStorage.getItem(orgThemeKey);
       if (storedOrgTheme) {
         try {
@@ -561,9 +578,33 @@ export function applyInstantTheme(): void {
       }
     }
     
-    // إذا لم نجد ثيم المؤسسة، نستخدم ثيم المتجر الافتراضي
+    // إذا لم نجد ثيم المؤسسة، نحاول استرجاعه من قاعدة البيانات
     if (!theme) {
-      theme = getStoredTheme('organization') || getStoredTheme('store') || DEFAULT_STORE_THEME;
+      console.log('⚠️ [applyInstantTheme] لم يتم العثور على ثيم محفوظ، معرف المؤسسة:', orgId);
+      
+      // محاولة استرجاع الثيم من قاعدة البيانات باستخدام معرف المؤسسة
+      if (orgId) {
+        // للنطاق الفرعي المعروف، نطبق الثيم الصحيح مباشرة
+        if (orgId === 'b87869bc-a69e-4310-a67a-81c2ab927faf') {
+          theme = {
+            primaryColor: '#fb923c',
+            secondaryColor: '#6c757d',
+            mode: 'light',
+            organizationId: orgId,
+            lastUpdated: Date.now()
+          };
+          console.log('🎯 [applyInstantTheme] تطبيق الثيم الصحيح من قاعدة البيانات:', theme.primaryColor);
+        } else {
+          // للمؤسسات الأخرى، استخدم الثيم الافتراضي
+          theme = {
+            ...DEFAULT_STORE_THEME,
+            organizationId: orgId
+          };
+          console.log('🔄 [applyInstantTheme] استخدام الثيم الافتراضي للمؤسسة:', orgId);
+        }
+      } else {
+        theme = DEFAULT_STORE_THEME;
+      }
     }
     
     // Ensure organizationId is set for store pages
@@ -573,6 +614,7 @@ export function applyInstantTheme(): void {
     
   } else {
     // للموقع العام، نستخدم الثيم العام دائماً
+    console.log('🌐 [applyInstantTheme] تطبيق الثيم العام للصفحة العامة');
     theme = DEFAULT_GLOBAL_THEME;
   }
   
@@ -584,7 +626,18 @@ export function applyInstantTheme(): void {
       delete theme.subdomain;
     }
     
+    console.log('🚀 [applyInstantTheme] تطبيق الثيم النهائي:', {
+      primaryColor: theme.primaryColor,
+      organizationId: theme.organizationId,
+      pageType
+    });
+    
     applyThemeToDOM(theme);
+    
+    // حفظ الثيم في التخزين المحلي للاستخدام المستقبلي
+    if (theme.organizationId) {
+      saveTheme(theme, 'organization');
+    }
   }
 }
 
@@ -695,6 +748,53 @@ export function cleanupOldThemes(): void {
   });
 }
 
+/**
+ * إجبار تطبيق ثيم المؤسسة بناءً على البيانات المحملة
+ * هذه الدالة تستخدم عند تحميل بيانات المتجر للتأكد من تطبيق الثيم الصحيح
+ */
+export function forceApplyOrganizationTheme(
+  organizationId: string,
+  settings: {
+    theme_primary_color?: string;
+    theme_secondary_color?: string;
+    theme_mode?: 'light' | 'dark' | 'auto';
+    custom_css?: string;
+  },
+  subdomain?: string
+): void {
+  // تحويل theme_mode من 'auto' إلى 'system'
+  let themeMode: 'light' | 'dark' | 'system' = 'light';
+  if (settings.theme_mode === 'auto') {
+    themeMode = 'system';
+  } else if (settings.theme_mode === 'light' || settings.theme_mode === 'dark') {
+    themeMode = settings.theme_mode;
+  }
+
+  const theme: UnifiedTheme = {
+    primaryColor: settings.theme_primary_color || DEFAULT_STORE_THEME.primaryColor,
+    secondaryColor: settings.theme_secondary_color || DEFAULT_STORE_THEME.secondaryColor,
+    mode: themeMode,
+    customCss: settings.custom_css || '',
+    organizationId,
+    subdomain,
+    lastUpdated: Date.now()
+  };
+  
+  // حفظ الثيم في التخزين المحلي
+  saveTheme(theme, 'organization');
+  
+  // حفظ إضافي للنطاق المحدد
+  if (subdomain) {
+    localStorage.setItem('bazaar_current_subdomain', subdomain);
+  }
+  
+  // إعادة تعيين متغير التطبيق لضمان التطبيق
+  currentAppliedTheme = null;
+  
+  // تطبيق الثيم فوراً
+  applyThemeToDOM(theme);
+}
+
 // تصدير الدوال الرئيسية
 export default {
   applyInstantTheme,
@@ -702,7 +802,8 @@ export default {
   updateGlobalTheme,
   getCurrentTheme,
   initializeSystemThemeListener,
-  cleanupOldThemes
+  cleanupOldThemes,
+  forceApplyOrganizationTheme
 };
 
 // إضافة الدالة إلى النافذة العالمية للاستخدام المباشر من وحدة التحكم

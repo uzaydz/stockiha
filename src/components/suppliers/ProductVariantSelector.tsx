@@ -114,7 +114,6 @@ export function ProductVariantSelector({
         }
 
       } catch (error) {
-        console.error('Error fetching product data:', error);
         toast.error('خطأ في جلب بيانات المنتج');
       } finally {
         setLoading(false);
@@ -451,4 +450,4 @@ export function ProductVariantSelector({
       </CardContent>
     </Card>
   );
-} 
+}

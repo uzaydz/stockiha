@@ -13,8 +13,8 @@ const SYSTEM_CONFIG = {
   enablePeriodicLogs: false, // تعطيل الطباعة الدورية للإحصائيات
   logLevel: 'minimal', // minimal, normal, verbose
   enableConsoleBlocking: true, // منع الطلبات من الظهور في الكونسول
-  enableAggressiveDeduplication: true, // تفعيل منع التكرار المكثف
-  enableGlobalInterception: true // تفعيل اعتراض عالمي شامل
+  enableAggressiveDeduplication: false, // تعطيل منع التكرار المكثف مؤقتاً
+  enableGlobalInterception: false // تعطيل اعتراض عالمي شامل مؤقتاً
 };
 
 // إعدادات منع التكرار لكل نوع - محسنة للمنع القوي جداً
@@ -168,6 +168,15 @@ function getRequestType(url: string): RequestType {
   }
   if (url.includes('/rest/v1/') || url.includes('/rpc/') || url.includes('supabase.co')) {
     return 'data';
+  }
+  // استثناء خاص لطلبات الشحن وياليدين - تصنيفها كـ "other" بدلاً من "api"
+  if (url.includes('/yalidine-api/') || 
+      url.includes('/api/yalidine') || 
+      url.includes('yalidine') || 
+      url.includes('shipping-proxy') || 
+      url.includes('/functions/v1/shipping') ||
+      url.includes('supabase.co/functions/v1/shipping')) {
+    return 'other';
   }
   if (url.includes('/api/')) {
     return 'api';
@@ -369,6 +378,16 @@ function shouldBlockRequest(key: string, type: RequestType, url: string): boolea
     return false;
   }
   
+  // استثناء خاص لطلبات الشحن وياليدين - لا نحجب طلبات الشحن أبداً
+  if (url.includes('/yalidine-api/') || 
+      url.includes('/api/yalidine') || 
+      url.includes('yalidine') || 
+      url.includes('shipping-proxy') || 
+      url.includes('/functions/v1/shipping') ||
+      url.includes('supabase.co/functions/v1/shipping')) {
+    return false;
+  }
+  
   // تحقق من قواعد صفحة شراء المنتج أولاً
   for (const rule of PRODUCT_PAGE_DEDUPLICATION_RULES) {
     if (key.startsWith(rule.category)) {
@@ -476,6 +495,15 @@ const enhancedFetch = async function(input: RequestInfo | URL, init?: RequestIni
   const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
   const method = init?.method || 'GET';
   const body = init?.body;
+  
+  // استثناء فوري لطلبات الشحن - تجاوز جميع عمليات التحقق
+  if (url.includes('shipping-proxy') || 
+      url.includes('/functions/v1/shipping') ||
+      url.includes('yalidine') ||
+      url.includes('/api/yalidine')) {
+    console.log('🚀 Bypassing deduplication for shipping request:', url);
+    return originalFetch.call(this, input, init);
+  }
   
   const requestType = getRequestType(url);
   const key = createRequestKey(url, init);
@@ -632,6 +660,15 @@ XMLHttpRequest.prototype.send = function(body?: Document | XMLHttpRequestBodyIni
   const method = this._deduplicationMethod || 'GET';
   
   if (url) {
+    // استثناء فوري لطلبات الشحن في XMLHttpRequest
+    if (url.includes('shipping-proxy') || 
+        url.includes('/functions/v1/shipping') ||
+        url.includes('yalidine') ||
+        url.includes('/api/yalidine')) {
+      console.log('🚀 Bypassing XHR deduplication for shipping request:', url);
+      return originalXHRSend.call(this, body);
+    }
+    
     const requestType = getRequestType(url);
     const key = createRequestKey(url, { method });
     

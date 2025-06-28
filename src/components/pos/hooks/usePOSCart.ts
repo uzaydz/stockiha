@@ -371,4 +371,4 @@ export const usePOSCart = ({
     // دوال أخرى
     assignCustomerToTab
   };
-}; 
+};

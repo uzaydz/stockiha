@@ -326,7 +326,7 @@ export const DashboardDataProvider: React.FC<DashboardDataProviderProps> = ({
   const { currentOrganization } = useTenant();
   const queryClient = useQueryClient();
   const orgId = currentOrganization?.id;
-  
+
   // تأخير بسيط لتجنب التحميل المتزامن مع مكونات أخرى
   const [isInitialized, setIsInitialized] = useState(false);
   

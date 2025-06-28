@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { CalendarClock, AlertTriangle } from 'lucide-react';
+import { CalendarClock, AlertTriangle, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { SubscriptionService } from '@/lib/subscription-service';
 
 // واجهة المؤسسة بالإعدادات الإضافية
 interface OrganizationWithSettings {
@@ -24,89 +25,113 @@ interface OrganizationWithSettings {
 export const TrialNotification: React.FC = () => {
   const { organization } = useAuth();
   const [daysLeft, setDaysLeft] = useState<number | null>(null);
-  const [showNotification, setShowNotification] = useState(false);
+  const [trialDaysLeft, setTrialDaysLeft] = useState<number>(0);
+  const [subscriptionDaysLeft, setSubscriptionDaysLeft] = useState<number>(0);
+  const [status, setStatus] = useState<'trial' | 'active' | 'expired'>('expired');
+  const [message, setMessage] = useState<string>('');
+  const [showNotification, setShowNotification] = useState<boolean>(false);
 
   useEffect(() => {
     if (!organization) return;
 
-    // التعامل مع كائن المؤسسة باستخدام الواجهة المحسنة
-    const org = organization as unknown as OrganizationWithSettings;
+    const calculateDays = async () => {
+      try {
+        const result = await SubscriptionService.calculateTotalDaysLeft(
+          organization as unknown as OrganizationWithSettings,
+          null
+        );
 
-    // عرض الإشعار فقط للمستخدمين في فترة التجربة المجانية
-    if (org.subscription_status !== 'trial') {
-      return;
-    }
+        setDaysLeft(result.totalDaysLeft);
+        setTrialDaysLeft(result.trialDaysLeft);
+        setSubscriptionDaysLeft(result.subscriptionDaysLeft);
+        setStatus(result.status);
+        setMessage(result.message);
 
-    let trialEndDate: Date | null = null;
-    const trialDays = 5; // الفترة التجريبية 5 أيام
+        // عرض الإشعار في الحالات التالية:
+        // 1. الفترة التجريبية: إذا كان متبقي 3 أيام أو أقل
+        // 2. الاشتراك المدفوع: إذا كان متبقي 7 أيام أو أقل
+        if (result.status === 'trial' && result.trialDaysLeft <= 3 && result.trialDaysLeft > 0) {
+          setShowNotification(true);
+        } else if (result.status === 'active' && result.subscriptionDaysLeft <= 7 && result.subscriptionDaysLeft > 0) {
+          setShowNotification(true);
+        } else {
+          setShowNotification(false);
+        }
 
-    // استخدام تاريخ انتهاء الفترة التجريبية من الإعدادات إن وجد
-    if (org.settings?.trial_end_date) {
-      trialEndDate = new Date(org.settings.trial_end_date);
-      // تعيين ساعات التاريخ للمقارنة بدون اعتبار الوقت
-      trialEndDate.setHours(23, 59, 59, 999);
-    } else {
-      // أو حساب الفترة التجريبية من تاريخ الإنشاء (5 أيام)
-      const createdDate = new Date(org.created_at);
-      // تعيين الوقت إلى 00:00:00 للتأكد من حساب الأيام بشكل صحيح
-      createdDate.setHours(0, 0, 0, 0);
-      
-      trialEndDate = new Date(createdDate);
-      trialEndDate.setDate(trialEndDate.getDate() + trialDays);
-      // تعيين وقت نهاية اليوم لتاريخ انتهاء الفترة التجريبية
-      trialEndDate.setHours(23, 59, 59, 999);
-    }
+      } catch (error) {
+        console.error('خطأ في حساب الأيام المتبقية:', error);
+        setShowNotification(false);
+      }
+    };
 
-    // حساب الأيام المتبقية
-    const now = new Date();
-    // تعيين الوقت إلى 00:00:00 للمقارنة بالتاريخ فقط
-    const nowDateOnly = new Date(now);
-    nowDateOnly.setHours(0, 0, 0, 0);
-    
-    // حساب الفرق بالأيام (نستخدم نهاية اليوم لتاريخ الانتهاء لحساب اليوم الحالي بالكامل)
-    const diffTime = trialEndDate.getTime() - nowDateOnly.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    const daysRemaining = Math.max(0, diffDays);
-    setDaysLeft(daysRemaining);
-    
-    // سجل للتشخيص
-
-    // عرض الإشعار إذا كان متبقي 3 أيام أو أقل
-    setShowNotification(diffDays <= 3 && diffDays > 0);
-
+    calculateDays();
   }, [organization]);
 
   if (!showNotification || daysLeft === null) {
     return null;
   }
 
-  const isUrgent = daysLeft <= 1;
+  // إشعار للفترة التجريبية
+  if (status === 'trial') {
+    const isUrgent = trialDaysLeft <= 1;
 
-  return (
-    <Alert variant={isUrgent ? "destructive" : "default"} className="mb-4">
-      <div className="flex items-start gap-4">
-        {isUrgent ? <AlertTriangle className="h-5 w-5" /> : <CalendarClock className="h-5 w-5" />}
-        <div className="flex-1">
-          <AlertTitle>
-            {isUrgent
-              ? "انتبه! فترة التجربة المجانية على وشك الانتهاء"
-              : "تذكير: فترة التجربة المجانية ستنتهي قريبًا"}
-          </AlertTitle>
-          <AlertDescription className="mt-1">
-            {daysLeft === 1
-              ? "متبقي يوم واحد فقط في فترة التجربة المجانية. قم بترقية حسابك الآن للاستمرار في استخدام المنصة."
-              : `متبقي ${daysLeft} أيام في فترة التجربة المجانية. قم بالاشتراك لتفادي انقطاع الخدمة.`}
-          </AlertDescription>
-          <div className="mt-3">
-            <Button asChild size="sm" variant={isUrgent ? "destructive" : "default"}>
-              <Link to="/dashboard/subscription">الاشتراك الآن</Link>
-            </Button>
+    return (
+      <Alert variant={isUrgent ? "destructive" : "default"} className="mb-4">
+        <div className="flex items-start gap-4">
+          {isUrgent ? <AlertTriangle className="h-5 w-5" /> : <CalendarClock className="h-5 w-5" />}
+          <div className="flex-1">
+            <AlertTitle>
+              {isUrgent
+                ? "انتبه! فترة التجربة المجانية على وشك الانتهاء"
+                : "تذكير: فترة التجربة المجانية ستنتهي قريبًا"}
+            </AlertTitle>
+            <AlertDescription className="mt-1">
+              {trialDaysLeft === 1
+                ? "متبقي يوم واحد فقط في فترة التجربة المجانية. قم بترقية حسابك الآن للاستمرار في استخدام المنصة."
+                : `متبقي ${trialDaysLeft} أيام في فترة التجربة المجانية. قم بالاشتراك لتفادي انقطاع الخدمة.`}
+            </AlertDescription>
+            <div className="mt-3">
+              <Button asChild size="sm" variant={isUrgent ? "destructive" : "default"}>
+                <Link to="/dashboard/subscription">الاشتراك الآن</Link>
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
-    </Alert>
-  );
+      </Alert>
+    );
+  }
+
+  // إشعار للاشتراك المدفوع قارب على الانتهاء
+  if (status === 'active') {
+    const isUrgent = subscriptionDaysLeft <= 3;
+
+    return (
+      <Alert variant={isUrgent ? "destructive" : "default"} className="mb-4">
+        <div className="flex items-start gap-4">
+          {isUrgent ? <AlertTriangle className="h-5 w-5" /> : <CheckCircle className="h-5 w-5" />}
+          <div className="flex-1">
+            <AlertTitle>
+              {isUrgent
+                ? "انتبه! اشتراكك على وشك الانتهاء"
+                : "تذكير: اشتراكك سينتهي قريبًا"}
+            </AlertTitle>
+            <AlertDescription className="mt-1">
+              {subscriptionDaysLeft === 1
+                ? "متبقي يوم واحد فقط في اشتراكك. قم بتجديد الاشتراك الآن لتفادي انقطاع الخدمة."
+                : `متبقي ${subscriptionDaysLeft} أيام في اشتراكك الحالي. قم بالتجديد لضمان استمرارية الخدمة.`}
+            </AlertDescription>
+            <div className="mt-3">
+              <Button asChild size="sm" variant={isUrgent ? "destructive" : "default"}>
+                <Link to="/dashboard/subscription">تجديد الاشتراك</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Alert>
+    );
+  }
+
+  return null;
 };
 
 export default TrialNotification;

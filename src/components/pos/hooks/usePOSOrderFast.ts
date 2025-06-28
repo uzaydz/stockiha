@@ -60,7 +60,6 @@ export function usePOSOrderFast(currentUser: User | null) {
   ) => {
     // منع التكرار المتعدد
     if (processingRef.current || isSubmitting) {
-      console.log('⏳ عملية معالجة جارية بالفعل - تم تجاهل الطلب المكرر');
       return { orderId: '', customerOrderNumber: 0 };
     }
 
@@ -77,20 +76,6 @@ export function usePOSOrderFast(currentUser: User | null) {
     const startTime = performance.now();
 
     try {
-      console.log('🚀 بدء إنشاء طلب سريع...');
-      console.log('🔍 تفاصيل المستخدم الحالي:', {
-        userId: currentUser?.id,
-        organizationId: currentUser?.organization_id,
-        email: currentUser?.email
-      });
-      console.log('🔍 تفاصيل الطلب المرسلة:', {
-        customerId: orderDetails.customerId,
-        employeeId: orderDetails.employeeId,
-        paymentMethod: orderDetails.paymentMethod,
-        paymentStatus: orderDetails.paymentStatus,
-        total: orderDetails.total,
-        notes: orderDetails.notes
-      });
 
        // التحقق من البيانات المطلوبة
        if (!cartItems.length && !selectedServices.length && !selectedSubscriptions.length) {
@@ -116,9 +101,6 @@ export function usePOSOrderFast(currentUser: User | null) {
         };
        });
 
-       console.log('📦 بيانات العناصر:', orderItems);
-       console.log('📊 JSON للعناصر:', JSON.stringify(orderItems));
-
        // الحصول على organization_id من المستخدم الحالي أو استخدام القيمة الافتراضية
       const organizationId = currentUser?.organization_id || 'a8168bc9-d092-4386-bf85-56e28f67b211';
 
@@ -143,39 +125,22 @@ export function usePOSOrderFast(currentUser: User | null) {
         p_consider_remaining_as_partial: orderDetails.considerRemainingAsPartial || false
       };
 
-      console.log('🔧 معاملات الدالة المُرسلة:', rpcParams);
-      console.log('🔧 معاملات مُنسقة بـ JSON:', JSON.stringify(rpcParams, null, 2));
-      
       // محاولة استخدام الدالة المحسنة مع fallback للدالة القديمة
       let rpcPromise;
       
       try {
-        console.log('🚀 استدعاء create_pos_order_fast...');
-        console.log('🌐 Supabase URL:', (supabase as any).supabaseUrl);
         
         // محاولة استخدام الدالة الجديدة المحسنة
         rpcPromise = supabase.rpc('create_pos_order_fast' as any, rpcParams);
-        console.log('✅ تم إنشاء RPC promise بنجاح');
         
       } catch (fastError) {
         // استخدام الدالة القديمة كـ fallback
-        console.log('💫 استخدام الدالة البديلة:', fastError);
-        console.log('🚀 استدعاء create_pos_order_safe...');
         rpcPromise = supabase.rpc('create_pos_order_safe', rpcParams);
-        console.log('✅ تم إنشاء RPC promise البديل بنجاح');
       }
 
-      console.log('⏳ انتظار استجابة RPC...');
-      console.log('⏰ بدء العد التنازلي للـ timeout (15 ثانية)...');
-      
       const rpcResult = await Promise.race([rpcPromise, timeoutPromise]) as any;
-      console.log('📥 تم استلام استجابة RPC الخام:', rpcResult);
-      console.log('📥 نوع البيانات المُستلمة:', typeof rpcResult);
-      console.log('📥 استجابة RPC مُنسقة:', JSON.stringify(rpcResult, null, 2));
 
       const { data: result, error } = rpcResult;
-      console.log('📊 البيانات المستخرجة:', result);
-      console.log('❌ الخطأ المستخرج:', error);
 
       // التحقق من الإلغاء
       if (abortControllerRef.current.signal.aborted) {
@@ -183,63 +148,32 @@ export function usePOSOrderFast(currentUser: User | null) {
       }
 
       if (error) {
-        console.error('❌ خطأ من RPC:', error);
-        console.error('❌ تفاصيل الخطأ الكاملة:', {
-          message: error.message,
-          code: error.code,
-          hint: error.hint,
-          details: error.details,
-          stack: error.stack,
-          fullError: error
-        });
-        console.error('❌ نوع الخطأ:', typeof error);
-        console.error('❌ خصائص الخطأ:', Object.keys(error));
         
         // إضافة معلومات إضافية حول السبب المحتمل
         if (error.message?.includes('GROUP BY')) {
-          console.error('🔍 خطأ GROUP BY مُكتشف! السبب المحتمل:');
-          console.error('🔍 - مشكلة في materialized view');
-          console.error('🔍 - مشكلة في trigger functions');
-          console.error('🔍 - مشكلة في views أو functions أخرى');
         }
         
         throw new Error(`فشل في استدعاء الدالة: ${error.message}`);
       }
 
       const resultData = result as any;
-      console.log('📋 نتيجة الدالة:', resultData);
-      console.log('✅ حالة النجاح:', resultData?.success);
       
       if (!resultData?.success) {
-        console.error('❌ فشل الدالة:', resultData?.error);
-        console.error('❌ رمز الخطأ:', resultData?.error_code);
-        console.error('❌ رسالة الخطأ:', resultData?.message);
         
         // إضافة تحليل أعمق للخطأ
         if (resultData?.error?.includes('GROUP BY')) {
-          console.error('🔍 تم اكتشاف خطأ GROUP BY في النتيجة!');
-          console.error('🔍 هذا يعني أن المشكلة في:');
-          console.error('🔍 1. Trigger يتم تشغيله عند INSERT على orders');
-          console.error('🔍 2. Trigger يتم تشغيله عند INSERT على order_items');
-          console.error('🔍 3. Function يتم استدعاؤها من داخل trigger');
-          console.error('🔍 4. Materialized view refresh');
         }
         
         throw new Error(resultData?.error || 'فشل في إنشاء الطلب');
       }
 
       const processingTime = Math.round(performance.now() - startTime);
-      console.log(`⏱️ وقت المعالجة: ${processingTime}ms`);
       
       // إظهار toast بدون blocking
       requestIdleCallback(() => {
         toast.success(`✅ تم إنشاء الطلب بنجاح! (${processingTime}ms)`);
       });
-      
-      console.log('✅ نجح إنشاء الطلب:', resultData);
-      console.log('🆔 معرف الطلب:', resultData.id);
-      console.log('🔢 رقم طلبية العميل:', resultData.customer_order_number);
-      
+
       return {
         orderId: resultData.id,
         customerOrderNumber: resultData.customer_order_number || Math.floor(Math.random() * 10000)
@@ -247,12 +181,6 @@ export function usePOSOrderFast(currentUser: User | null) {
 
     } catch (error: any) {
       const processingTime = Math.round(performance.now() - startTime);
-      console.error('💥 خطأ في إنشاء الطلب:', error);
-      console.error('💥 نوع الخطأ:', typeof error);
-      console.error('💥 رسالة الخطأ:', error.message);
-      console.error('💥 stack trace:', error.stack);
-      console.error('💥 خصائص الخطأ:', Object.keys(error));
-      console.error(`⏱️ وقت فشل المعالجة: ${processingTime}ms`);
       
       // إظهار toast بدون blocking
       requestIdleCallback(() => {
@@ -272,7 +200,6 @@ export function usePOSOrderFast(currentUser: User | null) {
       return { orderId: '', customerOrderNumber: 0 };
     } finally {
       const finalTime = Math.round(performance.now() - startTime);
-      console.log(`🏁 انتهاء العملية - الوقت الإجمالي: ${finalTime}ms`);
       processingRef.current = false;
       setIsSubmitting(false);
       abortControllerRef.current = null;
@@ -293,4 +220,4 @@ export function usePOSOrderFast(currentUser: User | null) {
     isSubmitting,
     cancelCurrentOperation
   };
-} 
+}

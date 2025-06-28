@@ -193,7 +193,6 @@ const CartOptimized = memo(({
         setNewCustomer({ name: '', email: '', phone: '' });
       }
     } catch (error) {
-      console.error('خطأ في إضافة العميل:', error);
       toast.error("حدث خطأ أثناء إضافة العميل");
     } finally {
       setIsAddingCustomer(false);
@@ -273,7 +272,6 @@ const CartOptimized = memo(({
       setAmountPaid('');
 
     } catch (error) {
-      console.error('خطأ في إنشاء الطلبية:', error);
       toast.error("حدث خطأ أثناء إنشاء الطلب");
     }
   }, [
@@ -482,4 +480,4 @@ const CartOptimized = memo(({
 
 CartOptimized.displayName = 'CartOptimized';
 
-export default CartOptimized; 
+export default CartOptimized;

@@ -365,4 +365,4 @@ const CartTabManager: React.FC<CartTabManagerProps> = ({
   );
 };
 
-export default CartTabManager; 
+export default CartTabManager;

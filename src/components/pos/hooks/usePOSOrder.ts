@@ -285,7 +285,6 @@ export const usePOSOrder = ({
                 .single();
 
               if (transactionError) {
-                console.error('خطأ في معاملة الاشتراك:', transactionError);
                 return null;
               }
 
@@ -310,7 +309,6 @@ export const usePOSOrder = ({
 
               return transactionData;
             } catch (error) {
-              console.error('خطأ في معالجة اشتراك:', error);
               return null;
             }
           })
@@ -363,7 +361,6 @@ export const usePOSOrder = ({
       try {
         await refreshProducts();
       } catch (error) {
-        console.error('خطأ في تحديث المنتجات:', error);
       }
       
       // مسح السلة
@@ -390,7 +387,6 @@ export const usePOSOrder = ({
       };
       
     } catch (error) {
-      console.error('خطأ في إنشاء الطلب:', error);
       toast.error("حدث خطأ أثناء إنشاء الطلب");
       throw error;
     } finally {
@@ -424,4 +420,4 @@ export const usePOSOrder = ({
     handleOpenOrder,
     submitOrder
   };
-}; 
+};

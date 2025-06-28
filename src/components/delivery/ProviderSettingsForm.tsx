@@ -151,19 +151,12 @@ export default function ProviderSettingsForm({
   };
 
   const testConnection = async () => {
-    console.log('🔍 بدء اختبار الاتصال...', {
-      provider: provider.code,
-      apiToken: apiToken ? `${apiToken.substring(0, 8)}...` : 'غير موجود',
-      apiKey: apiKey ? `${apiKey.substring(0, 8)}...` : 'غير موجود'
-    });
-
+    console.log('Starting connection test for provider:', provider.code);
+    
     // For Ecotrack providers, only token is required
     const isEcotrackProvider = ['ecotrack', 'anderson_delivery', 'areex', 'ba_consult', 'conexlog', 'coyote_express', 'dhd', 'distazero', 'e48hr_livraison', 'fretdirect', 'golivri', 'mono_hub', 'msm_go', 'imir_express', 'packers', 'prest', 'rb_livraison', 'rex_livraison', 'rocket_delivery', 'salva_delivery', 'speed_delivery', 'tsl_express', 'worldexpress'].includes(provider.code.toLowerCase());
-    
-    console.log('🔍 نوع الموفر:', { isEcotrackProvider, providerCode: provider.code });
 
     if (!apiToken.trim()) {
-      console.log('❌ Token مفقود');
       toast({
         title: "بيانات ناقصة",
         description: "يرجى إدخال Token المطلوب",
@@ -173,7 +166,6 @@ export default function ProviderSettingsForm({
     }
     
     if (!isEcotrackProvider && !apiKey.trim()) {
-      console.log('❌ Key مفقود لموفر غير Ecotrack');
       toast({
         title: "بيانات ناقصة",
         description: "يرجى إدخال جميع البيانات المطلوبة",
@@ -182,13 +174,11 @@ export default function ProviderSettingsForm({
       return;
     }
 
-    console.log('🚀 بدء عملية الاختبار...');
     setIsTesting(true);
     setTestResult(null);
 
     try {
       // Map provider code to ShippingProvider enum
-      console.log('🔄 تحديد نوع الموفر...', provider.code.toLowerCase());
       let providerEnum: ShippingProviderEnum;
       switch (provider.code.toLowerCase()) {
         case 'yalidine':
@@ -273,42 +263,47 @@ export default function ProviderSettingsForm({
           throw new Error(`Provider ${provider.code} is not supported`);
       }
 
-      console.log('✅ تم تحديد نوع الموفر:', providerEnum);
-
       // Create shipping service instance for testing
-      console.log('🔨 إنشاء خدمة الشحن...', {
-        providerEnum,
-        credentials: {
-          token: apiToken ? `${apiToken.substring(0, 8)}...` : 'غير موجود',
-          key: apiKey ? `${apiKey.substring(0, 8)}...` : 'غير موجود'
-        }
-      });
+      console.log('Creating shipping service for:', providerEnum);
       
       const shippingService = createShippingService(providerEnum, {
         token: apiToken.trim(),
         key: apiKey.trim()
       });
 
-      console.log('✅ تم إنشاء خدمة الشحن، بدء اختبار البيانات...');
-
       // Test credentials
+      console.log('Testing credentials...');
       const result = await shippingService.testCredentials();
-      
-      console.log('📥 نتيجة اختبار الاتصال:', result);
-      
+      console.log('Test result:', result);
+
       setTestResult({
         success: result.success,
         message: result.message
       });
+      
+      // إظهار رسالة toast للمستخدم
+      toast({
+        title: result.success ? "نجح الاختبار" : "فشل الاختبار",
+        description: result.message,
+        variant: result.success ? "default" : "destructive",
+      });
 
     } catch (error) {
-      console.error('❌ خطأ في اختبار الاتصال:', error);
+      console.error('Test connection error:', error);
+      
+      const errorMessage = error instanceof Error ? error.message : 'خطأ غير معروف';
+      
       setTestResult({
         success: false,
-        message: 'حدث خطأ أثناء اختبار الاتصال: ' + ((error as Error)?.message || 'خطأ غير معروف')
+        message: 'حدث خطأ أثناء اختبار الاتصال: ' + errorMessage
+      });
+      
+      toast({
+        title: "خطأ في الاختبار",
+        description: errorMessage,
+        variant: "destructive",
       });
     } finally {
-      console.log('🏁 انتهاء اختبار الاتصال');
       setIsTesting(false);
     }
   };
@@ -486,7 +481,6 @@ export default function ProviderSettingsForm({
             {/* Test Connection Button */}
             <Button 
               onClick={() => {
-                console.log('🔘 تم الضغط على زر اختبار الاتصال');
                 testConnection();
               }} 
               variant="outline" 

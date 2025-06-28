@@ -163,6 +163,8 @@ abstract class BaseShippingService implements IShippingService {
  */
 export class YalidineShippingService extends BaseShippingService {
   private apiClient;
+  private supabaseProxyClient;
+  private directApiClient;
   
   constructor(credentials: ProviderCredentials) {
     super(
@@ -171,14 +173,43 @@ export class YalidineShippingService extends BaseShippingService {
       credentials
     );
 
+    // Get Supabase URL from environment
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+    
+    // Supabase Edge Function proxy client
+    this.supabaseProxyClient = axios.create({
+      baseURL: `${supabaseUrl}/functions/v1/shipping-proxy`,
+      headers: {
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+        'X-API-ID': credentials.token || '',     // token هو API ID في النظام الجديد
+        'X-API-TOKEN': credentials.key || '',    // key هو API TOKEN في النظام الجديد
+        'Content-Type': 'application/json'
+      },
+      timeout: 20000
+    });
+
+    // Proxy client for development
     this.apiClient = axios.create({
       baseURL: this.baseUrl,
       headers: {
-        'X-API-ID': credentials.token || '',     // token هو الرقم التعريفي في نظامنا
-        'X-API-TOKEN': credentials.key || '',    // key هو الرمز الطويل في نظامنا
+        'X-API-ID': credentials.token || '',     // token هو API ID في النظام الجديد
+        'X-API-TOKEN': credentials.key || '',    // key هو API TOKEN في النظام الجديد
         'Content-Type': 'application/json'
       },
-      timeout: 8000 // زيادة مهلة الانتظار إلى 8 ثواني
+      timeout: 15000 // زيادة مهلة الانتظار إلى 15 ثانية
+    });
+    
+    // Direct API client as fallback
+    this.directApiClient = axios.create({
+      baseURL: 'https://api.yalidine.app/v1/',
+      headers: {
+        'X-API-ID': credentials.token || '',     // token هو API ID في النظام الجديد
+        'X-API-TOKEN': credentials.key || '',    // key هو API TOKEN في النظام الجديد
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      timeout: 15000
     });
   }
   
@@ -187,48 +218,179 @@ export class YalidineShippingService extends BaseShippingService {
    */
   async testCredentials(): Promise<TestCredentialsResult> {
     try {
-
-      const response = await this.apiClient.get('wilayas');
-
-      // تحقق من نجاح الاتصال بناءً على بنية البيانات الصحيحة من ياليدين
-      if (response.status === 200 && 
-         (Array.isArray(response.data) || 
-          (response.data && response.data.data && Array.isArray(response.data.data)))) {
-
-        return {
-          success: true,
-          message: 'تم الاتصال بنجاح بخدمة ياليدين'
+      console.log('Testing Yalidine credentials...');
+      console.log('API URL: https://api.yalidine.app/v1/wilayas');
+      console.log('Raw credentials:', {
+        token: this.credentials.token,
+        key: this.credentials.key
+      });
+      console.log('Headers:', {
+        'X-API-ID': this.credentials.token ? '***' : 'empty',
+        'X-API-TOKEN': this.credentials.key ? '***' : 'empty'
+      });
+      
+      console.log('Using Supabase Edge Function proxy...');
+      
+      // استخدام fetch بسيط مع timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      try {
+        console.log('Using Supabase Edge Function proxy...');
+        
+        // Log the exact request being made
+        const requestHeaders = {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'X-API-ID': this.credentials.token || '',
+          'X-API-TOKEN': this.credentials.key || '',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         };
-      }
+        
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const proxyUrl = `${supabaseUrl}/functions/v1/shipping-proxy?provider=yalidine&endpoint=wilayas`;
+        
+        console.log('Request URL:', proxyUrl);
+        console.log('Request headers being sent:', {
+          ...requestHeaders,
+          'Authorization': 'Bearer ***',
+          'X-API-ID': requestHeaders['X-API-ID'] ? '***' : 'missing',
+          'X-API-TOKEN': requestHeaders['X-API-TOKEN'] ? '***' : 'missing'
+        });
+        
+        const response = await fetch(proxyUrl, {
+          method: 'GET',
+          headers: requestHeaders,
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        console.log('Fetch response status:', response.status);
+        console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+        console.log('Response URL:', response.url);
+        console.log('Response type:', response.type);
+        
+        if (!response.ok) {
+          console.error('HTTP error:', response.status, response.statusText);
+          
+          if (response.status === 401 || response.status === 403) {
+            return {
+              success: false,
+              message: 'بيانات الاعتماد غير صحيحة. تحقق من API ID و API Token'
+            };
+          }
+          
+          return {
+            success: false,
+            message: `خطأ HTTP ${response.status}: ${response.statusText}`
+          };
+        }
 
+        // Get response as text first to debug
+        const responseText = await response.text();
+        console.log('Raw response text:', responseText);
+        console.log('Response text length:', responseText.length);
+        
+        // Try to parse as JSON
+        let data;
+        try {
+          data = JSON.parse(responseText);
+          console.log('Successfully parsed JSON');
+        } catch (parseError) {
+          console.error('Failed to parse JSON:', parseError);
+          return {
+            success: false,
+            message: 'خطأ في تحليل الاستجابة من API ياليدين'
+          };
+        }
+        
+        // تحقق من نجاح الاتصال بناءً على بنية البيانات الصحيحة من ياليدين
+        // ياليدين يرجع البيانات في شكل: { "data": [...], "total_data": number, "has_more": boolean }
+        if (data && data.data && Array.isArray(data.data) && data.data.length > 0) {
+          console.log('Success: Valid Yalidine API response with data array');
+          return {
+            success: true,
+            message: `تم الاتصال بنجاح بخدمة ياليدين. تم العثور على ${data.total_data || data.data.length} ولاية`
+          };
+        }
+        
+        // التحقق من الاستجابات البديلة
+        if (Array.isArray(data) && data.length > 0) {
+          console.log('Success: Valid array response');
+          return {
+            success: true,
+            message: 'تم الاتصال بنجاح بخدمة ياليدين'
+          };
+        }
+        
+        // التحقق من وجود بيانات الولايات بأي شكل آخر
+        if (data && typeof data === 'object') {
+          // البحث عن أي خاصية تحتوي على بيانات الولايات
+          const possibleDataKeys = ['wilayas', 'result', 'results', 'items'];
+          for (const key of possibleDataKeys) {
+            if (data[key] && Array.isArray(data[key]) && data[key].length > 0) {
+              console.log(`Success: Found valid data in ${key} property`);
+              return {
+                success: true,
+                message: 'تم الاتصال بنجاح بخدمة ياليدين'
+              };
+            }
+          }
+          
+          // إذا كان الكائن يحتوي على خصائص أخرى
+          const keys = Object.keys(data);
+          if (keys.length === 0) {
+            // كائن فارغ - قد يعني بيانات اعتماد خاطئة أو مشكلة في API
+            console.log('Warning: Empty object response - possible authentication issue');
+            return {
+              success: false,
+              message: 'تم الاتصال بـ API ياليدين ولكن لم يتم إرجاع بيانات. تحقق من صحة API ID و API Token'
+            };
+          } else {
+            // كائن يحتوي على بيانات لكن ليس بالشكل المتوقع
+            console.log('Warning: Unexpected but non-empty response structure');
+            return {
+              success: false,
+              message: `استجابة غير متوقعة من API ياليدين. الخصائص الموجودة: ${keys.join(', ')}`
+            };
+          }
+        }
+        
+        // إذا وصلنا هنا، فالاستجابة غير متوقعة تماماً
+        console.log('Failed: Completely unexpected response structure');
+        return {
+          success: false,
+          message: `استجابة غير متوقعة من API ياليدين. نوع البيانات: ${typeof data}`
+        };
+        
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        console.error('Fetch error:', fetchError);
+        
+        if (fetchError.name === 'AbortError') {
+          return {
+            success: false,
+            message: 'انتهت مهلة الانتظار. يرجى المحاولة مرة أخرى.'
+          };
+        }
+        
+        if (fetchError.message.includes('Failed to fetch')) {
+          return {
+            success: false,
+            message: 'فشل الاتصال بخدمة ياليدين. تحقق من اتصال الإنترنت أو بيانات الاعتماد.'
+          };
+        }
+        
+        throw fetchError;
+      }
+      
+    } catch (error: any) {
+      console.error('Yalidine test error:', error);
+      
       return {
         success: false,
-        message: 'الاتصال غير ناجح، تحقق من بيانات الاعتماد'
+        message: `خطأ في اختبار الاتصال: ${error.message || 'خطأ غير معروف'}`
       };
-    } catch (error: any) {
-      
-      // معلومات تفصيلية عن الخطأ
-      if (error.response) {
-        // الخادم استجاب برمز حالة خارج نطاق 2xx
-        
-        // رسالة خطأ أكثر تفصيلاً
-        return {
-          success: false,
-          message: `خطأ ${error.response.status}: ${error.response.data?.error?.message || error.response.statusText}`
-        };
-      } else if (error.request) {
-        // تم إجراء الطلب لكن لم يتم استلام استجابة
-        return {
-          success: false,
-          message: 'لا توجد استجابة من خدمة ياليدين، تحقق من اتصال الإنترنت'
-        };
-      } else {
-        // حدث خطأ أثناء إعداد الطلب
-        return {
-          success: false,
-          message: `فشل إعداد الطلب: ${error.message}`
-        };
-      }
     }
   }
   
@@ -343,27 +505,36 @@ export class YalidineShippingService extends BaseShippingService {
  */
 export class ZRExpressShippingService extends BaseShippingService {
   private apiClient;
+  private supabaseProxyClient;
   
   constructor(credentials: ProviderCredentials) {
-    console.log('🔧 إنشاء ZR Express Service...');
     super(
       ShippingProvider.ZREXPRESS,
       'https://procolis.com/api_v1/',
       credentials
     );
     
+    // Get Supabase URL from environment
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+    
+    // Supabase Edge Function proxy client
+    this.supabaseProxyClient = axios.create({
+      baseURL: `${supabaseUrl}/functions/v1/shipping-proxy`,
+      headers: {
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+        'token': credentials.token || '',
+        'key': credentials.key || '',
+        'Content-Type': 'application/json'
+      },
+      timeout: 20000
+    });
+    
     // استخدام proxy في بيئة التطوير لحل مشكلة CORS
     const baseURL = import.meta.env.DEV 
       ? '/api/proxy/procolis'  // استخدام proxy في التطوير
       : 'https://procolis.com/api_v1/';  // استخدام المسار المباشر في الإنتاج
-    
-    console.log('🔧 ZR Express: إعداد API Client...', {
-      isDev: import.meta.env.DEV,
-      baseURL,
-      hasToken: !!credentials.token,
-      hasKey: !!credentials.key
-    });
-    
+
     this.apiClient = axios.create({
       baseURL,
       headers: {
@@ -371,72 +542,147 @@ export class ZRExpressShippingService extends BaseShippingService {
         'key': credentials.key || '',         // key في ZR Express
         'Content-Type': 'application/json'
       },
-      timeout: 15000 // زيادة مهلة الانتظار إلى 15 ثانية لتجنب timeout
+      timeout: 15000 // زيادة مهلة الانتظار إلى 15 ثانية
     });
     
-    console.log('✅ ZR Express Service تم إنشاؤه بنجاح');
+  }
+  
+  /**
+   * Test connection with fallback to direct API in case proxy fails
+   */
+  private async testWithFallback(): Promise<any> {
+    const credentials = this.credentials;
+    
+    try {
+      // محاولة الاتصال عبر البروكسي أولاً
+      console.log('Trying proxy connection...');
+      
+      return await this.apiClient.post('tarification', {}, {
+        timeout: 10000, // زيادة timeout للبروكسي (10 ثوان)
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      });
+      
+    } catch (proxyError: any) {
+      console.log('Proxy failed, trying direct connection...');
+      console.error('Proxy error:', proxyError.message);
+      
+      // جرب الاتصال المباشر مباشرة
+      try {
+        const directClient = axios.create({
+          baseURL: 'https://procolis.com/api_v1/',
+          headers: {
+            'token': credentials.token || '',
+            'key': credentials.key || '',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          timeout: 15000 // زيادة timeout للاتصال المباشر (15 ثانية)
+        });
+        
+        const directResponse = await directClient.post('tarification', {});
+        console.log('Direct connection successful');
+        return directResponse;
+      } catch (directError: any) {
+        console.error('Direct connection failed:', directError.message);
+        throw directError; // إرجاع خطأ الاتصال المباشر
+      }
+    }
   }
   
   /**
    * Test if the API credentials are valid by fetching tarification data
    */
   async testCredentials(): Promise<TestCredentialsResult> {
-    console.log('🔍 ZR Express: بدء اختبار البيانات...');
-    console.log('🔍 ZR Express: Base URL:', this.apiClient.defaults.baseURL);
-    console.log('🔍 ZR Express: Headers:', {
-      token: this.apiClient.defaults.headers['token'] ? `${String(this.apiClient.defaults.headers['token']).substring(0, 8)}...` : 'غير موجود',
-      key: this.apiClient.defaults.headers['key'] ? `${String(this.apiClient.defaults.headers['key']).substring(0, 8)}...` : 'غير موجود'
-    });
-
+    console.log('Testing ZR Express credentials...');
+    
     try {
-      console.log('🚀 ZR Express: إرسال طلب POST إلى /tarification...');
+      let response;
       
-      // استخدام POST بدلاً من GET كما هو مطلوب من ZR Express API
-      const response = await this.apiClient.post('tarification', {});
+      try {
+        // محاولة الاتصال عبر Supabase Edge Function أولاً
+        console.log('Trying Supabase Edge Function proxy...');
+        response = await this.supabaseProxyClient.post('', {}, {
+          params: {
+            provider: 'zrexpress',
+            endpoint: 'tarification'
+          }
+        });
+        console.log('Supabase proxy connection successful');
+      } catch (supabaseError: any) {
+        console.error('Supabase proxy error:', supabaseError.message);
+        
+        // استخدام testWithFallback للمحاولة عبر البروكسي ثم المباشر
+        response = await this.testWithFallback();
+      }
       
-      console.log('📥 ZR Express: تم استلام الاستجابة:', {
-        status: response.status,
-        dataType: Array.isArray(response.data) ? 'array' : typeof response.data,
-        dataLength: Array.isArray(response.data) ? response.data.length : 'غير محدد'
-      });
-      
+      console.log('ZR Express response:', response.status, response.data);
+
       // تحقق من نجاح الاتصال بناءً على بنية البيانات الصحيحة من ZR Express
-      if (response.status === 200 && Array.isArray(response.data)) {
-        console.log('✅ ZR Express: اختبار الاتصال نجح!');
+      if (response.status === 200 && Array.isArray(response.data) && response.data.length > 0) {
+        // تحقق من وجود بيانات الجزائر العاصمة كمؤشر على صحة البيانات
+        const algerData = response.data.find((item: any) => item.IDWilaya === 16);
+        if (algerData) {
+          return {
+            success: true,
+            message: `تم الاتصال بنجاح بخدمة ZR Express! 
+            تم التحقق من ${response.data.length} ولاية.
+            سعر التوصيل للجزائر العاصمة: ${algerData.Domicile} دج (منزل) / ${algerData.Stopdesk} دج (مكتب)`
+          };
+        } else {
+          return {
+            success: true,
+            message: `تم الاتصال بنجاح بخدمة ZR Express! تم استلام بيانات ${response.data.length} ولاية.`
+          };
+        }
+      }
+      
+      return {
+        success: false,
+        message: 'تم الاتصال بالخادم لكن البيانات المسترجعة ليست بالتنسيق المتوقع'
+      };
+    } catch (error: any) {
+      console.error('ZR Express test error:', error);
+      
+      // معالجة أنواع مختلفة من الأخطاء
+      if (error.code === 'ECONNABORTED' || (error.message && error.message.toLowerCase().includes('timeout'))) {
         return {
-          success: true,
-          message: 'تم الاتصال بنجاح بخدمة ZR Express'
+          success: false,
+          message: 'انتهت مهلة الانتظار. يرجى التأكد من الاتصال بالإنترنت ومحاولة مرة أخرى.'
         };
       }
       
-      console.log('❌ ZR Express: اختبار الاتصال فشل - استجابة غير صحيحة');
-      return {
-        success: false,
-        message: 'الاتصال غير ناجح، تحقق من بيانات الاعتماد'
-      };
-    } catch (error: any) {
-      console.error('❌ ZR Express: خطأ في الاتصال:', error);
-      
-      // معلومات تفصيلية عن الخطأ
       if (error.response) {
-        console.error('❌ ZR Express: خطأ في الاستجابة:', {
-          status: error.response.status,
-          statusText: error.response.statusText,
-          data: error.response.data
-        });
+        
+        if (error.response.status === 401) {
+          return {
+            success: false,
+            message: 'بيانات الاعتماد غير صحيحة. يرجى التحقق من Token و Key.'
+          };
+        } else if (error.response.status === 403) {
+          return {
+            success: false,
+            message: 'ليس لديك صلاحية للوصول إلى هذه الخدمة. يرجى التحقق من بيانات الاعتماد.'
+          };
+        } else if (error.response.status >= 500) {
+          return {
+            success: false,
+            message: 'خطأ في خادم ZR Express. يرجى المحاولة مرة أخرى لاحقاً.'
+          };
+        }
         
         return {
           success: false,
           message: `خطأ ${error.response.status}: ${error.response.data?.message || error.response.statusText}`
         };
       } else if (error.request) {
-        console.error('❌ ZR Express: لا توجد استجابة:', error.request);
         return {
           success: false,
-          message: 'لا توجد استجابة من خدمة ZR Express، تحقق من اتصال الإنترنت'
+          message: 'لا توجد استجابة من خدمة ZR Express. يرجى التحقق من الاتصال بالإنترنت.'
         };
       } else {
-        console.error('❌ ZR Express: خطأ في إعداد الطلب:', error.message);
         return {
           success: false,
           message: `فشل إعداد الطلب: ${error.message}`
@@ -554,7 +800,7 @@ export class ZRExpressShippingService extends BaseShippingService {
     try {
       // ملاحظة: ZR Express قد لا يوفر واجهة برمجية لتوليد الملصقات
       // إرجاع خطأ أو استخدام المنصة مباشرة
-      throw new Error('ZR Express API does not support label generation directly');
+      throw new Error('ZR Express API does not support label generation directly. Please use the ZR Express platform.');
     } catch (error) {
       throw error;
     }
@@ -566,9 +812,25 @@ export class ZRExpressShippingService extends BaseShippingService {
  */
 export class EcotrackShippingService extends BaseShippingService {
   private apiClient;
+  private supabaseProxyClient;
   
   constructor(providerCode: ShippingProvider, baseUrl: string, credentials: ProviderCredentials) {
     super(providerCode, baseUrl, credentials);
+    
+    // Get Supabase URL from environment
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+    
+    // Supabase Edge Function proxy client
+    this.supabaseProxyClient = axios.create({
+      baseURL: `${supabaseUrl}/functions/v1/shipping-proxy`,
+      headers: {
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+        'authorization': `Bearer ${credentials.token}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 20000
+    });
     
     // إزالة slash مضاعف في حالة انتهاء baseUrl بـ slash
     const cleanBaseUrl = this.baseUrl.endsWith('/') ? this.baseUrl.slice(0, -1) : this.baseUrl;
@@ -588,12 +850,38 @@ export class EcotrackShippingService extends BaseShippingService {
    */
   async testCredentials(): Promise<TestCredentialsResult> {
     try {
-      const response = await this.apiClient.get('/api/v1/get/wilayas');
+      console.log(`Testing ${this.providerCode} credentials...`);
+      
+      let response;
+      
+      try {
+        // محاولة الاتصال عبر Supabase Edge Function أولاً
+        console.log('Trying Supabase Edge Function proxy...');
+        response = await this.supabaseProxyClient.get('', {
+          params: {
+            provider: this.providerCode,
+            endpoint: '/api/v1/get/wilayas'
+          }
+        });
+        console.log('Supabase proxy connection successful');
+      } catch (supabaseError: any) {
+        console.error('Supabase proxy error:', supabaseError.message);
+        
+        // محاولة الاتصال المباشر
+        console.log('Trying direct connection...');
+        console.log('API URL:', this.baseUrl + '/api/v1/get/wilayas');
+        console.log('Headers:', this.apiClient.defaults.headers);
+        
+        response = await this.apiClient.get('/api/v1/get/wilayas');
+      }
+      
+      console.log(`${this.providerCode} response:`, response.status, response.data);
       
       if (response.status === 200) {
+        const providerName = this.providerCode.replace(/_/g, ' ').toUpperCase();
         return {
           success: true,
-          message: 'تم الاتصال بنجاح مع خدمة Ecotrack'
+          message: `تم الاتصال بنجاح مع خدمة ${providerName}`
         };
       }
       
@@ -602,24 +890,45 @@ export class EcotrackShippingService extends BaseShippingService {
         message: 'فشل في الاتصال مع خدمة Ecotrack'
       };
     } catch (error: any) {
+      console.error(`${this.providerCode} test error:`, error);
+      
+      if (error.code === 'ECONNABORTED') {
+        return {
+          success: false,
+          message: 'انتهت مهلة الانتظار. يرجى المحاولة مرة أخرى.'
+        };
+      }
+      
       if (error.response) {
         const status = error.response.status;
+        console.error(`${this.providerCode} error response:`, status, error.response.data);
+        
         if (status === 401 || status === 403) {
           return {
             success: false,
-            message: 'بيانات الاعتماد غير صحيحة'
+            message: 'بيانات الاعتماد غير صحيحة. تحقق من Bearer Token'
           };
         }
+        
+        if (status === 404) {
+          return {
+            success: false,
+            message: 'رابط API غير صحيح. تحقق من الرابط الأساسي للخدمة'
+          };
+        }
+        
         return {
           success: false,
           message: `خطأ ${status}: ${error.response.data?.message || error.response.statusText}`
         };
       } else if (error.request) {
+        console.error('No response received:', error.request);
         return {
           success: false,
           message: 'لا توجد استجابة من خدمة Ecotrack، تحقق من اتصال الإنترنت'
         };
       } else {
+        console.error('Request setup error:', error.message);
         return {
           success: false,
           message: `خطأ في الإعداد: ${error.message}`
@@ -795,23 +1104,13 @@ export function createShippingService(
   provider: ShippingProvider, 
   credentials: ProviderCredentials
 ): IShippingService {
-  console.log('🏭 إنشاء خدمة الشحن:', {
-    provider,
-    hasToken: !!credentials.token,
-    hasKey: !!credentials.key,
-    tokenLength: credentials.token?.length || 0,
-    keyLength: credentials.key?.length || 0
-  });
 
   switch (provider) {
     case ShippingProvider.YALIDINE:
-      console.log('✅ إنشاء خدمة Yalidine...');
       return new YalidineShippingService(credentials);
     case ShippingProvider.ZREXPRESS:
-      console.log('✅ إنشاء خدمة ZR Express...');
       return new ZRExpressShippingService(credentials);
     case ShippingProvider.ECOTRACK:
-      console.log('✅ إنشاء خدمة Ecotrack...');
       return new EcotrackShippingService(provider, 'https://api.ecotrack.dz', credentials);
     // Ecotrack-integrated providers
     case ShippingProvider.ANDERSON_DELIVERY:

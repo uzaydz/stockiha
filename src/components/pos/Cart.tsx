@@ -207,7 +207,6 @@ export default function Cart({
 
   const handleRelatedProductClick = (product: Product) => {
     // يمكن إضافة منطق إضافة المنتجات المتعلقة
-    console.log('منتج متعلق:', product);
   };
 
   // باقي الدوال...
@@ -238,7 +237,6 @@ export default function Cart({
         setNewCustomer({ name: '', email: '', phone: '' });
       }
     } catch (error) {
-      console.error('خطأ في إضافة العميل:', error);
       toast.error("حدث خطأ أثناء إضافة العميل");
     } finally {
       setIsAddingCustomer(false);
@@ -260,7 +258,6 @@ export default function Cart({
 
       // منع التكرار المتعدد
       if (isSubmitting) {
-        console.log('🔄 معالجة جارية - تم تجاهل النقر المكرر');
         return;
       }
       
@@ -300,7 +297,6 @@ export default function Cart({
 
       // التحقق من نجاح العملية
       if (!orderResult.orderId) {
-        console.warn('لم يتم إرجاع معرف طلب صحيح');
         return;
       }
 
@@ -340,7 +336,6 @@ export default function Cart({
       });
 
     } catch (error) {
-      console.error('خطأ في إنشاء الطلبية:', error);
       toast.error("حدث خطأ أثناء إنشاء الطلب");
     }
   }, [
@@ -406,12 +401,10 @@ export default function Cart({
 
   // دوال مساعدة للميزات الإضافية
   const handleApplyCoupon = (code: string) => {
-    console.log('تطبيق كوبون:', code);
     toast.info(`تم تطبيق كوبون: ${code}`);
   };
 
   const handleSaveCart = () => {
-    console.log('حفظ السلة');
     toast.success('تم حفظ السلة');
   };
 

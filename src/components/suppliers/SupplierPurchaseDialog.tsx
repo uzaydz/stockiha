@@ -299,7 +299,6 @@ export function SupplierPurchaseDialog({
         
         // إظهار تنبيه إذا لم يكن سعر الشراء متوفراً
         if (!product.purchase_price) {
-          console.warn(`تحذير: سعر الشراء غير متوفر للمنتج "${product.name}". سيتم استخدام سعر البيع (${product.price}) مؤقتاً.`);
         }
       }
       
@@ -353,7 +352,6 @@ export function SupplierPurchaseDialog({
         onSuppliersUpdate();
       }
     } catch (error) {
-      console.error('Error creating supplier:', error);
     } finally {
       setIsCreatingSupplier(false);
     }

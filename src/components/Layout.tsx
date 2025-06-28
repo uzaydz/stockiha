@@ -12,7 +12,7 @@ interface LayoutProps {
 }
 
 export default function Layout({ children }: LayoutProps) {
-  const { user, userProfile, isLoadingUserProfile } = useAuth();
+  const { user, userProfile, isLoading } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -20,7 +20,7 @@ export default function Layout({ children }: LayoutProps) {
   const userRole = userProfile?.role || null;
   const userPermissions = (userProfile?.permissions || {}) as unknown as Record<string, boolean>;
   const isStaff = userProfile?.role === 'admin' || userProfile?.role === 'employee';
-  
+
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'sidebarCollapsed') {
@@ -105,9 +105,8 @@ export default function Layout({ children }: LayoutProps) {
   
   // إضافة timeout للكشف عن التحميل المعلق - يجب أن يكون خارج الشرط
   useEffect(() => {
-    if (user && isLoadingUserProfile) {
+    if (user && isLoading) {
       const timer = setTimeout(() => {
-        
         // إضافة مؤشر للمشكلة إذا استمر التحميل أكثر من 15 ثانية
         const longTimer = setTimeout(() => {
         }, 15000);
@@ -117,9 +116,9 @@ export default function Layout({ children }: LayoutProps) {
 
       return () => clearTimeout(timer);
     }
-  }, [user, isLoadingUserProfile]);
+  }, [user, isLoading]);
 
-  if (user && isLoadingUserProfile) {
+  if (user && isLoading) {
     return (
       <div dir="rtl" className="bg-background/95 min-h-screen flex items-center justify-center">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
@@ -138,7 +137,7 @@ export default function Layout({ children }: LayoutProps) {
       />
       
       {/* القائمة الجانبية الثابتة */}
-      {isStaff && !isLoadingUserProfile && !isMobile && (
+      {isStaff && !isLoading && !isMobile && (
         <aside
           className={cn(
             "fixed top-16 bottom-0 right-0 z-40 border-l border-border/30 bg-background/95 backdrop-blur-sm transition-all duration-300",
@@ -161,7 +160,7 @@ export default function Layout({ children }: LayoutProps) {
         </div>
       </main>
       
-      {isStaff && !isLoadingUserProfile && isMobile && (
+      {isStaff && !isLoading && isMobile && (
         <>
           {isMobileSidebarOpen && (
             <div 

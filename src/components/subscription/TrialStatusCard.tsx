@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Clock, AlertTriangle } from 'lucide-react';
+import { Clock, AlertTriangle, CheckCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { SubscriptionService } from '@/lib/subscription-service';
 
 // واجهة المؤسسة بالإعدادات الإضافية
 interface OrganizationWithSettings {
@@ -28,75 +29,91 @@ interface TrialStatusCardProps {
 const TrialStatusCard: React.FC<TrialStatusCardProps> = ({ onSelectPlan }) => {
   const { organization } = useAuth();
   const [daysLeft, setDaysLeft] = useState<number>(0);
+  const [trialDaysLeft, setTrialDaysLeft] = useState<number>(0);
+  const [subscriptionDaysLeft, setSubscriptionDaysLeft] = useState<number>(0);
   const [progress, setProgress] = useState<number>(0);
-  const [isExpired, setIsExpired] = useState<boolean>(false);
+  const [status, setStatus] = useState<'trial' | 'active' | 'expired'>('expired');
+  const [message, setMessage] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
     if (!organization) return;
 
-    // التعامل مع كائن المؤسسة باستخدام الواجهة المحسنة
-    const org = organization as unknown as OrganizationWithSettings;
-    
-    // التحقق مما إذا كانت المؤسسة في فترة تجريبية
-    if (org.subscription_status !== 'trial') {
-      setIsExpired(true);
-      return;
-    }
-
-    let trialEndDate: Date | null = null;
-    const trialDays = 5; // الفترة التجريبية 5 أيام
-
-    // استخدام تاريخ انتهاء الفترة التجريبية من الإعدادات إن وجد
-    if (org.settings?.trial_end_date) {
-      trialEndDate = new Date(org.settings.trial_end_date);
-      // تعيين ساعات التاريخ للمقارنة بدون اعتبار الوقت
-      trialEndDate.setHours(23, 59, 59, 999);
-    } else {
-      // أو حساب الفترة التجريبية من تاريخ الإنشاء
-      const createdDate = new Date(org.created_at);
-      // تعيين الوقت إلى 00:00:00 للتأكد من حساب الأيام بشكل صحيح
-      createdDate.setHours(0, 0, 0, 0);
+    const calculateDays = async () => {
+      setIsLoading(true);
+      console.log('[TrialStatusCard] بدء حساب الأيام المتبقية...');
+      console.log('[TrialStatusCard] بيانات المؤسسة:', organization);
       
-      trialEndDate = new Date(createdDate);
-      trialEndDate.setDate(trialEndDate.getDate() + trialDays);
-      // تعيين وقت نهاية اليوم لتاريخ انتهاء الفترة التجريبية
-      trialEndDate.setHours(23, 59, 59, 999);
-    }
+      try {
+        const result = await SubscriptionService.calculateTotalDaysLeft(
+          organization as unknown as OrganizationWithSettings,
+          null // سنجلب الاشتراك من داخل الدالة
+        );
 
-    // حساب الأيام المتبقية
-    const now = new Date();
-    // تعيين الوقت إلى 00:00:00 للمقارنة بالتاريخ فقط
-    const nowDateOnly = new Date(now);
-    nowDateOnly.setHours(0, 0, 0, 0);
-    
-    // حساب الفرق بالأيام (نستخدم نهاية اليوم لتاريخ الانتهاء لحساب اليوم الحالي بالكامل)
-    const diffTime = trialEndDate.getTime() - nowDateOnly.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    const daysRemaining = Math.max(0, diffDays);
-    setDaysLeft(daysRemaining);
-    
-    // سجل للتشخيص
+        console.log('[TrialStatusCard] نتيجة حساب الأيام:', result);
 
-    // حساب النسبة المئوية المتبقية من الفترة التجريبية
-    const progressPercentage = Math.max(0, Math.min(100, ((trialDays - daysRemaining) / trialDays) * 100));
-    setProgress(progressPercentage);
-    
-    // تحديد ما إذا كانت الفترة التجريبية قد انتهت
-    setIsExpired(daysRemaining <= 0);
+        setDaysLeft(result.totalDaysLeft);
+        setTrialDaysLeft(result.trialDaysLeft);
+        setSubscriptionDaysLeft(result.subscriptionDaysLeft);
+        setStatus(result.status);
+        setMessage(result.message);
 
+        // حساب النسبة المئوية
+        if (result.status === 'trial') {
+          const trialDays = 5;
+          const progressPercentage = Math.max(0, Math.min(100, ((trialDays - result.trialDaysLeft) / trialDays) * 100));
+          setProgress(progressPercentage);
+        } else if (result.status === 'active') {
+          // للاشتراك المدفوع، نفترض فترة 30 يوم للتقدم
+          const subscriptionDays = 30;
+          const progressPercentage = Math.max(0, Math.min(100, ((subscriptionDays - result.subscriptionDaysLeft) / subscriptionDays) * 100));
+          setProgress(progressPercentage);
+        } else {
+          setProgress(100);
+        }
+
+        console.log('[TrialStatusCard] تم تحديث الحالة:', {
+          status: result.status,
+          totalDaysLeft: result.totalDaysLeft,
+          trialDaysLeft: result.trialDaysLeft,
+          subscriptionDaysLeft: result.subscriptionDaysLeft,
+          message: result.message
+        });
+
+      } catch (error) {
+        console.error('[TrialStatusCard] خطأ في حساب الأيام المتبقية:', error);
+        setStatus('expired');
+        setMessage('خطأ في حساب الأيام المتبقية');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    calculateDays();
   }, [organization]);
 
-  if (isExpired) {
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (status === 'expired') {
     return (
       <Card className="border-destructive">
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-destructive" />
-            <CardTitle className="text-xl">انتهت الفترة التجريبية</CardTitle>
+            <CardTitle className="text-xl">انتهت الفترة التجريبية والاشتراك</CardTitle>
           </div>
           <CardDescription>
-            لقد انتهت فترة التجربة المجانية الخاصة بك. قم بالاشتراك للاستمرار في استخدام كافة ميزات المنصة.
+            لقد انتهت فترة التجربة المجانية والاشتراك الخاص بك. قم بالاشتراك للاستمرار في استخدام كافة ميزات المنصة.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -116,6 +133,47 @@ const TrialStatusCard: React.FC<TrialStatusCardProps> = ({ onSelectPlan }) => {
     );
   }
 
+  if (status === 'active') {
+    return (
+      <Card className="border-green-500">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="h-5 w-5 text-green-500" />
+            <CardTitle className="text-xl">اشتراك نشط</CardTitle>
+          </div>
+          <CardDescription>
+            لديك اشتراك نشط ومدفوع في المنصة
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">الأيام المتبقية</span>
+              <span className="font-semibold text-green-600">
+                {subscriptionDaysLeft === 1 ? "يوم واحد" : `${subscriptionDaysLeft} يوم`}
+              </span>
+            </div>
+            
+            <Progress value={progress} className="h-2" />
+            
+            <div className="text-center py-4">
+              <h3 className="text-lg font-semibold text-green-600">اشتراك مدفوع نشط</h3>
+              <p className="text-sm text-muted-foreground mt-2">
+                {message}
+              </p>
+            </div>
+          </div>
+        </CardContent>
+        <CardFooter>
+          <Button onClick={onSelectPlan} variant="outline" className="w-full" size="lg">
+            إدارة الاشتراك
+          </Button>
+        </CardFooter>
+      </Card>
+    );
+  }
+
+  // status === 'trial'
   return (
     <Card className={daysLeft <= 1 ? "border-destructive" : "border-primary"}>
       <CardHeader className="pb-3">
@@ -132,7 +190,7 @@ const TrialStatusCard: React.FC<TrialStatusCardProps> = ({ onSelectPlan }) => {
           <div className="flex justify-between items-center">
             <span className="text-muted-foreground">الفترة المتبقية</span>
             <span className="font-semibold">
-              {daysLeft === 1 ? "يوم واحد" : `${daysLeft} أيام`}
+              {trialDaysLeft === 1 ? "يوم واحد" : `${trialDaysLeft} أيام`}
             </span>
           </div>
           
@@ -147,9 +205,14 @@ const TrialStatusCard: React.FC<TrialStatusCardProps> = ({ onSelectPlan }) => {
                 </p>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                اشترك قبل انتهاء الفترة التجريبية للاستمرار في استخدام جميع الميزات
-              </p>
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  اشترك قبل انتهاء الفترة التجريبية للاستمرار في استخدام جميع الميزات
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {message}
+                </p>
+              </div>
             )}
           </div>
         </div>

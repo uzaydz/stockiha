@@ -240,7 +240,6 @@ export const usePOSReturn = ({
             -item.quantity // إضافة للمخزون (قيمة سالبة)
           );
         } catch (stockError) {
-          console.error('خطأ في تحديث المخزون:', stockError);
         }
       }
 
@@ -282,4 +281,4 @@ export const usePOSReturn = ({
     toggleReturnMode,
     processReturn
   };
-}; 
+};

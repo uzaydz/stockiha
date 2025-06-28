@@ -138,4 +138,4 @@ const CartTabShortcuts: React.FC<CartTabShortcutsProps> = ({
   return null; // هذا المكون لا يعرض أي واجهة مستخدم
 };
 
-export default CartTabShortcuts; 
+export default CartTabShortcuts;

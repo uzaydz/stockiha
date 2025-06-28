@@ -20,7 +20,7 @@ import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { ArrowRight, RefreshCw } from 'lucide-react';
 import SkeletonLoader, { SkeletonLoaderProps } from './SkeletonLoader';
-import { updateOrganizationTheme } from '@/lib/themeManager';
+import { updateOrganizationTheme, forceApplyOrganizationTheme } from '@/lib/themeManager';
 import { getSupabaseClient } from '@/lib/supabase';
 // استيراد الخدمة المحسنة
 import { 
@@ -39,6 +39,7 @@ import { StoreComponent, ComponentType } from '@/types/store-editor';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { getDefaultFooterSettings, mergeFooterSettings } from '@/lib/footerSettings';
+import '@/utils/themeDebugger'; // أداة تشخيص الثيم
 
 interface StorePageProps {
   storeData?: Partial<StoreInitializationData>;
@@ -48,6 +49,14 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
   const { currentSubdomain } = useAuth();
   const { currentOrganization } = useTenant();
   const { t } = useTranslation();
+  
+  // تسجيل معلومات التشخيص
+  console.log('🏪 [StorePage] تحميل صفحة المتجر:', {
+    currentSubdomain,
+    organizationId: currentOrganization?.id,
+    hostname: window.location.hostname,
+    initialStoreData: !!initialStoreData && Object.keys(initialStoreData).length > 0
+  });
   const [storeSettings, setStoreSettings] = useState<any>(null);
   const [dataLoading, setDataLoading] = useState(true);
   const [storeData, setStoreData] = useState<Partial<StoreInitializationData> | null>(initialStoreData && Object.keys(initialStoreData).length > 0 ? initialStoreData : null);
@@ -112,21 +121,32 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
     theme_secondary_color?: string;
     theme_mode?: 'light' | 'dark' | 'auto';
     custom_css?: string;
-  }) => {
-    // تطبيق الثيم مرة واحدة فقط
-    updateOrganizationTheme(orgId, {
+  }, subdomain?: string) => {
+    // استخدام الدالة الجديدة لإجبار تطبيق الثيم الصحيح
+    forceApplyOrganizationTheme(orgId, {
       theme_primary_color: settings.theme_primary_color,
       theme_secondary_color: settings.theme_secondary_color,
       theme_mode: settings.theme_mode,
       custom_css: settings.custom_css
-    });
-  }, []);
+    }, subdomain || currentSubdomain || undefined);
+  }, [currentSubdomain]);
 
   useEffect(() => {
     if (currentSubdomain) {
-      // Theme is now initialized in main.tsx with applyInstantTheme()
+      console.log('🎨 [StorePage] تطبيق الثيم للنطاق الفرعي:', currentSubdomain);
+      
+      // إذا كانت البيانات متاحة، طبق الثيم فوراً
+      if (storeSettings && currentOrganization?.id) {
+        console.log('🎯 [StorePage] تطبيق الثيم من الإعدادات المحملة');
+        applyOrganizationThemeWithRetry(currentOrganization.id, {
+          theme_primary_color: storeSettings.theme_primary_color,
+          theme_secondary_color: storeSettings.theme_secondary_color,
+          theme_mode: storeSettings.theme_mode,
+          custom_css: storeSettings.custom_css
+        }, currentSubdomain);
+      }
     }
-  }, [currentSubdomain]);
+  }, [currentSubdomain, storeSettings, currentOrganization?.id, applyOrganizationThemeWithRetry]);
   
   const checkCustomDomainAndLoadData = async () => {
     try {
@@ -177,7 +197,7 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
             theme_secondary_color: initialStoreData.organization_settings.theme_secondary_color,
             theme_mode: (initialStoreData.organization_settings as any).theme_mode,
             custom_css: initialStoreData.organization_settings.custom_css
-          });
+          }, currentSubdomain);
         }
         return;
       }
@@ -222,7 +242,7 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
               theme_secondary_color: result.data.organization_settings.theme_secondary_color,
               theme_mode: (result.data.organization_settings as any).theme_mode,
               custom_css: result.data.organization_settings.custom_css
-            });
+            }, subdomainToUse);
           }
         } else {
           setDataError("لم يتم العثور على بيانات للمتجر أو قد تكون البيانات فارغة.");
@@ -288,7 +308,7 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
                 theme_secondary_color: result.data.organization_settings.theme_secondary_color,
                 theme_mode: (result.data.organization_settings as any).theme_mode,
                 custom_css: result.data.organization_settings.custom_css
-              });
+              }, subdomainToReload);
             }
           }
         } else {

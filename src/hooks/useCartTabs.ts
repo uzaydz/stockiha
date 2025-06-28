@@ -42,7 +42,6 @@ export const useCartTabs = (options: UseCartTabsOptions = {}) => {
           }));
         }
       } catch (error) {
-        console.error('خطأ في تحميل التبويبات المحفوظة:', error);
       }
     }
 
@@ -67,7 +66,6 @@ export const useCartTabs = (options: UseCartTabsOptions = {}) => {
       try {
         localStorage.setItem(storageKey, JSON.stringify(tabs));
       } catch (error) {
-        console.error('خطأ في حفظ التبويبات:', error);
       }
     }
   }, [tabs, autoSave, storageKey]);
@@ -366,4 +364,4 @@ export const useCartTabs = (options: UseCartTabsOptions = {}) => {
     clearEmptyTabs,
     getTabSummary
   };
-}; 
+};

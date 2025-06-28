@@ -738,7 +738,6 @@ const fetchOrderDetails = async (orderId: string): Promise<any[]> => {
   return deduplicateRequest(`order-details-${orderId}`, async () => {
     
     try {
-      console.log('🔍 جاري جلب تفاصيل الطلبية:', orderId);
       
       // أولاً: جلب بيانات الطلبية الأساسية للتحقق من النوع
       const { data: orderInfo, error: orderError } = await supabase
@@ -758,11 +757,8 @@ const fetchOrderDetails = async (orderId: string): Promise<any[]> => {
         .single();
 
       if (orderError) {
-        console.error('❌ خطأ في جلب معلومات الطلبية:', orderError);
         return [];
       }
-
-      console.log('📋 معلومات الطلبية:', orderInfo);
 
       // ثانياً: جلب عناصر المنتجات من order_items
       const { data: orderItems, error: itemsError } = await supabase
@@ -788,10 +784,7 @@ const fetchOrderDetails = async (orderId: string): Promise<any[]> => {
         .order('created_at');
 
       if (itemsError) {
-        console.error('❌ خطأ في جلب عناصر الطلبية:', itemsError);
       }
-
-      console.log('🛍️ عناصر المنتجات:', orderItems?.length || 0);
 
       // ثالثاً: التحقق من وجود اشتراكات مرتبطة بالطلبية
       let subscriptionItems: any[] = [];
@@ -800,7 +793,6 @@ const fetchOrderDetails = async (orderId: string): Promise<any[]> => {
         // التحقق من وجود معلومات اشتراك في metadata
         const metadata = orderInfo.metadata as any;
         if (metadata.subscriptionAccountInfo) {
-          console.log('🔔 طلبية اشتراك - البحث عن الاشتراكات...');
           
           // البحث عن معاملات الاشتراك المرتبطة بهذه الطلبية
           const orderDate = new Date(orderInfo.created_at);
@@ -846,9 +838,7 @@ const fetchOrderDetails = async (orderId: string): Promise<any[]> => {
               item_type: 'subscription' // إضافة نوع العنصر
             }));
             
-            console.log('🔔 تم العثور على اشتراكات:', subscriptionItems.length);
           } else if (subsError) {
-            console.error('❌ خطأ في جلب الاشتراكات:', subsError);
           }
         }
       }
@@ -860,25 +850,16 @@ const fetchOrderDetails = async (orderId: string): Promise<any[]> => {
       }));
 
       const allItems = [...productItems, ...subscriptionItems];
-      
-      console.log('📦 إجمالي العناصر:', {
-        products: productItems.length,
-        subscriptions: subscriptionItems.length,
-        total: allItems.length
-      });
 
       // خامساً: إذا لم نجد أي عناصر، نحقق من حالات خاصة
       if (allItems.length === 0) {
-        console.warn('⚠️ لم يتم العثور على عناصر للطلبية:', orderId);
         
         // التحقق من إعدادات الطلبية
         if (orderInfo?.metadata) {
-          console.log('🔍 metadata الطلبية:', orderInfo.metadata);
         }
         
         // قد تكون طلبية خدمة رقمية أو نوع خاص آخر
         if (orderInfo?.total && parseFloat(orderInfo.total) > 0) {
-          console.log('💰 الطلبية لها قيمة مالية لكن بدون عناصر - قد تكون خدمة رقمية');
           
           // إنشاء عنصر وهمي للخدمة الرقمية
           return [{
@@ -904,7 +885,6 @@ const fetchOrderDetails = async (orderId: string): Promise<any[]> => {
 
       return allItems;
     } catch (error) {
-      console.error('❌ خطأ عام في جلب تفاصيل الطلبية:', error);
       return [];
     }
   });

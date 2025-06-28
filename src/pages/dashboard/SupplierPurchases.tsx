@@ -355,7 +355,6 @@ export default function SupplierPurchases() {
       const suppliersData = await getSuppliers(organizationId);
       setSuppliers(suppliersData);
     } catch (error) {
-      console.error('Error refreshing suppliers:', error);
     }
   };
   

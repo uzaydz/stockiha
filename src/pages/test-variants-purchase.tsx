@@ -63,7 +63,6 @@ export default function TestVariantsPurchase() {
         setSuppliers(suppliersData || []);
 
       } catch (error) {
-        console.error('Error fetching data:', error);
         toast.error('خطأ في جلب البيانات');
       }
     };
@@ -103,11 +102,8 @@ export default function TestVariantsPurchase() {
         }
       };
 
-      console.log('Saving purchase data:', purchaseData);
-
       const result = await saveSupplierPurchaseWithVariants(purchaseData);
       
-      console.log('Purchase saved successfully:', result);
       toast.success('تم حفظ المشتريات بنجاح!');
       
       // إعادة تعيين النموذج
@@ -116,7 +112,6 @@ export default function TestVariantsPurchase() {
       setVariants([]);
 
     } catch (error) {
-      console.error('Error saving purchase:', error);
       toast.error('خطأ في حفظ المشتريات: ' + (error as Error).message);
     } finally {
       setLoading(false);
@@ -237,4 +232,4 @@ export default function TestVariantsPurchase() {
       </Card>
     </div>
   );
-} 
+}

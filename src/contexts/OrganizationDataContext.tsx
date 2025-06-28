@@ -49,6 +49,21 @@ const fetchOrganizationSettings = async (organizationId: string) => {
 
 const fetchOrganizationSubscriptions = async (organizationId: string) => {
   
+  // أولاً: جلب جميع الاشتراكات لمعرفة الوضع الحقيقي
+  const { data: allSubscriptions, error: allError } = await supabase
+    .from('organization_subscriptions')
+    .select(`
+      *,
+      plan:plan_id(id, name, code)
+    `)
+    .eq('organization_id', organizationId)
+    .order('created_at', { ascending: false });
+  
+  if (allError) {
+  } else {
+  }
+  
+  // ثانياً: جلب الاشتراكات النشطة والتجريبية فقط
   const { data, error } = await supabase
     .from('organization_subscriptions')
     .select(`
@@ -56,11 +71,13 @@ const fetchOrganizationSubscriptions = async (organizationId: string) => {
       plan:plan_id(id, name, code)
     `)
     .eq('organization_id', organizationId)
-    .eq('status', 'active')
+    .or('status.eq.active,status.eq.trial')
     .order('created_at', { ascending: false });
   
-  if (error) throw error;
-  
+  if (error) {
+    throw error;
+  }
+
   return data || [];
 };
 
@@ -204,6 +221,15 @@ export const OrganizationDataProvider: React.FC<{ children: ReactNode }> = ({ ch
     refetchCategories();
     refetchProducts();
   };
+
+  // كونسول شامل لتتبع حالة البيانات
+  React.useEffect(() => {
+    if (organizationId) {
+    }
+  }, [
+    organizationId, isLoading, settings, subscriptions, apps, categories,
+    settingsError, subscriptionsError, appsError, categoriesError
+  ]);
 
   const value: OrganizationDataContextType = {
     settings: settings || null,

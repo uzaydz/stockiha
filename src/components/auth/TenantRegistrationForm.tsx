@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -10,6 +10,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { toast } from 'sonner';
 import { registerTenant } from '@/lib/api/tenant';
+import { checkSubdomainAvailability } from '@/lib/api/subdomain';
+import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 
 // مخطط التحقق من صحة النموذج
 const formSchema = z.object({
@@ -34,6 +36,15 @@ type FormValues = z.infer<typeof formSchema>;
 const TenantRegistrationForm = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+  const [subdomainStatus, setSubdomainStatus] = useState<{
+    checking: boolean;
+    available: boolean | null;
+    message: string;
+  }>({
+    checking: false,
+    available: null,
+    message: ''
+  });
 
   // إعداد نموذج React Hook Form مع Zod
   const form = useForm<FormValues>({
@@ -49,10 +60,73 @@ const TenantRegistrationForm = () => {
     },
   });
 
+  // التحقق من توفر النطاق الفرعي مع تأخير
+  const checkSubdomain = useCallback(async (subdomain: string) => {
+    if (!subdomain || subdomain.length < 3) {
+      setSubdomainStatus({ checking: false, available: null, message: '' });
+      return;
+    }
+
+    setSubdomainStatus({ checking: true, available: null, message: 'جاري التحقق...' });
+
+    try {
+      const result = await checkSubdomainAvailability(subdomain);
+      
+      if (result.error) {
+        setSubdomainStatus({ 
+          checking: false, 
+          available: false, 
+          message: result.error.message 
+        });
+      } else if (result.available) {
+        setSubdomainStatus({ 
+          checking: false, 
+          available: true, 
+          message: 'النطاق الفرعي متاح! ✓' 
+        });
+      } else {
+        setSubdomainStatus({ 
+          checking: false, 
+          available: false, 
+          message: 'النطاق الفرعي مستخدم بالفعل' 
+        });
+      }
+    } catch (error) {
+      setSubdomainStatus({ 
+        checking: false, 
+        available: false, 
+        message: 'حدث خطأ أثناء التحقق' 
+      });
+    }
+  }, []);
+
+  // تأخير التحقق من النطاق الفرعي
+  useEffect(() => {
+    const subdomain = form.watch('subdomain');
+    
+    if (!subdomain) {
+      setSubdomainStatus({ checking: false, available: null, message: '' });
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      checkSubdomain(subdomain);
+    }, 1000); // تأخير ثانية واحدة
+
+    return () => clearTimeout(timeoutId);
+  }, [form.watch('subdomain'), checkSubdomain]);
+
   // معالجة إرسال النموذج
   const onSubmit = async (values: FormValues) => {
+    // التحقق الأخير من توفر النطاق الفرعي
+    if (subdomainStatus.available === false) {
+      toast.error('يرجى اختيار نطاق فرعي متاح');
+      return;
+    }
+
     setIsLoading(true);
     try {
+      
       const { success, error } = await registerTenant({
         name: values.name,
         email: values.email,
@@ -64,18 +138,36 @@ const TenantRegistrationForm = () => {
       
       if (success) {
         toast.success('🎉 تم إنشاء حساب المسؤول بنجاح! مرحباً بك في ستوكيها');
-        // 🚀 التوجيه المحسن: /dashboard مباشرة بدون نطاق فرعي
         setTimeout(() => {
           navigate('/dashboard');
-        }, 1000); // تأخير قصير لإظهار رسالة النجاح
+        }, 1000);
       } else {
-        toast.error(`فشل التسجيل: ${error?.message || 'حدث خطأ'}`);
+        toast.error(`فشل التسجيل: ${error?.message || 'حدث خطأ غير متوقع'}`);
       }
     } catch (error) {
-      toast.error('حدث خطأ أثناء التسجيل');
+      toast.error('حدث خطأ أثناء التسجيل. يرجى المحاولة مرة أخرى.');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const getSubdomainIcon = () => {
+    if (subdomainStatus.checking) {
+      return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />;
+    }
+    if (subdomainStatus.available === true) {
+      return <CheckCircle className="h-4 w-4 text-green-500" />;
+    }
+    if (subdomainStatus.available === false) {
+      return <XCircle className="h-4 w-4 text-red-500" />;
+    }
+    return null;
+  };
+
+  const getSubdomainMessageColor = () => {
+    if (subdomainStatus.available === true) return 'text-green-600';
+    if (subdomainStatus.available === false) return 'text-red-600';
+    return 'text-blue-600';
   };
 
   return (
@@ -188,7 +280,20 @@ const TenantRegistrationForm = () => {
                     <FormLabel>النطاق الفرعي</FormLabel>
                     <FormControl>
                       <div className="flex items-center">
-                        <Input {...field} placeholder="mystore" className="rounded-r-none border-l-0" />
+                        <div className="relative flex-1">
+                          <Input 
+                            {...field} 
+                            placeholder="mystore" 
+                            className="rounded-r-none border-l-0 pr-8" 
+                            onChange={(e) => {
+                              const value = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+                              field.onChange(value);
+                            }}
+                          />
+                          <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+                            {getSubdomainIcon()}
+                          </div>
+                        </div>
                         <div className="bg-muted px-3 h-10 flex items-center border border-input border-l-0 rounded-l-md">
                           .yourdomain.com
                         </div>
@@ -197,14 +302,30 @@ const TenantRegistrationForm = () => {
                     <FormDescription>
                       سيكون هذا عنوان الموقع الخاص بك للوصول إلى النظام.
                     </FormDescription>
+                    {subdomainStatus.message && (
+                      <p className={`text-sm ${getSubdomainMessageColor()}`}>
+                        {subdomainStatus.message}
+                      </p>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
             
-            <Button type="submit" className="w-full mt-6" disabled={isLoading}>
-              {isLoading ? 'جاري إنشاء الحساب...' : 'إنشاء حساب المسؤول والنطاق'}
+            <Button 
+              type="submit" 
+              className="w-full mt-6" 
+              disabled={isLoading || subdomainStatus.available === false || subdomainStatus.checking}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  جاري إنشاء الحساب...
+                </>
+              ) : (
+                'إنشاء حساب المسؤول والنطاق'
+              )}
             </Button>
           </form>
         </Form>

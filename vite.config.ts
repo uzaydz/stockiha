@@ -90,19 +90,31 @@ export default defineConfig(({ command, mode }) => {
             'Accept-Language': 'en-US,en;q=0.9,ar;q=0.8',
           },
           onProxyReq: (proxyReq: any, req: any) => {
-            if (req.headers['x-api-id']) {
-              proxyReq.setHeader('X-API-ID', req.headers['x-api-id'] as string);
+            // HTTP headers are case-insensitive, Node.js converts them to lowercase
+            const apiId = req.headers['x-api-id'] || req.headers['X-API-ID'];
+            const apiToken = req.headers['x-api-token'] || req.headers['X-API-TOKEN'];
+            
+            if (apiId) {
+              proxyReq.setHeader('X-API-ID', apiId);
+              console.log('Proxy: Setting X-API-ID header');
             }
-            if (req.headers['x-api-token']) {
-              proxyReq.setHeader('X-API-TOKEN', req.headers['x-api-token'] as string);
+            if (apiToken) {
+              proxyReq.setHeader('X-API-TOKEN', apiToken);
+              console.log('Proxy: Setting X-API-TOKEN header');
             }
             
             proxyReq.setHeader('Content-Type', 'application/json');
+            proxyReq.setHeader('Accept', 'application/json');
             
+            // Remove browser headers that might interfere
             proxyReq.removeHeader('origin');
             proxyReq.removeHeader('referer');
             proxyReq.removeHeader('host');
             
+            console.log('Proxy request headers:', {
+              'X-API-ID': apiId ? '***' : 'missing',
+              'X-API-TOKEN': apiToken ? '***' : 'missing'
+            });
           },
           configure: (proxy: any, _options: any) => {
             proxy.on('error', (err: any, req: any, res: any) => {
@@ -139,69 +151,22 @@ export default defineConfig(({ command, mode }) => {
           changeOrigin: true,
           rewrite: (path: string) => path.replace(/^\/api/, ''),
         },
-        // إضافة وسيط لخدمة Procolis لحل مشكلة CORS
+        // A simplified proxy for Procolis
         '/api/proxy/procolis': {
-          target: 'https://procolis.com',
+          target: 'https://procolis.com/api_v1/',
           changeOrigin: true,
           secure: true,
-          rewrite: (path: string) => path.replace(/^\/api\/proxy\/procolis/, '/api_v1'),
-          onProxyReq: (proxyReq: any, req: any) => {
-            console.log('🔄 Proxy Request:', {
-              method: req.method,
-              url: req.url,
-              headers: {
-                token: req.headers['token'] ? `${req.headers['token'].substring(0, 8)}...` : 'missing',
-                key: req.headers['key'] ? `${req.headers['key'].substring(0, 8)}...` : 'missing',
-                'content-type': req.headers['content-type']
+          rewrite: (path) => path.replace(/^\/api\/proxy\/procolis/, ''),
+          configure: (proxy, options) => {
+            proxy.on('proxyReq', (proxyReq, req, res) => {
+            });
+            proxy.on('error', (err, req, res) => {
+              if (res && typeof res.writeHead === 'function') {
+                res.writeHead(500, {
+                  'Content-Type': 'application/json',
+                });
+                res.end(JSON.stringify({ message: 'Proxy Error', error: err.message }));
               }
-            });
-            
-            // نقل رؤوس الطلب الأصلي إلى طلب الوسيط
-            if (req.headers['token']) {
-              proxyReq.setHeader('token', req.headers['token'] as string);
-            }
-            if (req.headers['key']) {
-              proxyReq.setHeader('key', req.headers['key'] as string);
-            }
-            if (req.headers['content-type']) {
-              proxyReq.setHeader('Content-Type', req.headers['content-type']);
-            }
-            
-            // إزالة رؤوس قد تسبب مشاكل
-            proxyReq.removeHeader('origin');
-            proxyReq.removeHeader('referer');
-          },
-          configure: (proxy: any, _options: any) => {
-            proxy.on('error', (err: any, req: any, res: any) => {
-              console.error('❌ Proxy Error:', {
-                error: err.message,
-                url: req.url,
-                method: req.method
-              });
-            });
-            
-            proxy.on('proxyReq', (proxyReq: any, req: any, res: any) => {
-              console.log('🚀 Sending to target:', {
-                method: proxyReq.method,
-                path: proxyReq.path,
-                headers: {
-                  token: proxyReq.getHeader('token') ? `${String(proxyReq.getHeader('token')).substring(0, 8)}...` : 'missing',
-                  key: proxyReq.getHeader('key') ? `${String(proxyReq.getHeader('key')).substring(0, 8)}...` : 'missing'
-                }
-              });
-            });
-            
-            proxy.on('proxyRes', (proxyRes: any, req: any, res: any) => {
-              console.log('📥 Response from target:', {
-                status: proxyRes.statusCode,
-                headers: proxyRes.headers,
-                url: req.url
-              });
-              
-              // إضافة رؤوس CORS للاستجابة
-              proxyRes.headers['Access-Control-Allow-Origin'] = '*';
-              proxyRes.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, PATCH, OPTIONS';
-              proxyRes.headers['Access-Control-Allow-Headers'] = 'token, key, Content-Type, Accept';
             });
           }
         },

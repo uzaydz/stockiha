@@ -68,7 +68,6 @@ class IntervalRegistry {
       
       // إيقاف interval إذا تجاوز الحد الأقصى للأخطاء
       if (interval.errorCount >= 5) {
-        console.warn(`🛑 إيقاف interval ${key} بسبب تجاوز حد الأخطاء`);
         this.unregister(key);
       }
     }
@@ -155,7 +154,6 @@ class IntervalRegistry {
       clearInterval(interval.id);
     }
     this.intervals.clear();
-    console.log('🧹 تم تنظيف جميع intervals قسرياً');
   }
 }
 
@@ -232,7 +230,6 @@ export function useOptimizedInterval(
 
     // إيقاف عند تجاوز حد الأخطاء
     if (errorCount.current >= maxAttempts) {
-      console.warn(`🛑 إيقاف interval ${componentName.current} بسبب تجاوز حد الأخطاء`);
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
@@ -271,7 +268,6 @@ export function useOptimizedInterval(
         error.message.includes('ERR_INSUFFICIENT_RESOURCES') ||
         error.message.includes('net::ERR_INSUFFICIENT_RESOURCES')
       )) {
-        console.error('🚨 مشكلة موارد حرجة - إيقاف جميع intervals!');
         intervalRegistry.forceCleanupAll();
         return;
       }
@@ -280,7 +276,6 @@ export function useOptimizedInterval(
         onError(error);
       }
       
-      console.warn(`❌ خطأ في interval ${componentName.current} (${errorCount.current}/${maxAttempts}):`, error);
     } finally {
       isRunning.current = false;
     }
@@ -297,12 +292,10 @@ export function useOptimizedInterval(
     // تحقق من وجود intervals مشابهة
     const stats = intervalRegistry.getStats();
     if (stats.total > 20) { // تقليل الحد من 50 إلى 20
-      console.warn('⚠️ عدد كبير من intervals - تحسين تلقائي');
       intervalRegistry.optimizeIntervals();
       
       // إيقاف إذا تجاوز الحد الأقصى
       if (stats.total > 50) {
-        console.error('🛑 تجاوز الحد الأقصى للـ intervals - إيقاف');
         return;
       }
     }
@@ -316,7 +309,6 @@ export function useOptimizedInterval(
       adjustedDelay = Math.round(delay * (1 + loadFactor + errorFactor));
       
       if (adjustedDelay !== delay) {
-        console.log(`⚡ تعديل delay من ${delay} إلى ${adjustedDelay}ms للمكوِّن ${componentName.current}`);
       }
     }
 

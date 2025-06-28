@@ -126,7 +126,6 @@ export const usePOSBarcode = ({
       const searchResult = await searchProductByBarcode(currentOrganizationIdRef.current, barcode);
       return searchResult ? convertSearchResultToProduct(searchResult) : null;
     } catch (error) {
-      console.error('Database search error:', error);
       return null;
     }
   }, [convertSearchResultToProduct]);
@@ -318,4 +317,4 @@ export const usePOSBarcode = ({
     barcodeBuffer,
     processBarcodeScanned
   };
-}; 
+};

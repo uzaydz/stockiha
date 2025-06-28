@@ -20,6 +20,7 @@ import SubscriptionCard from '@/components/subscription/SubscriptionCard';
 import SubscriptionDialog from '@/components/subscription/SubscriptionDialog';
 import ActivateWithCode from './ActivateWithCode';
 import TrialStatusCard from '@/components/subscription/TrialStatusCard';
+import { SubscriptionDebug } from '@/components/debug/SubscriptionDebug';
 
 // أنواع البيانات
 interface SubscriptionPlan {
@@ -76,27 +77,26 @@ const SubscriptionPage = () => {
   // محاولة تحديث بيانات المؤسسة عند تحميل الصفحة إذا كانت قيمتها فارغة
   useEffect(() => {
     if (!organization) {
-      
       refreshOrganizationData();
       
       // استخدام معرف المؤسسة من localStorage مباشرة
       const storedOrgId = localStorage.getItem('bazaar_organization_id');
       if (storedOrgId) {
-        
         setOrganizationId(storedOrgId);
         
         // محاولة جلب الاشتراك مباشرة باستخدام معرف المؤسسة من localStorage
         fetchActiveSubscription(storedOrgId);
       }
     } else {
-      
       setOrganizationId(organization.id);
     }
   }, [organization, refreshOrganizationData]);
 
   // دالة لجلب الاشتراك النشط مباشرة من قاعدة البيانات
   const fetchActiveSubscription = async (orgId: string) => {
-    if (!orgId) return;
+    if (!orgId) {
+      return;
+    }
 
     try {
       // استخدام نهج أبسط للاستعلام لمعالجة خطأ 406
@@ -117,7 +117,6 @@ const SubscriptionPage = () => {
       const subscriptionData = activeSubscriptions.length > 0 ? activeSubscriptions[0] : null;
         
       if (subscriptionData) {
-
         // تحديث بيانات المؤسسة بمعرف الاشتراك المكتشف
         const { error: updateError } = await supabase
           .from('organizations')
@@ -128,18 +127,55 @@ const SubscriptionPage = () => {
           })
           .eq('id', orgId);
           
-        if (updateError) {
-        } else {
-          
+        if (!updateError) {
           await refreshOrganizationData();
         }
         
         // استمر بجلب بيانات الاشتراك
         fetchSubscriptionDetails(subscriptionData.id);
       } else {
-        
         setLoading(false);
       }
+    } catch (error) {
+      setLoading(false);
+    }
+  };
+
+  // دالة جديدة لجلب تفاصيل الاشتراك
+  const fetchSubscriptionDetails = async (subscriptionId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('organization_subscriptions')
+        .select(`
+          *,
+          plan:plan_id (
+            id, name, code, description, features, 
+            monthly_price, yearly_price, trial_period_days, limits,
+            is_active, is_popular
+          )
+        `)
+        .eq('id', subscriptionId)
+        .single();
+
+      if (error) {
+        setLoading(false);
+        return;
+      }
+      
+      setCurrentSubscription(data);
+      
+      // حساب الأيام المتبقية
+      if (data.end_date) {
+        const endDate = new Date(data.end_date);
+        const today = new Date();
+        const diffTime = endDate.getTime() - today.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        const remainingDays = Math.max(0, diffDays);
+        setDaysLeft(remainingDays);
+      }
+      
+      setLoading(false);
+      
     } catch (error) {
       setLoading(false);
     }
@@ -149,7 +185,6 @@ const SubscriptionPage = () => {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.has('refresh')) {
-      
       refreshOrganizationData();
     }
   }, [window.location.search, refreshOrganizationData]);
@@ -180,7 +215,6 @@ const SubscriptionPage = () => {
   // جلب الاشتراك الحالي
   useEffect(() => {
     const fetchCurrentSubscription = async () => {
-
       if (!organization) {
         return;
       }
@@ -212,7 +246,6 @@ const SubscriptionPage = () => {
         const activeSubscription = data && data.length > 0 ? data[0] : null;
         
         if (activeSubscription) {
-          
           // تأكد من اختيار الدورة الفوترية الصحيحة
           if (activeSubscription.billing_cycle) {
             setSelectedBillingCycle(activeSubscription.billing_cycle as 'monthly' | 'yearly');
@@ -230,7 +263,7 @@ const SubscriptionPage = () => {
             setDaysLeft(remainingDays);
           }
           
-          // تحديث organization.subscription_id إذا كان مختلفاً
+          // تحديث organization.subscription_id إذا كان مختلفاً (بدون إعادة تحميل)
           if (organization.subscription_id !== activeSubscription.id) {
             const { error: updateError } = await supabase
               .from('organizations')
@@ -242,7 +275,8 @@ const SubscriptionPage = () => {
               .eq('id', organization.id);
               
             if (!updateError) {
-              await refreshOrganizationData();
+              // تحديث بسيط بدون إعادة تحميل الصفحة
+              refreshOrganizationData();
             }
           }
         } else {
@@ -333,10 +367,19 @@ const SubscriptionPage = () => {
   if (loading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-center">
-            <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
-            <p className="mt-4 text-lg">جاري تحميل البيانات...</p>
+        <div className="container mx-auto px-4 py-6 space-y-6">
+          <div className="mb-6 sm:mb-8">
+            <h1 className="text-2xl sm:text-3xl font-bold">إدارة الاشتراك</h1>
+            <p className="text-muted-foreground mt-2">
+              إدارة اشتراكك وخطط الدفع
+            </p>
+          </div>
+
+          {/* مكون التشخيص المؤقت */}
+          <SubscriptionDebug />
+
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           </div>
         </div>
       </Layout>
@@ -406,8 +449,8 @@ const SubscriptionPage = () => {
           </div>
         )}
 
-        {/* عرض معلومات الاشتراك الحالي إذا كان نشطًا */}
-        {organization?.subscription_status === 'active' && currentSubscription && (
+        {/* عرض معلومات الاشتراك الحالي إذا كان نشطًا أو إذا وُجد اشتراك نشط */}
+        {((organization?.subscription_status === 'active' && currentSubscription) || (currentSubscription && currentSubscription.status === 'active')) && (
           <div className="space-y-6">
             <Card className="mb-6 sm:mb-8">
               <CardHeader className="pb-3">
@@ -492,7 +535,7 @@ const SubscriptionPage = () => {
         )}
 
         {/* عرض خطط الاشتراك */}
-        {(showPlans || ((!currentSubscription || currentSubscription.status !== 'active') && organization?.subscription_status !== 'active' && organization?.subscription_status !== 'trial')) && (
+        {(showPlans || ((!currentSubscription || currentSubscription.status !== 'active') && organization?.subscription_status !== 'active' && organization?.subscription_status !== 'trial')) && !(currentSubscription && currentSubscription.status === 'active') && (
           <div className="space-y-6">
             <div>
               <h2 className="text-xl font-semibold">خطط الاشتراك</h2>

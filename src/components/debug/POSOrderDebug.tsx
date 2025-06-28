@@ -91,7 +91,6 @@ export const POSOrderDebug: React.FC<POSOrderDebugProps> = ({
       const errorMessage = error instanceof Error ? error.message : 'خطأ غير معروف';
       addToLog(`❌ فشل في إنشاء الطلبية: ${errorMessage}`);
       toast.error(`فشل في إنشاء الطلبية: ${errorMessage}`);
-      console.error('خطأ في إنشاء الطلبية التجريبية:', error);
     } finally {
       setIsCreating(false);
     }
@@ -175,4 +174,4 @@ export const POSOrderDebug: React.FC<POSOrderDebugProps> = ({
       </CardContent>
     </Card>
   );
-}; 
+};

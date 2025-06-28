@@ -8,27 +8,112 @@ import { withCache, DEFAULT_CACHE_TTL } from '@/lib/cache/storeCache';
 type Organization = any; // Replace with actual Organization type
 
 /**
- * التحقق من توفر النطاق الفرعي
+ * التحقق من توفر النطاق الفرعي مع معالجة محسنة للأخطاء
  */
 export const checkSubdomainAvailability = async (subdomain: string): Promise<{
   available: boolean;
   error?: Error;
 }> => {
   try {
+    // التحقق من صحة المدخل
+    if (!subdomain || typeof subdomain !== 'string') {
+      return { available: false, error: new Error('النطاق الفرعي غير صالح') };
+    }
+
+    // تنظيف النطاق الفرعي
+    const cleanSubdomain = subdomain.toLowerCase().trim();
+    
+    if (cleanSubdomain.length < 3) {
+      return { available: false, error: new Error('النطاق الفرعي يجب أن يكون 3 أحرف على الأقل') };
+    }
+
+    // التحقق من النمط الصحيح
+    const subdomainPattern = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+    if (!subdomainPattern.test(cleanSubdomain)) {
+      return { available: false, error: new Error('النطاق الفرعي يجب أن يحتوي على أحرف صغيرة وأرقام وشرطات فقط') };
+    }
+
     // استخدام supabaseAdmin للاتساق مع وظيفة registerTenant
     const { data, error } = await supabaseAdmin
       .from('organizations')
-      .select('id')
-      .eq('subdomain', subdomain)
+      .select('id, subdomain, name')
+      .eq('subdomain', cleanSubdomain)
       .maybeSingle();
 
     if (error) {
       return { available: false, error };
     }
 
-    return { available: !data };
+    if (data && data.id) {
+      return { available: false };
+    }
+
+    return { available: true };
   } catch (error) {
     return { available: false, error: error as Error };
+  }
+};
+
+/**
+ * التحقق من توفر النطاق الفرعي مع إعادة المحاولة
+ */
+export const checkSubdomainAvailabilityWithRetry = async (
+  subdomain: string, 
+  maxRetries: number = 3
+): Promise<{
+  available: boolean;
+  error?: Error;
+}> => {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    
+    const result = await checkSubdomainAvailability(subdomain);
+
+    // إذا نجح الفحص أو كان النطاق غير متاح، أرجع النتيجة
+    if (!result.error || !result.available) {
+      return result;
+    }
+    
+    // إذا كان هناك خطأ، انتظر قليلاً قبل إعادة المحاولة
+    if (attempt < maxRetries) {
+      await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+    }
+  }
+  
+  return { 
+    available: false, 
+    error: new Error(`فشل في التحقق من توفر النطاق الفرعي بعد ${maxRetries} محاولات`) 
+  };
+};
+
+/**
+ * البحث عن النطاقات الفرعية المشابهة
+ */
+export const findSimilarSubdomains = async (subdomain: string): Promise<string[]> => {
+  try {
+    
+    const { data, error } = await supabaseAdmin
+      .from('organizations')
+      .select('subdomain')
+      .ilike('subdomain', `${subdomain}%`)
+      .limit(5);
+
+    if (error) {
+      return [];
+    }
+
+    // التأكد من أن data هو مصفوفة وليس null أو undefined
+    if (!data || !Array.isArray(data)) {
+      return [];
+    }
+
+    const similarSubdomains = data
+      .map(org => org?.subdomain)
+      .filter(Boolean) // إزالة القيم null أو undefined
+      .filter(sub => sub !== subdomain); // إزالة النطاق الأصلي إذا كان موجوداً
+
+    return similarSubdomains;
+  } catch (error) {
+    return [];
   }
 };
 

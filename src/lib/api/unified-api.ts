@@ -16,19 +16,14 @@ export type { OrganizationSettings } from '@/types/settings';
  * جلب فئات المنتجات - موحد بدون تكرار
  */
 export const getCategories = async (organizationId?: string) => {
-  console.log('🚀 getCategories استدعاء مع organizationId:', organizationId);
   
   if (!organizationId) {
-    console.log('⚠️ لم يتم تمرير organizationId، محاولة الحصول عليه من المستخدم الحالي...');
     
     // الحصول على معرف المؤسسة من المستخدم الحالي
     const userInfo = await supabase.auth.getUser();
     const userId = userInfo.data.user?.id;
-    
-    console.log('👤 معرف المستخدم الحالي:', userId);
-    
+
     if (!userId) {
-      console.warn('❌ لا يوجد مستخدم مسجل');
       return [];
     }
 
@@ -37,31 +32,19 @@ export const getCategories = async (organizationId?: string) => {
       .select('organization_id')
       .eq('id', userId)
       .single();
-      
-    console.log('🏢 بيانات المستخدم:', { userData, userError });
-      
+
     if (userError || !userData?.organization_id) {
-      console.warn('❌ لا يمكن تحديد معرف المؤسسة للمستخدم');
       return [];
     }
     
     organizationId = userData.organization_id;
-    console.log('✅ تم تحديد معرف المؤسسة:', organizationId);
   }
 
   try {
-    console.log('📞 استدعاء UnifiedRequestManager.getProductCategories...');
     const categoriesResult = await UnifiedRequestManager.getProductCategories(organizationId);
-
-    console.log('📋 نتيجة UnifiedRequestManager:', {
-      result: categoriesResult,
-      isArray: Array.isArray(categoriesResult),
-      length: categoriesResult?.length
-    });
 
     // التأكد من أن النتيجة array قبل استخدام .map()
     if (!categoriesResult || !Array.isArray(categoriesResult)) {
-      console.warn('⚠️ النتيجة ليست array صالح');
       return [];
     }
 
@@ -72,10 +55,8 @@ export const getCategories = async (organizationId?: string) => {
       product_count: item.product_count || 0
     }));
 
-    console.log('✅ تم تحويل البيانات بنجاح، العدد النهائي:', mappedCategories.length);
     return mappedCategories;
   } catch (error) {
-    console.error('💥 خطأ في getCategories:', error);
     return [];
   }
 };

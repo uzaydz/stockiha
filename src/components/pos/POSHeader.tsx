@@ -162,4 +162,4 @@ const POSHeader: React.FC<POSHeaderProps> = ({
   );
 };
 
-export default POSHeader; 
+export default POSHeader;

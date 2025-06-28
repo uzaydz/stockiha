@@ -110,7 +110,7 @@ const DashboardContent = () => {
     start: new Date(new Date().setDate(new Date().getDate() - 30)),
     end: new Date(),
   });
-  
+
   // معالجة تغيير الفترة الزمنية
   const handleTimeframeChange = (newTimeframe: TimeframeType) => {
     setTimeframe(newTimeframe);

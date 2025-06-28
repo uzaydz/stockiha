@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { UserPermissions } from './admin';
 import { TenantRegistrationData } from './tenant-types';
 import { createOrganizationSimple, createOrganizationDirect } from './organization-creation';
+import { checkSubdomainAvailabilityWithRetry, findSimilarSubdomains } from './subdomain';
 
 /**
  * استكمال عملية تسجيل المستأجر بعد إنشاء المنظمة
@@ -99,24 +100,28 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
   organizationId?: string;
 }> => {
   try {
-    // التحقق من توفر النطاق الفرعي - استخدام supabaseAdmin للاتساق
-    const { data: subdomainCheck, error: subdomainError } = await supabaseAdmin
-      .from('organizations')
-      .select('id')
-      .eq('subdomain', data.subdomain)
-      .maybeSingle();
 
-    if (subdomainError) {
-      return { success: false, error: subdomainError };
+    // التحقق من توفر النطاق الفرعي باستخدام الوظيفة المحسنة
+    const subdomainCheck = await checkSubdomainAvailabilityWithRetry(data.subdomain);
+
+    if (subdomainCheck.error) {
+      return { success: false, error: subdomainCheck.error };
     }
 
-    if (subdomainCheck) {
+    if (!subdomainCheck.available) {
+      
+      // البحث عن نطاقات مشابهة لاقتراحها
+      const similarSubdomains = await findSimilarSubdomains(data.subdomain);
+      const suggestions = similarSubdomains.length > 0 
+        ? ` النطاقات المشابهة الموجودة: ${similarSubdomains.join(', ')}`
+        : '';
+      
       return { 
         success: false, 
-        error: new Error('النطاق الفرعي مستخدم بالفعل. يرجى اختيار نطاق فرعي آخر.') 
+        error: new Error(`النطاق الفرعي مستخدم بالفعل. يرجى اختيار نطاق فرعي آخر.${suggestions}`) 
       };
     }
-    
+
     // 1. إنشاء المستخدم في نظام المصادقة
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: data.email,
@@ -157,8 +162,7 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
         .single();
 
       if (trialPlanError) {
-        // في حالة عدم وجود خطة تجريبية، نستخدم الخطة الأساسية
-        
+      } else {
       }
 
       const trialEndDate = new Date();
@@ -167,17 +171,27 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
       // 2. إنشاء المؤسسة مع النطاق الفرعي
       const organizationData = {
         name: data.organizationName,
-        subdomain: data.subdomain,
+        subdomain: data.subdomain.toLowerCase().trim(),
         owner_id: authData.user.id,
-        subscription_tier: 'trial', // تغيير الخطة من basic إلى trial
-        subscription_status: 'trial', // تعيين حالة الاشتراك إلى trial
+        subscription_tier: 'trial',
+        subscription_status: 'trial',
         settings: {
           theme: 'light',
           logo_url: null,
           primary_color: '#2563eb',
-          trial_end_date: trialEndDate.toISOString() // تخزين تاريخ انتهاء الفترة التجريبية
+          trial_end_date: trialEndDate.toISOString()
         }
       };
+
+      // التحقق مرة أخيرة من عدم وجود النطاق الفرعي قبل الإنشاء
+      const finalCheck = await checkSubdomainAvailabilityWithRetry(data.subdomain);
+      
+      if (!finalCheck.available) {
+        return { 
+          success: false, 
+          error: new Error('النطاق الفرعي أصبح غير متاح. يرجى المحاولة مرة أخرى بنطاق فرعي آخر.') 
+        };
+      }
 
       // استخدام الوظيفة البسيطة لإنشاء المؤسسة بدلاً من الوظائف الأخرى
       const result = await createOrganizationSimple(

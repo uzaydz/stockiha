@@ -87,7 +87,6 @@ export async function saveSupplierPurchaseWithVariants(data: PurchaseWithVariant
     };
 
   } catch (error) {
-    console.error('Error saving purchase with variants:', error);
     throw error;
   }
 }
@@ -170,7 +169,6 @@ export async function updateSupplierPurchaseWithVariants(
     };
 
   } catch (error) {
-    console.error('Error updating purchase with variants:', error);
     throw error;
   }
 }
@@ -208,7 +206,6 @@ export async function getSupplierPurchaseWithVariants(purchaseId: string) {
     };
 
   } catch (error) {
-    console.error('Error fetching purchase with variants:', error);
     throw error;
   }
 }
@@ -263,7 +260,6 @@ export async function getProductVariantsSummary(productId: string) {
     };
 
   } catch (error) {
-    console.error('Error fetching product variants summary:', error);
     throw error;
   }
-} 
+}

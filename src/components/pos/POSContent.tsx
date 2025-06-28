@@ -262,4 +262,4 @@ const POSContent: React.FC<POSContentProps> = ({
   );
 };
 
-export default POSContent; 
+export default POSContent;

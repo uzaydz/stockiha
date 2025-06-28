@@ -137,10 +137,9 @@ export const ActivationService = {
         };
       }
 
-      // استدعاء وظيفة تفعيل الاشتراك مباشرة
-
+      // استدعاء الدالة المحسنة لتفعيل الاشتراك
       const { data: result, error } = await supabase.rpc(
-        'activate_subscription',
+        'activate_subscription' as any,
         {
           p_activation_code: activationCode,
           p_organization_id: organizationId
@@ -156,7 +155,21 @@ export const ActivationService = {
 
       const activationResult = result[0];
       
-      // طباعة معرف الاشتراك للتأكد من وجوده
+      if (activationResult?.success) {
+        // إذا نجح التفعيل، قم بتحديث الكاش
+        try {
+          // حذف الكاش القديم
+          const cacheKey = `subscription_${organizationId}`;
+          localStorage.removeItem(cacheKey);
+          
+          // تحديث البيانات في الكونتكست
+          if (typeof window !== 'undefined' && window.location) {
+            // إعادة تحميل الصفحة لضمان تحديث جميع البيانات
+            window.location.reload();
+          }
+        } catch (cacheError) {
+        }
+      }
 
       return {
         success: activationResult.success,
@@ -323,7 +336,7 @@ export const ActivationService = {
             name: batch.name,
             plan_id: batch.plan_id,
             plan_name: batch.subscription_plans.name,
-            billing_cycle: batch.billing_cycle || 'yearly',
+            billing_cycle: (batch.billing_cycle || 'yearly') as 'monthly' | 'yearly',
             total_codes: stats[0].total_codes,
             used_codes: stats[0].used_codes,
             active_codes: stats[0].active_codes,
