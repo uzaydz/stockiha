@@ -110,9 +110,9 @@ const SubscriptionDebug: React.FC = () => {
           .select('*')
           .eq('organization_id', organization.id)
           .eq('status', 'active')
-          .gte('end_date', new Date().toISOString());
+          .filter('end_date', 'gte', new Date().toISOString());
           
-        if (activeSubs && activeSubs.length > 0) {
+        if (Array.isArray(activeSubs) && activeSubs.length > 0) {
           console.log('✅ تم العثور على اشتراك نشط، سيتم إعادة تحميل الصفحة');
           window.location.reload();
         } else {

@@ -1,0 +1,269 @@
+/* أنماط طباعة إيصالات الألعاب */
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@200;300;400;500;600;700;800;900&display=swap');
+
+/* إعدادات عامة للطباعة */
+@media print {
+  /* إخفاء كل شيء ما عدا الإيصال */
+  body * {
+    visibility: hidden !important;
+  }
+  
+  .game-receipt, .game-receipt * {
+    visibility: visible !important;
+  }
+  
+  /* إخفاء زر الاختبار عند الطباعة */
+  .qr-test-button {
+    display: none !important;
+    visibility: hidden !important;
+  }
+  
+  /* تموضع الإيصال */
+  .game-receipt {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 76mm !important;
+    max-width: 76mm !important;
+    margin: 0 !important;
+    padding: 4mm !important;
+    background: white !important;
+    color: black !important;
+    font-family: 'Tajawal', Arial, sans-serif !important;
+    font-size: 13px !important;
+    line-height: 1.4 !important;
+    direction: rtl !important;
+    text-align: center !important;
+    box-shadow: none !important;
+    border: none !important;
+    page-break-inside: avoid !important;
+  }
+  
+  /* ضمان ظهور QR codes */
+  .game-receipt svg,
+  .game-receipt canvas,
+  .game-receipt img {
+    visibility: visible !important;
+    display: block !important;
+    margin: 0 auto !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+  
+  /* أنماط خاصة لحاويات QR codes */
+  .game-receipt .qr-section > div {
+    border: 2px solid black !important;
+    border-radius: 2mm !important;
+    padding: 2mm !important;
+    background: white !important;
+  }
+  
+  /* إعدادات QR codes المحددة */
+  .game-receipt [data-testid="qr-code"],
+  .game-receipt svg[viewBox] {
+    visibility: visible !important;
+    display: block !important;
+    width: auto !important;
+    height: auto !important;
+    max-width: none !important;
+    max-height: none !important;
+    border: 2px solid black !important;
+    border-radius: 2mm !important;
+    padding: 2mm !important;
+    background: white !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+  
+  /* ضمان ظهور الألوان والحدود */
+  .game-receipt * {
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+  
+  /* إعدادات الصفحة */
+  @page {
+    size: 76mm auto;
+    margin: 0;
+    padding: 0;
+  }
+  
+  /* منع تقسيم العناصر المهمة */
+  .game-receipt .info-row,
+  .game-receipt .section-title,
+  .game-receipt .qr-section {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  
+  /* خط القطع */
+  .line-separator {
+    border-top: 3px dashed black !important;
+    margin: 8mm 0 !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+}
+
+/* أنماط عامة للشاشة والطباعة */
+.game-receipt {
+  font-family: 'Tajawal', Arial, sans-serif !important;
+  direction: rtl !important;
+  text-align: center !important;
+  width: 76mm;
+  max-width: 76mm;
+  margin: 0 auto;
+  background: white;
+  color: black;
+  padding: 4mm;
+  box-sizing: border-box;
+  line-height: 1.4;
+  font-size: 13px;
+}
+
+.game-receipt * {
+  font-family: 'Tajawal', Arial, sans-serif !important;
+  text-align: center !important;
+  box-sizing: border-box !important;
+}
+
+/* أنماط QR codes */
+.game-receipt svg,
+.game-receipt canvas,
+.game-receipt img {
+  display: block !important;
+  margin: 0 auto !important;
+}
+
+.game-receipt .qr-section > div {
+  border: 2px solid black;
+  border-radius: 2mm;
+  padding: 2mm;
+  background: white;
+}
+
+/* تحسينات للطباعة الحرارية */
+.game-receipt .info-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #666;
+  margin-bottom: 1mm;
+}
+
+.game-receipt .info-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: black;
+}
+
+.game-receipt .section-title {
+  font-size: 14px;
+  font-weight: 700;
+  padding: 3mm;
+  border: 2px solid;
+  border-radius: 3mm;
+  margin: 3mm 0;
+  text-align: center;
+}
+
+/* خط القطع */
+.line-separator {
+  margin: 8mm 0;
+  border-top: 3px dashed black;
+  position: relative;
+}
+
+.line-separator::after {
+  content: '✂️ اقطع هنا';
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: white;
+  padding: 0 5mm;
+  font-size: 12px;
+  font-weight: 700;
+  border: 2px solid black;
+  border-radius: 10px;
+}
+
+/* إعدادات الألوان للطباعة */
+.customer-section {
+  background: #ecfdf5 !important;
+  border-color: #059669 !important;
+}
+
+.admin-section {
+  background: #fef2f2 !important;
+  border-color: #dc2626 !important;
+}
+
+.start-qr {
+  background: #ecfdf5 !important;
+  border-color: #059669 !important;
+}
+
+.complete-qr {
+  background: #fef2f2 !important;
+  border-color: #dc2626 !important;
+}
+
+/* أنماط محسنة لأكواد QR للمسؤول */
+@media print {
+  .start-qr img,
+  .complete-qr img {
+    min-width: 80px !important;
+    min-height: 80px !important;
+    width: 80px !important;
+    height: 80px !important;
+    border: 3px solid black !important;
+    border-radius: 3mm !important;
+    padding: 2mm !important;
+    background: white !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    image-rendering: -webkit-optimize-contrast !important;
+    image-rendering: crisp-edges !important;
+  }
+  
+  .start-qr,
+  .complete-qr {
+    border-width: 3px !important;
+    padding: 4mm !important;
+    margin-bottom: 4mm !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  
+  /* تحسين جودة النص المرافق لأكواد QR */
+  .start-qr div,
+  .complete-qr div {
+    font-weight: 800 !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+}
+
+/* أنماط للشاشة */
+.start-qr img,
+.complete-qr img {
+  width: 80px;
+  height: 80px;
+  border: 2px solid black;
+  border-radius: 2mm;
+  padding: 1mm;
+  background: white;
+}
+
+.start-qr,
+.complete-qr {
+  border-width: 3px;
+  padding: 4mm;
+  margin-bottom: 4mm;
+} 

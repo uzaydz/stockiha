@@ -106,6 +106,7 @@ import StoreEditorDemo from '@/pages/admin/StoreEditorDemo';
 import AppsManagement from './pages/AppsManagement';
 import GameDownloadsPage from './pages/GameDownloadsPage';
 import PublicGameStorePage from './pages/PublicGameStorePage';
+import PublicGameTracking from './components/apps/game-downloads/PublicGameTracking';
 import { UnifiedDataProvider } from '@/components/UnifiedDataProvider';
 import { UniversalDataUpdateProvider } from './context/UniversalDataUpdateContext';
 import ConditionalRoute from './components/ConditionalRoute';
@@ -550,6 +551,10 @@ const App = () => {
                   {/* صفحة متجر تحميل الألعاب العامة */}
                   <Route path="/games" element={<PublicGameStorePage />} />
                   <Route path="/games/:organizationId" element={<PublicGameStorePage />} />
+                  
+                  {/* صفحة تتبع طلبات الألعاب العامة */}
+                  <Route path="/game-tracking" element={<PublicGameTracking />} />
+                  <Route path="/game-tracking/:trackingNumber" element={<PublicGameTracking />} />
 
                   {/* صفحات التوثيق */}
                   <Route path="/docs/custom-domains" element={<CustomDomainsDocPage />} />

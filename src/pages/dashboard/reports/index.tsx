@@ -220,8 +220,8 @@ const FinancialReports = () => {
         .from('reports_sales_by_category')
         .select('*')
         .eq('organization_id', currentOrganization.id)
-        .gte('sale_month', format(subMonths(dateRange.from, 6), 'yyyy-MM-dd'))
-        .lte('sale_month', format(addDays(dateRange.to, 1), 'yyyy-MM-dd'))
+        .filter('sale_month', 'gte', format(subMonths(dateRange.from, 6), 'yyyy-MM-dd'))
+        .filter('sale_month', 'lte', format(addDays(dateRange.to, 1), 'yyyy-MM-dd'))
         .order('sale_month', { ascending: false });
       
       if (salesError) throw salesError;

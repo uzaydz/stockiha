@@ -49,16 +49,11 @@ const fetchOrganizationSettings = async (organizationId: string) => {
 
 const fetchOrganizationSubscriptions = async (organizationId: string) => {
   
-  // جلب الاشتراكات النشطة والتجريبية التي لم تنته صلاحيتها
-  const { data, error } = await supabase
-    .from('organization_subscriptions')
-    .select(`
-      *,
-      plan:plan_id(id, name, code)
-    `)
+  // جلب الاشتراكات النشطة من الجدول المحسن
+  const { data, error } = await (supabase as any)
+    .from('active_organization_subscriptions')
+    .select('*')
     .eq('organization_id', organizationId)
-    .or('status.eq.active,status.eq.trial')
-    .gte('end_date', new Date().toISOString())
     .order('created_at', { ascending: false });
   
   if (error) {

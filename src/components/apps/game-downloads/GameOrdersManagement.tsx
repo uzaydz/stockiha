@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Eye, Edit, CheckCircle, XCircle, Clock, Package, Truck, Download, FileText, Printer } from 'lucide-react';
+import { Search, Filter, Eye, Edit, CheckCircle, XCircle, Clock, Package, Truck, Download, FileText, Printer, QrCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,11 +9,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useUser } from '@/context/UserContext';
+import { useTenant } from '@/context/TenantContext';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
+import GameOrderReceiptPrint from './GameOrderReceiptPrint';
+import { buildStoreUrl } from '@/lib/utils/store-url';
 
 interface GameOrder {
   id: string;
@@ -63,6 +66,7 @@ const paymentStatusOptions = [
 
 export default function GameOrdersManagement() {
   const { organizationId, userId } = useUser();
+  const { currentOrganization } = useTenant();
   const [orders, setOrders] = useState<GameOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -74,6 +78,7 @@ export default function GameOrdersManagement() {
   const [newStatus, setNewStatus] = useState('');
   const [statusNotes, setStatusNotes] = useState('');
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [queuePosition, setQueuePosition] = useState<number>(0);
 
   useEffect(() => {
     if (organizationId) {
@@ -138,206 +143,96 @@ export default function GameOrdersManagement() {
     }
   };
 
-  const printReceipt = (receiptType: 'admin' | 'customer') => {
+  // حساب موقع الطلب في الطابور
+  const getQueuePosition = async (orderId: string) => {
+    try {
+      const { data: currentOrder, error: currentOrderError } = await supabase
+        .from('game_download_orders')
+        .select('created_at, status, organization_id')
+        .eq('id', orderId)
+        .single();
+        
+      if (currentOrderError || !currentOrder) return 0;
+      
+      if (currentOrder.status === 'delivered' || currentOrder.status === 'cancelled') {
+        return 0;
+      }
+      
+      const { data: ordersBeforeMe, error: beforeError } = await supabase
+        .from('game_download_orders')
+        .select('id')
+        .eq('organization_id', currentOrder.organization_id)
+        .in('status', ['pending', 'processing'])
+        .lt('created_at', currentOrder.created_at);
+        
+      const { data: totalActiveOrders, error: totalError } = await supabase
+        .from('game_download_orders')
+        .select('id, created_at')
+        .eq('organization_id', currentOrder.organization_id)
+        .in('status', ['pending', 'processing']);
+        
+      if (beforeError || totalError) return 0;
+      
+      const totalInQueue = totalActiveOrders?.length || 0;
+      const ordersAfterMe = totalActiveOrders?.filter(order => {
+        return new Date(order.created_at) > new Date(currentOrder.created_at);
+      }) || [];
+      
+      return Math.max(1, totalInQueue - ordersAfterMe.length);
+    } catch (error) {
+      return 0;
+    }
+  };
+
+  const printAdvancedReceipt = async () => {
     if (!selectedOrder) return;
+
+    // حساب موقع الطلب في الطابور
+    const position = await getQueuePosition(selectedOrder.id);
+    setQueuePosition(position);
 
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    // استخراج تفاصيل الألعاب
-    let gamesDetails = '';
-    let customerNotes = '';
-    let totalItems = 1;
-    let gamesList = [selectedOrder.game?.name || 'غير محدد'];
+    // إنشاء مكون الطباعة
+    const receiptComponent = React.createElement(GameOrderReceiptPrint, {
+      order: selectedOrder,
+      storeName: currentOrganization?.name || 'متجر الألعاب',
+      storePhone: currentOrganization?.contact_phone,
+      storeAddress: currentOrganization?.address,
+      storeLogo: currentOrganization?.logo_url,
+      queuePosition: position
+    });
 
-    if (selectedOrder.notes && selectedOrder.notes.includes('📋 تفاصيل الطلب:')) {
-      const gamesSection = selectedOrder.notes.split('📋 تفاصيل الطلب:')[1]?.split('📊 الملخص:')[0];
-      const summarySection = selectedOrder.notes.split('📊 الملخص:')[1];
-      customerNotes = selectedOrder.notes.split('📋 تفاصيل الطلب:')[0].trim();
-
-      if (gamesSection) {
-        const gameLines = gamesSection.split('\n').filter(line => line.trim().startsWith('•'));
-        gamesList = gameLines.map(line => line.replace('•', '').trim());
-        totalItems = gameLines.length;
-        
-        gamesDetails = gameLines.map((line, index) => `
-          <tr>
-            <td style="padding: 8px; border-bottom: 1px solid #eee;">${index + 1}</td>
-            <td style="padding: 8px; border-bottom: 1px solid #eee;">${line.replace('•', '').split('(')[0].trim()}</td>
-            <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${line.match(/الكمية: (\d+)/)?.[1] || '1'}</td>
-            <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: left;">${line.match(/السعر: ([\d,]+)/)?.[1] || '0'} دج</td>
-            <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: left;">${line.match(/المجموع: ([\d,]+)/)?.[1] || '0'} دج</td>
-          </tr>
-        `).join('');
-      }
-    } else {
-      gamesDetails = `
-        <tr>
-          <td style="padding: 8px; border-bottom: 1px solid #eee;">1</td>
-          <td style="padding: 8px; border-bottom: 1px solid #eee;">${selectedOrder.game?.name || 'غير محدد'}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">1</td>
-          <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: left;">${selectedOrder.price} دج</td>
-          <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: left;">${selectedOrder.price} دج</td>
-        </tr>
-      `;
-    }
-
-    const isAdminReceipt = receiptType === 'admin';
-    const receiptTitle = isAdminReceipt ? 'وصل إداري - طلب تحميل ألعاب' : 'وصل العميل - طلب تحميل ألعاب';
-    
-    const adminOnlySection = isAdminReceipt ? `
-      <div style="margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 8px;">
-        <h3 style="color: #dc3545; margin-bottom: 10px;">معلومات إدارية</h3>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-          <div><strong>حالة الدفع:</strong> ${paymentStatusOptions.find(opt => opt.value === selectedOrder.payment_status)?.label || selectedOrder.payment_status}</div>
-          <div><strong>المبلغ المدفوع:</strong> ${selectedOrder.amount_paid} دج</div>
-          <div><strong>المسؤول:</strong> ${selectedOrder.assigned_user?.name || 'غير محدد'}</div>
-          <div><strong>تاريخ الإنشاء:</strong> ${format(new Date(selectedOrder.created_at), 'dd/MM/yyyy hh:mm a', { locale: ar })}</div>
-        </div>
-        ${selectedOrder.device_type || selectedOrder.device_specs ? `
-          <div style="margin-top: 15px;">
-            <h4 style="margin-bottom: 8px;">معلومات الجهاز:</h4>
-            ${selectedOrder.device_type ? `<div><strong>نوع الجهاز:</strong> ${selectedOrder.device_type}</div>` : ''}
-            ${selectedOrder.device_specs ? `<div><strong>المواصفات:</strong> ${selectedOrder.device_specs}</div>` : ''}
-          </div>
-        ` : ''}
-        ${customerNotes ? `
-          <div style="margin-top: 15px;">
-            <h4 style="margin-bottom: 8px;">ملاحظات العميل:</h4>
-            <div style="background: white; padding: 10px; border-radius: 4px; white-space: pre-wrap;">${customerNotes}</div>
-          </div>
-        ` : ''}
-      </div>
-    ` : '';
-
+    // تحويل المكون إلى HTML
     const html = `
     <!DOCTYPE html>
     <html dir="rtl" lang="ar">
     <head>
       <meta charset="UTF-8">
-      <title>${receiptTitle}</title>
+      <title>وصل طلب تحميل الألعاب</title>
+      <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+      <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+      <script src="https://unpkg.com/qrcode.react@3.1.0/lib/index.js"></script>
+      <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
       <style>
         body { 
-          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+          font-family: 'Tajawal', Arial, sans-serif; 
           margin: 0; 
-          padding: 20px; 
-          background: white;
-          color: #333;
-        }
-        .receipt { 
-          max-width: 800px; 
-          margin: 0 auto; 
-          background: white; 
-          border: 2px solid #ddd;
-          border-radius: 10px;
-          overflow: hidden;
-        }
-        .header { 
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-          color: white; 
-          padding: 20px; 
-          text-align: center; 
-        }
-        .content { padding: 20px; }
-        .info-grid { 
-          display: grid; 
-          grid-template-columns: 1fr 1fr; 
-          gap: 15px; 
-          margin-bottom: 20px; 
-        }
-        .info-item { 
           padding: 10px; 
-          background: #f8f9fa; 
-          border-radius: 5px; 
-        }
-        table { 
-          width: 100%; 
-          border-collapse: collapse; 
-          margin: 20px 0; 
           background: white;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        th { 
-          background: #343a40; 
-          color: white; 
-          padding: 12px; 
-          text-align: right; 
-        }
-        .total-row { 
-          background: #e9ecef; 
-          font-weight: bold; 
-        }
-        .footer { 
-          margin-top: 30px; 
-          padding-top: 20px; 
-          border-top: 2px solid #eee; 
-          text-align: center; 
-          color: #666; 
+          color: black;
+          direction: rtl;
         }
         @media print {
-          body { margin: 0; padding: 10px; }
-          .receipt { border: none; }
-          .no-print { display: none; }
+          body { margin: 0; padding: 5px; }
+          .no-print { display: none !important; }
         }
       </style>
     </head>
     <body>
-      <div class="receipt">
-        <div class="header">
-          <h1 style="margin: 0; font-size: 24px;">${receiptTitle}</h1>
-          <p style="margin: 5px 0 0 0; opacity: 0.9;">رقم التتبع: ${selectedOrder.tracking_number}</p>
-        </div>
-        
-        <div class="content">
-          <div class="info-grid">
-            <div class="info-item">
-              <strong>اسم العميل:</strong><br>
-              ${selectedOrder.customer_name}
-            </div>
-            <div class="info-item">
-              <strong>رقم الهاتف:</strong><br>
-              ${selectedOrder.customer_phone}
-            </div>
-            <div class="info-item">
-              <strong>حالة الطلب:</strong><br>
-              ${statusOptions.find(opt => opt.value === selectedOrder.status)?.label || selectedOrder.status}
-            </div>
-            <div class="info-item">
-              <strong>التاريخ:</strong><br>
-              ${format(new Date(selectedOrder.created_at), 'dd/MM/yyyy', { locale: ar })}
-            </div>
-          </div>
-
-          <h3 style="color: #495057; border-bottom: 2px solid #dee2e6; padding-bottom: 8px;">تفاصيل الطلب</h3>
-          <table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>اسم اللعبة</th>
-                <th style="text-align: center;">الكمية</th>
-                <th style="text-align: left;">السعر</th>
-                <th style="text-align: left;">المجموع</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${gamesDetails}
-              <tr class="total-row">
-                <td colspan="4" style="padding: 12px; text-align: center; font-weight: bold;">الإجمالي</td>
-                <td style="padding: 12px; text-align: left; font-weight: bold; font-size: 18px;">${selectedOrder.price} دج</td>
-              </tr>
-            </tbody>
-          </table>
-
-          ${adminOnlySection}
-
-          <div class="footer">
-            <p style="margin: 0;">شكراً لك على اختيار خدماتنا</p>
-            <p style="margin: 5px 0 0 0; font-size: 12px;">تم الطباعة في: ${format(new Date(), 'dd/MM/yyyy hh:mm a', { locale: ar })}</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="no-print" style="text-align: center; margin-top: 20px;">
+      <div id="receipt-container"></div>
+      <div class="no-print" style="text-align: center; margin-top: 20px; page-break-before: always;">
         <button onclick="window.print()" style="
           background: #007bff; 
           color: white; 
@@ -347,7 +242,8 @@ export default function GameOrdersManagement() {
           cursor: pointer; 
           font-size: 16px;
           margin-left: 10px;
-        ">طباعة</button>
+          font-family: 'Tajawal', Arial, sans-serif;
+        ">🖨️ طباعة الوصل</button>
         <button onclick="window.close()" style="
           background: #6c757d; 
           color: white; 
@@ -356,14 +252,269 @@ export default function GameOrdersManagement() {
           border-radius: 5px; 
           cursor: pointer; 
           font-size: 16px;
-        ">إغلاق</button>
+          font-family: 'Tajawal', Arial, sans-serif;
+        ">❌ إغلاق</button>
       </div>
+      
+      <script>
+        // تشغيل الطباعة تلقائياً بعد التحميل
+        window.onload = function() {
+          // إضافة محتوى الوصل مباشرة
+          document.getElementById('receipt-container').innerHTML = \`${getReceiptHTML()}\`;
+        };
+      </script>
     </body>
     </html>
     `;
 
     printWindow.document.write(html);
     printWindow.document.close();
+  };
+
+  // دالة لإنشاء HTML الوصل
+  const getReceiptHTML = () => {
+    if (!selectedOrder) return '';
+
+    // بناء رابط المتجر
+    const storeUrl = buildStoreUrl(currentOrganization);
+
+    // استخراج تفاصيل الألعاب
+    const extractGamesFromNotes = () => {
+      if (!selectedOrder.notes || !selectedOrder.notes.includes('📋 تفاصيل الطلب:')) {
+        return [{
+          name: selectedOrder.game?.name || 'لعبة غير محددة',
+          platform: selectedOrder.game?.platform || 'منصة غير محددة',
+          quantity: 1,
+          price: selectedOrder.price || 0
+        }];
+      }
+
+      const gamesSection = selectedOrder.notes.split('📋 تفاصيل الطلب:')[1]?.split('📊 الملخص:')[0];
+      if (!gamesSection) return [];
+
+      const gameLines = gamesSection.split('\n').filter(line => line.trim().startsWith('•'));
+      return gameLines.map(line => {
+        const gameName = line.replace('•', '').split('(')[0].trim();
+        const platform = line.match(/\(([^)]+)\)/)?.[1] || 'غير محدد';
+        const quantity = parseInt(line.match(/الكمية: (\d+)/)?.[1] || '1');
+        const price = parseInt(line.match(/السعر: ([\d,]+)/)?.[1]?.replace(/,/g, '') || '0');
+        
+        return { name: gameName, platform, quantity, price };
+      });
+    };
+
+    const gamesList = extractGamesFromNotes();
+    const storeName = currentOrganization?.name || 'متجر الألعاب';
+    const storePhone = currentOrganization?.contact_phone;
+    const storeAddress = currentOrganization?.address;
+    const remainingAmount = (selectedOrder.price || 0) - (selectedOrder.amount_paid || 0);
+
+    return `
+      <div style="font-family: 'Tajawal', Arial, sans-serif; width: 76mm; margin: 0 auto; text-align: center; direction: rtl;">
+        <!-- رأس الوصل -->
+        <div style="border-bottom: 3px solid black; padding-bottom: 4mm; margin-bottom: 5mm;">
+          <h1 style="font-size: 18px; font-weight: 900; margin: 0 0 2mm 0;">${storeName}</h1>
+          ${storePhone ? `<p style="font-size: 12px; margin: 0;">📞 ${storePhone}</p>` : ''}
+          ${storeAddress ? `<p style="font-size: 11px; margin: 0; opacity: 0.8;">📍 ${storeAddress}</p>` : ''}
+        </div>
+
+        <!-- عنوان الوصل -->
+        <div style="margin-bottom: 5mm;">
+          <div style="font-size: 16px; font-weight: 800; padding: 2mm; border: 2px solid black; border-radius: 3mm; background: #f8f9fa;">
+            🎮 إيصال طلب تحميل ألعاب
+          </div>
+        </div>
+
+        <!-- رقم التتبع -->
+        <div style="margin-bottom: 5mm;">
+          <div style="background: black; color: white; padding: 4mm; border-radius: 4mm;">
+            <div style="font-size: 12px; margin-bottom: 1mm;">رقم التتبع</div>
+            <div style="font-size: 20px; font-weight: 900; letter-spacing: 1px;">${selectedOrder.tracking_number}</div>
+          </div>
+        </div>
+
+        <!-- التاريخ -->
+        <div style="margin-bottom: 5mm;">
+          <div style="font-size: 11px; color: #666;">📅 التاريخ والوقت</div>
+          <div style="font-size: 12px; font-weight: 700;">${format(new Date(selectedOrder.created_at), 'dd/MM/yyyy hh:mm', { locale: ar })}</div>
+        </div>
+
+        ${queuePosition > 0 ? `
+        <!-- رقم الترتيب -->
+        <div style="margin-bottom: 5mm;">
+          <div style="background: #fef2f2; border: 3px solid #dc2626; padding: 4mm; border-radius: 4mm;">
+            <div style="font-size: 12px; color: #7f1d1d; margin-bottom: 1mm;">رقم الترتيب في الطابور</div>
+            <div style="font-size: 24px; font-weight: 900; color: #dc2626;">${queuePosition}</div>
+          </div>
+        </div>
+        ` : ''}
+
+        <div style="border-top: 2px dashed black; margin: 4mm 0;"></div>
+
+        <!-- بيانات العميل -->
+        <div style="margin-bottom: 5mm;">
+          <div style="font-size: 16px; font-weight: 800; padding: 2mm; border: 2px solid #059669; border-radius: 3mm; background: #ecfdf5; color: #059669;">
+            👤 بيانات العميل
+          </div>
+          <div style="margin-top: 3mm;">
+            <div style="margin-bottom: 3mm;">
+              <div style="font-size: 11px; color: #666;">الاسم الكامل</div>
+              <div style="font-size: 14px; font-weight: 700;">${selectedOrder.customer_name}</div>
+            </div>
+            <div style="margin-bottom: 3mm;">
+              <div style="font-size: 11px; color: #666;">رقم الهاتف</div>
+              <div style="font-size: 14px; font-weight: 700;">${selectedOrder.customer_phone}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- قائمة الألعاب -->
+        <div style="border-top: 2px dashed black; margin: 4mm 0;"></div>
+        <div style="margin-bottom: 5mm;">
+          <div style="font-size: 16px; font-weight: 800; padding: 2mm; border: 2px solid #f59e0b; border-radius: 3mm; background: #fef3c7; color: #92400e;">
+            🎮 الألعاب المطلوبة (${gamesList.reduce((sum, game) => sum + game.quantity, 0)} لعبة)
+          </div>
+          <div style="margin-top: 3mm;">
+            ${gamesList.map(game => `
+              <div style="border: 1px solid #e5e7eb; border-radius: 3mm; padding: 3mm; margin-bottom: 2mm; background: #f9fafb;">
+                <div style="font-size: 13px; font-weight: 700; margin-bottom: 1mm;">${game.name}</div>
+                <div style="font-size: 10px; color: #666; margin-bottom: 1mm;">المنصة: ${game.platform} | الكمية: ${game.quantity}</div>
+                <div style="font-size: 12px; font-weight: 600; color: #059669;">${game.price.toLocaleString()} دج</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- تفاصيل الدفع -->
+        <div style="border-top: 2px dashed black; margin: 4mm 0;"></div>
+        <div style="margin-bottom: 5mm;">
+          <div style="font-size: 16px; font-weight: 800; padding: 2mm; border: 2px solid #2563eb; border-radius: 3mm; background: #f0f9ff; color: #2563eb;">
+            💰 تفاصيل الدفع
+          </div>
+          <div style="border: 2px solid #e5e7eb; border-radius: 3mm; padding: 4mm; background: #f9fafb; margin-top: 3mm;">
+            <div style="margin-bottom: 3mm;">
+              <div style="font-size: 11px; color: #666;">السعر الإجمالي</div>
+              <div style="font-size: 16px; font-weight: 700; color: #059669;">${(selectedOrder.price || 0).toLocaleString()} دج</div>
+            </div>
+            <div style="margin-bottom: 3mm;">
+              <div style="font-size: 11px; color: #666;">المبلغ المدفوع</div>
+              <div style="font-size: 16px; font-weight: 700; color: #2563eb;">${(selectedOrder.amount_paid || 0).toLocaleString()} دج</div>
+            </div>
+            ${remainingAmount > 0 ? `
+            <div style="background: #fef2f2; border: 3px solid #dc2626; padding: 3mm; border-radius: 3mm; margin-top: 3mm;">
+              <div style="font-size: 11px; color: #7f1d1d;">المبلغ المتبقي المطلوب دفعه</div>
+              <div style="font-size: 18px; font-weight: 900; color: #dc2626;">${remainingAmount.toLocaleString()} دج</div>
+            </div>
+            ` : ''}
+          </div>
+        </div>
+
+        <!-- QR Code للتتبع -->
+        <div style="border-top: 2px dashed black; margin: 4mm 0;"></div>
+        <div style="margin-bottom: 5mm;">
+          <div style="font-size: 16px; font-weight: 800; padding: 2mm; border: 2px solid #059669; border-radius: 3mm; background: #ecfdf5; color: #059669;">
+            🔗 تتبع حالة الطلب
+          </div>
+          <div style="border: 3px solid #059669; border-radius: 4mm; padding: 4mm; background: #ecfdf5; margin-top: 3mm;">
+            <div style="margin-bottom: 3mm;">
+              <div style="display: block; margin: 0 auto; border: 2px solid black; border-radius: 2mm; padding: 2mm; background: white; width: fit-content;">
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(storeUrl + '/game-tracking/' + selectedOrder.tracking_number)}&format=png&margin=10&color=000000&bgcolor=ffffff" 
+                     alt="QR Code للتتبع" 
+                     style="display: block; width: 100px; height: 100px; margin: 0 auto; print-color-adjust: exact; -webkit-print-color-adjust: exact; color-adjust: exact;"
+                     onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'width: 100px; height: 100px; display: flex; align-items: center; justify-content: center; font-size: 10px; text-align: center; background: #f9f9f9; border: 1px dashed #ccc; color: #666;\\'>QR Code<br/>للتتبع</div>';" />
+              </div>
+            </div>
+            <div style="margin-top: 3mm;">
+              <div style="font-size: 11px; color: #666;">رقم التتبع</div>
+              <div style="font-size: 16px; font-weight: 900; color: #059669;">${selectedOrder.tracking_number}</div>
+            </div>
+            <div style="font-size: 10px; margin-top: 2mm; opacity: 0.8;">
+              امسح الكود أو اكتب الرقم لمتابعة حالة الطلب
+            </div>
+          </div>
+        </div>
+
+        <!-- خط القطع -->
+        <div style="margin: 8mm 0; border-top: 3px dashed black; position: relative;">
+          <div style="position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: white; padding: 0 5mm; font-size: 12px; font-weight: 700; border: 2px solid black; border-radius: 10px;">
+            ✂️ اقطع هنا
+          </div>
+        </div>
+
+        <!-- الجزء الإداري -->
+        <div style="margin-top: 8mm;">
+          <div style="font-size: 16px; font-weight: 800; padding: 2mm; border: 2px solid #dc2626; border-radius: 3mm; background: #fef2f2; color: #dc2626; margin-bottom: 5mm;">
+            🔧 إيصال المسؤول - معالجة الطلب
+          </div>
+
+          <!-- معلومات أساسية -->
+          <div style="border: 2px solid #dc2626; border-radius: 3mm; padding: 3mm; background: #fef2f2; margin-bottom: 4mm;">
+            <div style="margin-bottom: 3mm;">
+              <div style="font-size: 11px; color: #666;">رقم التتبع</div>
+              <div style="font-size: 16px; font-weight: 900; color: #dc2626;">${selectedOrder.tracking_number}</div>
+            </div>
+            <div>
+              <div style="font-size: 11px; color: #666;">العميل</div>
+              <div style="font-size: 14px; font-weight: 700;">${selectedOrder.customer_name} - ${selectedOrder.customer_phone}</div>
+            </div>
+          </div>
+
+          <!-- أكواد QR للمسؤول -->
+          <div style="margin-bottom: 5mm;">
+            <div style="font-size: 14px; font-weight: 800; margin-bottom: 4mm; color: #dc2626; text-align: center;">🔧 أكواد سريعة للمسؤول</div>
+            
+            <!-- QR لبدء التحميل -->
+            <div style="margin-bottom: 4mm;">
+              <div style="border: 3px solid #059669; padding: 4mm; border-radius: 4mm; background: #ecfdf5; width: 100%;">
+                <div style="font-size: 12px; margin-bottom: 3mm; font-weight: 800; color: #059669; text-align: center;">🚀 بدء التحميل</div>
+                <div style="display: block; margin: 0 auto; border: 2px solid black; padding: 2mm; background: white; width: fit-content;">
+                  <img src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(storeUrl + '/game-download-start/' + selectedOrder.id)}&format=png&margin=5&color=000000&bgcolor=ffffff" 
+                       alt="QR Code بدء التحميل" 
+                       style="display: block; width: 80px; height: 80px; margin: 0 auto; print-color-adjust: exact; -webkit-print-color-adjust: exact; color-adjust: exact;"
+                       onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; font-size: 10px; text-align: center; background: #f9f9f9; border: 1px dashed #ccc; color: #666;\\'>QR Code<br/>بدء التحميل</div>';" />
+                </div>
+                <div style="font-size: 10px; margin-top: 2mm; font-weight: 600; color: #059669; text-align: center; opacity: 0.8;">امسح لبدء تحميل الألعاب</div>
+              </div>
+            </div>
+            
+            <!-- QR لإنهاء الطلب -->
+            <div style="margin-bottom: 4mm;">
+              <div style="border: 3px solid #dc2626; padding: 4mm; border-radius: 4mm; background: #fef2f2; width: 100%;">
+                <div style="font-size: 12px; margin-bottom: 3mm; font-weight: 800; color: #dc2626; text-align: center;">✅ إنهاء الطلب</div>
+                <div style="display: block; margin: 0 auto; border: 2px solid black; padding: 2mm; background: white; width: fit-content;">
+                  <img src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(storeUrl + '/game-complete/' + selectedOrder.id)}&format=png&margin=5&color=000000&bgcolor=ffffff" 
+                       alt="QR Code إنهاء الطلب" 
+                       style="display: block; width: 80px; height: 80px; margin: 0 auto; print-color-adjust: exact; -webkit-print-color-adjust: exact; color-adjust: exact;"
+                       onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; font-size: 10px; text-align: center; background: #f9f9f9; border: 1px dashed #ccc; color: #666;\\'>QR Code<br/>إنهاء الطلب</div>';" />
+                </div>
+                <div style="font-size: 10px; margin-top: 2mm; font-weight: 600; color: #dc2626; text-align: center; opacity: 0.8;">امسح عند إنهاء الطلب</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- قائمة الألعاب للمسؤول -->
+          <div style="margin-bottom: 4mm;">
+            <div style="font-size: 12px; font-weight: 700; margin-bottom: 3mm;">📝 قائمة الألعاب للتحميل</div>
+            <div style="border: 2px solid #e5e7eb; border-radius: 3mm; padding: 3mm; background: #f9fafb;">
+              ${gamesList.map((game, index) => `
+                <div style="border-bottom: ${index < gamesList.length - 1 ? '1px dashed #ccc' : 'none'}; padding-bottom: 2mm; margin-bottom: ${index < gamesList.length - 1 ? '2mm' : '0'};">
+                  <div style="font-size: 11px; font-weight: 700;">${index + 1}. ${game.name}</div>
+                  <div style="font-size: 9px; color: #666;">${game.platform} | الكمية: ${game.quantity}</div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- مساحة للملاحظات -->
+          <div style="margin-bottom: 4mm;">
+            <div style="font-size: 12px; font-weight: 700; margin-bottom: 3mm;">📝 ملاحظات المسؤول</div>
+            <div style="border: 2px dashed #ccc; border-radius: 3mm; padding: 6mm; background: white; min-height: 15mm;">
+              <div style="font-size: 9px; color: #999; font-style: italic;">مساحة للملاحظات والتوقيع...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
   };
 
   const getStatusBadge = (status: string) => {
@@ -1103,36 +1254,44 @@ export default function GameOrdersManagement() {
           </DialogHeader>
           
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => printReceipt('admin')}>
+            <div className="grid grid-cols-1 gap-4">
+              <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => printAdvancedReceipt()}>
                 <CardContent className="p-6 text-center">
-                  <FileText className="h-12 w-12 mx-auto mb-3 text-blue-600" />
-                  <h3 className="font-semibold mb-2">وصل إداري</h3>
-                  <p className="text-sm text-muted-foreground">
-                    يحتوي على جميع التفاصيل الإدارية والمالية
+                  <div className="flex items-center justify-center gap-3 mb-4">
+                    <QrCode className="h-12 w-12 text-primary" />
+                    <Printer className="h-12 w-12 text-green-600" />
+                  </div>
+                  <h3 className="font-semibold mb-2 text-lg">🎮 وصل طلب الألعاب المطور</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    وصل شامل مع QR codes ونظام طابور متقدم
                   </p>
-                  <ul className="text-xs text-muted-foreground mt-2 space-y-1">
-                    <li>• حالة الدفع والمبالغ</li>
-                    <li>• معلومات الجهاز</li>
-                    <li>• ملاحظات العميل</li>
-                    <li>• المسؤول عن الطلب</li>
-                  </ul>
-                </CardContent>
-              </Card>
-
-              <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => printReceipt('customer')}>
-                <CardContent className="p-6 text-center">
-                  <Printer className="h-12 w-12 mx-auto mb-3 text-green-600" />
-                  <h3 className="font-semibold mb-2">وصل العميل</h3>
-                  <p className="text-sm text-muted-foreground">
-                    وصل مبسط للعميل يحتوي على المعلومات الأساسية
-                  </p>
-                  <ul className="text-xs text-muted-foreground mt-2 space-y-1">
-                    <li>• تفاصيل الألعاب والأسعار</li>
-                    <li>• معلومات الاتصال</li>
-                    <li>• رقم التتبع</li>
-                    <li>• حالة الطلب</li>
-                  </ul>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-muted-foreground">
+                    <div className="space-y-2">
+                      <h4 className="font-semibold text-green-600">🧾 جزء العميل:</h4>
+                      <ul className="space-y-1 text-left">
+                        <li>• رقم التتبع مع QR code</li>
+                        <li>• موقع في الطابور</li>
+                        <li>• تفاصيل الألعاب المطلوبة</li>
+                        <li>• معلومات الدفع والمتبقي</li>
+                        <li>• شروط الخدمة</li>
+                      </ul>
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="font-semibold text-red-600">🔧 جزء المسؤول:</h4>
+                      <ul className="space-y-1 text-left">
+                        <li>• QR code لبدء التحميل</li>
+                        <li>• QR code لإنهاء الطلب</li>
+                        <li>• قائمة الألعاب للتحميل</li>
+                        <li>• مساحة للملاحظات</li>
+                        <li>• معلومات إدارية</li>
+                      </ul>
+                    </div>
+                  </div>
+                  <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                    <p className="text-sm font-medium text-blue-800">
+                      ✂️ يحتوي على خط قطع لفصل الجزأين
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
             </div>

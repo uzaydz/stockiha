@@ -342,10 +342,10 @@ const fetchPOSOrders = async (
         query = query.eq('customer_id', filters.customer_id);
       }
       if (filters.date_from) {
-        query = query.gte('created_at', filters.date_from);
+        query = query.filter('created_at', 'gte', filters.date_from);
       }
       if (filters.date_to) {
-        query = query.lte('created_at', filters.date_to);
+        query = query.filter('created_at', 'lte', filters.date_to);
       }
 
       // تطبيق pagination
@@ -590,10 +590,10 @@ const fetchPOSOrdersOptimized = async (
         query = query.eq('customer_id', filters.customer_id);
       }
       if (filters.date_from) {
-        query = query.gte('created_at', filters.date_from);
+        query = query.filter('created_at', 'gte', filters.date_from);
       }
       if (filters.date_to) {
-        query = query.lte('created_at', filters.date_to);
+        query = query.filter('created_at', 'lte', filters.date_to);
       }
 
       // تطبيق pagination
@@ -814,8 +814,8 @@ const fetchOrderDetails = async (orderId: string): Promise<any[]> => {
             `)
             .eq('transaction_type', 'sale')
             .eq('processed_by', orderInfo.employee_id)
-            .gte('transaction_date', startTime.toISOString())
-            .lte('transaction_date', endTime.toISOString())
+            .filter('transaction_date', 'gte', startTime.toISOString())
+            .filter('transaction_date', 'lte', endTime.toISOString())
             .order('transaction_date');
 
           if (!subsError && subscriptions) {
@@ -1221,8 +1221,8 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
             .from('subscription_transactions')
             .delete()
             .eq('processed_by', orderData.employee_id)
-            .gte('transaction_date', startTime.toISOString())
-            .lte('transaction_date', endTime.toISOString());
+            .filter('transaction_date', 'gte', startTime.toISOString())
+            .filter('transaction_date', 'lte', endTime.toISOString());
 
           if (subscriptionError) {
             // نتابع حتى لو فشل حذف معاملات الاشتراك

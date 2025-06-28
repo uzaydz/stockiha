@@ -333,8 +333,8 @@ export default function PublicGameStore({ organizationId }: PublicGameStoreProps
           .select('tracking_number, game:games_catalog(name)')
           .eq('organization_id', organizationId)
           .eq('customer_phone', data.customer_phone)
-          .gte('created_at', startOfDay.toISOString())
-          .lte('created_at', endOfDay.toISOString())
+          .filter('created_at', 'gte', startOfDay.toISOString())
+          .filter('created_at', 'lte', endOfDay.toISOString())
           .neq('tracking_number', trackingNumber);
 
         if (relatedOrders && relatedOrders.length > 0) {

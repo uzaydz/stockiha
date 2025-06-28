@@ -237,10 +237,10 @@ const ProductReturns: React.FC = () => {
 
       // فلتر التاريخ
       if (dateRange.from) {
-        query = query.gte('created_at', dateRange.from);
+        query = query.filter('created_at', 'gte', dateRange.from);
       }
       if (dateRange.to) {
-        query = query.lte('created_at', dateRange.to + 'T23:59:59');
+        query = query.filter('created_at', 'lte', dateRange.to + 'T23:59:59');
       }
 
       const { data, error } = await query

@@ -90,8 +90,8 @@ export default function GameDownloadsStats() {
         .from('game_download_orders')
         .select('*, game:games_catalog(name, platform)')
         .eq('organization_id', organizationId)
-        .gte('created_at', startDate.toISOString())
-        .lte('created_at', endDate.toISOString());
+        .filter('created_at', 'gte', startDate.toISOString())
+        .filter('created_at', 'lte', endDate.toISOString());
 
       if (ordersError) throw ordersError;
 
