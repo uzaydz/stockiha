@@ -173,8 +173,33 @@ export const clearPermissionsCache = () => {
     localStorage.removeItem(PERMISSIONS_CACHE_KEY);
     localStorage.removeItem(SUBSCRIPTION_CACHE_KEY);
     localStorage.removeItem(CACHE_EXPIRY_KEY);
+    console.log('🗑️ تم مسح التخزين المؤقت للصلاحيات');
     return true;
   } catch (error) {
+    console.error('خطأ في مسح التخزين المؤقت:', error);
+    return false;
+  }
+};
+
+/**
+ * مسح شامل لجميع بيانات التخزين المؤقت المتعلقة بالتطبيق
+ */
+export const clearAllCache = () => {
+  try {
+    // مسح جميع مفاتيح التطبيق
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(CACHE_PREFIX)) {
+        keysToRemove.push(key);
+      }
+    }
+    
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    console.log('🗑️ تم مسح جميع البيانات المؤقتة للتطبيق');
+    return true;
+  } catch (error) {
+    console.error('خطأ في مسح جميع البيانات المؤقتة:', error);
     return false;
   }
 };

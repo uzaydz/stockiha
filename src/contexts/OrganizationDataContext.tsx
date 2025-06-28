@@ -49,21 +49,7 @@ const fetchOrganizationSettings = async (organizationId: string) => {
 
 const fetchOrganizationSubscriptions = async (organizationId: string) => {
   
-  // أولاً: جلب جميع الاشتراكات لمعرفة الوضع الحقيقي
-  const { data: allSubscriptions, error: allError } = await supabase
-    .from('organization_subscriptions')
-    .select(`
-      *,
-      plan:plan_id(id, name, code)
-    `)
-    .eq('organization_id', organizationId)
-    .order('created_at', { ascending: false });
-  
-  if (allError) {
-  } else {
-  }
-  
-  // ثانياً: جلب الاشتراكات النشطة والتجريبية فقط
+  // جلب الاشتراكات النشطة والتجريبية التي لم تنته صلاحيتها
   const { data, error } = await supabase
     .from('organization_subscriptions')
     .select(`
@@ -72,10 +58,19 @@ const fetchOrganizationSubscriptions = async (organizationId: string) => {
     `)
     .eq('organization_id', organizationId)
     .or('status.eq.active,status.eq.trial')
+    .gte('end_date', new Date().toISOString())
     .order('created_at', { ascending: false });
   
   if (error) {
+    console.error('خطأ في جلب الاشتراكات:', error);
     throw error;
+  }
+
+  // إضافة لوغ للتشخيص
+  if (data && data.length > 0) {
+    console.log('✅ تم جلب الاشتراكات النشطة:', data);
+  } else {
+    console.log('⚠️ لم يتم العثور على اشتراكات نشطة');
   }
 
   return data || [];
