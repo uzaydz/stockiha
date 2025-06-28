@@ -92,4 +92,4 @@ export function detectDomainType(hostname: string): {
  */
 export function getThemeStorageKey(hostname: string): string {
   return `org_theme_${hostname}`;
-} 
+}

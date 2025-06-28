@@ -3,7 +3,7 @@
  * يتدخل في جميع طلبات HTTP ويمنع الطلبات المكررة بذكاء
  */
 
-import { consoleManager } from './console-manager';
+// تم إزالة console-manager - نستخدم console عادي
 
 // أنواع الطلبات المختلفة
 type RequestType = 'auth' | 'data' | 'api' | 'other';
@@ -501,7 +501,6 @@ const enhancedFetch = async function(input: RequestInfo | URL, init?: RequestIni
       url.includes('/functions/v1/shipping') ||
       url.includes('yalidine') ||
       url.includes('/api/yalidine')) {
-    console.log('🚀 Bypassing deduplication for shipping request:', url);
     return originalFetch.call(this, input, init);
   }
   
@@ -665,7 +664,6 @@ XMLHttpRequest.prototype.send = function(body?: Document | XMLHttpRequestBodyIni
         url.includes('/functions/v1/shipping') ||
         url.includes('yalidine') ||
         url.includes('/api/yalidine')) {
-      console.log('🚀 Bypassing XHR deduplication for shipping request:', url);
       return originalXHRSend.call(this, body);
     }
     

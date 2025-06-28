@@ -341,17 +341,6 @@ export default function YalidineSettings() {
     setTestResult(null);
 
     try {
-      console.log('Starting connection test for provider: yalidine');
-      console.log('Creating shipping service for: yalidine');
-      console.log('Testing credentials...');
-      console.log('UI values:', {
-        apiToken: apiToken,
-        apiKey: apiKey
-      });
-      console.log('Passing to service:', {
-        token: apiKey,
-        key: apiToken
-      });
 
       // Create an instance of the shipping service with Yalidine provider
       // تصحيح ترتيب البيانات: apiKey هو الرقم القصير (API ID) و apiToken هو الرمز الطويل (API TOKEN)
@@ -361,13 +350,10 @@ export default function YalidineSettings() {
       );
       
       // Test the credentials
-      console.log('Calling testCredentials...');
       const result = await shippingService.testCredentials();
-      console.log('Test result:', result);
       
       // إذا فشل الاختبار، جرب طريقة بديلة باستخدام Vite proxy
       if (!result.success && apiToken && apiKey) {
-        console.log('Primary test failed, trying Vite proxy fallback...');
         try {
           const proxyResponse = await fetch('/yalidine-api/wilayas', {
             method: 'GET',
@@ -382,7 +368,6 @@ export default function YalidineSettings() {
           if (proxyResponse.ok) {
             const data = await proxyResponse.json();
             if (Array.isArray(data) && data.length > 0) {
-              console.log('Vite proxy test successful');
               setTestResult({
                 success: true,
                 message: 'تم الاتصال بنجاح بخدمة ياليدين (عبر الوسيط المحلي)'
@@ -400,7 +385,6 @@ export default function YalidineSettings() {
             }
           }
         } catch (proxyError) {
-          console.error('Vite proxy test also failed:', proxyError);
         }
       }
       
@@ -411,7 +395,6 @@ export default function YalidineSettings() {
       
       // If the test was successful, automatically save the settings
       if (result.success) {
-        console.log('Test successful, saving settings...');
         await handleSaveSettings({
           is_enabled: isEnabled,
           api_token: apiToken,
@@ -421,7 +404,6 @@ export default function YalidineSettings() {
         });
       }
     } catch (error) {
-      console.error('Connection test error:', error);
       const errorMessage = error instanceof Error ? error.message : 'خطأ غير معروف';
       
       setTestResult({
@@ -430,7 +412,6 @@ export default function YalidineSettings() {
       });
     } finally {
       setIsTesting(false);
-      console.log('Connection test finished');
     }
   };
 

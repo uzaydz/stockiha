@@ -1,6 +1,6 @@
 // Performance Tracker - تتبع أداء الصفحات والمكونات
 import { networkInterceptor } from './network-interceptor';
-import { consoleManager } from '@/lib/console-manager';
+// تم إزالة console-manager - نستخدم console عادي
 
 export interface PerformanceMetric {
   id: string;
@@ -88,7 +88,6 @@ class PerformanceTracker {
         resourceObserver.observe({ entryTypes: ['resource'] });
         this.observers.set('resource', resourceObserver);
       } catch (e) {
-        consoleManager.warn('Resource observer not supported');
       }
 
       // Observer للـ LCP
@@ -101,7 +100,6 @@ class PerformanceTracker {
         lcpObserver.observe({ entryTypes: ['largest-contentful-paint'] });
         this.observers.set('lcp', lcpObserver);
       } catch (e) {
-        consoleManager.warn('LCP observer not supported');
       }
 
       // Observer للـ FID
@@ -117,7 +115,6 @@ class PerformanceTracker {
         fidObserver.observe({ entryTypes: ['first-input'] });
         this.observers.set('fid', fidObserver);
       } catch (e) {
-        consoleManager.warn('FID observer not supported');
       }
 
       // Observer للـ CLS
@@ -135,7 +132,6 @@ class PerformanceTracker {
         clsObserver.observe({ entryTypes: ['layout-shift'] });
         this.observers.set('cls', clsObserver);
       } catch (e) {
-        consoleManager.warn('CLS observer not supported');
       }
     }
   }

@@ -61,7 +61,7 @@ class MemoryAnalyzer {
   private initializeTracking() {
     // التحقق من دعم Memory API
     if (!this.isMemoryAPISupported()) {
-      consoleManager.warn('Memory API not supported in this browser');
+      console.warn('Memory API not supported in this browser');
       return;
     }
 
@@ -89,7 +89,7 @@ class MemoryAnalyzer {
     // مراقبة تسريبات Event Listeners
     this.monitorEventListeners();
     
-    consoleManager.log('Memory tracking started');
+    console.log('Memory tracking started');
   }
 
   stopTracking() {
@@ -102,7 +102,7 @@ class MemoryAnalyzer {
       this.trackingInterval = undefined;
     }
     
-    consoleManager.log('Memory tracking stopped');
+    console.log('Memory tracking stopped');
   }
 
   takeSnapshot(metadata?: Partial<MemorySnapshot>): MemorySnapshot {
@@ -588,7 +588,7 @@ class MemoryAnalyzer {
         });
       }, 100);
     } else {
-      consoleManager.warn('Garbage collection not available. Use Chrome DevTools for manual GC.');
+      console.warn('Garbage collection not available. Use Chrome DevTools for manual GC.');
     }
   }
 }
@@ -603,7 +603,7 @@ if (process.env.NODE_ENV === 'development') {
 
 // React Hook لتتبع ذاكرة المكونات
 import React from 'react';
-import { consoleManager } from '@/lib/console-manager';
+// تم إزالة console-manager - نستخدم console عادي
 
 export function useMemoryTracking(componentName: string) {
   const mountTime = React.useRef<number>(Date.now());

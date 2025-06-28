@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { consoleManager } from '@/lib/console-manager';
+// تم إزالة console-manager - نستخدم console عادي
 import { toast } from 'sonner';
 import { 
   getInventoryProductsPaginated,
@@ -173,7 +173,6 @@ export function useInventoryAdvanced(
           const results = await searchInventoryAutocomplete(state.searchQuery, 10);
           setState(prev => ({ ...prev, autocompleteResults: results }));
         } catch (error) {
-          consoleManager.error('Autocomplete search failed:', error);
         }
       };
 
@@ -266,7 +265,7 @@ export function useInventoryAdvanced(
     } catch (error: any) {
       if (error.name === 'AbortError') return;
       
-      consoleManager.error('Error loading products:', error);
+      console.error('Error loading products:', error);
       setState(prev => ({
         ...prev,
         isLoading: false,
@@ -284,7 +283,7 @@ export function useInventoryAdvanced(
       const stats = await getInventoryAdvancedStats();
       setState(prev => ({ ...prev, stats }));
     } catch (error) {
-      consoleManager.error('Error loading stats:', error);
+      console.error('Error loading stats:', error);
     }
   }, []);
 
@@ -384,7 +383,7 @@ export function useInventoryAdvanced(
       
       toast.success('تم تصدير البيانات بنجاح');
     } catch (error) {
-      consoleManager.error('Export error:', error);
+      console.error('Export error:', error);
       toast.error('حدث خطأ أثناء تصدير البيانات');
     }
   }, [state.filters]);

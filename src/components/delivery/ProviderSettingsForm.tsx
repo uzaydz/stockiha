@@ -151,7 +151,6 @@ export default function ProviderSettingsForm({
   };
 
   const testConnection = async () => {
-    console.log('Starting connection test for provider:', provider.code);
     
     // For Ecotrack providers, only token is required
     const isEcotrackProvider = ['ecotrack', 'anderson_delivery', 'areex', 'ba_consult', 'conexlog', 'coyote_express', 'dhd', 'distazero', 'e48hr_livraison', 'fretdirect', 'golivri', 'mono_hub', 'msm_go', 'imir_express', 'packers', 'prest', 'rb_livraison', 'rex_livraison', 'rocket_delivery', 'salva_delivery', 'speed_delivery', 'tsl_express', 'worldexpress'].includes(provider.code.toLowerCase());
@@ -264,7 +263,6 @@ export default function ProviderSettingsForm({
       }
 
       // Create shipping service instance for testing
-      console.log('Creating shipping service for:', providerEnum);
       
       const shippingService = createShippingService(providerEnum, {
         token: apiToken.trim(),
@@ -272,9 +270,7 @@ export default function ProviderSettingsForm({
       });
 
       // Test credentials
-      console.log('Testing credentials...');
       const result = await shippingService.testCredentials();
-      console.log('Test result:', result);
 
       setTestResult({
         success: result.success,
@@ -289,7 +285,6 @@ export default function ProviderSettingsForm({
       });
 
     } catch (error) {
-      console.error('Test connection error:', error);
       
       const errorMessage = error instanceof Error ? error.message : 'خطأ غير معروف';
       

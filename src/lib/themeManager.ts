@@ -109,16 +109,12 @@ function applyThemeToDOM(theme: UnifiedTheme): void {
   
   // التحقق من نوع الصفحة
   const pageType = getCurrentPageType();
-  
-  console.log('🔍 [applyThemeToDOM] نوع الصفحة:', pageType, 'معرف المؤسسة:', theme.organizationId);
-  
+
   // إذا كانت الصفحة العامة، نستخدم الثيم العام دائماً
   // لكن فقط إذا لم يكن هناك معرف مؤسسة
   if (pageType === 'global' && !theme.organizationId) {
-    console.log('🌐 [applyThemeToDOM] تطبيق الثيم العام');
     theme = getStoredTheme('global') || DEFAULT_GLOBAL_THEME;
   } else if (pageType === 'store' && theme.organizationId) {
-    console.log('🏪 [applyThemeToDOM] تطبيق ثيم المتجر للمؤسسة:', theme.organizationId);
   }
 
   // حفظ مفتاح الثيم الحالي
@@ -131,12 +127,6 @@ function applyThemeToDOM(theme: UnifiedTheme): void {
     const primaryHSL = isHSLColor(theme.primaryColor) 
       ? theme.primaryColor 
       : hexToHSL(theme.primaryColor);
-
-    console.log('🎨 [applyThemeToDOM] تطبيق اللون الأساسي:', {
-      original: theme.primaryColor,
-      converted: primaryHSL,
-      organizationId: theme.organizationId
-    });
 
     // تطبيق اللون الأساسي على جميع العناصر الممكنة
     const elementsToUpdate = [root, document.body];
@@ -387,16 +377,13 @@ function getOrganizationIdSync(): string | null {
   // أولاً، التحقق من التخزين المحلي
   const storedOrgId = localStorage.getItem(THEME_CONFIG.STORAGE_KEYS.ORGANIZATION_ID);
   if (storedOrgId) {
-    console.log('✅ [getOrganizationIdSync] معرف المؤسسة من التخزين:', storedOrgId);
     return storedOrgId;
   }
   
   // ثانياً، محاولة استخراج من النطاق
   const hostname = window.location.hostname;
   const domainInfo = detectDomainType(hostname);
-  
-  console.log('🔍 [getOrganizationIdSync] معلومات النطاق:', domainInfo);
-  
+
   if (domainInfo.type === 'store' && domainInfo.subdomain) {
     // حفظ النطاق الفرعي للاستخدام لاحقاً
     localStorage.setItem(THEME_CONFIG.STORAGE_KEYS.CURRENT_SUBDOMAIN, domainInfo.subdomain);
@@ -404,17 +391,14 @@ function getOrganizationIdSync(): string | null {
     // للنطاق الفرعي dalelousc1samag، نرجع المعرف المعروف
     if (domainInfo.subdomain === 'dalelousc1samag') {
       const orgId = 'b87869bc-a69e-4310-a67a-81c2ab927faf';
-      console.log('🎯 [getOrganizationIdSync] معرف المؤسسة للنطاق الفرعي:', orgId);
       // حفظ المعرف في التخزين المحلي للمرات القادمة
       localStorage.setItem(THEME_CONFIG.STORAGE_KEYS.ORGANIZATION_ID, orgId);
       return orgId;
     }
     
-    console.log('⚠️ [getOrganizationIdSync] نطاق فرعي غير معروف:', domainInfo.subdomain);
     return null; // سنحتاج لجلب معرف المؤسسة لاحقاً
   }
   
-  console.log('❌ [getOrganizationIdSync] لم يتم العثور على معرف المؤسسة');
   return null;
 }
 
@@ -580,7 +564,6 @@ export function applyInstantTheme(): void {
     
     // إذا لم نجد ثيم المؤسسة، نحاول استرجاعه من قاعدة البيانات
     if (!theme) {
-      console.log('⚠️ [applyInstantTheme] لم يتم العثور على ثيم محفوظ، معرف المؤسسة:', orgId);
       
       // محاولة استرجاع الثيم من قاعدة البيانات باستخدام معرف المؤسسة
       if (orgId) {
@@ -593,14 +576,12 @@ export function applyInstantTheme(): void {
             organizationId: orgId,
             lastUpdated: Date.now()
           };
-          console.log('🎯 [applyInstantTheme] تطبيق الثيم الصحيح من قاعدة البيانات:', theme.primaryColor);
         } else {
           // للمؤسسات الأخرى، استخدم الثيم الافتراضي
           theme = {
             ...DEFAULT_STORE_THEME,
             organizationId: orgId
           };
-          console.log('🔄 [applyInstantTheme] استخدام الثيم الافتراضي للمؤسسة:', orgId);
         }
       } else {
         theme = DEFAULT_STORE_THEME;
@@ -614,7 +595,6 @@ export function applyInstantTheme(): void {
     
   } else {
     // للموقع العام، نستخدم الثيم العام دائماً
-    console.log('🌐 [applyInstantTheme] تطبيق الثيم العام للصفحة العامة');
     theme = DEFAULT_GLOBAL_THEME;
   }
   
@@ -625,13 +605,7 @@ export function applyInstantTheme(): void {
       delete theme.organizationId;
       delete theme.subdomain;
     }
-    
-    console.log('🚀 [applyInstantTheme] تطبيق الثيم النهائي:', {
-      primaryColor: theme.primaryColor,
-      organizationId: theme.organizationId,
-      pageType
-    });
-    
+
     applyThemeToDOM(theme);
     
     // حفظ الثيم في التخزين المحلي للاستخدام المستقبلي

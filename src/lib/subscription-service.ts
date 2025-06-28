@@ -407,7 +407,6 @@ export const SubscriptionService = {
     status: 'trial' | 'active' | 'expired';
     message: string;
   }> {
-    console.log('[SubscriptionService] بدء حساب الأيام المتبقية للمؤسسة:', organizationData?.id);
     
     let trialDaysLeft = 0;
     let subscriptionDaysLeft = 0;
@@ -416,30 +415,20 @@ export const SubscriptionService = {
 
     // أولاً: التحقق من وجود اشتراك نشط باستخدام RPC function
     try {
-      console.log('[SubscriptionService] جلب الاشتراك من قاعدة البيانات للمؤسسة:', organizationData.id);
       
       // استخدام RPC function للحصول على بيانات الاشتراك (تتجاوز RLS policies)
       const { data: subscriptionData, error } = await supabase.rpc('get_organization_subscription_details', {
         org_id: organizationData.id
       });
 
-      console.log('[SubscriptionService] نتيجة جلب الاشتراكات:', { subscriptionData, error });
-
       // التحقق من وجود اشتراك نشط صحيح
       if (error) {
-        console.error('[SubscriptionService] خطأ في جلب الاشتراكات:', error);
       } else if (subscriptionData && subscriptionData.subscription_id) {
         const endDate = new Date(subscriptionData.end_date);
         const now = new Date();
         
         if (endDate > now && subscriptionData.status === 'active') {
           subscriptionDaysLeft = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-          
-          console.log('[SubscriptionService] تم العثور على اشتراك نشط:', {
-            subscription_id: subscriptionData.subscription_id,
-            end_date: subscriptionData.end_date,
-            subscriptionDaysLeft
-          });
 
           // إذا كان هناك اشتراك نشط، فهو الأولوية
           return {
@@ -451,10 +440,8 @@ export const SubscriptionService = {
           };
         }
       } else {
-        console.log('[SubscriptionService] لم يتم العثور على اشتراكات نشطة - البيانات:', subscriptionData);
       }
     } catch (error) {
-      console.error('[SubscriptionService] خطأ في جلب بيانات الاشتراك:', error);
     }
 
     // ثانياً: حساب أيام الفترة التجريبية إذا لم يكن هناك اشتراك نشط
@@ -468,10 +455,6 @@ export const SubscriptionService = {
       if (trialEndDateOnly >= nowDateOnly) {
         trialDaysLeft = Math.ceil((trialEndDateOnly.getTime() - nowDateOnly.getTime()) / (1000 * 60 * 60 * 24));
         
-        console.log('[SubscriptionService] حساب الفترة التجريبية من settings:', {
-          trial_end_date: organizationData.settings.trial_end_date,
-          trialDaysLeft
-        });
       }
     }
 
@@ -495,7 +478,6 @@ export const SubscriptionService = {
       message
     };
 
-    console.log('[SubscriptionService] النتيجة النهائية:', result);
     return result;
   },
 
@@ -519,13 +501,11 @@ export const SubscriptionService = {
         .single();
 
       if (error) {
-        console.log('[SubscriptionService] لا يوجد اشتراك نشط:', error.message);
         return null;
       }
 
       return data;
     } catch (error) {
-      console.error('[SubscriptionService] خطأ في جلب الاشتراك المباشر:', error);
       return null;
     }
   }

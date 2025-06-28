@@ -1,0 +1,58 @@
+# استبعاد مجلد النسخ الاحتياطية
+backups/
+
+# استبعاد مجلد node_modules
+node_modules/
+
+# استبعاد ملفات قاعدة البيانات والمايجريشن في الجذر فقط
+/database/
+/migrations/
+/sql/
+/sql_migrations/
+/db/
+
+# استبعاد مجلد الوثائق في الجذر فقط (وليس src/pages/docs)
+/docs/
+
+# استبعاد ملفات SQL
+*.sql
+
+# استبعاد ملفات التطوير
+*.bak
+*.backup
+
+# استبعاد ملفات Git
+.git/
+.gitignore
+
+# استبعاد ملفات IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# استبعاد ملفات النظام
+.DS_Store
+Thumbs.db
+
+# استبعاد ملفات اللوج
+*.log
+
+# استبعاد الملفات المؤقتة
+*.tmp
+*.temp
+
+# استبعاد ملفات التغطية
+coverage/
+
+# استبعاد ملفات الاختبار
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+
+# استبعاد ملفات البيئة المحلية
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local 

@@ -51,12 +51,6 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
   const { t } = useTranslation();
   
   // تسجيل معلومات التشخيص
-  console.log('🏪 [StorePage] تحميل صفحة المتجر:', {
-    currentSubdomain,
-    organizationId: currentOrganization?.id,
-    hostname: window.location.hostname,
-    initialStoreData: !!initialStoreData && Object.keys(initialStoreData).length > 0
-  });
   const [storeSettings, setStoreSettings] = useState<any>(null);
   const [dataLoading, setDataLoading] = useState(true);
   const [storeData, setStoreData] = useState<Partial<StoreInitializationData> | null>(initialStoreData && Object.keys(initialStoreData).length > 0 ? initialStoreData : null);
@@ -133,11 +127,9 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
 
   useEffect(() => {
     if (currentSubdomain) {
-      console.log('🎨 [StorePage] تطبيق الثيم للنطاق الفرعي:', currentSubdomain);
       
       // إذا كانت البيانات متاحة، طبق الثيم فوراً
       if (storeSettings && currentOrganization?.id) {
-        console.log('🎯 [StorePage] تطبيق الثيم من الإعدادات المحملة');
         applyOrganizationThemeWithRetry(currentOrganization.id, {
           theme_primary_color: storeSettings.theme_primary_color,
           theme_secondary_color: storeSettings.theme_secondary_color,

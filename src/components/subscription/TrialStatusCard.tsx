@@ -41,16 +41,12 @@ const TrialStatusCard: React.FC<TrialStatusCardProps> = ({ onSelectPlan }) => {
 
     const calculateDays = async () => {
       setIsLoading(true);
-      console.log('[TrialStatusCard] بدء حساب الأيام المتبقية...');
-      console.log('[TrialStatusCard] بيانات المؤسسة:', organization);
       
       try {
         const result = await SubscriptionService.calculateTotalDaysLeft(
           organization as unknown as OrganizationWithSettings,
           null // سنجلب الاشتراك من داخل الدالة
         );
-
-        console.log('[TrialStatusCard] نتيجة حساب الأيام:', result);
 
         setDaysLeft(result.totalDaysLeft);
         setTrialDaysLeft(result.trialDaysLeft);
@@ -72,16 +68,7 @@ const TrialStatusCard: React.FC<TrialStatusCardProps> = ({ onSelectPlan }) => {
           setProgress(100);
         }
 
-        console.log('[TrialStatusCard] تم تحديث الحالة:', {
-          status: result.status,
-          totalDaysLeft: result.totalDaysLeft,
-          trialDaysLeft: result.trialDaysLeft,
-          subscriptionDaysLeft: result.subscriptionDaysLeft,
-          message: result.message
-        });
-
       } catch (error) {
-        console.error('[TrialStatusCard] خطأ في حساب الأيام المتبقية:', error);
         setStatus('expired');
         setMessage('خطأ في حساب الأيام المتبقية');
       } finally {

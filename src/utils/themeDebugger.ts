@@ -2,18 +2,12 @@
 export function debugThemeIssues() {
   const hostname = window.location.hostname;
   const pathname = window.location.pathname;
-  
-  console.log('🔍 تشخيص الثيم:');
-  console.log('النطاق:', hostname);
-  console.log('المسار:', pathname);
-  
+
   // فحص النطاق الفرعي
   if (hostname.includes('localhost')) {
     const parts = hostname.split('.');
     if (parts.length > 1 && parts[0] !== 'www' && parts[0] !== 'localhost') {
-      console.log('✅ تم اكتشاف نطاق فرعي في localhost:', parts[0]);
     } else {
-      console.log('❌ لم يتم اكتشاف نطاق فرعي في localhost');
     }
   }
   
@@ -22,20 +16,12 @@ export function debugThemeIssues() {
   const subdomain = localStorage.getItem('bazaar_current_subdomain');
   const orgTheme = localStorage.getItem('bazaar_org_theme');
   const hostTheme = localStorage.getItem(`org_theme_${hostname}`);
-  
-  console.log('معرف المؤسسة المحفوظ:', orgId);
-  console.log('النطاق الفرعي المحفوظ:', subdomain);
-  console.log('ثيم المؤسسة:', orgTheme ? JSON.parse(orgTheme) : null);
-  console.log('ثيم النطاق:', hostTheme ? JSON.parse(hostTheme) : null);
-  
+
   // فحص الألوان المطبقة حالياً
   const root = document.documentElement;
   const primaryColor = getComputedStyle(root).getPropertyValue('--primary');
   const secondaryColor = getComputedStyle(root).getPropertyValue('--secondary');
-  
-  console.log('اللون الأساسي المطبق:', primaryColor);
-  console.log('اللون الثانوي المطبق:', secondaryColor);
-  
+
   return {
     hostname,
     pathname,
@@ -95,7 +81,6 @@ export function applyTestTheme(color: string = '#fb923c') {
   }
   
   const hslColor = hexToHSL(color);
-  console.log('🎨 تطبيق لون اختباري:', color, '->', hslColor);
   
   root.style.setProperty('--primary', hslColor, 'important');
   root.style.setProperty('--ring', hslColor, 'important');
@@ -107,4 +92,4 @@ export function applyTestTheme(color: string = '#fb923c') {
 if (typeof window !== 'undefined') {
   (window as any).debugTheme = debugThemeIssues;
   (window as any).testTheme = applyTestTheme;
-} 
+}

@@ -96,11 +96,9 @@ export default defineConfig(({ command, mode }) => {
             
             if (apiId) {
               proxyReq.setHeader('X-API-ID', apiId);
-              console.log('Proxy: Setting X-API-ID header');
             }
             if (apiToken) {
               proxyReq.setHeader('X-API-TOKEN', apiToken);
-              console.log('Proxy: Setting X-API-TOKEN header');
             }
             
             proxyReq.setHeader('Content-Type', 'application/json');
@@ -111,10 +109,6 @@ export default defineConfig(({ command, mode }) => {
             proxyReq.removeHeader('referer');
             proxyReq.removeHeader('host');
             
-            console.log('Proxy request headers:', {
-              'X-API-ID': apiId ? '***' : 'missing',
-              'X-API-TOKEN': apiToken ? '***' : 'missing'
-            });
           },
           configure: (proxy: any, _options: any) => {
             proxy.on('error', (err: any, req: any, res: any) => {

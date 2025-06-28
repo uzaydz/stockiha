@@ -1,17 +1,16 @@
 // تكوين أداء تلقائي - تم إنشاؤه بواسطة apply-performance-fixes.js
 import { unifiedCache } from '@/lib/unified-cache-system';
-import { consoleManager } from '@/lib/console-manager';
 import { PerformanceCleanupManager } from '@/lib/performance-cleanup';
 
 // تفعيل الأنظمة عند بدء التطبيق
 export function initPerformanceSystems() {
   
   try {
-    // تفعيل console manager (تعطيل في الإنتاج)
+    // تعطيل console.log في الإنتاج (بسيط ومباشر)
     if (process.env.NODE_ENV === 'production') {
-      consoleManager.disable();
-    } else {
-      consoleManager.enable();
+      console.log = () => {};
+      console.info = () => {};
+      console.debug = () => {};
     }
     
     // تفعيل التنظيف التلقائي

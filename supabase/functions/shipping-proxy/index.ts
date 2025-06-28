@@ -93,8 +93,6 @@ serve(async (req) => {
         headers['Accept'] = 'application/json'
     }
 
-    console.log(`Proxying ${req.method} request to: ${targetUrl}`)
-    
     // Forward the request
     const response = await fetch(targetUrl, {
       method: req.method,
@@ -105,7 +103,6 @@ serve(async (req) => {
     const responseData = await response.text()
     
     // Log response for debugging
-    console.log(`Response status: ${response.status}`)
     
     // Return the response with CORS headers
     return new Response(responseData, {
@@ -117,7 +114,6 @@ serve(async (req) => {
     })
 
   } catch (error) {
-    console.error('Proxy error:', error)
     return new Response(JSON.stringify({ 
       error: 'Proxy error', 
       message: error.message 

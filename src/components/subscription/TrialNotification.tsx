@@ -59,7 +59,6 @@ export const TrialNotification: React.FC = () => {
         }
 
       } catch (error) {
-        console.error('خطأ في حساب الأيام المتبقية:', error);
         setShowNotification(false);
       }
     };
