@@ -20,7 +20,7 @@ import SubscriptionCard from '@/components/subscription/SubscriptionCard';
 import SubscriptionDialog from '@/components/subscription/SubscriptionDialog';
 import ActivateWithCode from './ActivateWithCode';
 import TrialStatusCard from '@/components/subscription/TrialStatusCard';
-import { SubscriptionDebug } from '@/components/debug/SubscriptionDebug';
+import SubscriptionDebug from '@/components/debug/SubscriptionDebug';
 
 // أنواع البيانات
 interface SubscriptionPlan {
