@@ -43,34 +43,22 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
         setIsChecking(true);
         hasCheckedRef.current = true;
 
-        console.log('🔍 فحص حالة الاشتراك للمؤسسة:', organization.name);
-
         // استخدام الخدمة المحسنة للحصول على حالة الاشتراك
         const subscription = await subscriptionCache.getSubscriptionStatus(organization.id);
         
         setSubscriptionData(subscription);
 
-        console.log('📊 نتيجة فحص الاشتراك:', {
-          status: subscription.status,
-          planName: subscription.plan_name,
-          daysLeft: subscription.days_left,
-          subscriptionType: subscription.subscription_type
-        });
-
         // التحقق من صحة الاشتراك
         if (!subscription.success) {
-          console.error('❌ خطأ في فحص الاشتراك:', subscription.error);
           // في حالة الخطأ، لا نعيد التوجيه - نسمح بالوصول
           return;
         }
 
         // إذا كان الاشتراك منتهي الصلاحية
         if (subscription.status === 'expired' || subscription.days_left <= 0) {
-          console.warn('⚠️ الاشتراك منتهي الصلاحية، إعادة التوجيه لصفحة الاشتراك');
           
           // إذا كان المستخدم في صفحة نقطة البيع والمستخدم موظف، أبقه هناك مع تحذير
           if (location.pathname === '/pos' && user?.role === 'employee') {
-            console.log('🔄 موظف في نقطة البيع - عدم إعادة التوجيه مع إظهار تحذير');
             setShowExpiredWarning(true);
             return;
           }
@@ -81,16 +69,13 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
 
         // إذا كان الاشتراك صالح
         if (subscription.status === 'active' || subscription.status === 'trial') {
-          console.log('✅ الاشتراك صالح ونشط');
           
           // إظهار تنبيه إذا كان الاشتراك سينتهي قريباً (أقل من 7 أيام)
           if (subscription.days_left <= 7 && subscription.status !== 'trial') {
-            console.warn(`⏰ تنبيه: الاشتراك سينتهي خلال ${subscription.days_left} أيام`);
           }
         }
 
       } catch (error) {
-        console.error('❌ خطأ غير متوقع في فحص الاشتراك:', error);
         // في حالة الخطأ، نسمح بالوصول ولا نعيد التوجيه
       } finally {
         setIsChecking(false);
@@ -166,4 +151,4 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
   );
 };
 
-export default SubscriptionCheck; 
+export default SubscriptionCheck;

@@ -91,6 +91,9 @@ import { POSOrderActions } from '../components/pos-orders/POSOrderActions';
 import { EditOrderItemsDialog } from '../components/pos-orders/EditOrderItemsDialog';
 import EditOrderDialog from '../components/pos-orders/EditOrderDialog';
 
+// استيراد النوع الصحيح من API service
+import type { POSOrderWithDetails as ServicePOSOrderWithDetails } from '@/api/posOrdersService';
+
 // Hooks
 import { useTitle } from '../hooks/useTitle';
 
@@ -133,7 +136,11 @@ export const POSOrdersOptimized: React.FC = () => {
 
   // حالات التحميل والأخطاء
   const isLoading = isOrdersLoading;
-  const errors = { orders: ordersError };
+  const errors = { 
+    orders: ordersError,
+    stats: null,
+    employees: null
+  };
 
   // حالة النوافذ المنبثقة
   const [dialogState, setDialogState] = useState<DialogState>({
@@ -429,7 +436,7 @@ export const POSOrdersOptimized: React.FC = () => {
         {/* الإحصائيات */}
         <POSOrderStats
           stats={stats}
-          loading={isStatsLoading}
+          loading={isLoading}
           error={errors.stats}
         />
 
@@ -445,7 +452,7 @@ export const POSOrdersOptimized: React.FC = () => {
 
         {/* جدول الطلبيات */}
         <POSOrdersTable
-          orders={orders}
+          orders={orders as ServicePOSOrderWithDetails[]}
           loading={isOrdersLoading}
           error={errors.orders}
           currentPage={currentPage}
@@ -453,20 +460,20 @@ export const POSOrdersOptimized: React.FC = () => {
           totalItems={totalOrders}
           itemsPerPage={10}
           onPageChange={handlePageChange}
-          onOrderView={handleOrderView}
-          onOrderEdit={handleOrderEdit}
-          onOrderDelete={handleOrderDelete}
-          onOrderPrint={handleOrderPrint}
+          onOrderView={handleOrderView as (order: ServicePOSOrderWithDetails) => void}
+          onOrderEdit={handleOrderEdit as (order: ServicePOSOrderWithDetails) => void}
+          onOrderDelete={handleOrderDelete as (order: ServicePOSOrderWithDetails) => void}
+          onOrderPrint={handleOrderPrint as (order: ServicePOSOrderWithDetails) => void}
           onStatusUpdate={handleStatusUpdate}
         />
 
         {/* تفاصيل الطلبية */}
         <POSOrderDetails
-          order={dialogState.selectedOrder}
+          order={dialogState.selectedOrder as ServicePOSOrderWithDetails | null}
           open={dialogState.showOrderDetails}
           onClose={closeDialogs}
-          onPrint={handleOrderPrint}
-          onEdit={handleOrderEdit}
+          onPrint={handleOrderPrint as (order: ServicePOSOrderWithDetails) => void}
+          onEdit={handleOrderEdit as (order: ServicePOSOrderWithDetails) => void}
         />
 
         {/* إجراءات الطلبية */}
@@ -483,19 +490,20 @@ export const POSOrdersOptimized: React.FC = () => {
                 </DialogTitle>
               </DialogHeader>
               <POSOrderActions
-                order={dialogState.selectedOrder}
+                order={dialogState.selectedOrder as ServicePOSOrderWithDetails}
                 onStatusUpdate={handleStatusUpdate}
                 onPaymentUpdate={handlePaymentUpdate}
                 onDelete={async (orderId) => {
-                  const success = await deleteOrder(orderId);
+                  const success = await posOrdersService.deleteOrder(orderId);
                   if (success) {
                     closeDialogs();
+                    await refreshOrders();
                   }
                   return success;
                 }}
-                onPrint={handleOrderPrint}
+                onPrint={handleOrderPrint as (order: ServicePOSOrderWithDetails) => void}
                 onRefresh={handleRefresh}
-                onEditItems={handleEditItems}
+                onEditItems={handleEditItems as (order: ServicePOSOrderWithDetails) => void}
               />
             </DialogContent>
           </Dialog>
@@ -584,10 +592,10 @@ export const POSOrdersOptimized: React.FC = () => {
             }
           }}
           order={dialogState.selectedOrder}
-          onOrderUpdated={(updatedOrder) => {
+          onOrderUpdated={async (updatedOrder) => {
             
-            // تحديث البيانات محلياً بدلاً من إعادة تحميل كل شيء
-            updateOrderInCache(updatedOrder);
+            // تحديث البيانات بإعادة تحميلها
+            await refreshOrders();
             
             // إغلاق النافذة
             setDialogState(prev => ({ ...prev, showEditOrder: false, selectedOrder: null }));

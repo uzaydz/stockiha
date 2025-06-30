@@ -83,22 +83,12 @@ const POSOptimized: React.FC = () => {
 
   // عرض معلومات النظام الجديد (في بيئة التطوير)
   if (import.meta.env.DEV) {
-    console.log('🚀 POS النظام المحسن:', {
-      organization: organization?.name,
-      user: user?.name,
-      productsCount: products.length,
-      categoriesCount: categories.length,
-      subscriptionServicesCount: subscriptionServices.length,
-      stats,
-      settings
-    });
   }
 
   // عرض إحصائيات سريعة قبل POSWrapper
   return (
     <div className="pos-optimized-container">
 
-      
       {/* POSWrapper الأصلي */}
       <POSWrapper />
     </div>

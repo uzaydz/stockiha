@@ -79,10 +79,8 @@ const OptimizedPOSPage: React.FC<OptimizedPOSPageProps> = ({ className }) => {
   const handleViewOrderDetails = async (orderId: string) => {
     try {
       const details = await getOrderDetails(orderId);
-      console.log('Order details:', details);
       // يمكن فتح modal أو navigate لصفحة التفاصيل
     } catch (error) {
-      console.error('Error fetching order details:', error);
     }
   };
 

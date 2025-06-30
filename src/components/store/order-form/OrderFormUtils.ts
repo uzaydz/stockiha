@@ -398,13 +398,11 @@ export const getShippingProviderSettings = async (organizationId: string, provid
       .maybeSingle();
 
     if (error) {
-      console.log('⚠️ خطأ في جلب إعدادات مزود الشحن:', error);
       return null;
     }
 
     return data;
   } catch (error) {
-    console.log('⚠️ خطأ عام في getShippingProviderSettings:', error);
     return null;
   }
 };
@@ -415,7 +413,6 @@ export const getDefaultShippingProviderId = async (organizationId: string) => {
     const settings = await getShippingProviderSettings(organizationId);
     return settings?.provider_id || 1; // ياليدين كافتراضي
   } catch (error) {
-    console.log('⚠️ خطأ في getDefaultShippingProviderId:', error);
     return 1; // ياليدين كافتراضي
   }
 };

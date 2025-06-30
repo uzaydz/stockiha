@@ -51,38 +51,31 @@ const Employees = () => {
 
   const checkUserAndLoadEmployees = async () => {
     try {
-      // التحقق من حالة المستخدم أولاً
-      const status = await checkCurrentUserStatus();
+      // التحقق من حالة المستخدم وتحميل البيانات بالتوازي
+      const [status] = await Promise.all([
+        checkCurrentUserStatus(),
+        loadEmployees() // تحميل البيانات بالتوازي
+      ]);
+      
       setUserStatus(status);
-
-      // تحميل بيانات الموظفين
-      loadEmployees();
     } catch (error) {
+      console.error('Error in checkUserAndLoadEmployees:', error);
     }
   };
 
   const loadEmployees = async () => {
     setLoading(true);
     try {
-
-      // استيراد وظيفة تحديث الموظفين
-      const { updateEmployeesWithMissingOrganizationId } = await import('@/lib/api/employees');
-      
-      // تحديث الموظفين الذين ليس لديهم معرف مؤسسة
-      await updateEmployeesWithMissingOrganizationId();
-
+      // تحميل البيانات بالتوازي لتحسين الأداء
       const [employeesData, statsData] = await Promise.all([
         getEmployees(),
         getEmployeeStats()
       ]);
       
-      if (employeesData.length === 0) {
-        
-      }
-      
       setEmployees(employeesData);
       setStats(statsData);
     } catch (error) {
+      console.error('Error loading employees:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء تحميل بيانات الموظفين',

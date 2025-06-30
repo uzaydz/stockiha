@@ -1,29 +1,16 @@
 import React, { Suspense, useEffect, useState } from 'react';
 import { Routes, Route, useLocation, useParams, Navigate } from 'react-router-dom';
-import { TenantProvider, useTenant } from './context/TenantContext';
-import { AuthProvider } from './context/AuthContext';
-import { DashboardDataProvider } from './context/DashboardDataContext';
-import { Toaster } from './components/ui/toaster';
-import { ThemeProvider } from './context/ThemeContext';
+// 🧠 نظام ذكي لتحميل Providers حسب نوع الصفحة
+import SmartProviderWrapper from './components/routing/SmartProviderWrapper';
+import { useTenant } from './context/TenantContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
-import { AppsProvider } from './context/AppsContext';
-import { OrganizationDataProvider } from './contexts/OrganizationDataContext';
-import { LoadingControllerProvider } from './components/LoadingController';
-import { I18nextProvider } from 'react-i18next';
-import i18n from './i18n';
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import queryClient from "./lib/config/queryClient";
+import { Loader2 } from 'lucide-react';
 import { syncCategoriesDataOnStartup } from '@/lib/api/categories';
-import { ShopProvider } from "./context/ShopContext";
-import { StoreProvider } from "./context/StoreContext";
-import { HelmetProvider } from "react-helmet-async";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import PublicRoute from "./components/auth/PublicRoute";
 import SuperAdminRoute from "./components/auth/SuperAdminRoute";
 import SubscriptionCheck from "./components/subscription/SubscriptionCheck";
-import { SupabaseProvider } from "./context/SupabaseContext";
 
 import ErrorMonitor from "./components/ErrorMonitor";
 
@@ -70,6 +57,9 @@ import ShippingSettingsPage from './pages/dashboard/ShippingSettings';
 import RequireTenant from './components/auth/RequireTenant';
 import LandingPage from './pages/landing/LandingPage';
 import ProductPurchase from './pages/ProductPurchase';
+import ProductPurchasePageMax from './pages/ProductPurchasePageMax';
+import ProductPurchasePageMaxV2 from './pages/ProductPurchasePageMaxV2';
+import ProductPurchasePageMaxPublic from './pages/ProductPurchasePageMaxPublic';
 // import ProductPurchaseOptimized from './pages/ProductPurchaseOptimized';
 import StoreProducts from './pages/StoreProducts';
 import Invoices from './pages/dashboard/Invoices';
@@ -108,8 +98,6 @@ import AppsManagement from './pages/AppsManagement';
 import GameDownloadsPage from './pages/GameDownloadsPage';
 import PublicGameStorePage from './pages/PublicGameStorePage';
 import PublicGameTracking from './components/apps/game-downloads/PublicGameTracking';
-import { UnifiedDataProvider } from '@/context/UnifiedDataContext';
-import { UniversalDataUpdateProvider } from './context/UniversalDataUpdateContext';
 import ConditionalRoute from './components/ConditionalRoute';
 import CallCenterRoute from './components/auth/CallCenterRoute';
 import CallCenterLayout from './components/call-center/CallCenterLayout';
@@ -156,6 +144,8 @@ import { useDevtools } from '@/hooks/useDevtools';
 import { LocalStorageMonitor } from './components/auth/LocalStorageMonitor';
 import { enableRequestInterception, setCurrentOrganizationId } from '@/lib/requestInterceptor';
 import '@/utils/auth-debug'; // أدوات التشخيص
+
+// مكونات SyncManager و TabFocusHandler (تم نقل import SyncManager أسفل)
 
 // تأخير تفعيل اعتراض الطلبات حتى يصبح النظام الموحد جاهزاً
 import { isSupabaseReady } from '@/lib/supabase-unified';
@@ -440,30 +430,18 @@ const App = () => {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <TabFocusHandler>
-          <SupabaseProvider>
-            {/* <CrossDomainSessionReceiver> -- This component is now deprecated. Its logic has been integrated into AuthContext. */}
-              <ErrorMonitor />
-              {/* نظام المراقبة الشامل - يعمل في بيئة التطوير فقط */}
-      
-              <LoadingControllerProvider maxConcurrentRequests={2}>
-                <AuthProvider>
-                  <UnifiedDataProvider>
-                    <UniversalDataUpdateProvider>
-                      <TenantProvider>
-                        <DashboardDataProvider>
-                          <OrganizationDataProvider>
-                            <ShopProvider>
-                              <StoreProvider>
-                                <AppsProvider>
-                                  <ThemeProvider>
-                                    <I18nextProvider i18n={i18n}>
-                                      <HelmetProvider>
-                                        <Toaster />
-                                        <Sonner />
-                <Routes>
+    <SmartProviderWrapper>
+      {/* 
+      🧠 SmartProviderWrapper: نظام ذكي لتحميل البيانات حسب نوع الصفحة
+      - صفحات المنتجات: ProductPageContext فقط (3-4 استدعاءات)
+      - لوحة التحكم: جميع الـ contexts (للوظائف الكاملة)
+      - صفحات أخرى: الحد الأدنى المطلوب فقط
+      */}
+      <TabFocusHandler>
+        <ErrorMonitor />
+        {/* نظام المراقبة الشامل - يعمل في بيئة التطوير فقط */}
+        
+        <Routes>
                   <Route path="/" element={<StoreRouter />} />
                   <Route path="/features" element={<FeaturesPage />} />
                   <Route path="/offline-features" element={<OfflineFeatures />} />
@@ -547,7 +525,15 @@ const App = () => {
                   <Route path="/products/details/:productId" element={<ProductDetails />} />
                   
                   {/* صفحة شراء المنتج */}
-                                        <Route path="/products/:slug" element={<ProductPurchase />} />
+                  <Route path="/products/:slug" element={<ProductPurchase />} />
+                  
+                  {/* صفحة شراء المنتج المحسنة - للاختبار */}
+                  <Route path="/product-max/:productId" element={<ProductPurchasePageMax />} />
+                  <Route path="/product-purchase-max/:productId" element={<ProductPurchasePageMax />} />
+                  <Route path="/product-purchase-max-v2/:productId" element={<ProductPurchasePageMaxV2 />} />
+                  
+                  {/* صفحة شراء المنتج العامة - بدون تسجيل دخول */}
+                  <Route path="/product-public/:productId" element={<ProductPurchasePageMaxPublic />} />
                   
                   {/* صفحة الشكر بعد إتمام الشراء */}
                   <Route path="/thank-you" element={<ThankYouPage />} />
@@ -1070,28 +1056,13 @@ const App = () => {
                   
                   <Route path="*" element={<NotFound />} />
                 </Routes>
-                                        <SyncManagerWrapper />
-                                        
-                                        {import.meta.env.DEV && <LocalStorageMonitor />}
-                                        {import.meta.env.DEV && <SupabaseAnalyticsPanel />}
-                                      </HelmetProvider>
-                                    </I18nextProvider>
-                                  </ThemeProvider>
-                                </AppsProvider>
-                              </StoreProvider>
-                            </ShopProvider>
-                          </OrganizationDataProvider>
-                        </DashboardDataProvider>
-                      </TenantProvider>
-                    </UniversalDataUpdateProvider>
-                  </UnifiedDataProvider>
-                </AuthProvider>
-              </LoadingControllerProvider>
-            {/* </CrossDomainSessionReceiver> */}
-          </SupabaseProvider>
-        </TabFocusHandler>
-      </TooltipProvider>
-    </QueryClientProvider>
+                
+                <SyncManagerWrapper />
+                
+                {import.meta.env.DEV && <LocalStorageMonitor />}
+                {import.meta.env.DEV && <SupabaseAnalyticsPanel />}
+      </TabFocusHandler>
+    </SmartProviderWrapper>
   );
 };
 

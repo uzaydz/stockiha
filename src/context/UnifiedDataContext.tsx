@@ -237,7 +237,6 @@ const fetchAppInitializationData = async (userId: string, orgId: string): Promis
         organization_apps: []
       } as AppInitializationData;
     } catch (error) {
-      console.error('Error fetching app initialization data:', error);
       throw error;
     }
   });
@@ -275,7 +274,6 @@ const fetchPOSCompleteData = async (orgId: string): Promise<POSCompleteData> => 
           .order('name')
           .then(({ data, error }) => {
             if (error) {
-              console.warn('Error fetching customers:', error);
               return [];
             }
             return data || [];
@@ -318,7 +316,6 @@ const fetchPOSCompleteData = async (orgId: string): Promise<POSCompleteData> => 
         subscription_categories: []
       } as POSCompleteData;
     } catch (error) {
-      console.error('Error fetching POS complete data:', error);
       throw error;
     }
   });
@@ -464,7 +461,6 @@ const fetchPOSOrdersDashboard = async (
         }
       } as POSOrdersDashboard;
     } catch (error) {
-      console.error('Error fetching POS orders dashboard:', error);
       throw error;
     }
   });
@@ -481,7 +477,6 @@ const fetchOrderCompleteDetails = async (orderId: string): Promise<any> => {
       if (error) throw error;
       return data || [];
     } catch (error) {
-      console.error('Error fetching order details:', error);
       throw error;
     }
   });

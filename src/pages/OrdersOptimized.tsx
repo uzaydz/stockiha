@@ -301,23 +301,19 @@ const OrdersOptimized: React.FC = () => {
   const handleViewDetails = async (orderId: string) => {
     try {
       const details = await getOrderDetails(orderId);
-      console.log('Order details:', details);
       // يمكن فتح modal أو navigate لصفحة التفاصيل
       alert('تم عرض تفاصيل الطلبية في الكونسول');
     } catch (error) {
-      console.error('Error fetching order details:', error);
       alert('حدث خطأ في جلب تفاصيل الطلبية');
     }
   };
 
   const handleEditOrder = (orderId: string) => {
-    console.log('Edit order:', orderId);
     alert(`تعديل الطلبية: ${orderId}`);
   };
 
   const handleDeleteOrder = (orderId: string) => {
     if (confirm('هل أنت متأكد من حذف هذه الطلبية؟')) {
-      console.log('Delete order:', orderId);
       alert(`حذف الطلبية: ${orderId}`);
     }
   };
@@ -327,7 +323,6 @@ const OrdersOptimized: React.FC = () => {
     try {
       await refreshAll();
     } catch (error) {
-      console.error('Error refreshing data:', error);
     } finally {
       setIsRefreshing(false);
     }

@@ -184,7 +184,6 @@ const createTrackedClient = (client: SupabaseClient<Database>): any => {
                     (error: any) => {
                       // معالجة خاصة لأخطاء 406
                       if (error?.code === 'PGRST116' || error?.message?.includes('406') || error?.status === 406) {
-                        console.log(`⚠️ خطأ 406 في جدول ${tableName} - تم تجاهله لتجنب التكرار`);
                         // إرجاع نتيجة فارغة بدلاً من throw
                         return { data: null, error: null };
                       }
@@ -195,7 +194,6 @@ const createTrackedClient = (client: SupabaseClient<Database>): any => {
                   ).catch((error: any) => {
                     // معالجة إضافية للأخطاء
                     if (error?.code === 'PGRST116' || error?.message?.includes('406') || error?.status === 406) {
-                      console.log(`⚠️ خطأ 406 في جدول ${tableName} - تم تجاهله في catch`);
                       return { data: null, error: null };
                     }
                     throw error;

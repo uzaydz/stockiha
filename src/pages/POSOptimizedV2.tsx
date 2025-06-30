@@ -191,7 +191,6 @@ const POSOptimizedV2: React.FC = () => {
     try {
       await refreshAll();
     } catch (error) {
-      console.error('Error refreshing data:', error);
     } finally {
       setIsRefreshing(false);
     }
@@ -199,7 +198,6 @@ const POSOptimizedV2: React.FC = () => {
 
   const handleCheckout = () => {
     // هنا يمكن إضافة منطق إتمام البيع
-    console.log('Checkout cart:', cart);
     alert(`إجمالي البيع: ${cartTotal.toLocaleString()} دج`);
     setCart([]); // إفراغ السلة بعد البيع
   };

@@ -119,7 +119,6 @@ export const getProductPageData = async (organizationId: string, slug: string): 
         }
 
         const startTime = Date.now();
-        console.log('⏱️ getProductPageData - بدء استدعاء Edge Function في:', new Date().toISOString());
 
         const supabase = getSupabaseClient();
         const { data: responseData, error: functionError } = await supabase.functions.invoke(
@@ -130,9 +129,6 @@ export const getProductPageData = async (organizationId: string, slug: string): 
         ) as { data: ProductPageData | null; error: any };
 
         const endTime = Date.now();
-        console.log('⏱️ getProductPageData - انتهى استدعاء Edge Function في:', new Date().toISOString());
-        console.log('⏱️ getProductPageData - مدة الاستدعاء:', endTime - startTime, 'ms');
-        console.log('🔍 getProductPageData - النتيجة الخام:', { responseData, functionError });
 
         if (functionError) {
           
@@ -157,11 +153,9 @@ export const getProductPageData = async (organizationId: string, slug: string): 
           }
           
           // في حالة Edge Function غير متاح، حاول Fallback عبر RPC مباشرة
-          console.log('🔄 getProductPageData - محاولة fallback عبر RPC مباشرة');
           
           try {
             const rpcStartTime = Date.now();
-            console.log('⏱️ getProductPageData - بدء استدعاء RPC في:', new Date().toISOString());
 
             const { data: rpcData, error: rpcError } = await supabase.rpc('get_complete_product_data', {
               p_slug: slug,
@@ -169,9 +163,6 @@ export const getProductPageData = async (organizationId: string, slug: string): 
             });
 
             const rpcEndTime = Date.now();
-            console.log('⏱️ getProductPageData - انتهى استدعاء RPC في:', new Date().toISOString());
-            console.log('⏱️ getProductPageData - مدة استدعاء RPC:', rpcEndTime - rpcStartTime, 'ms');
-            console.log('🔍 getProductPageData - نتيجة RPC:', { rpcData, rpcError });
             
             if (rpcError) {
               throw new Error('فشل في الطريقة البديلة أيضاً');
@@ -218,24 +209,8 @@ export const getProductPageData = async (organizationId: string, slug: string): 
           throw new Error('بيانات المنتج غير مكتملة');
         }
 
-        console.log('✅ getProductPageData - إرجاع البيانات النهائية:', {
-          hasProduct: !!responseData.product,
-          colorsCount: responseData.colors?.length || 0,
-          sizesCount: responseData.sizes?.length || 0,
-          hasFormSettings: !!responseData.form_settings,
-          hasMarketingSettings: !!responseData.marketing_settings,
-          reviewsCount: responseData.reviews?.length || 0
-        });
-
         return responseData;
       } catch (error) {
-        console.log('❌ getProductPageData - خطأ في التحميل:', error);
-        console.log('❌ getProductPageData - تفاصيل الخطأ:', {
-          message: error instanceof Error ? error.message : 'خطأ غير معروف',
-          stack: error instanceof Error ? error.stack : undefined,
-          organizationId,
-          slug
-        });
         
         // إعادة رمي الخطأ مع معلومات إضافية إذا لزم الأمر
         if (error instanceof Error) {

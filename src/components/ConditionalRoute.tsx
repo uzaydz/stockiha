@@ -22,9 +22,7 @@ const ConditionalRoute: React.FC<ConditionalRouteProps> = ({
   // تحسين فحص تفعيل التطبيق مع memoization
   const isEnabled = useMemo(() => {
     const enabled = isAppEnabled(appId);
-    
 
-    
     return enabled;
   }, [appId, organizationApps, isAppEnabled]);
 
@@ -42,12 +40,6 @@ const ConditionalRoute: React.FC<ConditionalRouteProps> = ({
   // إذا لم يكن التطبيق مفعّل، إعادة توجيه إلى المسار الافتراضي
   if (!isEnabled) {
     if (import.meta.env.DEV) {
-      console.log(`🚫 ConditionalRoute: إعادة توجيه - التطبيق غير مفعّل`, {
-        appId,
-        isEnabled,
-        fallbackPath,
-        organizationAppsCount: organizationApps.length
-      });
     }
     return <Navigate to={fallbackPath} replace />;
   }

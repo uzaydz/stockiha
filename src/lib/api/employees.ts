@@ -21,48 +21,148 @@ export const ensureEmployeeTables = async (): Promise<void> => {
 };
 
 // جلب جميع الموظفين
-export const getEmployees = async (): Promise<Employee[]> => {
-  try {
-    // التأكد من وجود جداول الموظفين
-    await ensureEmployeeTables();
-    
-    // تحديث الموظفين الذين ليس لديهم معرف مؤسسة
-    await updateEmployeesWithMissingOrganizationId();
+// Cache للمؤسسة لتجنب استدعاءات متعددة
+let cachedOrganizationId: string | null = null;
+let lastOrgFetch = 0;
+const ORG_CACHE_DURATION = 5 * 60 * 1000; // 5 دقائق
 
+// Cache للموظفين لمنع الطلبات المكررة
+let cachedEmployees: Employee[] | null = null;
+let lastEmployeesFetch = 0;
+const EMPLOYEES_CACHE_DURATION = 30 * 1000; // 30 ثانية
+
+// Cache للإحصائيات لمنع الطلبات المكررة
+let cachedStats: { total: number; active: number; inactive: number } | null = null;
+let lastStatsFetch = 0;
+const STATS_CACHE_DURATION = 30 * 1000; // 30 ثانية
+
+// آلية منع الطلبات المتزامنة المكررة
+let ongoingEmployeesRequest: Promise<Employee[]> | null = null;
+let ongoingStatsRequest: Promise<{ total: number; active: number; inactive: number }> | null = null;
+
+// إحصائيات الأداء
+let performanceStats = {
+  employeesRequests: 0,
+  employeesCacheHits: 0,
+  statsRequests: 0,
+  statsCacheHits: 0,
+  duplicateRequestsBlocked: 0
+};
+
+// دالة لطباعة إحصائيات الأداء
+const logPerformanceStats = () => {
+  if (process.env.NODE_ENV === 'development') {
+    console.log('📊 Employee API Performance Stats:', {
+      ...performanceStats,
+      employeesCacheHitRate: performanceStats.employeesRequests > 0 
+        ? `${((performanceStats.employeesCacheHits / performanceStats.employeesRequests) * 100).toFixed(1)}%` 
+        : '0%',
+      statsCacheHitRate: performanceStats.statsRequests > 0 
+        ? `${((performanceStats.statsCacheHits / performanceStats.statsRequests) * 100).toFixed(1)}%` 
+        : '0%'
+    });
+  }
+};
+
+// طباعة الإحصائيات كل 30 ثانية في وضع التطوير
+if (process.env.NODE_ENV === 'development') {
+  setInterval(logPerformanceStats, 30000);
+}
+
+// دالة محسنة للحصول على معرف المؤسسة
+const getOrganizationId = async (): Promise<string | null> => {
+  const now = Date.now();
+  
+  // استخدام cache إذا كان حديثاً
+  if (cachedOrganizationId && (now - lastOrgFetch) < ORG_CACHE_DURATION) {
+    return cachedOrganizationId;
+  }
+  
+  try {
     // الحصول على بيانات المستخدم الحالي
     const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
-      return [];
+      return null;
     }
-    
-    let organizationId = null;
     
     // الحصول على معرف المؤسسة للمستخدم الحالي
     const { data: userData, error: userError } = await supabase
       .from('users')
-      .select('organization_id, role, is_org_admin')
+      .select('organization_id')
       .eq('id', user.id)
       .single();
       
-    if (userError) {
+    if (!userError && userData?.organization_id) {
+      cachedOrganizationId = userData.organization_id;
+      lastOrgFetch = now;
+      return cachedOrganizationId;
     }
     
-    if (userData && userData.organization_id) {
-      organizationId = userData.organization_id;
-      
-    } else {
-      // محاولة استخدام معرف المؤسسة من التخزين المحلي
-      const localOrgId = localStorage.getItem('organizationId');
-      if (localOrgId) {
-        organizationId = localOrgId;
-        
-      } else {
-        return [];
-      }
+    // محاولة استخدام معرف المؤسسة من التخزين المحلي
+    const localOrgId = localStorage.getItem('organizationId');
+    if (localOrgId) {
+      cachedOrganizationId = localOrgId;
+      lastOrgFetch = now;
+      return cachedOrganizationId;
+    }
+    
+    return null;
+  } catch (err) {
+    console.error('Error getting organization ID:', err);
+    return null;
+  }
+};
+
+export const getEmployees = async (): Promise<Employee[]> => {
+  const now = Date.now();
+  performanceStats.employeesRequests++;
+  
+  // استخدام cache إذا كان حديثاً
+  if (cachedEmployees && (now - lastEmployeesFetch) < EMPLOYEES_CACHE_DURATION) {
+    performanceStats.employeesCacheHits++;
+    console.log('🎯 Using cached employees data');
+    return cachedEmployees;
+  }
+  
+  // إذا كان هناك طلب جاري، انتظر نتيجته بدلاً من إنشاء طلب جديد
+  if (ongoingEmployeesRequest) {
+    performanceStats.duplicateRequestsBlocked++;
+    console.log('🔄 Waiting for ongoing employees request');
+    return await ongoingEmployeesRequest;
+  }
+  
+  // إنشاء طلب جديد
+  ongoingEmployeesRequest = performGetEmployees();
+  
+  try {
+    const result = await ongoingEmployeesRequest;
+    
+    // حفظ في cache
+    cachedEmployees = result;
+    lastEmployeesFetch = now;
+    
+    return result;
+  } finally {
+    // تنظيف الطلب الجاري
+    ongoingEmployeesRequest = null;
+  }
+};
+
+// الدالة الفعلية لجلب الموظفين
+const performGetEmployees = async (): Promise<Employee[]> => {
+  try {
+    console.log('🔍 Fetching employees from database');
+    
+    // الحصول على معرف المؤسسة (مع cache)
+    const organizationId = await getOrganizationId();
+    
+    if (!organizationId) {
+      console.warn('No organization ID found');
+      return [];
     }
 
-    // استخدام الاستعلام المباشر
+    // استخدام الاستعلام المباشر بدون استدعاءات إضافية
     const { data, error } = await supabase
       .from('users')
       .select('*')
@@ -71,11 +171,14 @@ export const getEmployees = async (): Promise<Employee[]> => {
       .order('created_at', { ascending: false });
     
     if (error) {
+      console.error('Error fetching employees:', error);
       return [];
     }
 
+    console.log(`✅ Fetched ${data?.length || 0} employees`);
     return data || [];
   } catch (err) {
+    console.error('Error in performGetEmployees:', err);
     return [];
   }
 };
@@ -482,85 +585,99 @@ export const getEmployeeStats = async (): Promise<{
   active: number;
   inactive: number;
 }> => {
+  const now = Date.now();
+  
+  // استخدام cache إذا كان حديثاً
+  if (cachedStats && (now - lastStatsFetch) < STATS_CACHE_DURATION) {
+    console.log('🎯 Using cached stats data');
+    return cachedStats;
+  }
+  
+  // إذا كان هناك طلب جاري، انتظر نتيجته بدلاً من إنشاء طلب جديد
+  if (ongoingStatsRequest) {
+    console.log('🔄 Waiting for ongoing stats request');
+    return await ongoingStatsRequest;
+  }
+  
+  // إنشاء طلب جديد
+  ongoingStatsRequest = performGetEmployeeStats();
+  
   try {
+    const result = await ongoingStatsRequest;
+    
+    // حفظ في cache
+    cachedStats = result;
+    lastStatsFetch = now;
+    
+    return result;
+  } finally {
+    // تنظيف الطلب الجاري
+    ongoingStatsRequest = null;
+  }
+};
 
-    // Obtener información del usuario actual
-    const { data: { user } } = await supabase.auth.getUser();
+// الدالة الفعلية لجلب الإحصائيات
+const performGetEmployeeStats = async (): Promise<{
+  total: number;
+  active: number;
+  inactive: number;
+}> => {
+  try {
+    console.log('🔍 Fetching employee stats from database');
     
-    if (!user) {
+    // الحصول على معرف المؤسسة (مع cache)
+    const organizationId = await getOrganizationId();
+    
+    if (!organizationId) {
+      console.warn('No organization ID found for stats');
       return { total: 0, active: 0, inactive: 0 };
-    }
-    
-    let organizationId = null;
-    
-    // Obtener el ID de la organización del usuario actual
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('organization_id, role, is_org_admin')
-      .eq('id', user.id)
-      .single();
-      
-    if (userError) {
-    }
-    
-    if (userData && userData.organization_id) {
-      organizationId = userData.organization_id;
-      
-    } else {
-      // محاولة استخدام معرف المؤسسة من التخزين المحلي
-      const localOrgId = localStorage.getItem('organizationId');
-      if (localOrgId) {
-        organizationId = localOrgId;
-        
-      } else {
-        return { total: 0, active: 0, inactive: 0 };
-      }
     }
 
-    // Consulta directa para estadísticas
-    // إجمالي عدد الموظفين
-    const { count: total, error: totalError } = await supabase
-      .from('users')
-      .select('*', { count: 'exact', head: true })
-      .eq('role', 'employee')
-      .eq('organization_id', organizationId);
+    // تشغيل جميع الاستعلامات بالتوازي لتحسين الأداء
+    const [totalResult, activeResult, inactiveResult] = await Promise.all([
+      // إجمالي عدد الموظفين
+      supabase
+        .from('users')
+        .select('*', { count: 'exact', head: true })
+        .eq('role', 'employee')
+        .eq('organization_id', organizationId),
       
-    if (totalError) {
-      return { total: 0, active: 0, inactive: 0 };
-    }
+      // عدد الموظفين النشطين
+      supabase
+        .from('users')
+        .select('*', { count: 'exact', head: true })
+        .eq('role', 'employee')
+        .eq('organization_id', organizationId)
+        .eq('is_active', true),
+      
+      // عدد الموظفين غير النشطين
+      supabase
+        .from('users')
+        .select('*', { count: 'exact', head: true })
+        .eq('role', 'employee')
+        .eq('organization_id', organizationId)
+        .eq('is_active', false)
+    ]);
     
-    // عدد الموظفين النشطين
-    const { count: active, error: activeError } = await supabase
-      .from('users')
-      .select('*', { count: 'exact', head: true })
-      .eq('role', 'employee')
-      .eq('organization_id', organizationId)
-      .eq('is_active', true);
-      
-    if (activeError) {
-      return { total: 0, active: 0, inactive: 0 };
-    }
-    
-    // عدد الموظفين غير النشطين
-    const { count: inactive, error: inactiveError } = await supabase
-      .from('users')
-      .select('*', { count: 'exact', head: true })
-      .eq('role', 'employee')
-      .eq('organization_id', organizationId)
-      .eq('is_active', false);
-      
-    if (inactiveError) {
+    if (totalResult.error || activeResult.error || inactiveResult.error) {
+      console.error('Error fetching employee stats:', {
+        total: totalResult.error,
+        active: activeResult.error,
+        inactive: inactiveResult.error
+      });
       return { total: 0, active: 0, inactive: 0 };
     }
     
     const stats = {
-      total: total || 0,
-      active: active || 0,
-      inactive: inactive || 0
+      total: totalResult.count || 0,
+      active: activeResult.count || 0,
+      inactive: inactiveResult.count || 0
     };
 
+    console.log(`✅ Fetched employee stats:`, stats);
     return stats;
   } catch (error) {
+    console.error('Error in performGetEmployeeStats:', error);
     return {
       total: 0,
       active: 0,

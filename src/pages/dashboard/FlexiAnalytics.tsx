@@ -146,8 +146,14 @@ export default function FlexiAnalytics() {
   
   // تحويل بيانات الشبكات لعرضها في مخطط RadialBar
   const prepareFlexiChartData = () => {
+    // التحقق من وجود البيانات
+    if (!flexiStats || flexiStats.length === 0) {
+      return [];
+    }
+    
     // ترتيب البيانات حسب إجمالي المبيعات تنازلياً
     return flexiStats
+      .filter(item => item && item.network && typeof item.total_sales === 'number')
       .sort((a, b) => b.total_sales - a.total_sales)
       .map((item, index) => ({
         name: item.network,
@@ -234,6 +240,13 @@ export default function FlexiAnalytics() {
                   {loadingFlexi ? (
                     <div className="flex justify-center items-center h-full">
                       <RefreshCwIcon className="h-8 w-8 animate-spin text-primary" />
+                    </div>
+                  ) : prepareFlexiChartData().length === 0 ? (
+                    <div className="flex justify-center items-center h-full">
+                      <div className="text-center">
+                        <p className="text-muted-foreground">لا توجد بيانات لعرضها</p>
+                        <p className="text-sm text-muted-foreground mt-2">قم بإضافة عمليات بيع الفليكسي لرؤية الإحصائيات</p>
+                      </div>
                     </div>
                   ) : (
                     <Suspense fallback={<div className="flex justify-center items-center h-full">
@@ -451,6 +464,13 @@ export default function FlexiAnalytics() {
                   {loadingCurrency ? (
                     <div className="flex justify-center items-center h-full">
                       <RefreshCwIcon className="h-8 w-8 animate-spin text-primary" />
+                    </div>
+                  ) : !currencyStats || currencyStats.length === 0 ? (
+                    <div className="flex justify-center items-center h-full">
+                      <div className="text-center">
+                        <p className="text-muted-foreground">لا توجد بيانات لعرضها</p>
+                        <p className="text-sm text-muted-foreground mt-2">قم بإضافة عمليات بيع العملات لرؤية الإحصائيات</p>
+                      </div>
                     </div>
                   ) : (
                     <Suspense fallback={<div className="flex justify-center items-center h-full">

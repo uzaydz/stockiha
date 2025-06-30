@@ -337,11 +337,17 @@ if (rootElement && !root) {
 // Render the application
 if (root) {
   root.render(
-    <React.StrictMode>
+    process.env.NODE_ENV === 'development' ? (
+      <React.StrictMode>
+        <AppProviders>
+          <App />
+        </AppProviders>
+      </React.StrictMode>
+    ) : (
       <AppProviders>
         <App />
       </AppProviders>
-    </React.StrictMode>
+    )
   );
 } else {
 }
@@ -449,12 +455,9 @@ import('@/lib/requestManager').then((module) => {
     const manager = requestManagerModule.requestManager;
     manager.setMaxConcurrentRequests(3);
     
-    console.log('🚀 تم تفعيل مدير الطلبات بنجاح');
   } catch (error) {
-    console.warn('⚠️ فشل في تحميل مدير الطلبات:', error);
   }
 }).catch((error) => {
-  console.warn('⚠️ فشل في استيراد مدير الطلبات:', error);
 });
 
 // Force تفعيل فوري للنظام

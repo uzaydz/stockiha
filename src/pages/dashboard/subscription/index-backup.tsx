@@ -105,8 +105,6 @@ const SubscriptionPage = () => {
       const subscription = await subscriptionCache.getSubscriptionStatus(orgId);
       setSubscriptionData(subscription);
 
-      console.log('📊 بيانات الاشتراك الحالية:', subscription);
-
       if (subscription.success) {
         // تحديث بيانات المؤسسة بمعرف الاشتراك المكتشف
         const { error: updateError } = await supabase

@@ -20,14 +20,6 @@ const RequireTenant = ({ children }: RequireTenantProps) => {
 
   // تشخيص شامل لـ RequireTenant
   if (import.meta.env.DEV) {
-    console.log('🏢 RequireTenant التشخيص:', {
-      currentPath: location.pathname,
-      currentOrganization: currentOrganization ? { id: currentOrganization.id, name: currentOrganization.name } : null,
-      organization: organization ? { id: organization.id, name: organization.name } : null,
-      currentSubdomain,
-      isLoading,
-      error: error ? error.toString() : null
-    });
   }
   
   // التحقق من وجود مؤسسة في أي من السياقين
@@ -90,12 +82,6 @@ const RequireTenant = ({ children }: RequireTenantProps) => {
   // إذا لم تكن هناك مؤسسة، تحقق فقط إذا كان المسار يتطلب مؤسسة
   if (!currentOrganization && !organization && requiresOrganization) {
     if (import.meta.env.DEV) {
-      console.log('🏢 RequireTenant: No organization found, redirecting to setup', {
-        currentOrganization,
-        organization,
-        currentPath: location.pathname,
-        requiresOrganization
-      });
     }
     return <Navigate to="/organization/setup" replace />;
   }

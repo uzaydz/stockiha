@@ -105,7 +105,6 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             .limit(500); // إضافة حد أقصى للمنتجات
             
           if (productsError) {
-            console.log('⚠️ خطأ في جلب المنتجات:', productsError);
             return [];
           }
 
@@ -144,7 +143,6 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // استخدام Race بين الاستعلام والمهلة الزمنية
       return await Promise.race([productsPromise, timeoutPromise]);
     } catch (error) {
-      console.log('⚠️ خطأ في fetchProducts:', error);
       return [];
     } finally {
       loadingProducts.current = false;

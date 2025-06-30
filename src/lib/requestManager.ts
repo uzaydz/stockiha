@@ -285,7 +285,6 @@ export const smartSearch = {
 
 export const clearAllCaches = () => {
   requestManager.clearAll();
-  console.log('🧹 تم مسح جميع التخزين المؤقت');
 };
 
 export const getPerformanceStats = () => {
@@ -303,4 +302,4 @@ if (typeof window !== 'undefined') {
     requestManager,
     queryCache
   };
-} 
+}

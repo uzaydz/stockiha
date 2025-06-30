@@ -52,10 +52,7 @@ const SubscriptionPage: React.FC = () => {
         const subscription = await subscriptionCache.getSubscriptionStatus(organization.id);
         setSubscriptionData(subscription);
 
-        console.log('📊 بيانات الاشتراك الحالية:', subscription);
-
       } catch (error) {
-        console.error('خطأ في جلب بيانات الاشتراك:', error);
         toast.error('حدث خطأ في جلب بيانات الاشتراك');
       } finally {
       setLoading(false);
@@ -76,7 +73,6 @@ const SubscriptionPage: React.FC = () => {
           .order('display_order', { ascending: true });
 
         if (error) {
-          console.error('خطأ في جلب خطط الاشتراك:', error);
           return;
         }
 
@@ -102,7 +98,6 @@ const SubscriptionPage: React.FC = () => {
 
         setPlans(formattedPlans);
       } catch (error) {
-        console.error('خطأ غير متوقع في جلب الخطط:', error);
       }
     };
 

@@ -715,12 +715,10 @@ export const useShippingLogic = (
           const productData = productDataArray && productDataArray.length > 0 ? productDataArray[0] : null;
           
           if (productError) {
-            console.log('⚠️ خطأ في جلب بيانات المنتج:', productError);
           } else if (productData && productData.shipping_provider_id) {
             effectiveProviderId = productData.shipping_provider_id;
           }
         } catch (error) {
-          console.log('⚠️ خطأ في استدعاء جدول products:', error);
         }
       }
       
@@ -751,7 +749,6 @@ export const useShippingLogic = (
           .maybeSingle();
 
         if (providerError) {
-          console.log('⚠️ خطأ في جلب بيانات shipping_providers:', providerError);
           setShippingProviderSettings(null);
         } else if (providerData) {
           setShippingProviderCode(providerData.code);
@@ -775,7 +772,6 @@ export const useShippingLogic = (
           setShippingProviderSettings(null);
         }
       } catch (error) {
-        console.log('⚠️ خطأ عام في fetchDefaultProviderSettings:', error);
         setShippingProviderSettings(null);
       } finally {
         setIsLoadingProviderSettings(false);
@@ -793,7 +789,6 @@ export const useShippingLogic = (
     // التحقق من صحة providerId
     const numericProviderId = parseInt(providerId);
     if (isNaN(numericProviderId) || numericProviderId <= 0) {
-      console.log('⚠️ معرف شركة الشحن غير صالح:', providerId);
       return;
     }
     
@@ -807,12 +802,10 @@ export const useShippingLogic = (
       const providerData = providerDataArray && providerDataArray.length > 0 ? providerDataArray[0] : null;
 
       if (error) {
-        console.log('⚠️ خطأ في جلب بيانات شركة الشحن:', error);
         return;
       }
       
       if (!providerData) {
-        console.log('⚠️ لم يتم العثور على شركة الشحن:', numericProviderId);
         return;
       }
       
@@ -843,7 +836,6 @@ export const useShippingLogic = (
           const municipalities = await getShippingMunicipalities(Number(currentProvince), tenantId || "");
           setCommunesList(Array.isArray(municipalities) ? municipalities : []);
         } catch (e) {
-          console.log('⚠️ خطأ في جلب البلديات:', e);
           setCommunesList([]);
         } finally {
           setIsLoadingCommunes(false);
@@ -851,7 +843,6 @@ export const useShippingLogic = (
       }
       
     } catch (error) {
-      console.log('⚠️ خطأ عام في handleShippingProviderChange:', error);
     }
   }, [form, tenantId]);
 

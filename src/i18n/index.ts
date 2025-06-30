@@ -3,6 +3,17 @@ import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import { getSupabaseClient } from '@/lib/supabase';
 
+// إعلان global للـ organizationCache
+declare global {
+  interface Window {
+    organizationCache?: Map<string, {
+      data: any;
+      timestamp: number;
+      type: 'byId' | 'byDomain' | 'bySubdomain';
+    }>;
+  }
+}
+
 // ملفات الترجمة مضمنة
 const arTranslations = {
   "navbar": {
@@ -1327,7 +1338,7 @@ const resources = {
 let languageCache: { language: string; timestamp: number; organizationId: string } | null = null;
 const LANGUAGE_CACHE_DURATION = 5 * 60 * 1000; // 5 دقائق
 
-// جلب اللغة الافتراضية من قاعدة البيانات مع تخزين مؤقت
+// جلب اللغة الافتراضية من قاعدة البيانات مع تخزين مؤقت محسن
 const getDefaultLanguageFromDatabase = async () => {
   try {
     // الحصول على subdomain من URL الحالي
@@ -1339,71 +1350,233 @@ const getDefaultLanguageFromDatabase = async () => {
       subdomain = 'testfinalfinalvhio'; // subdomain للاختبار
     }
     
+    // تشخيص: طباعة المعلومات الأساسية
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🌐 Language Detection:', {
+        currentHost,
+        subdomain,
+        isLocalhost: currentHost.includes('localhost')
+      });
+    }
+    
     // فحص التخزين المؤقت أولاً
     if (languageCache && 
         (Date.now() - languageCache.timestamp) < LANGUAGE_CACHE_DURATION &&
         languageCache.organizationId === subdomain) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🎯 Using cached language:', languageCache.language);
+      }
       return languageCache.language;
     }
     
-    // استدعاء واحد محسن للبحث عن المؤسسة بالنطاق أو النطاق الفرعي
-    const supabase = getSupabaseClient();
+    // استخدام cache المنظمة المشترك من TenantContext بدلاً من استدعاء منفصل
     let organizationId = null;
+    let organizationData = null;
     
-    try {
-      // استعلام واحد يبحث بالنطاق الكامل أو النطاق الفرعي - إصلاح PGRST116
-      const { data: orgDataArray, error: orgError } = await supabase
-        .from('organizations')
-        .select('id')
-        .or(`domain.eq.${currentHost},subdomain.eq.${subdomain}`)
-        .limit(1);
-        
-      const orgData = orgDataArray && orgDataArray.length > 0 ? orgDataArray[0] : null;
-    
-      if (!orgError && orgData) {
-        organizationId = orgData.id;
-      }
-    } catch (error) {
+    // فحص cache المنظمة أولاً - مع انتظار قصير إذا كان قيد التحميل
+    if (typeof window !== 'undefined' && window.organizationCache) {
       
-      // محاولة بديلة: البحث بالنطاق الفرعي فقط
+      // البحث في cache بأولوية: orgId من localStorage، domain، subdomain
+      const storedOrgId = localStorage.getItem('bazaar_organization_id');
+      
+      if (storedOrgId) {
+        const orgCacheKey = `org-id-${storedOrgId}`;
+        if (window.organizationCache.has(orgCacheKey)) {
+          const cached = window.organizationCache.get(orgCacheKey);
+          if (cached && (Date.now() - cached.timestamp) < 10 * 60 * 1000) { // 10 دقائق
+            organizationData = cached.data;
+            organizationId = organizationData.id;
+            if (process.env.NODE_ENV === 'development') {
+              console.log('🏢 Found organization in cache by ID:', organizationId);
+            }
+          }
+        }
+      }
+      
+      // إذا لم نجد في cache بـ orgId، جرب domain
+      if (!organizationData && !currentHost.includes('localhost')) {
+        const domainCacheKey = `org-domain-${currentHost}`;
+        if (window.organizationCache.has(domainCacheKey)) {
+          const cached = window.organizationCache.get(domainCacheKey);
+          if (cached && (Date.now() - cached.timestamp) < 10 * 60 * 1000) {
+            organizationData = cached.data;
+            organizationId = organizationData.id;
+            if (process.env.NODE_ENV === 'development') {
+              console.log('🏢 Found organization in cache by domain:', organizationId);
+            }
+          }
+        }
+      }
+      
+      // إذا لم نجد في cache بـ domain، جرب subdomain
+      if (!organizationData) {
+        const subdomainCacheKey = `org-subdomain-${subdomain}`;
+        if (window.organizationCache.has(subdomainCacheKey)) {
+          const cached = window.organizationCache.get(subdomainCacheKey);
+          if (cached && (Date.now() - cached.timestamp) < 10 * 60 * 1000) {
+            organizationData = cached.data;
+            organizationId = organizationData.id;
+            if (process.env.NODE_ENV === 'development') {
+              console.log('🏢 Found organization in cache by subdomain:', organizationId);
+            }
+          }
+        }
+      }
+      
+      // إذا لم نجد في cache، انتظر قليلاً في حالة كان TenantContext يحمل البيانات
+      if (!organizationData) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // إعادة فحص cache بعد الانتظار
+        if (storedOrgId) {
+          const orgCacheKey = `org-id-${storedOrgId}`;
+          if (window.organizationCache.has(orgCacheKey)) {
+            const cached = window.organizationCache.get(orgCacheKey);
+            if (cached && (Date.now() - cached.timestamp) < 10 * 60 * 1000) {
+              organizationData = cached.data;
+              organizationId = organizationData.id;
+              if (process.env.NODE_ENV === 'development') {
+                console.log('🏢 Found organization in cache after waiting:', organizationId);
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    // إذا لم نجد في cache، نفذ استدعاء واحد فقط كحل أخير
+    if (!organizationId) {
+      const supabase = getSupabaseClient();
+      
       try {
-        const { data: subdomainDataArray, error: subdomainError } = await supabase
+        if (process.env.NODE_ENV === 'development') {
+          console.log('🔍 Searching for organization in database...');
+        }
+        
+        // استعلام واحد محسن للبحث عن المؤسسة بالنطاق أو النطاق الفرعي
+        const { data: orgDataArray, error: orgError } = await supabase
           .from('organizations')
           .select('id')
-          .eq('subdomain', subdomain)
+          .or(`domain.eq.${currentHost},subdomain.eq.${subdomain}`)
           .limit(1);
           
-        const subdomainData = subdomainDataArray && subdomainDataArray.length > 0 ? subdomainDataArray[0] : null;
+        const orgData = orgDataArray && orgDataArray.length > 0 ? orgDataArray[0] : null;
+      
+        if (!orgError && orgData) {
+          organizationId = orgData.id;
           
-        if (!subdomainError && subdomainData) {
-          organizationId = subdomainData.id;
+          if (process.env.NODE_ENV === 'development') {
+            console.log('🏢 Found organization in database:', organizationId);
+          }
+          
+          // حفظ في cache المشترك لتجنب استدعاءات مستقبلية
+          if (typeof window !== 'undefined' && window.organizationCache) {
+            const cacheKey = currentHost.includes('localhost') ? 
+              `org-subdomain-${subdomain}` : 
+              `org-domain-${currentHost}`;
+            
+            window.organizationCache.set(cacheKey, {
+              data: { id: organizationId, subdomain, domain: currentHost },
+              timestamp: Date.now(),
+              type: currentHost.includes('localhost') ? 'bySubdomain' : 'byDomain'
+            });
+            
+          }
+        } else {
+          if (process.env.NODE_ENV === 'development') {
+            console.log('❌ Organization not found in database', { orgError, orgData });
+          }
         }
-      } catch (fallbackError) {
+      } catch (error) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('❌ Error searching for organization:', error);
+        }
       }
     }
     
     // إذا وُجد معرف المؤسسة، جلب إعدادات اللغة
     if (organizationId) {
       try {
-        // استعلام مباشر لجدول organization_settings - إصلاح PGRST116
-        const { data: settingsDataArray, error: settingsError } = await supabase
-          .from('organization_settings')
-          .select('default_language')
-          .eq('organization_id', organizationId)
-          .limit(1);
+        const supabase = getSupabaseClient();
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log('🔍 Fetching language settings for organization:', organizationId);
+        }
+        
+        // استخدام RPC call آمن بدلاً من الاستعلام المباشر
+        const { data: languageResult, error: languageError } = await supabase
+          .rpc('get_public_organization_language', { org_id: organizationId });
           
-        const settingsData = settingsDataArray && settingsDataArray.length > 0 ? settingsDataArray[0] : null;
+        if (process.env.NODE_ENV === 'development') {
+          console.log('📊 Language RPC result:', {
+            languageError,
+            languageResult,
+            foundLanguage: languageResult
+          });
+        }
 
-        if (!settingsError && settingsData && settingsData.default_language) {
+        if (!languageError && languageResult && typeof languageResult === 'string') {
           // حفظ في التخزين المؤقت
           languageCache = {
-            language: settingsData.default_language,
+            language: languageResult,
             timestamp: Date.now(),
             organizationId: subdomain
           };
-          return settingsData.default_language;
+          
+          if (process.env.NODE_ENV === 'development') {
+            console.log('✅ Successfully loaded language via RPC:', languageResult);
+          }
+          
+          return languageResult;
+        } else {
+          // fallback: محاولة الاستعلام المباشر كحل أخير
+          if (process.env.NODE_ENV === 'development') {
+            console.log('🔄 RPC failed, trying direct query fallback...');
+          }
+          
+          const { data: settingsDataArray, error: settingsError } = await supabase
+            .from('organization_settings')
+            .select('default_language')
+            .eq('organization_id', organizationId)
+            .limit(1);
+            
+          const settingsData = settingsDataArray && settingsDataArray.length > 0 ? settingsDataArray[0] : null;
+
+          if (process.env.NODE_ENV === 'development') {
+            console.log('📊 Direct query fallback result:', {
+              settingsError,
+              settingsData,
+              foundLanguage: settingsData?.default_language
+            });
+          }
+
+          if (!settingsError && settingsData && settingsData.default_language) {
+            // حفظ في التخزين المؤقت
+            languageCache = {
+              language: settingsData.default_language,
+              timestamp: Date.now(),
+              organizationId: subdomain
+            };
+            
+            if (process.env.NODE_ENV === 'development') {
+              console.log('✅ Successfully loaded language via direct query fallback:', settingsData.default_language);
+            }
+            
+            return settingsData.default_language;
+          }
+          
+          if (process.env.NODE_ENV === 'development') {
+            console.log('⚠️ No language settings found, using default');
+          }
         }
       } catch (error) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('❌ Error fetching language settings:', error);
+        }
+      }
+    } else {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('⚠️ No organization ID found, using default language');
       }
     }
     
@@ -1413,9 +1586,18 @@ const getDefaultLanguageFromDatabase = async () => {
       timestamp: Date.now(),
       organizationId: subdomain
     };
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔄 Falling back to default language: ar');
+    }
+    
     return 'ar';
     
   } catch (error) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('❌ Critical error in getDefaultLanguageFromDatabase:', error);
+    }
+    
     // حفظ اللغة الافتراضية في التخزين المؤقت حتى في حالة الخطأ
     languageCache = {
       language: 'ar',
@@ -1485,10 +1667,13 @@ i18n.on('languageChanged', (lng) => {
   }
 });
 
-// تحديث اللغة من قاعدة البيانات بعد التهيئة
+// تحديث اللغة من قاعدة البيانات بعد التهيئة - مع تأخير ذكي
 const updateLanguageFromDatabase = async () => {
   if (typeof window !== 'undefined') {
     try {
+      // انتظار أطول لضمان تحميل TenantContext أولاً
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       const defaultLanguage = await getDefaultLanguageFromDatabase();
       
       // فحص إذا كان المستخدم اختار لغة يدوياً مؤخراً
@@ -1515,7 +1700,7 @@ const updateLanguageFromDatabase = async () => {
   }
 };
 
-// تشغيل تحديث اللغة بعد تهيئة i18n
-setTimeout(updateLanguageFromDatabase, 100);
+// تشغيل تحديث اللغة بعد تهيئة i18n مع تأخير أطول
+setTimeout(updateLanguageFromDatabase, 800);
 
 export default i18n;

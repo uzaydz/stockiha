@@ -111,7 +111,7 @@ export const DeliveryInfoFields: React.FC<DeliveryInfoFieldsProps> = ({
                 field.onChange(value);
                 onWilayaChange(value);
               }}
-              value={field.value}
+              value={field.value || ""}
               disabled={isLoadingWilayas}
             >
               <FormControl>
@@ -143,7 +143,7 @@ export const DeliveryInfoFields: React.FC<DeliveryInfoFieldsProps> = ({
             </FormLabel>
             <Select
               onValueChange={field.onChange}
-              value={field.value}
+              value={field.value || ""}
               disabled={isLoadingCommunes || !selectedWilaya}
             >
               <FormControl>
@@ -225,7 +225,7 @@ export const DeliveryInfoFields: React.FC<DeliveryInfoFieldsProps> = ({
                     onWilayaChange(currentProvinceValue);
                   }
                 }}
-                value={field.value}
+                value={field.value || ""}
                 className="flex flex-col space-y-1"
               >
                 <div className="flex items-center space-x-3 space-x-reverse">
@@ -265,7 +265,7 @@ export const DeliveryInfoFields: React.FC<DeliveryInfoFieldsProps> = ({
                   onDeliveryCompanyChange(value);
                 }
               }}
-              defaultValue={field.value}
+              value={field.value || ""}
               disabled={hasShippingIntegration}
             >
               <FormControl>

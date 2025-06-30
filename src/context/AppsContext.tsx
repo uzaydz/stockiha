@@ -535,9 +535,7 @@ export function AppsProvider({ children }: AppsProviderProps) {
   const isAppEnabled = useCallback((appId: string): boolean => {
     const app = organizationApps.find(app => app.app_id === appId);
     const isEnabled = app?.is_enabled || false;
-    
 
-    
     return isEnabled;
   }, [organizationApps, organizationId]);
 

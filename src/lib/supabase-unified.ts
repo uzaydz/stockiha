@@ -62,4 +62,3 @@ export const cleanupSupabaseClients = (): void => {
 
 // إعادة تصدير أنواع البيانات للتوافق
 export type { Database } from '@/types/database.types';
-

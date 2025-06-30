@@ -28,14 +28,12 @@ export async function findClonedShippingProviderId(formSettings: any, orgId: str
       .maybeSingle();
     
     if (providerError) {
-      console.log('⚠️ خطأ في جلب إعدادات مزود الشحن:', providerError);
       return null;
     }
     
     return providerSettings ? providerSettings.provider_id : null;
     
   } catch (error) {
-    console.log('⚠️ خطأ عام في findClonedShippingProviderId:', error);
     return null;
   }
 }
@@ -58,7 +56,6 @@ export function getDefaultShippingProviderSettings(orgId: string | null | undefi
         .maybeSingle();
       
       if (providerError) {
-        console.log('⚠️ خطأ في جلب إعدادات مزود الشحن:', providerError);
       } else if (providerSettings) {
         const currentProviderId = providerId || providerSettings.provider_id;
         
@@ -69,7 +66,6 @@ export function getDefaultShippingProviderSettings(orgId: string | null | undefi
           .maybeSingle();
           
         if (providerInfoError) {
-          console.log('⚠️ خطأ في جلب معلومات مزود الشحن:', providerInfoError);
         } else if (provider) {
           
           // إنشاء كائن إعدادات مبسط
@@ -96,7 +92,6 @@ export function getDefaultShippingProviderSettings(orgId: string | null | undefi
         }
       }
     } catch (error) {
-      console.log('⚠️ خطأ عام في fetchDefaultSettings:', error);
     }
     
     return null;
@@ -131,7 +126,6 @@ export function getDefaultShippingProviderSettings(orgId: string | null | undefi
       sync_enabled: false
     };
   }).catch(error => {
-    console.log('⚠️ خطأ في معالجة الإعدادات الافتراضية:', error);
     
     // إرجاع إعدادات افتراضية أساسية في حالة الخطأ
     return {
@@ -193,7 +187,6 @@ export const useShippingProviderLogic = (
           .maybeSingle();
 
         if (settingsError) {
-          console.log('⚠️ خطأ في جلب إعدادات مزود الشحن:', settingsError);
           throw settingsError;
         }
 
@@ -229,9 +222,7 @@ export const useShippingProviderLogic = (
             return sanitizedData;
           }
         }
-        
-        console.log('⚠️ لم يتم العثور على إعدادات مزود الشحن:', providerId);
-        
+
         // استخدام إعدادات افتراضية
         return await getDefaultShippingProviderSettings(currentOrganization?.id, providerId);
       }, SHORT_CACHE_TTL);
@@ -239,7 +230,6 @@ export const useShippingProviderLogic = (
       setShippingProviderSettings(settings);
 
     } catch (error) {
-      console.log('⚠️ خطأ عام في fetchShippingProviderSettings:', error);
       
       // تعيين إعدادات افتراضية في حالة الخطأ
       const defaultSettings = await getDefaultShippingProviderSettings(currentOrganization?.id, providerId);
@@ -286,7 +276,6 @@ export const useShippingProviderLogic = (
               .limit(1);
               
             if (error) {
-              console.log('⚠️ خطأ في جلب بيانات المنتج:', error);
             } else if (data && data.length > 0 && data[0].shipping_provider_id) {
               const providerId = data[0].shipping_provider_id;
               setShippingProviderId(providerId);
@@ -295,7 +284,6 @@ export const useShippingProviderLogic = (
               return;
             }
           } catch (error) {
-            console.log('⚠️ خطأ في استدعاء جدول products:', error);
           }
         }
         
@@ -324,20 +312,17 @@ export const useShippingProviderLogic = (
             const defaultSettings = await getDefaultShippingProviderSettings(currentOrganization?.id, 1);
             setShippingProviderSettings(defaultSettings);
           } catch (error) {
-            console.log('⚠️ خطأ في جلب الإعدادات الافتراضية:', error);
             setShippingProviderSettings(null);
           }
         }
         
         setIsLoadingShippingSettings(false);
       } catch (error) {
-        console.log('⚠️ خطأ عام في getShippingProviderId:', error);
         
         try {
           const defaultSettings = await getDefaultShippingProviderSettings(currentOrganization?.id, 1);
           setShippingProviderSettings(defaultSettings);
         } catch (settingsError) {
-          console.log('⚠️ خطأ في جلب الإعدادات الافتراضية في catch:', settingsError);
           setShippingProviderSettings(null);
         }
         setShippingProviderId(1);

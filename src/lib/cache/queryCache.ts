@@ -46,7 +46,6 @@ class QueryCache {
     }
 
     if (cleanedCount > 0) {
-      console.log(`🧹 تم تنظيف ${cleanedCount} عنصر من التخزين المؤقت`);
     }
   }
 
@@ -173,7 +172,6 @@ class QueryCache {
           query = query.maybeSingle();
         } catch (singleError: any) {
           if (singleError.code === 'PGRST116') {
-            console.log(`📊 ${table}: تحويل من single إلى multiple rows`);
             query = queryFn().limit(100); // fallback إلى استعلام متعدد محدود
           } else {
             throw singleError;
@@ -186,7 +184,6 @@ class QueryCache {
       if (error) {
         // معالجة خاصة لخطأ PGRST116
         if (error.code === 'PGRST116') {
-          console.log(`⚠️ PGRST116 في ${table}: ${error.message}`);
           
           // إعادة المحاولة مع استراتيجية مختلفة
           if (expectSingle) {
@@ -204,7 +201,6 @@ class QueryCache {
 
       return data;
     } catch (error) {
-      console.error(`❌ خطأ في استعلام ${table}:`, error);
       throw error;
     }
   }
@@ -286,4 +282,4 @@ if (typeof window !== 'undefined') {
   });
 }
 
-export default queryCache; 
+export default queryCache;

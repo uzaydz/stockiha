@@ -59,7 +59,6 @@ class SubscriptionCacheService {
       });
 
       if (error) {
-        console.error('خطأ في جلب حالة الاشتراك:', error);
         return this.getErrorResponse(error.message);
       }
 
@@ -78,7 +77,6 @@ class SubscriptionCacheService {
       return subscriptionData;
 
     } catch (error) {
-      console.error('خطأ غير متوقع في خدمة الاشتراك:', error);
       return this.getErrorResponse('خطأ غير متوقع في فحص الاشتراك');
     }
   }
@@ -137,7 +135,6 @@ class SubscriptionCacheService {
       );
     } catch (error) {
       // تجاهل أخطاء localStorage (مثل امتلاء التخزين)
-      console.warn('تعذر حفظ البيانات في localStorage:', error);
     }
   }
 
@@ -237,4 +234,4 @@ export const subscriptionCache = SubscriptionCacheService.getInstance();
 // تنظيف دوري كل ساعة
 setInterval(() => {
   subscriptionCache.cleanup();
-}, 60 * 60 * 1000); 
+}, 60 * 60 * 1000);

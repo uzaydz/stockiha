@@ -8,6 +8,172 @@ import { API_TIMEOUTS, RETRY_CONFIG, withTimeout, withRetry } from '@/config/api
 import { useUser } from './UserContext';
 // Removed deprecated auth fixes import
 
+// إضافة global flag لمنع التشغيل المزدوج
+declare global {
+  interface Window {
+    organizationCache?: Map<string, {
+      data: any;
+      timestamp: number;
+      type: 'byId' | 'byDomain' | 'bySubdomain';
+    }>;
+    bazaarTenantLoading?: boolean;
+  }
+}
+
+// تهيئة cache عالمي
+if (typeof window !== 'undefined' && !window.organizationCache) {
+  window.organizationCache = new Map();
+}
+
+const ORGANIZATION_CACHE_TTL = 10 * 60 * 1000; // 10 دقائق
+
+// دالة موحدة لجلب المنظمة مع cache ذكي
+const fetchOrganizationUnified = async (params: {
+  orgId?: string;
+  hostname?: string;
+  subdomain?: string;
+}): Promise<any> => {
+  const { orgId, hostname, subdomain } = params;
+  
+  // تحديد مفتاح cache بناء على المعاملات
+  let cacheKey = '';
+  let fetchType: 'byId' | 'byDomain' | 'bySubdomain' = 'byId';
+  
+  if (orgId) {
+    cacheKey = `org-id-${orgId}`;
+    fetchType = 'byId';
+  } else if (hostname && !hostname.includes('localhost')) {
+    cacheKey = `org-domain-${hostname}`;
+    fetchType = 'byDomain';
+  } else if (subdomain) {
+    cacheKey = `org-subdomain-${subdomain}`;
+    fetchType = 'bySubdomain';
+  } else {
+    return null;
+  }
+  
+  // فحص cache أولاً
+  if (window.organizationCache?.has(cacheKey)) {
+    const cached = window.organizationCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp) < ORGANIZATION_CACHE_TTL) {
+      return cached.data;
+    }
+  }
+  
+  // منع الاستدعاءات المتكررة للمفتاح نفسه
+  const pendingKey = `pending-${cacheKey}`;
+  if (window.organizationCache?.has(pendingKey)) {
+    // انتظار لمدة قصيرة ثم إعادة المحاولة
+    await new Promise(resolve => setTimeout(resolve, 100));
+    if (window.organizationCache?.has(cacheKey)) {
+      const cached = window.organizationCache.get(cacheKey);
+      if (cached && (Date.now() - cached.timestamp) < ORGANIZATION_CACHE_TTL) {
+        return cached.data;
+      }
+    }
+  }
+  
+  // وضع علامة على أن الاستدعاء جاري
+  if (window.organizationCache) {
+    window.organizationCache.set(pendingKey, {
+      data: null,
+      timestamp: Date.now(),
+      type: fetchType
+    });
+  }
+  
+  // جلب البيانات من قاعدة البيانات
+  
+  let orgData = null;
+  
+  try {
+    switch (fetchType) {
+      case 'byId':
+        if (orgId) {
+          orgData = await getOrganizationById(orgId);
+        }
+        break;
+      case 'byDomain':
+        if (hostname) {
+          orgData = await getOrganizationByDomain(hostname);
+        }
+        break;
+      case 'bySubdomain':
+        if (subdomain) {
+          orgData = await getOrganizationBySubdomain(subdomain);
+        }
+        break;
+    }
+    
+    // حفظ في cache إذا تم العثور على البيانات
+    if (orgData && window.organizationCache) {
+      window.organizationCache.set(cacheKey, {
+        data: orgData,
+        timestamp: Date.now(),
+        type: fetchType
+      });
+      
+      // حفظ نفس البيانات بمفاتيح مختلفة لتجنب الاستدعاءات المستقبلية
+      if (orgData.id && fetchType !== 'byId') {
+        window.organizationCache.set(`org-id-${orgData.id}`, {
+          data: orgData,
+          timestamp: Date.now(),
+          type: 'byId'
+        });
+      }
+      if (orgData.subdomain && fetchType !== 'bySubdomain') {
+        window.organizationCache.set(`org-subdomain-${orgData.subdomain}`, {
+          data: orgData,
+          timestamp: Date.now(),
+          type: 'bySubdomain'
+        });
+      }
+      if (orgData.domain && fetchType !== 'byDomain') {
+        window.organizationCache.set(`org-domain-${orgData.domain}`, {
+          data: orgData,
+          timestamp: Date.now(),
+          type: 'byDomain'
+        });
+      }
+    }
+    
+    return orgData;
+  } catch (error) {
+    return null;
+  } finally {
+    // إزالة علامة الانتظار
+    if (window.organizationCache?.has(pendingKey)) {
+      window.organizationCache.delete(pendingKey);
+    }
+  }
+};
+
+// دالة لتنظيف cache منتهي الصلاحية
+const cleanExpiredOrganizationCache = () => {
+  if (!window.organizationCache) return;
+  
+  const now = Date.now();
+  const keysToDelete: string[] = [];
+  
+  window.organizationCache.forEach((value, key) => {
+    if (now - value.timestamp > ORGANIZATION_CACHE_TTL) {
+      keysToDelete.push(key);
+    }
+  });
+  
+  keysToDelete.forEach(key => {
+    window.organizationCache?.delete(key);
+  });
+  
+  if (keysToDelete.length > 0) {
+  }
+};
+
+// تشغيل تنظيف cache كل 5 دقائق
+if (typeof window !== 'undefined') {
+  setInterval(cleanExpiredOrganizationCache, 5 * 60 * 1000);
+}
+
 export type Organization = {
   id: string;
   name: string;
@@ -61,30 +227,8 @@ const isMainDomain = (hostname: string): boolean => {
   return hostname === 'www.ktobi.online' || hostname === 'ktobi.online';
 };
 
-// استخراج النطاق الفرعي من اسم المضيف
+// استخراج النطاق الفرعي من اسم المضيف - محسن مع cache
 const extractSubdomain = async (hostname: string): Promise<string | null> => {
-
-  // التحقق من النطاق المخصص أولاً
-  const checkCustomDomain = async (): Promise<string | null> => {
-    try {
-      const { data: orgData, error } = await supabase
-        .from('organizations')
-        .select('subdomain')
-        .eq('domain', hostname)
-        .maybeSingle();
-      
-      if (error) {
-        return null;
-      }
-      
-      if (orgData?.subdomain) {
-        
-        return orgData.subdomain;
-      }
-    } catch (error) {
-    }
-    return null;
-  };
   
   // التعامل مع السابدومين في بيئة localhost المحلية
   if (hostname.includes('localhost')) {
@@ -131,10 +275,10 @@ const extractSubdomain = async (hostname: string): Promise<string | null> => {
     return subdomain;
   }
   
-  // التحقق من النطاق المخصص
-  const customDomainSubdomain = await checkCustomDomain();
-  if (customDomainSubdomain) {
-    return customDomainSubdomain;
+  // التحقق من النطاق المخصص باستخدام النظام الموحد
+  const orgData = await fetchOrganizationUnified({ hostname });
+  if (orgData?.subdomain) {
+    return orgData.subdomain;
   }
   
   // إذا لم نتمكن من استخراج نطاق فرعي، نعيد null
@@ -142,26 +286,14 @@ const extractSubdomain = async (hostname: string): Promise<string | null> => {
   return null;
 };
 
-// إضافة وظيفة للتحقق من النطاق المخصص
+// إضافة وظيفة للتحقق من النطاق المخصص - محسنة مع cache
 export const getOrganizationFromCustomDomain = async (hostname: string): Promise<{ id: string; subdomain: string } | null> => {
   if (!hostname || hostname.includes('localhost')) return null;
   
   try {
-    const supabaseClient = supabase;
-    
-    // البحث عن المؤسسة باستخدام النطاق المخصص
-    const { data: orgData, error } = await supabase
-      .from('organizations')
-      .select('id,name,subdomain')
-      .eq('domain', hostname)
-      .maybeSingle();
-      
-    if (error) {
-      return null;
-    }
+    const orgData = await fetchOrganizationUnified({ hostname });
       
     if (orgData && orgData.id && orgData.subdomain) {
-      
       return {
         id: orgData.id,
         subdomain: orgData.subdomain
@@ -288,23 +420,27 @@ const LoadingIndicator = ({ isLoading, error, retryCount }: {
 };
 
 export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, isLoading: authLoading, currentSubdomain, organization: authOrganization } = useAuth();
+  // إعادة تعيين العلامات العالمية في البداية للحماية من التعليق
+  useEffect(() => {
+    if (window.bazaarTenantLoading) {
+      window.bazaarTenantLoading = false;
+    }
+  }, []);
+
+  const { user, loading: authLoading, currentSubdomain, organization: authOrganization } = useAuth();
   const { organizationId } = useUser();
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [isOrgAdmin, setIsOrgAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-
-  // تتبع حالة TenantProvider للتصحيح
   
-  // Track initialization and prevent duplicate loads
+  // تتبع حالة التحميل والتهيئة
   const initialized = useRef(false);
   const loadingOrganization = useRef(false);
+  const retryCount = useRef(0);
   const loadingTimeout = useRef<NodeJS.Timeout | null>(null);
   const abortController = useRef<AbortController | null>(null);
-  const retryCount = useRef(0);
-  const maxRetries = RETRY_CONFIG.MAX_RETRIES;
-  
+
   // Refs للقيم المتغيرة لتجنب dependencies
   const userRef = useRef(user);
   const organizationRef = useRef(organization);
@@ -383,141 +519,93 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [authOrganization]); // إزالة organization من dependencies
 
-  // تحديث وظيفة fetchOrganizationBySubdomain
-  const fetchOrganizationBySubdomain = useCallback(async (subdomain: string | null) => {
-    if (!subdomain) return null;
-    
-    try {
-      // إنشاء AbortController جديد
-      if (abortController.current) {
-        abortController.current.abort();
-      }
-      abortController.current = new AbortController();
-
-      // أولاً نحاول العثور على المؤسسة بواسطة النطاق الرئيسي (الحالي)
-      const currentHostname = window.location.hostname;
-      if (currentHostname !== 'localhost' && !currentHostname.includes('localhost')) {
-        // محاولة العثور على المؤسسة بالنطاق الرئيسي
-        const orgByDomain = await Promise.race([
-          getOrganizationByDomain(currentHostname),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('timeout')), API_TIMEOUTS.DATABASE_QUERY)
-          )
-        ]);
-        
-        if (orgByDomain) {
-          return orgByDomain;
-        }
-      }
-      
-      // إذا لم نعثر على المؤسسة بالنطاق الرئيسي، نستخدم النطاق الفرعي
-      return await Promise.race([
-        getOrganizationBySubdomain(subdomain),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('timeout')), API_TIMEOUTS.DATABASE_QUERY)
-        )
-      ]);
-    } catch (error) {
-      if (error instanceof Error && error.message === 'timeout') {
-      }
-      return null;
-    }
+  // دالة موحدة ومحسنة لجلب المنظمة
+  const fetchOrganizationOptimized = useCallback(async (params: {
+    orgId?: string;
+    hostname?: string;
+    subdomain?: string;
+  }) => {
+    return await fetchOrganizationUnified(params);
   }, []);
 
-  // تحميل بيانات المؤسسة عند تغيير النطاق الفرعي 
+  // useEffect للتحقق من الحالة الأولية وبدء تحميل بيانات المؤسسة
   useEffect(() => {
-    // تجنب تحميل البيانات مرات متعددة
-    if (authLoading || loadingOrganization.current) {
+    // منع التشغيل إذا كان التحميل جارياً أو اكتمل بالفعل
+    if (loadingOrganization.current || (initialized.current && organization)) {
       return;
     }
 
-    // إذا كان المكون قد تم تهيئته وهناك منظمة، لا نحتاج لإعادة التحميل
-    if (initialized.current && organizationRef.current) {
-      setIsLoading(false);
+    // منع التشغيل أثناء تحميل المصادقة
+    if (authLoading) {
       return;
     }
-    
-    // تحقق فوري من localStorage في بداية كل محاولة تحميل
-    const quickOrgCheck = localStorage.getItem('bazaar_organization_id');
-    if (quickOrgCheck && !organizationRef.current && !loadingOrganization.current) {
+
+    // فحص العلامة العالمية مع timeout للحماية من التعليق
+    if (window.bazaarTenantLoading) {
+      // انتظار قصير ثم إعادة المحاولة في حالة التعليق
+      setTimeout(() => {
+        if (window.bazaarTenantLoading) {
+          window.bazaarTenantLoading = false;
+        }
+      }, 3000);
+      return;
     }
-    
+
+    // وضع علامة عالمية أن التحميل بدأ
+    window.bazaarTenantLoading = true;
+    loadingOrganization.current = true;
+    setIsLoading(true);
+    setError(null);
+
     const loadTenantData = async () => {
-      
-      if (loadingOrganization.current || initialized.current) {
-        return; // تجنب التحميل المتزامن أو إعادة التحميل غير الضرورية
-      }
-      
-      setIsLoading(true);
-      setError(null); // إعادة تعيين الخطأ
-      loadingOrganization.current = true;
-
-      // مسح الكاش المتعلق بهذا الـ subdomain
-      const currentHostname = window.location.hostname;
-      const cacheKeyPattern = `organization_subdomain:${currentSubdomain}`;
-      
-      // إلغاء أي timeout سابق
-      if (loadingTimeout.current) {
-        clearTimeout(loadingTimeout.current);
-        loadingTimeout.current = null;
-      }
-      
       try {
-        // إعداد timeout محسن مع إمكانية الإلغاء
-        const timeoutPromise = new Promise<never>((_, reject) => {
-          loadingTimeout.current = setTimeout(() => {
-            if (abortController.current) {
-              abortController.current.abort();
-            }
-            reject(new Error('انتهت مهلة تحميل بيانات المؤسسة'));
-          }, API_TIMEOUTS.ORGANIZATION_LOAD);
+        const maxRetries = 2;
+        const API_TIMEOUTS = { RETRY_DELAY: 1000 };
+
+        // إعداد timeout عام للحماية
+        const loadingTimeout = setTimeout(() => {
+          window.bazaarTenantLoading = false;
+          loadingOrganization.current = false;
+          setIsLoading(false);
+          setError(new Error('انتهت مهلة تحميل بيانات المؤسسة'));
+        }, 15000);
+
+        let org = null;
+        const currentHostname = window.location.hostname;
+        const subdomain = currentSubdomain || await extractSubdomain(currentHostname);
+        const storedOrgId = localStorage.getItem('bazaar_organization_id');
+
+        // Promise للتحميل مع timeout
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('انتهت مهلة جلب بيانات المؤسسة')), 10000);
         });
 
-        // استخدام النطاق الفرعي الحالي أو استخراجه من اسم المضيف
-        const subdomain = currentSubdomain || await extractSubdomain(window.location.hostname);
-
-        // أولاً نحاول العثور على المؤسسة بواسطة النطاق الرئيسي (الحالي)
-        const currentHostname = window.location.hostname;
-        let org = null;
-
-        // السباق بين التحميل و timeout مع معالجة تدريجية
         const loadPromise = (async () => {
-          
-          // 0. أولاً - محاولة التحميل من localStorage مباشرة (للحصول على أسرع نتيجة)
-          const storedOrgId = localStorage.getItem('bazaar_organization_id');
-          if (storedOrgId) {
-            try {
-              // استخدام timeout قصير للمحاولة الأولى
-              const quickTimeout = new Promise<never>((_, reject) => 
-                setTimeout(() => reject(new Error('timeout')), 3000)
-              );
-              
-              const orgById = await Promise.race([
-                getOrganizationById(storedOrgId),
-                quickTimeout
-              ]);
-              
-              if (orgById) {
-                return updateOrganizationFromData(orgById);
-              }
-            } catch (error) {
-            }
-          }
-          
-          // 1. محاولة التحميل من AuthContext
-          if (authOrganizationRef.current) {
-            return updateOrganizationFromData(authOrganizationRef.current);
-          }
+          // فحص cache أولاً
+          const cacheKey = storedOrgId ? `org-id-${storedOrgId}` : 
+                          (currentHostname.includes('localhost') ? `org-subdomain-${subdomain}` : `org-domain-${currentHostname}`);
 
-          // 2. محاولة التحميل من النطاق الفرعي أو المجال المخصص
-          if (subdomain && subdomain !== 'main') {
-            try {
-              const orgData = await fetchOrganizationBySubdomain(subdomain);
-              if (orgData) {
-                return updateOrganizationFromData(orgData);
-              }
-            } catch (error) {
+          if (window.organizationCache?.has(cacheKey)) {
+            const cached = window.organizationCache.get(cacheKey);
+            if (cached && (Date.now() - cached.timestamp) < 10 * 60 * 1000) {
+              return updateOrganizationFromData(cached.data);
             }
+          }
+          
+          let orgData = null;
+
+          // استراتيجية الأولوية: orgId > domain > subdomain
+          if (storedOrgId) {
+            orgData = await fetchOrganizationUnified({ orgId: storedOrgId });
+          } else if (currentHostname && !currentHostname.includes('localhost')) {
+            orgData = await fetchOrganizationUnified({ hostname: currentHostname });
+          } else if (subdomain && subdomain !== 'main') {
+            orgData = await fetchOrganizationUnified({ subdomain });
+          }
+          
+          if (orgData) {
+            return updateOrganizationFromData(orgData);
+          } else {
           }
 
           return null;
@@ -535,10 +623,13 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           }
 
           initialized.current = true;
-          retryCount.current = 0; // إعادة تعيين عداد المحاولات
+          retryCount.current = 0;
         } else {
           throw new Error('لم يتم العثور على بيانات المؤسسة');
         }
+
+        // تنظيف timeout
+        clearTimeout(loadingTimeout);
 
       } catch (error) {
         
@@ -547,34 +638,23 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           retryCount.current += 1;
           setTimeout(() => {
             initialized.current = false;
+            window.bazaarTenantLoading = false;
             loadingOrganization.current = false;
             loadTenantData();
           }, API_TIMEOUTS.RETRY_DELAY * retryCount.current);
         } else {
           setOrganization(null);
+          setError(error as Error);
         }
       } finally {
-        if (loadingTimeout.current) {
-          clearTimeout(loadingTimeout.current);
-          loadingTimeout.current = null;
-        }
+        window.bazaarTenantLoading = false;
         loadingOrganization.current = false;
         setIsLoading(false);
       }
     };
     
     loadTenantData();
-  }, [currentSubdomain, authLoading]); // تقليل dependencies لتجنب الطلبات المتكررة
-
-  // دالة مساعدة لجلب المؤسسة بواسطة النطاق الفرعي
-  const fetchOrgBySubdomain = useCallback(async (subdomain: string | null) => {
-    if (!subdomain) return null;
-    try {
-      return await getOrganizationBySubdomain(subdomain);
-    } catch (error) {
-      return null;
-    }
-  }, [getOrganizationBySubdomain]);
+  }, [currentSubdomain, authLoading]);
 
   // إنشاء مؤسسة جديدة - محسنة مع useCallback
   const createOrganization = useCallback(async (

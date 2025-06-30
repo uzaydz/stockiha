@@ -368,7 +368,179 @@ export async function getCentersByCommune(
 }
 
 /**
- * جلب الأسعار مباشرة من API ياليدين
+ * جلب جميع إعدادات ياليدين المطلوبة لصفحة شراء المنتج في استدعاء واحد محسن
+ * @param organizationId معرف المؤسسة
+ * @returns جميع البيانات المطلوبة أو null في حالة الفشل
+ */
+export async function getYalidineSettingsForProductPurchase(
+  organizationId: string
+): Promise<{
+  success: boolean;
+  data?: {
+    yalidine_provider_id: number;
+    origin_wilaya_id: number;
+    api_credentials: {
+      api_token: string;
+      api_key: string;
+      is_enabled: boolean;
+    };
+  };
+  error?: string;
+  message?: string;
+} | null> {
+  
+  try {
+    
+    const { data, error } = await supabase
+      .rpc('get_yalidine_settings_for_product_purchase' as any, {
+        p_organization_id: organizationId
+      }) as { data: any; error: any };
+
+    if (error) {
+      return null;
+    }
+
+    if (!data) {
+      return null;
+    }
+
+    return data as {
+      success: boolean;
+      data?: {
+        yalidine_provider_id: number;
+        origin_wilaya_id: number;
+        api_credentials: {
+          api_token: string;
+          api_key: string;
+          is_enabled: boolean;
+        };
+      };
+      error?: string;
+      message?: string;
+    };
+
+  } catch (error) {
+    return null;
+  }
+}
+
+/**
+ * جلب الأسعار مباشرة من API ياليدين (محسن مع RPC)
+ * @param organizationId معرف المؤسسة
+ * @param fromWilayaId معرف ولاية المصدر 
+ * @param toWilayaId معرف ولاية الوجهة
+ * @returns بيانات الأسعار من API ياليدين
+ */
+async function fetchYalidineFeesFromAPIOptimized(
+  organizationId: string,
+  fromWilayaId: number,
+  toWilayaId: number
+): Promise<any | null> {
+
+  try {
+    // استخدام RPC المحسن بدلاً من 3 استدعاءات منفصلة
+    const settingsResult = await getYalidineSettingsForProductPurchase(organizationId);
+
+    if (!settingsResult || !settingsResult.success || !settingsResult.data) {
+      return null;
+    }
+
+    const { api_credentials } = settingsResult.data;
+
+    if (!api_credentials.api_token || !api_credentials.api_key) {
+      return null;
+    }
+
+    // استخدام Vite proxy مع timestamp فريد لتجنب request deduplication
+    const uniqueTimestamp = Date.now();
+    const proxyUrl = `/yalidine-api/fees/?from_wilaya_id=${fromWilayaId}&to_wilaya_id=${toWilayaId}&_t=${uniqueTimestamp}`;
+
+    // إضافة timeout controller للسرعة
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // timeout 8 ثواني
+    
+    const response = await fetch(proxyUrl, {
+      method: 'GET',
+      signal: controller.signal,
+      headers: {
+        'x-api-id': api_credentials.api_token,        // lowercase للـ proxy
+        'x-api-token': api_credentials.api_key,       // lowercase للـ proxy
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',  // منع الـ cache تماماً
+        'Pragma': 'no-cache',                  // للمتصفحات القديمة
+        'Expires': '0',                        // انتهاء فوري
+        'X-Request-ID': `yalidine-${fromWilayaId}-${toWilayaId}-${uniqueTimestamp}`, // معرف فريد
+        'X-Unique-Request': `${Math.random()}`  // عشوائية إضافية
+      }
+    });
+    
+    clearTimeout(timeoutId); // إلغاء الـ timeout عند النجاح
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return null;
+    }
+
+    let rawData = await response.json();
+    
+    // التحقق من صحة الاستجابة
+    if (!rawData || Object.keys(rawData).length === 0 || !rawData.per_commune) {
+      return null;
+    }
+
+    // تحويل البيانات إلى التنسيق المتوقع  
+    const communeData = rawData.per_commune;
+    const firstCommune = Object.values(communeData)[0] as any;
+    
+    const processedData = {
+      success: true,
+      from_wilaya_id: fromWilayaId,
+      to_wilaya_id: toWilayaId,
+      data: {
+        from_wilaya: {
+          id: fromWilayaId,
+          name: (rawData as any).from_wilaya_name || `Wilaya ${fromWilayaId}`
+        },
+        to_wilaya: {
+          id: toWilayaId,
+          name: (rawData as any).to_wilaya_name || `Wilaya ${toWilayaId}`
+        },
+        fees: {
+          home_delivery: {
+            price: firstCommune?.express_home || 500,
+            currency: "DZD",
+            description: "التوصيل للمنزل"
+          },
+          stopdesk_delivery: {
+            price: firstCommune?.express_desk || 350,
+            currency: "DZD",
+            description: "التوصيل لمكتب التوقف"
+          }
+        },
+        zone: (rawData as any).zone || 1,
+        estimated_delivery_days: "1-3",
+        insurance_rate: (rawData as any).insurance_percentage ? `${(rawData as any).insurance_percentage}%` : "1%",
+        max_weight: "30kg",
+        max_dimensions: "100x100x100cm",
+        per_commune: communeData,
+        cod_percentage: (rawData as any).cod_percentage,
+        retour_fee: (rawData as any).retour_fee,
+        oversize_fee: (rawData as any).oversize_fee
+      },
+      timestamp: new Date().toISOString(),
+      source: 'yalidine_api_via_optimized_rpc'
+    };
+
+    return processedData;
+
+  } catch (error) {
+    return null;
+  }
+}
+
+/**
+ * جلب الأسعار مباشرة من API ياليدين (النسخة القديمة)
  * @param organizationId معرف المؤسسة
  * @param fromWilayaId معرف ولاية المصدر 
  * @param toWilayaId معرف ولاية الوجهة
@@ -540,25 +712,21 @@ export async function calculateDeliveryPrice(
     }
   }
 
-  // جلب ولاية المصدر من إعدادات المؤسسة
+  // جلب ولاية المصدر من إعدادات المؤسسة باستخدام RPC المحسن
   let originWilayaId: number;
   
   try {
-    // استعلام عن إعدادات ياليدين للمؤسسة
-    const { data: settingsData, error: settingsError } = await supabase
-      .from('yalidine_settings_with_origin')
-      .select('origin_wilaya_id')
-      .eq('organization_id', organizationId)
-      .single();
-
-    if (settingsError) {
-      originWilayaId = parseInt(fromProvinceId, 10);
-    } else if (!settingsData || !settingsData.origin_wilaya_id) {
-      originWilayaId = parseInt(fromProvinceId, 10);
+    // 🆕 استخدام RPC المحسن بدلاً من الاستعلام المنفصل
+    const yalidineSettings = await getYalidineSettingsForProductPurchase(organizationId);
+    
+    if (yalidineSettings && yalidineSettings.success && yalidineSettings.data) {
+      originWilayaId = yalidineSettings.data.origin_wilaya_id;
     } else {
-      originWilayaId = settingsData.origin_wilaya_id;
+      // fallback للمعامل الممرر
+      originWilayaId = parseInt(fromProvinceId, 10);
     }
   } catch (error) {
+    // fallback للمعامل الممرر
     originWilayaId = parseInt(fromProvinceId, 10);
   }
 
@@ -600,7 +768,13 @@ export async function calculateDeliveryPrice(
   // في وضع الإنتاج، استخدم API ياليدين مباشرة (أولوية قصوى للسرعة)
   
   try {
-    const apiData = await fetchYalidineFeesFromAPI(organizationId, originWilayaId, toWilayaIdNum);
+    // محاولة استخدام النسخة المحسنة أولاً
+    let apiData = await fetchYalidineFeesFromAPIOptimized(organizationId, originWilayaId, toWilayaIdNum);
+    
+    // إذا فشلت النسخة المحسنة، استخدم النسخة القديمة كـ fallback
+    if (!apiData) {
+      apiData = await fetchYalidineFeesFromAPI(organizationId, originWilayaId, toWilayaIdNum);
+    }
 
     if (!apiData) {
       // بدلاً من انتظار قاعدة البيانات، استخدام سعر افتراضي سريع
@@ -764,26 +938,18 @@ async function getDeliveryFees(
   // خطأ LINT المشار إليه سابقاً (ID: 855f8b8b-02ff-4ad1-8523-08b9bc6200fe) موجود في البيانات الوهمية لهذه الدالة القديمة.
   // بما أننا سنزيل الاعتماد عليها، سيتم حل الخطأ.
 
-  // جلب ولاية المصدر من إعدادات المؤسسة
+  // جلب ولاية المصدر من إعدادات المؤسسة باستخدام RPC المحسن
   let originWilayaId: number;
   
   try {
-    // استعلام عن إعدادات ياليدين للمؤسسة
-    const { data: settingsData, error: settingsError } = await supabase
-      .from('yalidine_settings_with_origin')
-      .select('origin_wilaya_id')
-      .eq('organization_id', organizationId)
-      .single();
+    // 🆕 استخدام RPC المحسن بدلاً من الاستعلام المنفصل
+    const yalidineSettings = await getYalidineSettingsForProductPurchase(organizationId);
     
-    if (settingsError) {
+    if (yalidineSettings && yalidineSettings.success && yalidineSettings.data) {
+      originWilayaId = yalidineSettings.data.origin_wilaya_id;
+    } else {
       return null;
     }
-    
-    if (!settingsData || !settingsData.origin_wilaya_id) {
-      return null;
-    }
-    
-    originWilayaId = settingsData.origin_wilaya_id;
   } catch (error) {
     return null;
   }
