@@ -302,18 +302,18 @@ const fetchPOSCompleteData = async (orgId: string): Promise<POSCompleteData> => 
 
       return {
         settings: posSettings,
-        products,
-        categories,
-        customers,
-        employees: employees as Employee[],
+        products: products || [],
+        categories: categories || [],
+        customers: customers || [],
+        employees: (employees || []) as Employee[],
         subscription_services: [],
         stats: {
-          total_products: products.length,
-          active_products: products.filter(p => p.is_active).length,
-          low_stock_products: products.filter(p => p.stock_quantity < 10).length,
-          out_of_stock_products: products.filter(p => p.stock_quantity === 0).length,
+          total_products: (products || []).length,
+          active_products: (products || []).filter(p => p.is_active).length,
+          low_stock_products: (products || []).filter(p => p.stock_quantity < 10).length,
+          out_of_stock_products: (products || []).filter(p => p.stock_quantity === 0).length,
           products_with_variants: 0,
-          total_categories: categories.length
+          total_categories: (categories || []).length
         },
         subscription_categories: []
       } as POSCompleteData;
@@ -356,16 +356,16 @@ const fetchPOSOrdersDashboard = async (
 
         stats = {
           total_orders: orders.length,
-          total_revenue: orders.reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0),
+          total_revenue: orders.reduce((sum, o) => sum + (Number(o.total) || 0), 0),
           completed_orders: orders.filter(o => o.status === 'completed').length,
           pending_orders: orders.filter(o => o.status === 'pending').length,
           pending_payment_orders: orders.filter(o => o.payment_status === 'pending').length,
           cancelled_orders: orders.filter(o => o.status === 'cancelled').length,
           cash_orders: orders.filter(o => o.payment_method === 'cash').length,
           card_orders: orders.filter(o => o.payment_method === 'card').length,
-          avg_order_value: orders.length > 0 ? orders.reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0) / orders.length : 0,
+          avg_order_value: orders.length > 0 ? orders.reduce((sum, o) => sum + (Number(o.total) || 0), 0) / orders.length : 0,
           today_orders: todayOrders.length,
-          today_revenue: todayOrders.reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0)
+          today_revenue: todayOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0)
         };
       }
 

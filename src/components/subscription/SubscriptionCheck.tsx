@@ -1,338 +1,169 @@
+/**
+ * مكون فحص الاشتراك المحسن والمثالي
+ * يستخدم دالة قاعدة البيانات المحسنة والكاش الذكي
+ * لا يسبب ضغط على قاعدة البيانات ويعمل بأقصى كفاءة
+ */
+
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTenant } from '@/context/TenantContext';
-import { SubscriptionService } from '@/lib/subscription-service';
-import { supabase } from '@/lib/supabase';
-import { useOrganizationSubscriptions } from '@/contexts/OrganizationDataContext';
-import { 
-  cacheSubscriptionStatus,
-  clearPermissionsCache
-} from '@/lib/PermissionsCache';
+import { useAuth } from '@/context/AuthContext';
+import { subscriptionCache, SubscriptionData } from '@/lib/subscription-cache';
 
 interface SubscriptionCheckProps {
   children: React.ReactNode;
 }
 
-// واجهة المؤسسة بالإعدادات الإضافية
-interface OrganizationWithSettings {
-  id: string;
-  name: string;
-  subscription_tier: string;
-  subscription_status: string;
-  subscription_id: string | null;
-  created_at: string;
-  settings?: {
-    theme?: string;
-    logo_url?: string | null;
-    primary_color?: string;
-    trial_end_date?: string;
-  };
-}
-
-interface SubscriptionInfo {
-  isActive: boolean;
-  status: string;
-  message: string;
-  endDate?: string;
-  daysLeft?: number;
-}
-
 const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
-  const { organization, refreshOrganizationData } = useTenant();
+  const { organization } = useTenant();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [hasChecked, setHasChecked] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
+  const [subscriptionData, setSubscriptionData] = useState<SubscriptionData | null>(null);
+  const [showExpiredWarning, setShowExpiredWarning] = useState(false);
   const checkTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // جلب الاشتراكات من السياق في المستوى الأعلى
-  const { subscriptions: contextSubscriptions } = useOrganizationSubscriptions();
+  const hasCheckedRef = useRef(false);
 
-  // دالة مساعدة لتحديث بيانات المؤسسة مع معالجة أفضل للأخطاء
-  const updateOrganizationSafely = async (orgId: string, updateData: any) => {
-    try {
-      // التأكد من وجود orgId صالح
-      if (!orgId || typeof orgId !== 'string') {
-        return false;
-      }
-
-      const { error: updateError } = await supabase
-        .from('organizations')
-        .update(updateData)
-        .eq('id', orgId)
-        .select('id') // إضافة select للتأكد من نجاح العملية
-        .single(); // التأكد من تحديث صف واحد فقط
-      
-      if (updateError) {
-        // إذا فشل التحديث بسبب الصلاحيات، تجاهل الخطأ
-        if (updateError.code === '42501' || 
-            updateError.code === 'PGRST301' ||
-            updateError.message?.includes('permission') || 
-            updateError.message?.includes('policy')) {
-          return true; // اعتبار العملية ناجحة
-        }
-        
-        return false;
-      }
-      
-      return true;
-    } catch (error) {
-      return false;
-    }
-  };
+  // تجاهل التحقق في صفحة الاشتراك
+  const isSubscriptionPage = location.pathname.includes('/dashboard/subscription');
 
   useEffect(() => {
-    // تجاهل التحقق إذا كان المستخدم في صفحة الاشتراك بالفعل
-    if (window.location.pathname.includes('/dashboard/subscription')) {
+    // تجاهل التحقق إذا:
+    // 1. المستخدم في صفحة الاشتراك
+    // 2. لا توجد مؤسسة
+    // 3. تم التحقق بالفعل
+    // 4. جاري التحقق حالياً
+    if (isSubscriptionPage || !organization || hasCheckedRef.current || isChecking) {
       return;
     }
 
-    // عدم التحقق إذا تم التحقق بالفعل أو إذا كان التحقق جارياً
-    if (hasChecked || isChecking) {
-      return;
-    }
-
-    // التحقق من حالة الاشتراك
     const checkSubscription = async () => {
-      if (!organization) {
-        return;
-      }
-
       try {
         setIsChecking(true);
-        setHasChecked(true);
+        hasCheckedRef.current = true;
 
-        const org = organization as unknown as OrganizationWithSettings;
+        console.log('🔍 فحص حالة الاشتراك للمؤسسة:', organization.name);
 
-        // أولاً: استخدام البيانات من OrganizationDataContext بدلاً من استدعاء جديد
-        let hasValidSubscription = false;
+        // استخدام الخدمة المحسنة للحصول على حالة الاشتراك
+        const subscription = await subscriptionCache.getSubscriptionStatus(organization.id);
         
-        // استخدام البيانات الموجودة من OrganizationDataContext
-        const activeSubscriptions = contextSubscriptions || [];
+        setSubscriptionData(subscription);
 
-        // فلترة الاشتراكات يدوياً للتأكد من عدم انتهاء الصلاحية  
-        const validActiveSubscriptions = (Array.isArray(activeSubscriptions) ? activeSubscriptions : []).filter((sub: any) => {
-          if (!sub.end_date) return false;
-          return new Date(sub.end_date) > new Date();
+        console.log('📊 نتيجة فحص الاشتراك:', {
+          status: subscription.status,
+          planName: subscription.plan_name,
+          daysLeft: subscription.days_left,
+          subscriptionType: subscription.subscription_type
         });
 
-        if (validActiveSubscriptions.length > 0) {
-          const subscription = validActiveSubscriptions[0] as any;
-          const endDate = new Date(subscription.end_date);
-          const now = new Date();
-
-          if (endDate > now) {
-            hasValidSubscription = true;
-            const daysLeft = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-
-            const subscriptionInfo: SubscriptionInfo = {
-              isActive: true,
-              status: subscription.status,
-              message: `اشتراك نشط في الخطة ${subscription.plan_name || 'المتميزة'}`,
-              endDate: subscription.end_date,
-              daysLeft
-            };
-            
-            // تخزين النتيجة في التخزين المؤقت
-            cacheSubscriptionStatus(subscriptionInfo);
-
-            // تحديث بيانات المؤسسة إذا لزم الأمر
-            if (org.subscription_id !== subscription.id || 
-                org.subscription_status !== subscription.status || 
-                org.subscription_tier !== (subscription.plan_code || 'premium')) {
-              try {
-                const updateData = {
-                  subscription_id: subscription.id,
-                  subscription_status: subscription.status,
-                  subscription_tier: subscription.plan_code || 'premium'
-                };
-                
-                const updateResult = await updateOrganizationSafely(org.id, updateData);
-                
-                if (updateResult) {
-                  return; // إنهاء التحقق - الاشتراك صالح
-                }
-              } catch (updateError) {
-              }
-            }
-            
-            return; // إنهاء التحقق - الاشتراك صالح
-          }
+        // التحقق من صحة الاشتراك
+        if (!subscription.success) {
+          console.error('❌ خطأ في فحص الاشتراك:', subscription.error);
+          // في حالة الخطأ، لا نعيد التوجيه - نسمح بالوصول
+          return;
         }
 
-        // ثانياً: التحقق من الاشتراكات التجريبية
-        if (!hasValidSubscription) {
-          const { data: trialSubscriptions } = await supabase
-            .from('organization_subscriptions')
-            .select('*')
-            .eq('organization_id', org.id)
-            .eq('status', 'trial')
-            .order('created_at', { ascending: false });
-
-          // فلترة الاشتراكات التجريبية يدوياً
-          const validTrialSubscriptions = (Array.isArray(trialSubscriptions) ? trialSubscriptions : []).filter(sub => {
-            if (!sub.end_date) return false;
-            return new Date(sub.end_date) > new Date();
-          });
-
-          if (validTrialSubscriptions.length > 0) {
-            const subscription = validTrialSubscriptions[0];
-            const endDate = new Date(subscription.end_date);
-            const now = new Date();
-
-            if (endDate > now) {
-              hasValidSubscription = true;
-              const daysLeft = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-
-              const subscriptionInfo: SubscriptionInfo = {
-                isActive: true,
-                status: 'trial',
-                message: `فترة تجريبية نشطة (${daysLeft} يوم متبقية)`,
-                endDate: subscription.end_date,
-                daysLeft
-              };
-              
-              cacheSubscriptionStatus(subscriptionInfo);
-              return;
-            }
-          }
-        }
-
-        // ثالثاً: التحقق من الفترة التجريبية التقليدية (5 أيام)
-        if (!hasValidSubscription) {
-          let isTrialActive = false;
-          let daysLeft = 0;
+        // إذا كان الاشتراك منتهي الصلاحية
+        if (subscription.status === 'expired' || subscription.days_left <= 0) {
+          console.warn('⚠️ الاشتراك منتهي الصلاحية، إعادة التوجيه لصفحة الاشتراك');
           
-          if (org.settings?.trial_end_date) {
-            const trialEndDate = new Date(org.settings.trial_end_date);
-            const now = new Date();
-            
-            const trialEndDateOnly = new Date(trialEndDate.setHours(23, 59, 59));
-            const nowDateOnly = new Date(now.setHours(0, 0, 0));
-            
-            isTrialActive = trialEndDateOnly >= nowDateOnly;
-            daysLeft = Math.ceil((trialEndDateOnly.getTime() - nowDateOnly.getTime()) / (1000 * 60 * 60 * 24));
-          } else {
-            // استخدام الطريقة القديمة (5 أيام من تاريخ الإنشاء)
-            const trialResult = SubscriptionService.checkTrialStatus(org.created_at);
-            isTrialActive = trialResult.isTrialActive;
-            daysLeft = trialResult.daysLeft;
-          }
-          
-          if (isTrialActive && daysLeft > 0) {
-            hasValidSubscription = true;
-            const subscriptionInfo: SubscriptionInfo = {
-              isActive: true,
-              status: 'trial',
-              message: `الفترة التجريبية سارية (${daysLeft} يوم متبقية)`,
-              daysLeft
-            };
-            
-            cacheSubscriptionStatus(subscriptionInfo);
-            
-            // تحديث حالة المؤسسة
-            if (org.subscription_status !== 'trial' || 
-                org.subscription_tier !== 'trial' || 
-                org.subscription_id !== null) {
-              try {
-                const updateData = {
-                  subscription_status: 'trial',
-                  subscription_tier: 'trial',
-                  subscription_id: null
-                };
-                
-                const updateResult = await updateOrganizationSafely(org.id, updateData);
-                
-                if (updateResult) {
-                  return;
-                }
-              } catch (updateError) {
-              }
-            }
-            
+          // إذا كان المستخدم في صفحة نقطة البيع والمستخدم موظف، أبقه هناك مع تحذير
+          if (location.pathname === '/pos' && user?.role === 'employee') {
+            console.log('🔄 موظف في نقطة البيع - عدم إعادة التوجيه مع إظهار تحذير');
+            setShowExpiredWarning(true);
             return;
           }
+          
+          navigate('/dashboard/subscription', { replace: true });
+          return;
         }
 
-        // إذا وصلنا لهنا، فلا يوجد اشتراك صالح
-        
-        // حذف التخزين المؤقت
-        clearPermissionsCache();
-        
-        const subscriptionInfo: SubscriptionInfo = {
-          isActive: false,
-          status: 'expired',
-          message: 'لا يوجد اشتراك نشط أو انتهت الفترة التجريبية'
-        };
-
-        cacheSubscriptionStatus(subscriptionInfo);
-
-        // تحديث حالة المؤسسة إلى expired
-        if (org.subscription_status !== 'expired' || 
-            org.subscription_tier !== 'free' || 
-            org.subscription_id !== null) {
-          try {
-            const updateData = {
-              subscription_status: 'expired',
-              subscription_tier: 'free',
-              subscription_id: null
-            };
-            
-            const updateResult = await updateOrganizationSafely(org.id, updateData);
-            
-            if (updateResult) {
-            }
-          } catch (updateError) {
+        // إذا كان الاشتراك صالح
+        if (subscription.status === 'active' || subscription.status === 'trial') {
+          console.log('✅ الاشتراك صالح ونشط');
+          
+          // إظهار تنبيه إذا كان الاشتراك سينتهي قريباً (أقل من 7 أيام)
+          if (subscription.days_left <= 7 && subscription.status !== 'trial') {
+            console.warn(`⏰ تنبيه: الاشتراك سينتهي خلال ${subscription.days_left} أيام`);
           }
         }
 
-        // إعادة التوجيه إلى صفحة الاشتراك
-        navigate('/dashboard/subscription');
-
       } catch (error) {
-        
-        // في حالة الخطأ، السماح بالوصول بناءً على بيانات المؤسسة
-        const org = organization as unknown as OrganizationWithSettings;
-        
-        if (org.subscription_status === 'active' || org.subscription_status === 'trial') {
-          const errorInfo: SubscriptionInfo = {
-            isActive: true,
-            status: org.subscription_status,
-            message: 'تم السماح بالوصول بناءً على بيانات المؤسسة (وضع الطوارئ)'
-          };
-          cacheSubscriptionStatus(errorInfo);
-        } else {
-          navigate('/dashboard/subscription');
-        }
+        console.error('❌ خطأ غير متوقع في فحص الاشتراك:', error);
+        // في حالة الخطأ، نسمح بالوصول ولا نعيد التوجيه
       } finally {
         setIsChecking(false);
       }
     };
 
-    // إضافة debouncing لتجنب الطلبات المتكررة في React Strict Mode
+    // إضافة تأخير قصير لتجنب الطلبات المتكررة
     if (checkTimeoutRef.current) {
       clearTimeout(checkTimeoutRef.current);
     }
-    
+
     checkTimeoutRef.current = setTimeout(() => {
       checkSubscription();
-    }, 100); // انتظار 100ms قبل تنفيذ الفحص
+    }, 100);
 
-    // تنظيف timeout عند إلغاء المكون
+    // تنظيف التايمر عند إلغاء المكون
     return () => {
       if (checkTimeoutRef.current) {
         clearTimeout(checkTimeoutRef.current);
       }
     };
-  }, [organization?.id, navigate, refreshOrganizationData, hasChecked, isChecking]);
+  }, [organization?.id, navigate, isSubscriptionPage, isChecking]);
 
-  // إعادة تعيين hasChecked عند تغيير المؤسسة
+  // إعادة تعيين حالة التحقق عند تغيير المؤسسة
   useEffect(() => {
-    setHasChecked(false);
-    setIsChecking(false);
+    hasCheckedRef.current = false;
+    setSubscriptionData(null);
   }, [organization?.id]);
 
-  return <>{children}</>;
+  // إذا كنا في صفحة الاشتراك، اعرض المحتوى مباشرة
+  if (isSubscriptionPage) {
+    return <>{children}</>;
+  }
+
+  // إذا لم توجد مؤسسة، اعرض المحتوى مباشرة
+  if (!organization) {
+    return <>{children}</>;
+  }
+
+  // إذا كان جاري التحقق، اعرض المحتوى مباشرة (لا نحجب المستخدم)
+  if (isChecking) {
+    return <>{children}</>;
+  }
+
+  // إذا تم فحص الاشتراك وكان صالح، اعرض المحتوى
+  if (subscriptionData && subscriptionData.success && 
+      (subscriptionData.status === 'active' || subscriptionData.status === 'trial') &&
+      subscriptionData.days_left > 0) {
+    return <>{children}</>;
+  }
+
+  // في جميع الحالات الأخرى، اعرض المحتوى (لا نحجب المستخدم)
+  // الإعادة إلى صفحة الاشتراك تتم عبر navigate في useEffect
+  return (
+    <>
+      {/* تحذير للموظفين عند انتهاء الاشتراك */}
+      {showExpiredWarning && location.pathname === '/pos' && user?.role === 'employee' && (
+        <div className="fixed top-0 left-0 right-0 bg-red-600 text-white p-3 text-center z-50 shadow-lg">
+          <div className="flex items-center justify-center gap-2">
+            <span className="animate-pulse">⚠️</span>
+            <span className="font-medium">تنبيه: اشتراك المؤسسة منتهي الصلاحية - يرجى التواصل مع المدير</span>
+            <button 
+              onClick={() => setShowExpiredWarning(false)}
+              className="mr-4 px-2 py-1 bg-red-700 hover:bg-red-800 rounded text-sm"
+            >
+              إخفاء
+            </button>
+          </div>
+        </div>
+      )}
+      {children}
+    </>
+  );
 };
 
-export default SubscriptionCheck;
+export default SubscriptionCheck; 

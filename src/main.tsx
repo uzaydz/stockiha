@@ -218,107 +218,44 @@ if (window.electronAPI) {
 
 // تحسين الأداء ومنع إعادة التحميل الكامل عند العودة من علامة تبويب أخرى
 if (typeof window !== 'undefined') {
-  // تعيين متغيرات عامة لتتبع حالة التطبيق والتنقل
+  // تعيين متغيرات عامة أساسية فقط
   window.__REACT_APP_ACTIVE = true;
   window.__NAVIGATION_HISTORY = [];
   window.__LAST_URL_CHANGE_TIME = Date.now();
   window.__PREVENT_DUPLICATE_RENDER = false;
 
-  // تسجيل مستمعي الأحداث للتعامل مع حالة علامة التبويب
+  // تحسين أساسي لحالة التبويب دون تعطيل التنقل
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-      // تسجيل وقت العودة للتبويب
-      const lastHideTime = window.__LAST_URL_CHANGE_TIME;
-      const currentTime = Date.now();
-      const timeDiff = currentTime - lastHideTime;
-      
-      // عند العودة للتبويب، تجنب إعادة التحميل الكامل
       window.__REACT_APP_ACTIVE = true;
-
-      // منع التحديث المزدوج للمكونات عند العودة خلال فترة قصيرة (30 ثانية)
-      window.__PREVENT_DUPLICATE_RENDER = timeDiff < 30000;
+      window.__LAST_URL_CHANGE_TIME = Date.now();
       
-      // إيقاف إعادة التحميل المستمر
+      // إعادة تفعيل أحداث التوجيه عند العودة للتبويب
       if (window.__ROUTER_EVENTS_PAUSED) {
-        
         window.__ROUTER_EVENTS_PAUSED = false;
       }
     } else {
-      // تسجيل وقت مغادرة التبويب
-      window.__LAST_URL_CHANGE_TIME = Date.now();
-      
-      // عند مغادرة التبويب، تحديد حالة غير نشط
       window.__REACT_APP_ACTIVE = false;
-      
-      // إيقاف مؤقت لأحداث التوجيه
-      window.__ROUTER_EVENTS_PAUSED = true;
-      
+      window.__LAST_URL_CHANGE_TIME = Date.now();
     }
   });
 
-  // تخزين الدوال الأصلية للتوجيه
-  window.history.__originalPushState = window.history.pushState;
-  window.history.__originalReplaceState = window.history.replaceState;
+  // منع معالجة الأحداث المتضاربة دون تعطيل التنقل الطبيعي
+  let isNavigating = false;
   
-  // إعادة تعريف pushState لمنع إعادة التهيئة وتحسين التعامل مع التبديل بين التبويبات
-  window.history.pushState = function() {
-    // فحص الحالة النشطة للتطبيق
-    if (window.__ROUTER_EVENTS_PAUSED) {
-      
-      return;
-    }
-    
-    const [state, title, url] = arguments;
-    
-    // تجنب التنقلات المكررة
-    if (window.history.__latestUrl === url) {
-      
-      return;
-    }
-    
-    // تحديث التاريخ لتتبع التنقلات
-    window.__LAST_NAVIGATION_TYPE = 'pushState';
-    window.history.__latestUrl = url?.toString();
-    
-    if (url && window.__NAVIGATION_HISTORY) {
-      window.__NAVIGATION_HISTORY.push(url.toString());
-      if (window.__NAVIGATION_HISTORY.length > 10) {
-        window.__NAVIGATION_HISTORY.shift();
-      }
-    }
-    
-    return window.history.__originalPushState?.apply(this, arguments);
-  };
-  
-  // إعادة تعريف replaceState بطريقة مماثلة
-  window.history.replaceState = function() {
-    if (window.__ROUTER_EVENTS_PAUSED) {
-      
-      return;
-    }
-    
-    const [state, title, url] = arguments;
-    
-    if (window.history.__latestUrl === url) {
-      
-      return;
-    }
-    
-    window.__LAST_NAVIGATION_TYPE = 'replaceState';
-    window.history.__latestUrl = url?.toString();
-    
-    return window.history.__originalReplaceState?.apply(this, arguments);
-  };
-  
-  // تعديل سلوك التنقل الخلفي/الأمامي لمنع إعادة التحميل غير الضرورية
+  // تحسين popstate فقط لتجنب التداخل
   window.addEventListener('popstate', (event) => {
-    if (window.__ROUTER_EVENTS_PAUSED) {
-      
-      event.stopImmediatePropagation();
-    } else {
+    // السماح بالتنقل الطبيعي مع تحسين طفيف
+    if (!isNavigating) {
+      isNavigating = true;
       window.__LAST_NAVIGATION_TYPE = 'popState';
+      
+      // إعادة تعيين الحالة بعد فترة قصيرة
+      setTimeout(() => {
+        isNavigating = false;
+      }, 100);
     }
-  }, true);
+  }, false); // تغيير إلى false لتجنب التقاط الأحداث قبل الوقت
 }
 
 // إصلاح useLayoutEffect قبل أي استيراد
@@ -503,9 +440,21 @@ import './lib/requestDeduplicationGlobal';
 import './lib/supabaseRequestInterceptor';
 
 // إضافة مدير الطلبات الشامل الجديد
-import('./lib/requestManager').then((module) => {
-  module.initializeRequestManager();
+import('@/lib/requestManager').then((module) => {
+  try {
+    // تحسين التحميل التدريجي للطلبات
+    const requestManagerModule = module;
+    
+    // تفعيل مدير الطلبات - استخدام getInstance بدلاً من initializeRequestManager
+    const manager = requestManagerModule.requestManager;
+    manager.setMaxConcurrentRequests(3);
+    
+    console.log('🚀 تم تفعيل مدير الطلبات بنجاح');
+  } catch (error) {
+    console.warn('⚠️ فشل في تحميل مدير الطلبات:', error);
+  }
 }).catch((error) => {
+  console.warn('⚠️ فشل في استيراد مدير الطلبات:', error);
 });
 
 // Force تفعيل فوري للنظام

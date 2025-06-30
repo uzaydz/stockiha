@@ -536,18 +536,7 @@ export function AppsProvider({ children }: AppsProviderProps) {
     const app = organizationApps.find(app => app.app_id === appId);
     const isEnabled = app?.is_enabled || false;
     
-    // إضافة logging محدود للتطوير - فقط لتطبيق repair-services وبشكل محدود
-    if (import.meta.env.DEV && appId === 'repair-services') {
-      // استخدام throttling للlogging لتجنب spam
-      const now = Date.now();
-      const lastLogKey = `lastLog_${appId}`;
-      const lastLogTime = (window as any)[lastLogKey] || 0;
-      
-      // Log مرة واحدة كل 5 ثوان فقط
-      if (now - lastLogTime > 5000) {
-        (window as any)[lastLogKey] = now;
-      }
-    }
+
     
     return isEnabled;
   }, [organizationApps, organizationId]);

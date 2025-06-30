@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Navigate, useNavigate, Outlet } from 'react-router-dom';
+import { Navigate, useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useTenant } from '@/context/TenantContext';
 import { useAuth } from '@/context/AuthContext';
 import { Loader2 } from 'lucide-react';
@@ -16,16 +16,35 @@ const RequireTenant = ({ children }: RequireTenantProps) => {
   const { currentOrganization, isLoading, error } = useTenant();
   const { currentSubdomain, organization } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // تشخيص شامل لـ RequireTenant
+  if (import.meta.env.DEV) {
+    console.log('🏢 RequireTenant التشخيص:', {
+      currentPath: location.pathname,
+      currentOrganization: currentOrganization ? { id: currentOrganization.id, name: currentOrganization.name } : null,
+      organization: organization ? { id: organization.id, name: organization.name } : null,
+      currentSubdomain,
+      isLoading,
+      error: error ? error.toString() : null
+    });
+  }
   
   // التحقق من وجود مؤسسة في أي من السياقين
   const hasOrganization = currentOrganization || organization;
+  
+  // فحص ما إذا كان المسار يتطلب مؤسسة
+  const requiresOrganization = location.pathname.startsWith('/dashboard') || 
+                              location.pathname.startsWith('/pos') ||
+                              location.pathname.startsWith('/call-center');
 
   useEffect(() => {
-    // في حالة وجود خطأ في تحميل بيانات المؤسسة، توجيه المستخدم لصفحة لوحة التحكم
-    if (error && !isLoading) {
-      navigate('/dashboard');
+    // في حالة وجود خطأ في تحميل بيانات المؤسسة، توجيه المستخدم فقط إذا كان في صفحة تتطلب مؤسسة
+    if (error && !isLoading && requiresOrganization) {
+      // توجيه لصفحة إعداد المؤسسة بدلاً من لوحة التحكم
+      navigate('/organization/setup');
     }
-  }, [error, isLoading, navigate]);
+  }, [error, isLoading, navigate, requiresOrganization]);
 
   // في حالة جاري تحميل بيانات المؤسسة، عرض مؤشر التحميل
   if (isLoading) {
@@ -46,9 +65,8 @@ const RequireTenant = ({ children }: RequireTenantProps) => {
     
     // If we're on a localhost subdomain, try redirecting to the main dashboard
     // This is mostly for development since in production we'd want to show an error
-    if (isLocalhost) {
-      
-      return <Navigate to="/dashboard" replace />;
+    if (isLocalhost && requiresOrganization) {
+      return <Navigate to="/organization/setup" replace />;
     }
     
     return (
@@ -69,9 +87,17 @@ const RequireTenant = ({ children }: RequireTenantProps) => {
     );
   }
 
-  // إذا لم تكن هناك مؤسسة، تحقق من وجود مؤسسة في AuthContext قبل إعادة التوجيه
-  if (!currentOrganization && !organization) {
-    return <Navigate to="/dashboard" replace />;
+  // إذا لم تكن هناك مؤسسة، تحقق فقط إذا كان المسار يتطلب مؤسسة
+  if (!currentOrganization && !organization && requiresOrganization) {
+    if (import.meta.env.DEV) {
+      console.log('🏢 RequireTenant: No organization found, redirecting to setup', {
+        currentOrganization,
+        organization,
+        currentPath: location.pathname,
+        requiresOrganization
+      });
+    }
+    return <Navigate to="/organization/setup" replace />;
   }
 
   // Render children if provided, otherwise render Outlet for nested routes

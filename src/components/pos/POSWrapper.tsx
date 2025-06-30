@@ -1,5 +1,6 @@
 import React from 'react';
 import { POSDataProvider } from '@/context/POSDataContext';
+import { UnifiedDataProvider } from '@/context/UnifiedDataContext';
 import POS from '@/pages/POS';
 
 // =================================================================
@@ -9,9 +10,11 @@ import POS from '@/pages/POS';
 const POSWrapper: React.FC = () => {
   return (
     <div data-pos-context="wrapper">
-      <POSDataProvider>
-        <POS />
-      </POSDataProvider>
+      <UnifiedDataProvider>
+        <POSDataProvider>
+          <POS />
+        </POSDataProvider>
+      </UnifiedDataProvider>
     </div>
   );
 };

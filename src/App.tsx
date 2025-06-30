@@ -3,7 +3,6 @@ import { Routes, Route, useLocation, useParams, Navigate } from 'react-router-do
 import { TenantProvider, useTenant } from './context/TenantContext';
 import { AuthProvider } from './context/AuthContext';
 import { DashboardDataProvider } from './context/DashboardDataContext';
-import { UnifiedDataProvider } from './context/UnifiedDataContext';
 import { Toaster } from './components/ui/toaster';
 import { ThemeProvider } from './context/ThemeContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -607,6 +606,17 @@ const App = () => {
                       </ProtectedRoute>
                     }
                   />
+
+                  {/* مسار نقطة البيع المباشر للموظفين - خارج RequireTenant */}
+                  <Route path="/pos" element={
+                    <ProtectedRoute>
+                      <ConditionalRoute appId="pos-system">
+                        <PermissionGuard requiredPermissions={['accessPOS']}>
+                          <POSOptimized />
+                        </PermissionGuard>
+                      </ConditionalRoute>
+                    </ProtectedRoute>
+                  } />
 
                   <Route element={<ProtectedRoute />}>
                     {/* صفحات لوحة التحكم التي تتطلب تسجيل الدخول والمؤسسة */}

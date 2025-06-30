@@ -30,6 +30,25 @@ const ProtectedRoute = ({
   const { user, userProfile, isLoading } = useAuth();
   const location = useLocation();
   const [hasWaited, setHasWaited] = useState(false);
+  
+  // معرفة ما إذا كانت هذه زيارة مباشرة (refresh أو URL مباشر)
+  const isDirectVisit = !location.state || performance.navigation.type === 1;
+
+  // تشخيص شامل
+  if (import.meta.env.DEV) {
+    console.log('🔍 ProtectedRoute العام:', {
+      currentPath: location.pathname,
+      user: user ? 'موجود' : 'غير موجود',
+      userProfile: userProfile ? { role: userProfile.role, id: userProfile.id } : 'غير موجود',
+      isLoading,
+      hasWaited,
+      isDirectVisit,
+      redirectBasedOnRole,
+      allowedRoles,
+      navigationState: location.state,
+      navigationType: performance.navigation.type
+    });
+  }
 
   // إضافة timeout قصير لتجنب الفلاش السريع لشاشة التحميل
   useEffect(() => {
@@ -52,6 +71,14 @@ const ProtectedRoute = ({
 
   // إذا انتهى التحميل ولم يكن هناك مستخدم، إعادة توجيه لتسجيل الدخول
   if (!isLoading && (!user || !userProfile)) {
+    if (import.meta.env.DEV) {
+      console.log('🚨 ProtectedRoute: إعادة توجيه لتسجيل الدخول - لا يوجد مستخدم', {
+        currentPath: location.pathname,
+        user: user ? 'موجود' : 'غير موجود',
+        userProfile: userProfile ? 'موجود' : 'غير موجود',
+        isLoading
+      });
+    }
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
@@ -59,6 +86,18 @@ const ProtectedRoute = ({
   if (allowedRoles && allowedRoles.length > 0 && userProfile) {
     const userRole = userProfile.role;
     if (!allowedRoles.includes(userRole)) {
+      if (import.meta.env.DEV) {
+        console.log('🚨 ProtectedRoute: إعادة توجيه - دور غير مسموح', {
+          currentPath: location.pathname,
+          userRole,
+          allowedRoles,
+          targetPath: userRole === 'admin' || userRole === 'owner' ? '/dashboard' : 
+                      userRole === 'call_center_agent' ? '/call-center' :
+                      userRole === 'employee' ? '/pos' : 
+                      userRole === 'customer' ? '/shop' : '/unauthorized'
+        });
+      }
+      
       // إعادة توجيه حسب دور المستخدم
       switch (userRole) {
         case 'call_center_agent':
@@ -78,11 +117,44 @@ const ProtectedRoute = ({
 
   // إعادة التوجيه التلقائي حسب الدور إذا كان مطلوباً
   if (redirectBasedOnRole && userProfile) {
+    console.log('🔄 ProtectedRoute: بدء فحص redirectBasedOnRole');
+  } else if (import.meta.env.DEV) {
+    console.log('🔄 ProtectedRoute: تخطي redirectBasedOnRole', { redirectBasedOnRole, userProfile: !!userProfile });
+  }
+  
+  if (redirectBasedOnRole && userProfile) {
     const userRole = userProfile.role;
     const currentPath = location.pathname;
 
-    // تجنب إعادة التوجيه اللانهائي
-    if (currentPath === '/login' || currentPath === '/') {
+    // تجنب إعادة التوجيه اللانهائي - فقط من الصفحة الرئيسية أو صفحة تسجيل الدخول
+    // ولا نعيد التوجيه إذا كان المستخدم في مسار صالح بالفعل
+    const isRootOrLoginPath = currentPath === '/login' || currentPath === '/' || currentPath === '';
+    const isAlreadyInCorrectPath = 
+      (userRole === 'call_center_agent' && currentPath.startsWith('/call-center')) ||
+      ((userRole === 'admin' || userRole === 'owner') && currentPath.startsWith('/dashboard')) ||
+      (userRole === 'employee' && (currentPath.startsWith('/pos') || currentPath.startsWith('/dashboard'))) ||
+      (userRole === 'customer' && currentPath.startsWith('/shop'));
+
+    // لا نعيد التوجيه إذا كان المستخدم يحدث الصفحة في مكان صالح
+    const shouldNotRedirectOnRefresh = isDirectVisit && isAlreadyInCorrectPath;
+
+    if (import.meta.env.DEV) {
+      console.log('🔍 ProtectedRoute Debug:', {
+        userRole,
+        currentPath,
+        isRootOrLoginPath,
+        isAlreadyInCorrectPath,
+        shouldNotRedirectOnRefresh,
+        isDirectVisit,
+        redirectBasedOnRole
+      });
+    }
+
+    if (isRootOrLoginPath && !isAlreadyInCorrectPath && !shouldNotRedirectOnRefresh) {
+      if (import.meta.env.DEV) {
+        console.log('📍 ProtectedRoute redirecting based on role:', userRole);
+      }
+      
       switch (userRole) {
         case 'call_center_agent':
           return <Navigate to="/call-center/dashboard" replace />;
@@ -105,9 +177,30 @@ const ProtectedRoute = ({
     const currentPath = location.pathname;
     const isCallCenterAgent = Boolean(userProfile.call_center_agent_id) || userRole === 'call_center_agent';
     
+    if (import.meta.env.DEV) {
+      console.log('🔍 ProtectedRoute: فحص وكيل مركز الاتصال', {
+        currentPath,
+        userRole,
+        isCallCenterAgent,
+        call_center_agent_id: userProfile.call_center_agent_id
+      });
+    }
+    
     if (isCallCenterAgent) {
       // إذا كان وكيل مركز اتصال يحاول الوصول لصفحات الأدمين أو POS
-      if (currentPath.startsWith('/dashboard') || currentPath.startsWith('/pos')) {
+      // لكن استثناء: إذا كان موظف عادي في نقطة البيع، لا تعيد التوجيه
+      const isEmployeeInPOS = userRole === 'employee' && currentPath.startsWith('/pos');
+      
+      if ((currentPath.startsWith('/dashboard') || currentPath.startsWith('/pos')) && !isEmployeeInPOS) {
+        if (import.meta.env.DEV) {
+          console.log('🚨 ProtectedRoute: إعادة توجيه وكيل مركز اتصال من صفحة غير مسموحة', {
+            currentPath,
+            userRole,
+            isCallCenterAgent,
+            call_center_agent_id: userProfile.call_center_agent_id,
+            isEmployeeInPOS
+          });
+        }
         return <Navigate to="/call-center/dashboard" replace />;
       }
     }
