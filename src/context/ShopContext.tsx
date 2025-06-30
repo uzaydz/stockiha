@@ -97,16 +97,15 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const { data: productsData, error: productsError } = await supabase
             .from('products')
             .select(`
-              *,
-              product_colors(
-                *,
-                product_sizes(*)
-              )
+              id, name, description, price, compare_at_price, sku, barcode, category_id, brand, images, thumbnail_image, stock_quantity, features, specifications, is_digital, is_new, is_featured, created_at, updated_at, has_variants, use_sizes
             `)
             .eq('organization_id', organizationId)
-            .eq('is_active', true);
+            .eq('is_active', true)
+            .order('created_at', { ascending: false })
+            .limit(500); // إضافة حد أقصى للمنتجات
             
           if (productsError) {
+            console.log('⚠️ خطأ في جلب المنتجات:', productsError);
             return [];
           }
 
@@ -136,32 +135,7 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             updatedAt: new Date(product.updated_at),
             has_variants: product.has_variants || false,
             use_sizes: product.use_sizes || false,
-            colors: (product.product_colors || []).map((color: any) => ({
-              id: color.id,
-              product_id: color.product_id,
-              name: color.name,
-              color_code: color.color_code,
-              image_url: color.image_url,
-              quantity: color.quantity,
-              is_default: color.is_default,
-              barcode: color.barcode,
-              has_sizes: color.has_sizes,
-              price: color.price,
-              created_at: color.created_at,
-              updated_at: color.updated_at,
-              sizes: (color.product_sizes || []).map((size: any) => ({
-                id: size.id,
-                product_id: size.product_id,
-                color_id: size.color_id,
-                size_name: size.size_name,
-                quantity: size.quantity,
-                price: size.price,
-                barcode: size.barcode,
-                is_default: size.is_default,
-                created_at: size.created_at,
-                updated_at: size.updated_at
-              }))
-            }))
+            colors: [] // تم إيقاف تحميل الألوان هنا لتحسين الأداء
           }));
         },
         SHORT_CACHE_TTL // تخزين مؤقت لمدة 5 دقائق
@@ -170,6 +144,7 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // استخدام Race بين الاستعلام والمهلة الزمنية
       return await Promise.race([productsPromise, timeoutPromise]);
     } catch (error) {
+      console.log('⚠️ خطأ في fetchProducts:', error);
       return [];
     } finally {
       loadingProducts.current = false;

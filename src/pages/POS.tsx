@@ -4,9 +4,11 @@ import { Product, Order, User as AppUser, Service } from '@/types';
 import { useShop } from '@/context/ShopContext';
 import { useAuth } from '@/context/AuthContext';
 import { usePOSData } from '@/context/POSDataContext';
+import { useUnifiedData } from '@/context/UnifiedDataContext';
 import { useApps } from '@/context/AppsContext';
 import { useTenant } from '@/context/TenantContext';
 import { supabase } from '@/lib/supabase';
+import { cn } from '@/lib/utils';
 
 // استيراد الـ hooks المحسنة
 import { usePOSBarcode } from '@/components/pos/hooks/usePOSBarcode';
@@ -58,6 +60,9 @@ const POS = () => {
   const { isAppEnabled } = useApps();
   const { currentOrganization } = useTenant();
   
+  // البيانات الموحدة المحسنة
+  const { posData, refreshPOSData: refreshUnifiedPOSData } = useUnifiedData();
+  
   // بيانات POS المحسنة
   const { 
     products, 
@@ -99,14 +104,21 @@ const POS = () => {
     organization_id: user.user_metadata?.organization_id || localStorage.getItem('bazaar_organization_id') || ''
   } : null;
 
-  // تحويل users لـ AppUser[]
-  const filteredUsers = (users || []).filter(u => {
-    if (!u.organization_id) {
-      return u.role === 'customer';
-    }
-    const currentOrgId = user?.user_metadata?.organization_id || localStorage.getItem('bazaar_organization_id');
-    return u.role === 'customer' && u.organization_id === currentOrgId;
-  });
+  // استخدام العملاء من البيانات الموحدة
+  const allCustomers = posData?.customers || [];
+  
+  // تحويل العملاء لصيغة AppUser للتوافق مع باقي النظام
+  const filteredUsers: AppUser[] = allCustomers.map(customer => ({
+    id: customer.id,
+    name: customer.name,
+    email: customer.email || '',
+    phone: customer.phone || '',
+    role: 'customer' as const,
+    isActive: true,
+    createdAt: new Date(customer.created_at),
+    updatedAt: new Date(customer.updated_at || customer.created_at),
+    organization_id: customer.organization_id
+  }));
 
   // Hook السلة المحسن
   const {
@@ -307,6 +319,20 @@ const POS = () => {
     // يتم التعامل مع هذا في usePOSBarcode hook
   }, []);
 
+  // دالة تحديث شاملة
+  const handleRefreshData = useCallback(async () => {
+    try {
+      await Promise.all([
+        refreshProducts(),
+        refreshUnifiedPOSData(),
+        refreshData()
+      ]);
+      toast.success('تم تحديث البيانات بنجاح');
+    } catch (error) {
+      toast.error('فشل في تحديث البيانات');
+    }
+  }, [refreshProducts, refreshUnifiedPOSData, refreshData]);
+
   if (isLoading) {
   return (
     <Layout>
@@ -334,7 +360,7 @@ const POS = () => {
           onToggleReturnMode={toggleReturnMode}
           onPOSSettingsOpen={() => setIsPOSSettingsOpen(true)}
           onRepairDialogOpen={() => setIsRepairDialogOpen(true)}
-          onRefreshData={refreshProducts}
+          onRefreshData={handleRefreshData}
         />
           
           <div className="grid grid-cols-12 gap-4 h-full">
@@ -355,7 +381,7 @@ const POS = () => {
                         onOpenOrder={handleOpenOrder}
               onQuickAddProduct={handleProductWithVariants}
               onStockUpdate={handleStockUpdate}
-              onRefreshData={refreshProducts}
+              onRefreshData={handleRefreshData}
                       />
                   </div>
 

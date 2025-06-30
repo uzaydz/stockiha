@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -26,14 +26,7 @@ import {
   LocateFixed 
 } from 'lucide-react';
 import { useOrganization } from '@/hooks/useOrganization';
-import { 
-  getShippingClones, 
-  ShippingProviderClone, 
-  getShippingClonePrices, 
-  getProvinces,
-  ShippingClonePrice,
-  Province
-} from '@/api/shippingCloneService';
+import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
@@ -43,45 +36,57 @@ interface ShippingProviderSettingsProps {
   onChange: (cloneId: number | null) => void;
 }
 
+interface ShippingProvider {
+  id: number;
+  name: string;
+  code: string;
+  is_active: boolean;
+}
+
+interface ShippingProviderSettings {
+  id: number;
+  provider_id: number;
+  organization_id: string;
+  settings: any;
+  is_enabled: boolean;
+  provider?: ShippingProvider;
+}
+
+interface Province {
+  id: number;
+  name: string;
+  is_deliverable: boolean;
+}
+
 export default function ShippingProviderSettings({
   productId,
   selectedCloneId,
   onChange
 }: ShippingProviderSettingsProps) {
-  const [clones, setClones] = useState<ShippingProviderClone[]>([]);
+  const [providers, setProviders] = useState<ShippingProviderSettings[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("settings");
   const [provinces, setProvinces] = useState<Province[]>([]);
-  const [prices, setPrices] = useState<ShippingClonePrice[]>([]);
   const [selectedProvince, setSelectedProvince] = useState<number | null>(null);
   const { organization } = useOrganization();
 
-  // تحميل نسخ مزودي التوصيل عند تحميل المكون
+  // تحميل مزودي التوصيل عند تحميل المكون
   useEffect(() => {
     if (organization?.id) {
       loadData();
     }
   }, [organization?.id]);
 
-  // تحميل أسعار مزود التوصيل المحدد
-  useEffect(() => {
-    if (selectedCloneId) {
-      loadPricesForClone(selectedCloneId);
-    } else {
-      setPrices([]);
-    }
-  }, [selectedCloneId]);
-
   const loadData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [clonesData, provincesData] = await Promise.all([
-        getShippingClones(organization?.id || ''),
+      const [providersData, provincesData] = await Promise.all([
+        getShippingProviders(),
         getProvinces()
       ]);
-      setClones(clonesData);
+      setProviders(providersData);
       setProvinces(provincesData);
     } catch (err) {
       setError('حدث خطأ أثناء تحميل خيارات التوصيل المتاحة');
@@ -90,73 +95,83 @@ export default function ShippingProviderSettings({
     }
   };
 
-  const loadPricesForClone = async (cloneId: number) => {
-    try {
-      const pricesData = await getShippingClonePrices(cloneId);
-      setPrices(pricesData);
-      
-      // تحديد المحافظة الافتراضية (الجزائر العاصمة مثلاً)
-      if (pricesData.length > 0 && !selectedProvince) {
-        const defaultProvince = pricesData.find(p => p.province_name.includes('الجزائر'));
-        setSelectedProvince(defaultProvince?.province_id || pricesData[0].province_id);
-      }
-    } catch (err) {
-    }
+  const getShippingProviders = async (): Promise<ShippingProviderSettings[]> => {
+    const { data, error } = await supabase
+      .from('shipping_provider_settings')
+      .select(`
+        id,
+        provider_id,
+        organization_id,
+        settings,
+        is_enabled,
+        shipping_providers:provider_id (
+          id,
+          name,
+          code,
+          is_active
+        )
+      `)
+      .eq('organization_id', organization?.id)
+      .eq('is_enabled', true);
+
+    if (error) throw error;
+    return data || [];
   };
 
-  const handleShippingCloneChange = (value: string) => {
-    const cloneId = value === 'default' ? null : parseInt(value);
-    onChange(cloneId);
-    setSelectedProvince(null); // إعادة تعيين المحافظة المختارة
+  const getProvinces = async (): Promise<Province[]> => {
+    const { data, error } = await supabase
+      .from('yalidine_provinces_global')
+      .select('id, name, is_deliverable')
+      .eq('is_deliverable', true)
+      .order('name');
+
+    if (error) throw error;
+    return data || [];
   };
 
-  // الحصول على تفاصيل النسخة المختارة
-  const selectedClone = clones.find(clone => clone.id === selectedCloneId);
+  const handleShippingProviderChange = (value: string) => {
+    const providerId = value === 'default' ? null : parseInt(value);
+    onChange(providerId);
+    setSelectedProvince(null);
+  };
 
-  // الحصول على أسعار المحافظة المحددة
-  const selectedProvinceData = selectedProvince 
-    ? prices.find(p => p.province_id === selectedProvince) 
-    : null;
+  // الحصول على تفاصيل المزود المختار
+  const selectedProvider = providers.find(provider => provider.id === selectedCloneId);
 
   // رسم قائمة المحافظات
   const renderProvinceList = () => {
     return (
       <ScrollArea className="h-[300px] pr-4">
         <div className="space-y-2">
-          {provinces
-            .filter(p => p.is_deliverable)
-            .map(province => {
-              const provincePrice = prices.find(p => p.province_id === province.id);
-              const isSelected = selectedProvince === province.id;
-              return (
-                <div
-                  key={province.id}
-                  className={cn(
-                    "flex items-center justify-between p-2 rounded-md cursor-pointer",
-                    isSelected ? "bg-primary text-primary-foreground" : "hover:bg-muted"
-                  )}
-                  onClick={() => setSelectedProvince(province.id)}
-                >
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4" />
-                    <span>{province.name}</span>
-                  </div>
-                  {provincePrice && (
-                    <div className="text-sm">
-                      {selectedClone?.is_free_delivery_home ? (
-                        <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200">
-                          توصيل مجاني
-                        </Badge>
-                      ) : selectedClone?.use_unified_price ? (
-                        <span>{selectedClone.unified_home_price?.toLocaleString()} د.ج</span>
-                      ) : (
-                        <span>{provincePrice.home_price?.toLocaleString()} د.ج</span>
-                      )}
-                    </div>
+          {provinces.map(province => {
+            const isSelected = selectedProvince === province.id;
+            const deliveryPrice = selectedProvider?.settings?.unified_home_price || 500;
+            
+            return (
+              <div
+                key={province.id}
+                className={cn(
+                  "flex items-center justify-between p-2 rounded-md cursor-pointer",
+                  isSelected ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+                )}
+                onClick={() => setSelectedProvince(province.id)}
+              >
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  <span>{province.name}</span>
+                </div>
+                <div className="text-sm">
+                  {selectedProvider?.settings?.is_free_delivery_home ? (
+                    <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200">
+                      توصيل مجاني
+                    </Badge>
+                  ) : (
+                    <span>{deliveryPrice?.toLocaleString()} د.ج</span>
                   )}
                 </div>
-              );
-            })}
+              </div>
+            );
+          })}
         </div>
       </ScrollArea>
     );
@@ -189,7 +204,7 @@ export default function ShippingProviderSettings({
 
   // رسم كارت المعاينة
   const renderPreviewCard = () => {
-    if (!selectedClone) {
+    if (!selectedProvider) {
       return (
         <div className="text-center p-10 bg-muted/20 rounded-md border border-dashed">
           <Truck className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
@@ -206,12 +221,8 @@ export default function ShippingProviderSettings({
       );
     }
 
-    const deliveryPrice = selectedProvinceData
-      ? (selectedClone.is_free_delivery_home
-        ? 0
-        : selectedClone.use_unified_price
-          ? selectedClone.unified_home_price
-          : selectedProvinceData.home_price)
+    const deliveryPrice = selectedProvince 
+      ? (selectedProvider.settings?.unified_home_price || 500)
       : null;
     
     return (
@@ -220,9 +231,9 @@ export default function ShippingProviderSettings({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Truck className="h-5 w-5 text-primary" />
-              <CardTitle className="text-base">{selectedClone.name}</CardTitle>
+              <CardTitle className="text-base">{selectedProvider.provider?.name}</CardTitle>
             </div>
-            {selectedClone.is_free_delivery_home && (
+            {selectedProvider.settings?.is_free_delivery_home && (
               <Badge className="bg-green-100 hover:bg-green-100 text-green-700 border-none">
                 توصيل مجاني
               </Badge>
@@ -236,7 +247,7 @@ export default function ShippingProviderSettings({
               <div className="flex items-center gap-2 mt-1">
                 <MapPin className="h-5 w-5 text-primary" />
                 <span className="font-medium">
-                  {selectedProvinceData 
+                  {selectedProvince 
                     ? provinces.find(p => p.id === selectedProvince)?.name 
                     : 'لم يتم اختيار محافظة'}
                 </span>
@@ -262,7 +273,7 @@ export default function ShippingProviderSettings({
               <Home className="h-4 w-4 text-primary" />
               <span className="text-sm">
                 توصيل للمنزل: {' '}
-                {selectedClone.is_home_delivery_enabled 
+                {selectedProvider.settings?.is_home_delivery_enabled 
                   ? <span className="text-green-600">متاح</span> 
                   : <span className="text-red-600">غير متاح</span>}
               </span>
@@ -271,7 +282,7 @@ export default function ShippingProviderSettings({
               <Building className="h-4 w-4 text-primary" />
               <span className="text-sm">
                 توصيل للمكتب: {' '}
-                {selectedClone.is_desk_delivery_enabled 
+                {selectedProvider.settings?.is_desk_delivery_enabled 
                   ? <span className="text-green-600">متاح</span> 
                   : <span className="text-red-600">غير متاح</span>}
               </span>
@@ -359,7 +370,7 @@ export default function ShippingProviderSettings({
             <CardContent>
               <Select 
                 value={selectedCloneId?.toString() || 'default'} 
-                onValueChange={handleShippingCloneChange}
+                onValueChange={handleShippingProviderChange}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="اختر مزود التوصيل" />
@@ -371,12 +382,12 @@ export default function ShippingProviderSettings({
                       <span>المزود الافتراضي للمتجر</span>
                     </div>
                   </SelectItem>
-                  {clones.map(clone => (
-                    <SelectItem key={clone.id} value={clone.id.toString()}>
+                  {providers.map(provider => (
+                    <SelectItem key={provider.id} value={provider.id.toString()}>
                       <div className="flex items-center gap-2">
                         <Truck className="h-4 w-4 text-primary" />
-                        <span>{clone.name}</span>
-                        {clone.is_free_delivery_home && (
+                        <span>{provider.provider?.name}</span>
+                        {provider.settings?.is_free_delivery_home && (
                           <Badge variant="outline" className="mr-2 bg-green-50 text-green-600 border-green-200">
                             مجاني
                           </Badge>
@@ -389,7 +400,7 @@ export default function ShippingProviderSettings({
             </CardContent>
           </Card>
 
-          {selectedClone && (
+          {selectedProvider && (
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-2">
@@ -417,65 +428,10 @@ export default function ShippingProviderSettings({
                       معلومات التوصيل
                     </h3>
 
-                    {!selectedProvinceData ? (
+                    {!selectedProvince && (
                       <div className="text-center py-8 text-muted-foreground">
                         <MapPin className="h-8 w-8 mx-auto mb-2 text-muted-foreground/60" />
                         <p>اختر محافظة من القائمة لعرض تفاصيل التوصيل</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        <div className="bg-primary/5 p-3 rounded-md">
-                          <h4 className="font-medium mb-2">
-                            {provinces.find(p => p.id === selectedProvince)?.name}
-                          </h4>
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between text-sm">
-                              <div className="flex items-center gap-1">
-                                <Home className="h-3.5 w-3.5" />
-                                <span>توصيل للمنزل:</span>
-                              </div>
-                              <span className="font-medium">
-                                {selectedClone.is_free_delivery_home ? (
-                                  <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200">
-                                    مجاني
-                                  </Badge>
-                                ) : selectedClone.use_unified_price ? (
-                                  `${selectedClone.unified_home_price?.toLocaleString() || '-'} د.ج`
-                                ) : (
-                                  `${selectedProvinceData.home_price?.toLocaleString() || '-'} د.ج`
-                                )}
-                              </span>
-                            </div>
-                            {selectedClone.is_desk_delivery_enabled && (
-                              <div className="flex items-center justify-between text-sm">
-                                <div className="flex items-center gap-1">
-                                  <Building className="h-3.5 w-3.5" />
-                                  <span>توصيل للمكتب:</span>
-                                </div>
-                                <span className="font-medium">
-                                  {selectedClone.is_free_delivery_desk ? (
-                                    <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200">
-                                      مجاني
-                                    </Badge>
-                                  ) : selectedClone.use_unified_price ? (
-                                    `${selectedClone.unified_desk_price?.toLocaleString() || '-'} د.ج`
-                                  ) : (
-                                    `${selectedProvinceData.desk_price?.toLocaleString() || '-'} د.ج`
-                                  )}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="text-xs text-muted-foreground">
-                          {selectedClone.use_unified_price && (
-                            <div className="flex items-center gap-1 mt-1">
-                              <Info className="h-3.5 w-3.5" />
-                              <span>هذا المزود يستخدم سعر موحد لجميع المحافظات</span>
-                            </div>
-                          )}
-                        </div>
                       </div>
                     )}
                   </div>
@@ -496,7 +452,7 @@ export default function ShippingProviderSettings({
                     <Eye className="h-5 w-5 text-primary" />
                     <CardTitle className="text-base">معاينة طريقة عرض التوصيل</CardTitle>
                   </div>
-                  {selectedClone && provinces.length > 0 && (
+                  {selectedProvider && provinces.length > 0 && (
                     <div className="w-[220px]">
                       <Select
                         value={selectedProvince?.toString() || ''}

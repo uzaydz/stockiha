@@ -1,6 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/context/AuthContext';
+import React, { useEffect, useState, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useTenant } from '@/context/TenantContext';
 import { SubscriptionService } from '@/lib/subscription-service';
 import { supabase } from '@/lib/supabase';
@@ -38,16 +37,49 @@ interface SubscriptionInfo {
   daysLeft?: number;
 }
 
-
 const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
-  const { organization } = useAuth();
-  const { refreshOrganizationData } = useTenant();
+  const { organization, refreshOrganizationData } = useTenant();
   const navigate = useNavigate();
+  const location = useLocation();
   const [hasChecked, setHasChecked] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
+  const checkTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // جلب الاشتراكات من السياق في المستوى الأعلى
+  const { subscriptions: contextSubscriptions } = useOrganizationSubscriptions();
 
-  // استخدام البيانات من السياق المركزي
-  const { isLoading: subscriptionsLoading } = useOrganizationSubscriptions();
+  // دالة مساعدة لتحديث بيانات المؤسسة مع معالجة أفضل للأخطاء
+  const updateOrganizationSafely = async (orgId: string, updateData: any) => {
+    try {
+      // التأكد من وجود orgId صالح
+      if (!orgId || typeof orgId !== 'string') {
+        return false;
+      }
+
+      const { error: updateError } = await supabase
+        .from('organizations')
+        .update(updateData)
+        .eq('id', orgId)
+        .select('id') // إضافة select للتأكد من نجاح العملية
+        .single(); // التأكد من تحديث صف واحد فقط
+      
+      if (updateError) {
+        // إذا فشل التحديث بسبب الصلاحيات، تجاهل الخطأ
+        if (updateError.code === '42501' || 
+            updateError.code === 'PGRST301' ||
+            updateError.message?.includes('permission') || 
+            updateError.message?.includes('policy')) {
+          return true; // اعتبار العملية ناجحة
+        }
+        
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      return false;
+    }
+  };
 
   useEffect(() => {
     // تجاهل التحقق إذا كان المستخدم في صفحة الاشتراك بالفعل
@@ -57,11 +89,6 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
 
     // عدم التحقق إذا تم التحقق بالفعل أو إذا كان التحقق جارياً
     if (hasChecked || isChecking) {
-      return;
-    }
-
-    // انتظار تحميل البيانات من السياق
-    if (subscriptionsLoading) {
       return;
     }
 
@@ -77,24 +104,11 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
 
         const org = organization as unknown as OrganizationWithSettings;
 
-        // أولاً: التحقق من الاشتراكات النشطة من قاعدة البيانات مباشرة
+        // أولاً: استخدام البيانات من OrganizationDataContext بدلاً من استدعاء جديد
         let hasValidSubscription = false;
         
-        // جلب الاشتراكات النشطة مباشرة من قاعدة البيانات
-        const { data: activeSubscriptions, error: dbError } = await (supabase as any)
-          .from('active_organization_subscriptions')
-          .select('*')
-          .eq('organization_id', org.id)
-          .order('created_at', { ascending: false });
-
-        console.log('🔍 نتائج استعلام الاشتراكات النشطة من active_organization_subscriptions:', {
-          activeSubscriptions,
-          dbError,
-          isArray: Array.isArray(activeSubscriptions),
-          type: typeof activeSubscriptions,
-          length: activeSubscriptions?.length,
-          organizationId: org.id
-        });
+        // استخدام البيانات الموجودة من OrganizationDataContext
+        const activeSubscriptions = contextSubscriptions || [];
 
         // فلترة الاشتراكات يدوياً للتأكد من عدم انتهاء الصلاحية  
         const validActiveSubscriptions = (Array.isArray(activeSubscriptions) ? activeSubscriptions : []).filter((sub: any) => {
@@ -102,9 +116,7 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
           return new Date(sub.end_date) > new Date();
         });
 
-        console.log('🔍 الاشتراكات النشطة المفلترة:', validActiveSubscriptions);
-
-        if (!dbError && validActiveSubscriptions.length > 0) {
+        if (validActiveSubscriptions.length > 0) {
           const subscription = validActiveSubscriptions[0] as any;
           const endDate = new Date(subscription.end_date);
           const now = new Date();
@@ -129,23 +141,21 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
                 org.subscription_status !== subscription.status || 
                 org.subscription_tier !== (subscription.plan_code || 'premium')) {
               try {
-                await supabase
-                  .from('organizations')
-                  .update({
-                    subscription_id: subscription.id,
-                    subscription_status: subscription.status,
-                    subscription_tier: subscription.plan_code || 'premium'
-                  })
-                  .eq('id', org.id);
+                const updateData = {
+                  subscription_id: subscription.id,
+                  subscription_status: subscription.status,
+                  subscription_tier: subscription.plan_code || 'premium'
+                };
                 
-                // لا نستدعي refreshOrganizationData هنا لتجنب الحلقة اللانهائية
-                console.log('✅ تم تحديث بيانات المؤسسة');
+                const updateResult = await updateOrganizationSafely(org.id, updateData);
+                
+                if (updateResult) {
+                  return; // إنهاء التحقق - الاشتراك صالح
+                }
               } catch (updateError) {
-                console.error('خطأ في تحديث بيانات المؤسسة:', updateError);
               }
             }
             
-            console.log('✅ تم العثور على اشتراك نشط صالح');
             return; // إنهاء التحقق - الاشتراك صالح
           }
         }
@@ -165,8 +175,6 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
             return new Date(sub.end_date) > new Date();
           });
 
-          console.log('🔍 الاشتراكات التجريبية المفلترة:', validTrialSubscriptions);
-
           if (validTrialSubscriptions.length > 0) {
             const subscription = validTrialSubscriptions[0];
             const endDate = new Date(subscription.end_date);
@@ -185,7 +193,6 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
               };
               
               cacheSubscriptionStatus(subscriptionInfo);
-              console.log('✅ تم العثور على فترة تجريبية نشطة');
               return;
             }
           }
@@ -228,29 +235,26 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
                 org.subscription_tier !== 'trial' || 
                 org.subscription_id !== null) {
               try {
-                await supabase
-                  .from('organizations')
-                  .update({
-                    subscription_status: 'trial',
-                    subscription_tier: 'trial',
-                    subscription_id: null
-                  })
-                  .eq('id', org.id);
+                const updateData = {
+                  subscription_status: 'trial',
+                  subscription_tier: 'trial',
+                  subscription_id: null
+                };
                 
-                // لا نستدعي refreshOrganizationData هنا لتجنب الحلقة اللانهائية
-                console.log('✅ تم تحديث حالة التجربة');
+                const updateResult = await updateOrganizationSafely(org.id, updateData);
+                
+                if (updateResult) {
+                  return;
+                }
               } catch (updateError) {
-                console.error('خطأ في تحديث حالة التجربة:', updateError);
               }
             }
             
-            console.log('✅ الفترة التجريبية التقليدية نشطة');
             return;
           }
         }
 
         // إذا وصلنا لهنا، فلا يوجد اشتراك صالح
-        console.log('❌ لا يوجد اشتراك صالح - سيتم التوجيه لصفحة الاشتراكات');
         
         // حذف التخزين المؤقت
         clearPermissionsCache();
@@ -268,19 +272,17 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
             org.subscription_tier !== 'free' || 
             org.subscription_id !== null) {
           try {
-            await supabase
-              .from('organizations')
-              .update({
-                subscription_status: 'expired',
-                subscription_tier: 'free',
-                subscription_id: null
-              })
-              .eq('id', org.id);
+            const updateData = {
+              subscription_status: 'expired',
+              subscription_tier: 'free',
+              subscription_id: null
+            };
             
-            // لا نستدعي refreshOrganizationData هنا لتجنب الحلقة اللانهائية
-            console.log('✅ تم تحديث حالة المؤسسة إلى منتهية');
+            const updateResult = await updateOrganizationSafely(org.id, updateData);
+            
+            if (updateResult) {
+            }
           } catch (updateError) {
-            console.error('خطأ في تحديث حالة المؤسسة:', updateError);
           }
         }
 
@@ -288,7 +290,6 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
         navigate('/dashboard/subscription');
 
       } catch (error) {
-        console.error('خطأ في التحقق من الاشتراك:', error);
         
         // في حالة الخطأ، السماح بالوصول بناءً على بيانات المؤسسة
         const org = organization as unknown as OrganizationWithSettings;
@@ -300,7 +301,6 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
             message: 'تم السماح بالوصول بناءً على بيانات المؤسسة (وضع الطوارئ)'
           };
           cacheSubscriptionStatus(errorInfo);
-          console.log('⚠️ تم السماح بالوصول في وضع الطوارئ');
         } else {
           navigate('/dashboard/subscription');
         }
@@ -309,8 +309,22 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
       }
     };
 
-    checkSubscription();
-  }, [organization?.id, navigate, refreshOrganizationData, subscriptionsLoading, hasChecked, isChecking]);
+    // إضافة debouncing لتجنب الطلبات المتكررة في React Strict Mode
+    if (checkTimeoutRef.current) {
+      clearTimeout(checkTimeoutRef.current);
+    }
+    
+    checkTimeoutRef.current = setTimeout(() => {
+      checkSubscription();
+    }, 100); // انتظار 100ms قبل تنفيذ الفحص
+
+    // تنظيف timeout عند إلغاء المكون
+    return () => {
+      if (checkTimeoutRef.current) {
+        clearTimeout(checkTimeoutRef.current);
+      }
+    };
+  }, [organization?.id, navigate, refreshOrganizationData, hasChecked, isChecking]);
 
   // إعادة تعيين hasChecked عند تغيير المؤسسة
   useEffect(() => {

@@ -14,10 +14,6 @@ interface ProductPurchaseData {
   shippingProviders: any[];
   isShippingProvidersLoading: boolean;
   
-  // بيانات كلونات الشحن
-  shippingClones: any[];
-  isShippingClonesLoading: boolean;
-  
   // بيانات إعدادات مزودي الشحن
   shippingSettings: any[];
   isShippingSettingsLoading: boolean;
@@ -58,97 +54,50 @@ export const ProductPurchaseDataProvider: React.FC<ProductPurchaseDataProviderPr
     refetchOnWindowFocus: false,
   });
 
-  // 2. بيانات مزودي الشحن - بعد الولايات
+  // استعلام لجلب مزودي الشحن
   const {
     data: shippingProviders = [],
-    isLoading: isShippingProvidersLoading
+    isLoading: isLoadingProviders,
+    error: providersError
   } = useQuery({
-    queryKey: ['product-purchase-shipping-providers', orgId],
+    queryKey: ['shipping-providers', orgId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('shipping_providers')
+      const { data, error } = await (supabase as any).from('shipping_providers')
         .select('code, name')
-        .eq('id', 1); // المزود الافتراضي
-      
+        .order('name');
+
       if (error) throw error;
       return data || [];
     },
-    enabled: !!orgId && !isProvincesLoading,
-    staleTime: 30 * 60 * 1000,
-    gcTime: 60 * 60 * 1000,
-    refetchOnWindowFocus: false,
+    enabled: !!orgId,
+    staleTime: 5 * 60 * 1000, // 5 دقائق
+    gcTime: 10 * 60 * 1000, // 10 دقائق
   });
 
-  // 3. بيانات كلونات الشحن - بعد مزودي الشحن
-  const {
-    data: shippingClones = [],
-    isLoading: isShippingClonesLoading
-  } = useQuery({
-    queryKey: ['product-purchase-shipping-clones', orgId],
-    queryFn: async () => {
-      // طلب واحد موحد للحصول على جميع البيانات المطلوبة
-      const [activeClones, specificClone] = await Promise.all([
-        supabase
-          .from('shipping_provider_clones')
-          .select('id')
-          .eq('organization_id', orgId!)
-          .eq('is_active', true)
-          .order('created_at', { ascending: false })
-          .limit(1),
-        
-        // إذا كان لدينا clone_id محدد، نجلبه أيضاً
-        supabase
-          .from('shipping_provider_clones')
-          .select('*')
-          .eq('id', 47) // القيمة من console log
-          .maybeSingle()
-      ]);
-
-      const result = [];
-      
-      if (activeClones.data && activeClones.data.length > 0) {
-        result.push(...activeClones.data);
-      }
-      
-      if (specificClone.data) {
-        result.push(specificClone.data);
-      }
-      
-      return result;
-    },
-    enabled: !!orgId && !isShippingProvidersLoading,
-    staleTime: 15 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
-
-  // 4. بيانات إعدادات مزودي الشحن
+  // استعلام لجلب إعدادات مزودي الشحن للمؤسسة
   const {
     data: shippingSettings = [],
-    isLoading: isShippingSettingsLoading
+    isLoading: isLoadingSettings,
+    error: settingsError
   } = useQuery({
-    queryKey: ['product-purchase-shipping-settings', orgId],
+    queryKey: ['shipping-provider-settings', orgId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('shipping_provider_settings')
+      const { data, error } = await (supabase as any).from('shipping_provider_settings')
         .select('provider_id')
-        .eq('organization_id', orgId!)
-        .eq('is_enabled', true)
-        .order('created_at', { ascending: false })
-        .limit(1);
-      
+        .eq('organization_id', orgId)
+        .eq('is_enabled', true);
+
       if (error) throw error;
       return data || [];
     },
-    enabled: !!orgId && !isShippingClonesLoading,
-    staleTime: 15 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
-    refetchOnWindowFocus: false,
+    enabled: !!orgId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 
   // 5. بيانات الخدمات - طلب موحد للنوعين
   const {
-    data: services = [],
+    data: servicesData,
     isLoading: isServicesLoading
   } = useQuery({
     queryKey: ['product-purchase-services', orgId],
@@ -167,11 +116,14 @@ export const ProductPurchaseDataProvider: React.FC<ProductPurchaseDataProviderPr
         available: data?.filter(service => service.is_available === true) || []
       };
     },
-    enabled: !!orgId && !isShippingSettingsLoading,
+    enabled: !!orgId && !isLoadingSettings,
     staleTime: 20 * 60 * 1000,
     gcTime: 40 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
+
+  // استخراج البيانات من servicesData
+  const services = servicesData?.all || [];
 
   // 6. بيانات فئات المنتجات - آخر تحميل
   const {
@@ -198,11 +150,9 @@ export const ProductPurchaseDataProvider: React.FC<ProductPurchaseDataProviderPr
     provinces,
     isProvincesLoading,
     shippingProviders,
-    isShippingProvidersLoading,
-    shippingClones,
-    isShippingClonesLoading,
+    isShippingProvidersLoading: isLoadingProviders,
     shippingSettings,
-    isShippingSettingsLoading,
+    isShippingSettingsLoading: isLoadingSettings,
     services,
     isServicesLoading,
     productCategories,
@@ -237,12 +187,6 @@ export const useProductPurchaseProvinces = () => {
 export const useProductPurchaseShippingProviders = () => {
   const { shippingProviders, isShippingProvidersLoading } = useProductPurchaseData();
   return { shippingProviders, isLoading: isShippingProvidersLoading };
-};
-
-// Hook لكلونات الشحن فقط
-export const useProductPurchaseShippingClones = () => {
-  const { shippingClones, isShippingClonesLoading } = useProductPurchaseData();
-  return { shippingClones, isLoading: isShippingClonesLoading };
 };
 
 export default ProductPurchaseDataProvider;

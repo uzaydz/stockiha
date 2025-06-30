@@ -3,7 +3,7 @@ import { withCache, LONG_CACHE_TTL, SHORT_CACHE_TTL } from '@/lib/cache/storeCac
 import { requestCache, createCacheKey } from '@/lib/cache/requestCache';
 import type { Product, ProductColor, ProductSize } from '@/lib/api/products';
 // import { trackedFunctionInvoke, trackedRpc, trackedSupabase } from '@/lib/db-tracker'; // تعطيل هذا مؤقتًا
-import { supabase } from '@/lib/supabase-client'; // افتراض وجود هذا الملف وتكوينه بشكل صحيح
+import { getSupabaseClient } from '@/lib/supabase-client'; // افتراض وجود هذا الملف وتكوينه بشكل صحيح
 // import { FormSettings, CustomFormField } from '@/components/store/order-form/OrderFormTypes';
 import type { ExtendedFormSettings } from '@/components/store/product-purchase/ProductStateHooks'; // افتراض وجود هذا النوع
 
@@ -105,6 +105,7 @@ const CACHE_PREFIX = 'product_page_';
  * @returns كائن ProductPageData يحتوي على كل بيانات الصفحة أو null
  */
 export const getProductPageData = async (organizationId: string, slug: string): Promise<ProductPageData | null> => {
+  
   const cacheKey = createCacheKey('product_page', organizationId, slug);
 
   return requestCache.get(
@@ -117,19 +118,28 @@ export const getProductPageData = async (organizationId: string, slug: string): 
           throw new Error('معاملات غير صحيحة: معرف المؤسسة أو slug مفقود');
         }
 
-        const { data: responseData, error: functionError } = await supabase.functions.invoke<ProductPageData>(
+        const startTime = Date.now();
+        console.log('⏱️ getProductPageData - بدء استدعاء Edge Function في:', new Date().toISOString());
+
+        const supabase = getSupabaseClient();
+        const { data: responseData, error: functionError } = await supabase.functions.invoke(
           'get-product-page-data',
           {
             body: { slug: slug, organization_id: organizationId },
           }
-        );
+        ) as { data: ProductPageData | null; error: any };
+
+        const endTime = Date.now();
+        console.log('⏱️ getProductPageData - انتهى استدعاء Edge Function في:', new Date().toISOString());
+        console.log('⏱️ getProductPageData - مدة الاستدعاء:', endTime - startTime, 'ms');
+        console.log('🔍 getProductPageData - النتيجة الخام:', { responseData, functionError });
 
         if (functionError) {
           
           // معالجة أنواع مختلفة من الأخطاء
           const errorStatus = (functionError as any)?.status;
           const errorMessage = functionError.message || '';
-          
+
           if (errorStatus === 404 || errorMessage.includes('404') || errorMessage.includes('Product not found')) {
             return null; // المنتج غير موجود
           }
@@ -147,12 +157,21 @@ export const getProductPageData = async (organizationId: string, slug: string): 
           }
           
           // في حالة Edge Function غير متاح، حاول Fallback عبر RPC مباشرة
+          console.log('🔄 getProductPageData - محاولة fallback عبر RPC مباشرة');
           
           try {
+            const rpcStartTime = Date.now();
+            console.log('⏱️ getProductPageData - بدء استدعاء RPC في:', new Date().toISOString());
+
             const { data: rpcData, error: rpcError } = await supabase.rpc('get_complete_product_data', {
               p_slug: slug,
               p_org_id: organizationId,
             });
+
+            const rpcEndTime = Date.now();
+            console.log('⏱️ getProductPageData - انتهى استدعاء RPC في:', new Date().toISOString());
+            console.log('⏱️ getProductPageData - مدة استدعاء RPC:', rpcEndTime - rpcStartTime, 'ms');
+            console.log('🔍 getProductPageData - نتيجة RPC:', { rpcData, rpcError });
             
             if (rpcError) {
               throw new Error('فشل في الطريقة البديلة أيضاً');
@@ -199,8 +218,24 @@ export const getProductPageData = async (organizationId: string, slug: string): 
           throw new Error('بيانات المنتج غير مكتملة');
         }
 
+        console.log('✅ getProductPageData - إرجاع البيانات النهائية:', {
+          hasProduct: !!responseData.product,
+          colorsCount: responseData.colors?.length || 0,
+          sizesCount: responseData.sizes?.length || 0,
+          hasFormSettings: !!responseData.form_settings,
+          hasMarketingSettings: !!responseData.marketing_settings,
+          reviewsCount: responseData.reviews?.length || 0
+        });
+
         return responseData;
       } catch (error) {
+        console.log('❌ getProductPageData - خطأ في التحميل:', error);
+        console.log('❌ getProductPageData - تفاصيل الخطأ:', {
+          message: error instanceof Error ? error.message : 'خطأ غير معروف',
+          stack: error instanceof Error ? error.stack : undefined,
+          organizationId,
+          slug
+        });
         
         // إعادة رمي الخطأ مع معلومات إضافية إذا لزم الأمر
         if (error instanceof Error) {
@@ -227,6 +262,7 @@ export async function getShippingProvinces(organizationId: string): Promise<Prov
     async () => {
       try {
         // استدعاء دالة جلب الولايات الموحدة في قاعدة البيانات
+        const supabase = getSupabaseClient();
         const { data, error } = await supabase.rpc(
           'get_shipping_provinces' as any,
           {
@@ -266,6 +302,7 @@ export async function getShippingMunicipalities(wilayaId: number, organizationId
         }
         
         // استدعاء دالة جلب البلديات الموحدة في قاعدة البيانات
+        const supabase = getSupabaseClient();
         const { data, error } = await supabase.rpc(
           'get_shipping_municipalities' as any,
           {
@@ -318,6 +355,7 @@ export async function calculateShippingFee(
   shippingProviderCloneIdInput?: string | number,
   productId?: string
 ): Promise<number> {
+  const supabase = getSupabaseClient();
   
   // تحويل ومعالجة shippingProviderCloneIdInput
   let shippingProviderCloneId: number | undefined = undefined;
@@ -500,6 +538,8 @@ const calculateEcotrackShippingPrice = async (
   wilayaId: string,
   deliveryType: 'home' | 'desk'
 ): Promise<{ success: boolean; price: number; error?: string }> => {
+  const supabase = getSupabaseClient();
+  
   try {
 
     // Get provider settings

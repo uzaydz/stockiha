@@ -38,11 +38,13 @@ export const getOrganizationId = async (currentUser: any = null): Promise<string
     if (!hostname.includes('localhost')) {
       try {
         const supabase = await getSupabaseClient();
-        const { data: orgData, error: orgError } = await supabase
+        const { data: orgDataArray, error: orgError } = await supabase
           .from('organizations')
           .select('id, domain, subdomain')
           .eq('domain', hostname)
-          .maybeSingle(); // استخدام maybeSingle بدلاً من single لتجنب الأخطاء
+          .limit(1);
+          
+        const orgData = orgDataArray && orgDataArray.length > 0 ? orgDataArray[0] : null;
           
         if (orgError && orgError.code !== 'PGRST116') {
           // تسجيل الخطأ فقط إذا لم يكن خطأ "لا توجد نتائج"
@@ -61,11 +63,13 @@ export const getOrganizationId = async (currentUser: any = null): Promise<string
 
     // 1. محاولة الحصول على المعرف من المستخدم الحالي عبر API
     if (currentUser) {
-      const { data: userData, error: userError } = await supabase
+      const { data: userDataArray, error: userError } = await supabase
         .from('users')
         .select('organization_id')
         .eq('id', currentUser.id)
-        .single();
+        .limit(1);
+        
+      const userData = userDataArray && userDataArray.length > 0 ? userDataArray[0] : null;
         
       if (!userError && userData?.organization_id) {
         
@@ -81,19 +85,21 @@ export const getOrganizationId = async (currentUser: any = null): Promise<string
     if (storedOrgId) {
       
       // التحقق من صحة المعرف المخزن
-      const { error: orgError } = await supabase
+      const { data: orgCheckArray, error: orgError } = await supabase
         .from('organizations')
         .select('id')
         .eq('id', storedOrgId)
-        .single();
+        .limit(1);
         
-      if (orgError) {
-        // حذف المعرف غير الصالح
-        localStorage.removeItem('bazaar_organization_id');
-      } else {
-        // المعرف صالح
-        return storedOrgId;
-      }
+      const orgExists = orgCheckArray && orgCheckArray.length > 0;
+        
+              if (orgError || !orgExists) {
+          // حذف المعرف غير الصالح
+          localStorage.removeItem('bazaar_organization_id');
+        } else {
+          // المعرف صالح
+          return storedOrgId;
+        }
     }
   
     // 3. محاولة الحصول من معلومات المستخدم الحالي في API المصادقة
@@ -113,11 +119,12 @@ export const getOrganizationId = async (currentUser: any = null): Promise<string
     }
     
     // 5. الاحتياطي الأخير: أول منظمة في قاعدة البيانات
-    const { data: orgs, error } = await supabase
+    const { data: orgsArray, error } = await supabase
       .from('organizations')
       .select('id')
-      .limit(1)
-      .single();
+      .limit(1);
+      
+    const orgs = orgsArray && orgsArray.length > 0 ? orgsArray[0] : null;
       
     if (error) {
       return null;
@@ -140,11 +147,13 @@ export const ensureGuestCustomer = async () => {
   
   try {
     // التحقق من وجود العميل الزائر في جدول customers
-    const { data: existingGuest, error: checkError } = await supabase
+    const { data: existingGuestArray, error: checkError } = await supabase
       .from('customers')
       .select('*')
       .eq('id', guestId)
-      .maybeSingle();
+      .limit(1);
+      
+    const existingGuest = existingGuestArray && existingGuestArray.length > 0 ? existingGuestArray[0] : null;
     
     if (checkError) {
     }

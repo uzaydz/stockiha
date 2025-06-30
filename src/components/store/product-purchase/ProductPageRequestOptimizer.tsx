@@ -136,7 +136,7 @@ export const ProductPageRequestOptimizer: React.FC<ProductPageRequestOptimizerPr
         promises.push(
           supabase
             .from('products')
-            .select('shipping_clone_id, purchase_page_config, shipping_provider_id, shipping_method_type')
+            .select('purchase_page_config, shipping_provider_id, shipping_method_type')
             .eq('id', productId)
             .single()
             .then(({ data, error }) => ({ productConfig: data, error }))

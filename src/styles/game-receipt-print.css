@@ -214,6 +214,8 @@
 
 /* أنماط محسنة لأكواد QR للمسؤول */
 @media print {
+  .start-qr svg,
+  .complete-qr svg,
   .start-qr img,
   .complete-qr img {
     min-width: 80px !important;
@@ -251,6 +253,8 @@
 }
 
 /* أنماط للشاشة */
+.start-qr svg,
+.complete-qr svg,
 .start-qr img,
 .complete-qr img {
   width: 80px;
@@ -261,9 +265,25 @@
   background: white;
 }
 
-.start-qr,
-.complete-qr {
-  border-width: 3px;
-  padding: 4mm;
-  margin-bottom: 4mm;
-} 
+  .start-qr,
+  .complete-qr {
+    border-width: 3px;
+    padding: 4mm;
+    margin-bottom: 4mm;
+  }
+
+  /* تحسينات خاصة بـ QRCodeSVG */
+  .qr-section svg {
+    display: block !important;
+    margin: 0 auto;
+  }
+
+  @media print {
+    .qr-section svg {
+      print-color-adjust: exact !important;
+      -webkit-print-color-adjust: exact !important;
+      color-adjust: exact !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+    }
+  } 

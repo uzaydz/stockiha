@@ -3,6 +3,7 @@ import { Routes, Route, useLocation, useParams, Navigate } from 'react-router-do
 import { TenantProvider, useTenant } from './context/TenantContext';
 import { AuthProvider } from './context/AuthContext';
 import { DashboardDataProvider } from './context/DashboardDataContext';
+import { UnifiedDataProvider } from './context/UnifiedDataContext';
 import { Toaster } from './components/ui/toaster';
 import { ThemeProvider } from './context/ThemeContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -64,12 +65,13 @@ import CustomerDebtDetails from './pages/dashboard/CustomerDebtDetails';
 import PaymentHistory from './pages/dashboard/PaymentHistory';
 import Employees from '@/pages/dashboard/Employees';
 import OrganizationSetup from './pages/OrganizationSetup';
-import OrganizationSettings from './pages/dashboard/OrganizationSettings';
+
 import SettingsPage from './pages/dashboard/settings';
 import ShippingSettingsPage from './pages/dashboard/ShippingSettings';
 import RequireTenant from './components/auth/RequireTenant';
 import LandingPage from './pages/landing/LandingPage';
 import ProductPurchase from './pages/ProductPurchase';
+// import ProductPurchaseOptimized from './pages/ProductPurchaseOptimized';
 import StoreProducts from './pages/StoreProducts';
 import Invoices from './pages/dashboard/Invoices';
 import FinancialReports from './pages/dashboard/reports';
@@ -107,7 +109,7 @@ import AppsManagement from './pages/AppsManagement';
 import GameDownloadsPage from './pages/GameDownloadsPage';
 import PublicGameStorePage from './pages/PublicGameStorePage';
 import PublicGameTracking from './components/apps/game-downloads/PublicGameTracking';
-import { UnifiedDataProvider } from '@/components/UnifiedDataProvider';
+import { UnifiedDataProvider } from '@/context/UnifiedDataContext';
 import { UniversalDataUpdateProvider } from './context/UniversalDataUpdateContext';
 import ConditionalRoute from './components/ConditionalRoute';
 import CallCenterRoute from './components/auth/CallCenterRoute';
@@ -115,6 +117,7 @@ import CallCenterLayout from './components/call-center/CallCenterLayout';
 import CallCenterDashboard from './pages/call-center/CallCenterDashboard';
 import AssignedOrders from './pages/call-center/orders/AssignedOrders';
 import RoleBasedRedirect from './components/auth/RoleBasedRedirect';
+import SupabaseAnalyticsPanel from './components/analytics/SupabaseAnalyticsPanel';
 // تم حذف نظام التحديث التلقائي - الملف غير موجود
 
 // Call Center Admin Pages
@@ -419,13 +422,22 @@ const App = () => {
   useEffect(() => {
     // تم حذف نظام التحديث التلقائي - الملف غير موجود
     
-    syncCategoriesDataOnStartup();
+    // تأجيل مزامنة الفئات لتجنب التكرار مع React Strict Mode
+    const syncTimeout = setTimeout(() => {
+      syncCategoriesDataOnStartup();
+    }, 1000); // تأخير ثانية واحدة
+    
     configureCrossDomainAuth();
     
     // تهيئة معالج أخطاء Supabase Auth
     import('@/lib/supabase/authErrorHandler').then(({ setupAuthErrorFiltering }) => {
       setupAuthErrorFiltering();
     }).catch(console.warn);
+
+    // تنظيف timeout عند إلغاء المكون
+    return () => {
+      clearTimeout(syncTimeout);
+    };
   }, []);
 
   return (
@@ -438,15 +450,20 @@ const App = () => {
               {/* نظام المراقبة الشامل - يعمل في بيئة التطوير فقط */}
       
               <LoadingControllerProvider maxConcurrentRequests={2}>
-                <UnifiedDataProvider>
-                  <UniversalDataUpdateProvider>
-                  <OrganizationDataProvider>
-                <ShopProvider>
-                  <StoreProvider>
-                  <AppsProvider>
-                  <HelmetProvider>
-                  <Toaster />
-                  <Sonner />
+                <AuthProvider>
+                  <UnifiedDataProvider>
+                    <UniversalDataUpdateProvider>
+                      <TenantProvider>
+                        <DashboardDataProvider>
+                          <OrganizationDataProvider>
+                            <ShopProvider>
+                              <StoreProvider>
+                                <AppsProvider>
+                                  <ThemeProvider>
+                                    <I18nextProvider i18n={i18n}>
+                                      <HelmetProvider>
+                                        <Toaster />
+                                        <Sonner />
                 <Routes>
                   <Route path="/" element={<StoreRouter />} />
                   <Route path="/features" element={<FeaturesPage />} />
@@ -531,7 +548,7 @@ const App = () => {
                   <Route path="/products/details/:productId" element={<ProductDetails />} />
                   
                   {/* صفحة شراء المنتج */}
-                  <Route path="/products/:slug" element={<ProductPurchase />} />
+                                        <Route path="/products/:slug" element={<ProductPurchase />} />
                   
                   {/* صفحة الشكر بعد إتمام الشراء */}
                   <Route path="/thank-you" element={<ThankYouPage />} />
@@ -548,13 +565,25 @@ const App = () => {
                   {/* صفحة إنهاء التصليح عبر QR code */}
                   <Route path="/repair-complete/:orderId" element={<RepairComplete />} />
 
-                  {/* صفحة متجر تحميل الألعاب العامة */}
+                  {/* صفحة عرض تحميل الألعاب العامة */}
                   <Route path="/games" element={<PublicGameStorePage />} />
                   <Route path="/games/:organizationId" element={<PublicGameStorePage />} />
                   
                   {/* صفحة تتبع طلبات الألعاب العامة */}
                   <Route path="/game-tracking" element={<PublicGameTracking />} />
                   <Route path="/game-tracking/:trackingNumber" element={<PublicGameTracking />} />
+                  
+                  {/* صفحات QR للمسؤول - بدون الحاجة لتسجيل الدخول */}
+                  <Route path="/game-download-start/:orderId" element={
+                    <Suspense fallback={<div>جاري التحميل...</div>}>
+                      {React.createElement(React.lazy(() => import('./components/apps/game-downloads/QuickScanActions').then(module => ({ default: module.GameDownloadStart }))))}
+                    </Suspense>
+                  } />
+                  <Route path="/game-complete/:orderId" element={
+                    <Suspense fallback={<div>جاري التحميل...</div>}>
+                      {React.createElement(React.lazy(() => import('./components/apps/game-downloads/QuickScanActions').then(module => ({ default: module.GameOrderComplete }))))}
+                    </Suspense>
+                  } />
 
                   {/* صفحات التوثيق */}
                   <Route path="/docs/custom-domains" element={<CustomDomainsDocPage />} />
@@ -789,11 +818,7 @@ const App = () => {
                           </SubscriptionCheck>
                         </ConditionalRoute>
                       } />
-                      <Route path="/dashboard/organization" element={
-                        <SubscriptionCheck>
-                          <OrganizationSettings />
-                        </SubscriptionCheck>
-                      } />
+
                       <Route path="/dashboard/custom-domains" element={
                         <SubscriptionCheck>
                           <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
@@ -1035,16 +1060,22 @@ const App = () => {
                   
                   <Route path="*" element={<NotFound />} />
                 </Routes>
-                <SyncManagerWrapper />
-                
-                {import.meta.env.DEV && <LocalStorageMonitor />}
-                                    </HelmetProvider>
-                  </AppsProvider>
-                  </StoreProvider>
-                  </ShopProvider>
-                </OrganizationDataProvider>
-                </UniversalDataUpdateProvider>
-                </UnifiedDataProvider>
+                                        <SyncManagerWrapper />
+                                        
+                                        {import.meta.env.DEV && <LocalStorageMonitor />}
+                                        {import.meta.env.DEV && <SupabaseAnalyticsPanel />}
+                                      </HelmetProvider>
+                                    </I18nextProvider>
+                                  </ThemeProvider>
+                                </AppsProvider>
+                              </StoreProvider>
+                            </ShopProvider>
+                          </OrganizationDataProvider>
+                        </DashboardDataProvider>
+                      </TenantProvider>
+                    </UniversalDataUpdateProvider>
+                  </UnifiedDataProvider>
+                </AuthProvider>
               </LoadingControllerProvider>
             {/* </CrossDomainSessionReceiver> */}
           </SupabaseProvider>

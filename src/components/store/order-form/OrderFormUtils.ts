@@ -377,3 +377,45 @@ export async function getAvailableProvincesForClone(cloneId: number, deliveryTyp
     return [];
   }
 }
+
+// دالة مساعدة للحصول على إعدادات مزود الشحن
+export const getShippingProviderSettings = async (organizationId: string, providerId?: string | number) => {
+  try {
+    // البحث عن إعدادات مزود الشحن للمؤسسة
+    const query = supabase
+      .from('shipping_provider_settings')
+      .select('*')
+      .eq('organization_id', organizationId)
+      .eq('is_enabled', true);
+
+    if (providerId) {
+      query.eq('provider_id', providerId);
+    }
+
+    const { data, error } = await query
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.log('⚠️ خطأ في جلب إعدادات مزود الشحن:', error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.log('⚠️ خطأ عام في getShippingProviderSettings:', error);
+    return null;
+  }
+};
+
+// دالة للحصول على معرف مزود الشحن الافتراضي
+export const getDefaultShippingProviderId = async (organizationId: string) => {
+  try {
+    const settings = await getShippingProviderSettings(organizationId);
+    return settings?.provider_id || 1; // ياليدين كافتراضي
+  } catch (error) {
+    console.log('⚠️ خطأ في getDefaultShippingProviderId:', error);
+    return 1; // ياليدين كافتراضي
+  }
+};

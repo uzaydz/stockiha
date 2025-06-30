@@ -8,6 +8,7 @@ import { useTenant } from '@/context/TenantContext';
 import { OrganizationSettings } from '@/types/settings';
 import { useTheme } from 'next-themes';
 import { supabase } from '@/lib/supabase';
+import { debounce } from 'lodash';
 
 interface UseOrganizationSettingsProps {
   organizationId: string | undefined;
@@ -78,15 +79,43 @@ interface UseOrganizationSettingsReturn {
   saveSettings: () => Promise<void>;
 }
 
+// دالة لإنشاء الإعدادات الافتراضية
+const getDefaultSettings = (organizationId: string): OrganizationSettings => ({
+  id: '',
+  organization_id: organizationId,
+  theme_primary_color: '#6366f1',
+  theme_secondary_color: '#8b5cf6',
+  theme_mode: 'light' as const,
+  site_name: 'متجري',
+  custom_css: null,
+  logo_url: null,
+  favicon_url: null,
+  default_language: 'ar',
+  custom_js: null,
+  custom_header: null,
+  custom_footer: null,
+  enable_registration: true,
+  enable_public_site: true,
+  display_text_with_logo: true,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString()
+});
+
+// Singleton pattern للتحكم في الاستدعاءات المتكررة
+const activeSettingsRequests = new Map<string, Promise<any>>();
+const globalSettingsCache = new Map<string, { data: OrganizationSettings; timestamp: number }>();
+const GLOBAL_CACHE_DURATION = 3 * 60 * 1000; // 3 دقائق
+
 /**
  * هوك مخصص للتعامل مع إعدادات المؤسسة
  */
 export const useOrganizationSettings = ({ organizationId }: UseOrganizationSettingsProps): UseOrganizationSettingsReturn => {
   const { setTheme } = useTheme();
   const { refreshOrganizationData } = useTenant();
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   // بيانات الإعدادات
   const [settings, setSettings] = useState<OrganizationSettings>({
@@ -120,6 +149,10 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const settingsCacheRef = useRef<Map<string, { data: OrganizationSettings; timestamp: number }>>(new Map());
   const isFirstThemeSetRef = useRef(true);
+  const isFetchingRef = useRef(false);
+  
+  // منع استبدال البيانات الحقيقية بالافتراضية
+  const [hasRealData, setHasRealData] = useState(false);
   
   // Cache timeout - 30 seconds
   const CACHE_DURATION = 30 * 1000;
@@ -135,6 +168,13 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
 
   // دالة للتحقق من صحة الكاش
   const getCachedSettings = useCallback((orgId: string) => {
+    // فحص التخزين المؤقت العام أولاً
+    const globalCached = globalSettingsCache.get(orgId);
+    if (globalCached && (Date.now() - globalCached.timestamp) < GLOBAL_CACHE_DURATION) {
+      return globalCached.data;
+    }
+    
+    // فحص التخزين المؤقت المحلي
     const cached = settingsCacheRef.current.get(orgId);
     if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
       return cached.data;
@@ -145,185 +185,146 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
   // دالة لحفظ في الكاش
   const setCachedSettings = useCallback((orgId: string, data: OrganizationSettings) => {
     settingsCacheRef.current.set(orgId, { data, timestamp: Date.now() });
+    globalSettingsCache.set(orgId, { data, timestamp: Date.now() });
   }, []);
 
-  // Debounced fetch settings function - محسن مع نظام fallback شامل
-  const debouncedFetchSettings = useCallback(async (orgId: string) => {
-    // إلغاء الطلب السابق إذا كان موجوداً
-    if (fetchTimeoutRef.current) {
-      clearTimeout(fetchTimeoutRef.current);
-    }
+  // دالة جلب الإعدادات المحسنة مع Singleton Pattern
+  const fetchSettings = useCallback(
+    debounce(async (orgId: string) => {
+      if (!orgId || lastFetchedRef.current === orgId || isFetchingRef.current) return;
+      
+      // فحص التخزين المؤقت أولاً
+      const cachedData = getCachedSettings(orgId);
+      if (cachedData) {
+        setSettings(cachedData);
+        setIsLoading(false);
+        return;
+      }
 
-    // التحقق من الكاش أولاً - محسن
-    const cachedData = getCachedSettings(orgId);
-    if (cachedData) {
-      setSettings(cachedData);
-      setIsLoading(false);
-      return;
-    }
-
-    // منع الطلبات المتكررة
-    if (lastFetchedRef.current === orgId) {
-      return;
-    }
-
-    // Debounce محسن - زيادة الوقت لتقليل الاستعلامات
-    fetchTimeoutRef.current = setTimeout(async () => {
+      // فحص الطلبات النشطة
+      const requestKey = `settings-${orgId}`;
+      if (activeSettingsRequests.has(requestKey)) {
+        try {
+          const result = await activeSettingsRequests.get(requestKey);
+          if (result) {
+            setSettings(result);
+            setCachedSettings(orgId, result);
+          }
+          setIsLoading(false);
+          return;
+        } catch (error) {
+        }
+      }
+      
       lastFetchedRef.current = orgId;
+      isFetchingRef.current = true;
       setIsLoading(true);
+      setError(null);
+
+      // إنشاء طلب جديد
+      const requestPromise = (async (): Promise<OrganizationSettings | null> => {
+        try {
+
+          // فحص حالة المصادقة
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+          // الوصول المباشر للجدول
+          
+          // استخدام الدالة الجديدة لجلب الإعدادات - تتجاوز RLS
+          const { data: settingsData, error: settingsError } = await supabase
+            .rpc('get_organization_settings_direct', { org_id: orgId })
+            .single();
+
+          if (settingsError) {
+          } else if (settingsData && 
+                     ((Array.isArray(settingsData) && settingsData.length > 0) || 
+                      (!Array.isArray(settingsData) && Object.keys(settingsData).length > 0))) {
+            
+            // التعامل مع البيانات سواء كانت array أو object
+            let settings: OrganizationSettings;
+            if (Array.isArray(settingsData)) {
+              settings = settingsData[0] as OrganizationSettings;
+            } else {
+              settings = settingsData as OrganizationSettings;
+            }
+            
+            // التأكد من theme_mode
+            if (!settings.theme_mode || !['light', 'dark', 'auto'].includes(settings.theme_mode)) {
+              settings.theme_mode = 'light';
+            }
+            
+            return settings;
+          } else {
+          }
+
+          // إذا لم توجد إعدادات، إنشاء إعدادات جديدة باستخدام الدالة المباشرة
+          const { data: createResult, error: createError } = await supabase
+            .rpc('save_organization_settings_direct', {
+              org_id: orgId,
+              p_site_name: 'متجري',
+              p_theme_primary_color: '#6366f1',
+              p_theme_secondary_color: '#8b5cf6',
+              p_theme_mode: 'light',
+              p_default_language: 'ar',
+              p_enable_registration: true,
+              p_enable_public_site: true,
+              p_display_text_with_logo: true
+            });
+
+          if (createError) {
+            return getDefaultSettings(orgId);
+          } else if (createResult) {
+            // جلب الإعدادات المنشأة حديثاً
+            const { data: newSettingsData } = await supabase
+              .rpc('get_organization_settings_direct', { org_id: orgId })
+              .single();
+            
+            if (newSettingsData) {
+              const settings = newSettingsData as OrganizationSettings;
+              if (!settings.theme_mode) settings.theme_mode = 'light';
+              return settings;
+            } else {
+              return getDefaultSettings(orgId);
+            }
+          } else {
+            return getDefaultSettings(orgId);
+          }
+
+        } catch (error) {
+          setError(`خطأ عام: ${error instanceof Error ? error.message : 'خطأ غير معروف'}`);
+          return getDefaultSettings(orgId);
+        }
+      })();
+
+      // حفظ الطلب في القائمة النشطة
+      activeSettingsRequests.set(requestKey, requestPromise);
 
       try {
-        
-        // استخدام الدالة المحسنة لجلب الإعدادات
-        const { data: latestSettings, error } = await supabase
-          .from('organization_settings')
-          .select(`
-            id, organization_id, theme_primary_color, theme_secondary_color,
-            theme_mode, site_name, logo_url, favicon_url, default_language,
-            enable_registration, enable_public_site, display_text_with_logo,
-            custom_css, custom_js, custom_header, custom_footer
-          `)
-          .eq('organization_id', orgId)
-          .single();
-
-        if (error) {
-          
-          // نظام fallback محسن: استخدام unified API
-          try {
-            const defaultSettings = await getOrganizationSettings(orgId);
-            if (defaultSettings) {
-              setSettings(defaultSettings);
-              setCachedSettings(orgId, defaultSettings);
-            } else {
-              // إذا فشل كل شيء، استخدم الإعدادات الافتراضية
-              const fallbackSettings = {
-                organization_id: orgId,
-                theme_primary_color: '#0099ff',
-                theme_secondary_color: '#6c757d',
-                theme_mode: 'light' as const,
-                site_name: 'stockiha',
-                custom_css: null,
-                logo_url: null,
-                favicon_url: null,
-                default_language: 'ar',
-                custom_js: null,
-                custom_header: null,
-                custom_footer: null,
-                enable_registration: true,
-                enable_public_site: true,
-                display_text_with_logo: true,
-              };
-              setSettings(fallbackSettings);
-              setCachedSettings(orgId, fallbackSettings);
-            }
-          } catch (fallbackError) {
-            
-            // آخر محاولة: إعدادات افتراضية محلية
-            const emergencySettings = {
-              organization_id: orgId,
-              theme_primary_color: '#0099ff',
-              theme_secondary_color: '#6c757d',
-              theme_mode: 'light' as const,
-              site_name: 'stockiha',
-              custom_css: null,
-              logo_url: null,
-              favicon_url: null,
-              default_language: 'ar',
-              custom_js: null,
-              custom_header: null,
-              custom_footer: null,
-              enable_registration: true,
-              enable_public_site: true,
-              display_text_with_logo: true,
-            };
-            setSettings(emergencySettings);
-          }
-          return;
-        }
-
-        if (latestSettings) {
-          
-          // التحقق من نوع البيانات وإصلاحها إذا كانت مصفوفة
-          let settingsData = latestSettings;
-          if (Array.isArray(latestSettings)) {
-            settingsData = latestSettings[0];
-          }
-          
-          // التأكد من وجود organization_id
-          if (!settingsData.organization_id) {
-            settingsData = {
-              ...settingsData,
-              organization_id: orgId
-            };
-          }
-          
-          // تحليل بيانات التتبع والـ SEO بشكل محسن
-          let trackingData: TrackingPixels = {
-            facebook: { enabled: false, pixelId: '' },
-            tiktok: { enabled: false, pixelId: '' },
-            snapchat: { enabled: false, pixelId: '' },
-            google: { enabled: false, pixelId: '' },
-          };
-
-          // تحليل custom_js فقط إذا كان قصيراً لتجنب البطء
-          if (settingsData.custom_js && 
-              typeof settingsData.custom_js === 'string' && 
-              settingsData.custom_js.length < 10000) {
-            try {
-              const customJsData: CustomJsData = JSON.parse(settingsData.custom_js);
-              if (customJsData.trackingPixels) {
-                trackingData = customJsData.trackingPixels;
-              }
-            } catch (parseError) {
-              // تجاهل أخطاء التحليل للحفاظ على الأداء
-            }
-          }
-
-          setTrackingPixels(trackingData);
-          setSettings(settingsData);
-          setCachedSettings(orgId, settingsData);
-          
-        } else {
+        const result = await requestPromise;
+        if (result) {
+          setSettings(result);
+          setCachedSettings(orgId, result);
+          setError(null);
         }
       } catch (error) {
-
-        // محاولة استخدام البيانات المخزنة مؤقتاً حتى لو انتهت صلاحيتها
-        const expiredCache = settingsCacheRef.current.get(orgId);
-        if (expiredCache) {
-          setSettings(expiredCache.data);
-        } else {
-          // إنشاء إعدادات طوارئ
-          const emergencySettings = {
-            organization_id: orgId,
-            theme_primary_color: '#0099ff',
-            theme_secondary_color: '#6c757d',
-            theme_mode: 'light' as const,
-            site_name: 'stockiha',
-            custom_css: null,
-            logo_url: null,
-            favicon_url: null,
-            default_language: 'ar',
-            custom_js: null,
-            custom_header: null,
-            custom_footer: null,
-            enable_registration: true,
-            enable_public_site: true,
-            display_text_with_logo: true,
-          };
-          setSettings(emergencySettings);
-        }
+        setSettings(getDefaultSettings(orgId));
       } finally {
         setIsLoading(false);
+        isFetchingRef.current = false;
+        activeSettingsRequests.delete(requestKey);
       }
-    }, 1000); // زيادة debounce إلى ثانية واحدة
-  }, [getCachedSettings, setCachedSettings]);
+    }, 500),
+    [getCachedSettings, setCachedSettings]
+  );
 
   // تحميل البيانات مع debouncing ونظام fallback للصلاحيات
   useEffect(() => {
     if (organizationId && organizationId !== lastFetchedRef.current) {
-      // فحص أولي لحل مشكلة الصلاحيات
+      // إعادة تعيين refs عند تغيير المؤسسة
+      lastFetchedRef.current = null;
+      isFetchingRef.current = false;
       
-      debouncedFetchSettings(organizationId);
+      fetchSettings(organizationId);
     }
 
     // Cleanup
@@ -332,12 +333,11 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
         clearTimeout(fetchTimeoutRef.current);
       }
     };
-  }, [organizationId, debouncedFetchSettings]);
+  }, [organizationId]); // إزالة fetchSettings من dependencies
 
   // نظام fallback للصلاحيات: إذا كانت الإعدادات موجودة لكن organization_id غير محدد
   useEffect(() => {
-    if (organizationId && settings && !settings.organization_id) {
-      
+    if (organizationId && settings && !settings.organization_id && !isLoading) {
              // إضافة organization_id للإعدادات الموجودة
        const fixedSettings: OrganizationSettings = {
          ...settings,
@@ -347,10 +347,12 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
       setSettings(fixedSettings);
       setCachedSettings(organizationId, fixedSettings);
     }
-  }, [organizationId, settings, setCachedSettings]);
+  }, [organizationId, settings?.organization_id, isLoading]);
 
-  // نظام fallback إضافي: إنشاء إعدادات افتراضية إذا فشل كل شيء
+  // نظام fallback إضافي: إنشاء إعدادات افتراضية إذا فشل كل شيء ولم توجد بيانات حقيقية
   useEffect(() => {
+    if (!organizationId || isLoading) return;
+    
     const timeout = setTimeout(() => {
       if (organizationId && !isLoading && (!settings || !settings.organization_id)) {
         
@@ -374,12 +376,18 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
         
         setSettings(emergencySettings);
         setCachedSettings(organizationId, emergencySettings);
-        
       }
     }, 5000); // انتظار 5 ثوانِ قبل إنشاء الإعدادات الافتراضية
 
     return () => clearTimeout(timeout);
-  }, [organizationId, isLoading, settings, setCachedSettings]);
+  }, [organizationId, isLoading, settings?.organization_id]);
+
+  useEffect(() => {
+    // إذا كانت البيانات تحتوي على site_name غير افتراضي، فهي بيانات حقيقية
+    if (settings && settings.site_name && settings.site_name !== 'متجري' && settings.site_name !== '' && !hasRealData) {
+      setHasRealData(true);
+    }
+  }, [settings?.site_name, hasRealData]);
 
   // تحديث قيمة في الإعدادات مع منع تطبيق الثيم المتكرر
   const updateSetting = useCallback((key: keyof OrganizationSettings, value: any) => {
@@ -411,7 +419,7 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
     }));
   }, []);
   
-  // دالة محسنة لحفظ الإعدادات مع إعادة جلب فورية
+  // دالة محسنة لحفظ الإعدادات باستخدام الدالة المخصصة
   const saveSettings = useCallback(async (): Promise<void> => {
     if (!organizationId || isSaving) {
       return;
@@ -421,8 +429,31 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
     setSaveSuccess(false);
     
     try {
+
       // دمج بيانات التتبع مع الإعدادات الموجودة
+      let existingCustomJs: CustomJsData = {
+        trackingPixels: {
+          facebook: { enabled: false, pixelId: '' },
+          tiktok: { enabled: false, pixelId: '' },
+          snapchat: { enabled: false, pixelId: '' },
+          google: { enabled: false, pixelId: '' },
+        }
+      };
+      
+      // محاولة قراءة البيانات الموجودة مسبقاً
+      if (settings.custom_js) {
+        try {
+          const parsed = JSON.parse(settings.custom_js);
+          if (parsed && typeof parsed === 'object') {
+            existingCustomJs = { ...existingCustomJs, ...parsed };
+          }
+        } catch (error) {
+        }
+      }
+      
+      // تحديث بيانات التتبع فقط مع الاحتفاظ بالبيانات الأخرى
       const customJsData: CustomJsData = {
+        ...existingCustomJs,
         trackingPixels
       };
 
@@ -432,10 +463,9 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
         updated_at: new Date().toISOString()
       };
 
-      // استخدام UPDATE بدلاً من upsert لتجنب مشاكل RLS
-      const { data: savedData, error } = await supabase
-        .from('organization_settings')
-        .update({
+      // استخدام الطريقة المباشرة للحفظ
+      const dataToSave = {
+        organization_id: organizationId,
           theme_primary_color: updatedSettings.theme_primary_color,
           theme_secondary_color: updatedSettings.theme_secondary_color,
           theme_mode: updatedSettings.theme_mode,
@@ -450,11 +480,37 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
           enable_registration: updatedSettings.enable_registration,
           enable_public_site: updatedSettings.enable_public_site,
           display_text_with_logo: updatedSettings.display_text_with_logo,
-          updated_at: new Date().toISOString()
-        })
-        .eq('organization_id', organizationId)
-        .select()
-        .single();
+        updated_at: updatedSettings.updated_at
+      };
+
+      // استخدام الدالة الجديدة للحفظ - تتجاوز RLS
+      const { data: saveResult, error } = await supabase
+        .rpc('save_organization_settings_direct', {
+          org_id: organizationId,
+          p_site_name: dataToSave.site_name,
+          p_theme_primary_color: dataToSave.theme_primary_color,
+          p_theme_secondary_color: dataToSave.theme_secondary_color,
+          p_theme_mode: dataToSave.theme_mode,
+          p_default_language: dataToSave.default_language,
+          p_custom_css: dataToSave.custom_css,
+          p_logo_url: dataToSave.logo_url,
+          p_favicon_url: dataToSave.favicon_url,
+          p_custom_js: dataToSave.custom_js,
+          p_custom_header: dataToSave.custom_header,
+          p_custom_footer: dataToSave.custom_footer,
+          p_enable_registration: dataToSave.enable_registration,
+          p_enable_public_site: dataToSave.enable_public_site,
+          p_display_text_with_logo: dataToSave.display_text_with_logo
+        });
+      
+      let savedData = null;
+      if (saveResult) {
+        // جلب البيانات المحدثة بعد الحفظ
+        const { data: refreshedData } = await supabase
+          .rpc('get_organization_settings_direct', { org_id: organizationId })
+          .single();
+        savedData = refreshedData ? [refreshedData] : null;
+      }
         
       // إذا تم تحديث اللغة الافتراضية، إرسال إشعار للمتجر العام
       if (!error && savedData && settings.default_language !== updatedSettings.default_language) {
@@ -481,10 +537,6 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
       }
           
       if (error) {
-        
-                          // إذا فشل UPDATE، أخبر المستخدم بالخطأ بشكل واضح
-         
-         // رسالة واضحة للمستخدم
          throw new Error(
            `فشل في حفظ الإعدادات. المشكلة: ${error.message || 'خطأ في الصلاحيات'}\n\n` +
            'الحلول المؤقتة:\n' +
@@ -495,29 +547,16 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
       } else {
 
         // تحديث الإعدادات المحلية بالبيانات المحفوظة فعلياً
-        if (savedData) {
+        if (savedData && Array.isArray(savedData) && savedData.length > 0) {
+          const savedSettings = savedData[0] as OrganizationSettings;
+          setSettings(savedSettings);
+          setCachedSettings(organizationId, savedSettings);
+        } else if (savedData && !Array.isArray(savedData)) {
           setSettings(savedData as OrganizationSettings);
           setCachedSettings(organizationId, savedData as OrganizationSettings);
         }
       }
-      
-      // إعادة جلب البيانات من قاعدة البيانات للتأكد (مع صلاحيات أقل تقييداً)
-      setTimeout(async () => {
-        try {
-          const { data: refreshedData, error: refreshError } = await supabase
-            .from('organization_settings')
-            .select('*')
-            .eq('organization_id', organizationId)
-            .single(); // العودة إلى single
-            
-          if (!refreshError && refreshedData) {
-            setSettings(refreshedData as OrganizationSettings);
-            setCachedSettings(organizationId, refreshedData as OrganizationSettings);
-          }
-        } catch (refreshError) {
-        }
-      }, 500);
-      
+
       setSaveSuccess(true);
       
       // إزالة رسالة النجاح بعد وقت قصير

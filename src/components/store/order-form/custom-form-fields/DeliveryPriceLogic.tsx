@@ -59,7 +59,7 @@ export async function getDeliveryPriceCalculator(
     if (productId) {
       const { data: productData, error: productError } = await supabase
         .from('products')
-        .select('shipping_provider_id, shipping_clone_id, use_shipping_clone, shipping_method_type')
+        .select('shipping_provider_id, shipping_method_type')
         .eq('id', productId)
         .single();
         

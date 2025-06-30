@@ -23,40 +23,43 @@ const SubscriptionDebug: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const fetchDebugInfo = async () => {
-    if (!organization) return;
-
+    if (!organization || isRefreshing) return;
+    
     try {
       setIsRefreshing(true);
 
-      // جلب بيانات المؤسسة
-      const { data: orgData } = await supabase
-        .from('organizations')
-        .select('*')
-        .eq('id', organization.id)
-        .single();
+      // استدعاء واحد محسن للحصول على بيانات المؤسسة والاشتراكات
+      const [orgResponse, subsResponse] = await Promise.all([
+        // جلب بيانات المؤسسة
+        supabase
+          .from('organizations')
+          .select('*')
+          .eq('id', organization.id)
+          .single(),
+        
+        // جلب جميع الاشتراكات
+        supabase
+          .from('organization_subscriptions')
+          .select(`
+            *,
+            plan:plan_id(*)
+          `)
+          .eq('organization_id', organization.id)
+          .order('created_at', { ascending: false })
+      ]);
 
-      // جلب جميع الاشتراكات
-      const { data: allSubs } = await supabase
-        .from('organization_subscriptions')
-        .select(`
-          *,
-          plan:plan_id(*)
-        `)
-        .eq('organization_id', organization.id)
-        .order('created_at', { ascending: false });
-
-      // جلب البيانات المؤقتة
+      // جلب البيانات المؤقتة محلياً
       const cachedSub = getCachedSubscriptionStatus();
 
-      // حساب معلومات التجربة
+      // حساب معلومات التجربة محلياً
       const createdAt = new Date(organization.created_at);
       const now = new Date();
       const trialDays = Math.ceil((now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
       const trialRemaining = Math.max(0, 5 - trialDays);
 
       setDebugInfo({
-        organizationData: orgData,
-        activeSubscriptions: allSubs || [],
+        organizationData: orgResponse.data,
+        activeSubscriptions: subsResponse.data || [],
         cachedSubscription: cachedSub,
         trialInfo: {
           daysUsed: trialDays,
@@ -65,7 +68,6 @@ const SubscriptionDebug: React.FC = () => {
         }
       });
     } catch (error) {
-      console.error('خطأ في جلب معلومات التشخيص:', error);
     } finally {
       setIsRefreshing(false);
     }
@@ -102,7 +104,6 @@ const SubscriptionDebug: React.FC = () => {
         .single();
       
       if (orgData) {
-        console.log('🔄 بيانات المؤسسة الحالية:', orgData);
         
         // التحقق من الاشتراكات النشطة
         const { data: activeSubs } = await supabase
@@ -113,10 +114,8 @@ const SubscriptionDebug: React.FC = () => {
           .filter('end_date', 'gte', new Date().toISOString());
           
         if (Array.isArray(activeSubs) && activeSubs.length > 0) {
-          console.log('✅ تم العثور على اشتراك نشط، سيتم إعادة تحميل الصفحة');
           window.location.reload();
         } else {
-          console.log('❌ لا يوجد اشتراك نشط');
         }
       }
       
@@ -124,7 +123,6 @@ const SubscriptionDebug: React.FC = () => {
       refetch();
       fetchDebugInfo();
     } catch (error) {
-      console.error('خطأ في إعادة التعيين:', error);
     } finally {
       setIsRefreshing(false);
     }

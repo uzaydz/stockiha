@@ -58,6 +58,8 @@ const ProductPurchase = () => {
   const { currentOrganization, isLoading: isOrganizationLoading } = useTenant();
   const { t } = useTranslation();
   
+  // تتبع حالة التحميل للتصحيح
+  
   // حالة إعدادات الفوتر المخصص
   const [footerSettings, setFooterSettings] = React.useState<any>(null);
   
@@ -91,7 +93,7 @@ const ProductPurchase = () => {
     dataFetchedRef
   } = useProductState();
 
-  // استخدام خطاف تحميل بيانات المنتج
+  // استخدام خطاف تحميل بيانات المنتج الأصلي
   useProductDataLoader({
     slug,
     organizationId: currentOrganization?.id,
@@ -149,13 +151,15 @@ const ProductPurchase = () => {
       
       try {
         const supabase = getSupabaseClient();
-        const { data: footerData, error } = await supabase
+        const { data: footerDataArray, error } = await supabase
           .from('store_settings')
           .select('settings')
           .eq('organization_id', currentOrganization.id)
           .eq('component_type', 'footer')
           .eq('is_active', true)
-          .maybeSingle();
+          .limit(1);
+          
+        const footerData = footerDataArray && footerDataArray.length > 0 ? footerDataArray[0] : null;
 
         if (!error && footerData?.settings) {
           setFooterSettings(footerData.settings);
@@ -248,6 +252,15 @@ const ProductPurchase = () => {
 
   const shouldShowPartialContent = !isLoading && !error && product;
   const shouldShowFullContent = !isLoading && !error && product;
+
+  // تتبع حالات العرض للتصحيح
+
+  // إضافة console logs للحالات المختلفة
+  if (isLoading || isOrganizationLoading) {
+  } else if (error) {
+  } else if (shouldShowPartialContent) {
+  } else {
+  }
 
   return (
     <ProductPurchaseDataProvider productId={effectiveProduct?.id || product?.id}>

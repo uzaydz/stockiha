@@ -60,6 +60,10 @@ interface SubscriptionValidationResult {
   source: 'subscription' | 'trial' | 'cache' | 'organization';
 }
 
+// تخزين مؤقت لنتائج حساب الأيام المتبقية
+let daysLeftCache: { [key: string]: { data: any, timestamp: number } } = {};
+const DAYS_LEFT_CACHE_DURATION = 2 * 60 * 1000; // دقيقتان
+
 /**
  * خدمة إدارة الاشتراكات
  */
@@ -408,6 +412,14 @@ export const SubscriptionService = {
     message: string;
   }> {
     
+    // فحص التخزين المؤقت أولاً
+    const cacheKey = `days_left_${organizationData.id}`;
+    const cachedResult = daysLeftCache[cacheKey];
+    
+    if (cachedResult && (Date.now() - cachedResult.timestamp) < DAYS_LEFT_CACHE_DURATION) {
+      return cachedResult.data;
+    }
+    
     let trialDaysLeft = 0;
     let subscriptionDaysLeft = 0;
     let status: 'trial' | 'active' | 'expired' = 'expired';
@@ -431,13 +443,21 @@ export const SubscriptionService = {
           subscriptionDaysLeft = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
           // إذا كان هناك اشتراك نشط، فهو الأولوية
-          return {
+          const result = {
             totalDaysLeft: subscriptionDaysLeft,
             trialDaysLeft: 0,
             subscriptionDaysLeft,
-            status: 'active',
+            status: 'active' as const,
             message: `اشتراك نشط - ${subscriptionDaysLeft} يوم متبقية`
           };
+          
+          // حفظ في التخزين المؤقت
+          daysLeftCache[cacheKey] = {
+            data: result,
+            timestamp: Date.now()
+          };
+          
+          return result;
         }
       } else {
       }
@@ -454,7 +474,6 @@ export const SubscriptionService = {
       
       if (trialEndDateOnly >= nowDateOnly) {
         trialDaysLeft = Math.ceil((trialEndDateOnly.getTime() - nowDateOnly.getTime()) / (1000 * 60 * 60 * 24));
-        
       }
     }
 
@@ -476,6 +495,12 @@ export const SubscriptionService = {
       subscriptionDaysLeft,
       status,
       message
+    };
+
+    // حفظ في التخزين المؤقت
+    daysLeftCache[cacheKey] = {
+      data: result,
+      timestamp: Date.now()
     };
 
     return result;

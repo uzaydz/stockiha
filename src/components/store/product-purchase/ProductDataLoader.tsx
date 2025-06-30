@@ -63,6 +63,8 @@ export const useProductDataLoader = ({
   const retryCountRef = useRef(0);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // تتبع معاملات الدخل للتصحيح
+
   useEffect(() => {
     // إلغاء أي طلب سابق عند تغيير المعاملات
     if (abortControllerRef.current) {
@@ -76,8 +78,11 @@ export const useProductDataLoader = ({
     if (dataFetchedRef.current && !slug) return;
     
     const loadProductWithRetry = async () => {
+
       // التحقق من إلغاء الطلب
-      if (currentAbortController.signal.aborted) return;
+      if (currentAbortController.signal.aborted) {
+        return;
+      }
 
       // إذا كان organizationId غير متاح ولا يزال يتم تحميله، انتظر قليلاً
       if (!organizationId && isOrganizationLoading) {
@@ -88,7 +93,6 @@ export const useProductDataLoader = ({
       // إذا لم يكن لدينا slug أو organizationId بعد انتهاء التحميل
       if (!slug || !organizationId) {
         if (!isOrganizationLoading && !organizationId) {
-          // معرف المؤسسة غير متاح
         }
         setIsLoading(false);
         return;
@@ -101,10 +105,16 @@ export const useProductDataLoader = ({
         if (currentAbortController.signal.aborted) return;
 
         try {
+          console.log('🔍 loadProductWithRetry - محاولة #' + (attempt + 1) + ' من ' + (RETRY_CONFIG.maxRetries + 1));
           setIsLoading(true);
           setError(null);
           
           const responseData: ProductPageData | null = await getProductPageData(organizationId, slug);
+          console.log('🔍 loadProductWithRetry - استلام النتيجة:', {
+            hasData: !!responseData,
+            hasProduct: !!responseData?.product,
+            productName: responseData?.product?.name
+          });
           
           // التحقق من إلغاء الطلب بعد الحصول على الاستجابة
           if (currentAbortController.signal.aborted) return;
@@ -117,12 +127,21 @@ export const useProductDataLoader = ({
           
           // تحديث البيانات فقط إذا لم يتم إلغاء الطلب
           if (!currentAbortController.signal.aborted) {
+            console.log('✅ loadProductWithRetry - بدء معالجة البيانات');
+            
             // إضافة الألوان والمقاسات إلى المنتج
             const productWithColors = {
               ...actualProduct,
               colors: responseData.colors || [],
               sizes: responseData.sizes || []
             };
+
+            console.log('✅ loadProductWithRetry - تحديث المنتج:', {
+              productId: productWithColors.id,
+              productName: productWithColors.name,
+              colorsCount: productWithColors.colors.length,
+              sizesCount: productWithColors.sizes.length
+            });
 
             setProduct(productWithColors);
             setEffectiveProduct(productWithColors);
@@ -175,21 +194,28 @@ export const useProductDataLoader = ({
 
             dataFetchedRef.current = true;
             retryCountRef.current = 0; // إعادة تعيين عداد المحاولات عند النجاح
+            
+            console.log('✅ loadProductWithRetry - اكتمل التحميل بنجاح!');
           }
           
           setIsLoading(false);
           return; // نجح التحميل، الخروج من الحلقة
           
         } catch (error: any) {
+          console.log('❌ loadProductWithRetry - خطأ في المحاولة #' + (attempt + 1) + ':', error);
           lastError = error;
           
           // التحقق من إلغاء الطلب
-          if (currentAbortController.signal.aborted) return;
+          if (currentAbortController.signal.aborted) {
+            console.log('❌ loadProductWithRetry - تم إلغاء الطلب أثناء معالجة الخطأ');
+            return;
+          }
           
           // إذا كان خطأ 404 أو منتج غير موجود، لا نعيد المحاولة
           if (error.message?.includes('404') || 
               error.message?.includes('Product not found') ||
               error.message?.includes('المنتج غير موجود')) {
+            console.log('❌ loadProductWithRetry - المنتج غير موجود، إيقاف المحاولات');
             setError(error.message || 'المنتج غير موجود');
             setProduct(null);
             setEffectiveProduct(null);
@@ -214,10 +240,18 @@ export const useProductDataLoader = ({
           
           // انتظار قبل إعادة المحاولة
           const retryDelay = calculateRetryDelay(attempt);
+          console.log(`⏳ loadProductWithRetry - إعادة المحاولة بعد ${retryDelay}ms`);
           await delay(retryDelay);
           
           retryCountRef.current = attempt + 1;
         }
+      }
+      
+      // إذا وصلنا هنا، فقد فشلت جميع المحاولات
+      if (lastError) {
+        console.log('❌ loadProductWithRetry - فشلت جميع المحاولات، آخر خطأ:', lastError);
+        setError(lastError.message || 'فشل في تحميل المنتج بعد عدة محاولات');
+        setIsLoading(false);
       }
     };
 

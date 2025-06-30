@@ -1323,7 +1323,11 @@ const resources = {
   fr: { translation: frTranslations }
 };
 
-// جلب اللغة الافتراضية من قاعدة البيانات
+// متغيرات للتخزين المؤقت
+let languageCache: { language: string; timestamp: number; organizationId: string } | null = null;
+const LANGUAGE_CACHE_DURATION = 5 * 60 * 1000; // 5 دقائق
+
+// جلب اللغة الافتراضية من قاعدة البيانات مع تخزين مؤقت
 const getDefaultLanguageFromDatabase = async () => {
   try {
     // الحصول على subdomain من URL الحالي
@@ -1335,124 +1339,89 @@ const getDefaultLanguageFromDatabase = async () => {
       subdomain = 'testfinalfinalvhio'; // subdomain للاختبار
     }
     
-    // التحقق من النطاقات المخصصة أولاً قبل البحث بالنطاق الفرعي
-    const supabase = getSupabaseClient();
+    // فحص التخزين المؤقت أولاً
+    if (languageCache && 
+        (Date.now() - languageCache.timestamp) < LANGUAGE_CACHE_DURATION &&
+        languageCache.organizationId === subdomain) {
+      return languageCache.language;
+    }
     
-    // إذا كان النطاق الفرعي هو www أو كان النطاق يبدو كنطاق مخصص، ابحث بالنطاق الكامل
-    if (subdomain === 'www' || currentHost.includes('.')) {
-      // محاولة البحث بالنطاق الكامل أولاً
-      const { data: domainOrgData, error: domainError } = await supabase
+    // استدعاء واحد محسن للبحث عن المؤسسة بالنطاق أو النطاق الفرعي
+    const supabase = getSupabaseClient();
+    let organizationId = null;
+    
+    try {
+      // استعلام واحد يبحث بالنطاق الكامل أو النطاق الفرعي - إصلاح PGRST116
+      const { data: orgDataArray, error: orgError } = await supabase
         .from('organizations')
         .select('id')
-        .eq('domain', currentHost)
-        .maybeSingle();
+        .or(`domain.eq.${currentHost},subdomain.eq.${subdomain}`)
+        .limit(1);
+        
+      const orgData = orgDataArray && orgDataArray.length > 0 ? orgDataArray[0] : null;
+    
+      if (!orgError && orgData) {
+        organizationId = orgData.id;
+      }
+    } catch (error) {
       
-      if (!domainError && domainOrgData) {
-        // استخدام البيانات الموجودة بدلاً من البحث مرة أخرى
-        const orgData = domainOrgData;
-        
-        // جلب اللغة الافتراضية للمؤسسة مباشرة من organizations table
-        const { data: orgWithSettings, error: orgSettingsError } = await supabase
+      // محاولة بديلة: البحث بالنطاق الفرعي فقط
+      try {
+        const { data: subdomainDataArray, error: subdomainError } = await supabase
           .from('organizations')
-          .select('id, organization_settings(default_language)')
-          .eq('id', orgData.id)
-          .single();
-
-        if (orgSettingsError || !orgWithSettings) {
-          // fallback: محاولة الوصول المباشر
-          try {
-            const { data: directData, error: directError } = await supabase
-              .from('organization_settings')
-              .select('default_language')
-              .eq('organization_id', orgData.id)
-              .limit(1);
-
-            if (!directError && directData && directData.length > 0) {
-              return directData[0].default_language || 'ar';
-            }
-          } catch (fallbackError) {
-          }
-          return 'ar';
+          .select('id')
+          .eq('subdomain', subdomain)
+          .limit(1);
+          
+        const subdomainData = subdomainDataArray && subdomainDataArray.length > 0 ? subdomainDataArray[0] : null;
+          
+        if (!subdomainError && subdomainData) {
+          organizationId = subdomainData.id;
         }
-        
-        // استخراج اللغة الافتراضية
-        const organizationSettings = (orgWithSettings as any).organization_settings;
-        
-        if (!organizationSettings || (Array.isArray(organizationSettings) && organizationSettings.length === 0)) {
-          return 'ar';
-        }
-        
-        let defaultLanguage;
-        if (Array.isArray(organizationSettings)) {
-          defaultLanguage = organizationSettings[0]?.default_language;
-        } else {
-          defaultLanguage = organizationSettings?.default_language;
-        }
-        
-        return defaultLanguage || 'ar';
+      } catch (fallbackError) {
       }
     }
     
-         // إذا لم يكن www أو كان نطاق فرعي حقيقي، جرب البحث بالنطاق الفرعي
-     if (subdomain !== 'www') {
-       // جلب معرف المؤسسة من subdomain
-       const { data: orgData, error: orgError } = await supabase
-         .from('organizations')
-         .select('id')
-         .eq('subdomain', subdomain)
-         .single();
+    // إذا وُجد معرف المؤسسة، جلب إعدادات اللغة
+    if (organizationId) {
+      try {
+        // استعلام مباشر لجدول organization_settings - إصلاح PGRST116
+        const { data: settingsDataArray, error: settingsError } = await supabase
+          .from('organization_settings')
+          .select('default_language')
+          .eq('organization_id', organizationId)
+          .limit(1);
+          
+        const settingsData = settingsDataArray && settingsDataArray.length > 0 ? settingsDataArray[0] : null;
+
+        if (!settingsError && settingsData && settingsData.default_language) {
+          // حفظ في التخزين المؤقت
+          languageCache = {
+            language: settingsData.default_language,
+            timestamp: Date.now(),
+            organizationId: subdomain
+          };
+          return settingsData.default_language;
+        }
+      } catch (error) {
+      }
+    }
     
-       if (orgError || !orgData) {
-         return 'ar';
-       }
-       
-       // للنطاقات الفرعية الحقيقية فقط
-       
-       // جلب اللغة الافتراضية للمؤسسة مباشرة من organizations table
-       const { data: orgWithSettings, error: orgSettingsError } = await supabase
-         .from('organizations')
-         .select('id, organization_settings(default_language)')
-         .eq('id', orgData.id)
-         .single();
-
-       if (orgSettingsError || !orgWithSettings) {
-         // fallback: محاولة الوصول المباشر
-         try {
-           const { data: directData, error: directError } = await supabase
-             .from('organization_settings')
-             .select('default_language')
-             .eq('organization_id', orgData.id)
-             .limit(1);
-
-           if (!directError && directData && directData.length > 0) {
-             return directData[0].default_language || 'ar';
-           }
-         } catch (fallbackError) {
-         }
-         return 'ar';
-       }
-       
-       // استخراج اللغة الافتراضية
-       const organizationSettings = (orgWithSettings as any).organization_settings;
-       
-       if (!organizationSettings || (Array.isArray(organizationSettings) && organizationSettings.length === 0)) {
-         return 'ar';
-       }
-       
-       let defaultLanguage;
-       if (Array.isArray(organizationSettings)) {
-         defaultLanguage = organizationSettings[0]?.default_language;
-       } else {
-         defaultLanguage = organizationSettings?.default_language;
-       }
-       
-       return defaultLanguage || 'ar';
-     } else {
-       // www ليس نطاق فرعي صحيح، استخدم اللغة الافتراضية
-       return 'ar';
-     }
+    // إذا فشل كل شيء، استخدم اللغة الافتراضية وحفظها في التخزين المؤقت
+    languageCache = {
+      language: 'ar',
+      timestamp: Date.now(),
+      organizationId: subdomain
+    };
+    return 'ar';
     
   } catch (error) {
+    // حفظ اللغة الافتراضية في التخزين المؤقت حتى في حالة الخطأ
+    languageCache = {
+      language: 'ar',
+      timestamp: Date.now(),
+      organizationId: 'fallback'
+    };
     return 'ar'; // fallback للعربية
   }
 };

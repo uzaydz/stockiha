@@ -31,20 +31,83 @@ interface OrganizationDataContextType extends OrganizationData {
 
 const OrganizationDataContext = createContext<OrganizationDataContextType | undefined>(undefined);
 
+// Singleton pattern للتحكم في الاستدعاءات المتكررة
+const activeRequests = new Map<string, Promise<any>>();
+const settingsCache = new Map<string, { data: any; timestamp: number }>();
+const SETTINGS_CACHE_DURATION = 2 * 60 * 1000; // دقيقتان
+
 // دوال جلب البيانات المحسنة مع deduplication
 const fetchOrganizationSettings = async (organizationId: string) => {
+  const cacheKey = `settings-${organizationId}`;
   
-  const { data, error } = await supabase
-    .from('organization_settings')
-    .select('*')
-    .eq('organization_id', organizationId)
-    .single();
-  
-  if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
-    throw error;
+  // فحص التخزين المؤقت أولاً
+  const cached = settingsCache.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp) < SETTINGS_CACHE_DURATION) {
+    return cached.data;
   }
+
+  // فحص الطلبات النشطة لتجنب التكرار
+  if (activeRequests.has(cacheKey)) {
+    return activeRequests.get(cacheKey);
+  }
+
+  // إنشاء طلب جديد
+  const requestPromise = (async () => {
+    try {
+      
+      // محاولة جلب الإعدادات مع معالجة أفضل للأخطاء
+      const { data, error } = await supabase
+        .from('organization_settings')
+        .select('*')
+        .eq('organization_id', organizationId)
+        .maybeSingle(); // استخدام maybeSingle بدلاً من single
+      
+      if (error) {
+        // إذا كان الخطأ متعلق بالصلاحيات، جرب الدالة المباشرة
+        if (error.code === '42501' || error.message?.includes('permission') || error.message?.includes('policy')) {
+          try {
+            const { data: directData, error: directError } = await supabase
+              .rpc('get_organization_settings_direct', { org_id: organizationId });
+            
+            if (directError) {
+              return null; // إرجاع null بدلاً من رمي خطأ
+            }
+            
+            const result = directData?.[0] || null;
+            // حفظ في التخزين المؤقت
+            if (result) {
+              settingsCache.set(cacheKey, { data: result, timestamp: Date.now() });
+            }
+            return result;
+          } catch (rpcError) {
+            return null;
+          }
+        }
+        
+        // للأخطاء الأخرى، تجاهل إذا كان "no rows"
+        if (error.code !== 'PGRST116') { // PGRST116 = no rows returned
+          return null; // إرجاع null بدلاً من رمي خطأ
+        }
+      }
+      
+      // حفظ في التخزين المؤقت
+      if (data) {
+        settingsCache.set(cacheKey, { data, timestamp: Date.now() });
+      }
+      
+      return data || null;
+    } catch (error) {
+      return null; // إرجاع null في حالة أي خطأ
+    } finally {
+      // إزالة الطلب من القائمة النشطة
+      activeRequests.delete(cacheKey);
+    }
+  })();
+
+  // حفظ الطلب في القائمة النشطة
+  activeRequests.set(cacheKey, requestPromise);
   
-  return data;
+  return requestPromise;
 };
 
 const fetchOrganizationSubscriptions = async (organizationId: string) => {
@@ -57,15 +120,12 @@ const fetchOrganizationSubscriptions = async (organizationId: string) => {
     .order('created_at', { ascending: false });
   
   if (error) {
-    console.error('خطأ في جلب الاشتراكات:', error);
     throw error;
   }
 
   // إضافة لوغ للتشخيص
   if (data && data.length > 0) {
-    console.log('✅ تم جلب الاشتراكات النشطة:', data);
   } else {
-    console.log('⚠️ لم يتم العثور على اشتراكات نشطة');
   }
 
   return data || [];

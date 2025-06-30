@@ -1,0 +1,2956 @@
+{
+  "timestamp": "2025-06-29T23:20:31.759Z",
+  "stats": {
+    "totalCalls": 83,
+    "successRate": 100,
+    "averageResponseTime": 347.80481927702766,
+    "slowestCall": {
+      "id": "1751239215642-0bbkgbqfq",
+      "timestamp": 10249,
+      "operation": "products.select",
+      "table": "products",
+      "duration": 1310.8999999985099,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:68:102",
+        "    at withCache (http://testfinalfinalvhio.localhost:8080/src/lib/cache/storeCache.ts:377:29)",
+        "    at async http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:131:20",
+        "    at async http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:212:71"
+      ],
+      "method": "select",
+      "query": "\n              *,\n              product_colors(\n                *,\n                product_sizes(*)\n              )\n            ",
+      "response": "[Large Response]",
+      "dataSize": 2177022
+    },
+    "mostActiveFile": "requestManager.ts",
+    "callsByMethod": {
+      "select": 81,
+      "rpc": 2
+    },
+    "callsByFile": {
+      "requestManager.ts": 39,
+      "ShippingProviderHooks.tsx": 12,
+      "ShopContext.tsx": 5,
+      "useShippingLogic.ts": 4,
+      "service.ts": 4,
+      "product-page.ts": 1,
+      "utils.ts": 3,
+      "ProductPurchase.tsx": 1,
+      "useOrganizationSettings.ts": 1,
+      "OrganizationDataContext.tsx": 2,
+      "ProductPurchaseDataProvider.tsx": 4,
+      "categories.ts": 2,
+      "AppsContext.tsx": 1,
+      "index.ts": 2,
+      "subdomain.ts": 1,
+      "unifiedRequestManager.ts": 1
+    },
+    "recentCalls": [
+      {
+        "id": "1751239216338-cxrite1qf",
+        "timestamp": 12079.39999999851,
+        "operation": "shipping_provider_clones.select",
+        "table": "shipping_provider_clones",
+        "duration": 176.19999999925494,
+        "success": true,
+        "sourceFile": "requestManager.ts",
+        "sourceLine": 234,
+        "stackTrace": [
+          "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+          "    at findClonedShippingProviderId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:61:113)",
+          "    at getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:322:39)"
+        ],
+        "method": "select",
+        "query": "*",
+        "response": {
+          "error": {
+            "code": "PGRST116",
+            "details": "Results contain 67 rows, application/vnd.pgrst.object+json requires 1 row",
+            "hint": null,
+            "message": "JSON object requested, multiple (or no) rows returned"
+          },
+          "data": null,
+          "count": null,
+          "status": 406,
+          "statusText": "Not Acceptable"
+        }
+      },
+      {
+        "id": "1751239216317-s327ikp43",
+        "timestamp": 12079.39999999851,
+        "operation": "shipping_provider_clones.select",
+        "table": "shipping_provider_clones",
+        "duration": 155.10000000149012,
+        "success": true,
+        "sourceFile": "ShippingProviderHooks.tsx",
+        "sourceLine": 61,
+        "stackTrace": [
+          "    at findClonedShippingProviderId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:61:113)",
+          "    at getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:322:39)"
+        ],
+        "method": "select",
+        "query": "*",
+        "response": {
+          "error": {
+            "code": "PGRST116",
+            "details": "Results contain 67 rows, application/vnd.pgrst.object+json requires 1 row",
+            "hint": null,
+            "message": "JSON object requested, multiple (or no) rows returned"
+          },
+          "data": null,
+          "count": null,
+          "status": 406,
+          "statusText": "Not Acceptable"
+        }
+      },
+      {
+        "id": "1751239216188-du4rev8uw",
+        "timestamp": 11901.199999999255,
+        "operation": "shipping_provider_clones.select",
+        "table": "shipping_provider_clones",
+        "duration": 204.59999999776483,
+        "success": true,
+        "sourceFile": "ShippingProviderHooks.tsx",
+        "sourceLine": 61,
+        "stackTrace": [
+          "    at findClonedShippingProviderId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:61:113)",
+          "    at getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:322:39)"
+        ],
+        "method": "select",
+        "query": "*",
+        "response": {
+          "error": {
+            "code": "PGRST116",
+            "details": "Results contain 67 rows, application/vnd.pgrst.object+json requires 1 row",
+            "hint": null,
+            "message": "JSON object requested, multiple (or no) rows returned"
+          },
+          "data": null,
+          "count": null,
+          "status": 406,
+          "statusText": "Not Acceptable"
+        }
+      },
+      {
+        "id": "1751239216177-qpq5vfzz1",
+        "timestamp": 11901.199999999255,
+        "operation": "shipping_provider_clones.select",
+        "table": "shipping_provider_clones",
+        "duration": 193.09999999776483,
+        "success": true,
+        "sourceFile": "requestManager.ts",
+        "sourceLine": 234,
+        "stackTrace": [
+          "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+          "    at findClonedShippingProviderId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:61:113)",
+          "    at getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:322:39)"
+        ],
+        "method": "select",
+        "query": "*",
+        "response": {
+          "error": {
+            "code": "PGRST116",
+            "details": "Results contain 67 rows, application/vnd.pgrst.object+json requires 1 row",
+            "hint": null,
+            "message": "JSON object requested, multiple (or no) rows returned"
+          },
+          "data": null,
+          "count": null,
+          "status": 406,
+          "statusText": "Not Acceptable"
+        }
+      },
+      {
+        "id": "1751239216120-q8oy6vrfu",
+        "timestamp": 11833,
+        "operation": "products.select",
+        "table": "products",
+        "duration": 204.69999999925494,
+        "success": true,
+        "sourceFile": "ShippingProviderHooks.tsx",
+        "sourceLine": 277,
+        "stackTrace": [
+          "    at getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:277:81)",
+          "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:350:9"
+        ],
+        "method": "select",
+        "query": "shipping_clone_id, purchase_page_config",
+        "response": {
+          "error": {
+            "code": "PGRST116",
+            "details": "Results contain 1000 rows, application/vnd.pgrst.object+json requires 1 row",
+            "hint": null,
+            "message": "JSON object requested, multiple (or no) rows returned"
+          },
+          "data": null,
+          "count": null,
+          "status": 406,
+          "statusText": "Not Acceptable"
+        }
+      },
+      {
+        "id": "1751239216073-gbdzxtbuw",
+        "timestamp": 11833,
+        "operation": "products.select",
+        "table": "products",
+        "duration": 157.69999999925494,
+        "success": true,
+        "sourceFile": "requestManager.ts",
+        "sourceLine": 234,
+        "stackTrace": [
+          "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+          "    at getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:277:81)",
+          "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:350:9"
+        ],
+        "method": "select",
+        "query": "shipping_clone_id, purchase_page_config",
+        "response": {
+          "error": {
+            "code": "PGRST116",
+            "details": "Results contain 1000 rows, application/vnd.pgrst.object+json requires 1 row",
+            "hint": null,
+            "message": "JSON object requested, multiple (or no) rows returned"
+          },
+          "data": null,
+          "count": null,
+          "status": 406,
+          "statusText": "Not Acceptable"
+        }
+      },
+      {
+        "id": "1751239215974-9y9fxczat",
+        "timestamp": 11715.5,
+        "operation": "products.select",
+        "table": "products",
+        "duration": 176.19999999925494,
+        "success": true,
+        "sourceFile": "requestManager.ts",
+        "sourceLine": 234,
+        "stackTrace": [
+          "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+          "    at getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:277:81)",
+          "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:350:9"
+        ],
+        "method": "select",
+        "query": "shipping_clone_id, purchase_page_config",
+        "response": {
+          "error": {
+            "code": "PGRST116",
+            "details": "Results contain 1000 rows, application/vnd.pgrst.object+json requires 1 row",
+            "hint": null,
+            "message": "JSON object requested, multiple (or no) rows returned"
+          },
+          "data": null,
+          "count": null,
+          "status": 406,
+          "statusText": "Not Acceptable"
+        }
+      },
+      {
+        "id": "1751239215953-lz4gio44g",
+        "timestamp": 11715.5,
+        "operation": "products.select",
+        "table": "products",
+        "duration": 155.59999999776483,
+        "success": true,
+        "sourceFile": "ShippingProviderHooks.tsx",
+        "sourceLine": 277,
+        "stackTrace": [
+          "    at getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:277:81)",
+          "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:350:9"
+        ],
+        "method": "select",
+        "query": "shipping_clone_id, purchase_page_config",
+        "response": {
+          "error": {
+            "code": "PGRST116",
+            "details": "Results contain 1000 rows, application/vnd.pgrst.object+json requires 1 row",
+            "hint": null,
+            "message": "JSON object requested, multiple (or no) rows returned"
+          },
+          "data": null,
+          "count": null,
+          "status": 406,
+          "statusText": "Not Acceptable"
+        }
+      },
+      {
+        "id": "1751239215895-vulihupdw",
+        "timestamp": 11665.699999999255,
+        "operation": "shipping_providers.select",
+        "table": "shipping_providers",
+        "duration": 147.19999999925494,
+        "success": true,
+        "sourceFile": "ShippingProviderHooks.tsx",
+        "sourceLine": 226,
+        "stackTrace": [
+          "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:226:120",
+          "    at async getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:325:21)"
+        ],
+        "method": "select",
+        "query": "code, name",
+        "response": {
+          "error": {
+            "code": "PGRST116",
+            "details": "Results contain 27 rows, application/vnd.pgrst.object+json requires 1 row",
+            "hint": null,
+            "message": "JSON object requested, multiple (or no) rows returned"
+          },
+          "data": null,
+          "count": null,
+          "status": 406,
+          "statusText": "Not Acceptable"
+        }
+      },
+      {
+        "id": "1751239215878-y88y8xy7r",
+        "timestamp": 11665.79999999702,
+        "operation": "shipping_providers.select",
+        "table": "shipping_providers",
+        "duration": 130,
+        "success": true,
+        "sourceFile": "requestManager.ts",
+        "sourceLine": 234,
+        "stackTrace": [
+          "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+          "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:226:120",
+          "    at async getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:325:21)"
+        ],
+        "method": "select",
+        "query": "code, name",
+        "response": {
+          "error": {
+            "code": "PGRST116",
+            "details": "Results contain 27 rows, application/vnd.pgrst.object+json requires 1 row",
+            "hint": null,
+            "message": "JSON object requested, multiple (or no) rows returned"
+          },
+          "data": null,
+          "count": null,
+          "status": 406,
+          "statusText": "Not Acceptable"
+        }
+      }
+    ]
+  },
+  "calls": [
+    {
+      "id": "1751239216338-cxrite1qf",
+      "timestamp": "1970-01-01T00:00:12.079Z",
+      "operation": "shipping_provider_clones.select",
+      "table": "shipping_provider_clones",
+      "duration": 176.19999999925494,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at findClonedShippingProviderId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:61:113)",
+        "    at getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:322:39)"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 67 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239216317-s327ikp43",
+      "timestamp": "1970-01-01T00:00:12.079Z",
+      "operation": "shipping_provider_clones.select",
+      "table": "shipping_provider_clones",
+      "duration": 155.10000000149012,
+      "success": true,
+      "sourceFile": "ShippingProviderHooks.tsx",
+      "sourceLine": 61,
+      "stackTrace": [
+        "    at findClonedShippingProviderId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:61:113)",
+        "    at getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:322:39)"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 67 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239216188-du4rev8uw",
+      "timestamp": "1970-01-01T00:00:11.901Z",
+      "operation": "shipping_provider_clones.select",
+      "table": "shipping_provider_clones",
+      "duration": 204.59999999776483,
+      "success": true,
+      "sourceFile": "ShippingProviderHooks.tsx",
+      "sourceLine": 61,
+      "stackTrace": [
+        "    at findClonedShippingProviderId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:61:113)",
+        "    at getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:322:39)"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 67 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239216177-qpq5vfzz1",
+      "timestamp": "1970-01-01T00:00:11.901Z",
+      "operation": "shipping_provider_clones.select",
+      "table": "shipping_provider_clones",
+      "duration": 193.09999999776483,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at findClonedShippingProviderId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:61:113)",
+        "    at getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:322:39)"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 67 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239216120-q8oy6vrfu",
+      "timestamp": "1970-01-01T00:00:11.833Z",
+      "operation": "products.select",
+      "table": "products",
+      "duration": 204.69999999925494,
+      "success": true,
+      "sourceFile": "ShippingProviderHooks.tsx",
+      "sourceLine": 277,
+      "stackTrace": [
+        "    at getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:277:81)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:350:9"
+      ],
+      "method": "select",
+      "query": "shipping_clone_id, purchase_page_config",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 1000 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239216073-gbdzxtbuw",
+      "timestamp": "1970-01-01T00:00:11.833Z",
+      "operation": "products.select",
+      "table": "products",
+      "duration": 157.69999999925494,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:277:81)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:350:9"
+      ],
+      "method": "select",
+      "query": "shipping_clone_id, purchase_page_config",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 1000 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239215974-9y9fxczat",
+      "timestamp": "1970-01-01T00:00:11.715Z",
+      "operation": "products.select",
+      "table": "products",
+      "duration": 176.19999999925494,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:277:81)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:350:9"
+      ],
+      "method": "select",
+      "query": "shipping_clone_id, purchase_page_config",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 1000 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239215953-lz4gio44g",
+      "timestamp": "1970-01-01T00:00:11.715Z",
+      "operation": "products.select",
+      "table": "products",
+      "duration": 155.59999999776483,
+      "success": true,
+      "sourceFile": "ShippingProviderHooks.tsx",
+      "sourceLine": 277,
+      "stackTrace": [
+        "    at getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:277:81)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:350:9"
+      ],
+      "method": "select",
+      "query": "shipping_clone_id, purchase_page_config",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 1000 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239215895-vulihupdw",
+      "timestamp": "1970-01-01T00:00:11.665Z",
+      "operation": "shipping_providers.select",
+      "table": "shipping_providers",
+      "duration": 147.19999999925494,
+      "success": true,
+      "sourceFile": "ShippingProviderHooks.tsx",
+      "sourceLine": 226,
+      "stackTrace": [
+        "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:226:120",
+        "    at async getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:325:21)"
+      ],
+      "method": "select",
+      "query": "code, name",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 27 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239215878-y88y8xy7r",
+      "timestamp": "1970-01-01T00:00:11.665Z",
+      "operation": "shipping_providers.select",
+      "table": "shipping_providers",
+      "duration": 130,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:226:120",
+        "    at async getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:325:21)"
+      ],
+      "method": "select",
+      "query": "code, name",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 27 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239215773-h2o20qg77",
+      "timestamp": "1970-01-01T00:00:11.487Z",
+      "operation": "shipping_providers.select",
+      "table": "shipping_providers",
+      "duration": 203.60000000149012,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:226:120",
+        "    at async getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:325:21)"
+      ],
+      "method": "select",
+      "query": "code, name",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 27 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239215761-nk4ytmdex",
+      "timestamp": "1970-01-01T00:00:11.487Z",
+      "operation": "shipping_providers.select",
+      "table": "shipping_providers",
+      "duration": 191,
+      "success": true,
+      "sourceFile": "ShippingProviderHooks.tsx",
+      "sourceLine": 226,
+      "stackTrace": [
+        "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:226:120",
+        "    at async getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:325:21)"
+      ],
+      "method": "select",
+      "query": "code, name",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 27 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239215754-epvda5iv9",
+      "timestamp": "1970-01-01T00:00:11.465Z",
+      "operation": "shipping_provider_clones.select",
+      "table": "shipping_provider_clones",
+      "duration": 206.09999999776483,
+      "success": true,
+      "sourceFile": "ShippingProviderHooks.tsx",
+      "sourceLine": 197,
+      "stackTrace": [
+        "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:197:85",
+        "    at getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:325:27)"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 67 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239215745-opg7chonx",
+      "timestamp": "1970-01-01T00:00:11.465Z",
+      "operation": "shipping_provider_clones.select",
+      "table": "shipping_provider_clones",
+      "duration": 197.29999999701977,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:197:85",
+        "    at getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:325:27)"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 67 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239215642-0bbkgbqfq",
+      "timestamp": "1970-01-01T00:00:10.249Z",
+      "operation": "products.select",
+      "table": "products",
+      "duration": 1310.8999999985099,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:68:102",
+        "    at withCache (http://testfinalfinalvhio.localhost:8080/src/lib/cache/storeCache.ts:377:29)",
+        "    at async http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:131:20",
+        "    at async http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:212:71"
+      ],
+      "method": "select",
+      "query": "\n              *,\n              product_colors(\n                *,\n                product_sizes(*)\n              )\n            ",
+      "response": "[Large Response]",
+      "dataSize": 2177022
+    },
+    {
+      "id": "1751239215610-muc8vkb5f",
+      "timestamp": "1970-01-01T00:00:10.249Z",
+      "operation": "products.select",
+      "table": "products",
+      "duration": 1278.5,
+      "success": true,
+      "sourceFile": "ShopContext.tsx",
+      "sourceLine": 68,
+      "stackTrace": [
+        "    at http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:68:102",
+        "    at withCache (http://testfinalfinalvhio.localhost:8080/src/lib/cache/storeCache.ts:377:29)",
+        "    at async http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:131:20",
+        "    at async http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:212:71"
+      ],
+      "method": "select",
+      "query": "\n              *,\n              product_colors(\n                *,\n                product_sizes(*)\n              )\n            ",
+      "response": "[Large Response]",
+      "dataSize": 2177022
+    },
+    {
+      "id": "1751239215580-5dzjxqfqv",
+      "timestamp": "1970-01-01T00:00:11.134Z",
+      "operation": "shipping_provider_clones.select",
+      "table": "shipping_provider_clones",
+      "duration": 363.3999999985099,
+      "success": true,
+      "sourceFile": "ShippingProviderHooks.tsx",
+      "sourceLine": 197,
+      "stackTrace": [
+        "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:197:85",
+        "    at getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:325:27)"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 67 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239215576-pixhu4odg",
+      "timestamp": "1970-01-01T00:00:11.134Z",
+      "operation": "shipping_provider_clones.select",
+      "table": "shipping_provider_clones",
+      "duration": 360.0999999977648,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:197:85",
+        "    at getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:325:27)"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 67 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239215469-gkwxkbdkf",
+      "timestamp": "1970-01-01T00:00:11.006Z",
+      "operation": "shipping_provider_clones.select",
+      "table": "shipping_provider_clones",
+      "duration": 379.8999999985099,
+      "success": true,
+      "sourceFile": "ShippingProviderHooks.tsx",
+      "sourceLine": 61,
+      "stackTrace": [
+        "    at findClonedShippingProviderId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:61:113)",
+        "    at getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:322:39)"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 67 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239215461-sw6muvja2",
+      "timestamp": "1970-01-01T00:00:11.006Z",
+      "operation": "shipping_provider_clones.select",
+      "table": "shipping_provider_clones",
+      "duration": 371.80000000074506,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at findClonedShippingProviderId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:61:113)",
+        "    at getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:322:39)"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 67 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239215434-ldb1mnj1e",
+      "timestamp": "1970-01-01T00:00:10.978Z",
+      "operation": "users.select",
+      "table": "users",
+      "duration": 372.8999999985099,
+      "success": true,
+      "sourceFile": "ShopContext.tsx",
+      "sourceLine": 227,
+      "stackTrace": [
+        "    at http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:227:93"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": {
+        "error": null,
+        "data": [],
+        "count": null,
+        "status": 200,
+        "statusText": ""
+      },
+      "dataSize": 2
+    },
+    {
+      "id": "1751239215410-ok31p3e0j",
+      "timestamp": "1970-01-01T00:00:10.978Z",
+      "operation": "users.select",
+      "table": "users",
+      "duration": 348.8999999985099,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:227:93"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": {
+        "error": null,
+        "data": [],
+        "count": null,
+        "status": 200,
+        "statusText": ""
+      },
+      "dataSize": 2
+    },
+    {
+      "id": "1751239215338-pu7myjh18",
+      "timestamp": "1970-01-01T00:00:10.905Z",
+      "operation": "shipping_providers.select",
+      "table": "shipping_providers",
+      "duration": 350.29999999701977,
+      "success": true,
+      "sourceFile": "useShippingLogic.ts",
+      "sourceLine": 519,
+      "stackTrace": [
+        "    at fetchDefaultProviderSettings (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/order-form-logic/useShippingLogic.ts?t=1751239191788:519:112)"
+      ],
+      "method": "select",
+      "query": "code, name",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 27 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239215315-4hja97c2k",
+      "timestamp": "1970-01-01T00:00:10.905Z",
+      "operation": "shipping_providers.select",
+      "table": "shipping_providers",
+      "duration": 327.9000000022352,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at fetchDefaultProviderSettings (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/order-form-logic/useShippingLogic.ts?t=1751239191788:519:112)"
+      ],
+      "method": "select",
+      "query": "code, name",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 27 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239215233-m7r1eayv7",
+      "timestamp": "1970-01-01T00:00:10.833Z",
+      "operation": "shipping_provider_clones.select",
+      "table": "shipping_provider_clones",
+      "duration": 317.0999999977648,
+      "success": true,
+      "sourceFile": "ShippingProviderHooks.tsx",
+      "sourceLine": 61,
+      "stackTrace": [
+        "    at findClonedShippingProviderId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:61:113)",
+        "    at getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:322:39)"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 67 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239215224-gg6e68fv5",
+      "timestamp": "1970-01-01T00:00:10.851Z",
+      "operation": "shipping_providers.select",
+      "table": "shipping_providers",
+      "duration": 289.30000000074506,
+      "success": true,
+      "sourceFile": "useShippingLogic.ts",
+      "sourceLine": 519,
+      "stackTrace": [
+        "    at fetchDefaultProviderSettings (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/order-form-logic/useShippingLogic.ts?t=1751239191788:519:112)"
+      ],
+      "method": "select",
+      "query": "code, name",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 27 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239215224-ubc6a95e2",
+      "timestamp": "1970-01-01T00:00:10.851Z",
+      "operation": "shipping_providers.select",
+      "table": "shipping_providers",
+      "duration": 289.30000000074506,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at fetchDefaultProviderSettings (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/order-form-logic/useShippingLogic.ts?t=1751239191788:519:112)"
+      ],
+      "method": "select",
+      "query": "code, name",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 27 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239215223-h309t5o6k",
+      "timestamp": "1970-01-01T00:00:10.833Z",
+      "operation": "shipping_provider_clones.select",
+      "table": "shipping_provider_clones",
+      "duration": 307.9000000022352,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at findClonedShippingProviderId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:61:113)",
+        "    at getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:322:39)"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 67 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239215090-lb4vt4omq",
+      "timestamp": "1970-01-01T00:00:10.403Z",
+      "operation": "yalidine_provinces_global.select",
+      "table": "yalidine_provinces_global",
+      "duration": 604,
+      "success": true,
+      "sourceFile": "service.ts",
+      "sourceLine": 211,
+      "stackTrace": [
+        "    at getProvinces (http://testfinalfinalvhio.localhost:8080/src/api/yalidine/service.ts?t=1751239191788:211:82)",
+        "    at loadProvinces (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/FormInitialization.tsx?t=1751239191788:67:41)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/FormInitialization.tsx?t=1751239191788:99:17"
+      ],
+      "method": "select",
+      "query": "id, name, is_deliverable",
+      "response": "[Large Response]",
+      "dataSize": 2892
+    },
+    {
+      "id": "1751239215080-rfbl8u6n6",
+      "timestamp": "1970-01-01T00:00:10.404Z",
+      "operation": "yalidine_provinces_global.select",
+      "table": "yalidine_provinces_global",
+      "duration": 593.6999999992549,
+      "success": true,
+      "sourceFile": "service.ts",
+      "sourceLine": 211,
+      "stackTrace": [
+        "    at getProvinces (http://testfinalfinalvhio.localhost:8080/src/api/yalidine/service.ts?t=1751239191788:211:82)",
+        "    at loadProvinces (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/order-form-logic/useOrderFormManagement.ts?t=1751239191788:44:41)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/order-form-logic/useOrderFormManagement.ts?t=1751239191788:55:9"
+      ],
+      "method": "select",
+      "query": "id, name, is_deliverable",
+      "response": "[Large Response]",
+      "dataSize": 2892
+    },
+    {
+      "id": "1751239215058-14e1t7msz",
+      "timestamp": "1970-01-01T00:00:10.519Z",
+      "operation": "services.select",
+      "table": "services",
+      "duration": 456.5999999977648,
+      "success": true,
+      "sourceFile": "ShopContext.tsx",
+      "sourceLine": 176,
+      "stackTrace": [
+        "    at http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:176:102",
+        "    at async withCache (http://testfinalfinalvhio.localhost:8080/src/lib/cache/storeCache.ts:377:23)",
+        "    at async http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:182:20",
+        "    at async http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:212:71"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": "[Large Response]",
+      "dataSize": 2632
+    },
+    {
+      "id": "1751239215039-z779rd3go",
+      "timestamp": "1970-01-01T00:00:10.404Z",
+      "operation": "products.select",
+      "table": "products",
+      "duration": 551.9000000022352,
+      "success": true,
+      "sourceFile": "useShippingLogic.ts",
+      "sourceLine": 495,
+      "stackTrace": [
+        "    at fetchDefaultProviderSettings (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/order-form-logic/useShippingLogic.ts?t=1751239191788:495:104)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/order-form-logic/useShippingLogic.ts?t=1751239191788:550:9"
+      ],
+      "method": "select",
+      "query": "shipping_provider_id, shipping_method_type",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 1000 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239215032-5e52axvo8",
+      "timestamp": "1970-01-01T00:00:10.404Z",
+      "operation": "products.select",
+      "table": "products",
+      "duration": 545.3000000007451,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at fetchDefaultProviderSettings (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/order-form-logic/useShippingLogic.ts?t=1751239191788:495:104)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/order-form-logic/useShippingLogic.ts?t=1751239191788:550:9"
+      ],
+      "method": "select",
+      "query": "shipping_provider_id, shipping_method_type",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 1000 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239215021-lpvv5fbk7",
+      "timestamp": "1970-01-01T00:00:10.404Z",
+      "operation": "yalidine_provinces_global.select",
+      "table": "yalidine_provinces_global",
+      "duration": 534.2999999970198,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at getProvinces (http://testfinalfinalvhio.localhost:8080/src/api/yalidine/service.ts?t=1751239191788:211:82)",
+        "    at loadProvinces (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/order-form-logic/useOrderFormManagement.ts?t=1751239191788:44:41)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/order-form-logic/useOrderFormManagement.ts?t=1751239191788:55:9"
+      ],
+      "method": "select",
+      "query": "id, name, is_deliverable",
+      "response": "[Large Response]",
+      "dataSize": 2892
+    },
+    {
+      "id": "1751239215011-4ofq8cqcq",
+      "timestamp": "1970-01-01T00:00:10.519Z",
+      "operation": "services.select",
+      "table": "services",
+      "duration": 409,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:176:102",
+        "    at async withCache (http://testfinalfinalvhio.localhost:8080/src/lib/cache/storeCache.ts:377:23)",
+        "    at async http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:182:20",
+        "    at async http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:212:71"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": "[Large Response]",
+      "dataSize": 2632
+    },
+    {
+      "id": "1751239214987-izsn0rixc",
+      "timestamp": "1970-01-01T00:00:10.403Z",
+      "operation": "yalidine_provinces_global.select",
+      "table": "yalidine_provinces_global",
+      "duration": 501.30000000074506,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at getProvinces (http://testfinalfinalvhio.localhost:8080/src/api/yalidine/service.ts?t=1751239191788:211:82)",
+        "    at loadProvinces (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/FormInitialization.tsx?t=1751239191788:67:41)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/FormInitialization.tsx?t=1751239191788:99:17"
+      ],
+      "method": "select",
+      "query": "id, name, is_deliverable",
+      "response": "[Large Response]",
+      "dataSize": 2892
+    },
+    {
+      "id": "1751239214916-qbk0z84ai",
+      "timestamp": "1970-01-01T00:00:10.249Z",
+      "operation": "orders.select",
+      "table": "orders",
+      "duration": 584.1000000014901,
+      "success": true,
+      "sourceFile": "ShopContext.tsx",
+      "sourceLine": 149,
+      "stackTrace": [
+        "    at http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:149:96",
+        "    at withCache (http://testfinalfinalvhio.localhost:8080/src/lib/cache/storeCache.ts:377:29)",
+        "    at async http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:158:20",
+        "    at async http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:212:71"
+      ],
+      "method": "select",
+      "query": "*, order_items(*)",
+      "response": "[Large Response]",
+      "dataSize": 733727
+    },
+    {
+      "id": "1751239214895-97ampgp98",
+      "timestamp": "1970-01-01T00:00:10.403Z",
+      "operation": "products.select",
+      "table": "products",
+      "duration": 409.1000000014901,
+      "success": true,
+      "sourceFile": "ShippingProviderHooks.tsx",
+      "sourceLine": 277,
+      "stackTrace": [
+        "    at getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:277:81)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:350:9"
+      ],
+      "method": "select",
+      "query": "shipping_clone_id, purchase_page_config",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 1000 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239214877-fujphz26z",
+      "timestamp": "1970-01-01T00:00:10.402Z",
+      "operation": "products.select",
+      "table": "products",
+      "duration": 391.80000000074506,
+      "success": true,
+      "sourceFile": "useShippingLogic.ts",
+      "sourceLine": 495,
+      "stackTrace": [
+        "    at fetchDefaultProviderSettings (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/order-form-logic/useShippingLogic.ts?t=1751239191788:495:104)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/order-form-logic/useShippingLogic.ts?t=1751239191788:550:9"
+      ],
+      "method": "select",
+      "query": "shipping_provider_id, shipping_method_type",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 1000 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239214865-0ukb12m65",
+      "timestamp": "1970-01-01T00:00:10.249Z",
+      "operation": "orders.select",
+      "table": "orders",
+      "duration": 533.3000000007451,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:149:96",
+        "    at withCache (http://testfinalfinalvhio.localhost:8080/src/lib/cache/storeCache.ts:377:29)",
+        "    at async http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:158:20",
+        "    at async http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:212:71"
+      ],
+      "method": "select",
+      "query": "*, order_items(*)",
+      "response": "[Large Response]",
+      "dataSize": 733727
+    },
+    {
+      "id": "1751239214855-whj99wmm1",
+      "timestamp": "1970-01-01T00:00:10.402Z",
+      "operation": "products.select",
+      "table": "products",
+      "duration": 370.3999999985099,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at fetchDefaultProviderSettings (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/order-form-logic/useShippingLogic.ts?t=1751239191788:495:104)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/order-form-logic/useShippingLogic.ts?t=1751239191788:550:9"
+      ],
+      "method": "select",
+      "query": "shipping_provider_id, shipping_method_type",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 1000 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239214855-59em20ypr",
+      "timestamp": "1970-01-01T00:00:10.403Z",
+      "operation": "products.select",
+      "table": "products",
+      "duration": 369.6000000014901,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:277:81)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:350:9"
+      ],
+      "method": "select",
+      "query": "shipping_clone_id, purchase_page_config",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 1000 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239214821-f490zox18",
+      "timestamp": "1970-01-01T00:00:10.400Z",
+      "operation": "products.select",
+      "table": "products",
+      "duration": 338.19999999925494,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:277:81)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:350:9"
+      ],
+      "method": "select",
+      "query": "shipping_clone_id, purchase_page_config",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 1000 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239214814-pjqsmpga9",
+      "timestamp": "1970-01-01T00:00:10.401Z",
+      "operation": "yalidine_provinces_global.select",
+      "table": "yalidine_provinces_global",
+      "duration": 330.4000000022352,
+      "success": true,
+      "sourceFile": "service.ts",
+      "sourceLine": 211,
+      "stackTrace": [
+        "    at getProvinces (http://testfinalfinalvhio.localhost:8080/src/api/yalidine/service.ts?t=1751239191788:211:82)",
+        "    at loadProvinces (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/order-form-logic/useOrderFormManagement.ts?t=1751239191788:44:41)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/order-form-logic/useOrderFormManagement.ts?t=1751239191788:55:9"
+      ],
+      "method": "select",
+      "query": "id, name, is_deliverable",
+      "response": "[Large Response]",
+      "dataSize": 2892
+    },
+    {
+      "id": "1751239214802-whntnfnth",
+      "timestamp": "1970-01-01T00:00:10.402Z",
+      "operation": "rpc.get_shipping_provinces",
+      "duration": 317.30000000074506,
+      "success": true,
+      "sourceFile": "product-page.ts",
+      "sourceLine": 127,
+      "stackTrace": [
+        "    at http://testfinalfinalvhio.localhost:8080/src/api/product-page.ts?t=1751239191788:127:52",
+        "    at RequestCache.get (http://testfinalfinalvhio.localhost:8080/src/lib/cache/requestCache.ts:39:25)",
+        "    at getShippingProvinces (http://testfinalfinalvhio.localhost:8080/src/api/product-page.ts?t=1751239191788:124:25)",
+        "    at loadWilayas (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/order-form-logic/useShippingLogic.ts?t=1751239191788:360:39)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/order-form-logic/useShippingLogic.ts?t=1751239191788:368:9"
+      ],
+      "method": "rpc",
+      "query": {
+        "p_org_id": "6c2ed605-0880-4e40-af50-78f80f7283bb"
+      },
+      "response": {
+        "error": null,
+        "data": [],
+        "count": null,
+        "status": 200,
+        "statusText": ""
+      },
+      "dataSize": 2
+    },
+    {
+      "id": "1751239214792-93udqeach",
+      "timestamp": "1970-01-01T00:00:10.400Z",
+      "operation": "yalidine_provinces_global.select",
+      "table": "yalidine_provinces_global",
+      "duration": 309.1000000014901,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at getProvinces (http://testfinalfinalvhio.localhost:8080/src/api/yalidine/service.ts?t=1751239191788:211:82)",
+        "    at loadProvinces (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/FormInitialization.tsx?t=1751239191788:67:41)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/FormInitialization.tsx?t=1751239191788:99:17"
+      ],
+      "method": "select",
+      "query": "id, name, is_deliverable",
+      "response": "[Large Response]",
+      "dataSize": 2892
+    },
+    {
+      "id": "1751239214792-87q9143oi",
+      "timestamp": "1970-01-01T00:00:10.401Z",
+      "operation": "yalidine_provinces_global.select",
+      "table": "yalidine_provinces_global",
+      "duration": 308.19999999925494,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at getProvinces (http://testfinalfinalvhio.localhost:8080/src/api/yalidine/service.ts?t=1751239191788:211:82)",
+        "    at loadProvinces (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/order-form-logic/useOrderFormManagement.ts?t=1751239191788:44:41)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/order-form-logic/useOrderFormManagement.ts?t=1751239191788:55:9"
+      ],
+      "method": "select",
+      "query": "id, name, is_deliverable",
+      "response": "[Large Response]",
+      "dataSize": 2892
+    },
+    {
+      "id": "1751239214786-wnd4bpk1e",
+      "timestamp": "1970-01-01T00:00:10.400Z",
+      "operation": "yalidine_provinces_global.select",
+      "table": "yalidine_provinces_global",
+      "duration": 302.69999999925494,
+      "success": true,
+      "sourceFile": "service.ts",
+      "sourceLine": 211,
+      "stackTrace": [
+        "    at getProvinces (http://testfinalfinalvhio.localhost:8080/src/api/yalidine/service.ts?t=1751239191788:211:82)",
+        "    at loadProvinces (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/FormInitialization.tsx?t=1751239191788:67:41)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/FormInitialization.tsx?t=1751239191788:99:17"
+      ],
+      "method": "select",
+      "query": "id, name, is_deliverable",
+      "response": "[Large Response]",
+      "dataSize": 2892
+    },
+    {
+      "id": "1751239214778-2xsievd9l",
+      "timestamp": "1970-01-01T00:00:10.400Z",
+      "operation": "products.select",
+      "table": "products",
+      "duration": 295.30000000074506,
+      "success": true,
+      "sourceFile": "ShippingProviderHooks.tsx",
+      "sourceLine": 277,
+      "stackTrace": [
+        "    at getShippingCloneId (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:277:81)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/custom-form-fields/ShippingProviderHooks.tsx?t=1751239191788:350:9"
+      ],
+      "method": "select",
+      "query": "shipping_clone_id, purchase_page_config",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 1000 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239214532-p2ajsqyf7",
+      "timestamp": "1970-01-01T00:00:10.249Z",
+      "operation": "services.select",
+      "table": "services",
+      "duration": 200.29999999701977,
+      "success": true,
+      "sourceFile": "ShopContext.tsx",
+      "sourceLine": 174,
+      "stackTrace": [
+        "    at http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:174:108",
+        "    at withCache (http://testfinalfinalvhio.localhost:8080/src/lib/cache/storeCache.ts:377:29)",
+        "    at async http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:182:20",
+        "    at async http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:212:71"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": "[Large Response]",
+      "dataSize": 2632
+    },
+    {
+      "id": "1751239214532-gxxoqg5lr",
+      "timestamp": "1970-01-01T00:00:10.249Z",
+      "operation": "services.select",
+      "table": "services",
+      "duration": 200.19999999925494,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:174:108",
+        "    at withCache (http://testfinalfinalvhio.localhost:8080/src/lib/cache/storeCache.ts:377:29)",
+        "    at async http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:182:20",
+        "    at async http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:212:71"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": "[Large Response]",
+      "dataSize": 2632
+    },
+    {
+      "id": "1751239214337-quv3tzidp",
+      "timestamp": "1970-01-01T00:00:09.813Z",
+      "operation": "organizations.select",
+      "table": "organizations",
+      "duration": 441.5,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at getOrganizationId (http://testfinalfinalvhio.localhost:8080/src/context/shop/utils.ts?t=1751239191788:53:78)",
+        "    at ensureGuestCustomer (http://testfinalfinalvhio.localhost:8080/src/context/shop/utils.ts?t=1751239191788:89:38)",
+        "    at async http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:204:13"
+      ],
+      "method": "select",
+      "query": "id",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 65 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239214323-3lh0dc697",
+      "timestamp": "1970-01-01T00:00:09.813Z",
+      "operation": "organizations.select",
+      "table": "organizations",
+      "duration": 427.1000000014901,
+      "success": true,
+      "sourceFile": "utils.ts",
+      "sourceLine": 53,
+      "stackTrace": [
+        "    at getOrganizationId (http://testfinalfinalvhio.localhost:8080/src/context/shop/utils.ts?t=1751239191788:53:78)",
+        "    at ensureGuestCustomer (http://testfinalfinalvhio.localhost:8080/src/context/shop/utils.ts?t=1751239191788:89:38)",
+        "    at async http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:204:13"
+      ],
+      "method": "select",
+      "query": "id",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 65 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239214229-2y8p9gqbo",
+      "timestamp": "1970-01-01T00:00:09.056Z",
+      "operation": "store_settings.select",
+      "table": "store_settings",
+      "duration": 1090.1000000014901,
+      "success": true,
+      "sourceFile": "ProductPurchase.tsx",
+      "sourceLine": 90,
+      "stackTrace": [
+        "    at fetchFooterSettings (http://testfinalfinalvhio.localhost:8080/src/pages/ProductPurchase.tsx?t=1751239191788:90:91)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/pages/ProductPurchase.tsx?t=1751239191788:97:5"
+      ],
+      "method": "select",
+      "query": "settings",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 287 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239214220-ligflu0m2",
+      "timestamp": "1970-01-01T00:00:09.056Z",
+      "operation": "store_settings.select",
+      "table": "store_settings",
+      "duration": 1081.800000000745,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at fetchFooterSettings (http://testfinalfinalvhio.localhost:8080/src/pages/ProductPurchase.tsx?t=1751239191788:90:91)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/pages/ProductPurchase.tsx?t=1751239191788:97:5"
+      ],
+      "method": "select",
+      "query": "settings",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 287 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239213905-7jp4ji1de",
+      "timestamp": "1970-01-01T00:00:09.556Z",
+      "operation": "rpc.get_organization_settings_direct",
+      "duration": 266.4000000022352,
+      "success": true,
+      "sourceFile": "useOrganizationSettings.ts",
+      "sourceLine": 143,
+      "stackTrace": [
+        "    at http://testfinalfinalvhio.localhost:8080/src/hooks/useOrganizationSettings.ts?t=1751239191788:143:85",
+        "    at async http://testfinalfinalvhio.localhost:8080/src/hooks/useOrganizationSettings.ts?t=1751239191788:196:28"
+      ],
+      "method": "rpc",
+      "query": {
+        "org_id": "6c2ed605-0880-4e40-af50-78f80f7283bb"
+      },
+      "response": "[Large Response]",
+      "dataSize": 1926
+    },
+    {
+      "id": "1751239213851-fi1sypk1v",
+      "timestamp": "1970-01-01T00:00:09.520Z",
+      "operation": "customers.select",
+      "table": "customers",
+      "duration": 247.69999999925494,
+      "success": true,
+      "sourceFile": "utils.ts",
+      "sourceLine": 87,
+      "stackTrace": [
+        "    at ensureGuestCustomer (http://testfinalfinalvhio.localhost:8080/src/context/shop/utils.ts?t=1751239191788:87:93)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:204:19"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 44 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239213833-oadsqw1o3",
+      "timestamp": "1970-01-01T00:00:09.520Z",
+      "operation": "customers.select",
+      "table": "customers",
+      "duration": 230,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at ensureGuestCustomer (http://testfinalfinalvhio.localhost:8080/src/context/shop/utils.ts?t=1751239191788:87:93)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:204:19"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 44 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239213615-z5hdfdx7v",
+      "timestamp": "1970-01-01T00:00:09.057Z",
+      "operation": "active_organization_subscriptions.select",
+      "table": "active_organization_subscriptions",
+      "duration": 474.5,
+      "success": true,
+      "sourceFile": "OrganizationDataContext.tsx",
+      "sourceLine": 91,
+      "stackTrace": [
+        "    at fetchOrganizationSubscriptions (http://testfinalfinalvhio.localhost:8080/src/contexts/OrganizationDataContext.tsx?t=1751239191788:91:86)",
+        "    at queryFn (http://testfinalfinalvhio.localhost:8080/src/contexts/OrganizationDataContext.tsx?t=1751239191788:153:22)"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": "[Large Response]",
+      "dataSize": 14021
+    },
+    {
+      "id": "1751239213608-hcpi2y5ve",
+      "timestamp": "1970-01-01T00:00:09.057Z",
+      "operation": "active_organization_subscriptions.select",
+      "table": "active_organization_subscriptions",
+      "duration": 468.3999999985099,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at fetchOrganizationSubscriptions (http://testfinalfinalvhio.localhost:8080/src/contexts/OrganizationDataContext.tsx?t=1751239191788:91:86)",
+        "    at queryFn (http://testfinalfinalvhio.localhost:8080/src/contexts/OrganizationDataContext.tsx?t=1751239191788:153:22)"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": "[Large Response]",
+      "dataSize": 14021
+    },
+    {
+      "id": "1751239213608-omb8s0abd",
+      "timestamp": "1970-01-01T00:00:09.057Z",
+      "operation": "organizations.select",
+      "table": "organizations",
+      "duration": 468.80000000074506,
+      "success": true,
+      "sourceFile": "utils.ts",
+      "sourceLine": 53,
+      "stackTrace": [
+        "    at getOrganizationId (http://testfinalfinalvhio.localhost:8080/src/context/shop/utils.ts?t=1751239191788:53:78)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:196:42",
+        "    at http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:268:17"
+      ],
+      "method": "select",
+      "query": "id",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 65 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239213529-txfgx7dia",
+      "timestamp": "1970-01-01T00:00:09.057Z",
+      "operation": "organizations.select",
+      "table": "organizations",
+      "duration": 390,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at getOrganizationId (http://testfinalfinalvhio.localhost:8080/src/context/shop/utils.ts?t=1751239191788:53:78)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:196:42",
+        "    at http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:268:17"
+      ],
+      "method": "select",
+      "query": "id",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 65 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239213510-mcxs4uhwy",
+      "timestamp": "1970-01-01T00:00:09.055Z",
+      "operation": "shipping_provider_settings.select",
+      "table": "shipping_provider_settings",
+      "duration": 372.6000000014901,
+      "success": true,
+      "sourceFile": "ProductPurchaseDataProvider.tsx",
+      "sourceLine": 99,
+      "stackTrace": [
+        "    at queryFn (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/ProductPurchaseDataProvider.tsx?t=1751239191788:99:87)"
+      ],
+      "method": "select",
+      "query": "provider_id",
+      "response": {
+        "error": null,
+        "data": [
+          {
+            "provider_id": 2
+          },
+          {
+            "provider_id": 2
+          },
+          {
+            "provider_id": 1
+          },
+          {
+            "provider_id": 1
+          },
+          {
+            "provider_id": 1
+          },
+          {
+            "provider_id": 2
+          },
+          {
+            "provider_id": 1
+          },
+          {
+            "provider_id": null
+          },
+          {
+            "provider_id": 1
+          },
+          {
+            "provider_id": 32
+          },
+          {
+            "provider_id": null
+          },
+          {
+            "provider_id": null
+          },
+          {
+            "provider_id": 1
+          },
+          {
+            "provider_id": 1
+          }
+        ],
+        "count": null,
+        "status": 200,
+        "statusText": ""
+      },
+      "dataSize": 263
+    },
+    {
+      "id": "1751239213507-cvtj3fh9f",
+      "timestamp": "1970-01-01T00:00:09.055Z",
+      "operation": "shipping_provider_settings.select",
+      "table": "shipping_provider_settings",
+      "duration": 369.4000000022352,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at queryFn (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/ProductPurchaseDataProvider.tsx?t=1751239191788:99:87)"
+      ],
+      "method": "select",
+      "query": "provider_id",
+      "response": {
+        "error": null,
+        "data": [
+          {
+            "provider_id": 2
+          },
+          {
+            "provider_id": 2
+          },
+          {
+            "provider_id": 1
+          },
+          {
+            "provider_id": 1
+          },
+          {
+            "provider_id": 1
+          },
+          {
+            "provider_id": 2
+          },
+          {
+            "provider_id": 1
+          },
+          {
+            "provider_id": null
+          },
+          {
+            "provider_id": 1
+          },
+          {
+            "provider_id": 32
+          },
+          {
+            "provider_id": null
+          },
+          {
+            "provider_id": null
+          },
+          {
+            "provider_id": 1
+          },
+          {
+            "provider_id": 1
+          }
+        ],
+        "count": null,
+        "status": 200,
+        "statusText": ""
+      },
+      "dataSize": 263
+    },
+    {
+      "id": "1751239213471-fhq2vljdd",
+      "timestamp": "1970-01-01T00:00:09.054Z",
+      "operation": "shipping_provider_clones.select",
+      "table": "shipping_provider_clones",
+      "duration": 334.30000000074506,
+      "success": true,
+      "sourceFile": "ProductPurchaseDataProvider.tsx",
+      "sourceLine": 77,
+      "stackTrace": [
+        "    at queryFn (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/ProductPurchaseDataProvider.tsx?t=1751239191788:77:59)"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 67 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239213469-mqxdhumg1",
+      "timestamp": "1970-01-01T00:00:09.054Z",
+      "operation": "shipping_provider_clones.select",
+      "table": "shipping_provider_clones",
+      "duration": 331.6000000014901,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at queryFn (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/ProductPurchaseDataProvider.tsx?t=1751239191788:77:59)"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 67 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    },
+    {
+      "id": "1751239213465-vqy57uej2",
+      "timestamp": "1970-01-01T00:00:09.054Z",
+      "operation": "shipping_provider_clones.select",
+      "table": "shipping_provider_clones",
+      "duration": 328,
+      "success": true,
+      "sourceFile": "ProductPurchaseDataProvider.tsx",
+      "sourceLine": 73,
+      "stackTrace": [
+        "    at queryFn (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/ProductPurchaseDataProvider.tsx?t=1751239191788:73:59)"
+      ],
+      "method": "select",
+      "query": "id",
+      "response": {
+        "error": null,
+        "data": [
+          {
+            "id": 50
+          },
+          {
+            "id": 1
+          },
+          {
+            "id": 2
+          },
+          {
+            "id": 3
+          },
+          {
+            "id": 4
+          },
+          {
+            "id": 5
+          },
+          {
+            "id": 6
+          },
+          {
+            "id": 7
+          },
+          {
+            "id": 8
+          },
+          {
+            "id": 9
+          },
+          {
+            "id": 10
+          },
+          {
+            "id": 11
+          },
+          {
+            "id": 12
+          },
+          {
+            "id": 13
+          },
+          {
+            "id": 14
+          },
+          {
+            "id": 15
+          },
+          {
+            "id": 16
+          },
+          {
+            "id": 17
+          },
+          {
+            "id": 18
+          },
+          {
+            "id": 51
+          },
+          {
+            "id": 52
+          },
+          {
+            "id": 53
+          },
+          {
+            "id": 54
+          },
+          {
+            "id": 19
+          },
+          {
+            "id": 21
+          },
+          {
+            "id": 22
+          },
+          {
+            "id": 23
+          },
+          {
+            "id": 24
+          },
+          {
+            "id": 25
+          },
+          {
+            "id": 27
+          },
+          {
+            "id": 28
+          },
+          {
+            "id": 29
+          },
+          {
+            "id": 30
+          },
+          {
+            "id": 31
+          },
+          {
+            "id": 32
+          },
+          {
+            "id": 33
+          },
+          {
+            "id": 34
+          },
+          {
+            "id": 35
+          },
+          {
+            "id": 36
+          },
+          {
+            "id": 37
+          },
+          {
+            "id": 38
+          },
+          {
+            "id": 39
+          },
+          {
+            "id": 40
+          },
+          {
+            "id": 41
+          },
+          {
+            "id": 42
+          },
+          {
+            "id": 43
+          },
+          {
+            "id": 44
+          },
+          {
+            "id": 45
+          },
+          {
+            "id": 46
+          },
+          {
+            "id": 47
+          },
+          {
+            "id": 48
+          },
+          {
+            "id": 49
+          },
+          {
+            "id": 55
+          },
+          {
+            "id": 56
+          },
+          {
+            "id": 57
+          },
+          {
+            "id": 58
+          },
+          {
+            "id": 59
+          },
+          {
+            "id": 60
+          },
+          {
+            "id": 61
+          },
+          {
+            "id": 62
+          },
+          {
+            "id": 63
+          },
+          {
+            "id": 64
+          },
+          {
+            "id": 65
+          },
+          {
+            "id": 66
+          },
+          {
+            "id": 67
+          },
+          {
+            "id": 68
+          },
+          {
+            "id": 69
+          }
+        ],
+        "count": null,
+        "status": 200,
+        "statusText": ""
+      },
+      "dataSize": 662
+    },
+    {
+      "id": "1751239213455-hfuh59se9",
+      "timestamp": "1970-01-01T00:00:09.053Z",
+      "operation": "shipping_providers.select",
+      "table": "shipping_providers",
+      "duration": 318.6000000014901,
+      "success": true,
+      "sourceFile": "ProductPurchaseDataProvider.tsx",
+      "sourceLine": 57,
+      "stackTrace": [
+        "    at queryFn (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/ProductPurchaseDataProvider.tsx?t=1751239191788:57:79)"
+      ],
+      "method": "select",
+      "query": "code, name",
+      "response": "[Large Response]",
+      "dataSize": 1137
+    },
+    {
+      "id": "1751239213445-6gphzov9k",
+      "timestamp": "1970-01-01T00:00:09.054Z",
+      "operation": "shipping_provider_clones.select",
+      "table": "shipping_provider_clones",
+      "duration": 308,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at queryFn (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/ProductPurchaseDataProvider.tsx?t=1751239191788:73:59)"
+      ],
+      "method": "select",
+      "query": "id",
+      "response": {
+        "error": null,
+        "data": [
+          {
+            "id": 50
+          },
+          {
+            "id": 1
+          },
+          {
+            "id": 2
+          },
+          {
+            "id": 3
+          },
+          {
+            "id": 4
+          },
+          {
+            "id": 5
+          },
+          {
+            "id": 6
+          },
+          {
+            "id": 7
+          },
+          {
+            "id": 8
+          },
+          {
+            "id": 9
+          },
+          {
+            "id": 10
+          },
+          {
+            "id": 11
+          },
+          {
+            "id": 12
+          },
+          {
+            "id": 13
+          },
+          {
+            "id": 14
+          },
+          {
+            "id": 15
+          },
+          {
+            "id": 16
+          },
+          {
+            "id": 17
+          },
+          {
+            "id": 18
+          },
+          {
+            "id": 51
+          },
+          {
+            "id": 52
+          },
+          {
+            "id": 53
+          },
+          {
+            "id": 54
+          },
+          {
+            "id": 19
+          },
+          {
+            "id": 21
+          },
+          {
+            "id": 22
+          },
+          {
+            "id": 23
+          },
+          {
+            "id": 24
+          },
+          {
+            "id": 25
+          },
+          {
+            "id": 27
+          },
+          {
+            "id": 28
+          },
+          {
+            "id": 29
+          },
+          {
+            "id": 30
+          },
+          {
+            "id": 31
+          },
+          {
+            "id": 32
+          },
+          {
+            "id": 33
+          },
+          {
+            "id": 34
+          },
+          {
+            "id": 35
+          },
+          {
+            "id": 36
+          },
+          {
+            "id": 37
+          },
+          {
+            "id": 38
+          },
+          {
+            "id": 39
+          },
+          {
+            "id": 40
+          },
+          {
+            "id": 41
+          },
+          {
+            "id": 42
+          },
+          {
+            "id": 43
+          },
+          {
+            "id": 44
+          },
+          {
+            "id": 45
+          },
+          {
+            "id": 46
+          },
+          {
+            "id": 47
+          },
+          {
+            "id": 48
+          },
+          {
+            "id": 49
+          },
+          {
+            "id": 55
+          },
+          {
+            "id": 56
+          },
+          {
+            "id": 57
+          },
+          {
+            "id": 58
+          },
+          {
+            "id": 59
+          },
+          {
+            "id": 60
+          },
+          {
+            "id": 61
+          },
+          {
+            "id": 62
+          },
+          {
+            "id": 63
+          },
+          {
+            "id": 64
+          },
+          {
+            "id": 65
+          },
+          {
+            "id": 66
+          },
+          {
+            "id": 67
+          },
+          {
+            "id": 68
+          },
+          {
+            "id": 69
+          }
+        ],
+        "count": null,
+        "status": 200,
+        "statusText": ""
+      },
+      "dataSize": 662
+    },
+    {
+      "id": "1751239213438-c9hrsatzf",
+      "timestamp": "1970-01-01T00:00:09.053Z",
+      "operation": "shipping_providers.select",
+      "table": "shipping_providers",
+      "duration": 302.19999999925494,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at queryFn (http://testfinalfinalvhio.localhost:8080/src/components/store/order-form/ProductPurchaseDataProvider.tsx?t=1751239191788:57:79)"
+      ],
+      "method": "select",
+      "query": "code, name",
+      "response": "[Large Response]",
+      "dataSize": 1137
+    },
+    {
+      "id": "1751239213389-c3uwzmard",
+      "timestamp": "1970-01-01T00:00:09.306Z",
+      "operation": "product_subcategories.select",
+      "table": "product_subcategories",
+      "duration": 0.6000000014901161,
+      "success": true,
+      "sourceFile": "categories.ts",
+      "sourceLine": 373,
+      "stackTrace": [
+        "    at syncCategoriesDataOnStartup (http://testfinalfinalvhio.localhost:8080/src/lib/api/categories.ts?t=1751239191788:373:119)"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": {
+        "data": [],
+        "error": null,
+        "count": null,
+        "status": 200,
+        "statusText": "OK"
+      },
+      "dataSize": 2
+    },
+    {
+      "id": "1751239213389-0b6qu06ic",
+      "timestamp": "1970-01-01T00:00:09.306Z",
+      "operation": "product_subcategories.select",
+      "table": "product_subcategories",
+      "duration": 0.6000000014901161,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at syncCategoriesDataOnStartup (http://testfinalfinalvhio.localhost:8080/src/lib/api/categories.ts?t=1751239191788:373:119)"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": {
+        "data": [],
+        "error": null,
+        "count": null,
+        "status": 200,
+        "statusText": "OK"
+      },
+      "dataSize": 2
+    },
+    {
+      "id": "1751239213377-g0qc4yohy",
+      "timestamp": "1970-01-01T00:00:09.293Z",
+      "operation": "product_categories.select",
+      "table": "product_categories",
+      "duration": 0.7999999970197678,
+      "success": true,
+      "sourceFile": "categories.ts",
+      "sourceLine": 368,
+      "stackTrace": [
+        "    at syncCategoriesDataOnStartup (http://testfinalfinalvhio.localhost:8080/src/lib/api/categories.ts?t=1751239191788:368:110)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/App.tsx?t=1751239191788:424:13"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": {
+        "data": [],
+        "error": null,
+        "count": null,
+        "status": 200,
+        "statusText": "OK"
+      },
+      "dataSize": 2
+    },
+    {
+      "id": "1751239213377-2y7p8gt0y",
+      "timestamp": "1970-01-01T00:00:09.293Z",
+      "operation": "product_categories.select",
+      "table": "product_categories",
+      "duration": 0.5,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at syncCategoriesDataOnStartup (http://testfinalfinalvhio.localhost:8080/src/lib/api/categories.ts?t=1751239191788:368:110)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/App.tsx?t=1751239191788:424:13"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": {
+        "data": [],
+        "error": null,
+        "count": null,
+        "status": 200,
+        "statusText": "OK"
+      },
+      "dataSize": 2
+    },
+    {
+      "id": "1751239213151-yjdhztgol",
+      "timestamp": "1970-01-01T00:00:09.058Z",
+      "operation": "organization_apps.select",
+      "table": "organization_apps",
+      "duration": 10.300000000745058,
+      "success": true,
+      "sourceFile": "OrganizationDataContext.tsx",
+      "sourceLine": 101,
+      "stackTrace": [
+        "    at fetchOrganizationApps (http://testfinalfinalvhio.localhost:8080/src/contexts/OrganizationDataContext.tsx?t=1751239191788:101:70)",
+        "    at queryFn (http://testfinalfinalvhio.localhost:8080/src/contexts/OrganizationDataContext.tsx?t=1751239191788:177:22)"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": {
+        "data": [],
+        "error": null,
+        "count": null,
+        "status": 200,
+        "statusText": "OK"
+      },
+      "dataSize": 2
+    },
+    {
+      "id": "1751239213151-0kv5h2h6k",
+      "timestamp": "1970-01-01T00:00:09.058Z",
+      "operation": "organization_apps.select",
+      "table": "organization_apps",
+      "duration": 10.300000000745058,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at fetchOrganizationApps (http://testfinalfinalvhio.localhost:8080/src/contexts/OrganizationDataContext.tsx?t=1751239191788:101:70)",
+        "    at queryFn (http://testfinalfinalvhio.localhost:8080/src/contexts/OrganizationDataContext.tsx?t=1751239191788:177:22)"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": {
+        "data": [],
+        "error": null,
+        "count": null,
+        "status": 200,
+        "statusText": "OK"
+      },
+      "dataSize": 2
+    },
+    {
+      "id": "1751239213151-ectjrsq2c",
+      "timestamp": "1970-01-01T00:00:09.056Z",
+      "operation": "organization_apps.select",
+      "table": "organization_apps",
+      "duration": 11.5,
+      "success": true,
+      "sourceFile": "AppsContext.tsx",
+      "sourceLine": 232,
+      "stackTrace": [
+        "    at http://testfinalfinalvhio.localhost:8080/src/context/AppsContext.tsx?t=1751239191788:232:78",
+        "    at http://testfinalfinalvhio.localhost:8080/src/context/AppsContext.tsx?t=1751239191788:293:13"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": {
+        "data": [],
+        "error": null,
+        "count": null,
+        "status": 200,
+        "statusText": "OK"
+      },
+      "dataSize": 2
+    },
+    {
+      "id": "1751239213150-qny2larma",
+      "timestamp": "1970-01-01T00:00:09.056Z",
+      "operation": "organization_apps.select",
+      "table": "organization_apps",
+      "duration": 11.300000000745058,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/context/AppsContext.tsx?t=1751239191788:232:78",
+        "    at http://testfinalfinalvhio.localhost:8080/src/context/AppsContext.tsx?t=1751239191788:293:13"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": {
+        "data": [],
+        "error": null,
+        "count": null,
+        "status": 200,
+        "statusText": "OK"
+      },
+      "dataSize": 2
+    },
+    {
+      "id": "1751239213083-tev6x770l",
+      "timestamp": "1970-01-01T00:00:08.999Z",
+      "operation": "organization_settings.select",
+      "table": "organization_settings",
+      "duration": 0.6000000014901161,
+      "success": true,
+      "sourceFile": "index.ts",
+      "sourceLine": 1361,
+      "stackTrace": [
+        "    at getDefaultLanguageFromDatabase (http://testfinalfinalvhio.localhost:8080/src/i18n/index.ts?t=1751239191788:1361:115)",
+        "    at async updateLanguageFromDatabase (http://testfinalfinalvhio.localhost:8080/src/i18n/index.ts?t=1751239191788:1444:37)"
+      ],
+      "method": "select",
+      "query": "default_language",
+      "response": {
+        "data": [],
+        "error": null,
+        "count": null,
+        "status": 200,
+        "statusText": "OK"
+      },
+      "dataSize": 2
+    },
+    {
+      "id": "1751239213082-wzlycy0qs",
+      "timestamp": "1970-01-01T00:00:08.999Z",
+      "operation": "organization_settings.select",
+      "table": "organization_settings",
+      "duration": 0.5,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at getDefaultLanguageFromDatabase (http://testfinalfinalvhio.localhost:8080/src/i18n/index.ts?t=1751239191788:1361:115)",
+        "    at async updateLanguageFromDatabase (http://testfinalfinalvhio.localhost:8080/src/i18n/index.ts?t=1751239191788:1444:37)"
+      ],
+      "method": "select",
+      "query": "default_language",
+      "response": {
+        "data": [],
+        "error": null,
+        "count": null,
+        "status": 200,
+        "statusText": "OK"
+      },
+      "dataSize": 2
+    },
+    {
+      "id": "1751239213072-j20lfr1cz",
+      "timestamp": "1970-01-01T00:00:08.367Z",
+      "operation": "organizations.select",
+      "table": "organizations",
+      "duration": 622.8999999985099,
+      "success": true,
+      "sourceFile": "subdomain.ts",
+      "sourceLine": 96,
+      "stackTrace": [
+        "    at http://testfinalfinalvhio.localhost:8080/src/lib/api/subdomain.ts?t=1751239191788:96:80",
+        "    at withCache (http://testfinalfinalvhio.localhost:8080/src/lib/cache/storeCache.ts:377:29)",
+        "    at async http://testfinalfinalvhio.localhost:8080/src/context/TenantContext.tsx?t=1751239191788:396:20",
+        "    at async http://testfinalfinalvhio.localhost:8080/src/context/TenantContext.tsx?t=1751239191788:459:45",
+        "    at async loadTenantData (http://testfinalfinalvhio.localhost:8080/src/context/TenantContext.tsx?t=1751239191788:467:23)"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "The result contains 65 rows",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": ""
+      }
+    },
+    {
+      "id": "1751239213045-l5xi0t8b9",
+      "timestamp": "1970-01-01T00:00:08.270Z",
+      "operation": "product_subcategories.select",
+      "table": "product_subcategories",
+      "duration": 691.6999999992549,
+      "success": true,
+      "sourceFile": "unifiedRequestManager.ts",
+      "sourceLine": 318,
+      "stackTrace": [
+        "    at http://testfinalfinalvhio.localhost:8080/src/lib/unifiedRequestManager.ts?t=1751239191788:318:82",
+        "    at executeRequest (http://testfinalfinalvhio.localhost:8080/src/lib/unifiedRequestManager.ts?t=1751239191788:202:33)",
+        "    at UnifiedRequestManager.getProductSubcategories (http://testfinalfinalvhio.localhost:8080/src/lib/unifiedRequestManager.ts?t=1751239191788:317:16)",
+        "    at queryFn (http://testfinalfinalvhio.localhost:8080/src/lib/unifiedRequestManager.ts?t=1751239191788:498:44)"
+      ],
+      "method": "select",
+      "query": "*",
+      "response": "[Large Response]",
+      "dataSize": 12618
+    },
+    {
+      "id": "1751239213036-a2k1kqkc5",
+      "timestamp": "1970-01-01T00:00:08.320Z",
+      "operation": "organizations.select",
+      "table": "organizations",
+      "duration": 632.5,
+      "success": true,
+      "sourceFile": "index.ts",
+      "sourceLine": 1347,
+      "stackTrace": [
+        "    at getDefaultLanguageFromDatabase (http://testfinalfinalvhio.localhost:8080/src/i18n/index.ts?t=1751239191788:1347:93)",
+        "    at updateLanguageFromDatabase (http://testfinalfinalvhio.localhost:8080/src/i18n/index.ts?t=1751239191788:1444:43)"
+      ],
+      "method": "select",
+      "query": "id",
+      "response": {
+        "error": {
+          "code": "PGRST116",
+          "details": "Results contain 65 rows, application/vnd.pgrst.object+json requires 1 row",
+          "hint": null,
+          "message": "JSON object requested, multiple (or no) rows returned"
+        },
+        "data": null,
+        "count": null,
+        "status": 406,
+        "statusText": "Not Acceptable"
+      }
+    }
+  ],
+  "summary": {
+    "totalCalls": 83,
+    "successRate": 100,
+    "averageResponseTime": 347.80481927702766,
+    "slowestCall": {
+      "id": "1751239215642-0bbkgbqfq",
+      "timestamp": 10249,
+      "operation": "products.select",
+      "table": "products",
+      "duration": 1310.8999999985099,
+      "success": true,
+      "sourceFile": "requestManager.ts",
+      "sourceLine": 234,
+      "stackTrace": [
+        "    at query.select (http://testfinalfinalvhio.localhost:8080/src/lib/requestManager.ts?t=1751239191788:234:39)",
+        "    at http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:68:102",
+        "    at withCache (http://testfinalfinalvhio.localhost:8080/src/lib/cache/storeCache.ts:377:29)",
+        "    at async http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:131:20",
+        "    at async http://testfinalfinalvhio.localhost:8080/src/context/ShopContext.tsx?t=1751239191788:212:71"
+      ],
+      "method": "select",
+      "query": "\n              *,\n              product_colors(\n                *,\n                product_sizes(*)\n              )\n            ",
+      "response": "[Large Response]",
+      "dataSize": 2177022
+    },
+    "mostActiveFile": "requestManager.ts",
+    "exportedAt": "2025-06-29T23:20:31.759Z"
+  }
+}

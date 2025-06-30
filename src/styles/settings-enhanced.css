@@ -1,0 +1,328 @@
+/* Enhanced Settings Page Styles */
+
+/* Hide scrollbar utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Performance optimizations */
+.settings-container {
+  contain: layout style paint;
+  transform: translateZ(0);
+  will-change: scroll-position;
+}
+
+/* Smooth animations */
+.settings-fade-in {
+  animation: settingsFadeIn 0.4s ease-out;
+}
+
+.settings-slide-up {
+  animation: settingsSlideUp 0.5s ease-out;
+}
+
+@keyframes settingsFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes settingsSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Enhanced card hover effects */
+.settings-card {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+.settings-card:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+}
+
+/* Navigation improvements */
+.settings-nav-item {
+  position: relative;
+  overflow: hidden;
+}
+
+.settings-nav-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 3px;
+  height: 100%;
+  background: linear-gradient(to bottom, transparent, var(--primary), transparent);
+  transform: scaleY(0);
+  transition: transform 0.3s ease;
+}
+
+.settings-nav-item.active::before {
+  transform: scaleY(1);
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  .settings-mobile-container {
+    padding: 1rem;
+    gap: 1rem;
+  }
+  
+  .settings-mobile-header {
+    padding: 1rem 0;
+    margin-bottom: 1.5rem;
+  }
+  
+  .settings-mobile-card {
+    margin-bottom: 1rem;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  
+  /* Optimize touch targets */
+  .settings-mobile-button {
+    min-height: 48px;
+    min-width: 48px;
+    padding: 12px;
+  }
+  
+  /* Improve readability */
+  .settings-mobile-text {
+    font-size: 16px;
+    line-height: 1.6;
+  }
+  
+  .settings-mobile-title {
+    font-size: 1.5rem;
+    line-height: 1.3;
+  }
+  
+  /* Mobile navigation */
+  .settings-mobile-nav {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(8px);
+    z-index: 50;
+  }
+  
+  .settings-mobile-nav-content {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 85%;
+    max-width: 400px;
+    height: 100%;
+    background: var(--background);
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+  }
+}
+
+/* Tablet optimizations */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .settings-tablet-grid {
+    grid-template-columns: 300px 1fr;
+    gap: 2rem;
+  }
+  
+  .settings-tablet-nav {
+    position: sticky;
+    top: 2rem;
+    height: fit-content;
+  }
+}
+
+/* Desktop optimizations */
+@media (min-width: 1025px) {
+  .settings-desktop-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem;
+  }
+  
+  .settings-desktop-grid {
+    grid-template-columns: 320px 1fr;
+    gap: 3rem;
+  }
+  
+  .settings-desktop-nav {
+    position: sticky;
+    top: 2rem;
+    height: fit-content;
+  }
+  
+  /* Enhanced scrolling */
+  .settings-scroll-container {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(155, 155, 155, 0.5) transparent;
+  }
+  
+  .settings-scroll-container::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  .settings-scroll-container::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .settings-scroll-container::-webkit-scrollbar-thumb {
+    background-color: rgba(155, 155, 155, 0.5);
+    border-radius: 4px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  
+  .settings-scroll-container::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(155, 155, 155, 0.7);
+  }
+}
+
+/* Focus accessibility improvements */
+.settings-focusable:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Loading states */
+.settings-loading-skeleton {
+  background: linear-gradient(90deg, var(--muted) 25%, var(--muted)/50 50%, var(--muted) 75%);
+  background-size: 200% 100%;
+  animation: settingsShimmer 1.5s infinite;
+}
+
+@keyframes settingsShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Enhanced visual effects */
+.settings-gradient-bg {
+  background: linear-gradient(135deg, var(--background) 0%, var(--muted)/20 100%);
+}
+
+.settings-glass-effect {
+  backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Dark mode optimizations */
+@media (prefers-color-scheme: dark) {
+  .settings-glass-effect {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+}
+
+/* Reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .settings-fade-in,
+  .settings-slide-up,
+  .settings-card,
+  .settings-nav-item::before {
+    animation: none;
+    transition: none;
+  }
+  
+  .settings-card:hover {
+    transform: none;
+  }
+}
+
+/* Print styles */
+@media print {
+  .settings-mobile-nav,
+  .settings-nav-item::before {
+    display: none;
+  }
+  
+  .settings-card {
+    break-inside: avoid;
+    box-shadow: none;
+    border: 1px solid #000;
+  }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .settings-card {
+    border: 2px solid;
+  }
+  
+  .settings-nav-item.active {
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
+}
+
+/* Custom animations for specific elements */
+.settings-icon-bounce {
+  animation: settingsIconBounce 2s infinite;
+}
+
+@keyframes settingsIconBounce {
+  0%, 20%, 50%, 80%, 100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-10px);
+  }
+  60% {
+    transform: translateY(-5px);
+  }
+}
+
+/* Floating action button for mobile */
+.settings-fab {
+  position: fixed;
+  bottom: 2rem;
+  left: 2rem;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 40;
+  transition: all 0.3s ease;
+}
+
+.settings-fab:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+}
+
+@media (min-width: 1024px) {
+  .settings-fab {
+    display: none;
+  }
+} 

@@ -25,8 +25,8 @@ import {
 // Layout component
 import Layout from '@/components/Layout';
 
-// Context
-import { usePOSOrdersData } from '@/context/POSOrdersDataContext';
+// Context - النظام الموحد الجديد
+import { useOrdersData, useAppData, useUnifiedData } from '@/context/UnifiedDataContext';
 
 // Types
 interface POSOrderWithDetails {
@@ -112,33 +112,28 @@ interface DialogState {
 export const POSOrdersOptimized: React.FC = () => {
   useTitle('طلبيات نقطة البيع');
   
-  // استخدام Context المحسن
-  const {
-    stats,
-    orders,
-    employees,
-    totalOrders,
-    currentPage,
-    totalPages,
-    hasMore,
-    organizationSettings,
-    organizationSubscriptions,
-    posSettings,
-    isLoading,
-    isStatsLoading,
-    isOrdersLoading,
-    isEmployeesLoading,
-    errors,
-    refreshAll,
-    refreshStats,
-    refreshOrders,
-    setFilters,
-    setPage,
-    updateOrderStatus,
-    updatePaymentStatus,
-    deleteOrder,
-    updateOrderInCache
-  } = usePOSOrdersData();
+  // استخدام النظام الموحد الجديد
+  const { ordersData, isLoading: isOrdersLoading, error: ordersError, refresh: refreshOrders } = useOrdersData();
+  const { appData } = useAppData();
+  const { getOrderDetails } = useUnifiedData();
+
+  // استخراج البيانات من النظام الموحد
+  const stats = ordersData?.stats;
+  const orders = ordersData?.orders || [];
+  const employees = ordersData?.employees || [];
+  const totalOrders = ordersData?.total_count || 0;
+  const pagination = ordersData?.pagination;
+  const currentPage = pagination?.current_page || 1;
+  const totalPages = pagination?.total_pages || 1;
+  const hasMore = currentPage < totalPages;
+
+  // البيانات الإضافية من appData
+  const organizationSettings = appData?.organization_settings;
+  const posSettings = appData?.pos_settings;
+
+  // حالات التحميل والأخطاء
+  const isLoading = isOrdersLoading;
+  const errors = { orders: ordersError };
 
   // حالة النوافذ المنبثقة
   const [dialogState, setDialogState] = useState<DialogState>({
@@ -149,25 +144,40 @@ export const POSOrdersOptimized: React.FC = () => {
     showEditOrder: false
   });
 
+  // حالة الفلاتر المحلية
+  const [filters, setFilters] = useState<POSOrderFiltersType>({});
+
   // معالج تغيير الفلاتر
   const handleFiltersChange = useCallback((newFilters: POSOrderFiltersType) => {
     setFilters(newFilters);
-  }, [setFilters]);
+    // تحديث البيانات بالفلاتر الجديدة
+    refreshOrders({ 
+      page: 1, 
+      status: newFilters.status,
+      payment_status: newFilters.payment_status,
+      employee_id: newFilters.employee_id
+    });
+  }, [refreshOrders]);
 
   // معالج تغيير الصفحة
   const handlePageChange = useCallback((page: number) => {
-    setPage(page);
-  }, [setPage]);
+    refreshOrders({ 
+      page, 
+      status: filters.status,
+      payment_status: filters.payment_status,
+      employee_id: filters.employee_id
+    });
+  }, [refreshOrders, filters]);
 
   // تحديث البيانات
   const handleRefresh = useCallback(async () => {
     try {
-      await refreshAll();
+      await refreshOrders();
       toast.success('تم تحديث البيانات بنجاح');
     } catch (error) {
       toast.error('فشل في تحديث البيانات');
     }
-  }, [refreshAll]);
+  }, [refreshOrders]);
 
   // عرض تفاصيل الطلبية
   const handleOrderView = useCallback((order: POSOrderWithDetails) => {
@@ -194,9 +204,12 @@ export const POSOrdersOptimized: React.FC = () => {
   // حذف الطلبية
   const handleOrderDelete = useCallback(async (order: POSOrderWithDetails) => {
     try {
-      const success = await deleteOrder(order.id);
+      // استخدام API service للحذف
+      const success = await posOrdersService.deleteOrder(order.id);
       if (success) {
         toast.success('تم حذف الطلبية بنجاح');
+        // تحديث البيانات
+        await refreshOrders();
         // إغلاق النوافذ المنبثقة إذا كانت الطلبية المحذوفة مفتوحة
         if (dialogState.selectedOrder?.id === order.id) {
           closeDialogs();
@@ -207,7 +220,7 @@ export const POSOrdersOptimized: React.FC = () => {
     } catch (error) {
       toast.error('حدث خطأ أثناء حذف الطلبية');
     }
-  }, [deleteOrder, dialogState.selectedOrder, toast]);
+  }, [refreshOrders, dialogState.selectedOrder]);
 
   // طباعة الطلبية
   const handleOrderPrint = useCallback((order: POSOrderWithDetails) => {
@@ -219,9 +232,10 @@ export const POSOrdersOptimized: React.FC = () => {
   // تحديث حالة الطلبية
   const handleStatusUpdate = useCallback(async (orderId: string, status: string, notes?: string) => {
     try {
-      const success = await updateOrderStatus(orderId, status, notes);
+      const success = await posOrdersService.updateOrderStatus(orderId, status, notes);
       if (success) {
         toast.success('تم تحديث حالة الطلبية بنجاح');
+        await refreshOrders(); // تحديث البيانات
         return true;
       } else {
         toast.error('فشل في تحديث حالة الطلبية');
@@ -231,7 +245,7 @@ export const POSOrdersOptimized: React.FC = () => {
       toast.error('حدث خطأ أثناء تحديث الطلبية');
       return false;
     }
-  }, [updateOrderStatus]);
+  }, [refreshOrders]);
 
   // تحديث حالة الدفع
   const handlePaymentUpdate = useCallback(async (
@@ -241,9 +255,10 @@ export const POSOrdersOptimized: React.FC = () => {
     paymentMethod?: string
   ) => {
     try {
-      const success = await updatePaymentStatus(orderId, paymentStatus, amountPaid);
+      const success = await posOrdersService.updatePaymentStatus(orderId, paymentStatus, amountPaid);
       if (success) {
         toast.success('تم تحديث معلومات الدفع بنجاح');
+        await refreshOrders(); // تحديث البيانات
         return true;
       } else {
         toast.error('فشل في تحديث معلومات الدفع');
@@ -253,7 +268,7 @@ export const POSOrdersOptimized: React.FC = () => {
       toast.error('حدث خطأ أثناء تحديث الدفع');
       return false;
     }
-  }, [updatePaymentStatus]);
+  }, [refreshOrders]);
 
   // تصدير البيانات
   const handleExport = useCallback(() => {

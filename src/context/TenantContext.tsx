@@ -294,6 +294,8 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isOrgAdmin, setIsOrgAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+
+  // تتبع حالة TenantProvider للتصحيح
   
   // Track initialization and prevent duplicate loads
   const initialized = useRef(false);

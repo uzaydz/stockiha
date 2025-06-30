@@ -436,21 +436,32 @@ const fetchEmployees = async (orgId: string): Promise<Employee[]> => {
   });
 };
 
+// استخدام UnifiedDataContext بدلاً من الاستدعاءات المنفصلة
 const fetchOrganizationSettings = async (orgId: string): Promise<any> => {
-  return deduplicateRequest(`org-settings-${orgId}`, async () => {
+  return deduplicateRequest(`org-settings-unified-${orgId}`, async () => {
     
     try {
+      // محاولة الحصول على البيانات من UnifiedDataContext أولاً
+      // إذا لم تكن متوفرة، نستدعي RPC function مباشرة
       const { data, error } = await supabase
+        .rpc('get_organization_settings_direct', { org_id: orgId });
+
+      if (!error && data && data.length > 0) {
+        return data[0];
+      }
+
+      // fallback للاستعلام المباشر
+      const { data: directData, error: directError } = await supabase
         .from('organization_settings')
         .select('*')
         .eq('organization_id', orgId)
         .maybeSingle();
 
-      if (error) {
-        throw error;
+      if (directError) {
+        throw directError;
       }
 
-      return data;
+      return directData;
     } catch (error) {
       return null;
     }
@@ -458,18 +469,43 @@ const fetchOrganizationSettings = async (orgId: string): Promise<any> => {
 };
 
 const fetchOrganizationSubscriptions = async (orgId: string): Promise<any[]> => {
-  return deduplicateRequest(`org-subscriptions-${orgId}`, async () => {
+  return deduplicateRequest(`org-subscriptions-optimized-${orgId}`, async () => {
     
     try {
+      // استعلام مُحسن مع تقليل الحقول المطلوبة
       const { data, error } = await supabase
-        .from('organization_subscriptions')
-        .select('*, plan:plan_id(id, name, code)')
+        .from('active_organization_subscriptions')  // استخدام view محسن
+        .select(`
+          id,
+          organization_id,
+          plan_id,
+          status,
+          current_period_start,
+          current_period_end,
+          trial_end,
+          created_at,
+          plan_name,
+          plan_code
+        `)
         .eq('organization_id', orgId)
-        .eq('status', 'active')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(5); // تحديد عدد النتائج للأداء
 
       if (error) {
-        throw error;
+        // fallback للاستعلام التقليدي
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('organization_subscriptions')
+          .select('*, plan:plan_id(id, name, code)')
+          .eq('organization_id', orgId)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(5);
+
+        if (fallbackError) {
+          throw fallbackError;
+        }
+
+        return fallbackData || [];
       }
 
       return data || [];
@@ -480,10 +516,18 @@ const fetchOrganizationSubscriptions = async (orgId: string): Promise<any[]> => 
 };
 
 const fetchPOSSettings = async (orgId: string): Promise<any> => {
-  return deduplicateRequest(`pos-settings-${orgId}`, async () => {
+  return deduplicateRequest(`pos-settings-enhanced-${orgId}`, async () => {
     
     try {
-      // محاولة RPC function أولاً
+      // استخدام RPC function المحسنة أولاً
+      const { data: enhancedData, error: enhancedError } = await supabase
+        .rpc('get_pos_settings_enhanced', { p_org_id: orgId });
+
+      if (!enhancedError && enhancedData && enhancedData.success) {
+        return enhancedData.data.pos_settings;
+      }
+
+      // fallback للـ RPC function القديمة
       const { data: rpcData, error: rpcError } = await supabase
         .rpc('get_pos_settings', { p_org_id: orgId });
 

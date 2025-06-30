@@ -20,21 +20,22 @@ let interceptorStats = {
   pendingPrevented: 0
 };
 
-// مدة cache لكل نوع طلب (بالميللي ثانية)
-const CACHE_DURATIONS = {
-  'yalidine_provinces_global': 30 * 60 * 1000, // 30 دقيقة
-  'organizations': 20 * 60 * 1000, // 20 دقيقة
-  'product_categories': 20 * 60 * 1000, // 20 دقيقة
-  'shipping_providers': 30 * 60 * 1000, // 30 دقيقة
-  'shipping_provider_clones': 15 * 60 * 1000, // 15 دقيقة
-  'shipping_provider_settings': 15 * 60 * 1000, // 15 دقيقة
-  'products': 10 * 60 * 1000, // 10 دقائق
+// إعدادات cache لكل جدول
+const CACHE_SETTINGS: Record<string, number> = {
+  'organizations': 10 * 60 * 1000, // 10 دقائق
+  'products': 5 * 60 * 1000, // 5 دقائق
   'services': 15 * 60 * 1000, // 15 دقيقة
-  'users': 20 * 60 * 1000, // 20 دقيقة
-  'customers': 10 * 60 * 1000, // 10 دقائق
+  'shipping_providers': 30 * 60 * 1000, // 30 دقيقة
+  'shipping_provider_settings': 15 * 60 * 1000, // 15 دقيقة
+  'yalidine_provinces_global': 60 * 60 * 1000, // ساعة
+  'users': 10 * 60 * 1000, // 10 دقائق
+  'customers': 8 * 60 * 1000, // 8 دقائق
+  'orders': 3 * 60 * 1000, // 3 دقائق
   'store_settings': 20 * 60 * 1000, // 20 دقيقة
-  'orders': 5 * 60 * 1000, // 5 دقائق (بيانات متغيرة)
-  'default': 10 * 60 * 1000 // 10 دقائق افتراضي
+  'organization_settings': 15 * 60 * 1000, // 15 دقيقة
+  'product_categories': 25 * 60 * 1000, // 25 دقيقة
+  'inventory_items': 5 * 60 * 1000, // 5 دقائق
+  'form_submissions': 2 * 60 * 1000, // دقيقتان
 };
 
 // دالة لإنشاء مفتاح cache موحد
@@ -75,7 +76,7 @@ function extractTableName(url: string): string {
 function isCacheValid(entry: any, tableName: string): boolean {
   if (!entry) return false;
   
-  const duration = CACHE_DURATIONS[tableName] || CACHE_DURATIONS.default;
+  const duration = CACHE_SETTINGS[tableName] || CACHE_SETTINGS.default;
   const age = Date.now() - entry.timestamp;
   
   return age < duration;

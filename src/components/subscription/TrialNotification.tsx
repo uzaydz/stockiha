@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -30,11 +30,28 @@ export const TrialNotification: React.FC = () => {
   const [status, setStatus] = useState<'trial' | 'active' | 'expired'>('expired');
   const [message, setMessage] = useState<string>('');
   const [showNotification, setShowNotification] = useState<boolean>(false);
+  const [isCalculating, setIsCalculating] = useState<boolean>(false);
+  
+  // مرجع للتحكم في debouncing
+  const calculationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastOrganizationIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!organization) return;
+    if (!organization || isCalculating) return;
+    
+    // تجنب إعادة الحساب للمؤسسة نفسها
+    if (lastOrganizationIdRef.current === organization.id) {
+      return;
+    }
+    
+    lastOrganizationIdRef.current = organization.id;
 
     const calculateDays = async () => {
+      // منع الاستدعاءات المتعددة
+      if (isCalculating) return;
+      
+      setIsCalculating(true);
+      
       try {
         const result = await SubscriptionService.calculateTotalDaysLeft(
           organization as unknown as OrganizationWithSettings,
@@ -60,13 +77,36 @@ export const TrialNotification: React.FC = () => {
 
       } catch (error) {
         setShowNotification(false);
+      } finally {
+        setIsCalculating(false);
       }
     };
 
-    calculateDays();
-  }, [organization]);
+    // تأخير الحساب لتجنب الاستدعاءات المتكررة
+    if (calculationTimeoutRef.current) {
+      clearTimeout(calculationTimeoutRef.current);
+    }
+    
+    calculationTimeoutRef.current = setTimeout(calculateDays, 500);
 
-  if (!showNotification || daysLeft === null) {
+    // تنظيف timeout عند إلغاء تحميل المكون
+    return () => {
+      if (calculationTimeoutRef.current) {
+        clearTimeout(calculationTimeoutRef.current);
+      }
+    };
+  }, [organization?.id, isCalculating]);
+
+  // تنظيف المراجع عند إلغاء تحميل المكون
+  useEffect(() => {
+    return () => {
+      if (calculationTimeoutRef.current) {
+        clearTimeout(calculationTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  if (!showNotification || daysLeft === null || isCalculating) {
     return null;
   }
 

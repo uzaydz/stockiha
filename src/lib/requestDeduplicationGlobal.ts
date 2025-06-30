@@ -158,7 +158,21 @@ const PRODUCT_PAGE_DEDUPLICATION_RULES = [
     category: 'PRODUCT_PAGE:PRODUCTS_LIST',
     cacheTTL: 10 * 60 * 1000, // 10 دقائق
     description: 'قائمة المنتجات النشطة'
-  }
+  },
+
+  // أنماط الاستعلامات الشائعة التي يمكن إلغاء تكرارها
+  {
+    name: 'organization-by-id',
+    pattern: /organizations\?select=.*&id=eq\.[^&]+/,
+    ttl: 10 * 60 * 1000, // 10 دقائق
+    description: 'استعلامات المؤسسة بواسطة المعرف'
+  },
+  {
+    name: 'shipping-provider-settings',
+    pattern: /shipping_provider_settings\?select=.*&organization_id=eq\.[^&]+&is_enabled=eq\.true/,
+    ttl: 15 * 60 * 1000, // 15 دقيقة
+    description: 'إعدادات مزودي الشحن النشطة'
+  },
 ];
 
 // تحديد نوع الطلب بدقة أكبر

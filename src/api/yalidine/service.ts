@@ -127,7 +127,8 @@ export async function getProvinces(organizationId?: string): Promise<Province[]>
     
     const { data, error } = await supabase
       .from('yalidine_provinces_global') // استخدام الجدول العالمي
-      .select('id, name, is_deliverable'); // تحديد الحقول المطلوبة، is_deliverable يجب أن يكون boolean في الجدول
+      .select('id, name, is_deliverable') // تحديد الحقول المطلوبة، is_deliverable يجب أن يكون boolean في الجدول
+      .limit(1000); // إضافة limit لتجنب PGRST116
     
     if (error) {
       throw error; // أو التعامل مع الخطأ بطريقة أخرى مثل إرجاع مصفوفة فارغة
@@ -169,7 +170,8 @@ export async function getMunicipalities(
     const { data, error } = await supabase
       .from('yalidine_municipalities_global') // استخدام الجدول العالمي
       .select('id, name, wilaya_id, is_deliverable, has_stop_desk') // تحديد الحقول المطلوبة
-      .eq('wilaya_id', parseInt(provinceId, 10));
+      .eq('wilaya_id', parseInt(provinceId, 10))
+      .limit(1000); // إضافة limit لتجنب PGRST116
 
     if (error) {
       throw error;
