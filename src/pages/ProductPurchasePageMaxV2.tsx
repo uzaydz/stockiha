@@ -112,8 +112,13 @@ const ProductPurchasePageMaxV2: React.FC = () => {
   const marketingSettings = product?.marketing_settings as any; // النوع الآمن
   const offerTimerEnabled = marketingSettings?.offer_timer_enabled === true;
   
+
+  
   const offerTimerSettings = useMemo(() => {
-    if (!marketingSettings || !offerTimerEnabled) return null;
+    if (!marketingSettings || !offerTimerEnabled) {
+      console.log('❌ المؤقت غير مفعل:', { marketingSettings, offerTimerEnabled });
+      return null;
+    }
     
     // تحديد نوع المؤقت - إذا كان specific_date لكن لا توجد end_date، استخدم evergreen
     let timerType = marketingSettings.offer_timer_type as 'evergreen' | 'specific_date' | 'fixed_duration_per_visitor';
@@ -124,7 +129,7 @@ const ProductPurchasePageMaxV2: React.FC = () => {
     // إذا لم يكن هناك duration للـ evergreen، استخدم 60 دقيقة افتراضياً
     const duration = marketingSettings.offer_timer_duration_minutes || 60;
     
-    return {
+    const settings = {
       offer_timer_enabled: true,
       offer_timer_title: marketingSettings.offer_timer_title || 'عرض خاص',
       offer_timer_type: timerType,
@@ -140,17 +145,14 @@ const ProductPurchasePageMaxV2: React.FC = () => {
       offer_timer_show_on_specific_pages_only: marketingSettings.offer_timer_show_on_specific_pages_only || false,
       offer_timer_specific_page_urls: marketingSettings.offer_timer_specific_page_urls || []
     };
+    
+    console.log('✅ إعدادات المؤقت تم إنشاؤها:', settings);
+    return settings;
   }, [marketingSettings, offerTimerEnabled]);
 
-  // تسجيل حالة مؤقت العرض في وضع التطوير
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-    }
-  }, [product?.id, marketingSettings, offerTimerEnabled, offerTimerSettings]);
 
-  // مراقبة بيانات المنظمة مع المنتج 🔍
-  useEffect(() => {
-  }, [organization, organizationId, product]);
+
+
 
   // حساب رسوم التوصيل عند تغيير البيانات 🆕 (مع debouncing)
   useEffect(() => {

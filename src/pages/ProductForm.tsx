@@ -224,11 +224,17 @@ const ProductForm = () => {
     }
   }, [isEditMode, autoSaveDrafts, organizationIdFromTenant, form]);
 
+  // مزامنة النموذج مع productColors state
+  useEffect(() => {
+    if (initialDataSet) {
+      form.setValue('colors', productColors, { shouldValidate: false, shouldDirty: false });
+    }
+  }, [productColors, initialDataSet, form]);
+
   // Enhanced submit handler
   const onSubmit = async (data: ProductFormValues) => {
-
     if (!organizationIdFromTenant && !data.organization_id) {
-      toast.error("خطأ حرج: معرّف المؤسسة مفقود. لا يمكن إنشاء/تحديد المنتج.");
+      toast.error("خطأ حرج: معرّف المؤسسة مفقود. لا يمكن إنشاء/تحديل المنتج.");
       return;
     }
 
@@ -246,7 +252,7 @@ const ProductForm = () => {
           id: color.id,
           name: color.name?.trim() || '',
           color_code: color.color_code || '#000000',
-          image_url: color.image_url || '',
+          image_url: color.image_url === null || color.image_url === undefined ? undefined : String(color.image_url),
           quantity: Number(color.quantity) || 0,
           is_default: Boolean(color.is_default),
           product_id: color.product_id,
@@ -305,14 +311,13 @@ const ProductForm = () => {
 
       // تحقق من صحة الألوان قبل الإرسال إذا كان المنتج يستخدم المتغيرات
       if (data.has_variants && productColors.length > 0) {
-        
         const invalidColors = productColors.filter(color => 
           !color.name?.trim() || 
           !color.color_code ||
           color.quantity === undefined || 
           color.quantity < 0
         );
-
+        
         if (invalidColors.length > 0) {
           toast.error('يرجى التأكد من أن جميع الألوان لها اسم وكود لون وكمية صحيحة');
           setIsSubmitting(false);
@@ -320,8 +325,6 @@ const ProductForm = () => {
         }
       }
 
-      // تأكد من تمرير الألوان إلى النموذج قبل الإرسال
-      
       // تحديث النموذج بالألوان المنظفة
       form.setValue('colors', colorsToSubmit, { shouldValidate: false });
 
@@ -366,15 +369,7 @@ const ProductForm = () => {
         marketingSettings: data.marketingSettings || undefined,
         additional_images: imagesToSubmit,
       };
-
-      if (!(isEditMode && productId)) {
-        delete (submissionData as any).id;
-      }
-
-      // Clean up fields not part of schema
-      delete (submissionData as any).is_sold_by_unit;
-      delete (submissionData as any).use_variant_prices;
-
+      
       let result;
 
       if (isEditMode && productId) {
@@ -394,14 +389,11 @@ const ProductForm = () => {
 
         // 🚀 تحديث محسن: تجنب التكرار
         try {
-          
-          // فقط إشعار بسيط للمكونات - التحديث الفعلي سيحدث في createProduct/updateProduct
           const operation = isEditMode ? 'update' : 'create';
           const customEvent = new CustomEvent('product-operation-completed', { 
             detail: { operation, organizationId: currentOrganizationId, productId: result?.id } 
           });
           window.dispatchEvent(customEvent);
-          
         } catch (refreshError) {
         }
 
@@ -419,7 +411,6 @@ const ProductForm = () => {
           });
         }
       } else {
-        toast.dismiss(loadingToast);
         toast.error(isEditMode ? 'فشل تحديث المنتج' : 'فشل إنشاء المنتج');
       }
     } catch (error: any) {
@@ -449,6 +440,7 @@ const ProductForm = () => {
 
     // تحقق خاص من أخطاء الألوان
     if (errors.colors) {
+      console.error('❌ ProductForm - خطأ في الألوان:', errors.colors);
     }
     
     toast.error(`يرجى إصلاح ${errorCount} خطأ في النموذج`);
@@ -460,7 +452,7 @@ const ProductForm = () => {
       element.focus();
       element.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-  }, [productColors, form]);
+  }, []);
 
   // Optimized handlers
   const handleMainImageChange = useCallback((url: string) => {
@@ -480,6 +472,7 @@ const ProductForm = () => {
       price: color.price === null ? undefined : color.price,
       purchase_price: color.purchase_price === null ? undefined : color.purchase_price,
       variant_number: color.variant_number === null ? undefined : color.variant_number,
+      image_url: color.image_url === null ? undefined : color.image_url,
       sizes: color.sizes ? color.sizes.map(size => ({
         ...size,
         barcode: size.barcode === null || size.barcode === 'null' ? undefined : size.barcode,

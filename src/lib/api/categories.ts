@@ -368,9 +368,9 @@ export const deleteCategory = async (id: string, organizationId?: string): Promi
 };
 
 // وظائف إدارة الفئات الفرعية - تم إعادة توجيهها بالكامل للنظام الموحد
-export const getSubcategories = async (categoryId?: string): Promise<Subcategory[]> => {
+export const getSubcategories = async (categoryId?: string, organizationId?: string): Promise<Subcategory[]> => {
   const { getSubcategories: unifiedGetSubcategories } = await import('@/lib/api/unified-api');
-  return unifiedGetSubcategories(categoryId);
+  return unifiedGetSubcategories(categoryId, organizationId);
 };
 
 export const getSubcategoryById = async (id: string): Promise<Subcategory | null> => {
@@ -398,7 +398,7 @@ export const getSubcategoryById = async (id: string): Promise<Subcategory | null
   }
 };
 
-export const createSubcategory = async (subcategory: { category_id: string; name: string; description?: string }): Promise<Subcategory> => {
+export const createSubcategory = async (subcategory: { category_id: string; name: string; description?: string; organization_id?: string }): Promise<Subcategory> => {
   try {
     // التحقق من حالة الاتصال
     if (!isOnline()) {
@@ -447,13 +447,27 @@ export const createSubcategory = async (subcategory: { category_id: string; name
     const uniqueSlug = `${baseSlug}-${timestamp}`;
 
     const supabaseClient = supabase;
+    
+    // الحصول على organization_id من الفئة الأم إذا لم يتم تمريره
+    let organizationId = subcategory.organization_id;
+    if (!organizationId) {
+      const { data: parentCategory } = await supabaseClient
+        .from('product_categories')
+        .select('organization_id')
+        .eq('id', subcategory.category_id)
+        .single();
+      
+      organizationId = parentCategory?.organization_id;
+    }
+    
     const { data, error } = await supabaseClient
       .from('product_subcategories')
       .insert({
         category_id: subcategory.category_id,
         name: subcategory.name,
         description: subcategory.description || null,
-        slug: uniqueSlug
+        slug: uniqueSlug,
+        organization_id: organizationId
       })
       .select()
       .single();

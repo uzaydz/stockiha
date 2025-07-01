@@ -37,16 +37,17 @@ export const useCategoryData = ({ organizationId, watchCategoryId }: UseCategory
   useEffect(() => {
     if (watchCategoryId) {
       setIsLoadingSubcategories(true);
-      fetchSubcategoriesAPI(watchCategoryId)
+      fetchSubcategoriesAPI(watchCategoryId, organizationId)
         .then(setSubcategories)
         .catch(error => {
+          console.error('Error fetching subcategories:', error);
           toast.error('حدث خطأ أثناء تحميل الفئات الفرعية');
         })
         .finally(() => setIsLoadingSubcategories(false));
     } else {
       setSubcategories([]);
     }
-  }, [watchCategoryId]);
+  }, [watchCategoryId, organizationId]);
 
   const handleCategoryCreated = useCallback((category: Category) => {
     setCategories(prev => [...prev, category]);

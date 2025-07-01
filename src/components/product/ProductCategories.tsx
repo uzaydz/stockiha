@@ -8,6 +8,7 @@ import { UseFormReturn } from "react-hook-form";
 import { ProductFormValues } from "@/types/product";
 import { type Category, type Subcategory, createCategory, createSubcategory } from '@/lib/api/categories';
 import { toast } from 'sonner';
+import { clearSubcategoriesCache } from '@/lib/cache-utils';
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
@@ -86,12 +87,17 @@ export default function ProductCategories({
       const newSubcategory = await createSubcategory({
         name: newSubcategoryName,
         category_id: watchCategoryId,
+        organization_id: organizationId
       });
       
       onSubcategoryCreated(newSubcategory);
       form.setValue('subcategory_id', newSubcategory.id);
       setNewSubcategoryName('');
       setShowNewSubcategoryInput(false);
+      
+      // تنظيف cache الفئات الفرعية
+      clearSubcategoriesCache(organizationId);
+      
       toast.success('تم إنشاء الفئة الفرعية بنجاح');
     } catch (error) {
       toast.error('حدث خطأ أثناء إنشاء الفئة الفرعية');

@@ -5,7 +5,7 @@ export const productColorSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(1, { message: 'اسم اللون مطلوب' }),
   color_code: z.string().optional().default('#000000'),
-  image_url: z.string().optional(),
+  image_url: z.string().optional().nullable(),
   quantity: z.coerce.number().nonnegative({ message: 'الكمية يجب أن تكون صفر أو أكثر' }).default(0),
   price: z.coerce.number().nonnegative({ message: 'السعر يجب أن يكون صفر أو أكثر' }).optional(),
   purchase_price: z.coerce.number().min(0, { message: "سعر الشراء يجب أن يكون 0 أو أكبر" }).optional(),
@@ -225,6 +225,15 @@ export const productSchema = z.object({
   specifications: z.record(z.string()).optional(),
   advancedSettings: productAdvancedSettingsSchema,
   marketingSettings: productMarketingSettingsSchema,
+}).refine((data) => {
+  // التحقق المشروط للألوان: إذا كان المنتج يستخدم المتغيرات، يجب أن يكون هناك لون واحد على الأقل
+  if (data.has_variants && (!data.colors || data.colors.length === 0)) {
+    return false;
+  }
+  return true;
+}, {
+  message: "يجب إضافة لون واحد على الأقل عند استخدام المتغيرات",
+  path: ["colors"]
 });
 
 export type ProductFormValues = z.infer<typeof productSchema>;

@@ -200,7 +200,16 @@ BEGIN
         'snapchat_pixel_id', pms.snapchat_pixel_id,
         'enable_google_ads_tracking', COALESCE(pms.enable_google_ads_tracking, FALSE),
         'google_ads_conversion_id', pms.google_ads_conversion_id
-      ) as tracking_settings
+      ) as tracking_settings,
+      -- 🔧 إضافة معلومات تشخيصية للتطوير
+      JSONB_BUILD_OBJECT(
+        'debug_info', JSONB_BUILD_OBJECT(
+          'product_id', p_product_id,
+          'pms_found', CASE WHEN pms.id IS NOT NULL THEN TRUE ELSE FALSE END,
+          'offer_timer_enabled_raw', pms.offer_timer_enabled,
+          'query_timestamp', NOW()
+        )
+      ) as debug_info
       FROM product_marketing_settings pms 
       WHERE pms.product_id = p_product_id 
       LIMIT 1
@@ -208,15 +217,21 @@ BEGIN
     SELECT 
       (COALESCE(timer_settings, '{}'::jsonb) || 
        COALESCE(general_settings, '{}'::jsonb) || 
-       COALESCE(tracking_settings, '{}'::jsonb))::json
+       COALESCE(tracking_settings, '{}'::jsonb) ||
+       COALESCE(debug_info, '{}'::jsonb))::json
     INTO v_marketing_settings
     FROM offer_timer_data;
     
-    -- إذا لم نجد بيانات، استخدم قيم افتراضية
+    -- إذا لم نجد بيانات، استخدم قيم افتراضية مع معلومات تشخيصية
     IF v_marketing_settings IS NULL THEN
       v_marketing_settings := JSON_BUILD_OBJECT(
         'offer_timer_enabled', FALSE,
-        'test_mode', TRUE
+        'test_mode', TRUE,
+        'debug_info', JSON_BUILD_OBJECT(
+          'error', 'No product_marketing_settings found',
+          'product_id', p_product_id,
+          'query_timestamp', NOW()
+        )
       );
     END IF;
   END IF;

@@ -57,8 +57,26 @@ const useOfferTimer = (settings: OfferTimerSettings) => {
   const [isExpired, setIsExpired] = useState(false);
   const [isActive, setIsActive] = useState(false);
 
+
+
   const getEndTime = useCallback(() => {
     const now = new Date();
+    
+    // تنظيف المؤقتات المنتهية أولاً
+    const keys = Object.keys(localStorage);
+    
+    keys.forEach(key => {
+      if (key.startsWith('offer_timer_')) {
+        try {
+          const data = JSON.parse(localStorage.getItem(key) || '{}');
+          if (data.endTime && new Date(data.endTime).getTime() <= now.getTime()) {
+            localStorage.removeItem(key);
+          }
+        } catch {
+          localStorage.removeItem(key);
+        }
+      }
+    });
     
     switch (settings.offer_timer_type) {
       case 'specific_date':
@@ -72,7 +90,14 @@ const useOfferTimer = (settings: OfferTimerSettings) => {
         if (existingTimer && !settings.offer_timer_restart_for_new_session) {
           try {
             const parsed = JSON.parse(existingTimer);
-            return new Date(parsed.endTime);
+            const savedEndTime = new Date(parsed.endTime);
+            
+            // 🔧 التحقق من أن المؤقت المحفوظ لم ينته بعد
+            if (savedEndTime.getTime() > now.getTime()) {
+              return savedEndTime;
+            } else {
+              localStorage.removeItem(cookieKey);
+            }
           } catch {
             localStorage.removeItem(cookieKey);
           }
@@ -80,6 +105,8 @@ const useOfferTimer = (settings: OfferTimerSettings) => {
         
         const duration = settings.offer_timer_duration_minutes || 60;
         const endTime = new Date(now.getTime() + duration * 60 * 1000);
+        
+
         
         localStorage.setItem(cookieKey, JSON.stringify({
           endTime: endTime.toISOString(),
@@ -137,7 +164,13 @@ const useOfferTimer = (settings: OfferTimerSettings) => {
     const interval = setInterval(updateTimer, 1000);
 
     return () => clearInterval(interval);
-  }, [settings, getEndTime, calculateTimeRemaining]);
+  }, [
+    settings.offer_timer_enabled, 
+    settings.offer_timer_type, 
+    settings.offer_timer_duration_minutes, 
+    settings.offer_timer_end_date,
+    settings.offer_timer_restart_for_new_session
+  ]);
 
   return { timeRemaining, isExpired, isActive };
 };

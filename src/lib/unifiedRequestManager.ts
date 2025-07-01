@@ -500,18 +500,22 @@ export class UnifiedRequestManager {
    * جلب فئات فرعية - موحد
    */
   static async getProductSubcategories() {
+    console.log('🚀 UnifiedRequestManager.getProductSubcategories() called');
     return executeRequest(
       `unified_subcategories_all`,
       async () => {
+        console.log('🔍 Executing subcategories query...');
         const { data, error } = await supabase
           .from('product_subcategories')
           .select('*')
           .order('name');
         
         if (error) {
+          console.error('❌ Error fetching subcategories:', error);
           return [];
         }
         
+        console.log('✅ Subcategories query success:', data?.length || 0);
         return data || [];
       },
       15 * 60 * 1000 // 15 دقيقة

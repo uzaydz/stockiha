@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { createSubcategory } from '@/lib/api/categories';
 import type { Category } from '@/lib/api/categories';
+import { clearSubcategoriesCache } from '@/lib/cache-utils';
 import {
   Dialog,
   DialogContent,
@@ -59,9 +60,13 @@ const AddSubcategoryDialog = ({ parentCategory, open, onOpenChange, onSubcategor
         category_id: parentCategory.id,
         name: values.name,
         description: values.description,
+        organization_id: parentCategory.organization_id,
       };
       
       await createSubcategory(subcategoryData);
+      
+      // تنظيف cache الفئات الفرعية
+      clearSubcategoriesCache(parentCategory.organization_id);
       
       toast.success('تم إضافة الفئة الفرعية بنجاح');
       form.reset();
