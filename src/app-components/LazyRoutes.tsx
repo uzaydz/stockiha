@@ -41,6 +41,7 @@ export const OrganizationSetup = lazy(() => import('../pages/OrganizationSetup')
 export const Dashboard = lazy(() => import('../pages/Dashboard'));
 export const Products = lazy(() => import('../pages/dashboard/Products'));
 export const Inventory = lazy(() => import('../pages/dashboard/Inventory'));
+export const AdvancedInventoryTracking = lazy(() => import('../components/inventory/AdvancedInventoryTrackingPage'));
 export const Categories = lazy(() => import('../pages/dashboard/Categories'));
 export const OptimizedSales = lazy(() => import('../pages/dashboard/OptimizedSales'));
 export const Orders = lazy(() => import('../pages/dashboard/Orders'));

@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { Product, Order, User as AppUser } from '@/types';
 import { supabase } from '@/lib/supabase';
+import { v4 as uuidv4 } from 'uuid';
 
 interface CartItem {
   product: Product;
@@ -104,28 +105,34 @@ export const usePOSReturn = ({
 
   // معالجة إرجاع العناصر
   const processReturn = useCallback(async (orderDetails?: Partial<Order>): Promise<{orderId: string, customerOrderNumber: number}> => {
-    console.log(`🔄 [RETURN] بدء معالجة الإرجاع`);
-    console.log(`📋 [RETURN] عدد المنتجات في سلة الإرجاع: ${returnItems.length}`);
-    console.log(`📦 [RETURN] منتجات الإرجاع:`, returnItems.map(item => `${item.product.name} (الكمية: ${item.quantity})`));
     
-    if (!returnItems.length || !currentUser?.id || !currentOrganizationId) {
-      toast.error('يجب إضافة عناصر للإرجاع');
-      throw new Error('No items to return');
+    if (!currentUser) {
+      toast.error('يجب تسجيل الدخول لإجراء عملية الإرجاع');
+      return Promise.reject('No user logged in');
     }
 
+    if (returnItems.length === 0) {
+      toast.error("لا توجد منتجات للإرجاع");
+      return Promise.reject('No items to return');
+    }
+
+    // حساب المبلغ الأصلي
+    const originalAmount = returnItems.reduce((sum, item) => {
+      const itemPrice = item.variantPrice || item.product.price;
+      return sum + (itemPrice * item.quantity);
+    }, 0);
+    
+    // استخدام المبلغ المعدل من PaymentDialog إذا كان متوفراً، وإلا استخدم المبلغ الأصلي
+    const returnAmount = orderDetails?.total || originalAmount;
+    
+    // إنشاء معرف UUID صحيح وأرقام الإرجاع
+    const returnId = uuidv4();
+    const returnNumber = `RET-DIRECT-${Date.now()}`;
+    
     try {
-      // حساب المبلغ الإجمالي الأصلي للإرجاع
-      const originalAmount = returnItems.reduce((sum, item) => 
-        sum + ((item.variantPrice || item.product.price) * item.quantity), 0);
-      
-      // استخدام المبلغ المعدل من PaymentDialog إذا كان متوفراً، وإلا استخدم المبلغ الأصلي
-      const returnAmount = orderDetails?.total || originalAmount;
-      
-      // إنشاء رقم الإرجاع
-      const returnNumber = `RET-DIRECT-${Date.now()}`;
-      
       // إنشاء بيانات طلب الإرجاع
       const returnData = {
+        id: returnId,
         return_number: returnNumber,
         original_order_id: null,
         customer_name: (orderDetails as any)?.customer_name || 'زائر',
@@ -144,85 +151,52 @@ export const usePOSReturn = ({
         created_by: currentUser.id
       };
 
-      // إدراج طلب الإرجاع (تم تعطيل جدول الإرجاع مؤقتاً في Supabase)
-      // سيتم تنفيذ العملية بدون حفظ في قاعدة البيانات للآن
-      const returnRecord = {
-        id: `return-${Date.now()}`,
-        ...returnData
-      };
+      // تحديث المخزون للمنتجات المرجعة بشكل متوازي
+      const stockUpdatePromises = returnItems.map(async (item) => {
+        // تحديث المخزون الأساسي للمنتج
+        const { data: currentProduct } = await supabase
+          .from('products')
+          .select('stock_quantity')
+          .eq('id', item.product.id)
+          .single();
 
-      // إدراج عناصر الإرجاع
-      const returnItemsData = returnItems.map(item => {
-        const originalItemPrice = item.variantPrice || item.product.price;
-        const totalOriginalPrice = originalItemPrice * item.quantity;
-        const adjustedItemPrice = (returnAmount / originalAmount) * originalItemPrice;
-        const adjustedTotalPrice = adjustedItemPrice * item.quantity;
-        
-        return {
-          return_id: returnRecord.id,
-          original_order_item_id: null,
-          product_id: item.product.id,
-          product_name: item.product.name,
-          product_sku: item.product.sku || null,
-          original_quantity: item.quantity,
-          return_quantity: item.quantity,
-          original_unit_price: originalItemPrice,
-          return_unit_price: adjustedItemPrice,
-          total_return_amount: adjustedTotalPrice,
-          variant_info: {
-            color_id: item.colorId || null,
-            size_id: item.sizeId || null,
-            color_name: item.colorName || null,
-            size_name: item.sizeName || null,
-            variant_display_name: item.colorName || item.sizeName ? 
-              `${item.colorName || ''} ${item.sizeName || ''}`.trim() : null,
-            type: 'direct_return'
-          },
-          condition_status: 'good',
-          resellable: true,
-          inventory_returned: true,
-          inventory_returned_at: new Date().toISOString()
-        };
-      });
-
-      // تحديث المخزون للمنتجات المرجعة
-      for (const item of returnItems) {
-        try {
-          console.log(`🔄 [RETURN] معالجة إرجاع المنتج: ${item.product.name}`);
-          console.log(`📦 [RETURN] كمية الإرجاع: ${item.quantity}`);
+        if (currentProduct) {
+          const newStockQuantity = (currentProduct.stock_quantity || 0) + item.quantity;
           
-          // تحديث المخزون الأساسي للمنتج
-          const { data: currentProduct } = await supabase
+          // تحديث المخزون
+          const { error: updateError } = await supabase
             .from('products')
-            .select('stock_quantity')
-            .eq('id', item.product.id)
-            .single();
-
-          console.log(`📊 [RETURN] المخزون الحالي قبل الإرجاع: ${currentProduct?.stock_quantity || 0}`);
-          
-          if (currentProduct) {
-            const newStockQuantity = (currentProduct.stock_quantity || 0) + item.quantity;
-            console.log(`➕ [RETURN] المخزون الجديد بعد الإرجاع: ${newStockQuantity}`);
+            .update({ 
+              stock_quantity: newStockQuantity 
+            })
+            .eq('id', item.product.id);
             
-            const { data: updateResult, error: updateError } = await supabase
-              .from('products')
-              .update({ 
-                stock_quantity: newStockQuantity 
-              })
-              .eq('id', item.product.id)
-              .select('stock_quantity');
-              
-            if (updateError) {
-              console.error(`❌ [RETURN] خطأ في تحديث المخزون:`, updateError);
-            } else {
-              console.log(`✅ [RETURN] تم تحديث المخزون بنجاح:`, updateResult);
-            }
+          if (updateError) {
+            throw updateError;
+          }
+
+          // تسجيل عملية الإرجاع في inventory_log مع UUID صحيح
+          const { error: logError } = await supabase
+            .from('inventory_log')
+            .insert({
+              product_id: item.product.id,
+              quantity: item.quantity,
+              previous_stock: currentProduct.stock_quantity,
+              new_stock: newStockQuantity,
+              type: 'return',
+              reference_type: 'pos_return',
+              reference_id: returnId, // استخدام UUID صحيح
+              notes: `إرجاع مباشر من نقطة البيع - ${item.product.name}${item.colorName ? ` (${item.colorName})` : ''}${item.sizeName ? ` (${item.sizeName})` : ''}`,
+              created_by: currentUser.id,
+              organization_id: currentOrganizationId
+            });
+          
+          if (logError) {
+            console.error(`❌ [RETURN] خطأ في تسجيل inventory_log:`, logError);
           }
 
           // تحديث مخزون المتغيرات إذا كانت موجودة
           if (item.colorId && item.sizeId) {
-            console.log(`🎨 [RETURN] تحديث مخزون المقاس - اللون: ${item.colorId}, المقاس: ${item.sizeId}`);
-            
             const { data: currentSize } = await supabase
               .from('product_sizes')
               .select('quantity')
@@ -230,30 +204,18 @@ export const usePOSReturn = ({
               .eq('id', item.sizeId)
               .single();
 
-            console.log(`📊 [RETURN] مخزون المقاس الحالي: ${currentSize?.quantity || 0}`);
-            
             if (currentSize) {
               const newSizeQuantity = (currentSize.quantity || 0) + item.quantity;
-              console.log(`➕ [RETURN] مخزون المقاس الجديد: ${newSizeQuantity}`);
               
-              const { data: sizeUpdateResult, error: sizeUpdateError } = await supabase
+              await supabase
                 .from('product_sizes')
                 .update({ 
                   quantity: newSizeQuantity 
                 })
                 .eq('color_id', item.colorId)
-                .eq('id', item.sizeId)
-                .select('quantity');
-                
-              if (sizeUpdateError) {
-                console.error(`❌ [RETURN] خطأ في تحديث مخزون المقاس:`, sizeUpdateError);
-              } else {
-                console.log(`✅ [RETURN] تم تحديث مخزون المقاس:`, sizeUpdateResult);
-              }
+                .eq('id', item.sizeId);
             }
           } else if (item.colorId) {
-            console.log(`🎨 [RETURN] تحديث مخزون اللون: ${item.colorId}`);
-            
             const { data: currentColor } = await supabase
               .from('product_colors')
               .select('quantity')
@@ -261,56 +223,43 @@ export const usePOSReturn = ({
               .eq('id', item.colorId)
               .single();
 
-            console.log(`📊 [RETURN] مخزون اللون الحالي: ${currentColor?.quantity || 0}`);
-            
             if (currentColor) {
               const newColorQuantity = (currentColor.quantity || 0) + item.quantity;
-              console.log(`➕ [RETURN] مخزون اللون الجديد: ${newColorQuantity}`);
               
-              const { data: colorUpdateResult, error: colorUpdateError } = await supabase
+              await supabase
                 .from('product_colors')
                 .update({ 
                   quantity: newColorQuantity 
                 })
                 .eq('product_id', item.product.id)
-                .eq('id', item.colorId)
-                .select('quantity');
-                
-              if (colorUpdateError) {
-                console.error(`❌ [RETURN] خطأ في تحديث مخزون اللون:`, colorUpdateError);
-              } else {
-                console.log(`✅ [RETURN] تم تحديث مخزون اللون:`, colorUpdateResult);
-              }
+                .eq('id', item.colorId);
             }
           }
 
-          // تحديث cache محلياً أيضاً - إضافة للمخزون في وضع الإرجاع
-          console.log(`🔄 [RETURN] تحديث cache محلياً - المنتج: ${item.product.id}, الكمية: +${item.quantity}`);
+          // تحديث cache محلياً - إضافة للمخزون في وضع الإرجاع
           updateProductStockInCache(
             item.product.id,
             item.colorId || null,
             item.sizeId || null,
             item.quantity // إضافة للمخزون (قيمة موجبة)
           );
-          console.log(`✅ [RETURN] تم تحديث cache للمنتج: ${item.product.name}`);
-        } catch (stockError) {
         }
-      }
+      });
 
-      console.log(`✅ [RETURN] اكتمل معالجة الإرجاع بنجاح - رقم الإرجاع: ${returnNumber}`);
+      // تنفيذ جميع التحديثات بشكل متوازي
+      await Promise.all(stockUpdatePromises);
+
       toast.success(`تم إنشاء إرجاع مباشر رقم ${returnNumber} بنجاح`);
       clearReturnCart();
       setIsReturnMode(false);
       
       // تحديث البيانات
-      console.log(`🔄 [RETURN] تحديث البيانات من الخادم...`);
       if (refreshPOSData) {
         await refreshPOSData();
-        console.log(`✅ [RETURN] تم تحديث البيانات من الخادم`);
       }
       
       return {
-        orderId: returnRecord.id,
+        orderId: returnId,
         customerOrderNumber: parseInt(returnNumber.replace(/[^\d]/g, '')) || 0
       };
       

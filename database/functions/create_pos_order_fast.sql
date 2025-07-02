@@ -376,10 +376,11 @@ BEGIN
     DECLARE
         order_type TEXT;
         existing_log_count INTEGER;
+        order_employee_id UUID;
     BEGIN
-        -- جلب نوع الطلبية
-        SELECT COALESCE(pos_order_type, 'regular')
-        INTO order_type
+        -- جلب نوع الطلبية ومعرف الموظف
+        SELECT COALESCE(pos_order_type, 'regular'), employee_id
+        INTO order_type, order_employee_id
         FROM orders 
         WHERE id = NEW.order_id;
         
@@ -407,7 +408,8 @@ BEGIN
             reference_id,
             reference_type,
             notes,
-            organization_id
+            organization_id,
+            created_by
         )
         SELECT 
             NEW.product_id,
@@ -421,7 +423,8 @@ BEGIN
                 ELSE 'order'
             END,
             'بيع من خلال طلب رقم ' || NEW.order_id,
-            NEW.organization_id
+            NEW.organization_id,
+            order_employee_id
         FROM products p
         WHERE p.id = NEW.product_id;
         
@@ -441,6 +444,7 @@ $$;
 
 -- حذف الـ trigger القديم وإنشاء الجديد
 DROP TRIGGER IF EXISTS log_sales_trigger ON order_items;
+DROP TRIGGER IF EXISTS log_sales_trigger_smart ON order_items;
 
 CREATE TRIGGER log_sales_trigger_smart
     AFTER INSERT ON order_items

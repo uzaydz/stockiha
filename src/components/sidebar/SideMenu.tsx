@@ -58,7 +58,8 @@ import {
   Smartphone,
   CreditCard,
   Gamepad2,
-  ShoppingCart
+  ShoppingCart,
+  Activity
 } from 'lucide-react';
 
 // استيراد سياق التطبيقات
@@ -384,6 +385,13 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
           href: '/dashboard/inventory',
           requiredPermission: 'viewInventory',
           badge: '5'
+        },
+        {
+          title: 'تتبع المخزون المتقدم',
+          icon: Activity,
+          href: '/dashboard/inventory-tracking',
+          requiredPermission: 'viewInventory',
+          badge: 'جديد'
         },
       ]
     },

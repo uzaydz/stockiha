@@ -73,6 +73,17 @@ export const DashboardRoutes = () => (
           </SubscriptionCheck>
         } />
         
+        {/* تتبع المخزون المتقدم */}
+        <Route path="/dashboard/inventory-tracking" element={
+          <SubscriptionCheck>
+            <PermissionGuard requiredPermissions={['viewInventory']}>
+              <Suspense fallback={<PageLoader message="جاري تحميل تتبع المخزون المتقدم..." />}>
+                <LazyRoutes.AdvancedInventoryTracking />
+              </Suspense>
+            </PermissionGuard>
+          </SubscriptionCheck>
+        } />
+        
         {/* الطباعة السريعة للباركود */}
         <Route path="/dashboard/quick-barcode-print" element={
           <SubscriptionCheck>
@@ -289,6 +300,17 @@ export const DashboardRoutes = () => (
           </SubscriptionCheck>
         } />
         
+        {/* إضافة مورد جديد */}
+        <Route path="/dashboard/suppliers/new" element={
+          <SubscriptionCheck>
+            <PermissionGuard requiredPermissions={['manageSuppliers']}>
+              <Suspense fallback={<PageLoader message="جاري تحميل نموذج مورد جديد..." />}>
+                <LazyRoutes.SuppliersManagement />
+              </Suspense>
+            </PermissionGuard>
+          </SubscriptionCheck>
+        } />
+        
         <Route path="/dashboard/suppliers/purchases" element={
           <SubscriptionCheck>
             <Suspense fallback={<PageLoader message="جاري تحميل مشتريات الموردين..." />}>
@@ -308,9 +330,49 @@ export const DashboardRoutes = () => (
           </SubscriptionCheck>
         } />
         
+        {/* عرض تفاصيل مشتريات من المورد */}
+        <Route path="/dashboard/suppliers/purchases/:purchaseId" element={
+          <SubscriptionCheck>
+            <Suspense fallback={<PageLoader message="جاري تحميل تفاصيل المشتريات..." />}>
+              <LazyRoutes.SupplierPurchases />
+            </Suspense>
+          </SubscriptionCheck>
+        } />
+        
+        {/* تعديل مشتريات من المورد */}
+        <Route path="/dashboard/suppliers/purchases/:purchaseId/edit" element={
+          <SubscriptionCheck>
+            <PermissionGuard requiredPermissions={['manageSuppliers']}>
+              <Suspense fallback={<PageLoader message="جاري تحميل تعديل المشتريات..." />}>
+                <LazyRoutes.SupplierPurchases />
+              </Suspense>
+            </PermissionGuard>
+          </SubscriptionCheck>
+        } />
+        
         <Route path="/dashboard/suppliers/payments" element={
           <SubscriptionCheck>
             <Suspense fallback={<PageLoader message="جاري تحميل مدفوعات الموردين..." />}>
+              <LazyRoutes.SupplierPayments />
+            </Suspense>
+          </SubscriptionCheck>
+        } />
+        
+        {/* إضافة دفعة جديدة للمورد */}
+        <Route path="/dashboard/suppliers/payments/new" element={
+          <SubscriptionCheck>
+            <PermissionGuard requiredPermissions={['manageSuppliers']}>
+              <Suspense fallback={<PageLoader message="جاري تحميل نموذج دفعة جديدة..." />}>
+                <LazyRoutes.SupplierPayments />
+              </Suspense>
+            </PermissionGuard>
+          </SubscriptionCheck>
+        } />
+        
+        {/* عرض تفاصيل دفعة للمورد */}
+        <Route path="/dashboard/suppliers/payments/:paymentId" element={
+          <SubscriptionCheck>
+            <Suspense fallback={<PageLoader message="جاري تحميل تفاصيل الدفعة..." />}>
               <LazyRoutes.SupplierPayments />
             </Suspense>
           </SubscriptionCheck>
