@@ -267,17 +267,22 @@ export default function Cart({
       // 🚀 تحضير بيانات الطلب بشكل محسن
       const orderDetails = {
         customerId: selectedCustomer?.id || 'guest',
+        customer_name: selectedCustomer?.name || 'زائر',
         paymentMethod,
         subtotal,
         discount: actualDiscountAmount,
         total: finalTotal,
         status: 'completed',
         paymentStatus,
-        notes: isPartialPayment 
-          ? (considerRemainingAsPartial 
-            ? `${notes} | دفع جزئي: ${numAmountPaid.toFixed(2)} - متبقي: ${remainingAmount.toFixed(2)}` 
-            : `${notes} | تخفيض: ${remainingAmount.toFixed(2)} دج`)
-          : notes,
+        notes: isReturnMode 
+          ? returnNotes || 'إرجاع مباشر'
+          : (isPartialPayment 
+            ? (considerRemainingAsPartial 
+              ? `${notes} | دفع جزئي: ${numAmountPaid.toFixed(2)} - متبقي: ${remainingAmount.toFixed(2)}` 
+              : `${notes} | تخفيض: ${remainingAmount.toFixed(2)} دج`)
+            : notes),
+        returnReason: isReturnMode ? returnReason : undefined,
+        returnNotes: isReturnMode ? returnNotes : undefined,
         employeeId: currentUser?.id || "",
         partialPayment: (isPartialPayment && considerRemainingAsPartial) ? {
           amountPaid: numAmountPaid,
@@ -287,13 +292,19 @@ export default function Cart({
         subscriptionAccountInfo: hasSubscriptionServices ? subscriptionAccountInfo : undefined
       };
 
-      // ⚡ استدعاء الدالة السريعة مع debouncing
-      const orderResult = await submitOrderFast(
-        orderDetails,
-        cartItems,
-        selectedServices,
-        selectedSubscriptions
-      );
+      // في وضع الإرجاع، استخدام دالة الإرجاع، وإلا استخدام الدالة السريعة
+      console.log(`🔄 [CART] نوع العملية: ${isReturnMode ? 'إرجاع' : 'بيع'}`);
+      
+      const orderResult = isReturnMode 
+        ? await submitOrder(orderDetails)
+        : await submitOrderFast(
+            orderDetails,
+            cartItems,
+            selectedServices,
+            selectedSubscriptions
+          );
+          
+      console.log(`✅ [CART] نتيجة العملية:`, orderResult);
 
       // التحقق من نجاح العملية
       if (!orderResult.orderId) {
@@ -346,6 +357,8 @@ export default function Cart({
     considerRemainingAsPartial,
     selectedCustomer,
     isReturnMode,
+    returnReason,
+    returnNotes,
     isSubmitting,
     amountPaid,
     total,
@@ -358,6 +371,7 @@ export default function Cart({
     currentUser?.id,
     hasSubscriptionServices,
     subscriptionAccountInfo,
+    submitOrder,
     submitOrderFast,
     cartItems,
     selectedServices,

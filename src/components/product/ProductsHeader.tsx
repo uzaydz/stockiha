@@ -58,7 +58,7 @@ const ProductsHeader = ({
           <Button 
             variant="default" 
             className="flex-1 sm:w-auto whitespace-nowrap" 
-            onClick={() => navigate('/dashboard/product/new')}
+            onClick={() => navigate('/dashboard/products/new')}
           >
             <Plus className="h-4 w-4 ml-2" />
             إضافة منتج

@@ -43,10 +43,41 @@ export const DashboardRoutes = () => (
           </SubscriptionCheck>
         } />
         
+        {/* تعديل منتج موجود */}
+        <Route path="/dashboard/product/:id" element={
+          <SubscriptionCheck>
+            <PermissionGuard requiredPermissions={['editProducts']}>
+              <Suspense fallback={<PageLoader message="جاري تحميل تعديل المنتج..." />}>
+                <LazyRoutes.ProductForm />
+              </Suspense>
+            </PermissionGuard>
+          </SubscriptionCheck>
+        } />
+        
+        {/* تخصيص صفحة شراء المنتج */}
+        <Route path="/dashboard/products/:productId/customize-purchase-page" element={
+          <SubscriptionCheck>
+            <PermissionGuard requiredPermissions={['editProducts']}>
+              <Suspense fallback={<PageLoader message="جاري تحميل تخصيص صفحة الشراء..." />}>
+                <LazyRoutes.CustomizeProductPurchasePage />
+              </Suspense>
+            </PermissionGuard>
+          </SubscriptionCheck>
+        } />
+        
         <Route path="/dashboard/inventory" element={
           <SubscriptionCheck>
             <Suspense fallback={<PageLoader message="جاري تحميل المخزون..." />}>
               <LazyRoutes.Inventory />
+            </Suspense>
+          </SubscriptionCheck>
+        } />
+        
+        {/* الطباعة السريعة للباركود */}
+        <Route path="/dashboard/quick-barcode-print" element={
+          <SubscriptionCheck>
+            <Suspense fallback={<PageLoader message="جاري تحميل الطباعة السريعة..." />}>
+              <LazyRoutes.QuickBarcodePrintPage />
             </Suspense>
           </SubscriptionCheck>
         } />
@@ -381,6 +412,67 @@ export const DashboardRoutes = () => (
             <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
               <Suspense fallback={<PageLoader message="جاري تحميل التطبيقات..." />}>
                 <LazyRoutes.AppsManagement />
+              </Suspense>
+            </PermissionGuard>
+          </SubscriptionCheck>
+        } />
+        
+        {/* صفحات الهبوط والنماذج */}
+        <Route path="/dashboard/landing-pages" element={
+          <SubscriptionCheck>
+            <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+              <Suspense fallback={<PageLoader message="جاري تحميل صفحات الهبوط..." />}>
+                <LazyRoutes.LandingPagesManager />
+              </Suspense>
+            </PermissionGuard>
+          </SubscriptionCheck>
+        } />
+        
+        <Route path="/landing-page-builder/:id" element={
+          <SubscriptionCheck>
+            <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+              <Suspense fallback={<PageLoader message="جاري تحميل منشئ صفحة الهبوط..." />}>
+                <LazyRoutes.LandingPageBuilder />
+              </Suspense>
+            </PermissionGuard>
+          </SubscriptionCheck>
+        } />
+        
+        <Route path="/dashboard/thank-you-editor" element={
+          <SubscriptionCheck>
+            <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+              <Suspense fallback={<PageLoader message="جاري تحميل محرر صفحة الشكر..." />}>
+                <LazyRoutes.ThankYouPageEditor />
+              </Suspense>
+            </PermissionGuard>
+          </SubscriptionCheck>
+        } />
+        
+        <Route path="/dashboard/form-settings" element={
+          <SubscriptionCheck>
+            <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+              <Suspense fallback={<PageLoader message="جاري تحميل إعدادات النماذج..." />}>
+                <LazyRoutes.FormSettings />
+              </Suspense>
+            </PermissionGuard>
+          </SubscriptionCheck>
+        } />
+        
+        <Route path="/form-builder/:formId" element={
+          <SubscriptionCheck>
+            <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+              <Suspense fallback={<PageLoader message="جاري تحميل منشئ النماذج..." />}>
+                <LazyRoutes.FormBuilder />
+              </Suspense>
+            </PermissionGuard>
+          </SubscriptionCheck>
+        } />
+        
+        <Route path="/dashboard/custom-pages" element={
+          <SubscriptionCheck>
+            <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+              <Suspense fallback={<PageLoader message="جاري تحميل الصفحات المخصصة..." />}>
+                <LazyRoutes.CustomPagesManager />
               </Suspense>
             </PermissionGuard>
           </SubscriptionCheck>

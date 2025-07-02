@@ -17,6 +17,7 @@ import {
   validateStoredData 
 } from '@/lib/utils/auth-storage';
 import { authSingleton } from '@/lib/authSingleton';
+import { authProxy } from '@/lib/auth-proxy';
 import type { Database } from '@/types/database.types';
 
 // Use the complete User type from the database types with call center extensions

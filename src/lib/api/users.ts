@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/api/authHelpers';
+import { getUser as getAuthUser } from '@/lib/auth-proxy';
 import type { Database } from '@/types/database.types';
 import type { User, InsertUser } from '@/types/user';
 import { getUserProfile } from './userProfile';
@@ -241,7 +242,7 @@ export const getCurrentUserProfile = async (): Promise<User | null> => {
     // إذا لم نجد أي بيانات مصادقة، استخدم أسلوب مباشر مع timeout سريع
     if (!authData?.user) {
       try {
-        const directPromise = supabase.auth.getUser();
+        const directPromise = getAuthUser();
         const directTimeoutPromise = new Promise<never>((_, reject) => 
           setTimeout(() => reject(new Error('Direct auth timeout')), 300) // 300ms فقط
         );

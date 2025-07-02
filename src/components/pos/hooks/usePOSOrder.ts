@@ -347,13 +347,13 @@ export const usePOSOrder = ({
         throw new Error('فشل في إنشاء الطلب');
       }
 
-      // تحديث المخزون في cache لكل منتج
+      // تحديث المخزون في cache لكل منتج (إنقاص المخزون عند إنهاء الطلب)
       cartItems.forEach(item => {
         updateProductStockInCache(
           item.product.id,
           item.colorId || null,
           item.sizeId || null,
-          item.quantity
+          -item.quantity
         );
       });
 

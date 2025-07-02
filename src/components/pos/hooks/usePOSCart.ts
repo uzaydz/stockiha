@@ -103,12 +103,12 @@ export const usePOSCart = ({
     // إضافة المنتج للتبويب النشط
     addItemToCartTab(product, 1);
     
-    // تحديث المخزون في cache فوراً
+    // تحديث المخزون في cache فوراً (إنقاص المخزون عند البيع)
     updateProductStockInCache(
       product.id,
       null,
       null,
-      1
+      -1
     );
     
     toast.success(`تمت إضافة "${product.name}" إلى السلة`);
@@ -178,12 +178,12 @@ export const usePOSCart = ({
       variantImage
     });
     
-    // تحديث المخزون في cache فوراً
+    // تحديث المخزون في cache فوراً (إنقاص المخزون عند البيع)
     updateProductStockInCache(
       product.id,
       colorId || null,
       sizeId || null,
-      1
+      -1
     );
     
     toast.success(`تمت إضافة "${variantName || product.name}" إلى السلة`);
@@ -193,12 +193,12 @@ export const usePOSCart = ({
   const removeItemFromCart = useCallback((index: number) => {
     const item = cartItems[index];
     
-    // إرجاع المخزون
+    // إرجاع المخزون (زيادة المخزون عند الحذف)
     updateProductStockInCache(
       item.product.id, 
       item.colorId || null, 
       item.sizeId || null, 
-      -item.quantity
+      item.quantity
     );
     
     removeItemFromCartTab(activeTabId, index);
@@ -247,23 +247,23 @@ export const usePOSCart = ({
       // تعيين الكمية بالحد الأقصى المتاح
       updateItemQuantityTab(activeTabId, index, totalAvailable);
       
-      // تحديث المخزون
+      // تحديث المخزون (إنقاص المخزون عند زيادة الكمية)
       updateProductStockInCache(
         item.product.id,
         item.colorId || null,
         item.sizeId || null,
-        totalAvailable - oldQuantity
+        -(totalAvailable - oldQuantity)
       );
       return;
     }
     
-    // تحديث المخزون بناءً على الفرق
+    // تحديث المخزون بناءً على الفرق (إنقاص المخزون عند زيادة الكمية)
     if (quantityDiff !== 0) {
       updateProductStockInCache(
         item.product.id,
         item.colorId || null,
         item.sizeId || null,
-        quantityDiff
+        -quantityDiff
       );
     }
     
@@ -272,13 +272,13 @@ export const usePOSCart = ({
 
   // مسح السلة
   const clearCart = useCallback(() => {
-    // إرجاع المخزون لجميع المنتجات
+    // إرجاع المخزون لجميع المنتجات (زيادة المخزون عند المسح)
     cartItems.forEach(item => {
       updateProductStockInCache(
         item.product.id, 
         item.colorId || null, 
         item.sizeId || null, 
-        -item.quantity
+        item.quantity
       );
     });
     

@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { verifyTOTP, debugTOTP } from '@/lib/totp-verification';
+import { getUser as getAuthUser } from '@/lib/auth-proxy';
 
 // Types للأمان والخصوصية
 export interface SecuritySettings {
@@ -108,7 +109,7 @@ export interface VerificationCode {
  */
 export async function getSecuritySettings(): Promise<SecuritySettings | null> {
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await getAuthUser();
     
     if (authError || !user) {
       return null;
@@ -137,7 +138,7 @@ export async function updateSecuritySettings(settings: Partial<SecuritySettings>
   data?: SecuritySettings;
 }> {
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await getAuthUser();
     
     if (authError || !user) {
       return {
@@ -180,7 +181,7 @@ export async function updateSecuritySettings(settings: Partial<SecuritySettings>
  */
 export async function getPrivacySettings(): Promise<PrivacySettings | null> {
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await getAuthUser();
     
     if (authError || !user) {
       return null;
@@ -209,7 +210,7 @@ export async function updatePrivacySettings(settings: Partial<PrivacySettings>):
   data?: PrivacySettings;
 }> {
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await getAuthUser();
     
     if (authError || !user) {
       return {
@@ -252,7 +253,7 @@ export async function updatePrivacySettings(settings: Partial<PrivacySettings>):
  */
 export async function getActiveSessions(): Promise<UserSession[]> {
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await getAuthUser();
     
     if (authError || !user) {
       return [];
@@ -281,7 +282,7 @@ export async function terminateSession(sessionId: string): Promise<{
   error?: string;
 }> {
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await getAuthUser();
     
     if (authError || !user) {
       return {
@@ -322,7 +323,7 @@ export async function terminateAllOtherSessions(): Promise<{
   error?: string;
 }> {
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await getAuthUser();
     
     if (authError || !user) {
       return {
@@ -364,7 +365,7 @@ export async function terminateAllOtherSessions(): Promise<{
  */
 export async function getSecurityLogs(limit: number = 50): Promise<SecurityLog[]> {
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await getAuthUser();
     
     if (authError || !user) {
       return [];
@@ -430,7 +431,7 @@ export async function logSecurityActivity(
  */
 export async function getTrustedDevices(): Promise<TrustedDevice[]> {
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await getAuthUser();
     
     if (authError || !user) {
       return [];
@@ -459,7 +460,7 @@ export async function removeTrustedDevice(deviceId: string): Promise<{
   error?: string;
 }> {
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await getAuthUser();
     
     if (authError || !user) {
       return {
@@ -551,7 +552,7 @@ export async function updateGoogleAccountLink(googleUserId: string, isLinked: bo
   error?: string;
 }> {
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await getAuthUser();
     
     if (authError || !user) {
       return {
@@ -696,7 +697,7 @@ export async function simulateGoogleLink(googleEmail: string): Promise<{
   error?: string;
 }> {
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await getAuthUser();
     
     if (authError || !user) {
       return {
@@ -747,7 +748,7 @@ export interface TwoFactorSetup {
  */
 export async function setupTwoFactorAuth(): Promise<TwoFactorSetup> {
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await getAuthUser();
     
     if (authError || !user) {
       return {
@@ -792,7 +793,7 @@ export async function enableTwoFactorAuth(verificationCode: string): Promise<{
   error?: string;
 }> {
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await getAuthUser();
     
     if (authError || !user) {
       return {
@@ -877,7 +878,7 @@ export async function disableTwoFactorAuth(verificationCode: string): Promise<{
   error?: string;
 }> {
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await getAuthUser();
     
     if (authError || !user) {
       return {

@@ -18,6 +18,7 @@ import { Toaster } from "./components/ui/toaster";
 import { ThemeProvider } from './context/ThemeContext';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { initPerformanceOptimizations } from './utils/performanceOptimizer';
+import AuthPerformanceMonitor from './components/debug/AuthPerformanceMonitor';
 
 // 🔧 Make React globally available if needed
 (window as any).React = React;
@@ -124,6 +125,10 @@ const AppProviders = ({ children }: { children: React.ReactNode }) => {
               <ThemeProviderWrapper>
                 {children}
                 <Toaster />
+                {/* مراقب أداء المصادقة - فقط في بيئة التطوير */}
+                {process.env.NODE_ENV === 'development' && (
+                  <AuthPerformanceMonitor position="bottom-right" />
+                )}
               </ThemeProviderWrapper>
             </UserProvider>
           </TenantProvider>

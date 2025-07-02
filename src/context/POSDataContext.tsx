@@ -998,10 +998,8 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
                 ...color,
                 sizes: color.sizes?.map(size => {
                   if (size.id === sizeId) {
-                    // التغيير: استخدام العملية الصحيحة بناءً على إشارة quantityChange
-                    // إذا كانت quantityChange سالبة (إرجاع)، ستؤدي إلى إضافة للمخزون
-                    // إذا كانت quantityChange موجبة (بيع)، ستؤدي إلى تقليل من المخزون
-                    const newQuantity = Math.max(0, size.quantity - quantityChange);
+                    // quantityChange موجبة = إضافة للمخزون، سالبة = إنقاص من المخزون
+                    const newQuantity = Math.max(0, size.quantity + quantityChange);
                     return { ...size, quantity: newQuantity };
                   }
                   return size;
@@ -1014,16 +1012,16 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
           // تحديث لون محدد
           updatedProduct.colors = product.colors?.map(color => {
             if (color.id === colorId) {
-              // نفس المنطق: quantityChange سالبة = إضافة، موجبة = تقليل
-              const newQuantity = Math.max(0, color.quantity - quantityChange);
+              // quantityChange موجبة = إضافة للمخزون، سالبة = إنقاص من المخزون
+              const newQuantity = Math.max(0, color.quantity + quantityChange);
               return { ...color, quantity: newQuantity };
             }
             return color;
           }) || [];
         } else {
           // تحديث المنتج الأساسي
-          // نفس المنطق: quantityChange سالبة = إضافة، موجبة = تقليل
-          const newQuantity = Math.max(0, product.stock_quantity - quantityChange);
+          // quantityChange موجبة = إضافة للمخزون، سالبة = إنقاص من المخزون
+          const newQuantity = Math.max(0, product.stock_quantity + quantityChange);
           updatedProduct.stock_quantity = newQuantity;
           updatedProduct.stockQuantity = newQuantity;
           updatedProduct.actual_stock_quantity = newQuantity;
