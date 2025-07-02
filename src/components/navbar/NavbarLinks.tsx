@@ -1,24 +1,13 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
-  ChevronDown, Home, Tag, Settings, Truck, 
-  Package, ShoppingCart, ShieldCheck, LayoutGrid, Sparkles, Wrench
+  Home, Tag, Settings, 
+  Package, ShoppingCart, ShieldCheck, Wrench
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useApps } from '@/context/AppsContext';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  DropdownMenuGroup,
-  DropdownMenuLabel
-} from '@/components/ui/dropdown-menu';
 import type { Category } from '@/api/store';
-import { Badge } from "@/components/ui/badge";
 
 interface NavbarLinksProps {
   isAdminPage?: boolean;
@@ -27,21 +16,11 @@ interface NavbarLinksProps {
   className?: string;
 }
 
-// إضافة واجهة خاصة للعناصر الفرعية التي تحتوي على خاصية path
-interface SubMenuItem {
-  name: string;
-  id: string;
-  path?: string;
-}
-
 interface NavLink {
   name: string;
   path: string;
   icon: any;
-  hasSubmenu?: boolean;
-  submenuItems?: Category[] | SubMenuItem[];
   hasNew?: boolean;
-  featured?: {id: string, name: string}[];
 }
 
 export function NavbarLinks({ 
@@ -53,9 +32,7 @@ export function NavbarLinks({
   const { t } = useTranslation();
   const location = useLocation();
   const { isAppEnabled, organizationApps } = useApps();
-  const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
   const [hoveredLink, setHoveredLink] = useState<string | null>(null);
-  const [dropdownHovered, setDropdownHovered] = useState<string | null>(null);
   
   // تحسين فحص تفعيل تطبيق التصليحات مع memoization
   const isRepairServicesEnabled = useMemo(() => {
@@ -69,41 +46,10 @@ export function NavbarLinks({
         { name: t('navbar.products'), path: '/dashboard/products', icon: Package },
         { name: t('navbar.orders'), path: '/dashboard/orders', icon: ShoppingCart },
       ];
-    } else if (categories.length > 0) {
-      const links = [
-        { name: t('navbar.home'), path: '/', icon: Home },
-        { 
-          name: t('navbar.products'), 
-          path: '/products', 
-          icon: Tag, 
-          hasSubmenu: true, 
-          submenuItems: categories
-        },
-      ];
-      
-      // إضافة رابط تتبع التصليح فقط إذا كان التطبيق مفعل
-      if (isRepairServicesEnabled) {
-        links.push({ name: t('navbar.repairTracking'), path: '/repair-tracking', icon: Wrench });
-      }
-      
-      return links;
     } else {
-      // استخدام الواجهة الخاصة للعناصر الفرعية الافتراضية
-      const defaultSubmenuItems: SubMenuItem[] = [
-        { name: t('navbar.consoles'), id: 'consoles', path: '/category/consoles' },
-        { name: t('navbar.games'), id: 'games', path: '/category/games' },
-        { name: t('navbar.accessories'), id: 'accessories', path: '/category/accessories' },
-      ];
-      
       const links = [
         { name: t('navbar.home'), path: '/', icon: Home },
-        { 
-          name: t('navbar.products'), 
-          path: '/products', 
-          icon: Tag, 
-          hasSubmenu: true, 
-          submenuItems: defaultSubmenuItems
-        },
+        { name: t('navbar.products'), path: '/products', icon: Tag },
       ];
       
       // إضافة روابط التصليح فقط إذا كان التطبيق مفعل
@@ -120,100 +66,17 @@ export function NavbarLinks({
   
   const links = getLinks();
 
-  const toggleSubmenu = (name: string) => {
-    setActiveSubmenu(activeSubmenu === name ? null : name);
-  };
-  
   const isActiveLink = (path: string) => {
     if (path === '/') return location.pathname === '/';
     return location.pathname.startsWith(path);
   };
 
-  // وظيفة مساعدة للحصول على المسار من نوع مختلف من العناصر الفرعية
-  const getItemPath = (item: Category | SubMenuItem) => {
-    if ('path' in item && item.path) {
-      return item.path;
-    }
-    return `/products?category=${item.id}`;
-  };
-  
   // Horizontal layout for desktop
   if (orientation === 'horizontal') {
     return (
       <div className={cn("flex items-center gap-1 px-1", className)}>
         {links.map((link, index) => {
-          if (link.hasSubmenu) {
-            return (
-              <DropdownMenu key={index}>
-                <DropdownMenuTrigger asChild>
-                                      <Button 
-                    variant="ghost" 
-                    className={cn(
-                      "navbar-link group flex items-center gap-2 px-3 py-2 h-9 rounded-lg",
-                      "transition-all duration-300 hover:bg-primary relative overflow-hidden",
-                      isActiveLink(link.path) && "active"
-                    )}
-                    onMouseEnter={() => setHoveredLink(link.path)}
-                    onMouseLeave={() => setHoveredLink(null)}
-                  >
-                    {link.icon && <link.icon className="h-4 w-4 text-muted-foreground group-hover:text-primary-foreground transition-colors duration-300" />}
-                    <span className="text-sm font-medium group-hover:text-primary-foreground transition-colors duration-300">
-                      {link.name}
-                      {link.hasNew && (
-                        <span className="absolute -top-1 -right-1 flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
-                        </span>
-                      )}
-                    </span>
-                    <ChevronDown className="h-3.5 w-3.5 opacity-70 transition-transform duration-300 group-hover:rotate-180 group-hover:text-primary-foreground" />
-                    
-                    {hoveredLink === link.path && (
-                      <div className="absolute inset-0 -z-10 bg-gradient-to-tr from-primary/5 via-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                    )}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent 
-                  align="end" 
-                  className="w-64 p-2 rounded-xl shadow-lg border-border/30 animate-in slide-in-from-top-2 duration-200 bg-card/95 backdrop-blur-sm"
-                  onMouseEnter={() => setDropdownHovered(link.path)}
-                  onMouseLeave={() => setDropdownHovered(null)}
-                >
-                  <DropdownMenuLabel className="text-xs font-medium text-muted-foreground px-2 py-1.5">
-                    {t('navbar.browse')} {link.name}
-                  </DropdownMenuLabel>
-                  
-                  <DropdownMenuItem asChild>
-                    <Link 
-                      to={link.path} 
-                      className="flex items-center justify-between w-full rounded-lg p-2.5 transition-all duration-200 hover:bg-primary group"
-                    >
-                      <span className="font-medium text-foreground/90 group-hover:text-primary-foreground transition-colors duration-200">{t('navbar.browseAllProducts')}</span>
-                      <Tag className="h-4 w-4 opacity-70 group-hover:opacity-100 group-hover:text-primary-foreground transition-all duration-200" />
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator className="my-1.5 bg-border/40" />
-                  
-                  <div className="grid grid-cols-2 gap-1 p-1">
-                    {link.submenuItems && link.submenuItems.map((subItem, subIndex) => (
-                      <DropdownMenuItem key={subIndex} asChild className="cursor-pointer rounded-lg group hover:bg-primary data-[highlighted]:bg-primary transition-all duration-200">
-                        <Link 
-                          to={getItemPath(subItem)}
-                          className="flex items-center gap-2 p-2"
-                        >
-                          <div className="flex items-center justify-center w-6 h-6 rounded-md bg-primary/10 text-primary/80 group-hover:text-primary-foreground transition-all duration-300 group-hover:scale-110">
-                            <LayoutGrid className="h-3.5 w-3.5" />
-                          </div>
-                          <span className="text-sm font-medium group-hover:text-primary-foreground transition-colors duration-200">{subItem.name}</span>
-                        </Link>
-                      </DropdownMenuItem>
-                    ))}
-                  </div>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            );
-          }
-          
+          // تحويل جميع الروابط إلى روابط مباشرة (بدون قوائم منسدلة)
           return (
             <Link
               key={index}
@@ -249,85 +112,17 @@ export function NavbarLinks({
                 </span>
               )}
             </Link>
-          );
+                     );
         })}
       </div>
     );
   }
   
-  // Vertical layout for mobile
+  // Vertical layout for mobile - روابط مباشرة بدون قوائم منسدلة
   return (
     <div className="flex flex-col space-y-1.5 w-full">
       {links.map((link, index) => {
         const isActive = isActiveLink(link.path);
-        const isOpen = activeSubmenu === link.name;
-        
-        if (link.hasSubmenu) {
-          return (
-            <div key={index} className="relative">
-              <div 
-                className={cn(
-                  "flex items-center justify-between py-3 px-4 rounded-xl cursor-pointer transition-all duration-300",
-                  isOpen || isActive 
-                    ? "bg-primary/10 border border-primary/20 shadow-sm" 
-                    : "hover:bg-muted/60 border border-transparent hover:shadow-sm"
-                )}
-                onClick={() => toggleSubmenu(link.name)}
-              >
-                <div className="flex items-center gap-3">
-                  {link.icon && <link.icon className={cn(
-                    "h-5 w-5 transition-colors duration-300",
-                    isOpen || isActive ? "text-primary" : "text-muted-foreground"
-                  )} />}
-                  <span className={cn(
-                    "font-medium",
-                    isOpen || isActive ? "text-primary" : ""
-                  )}>
-                    {link.name}
-                    {link.hasNew && (
-                      <span className="absolute top-3 right-14 flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
-                      </span>
-                    )}
-                  </span>
-                </div>
-                <ChevronDown 
-                  className={cn(
-                    "h-4 w-4 transition-transform duration-300",
-                    isOpen ? "rotate-180 text-primary" : "text-muted-foreground"
-                  )} 
-                />
-              </div>
-              
-              {isOpen && (
-                <div className="mr-8 mt-2 mb-3 pr-3 border-r-2 border-primary/20 space-y-1.5 animate-in slide-in-from-top-3 duration-200">
-                  <Link 
-                    to={link.path}
-                    className="flex items-center py-2.5 px-4 text-sm hover:bg-primary/5 rounded-xl transition-colors duration-200"
-                  >
-                    <span className="font-medium">{t('navbar.browseAllProducts')}</span>
-                  </Link>
-                  
-                  <div className="h-px bg-border/30 my-2 w-full"></div>
-                  
-                  {link.submenuItems && link.submenuItems.map((subItem, subIndex) => (
-                    <Link 
-                      key={subIndex}
-                      to={getItemPath(subItem)}
-                      className="flex items-center gap-2.5 py-2.5 px-4 text-sm hover:bg-primary/5 rounded-xl transition-colors duration-200 group"
-                    >
-                      <div className="flex items-center justify-center w-6 h-6 rounded-md bg-primary/10 text-primary/80 group-hover:text-primary transition-all duration-300 group-hover:scale-110">
-                        <LayoutGrid className="h-3.5 w-3.5" />
-                      </div>
-                      <span className="font-medium">{subItem.name}</span>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        }
         
         return (
           <Link

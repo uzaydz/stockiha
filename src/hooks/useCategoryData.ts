@@ -40,7 +40,6 @@ export const useCategoryData = ({ organizationId, watchCategoryId }: UseCategory
       fetchSubcategoriesAPI(watchCategoryId, organizationId)
         .then(setSubcategories)
         .catch(error => {
-          console.error('Error fetching subcategories:', error);
           toast.error('حدث خطأ أثناء تحميل الفئات الفرعية');
         })
         .finally(() => setIsLoadingSubcategories(false));

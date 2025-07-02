@@ -23,7 +23,7 @@
 /* حاوي اللوحة الأساسي */
 .properties-panel-rtl {
   direction: rtl;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-radius: var(--properties-panel-border-radius);

@@ -190,15 +190,22 @@ export const useProductPurchase = ({
     }
   }, [productId, organizationId, dataScope, getCache]);
 
-  // جلب المنتج فقط عندما تتوفر جميع البيانات المطلوبة
+  // جلب المنتج فقط عندما تتوفر جميع البيانات المطلوبة - مع منع الطلبات المكررة
   useEffect(() => {
     // إذا لم يكن لدينا productId، لا نفعل شيئاً
     if (!productId) return;
     
+    // منع الطلبات المكررة: إذا كان هناك طلب جاري، لا نبدأ آخر
+    if (fetchingRef.current) {
+      return;
+    }
+    
     // تأخير البحث قليلاً للسماح للـ organizationId بالتحديث
     const timeoutId = setTimeout(() => {
-      fetchProduct();
-    }, 100);
+      if (!fetchingRef.current) { // فحص إضافي للتأكد
+        fetchProduct();
+      }
+    }, 300); // زيادة التأخير لتقليل الطلبات المكررة
 
     return () => clearTimeout(timeoutId);
   }, [productId, organizationId, dataScope, fetchProduct]);

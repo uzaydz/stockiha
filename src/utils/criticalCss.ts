@@ -8,8 +8,8 @@ export const criticalCSS = `
   /* Reset وأساسيات */
   *,::before,::after{box-sizing:border-box;border-width:0;border-style:solid;border-color:#e5e7eb}
   *::before,*::after{--tw-content:''}
-  html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;tab-size:4;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji";font-feature-settings:normal;font-variation-settings:normal}
-  body{margin:0;line-height:inherit}
+  html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;tab-size:4;font-family:"TajawalForced","Arial Unicode MS","Tahoma","Arial",sans-serif !important;font-feature-settings:normal;font-variation-settings:normal}
+  body{margin:0;line-height:inherit;font-family:"TajawalForced","Arial Unicode MS","Tahoma","Arial",sans-serif !important}
   
   /* Layout أساسي */
   .min-h-screen{min-height:100vh}
@@ -19,6 +19,7 @@ export const criticalCSS = `
   .justify-center{justify-content:center}
   .w-full{width:100%}
   .h-full{height:100%}
+  .container{max-width:1200px;margin-left:auto;margin-right:auto;padding-left:1rem;padding-right:1rem}
   
   /* Colors أساسية */
   .bg-white{background-color:#fff}

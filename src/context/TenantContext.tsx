@@ -4,8 +4,10 @@ import { useAuth } from './AuthContext';
 import { withCache, LONG_CACHE_TTL } from '@/lib/cache/storeCache';
 import { getOrganizationBySubdomain, getOrganizationByDomain } from '@/lib/api/subdomain';
 import { getOrganizationById } from '@/lib/api/organization';
+import { getOrganizationSettings } from '@/lib/api/unified-api';
 import { API_TIMEOUTS, RETRY_CONFIG, withTimeout, withRetry } from '@/config/api-timeouts';
 import { useUser } from './UserContext';
+import { useLocation } from 'react-router-dom';
 // Removed deprecated auth fixes import
 
 // إضافة global flag لمنع التشغيل المزدوج
@@ -87,23 +89,39 @@ const fetchOrganizationUnified = async (params: {
   let orgData = null;
   
   try {
+    console.log('🔎 [fetchOrganizationUnified] جلب البيانات:', {
+      fetchType,
+      orgId,
+      hostname,
+      subdomain,
+      cacheKey
+    });
+    
     switch (fetchType) {
       case 'byId':
         if (orgId) {
+          console.log('🆔 [fetchOrganizationUnified] جلب بـ ID:', orgId);
           orgData = await getOrganizationById(orgId);
         }
         break;
       case 'byDomain':
         if (hostname) {
+          console.log('🌐 [fetchOrganizationUnified] جلب بـ Domain:', hostname);
           orgData = await getOrganizationByDomain(hostname);
         }
         break;
       case 'bySubdomain':
         if (subdomain) {
+          console.log('🔗 [fetchOrganizationUnified] جلب بـ Subdomain:', subdomain);
           orgData = await getOrganizationBySubdomain(subdomain);
         }
         break;
     }
+    
+    console.log('📋 [fetchOrganizationUnified] نتيجة الجلب:', {
+      found: !!orgData,
+      orgData: orgData ? { id: orgData.id, name: orgData.name, subdomain: orgData.subdomain } : null
+    });
     
     // حفظ في cache إذا تم العثور على البيانات
     if (orgData && window.organizationCache) {
@@ -229,6 +247,7 @@ const isMainDomain = (hostname: string): boolean => {
 
 // استخراج النطاق الفرعي من اسم المضيف - محسن مع cache
 const extractSubdomain = async (hostname: string): Promise<string | null> => {
+  console.log('🔧 [extractSubdomain] بدء استخراج النطاق الفرعي:', { hostname });
   
   // التعامل مع السابدومين في بيئة localhost المحلية
   if (hostname.includes('localhost')) {
@@ -236,13 +255,22 @@ const extractSubdomain = async (hostname: string): Promise<string | null> => {
     const hostnameWithoutPort = hostname.split(':')[0];
     const parts = hostnameWithoutPort.split('.');
     
+    console.log('🏠 [extractSubdomain] معالجة localhost:', {
+      hostnameWithoutPort,
+      parts,
+      partsLength: parts.length,
+      firstPart: parts[0]
+    });
+    
     // مثال: mystore.localhost أو lmrpoxcvvd.localhost
     if (parts.length >= 2 && parts[0] !== 'localhost' && parts[0] !== 'www' && parts[0] !== '') {
+      console.log('✅ [extractSubdomain] تم العثور على نطاق فرعي:', parts[0]);
       return parts[0];
     }
     
     // إذا كان فقط localhost بدون سابدومين
     if (hostnameWithoutPort === 'localhost') {
+      console.log('🏠 [extractSubdomain] localhost بدون نطاق فرعي، العودة بـ main');
       return 'main';
     }
   }
@@ -305,120 +333,6 @@ export const getOrganizationFromCustomDomain = async (hostname: string): Promise
   return null;
 };
 
-// إضافة كومبوننت بسيط لعرض حالة التحميل
-const LoadingIndicator = ({ isLoading, error, retryCount }: { 
-  isLoading: boolean; 
-  error: Error | null; 
-  retryCount: number; 
-}) => {
-  if (!isLoading && !error) return null;
-  
-  // إضافة زر مسح cache
-  const clearCacheAndReload = () => {
-    try {
-      // مسح كل localStorage المتعلق بالمؤسسة
-      const keysToRemove = [
-        'bazaar_organization_id',
-        'bazaar_current_subdomain',
-        'bazaar_organization_cache',
-        'sidebarCollapsed'
-      ];
-      
-      keysToRemove.forEach(key => {
-        localStorage.removeItem(key);
-      });
-      
-      // مسح sessionStorage أيضا
-      sessionStorage.clear();
-      
-      // إعادة تحميل الصفحة
-      window.location.reload();
-    } catch (e) {
-      window.location.reload();
-    }
-  };
-
-  // إظهار المؤشر فقط بعد 3 ثوان من التحميل
-  const [showIndicator, setShowIndicator] = useState(false);
-  
-  useEffect(() => {
-    if (isLoading) {
-      const timer = setTimeout(() => {
-        setShowIndicator(true);
-      }, 3000); // إظهار المؤشر بعد 3 ثوان
-      
-      return () => clearTimeout(timer);
-    } else {
-      setShowIndicator(false);
-    }
-  }, [isLoading]);
-
-  if (!showIndicator && !error) return null;
-  
-  return (
-    <div style={{
-      position: 'fixed',
-      top: '20px',
-      right: '20px',
-      padding: '15px',
-      borderRadius: '8px',
-      backgroundColor: error ? '#f8d7da' : '#d1ecf1',
-      border: error ? '1px solid #f5c6cb' : '1px solid #bee5eb',
-      color: error ? '#721c24' : '#0c5460',
-      fontSize: '14px',
-      zIndex: 9999,
-      maxWidth: '350px',
-      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-      fontFamily: 'system-ui, -apple-system, sans-serif'
-    }}>
-      {isLoading && showIndicator && (
-        <div>
-          <div style={{ marginBottom: '10px' }}>
-            🔄 جارٍ تحميل بيانات المؤسسة...
-            {retryCount > 0 && ` (المحاولة ${retryCount + 1})`}
-          </div>
-          <div style={{ fontSize: '12px', color: '#6c757d', marginBottom: '10px' }}>
-            إذا استمر التحميل لفترة طويلة، جرب إعادة تحميل الصفحة
-          </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button 
-              onClick={() => window.location.reload()} 
-              style={{
-                padding: '6px 12px',
-                border: 'none',
-                borderRadius: '4px',
-                backgroundColor: '#007bff',
-                color: 'white',
-                cursor: 'pointer',
-                fontSize: '12px',
-                fontWeight: '500'
-              }}
-            >
-              إعادة تحميل
-            </button>
-            <button 
-              onClick={clearCacheAndReload} 
-              style={{
-                padding: '6px 12px',
-                border: '1px solid #007bff',
-                borderRadius: '4px',
-                backgroundColor: 'transparent',
-                color: '#007bff',
-                cursor: 'pointer',
-                fontSize: '12px',
-                fontWeight: '500'
-              }}
-            >
-              مسح البيانات المؤقتة
-            </button>
-          </div>
-        </div>
-      )}
-
-    </div>
-  );
-};
-
 export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // إعادة تعيين العلامات العالمية في البداية للحماية من التعليق
   useEffect(() => {
@@ -427,17 +341,26 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, []);
 
-  const { user, loading: authLoading, currentSubdomain, organization: authOrganization } = useAuth();
+  const { user, isLoading: authLoading, currentSubdomain, organization: authOrganization } = useAuth();
   const { organizationId } = useUser();
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [isOrgAdmin, setIsOrgAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // مراقبة تغيير isLoading state
+  useEffect(() => {
+    console.log('🔄 [TenantContext] تغيير حالة التحميل:', {
+      isLoading,
+      hasOrganization: !!organization,
+      timestamp: new Date().toLocaleTimeString()
+    });
+  }, [isLoading, organization]);
   const [error, setError] = useState<Error | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   
   // تتبع حالة التحميل والتهيئة
   const initialized = useRef(false);
   const loadingOrganization = useRef(false);
-  const retryCount = useRef(0);
   const loadingTimeout = useRef<NodeJS.Timeout | null>(null);
   const abortController = useRef<AbortController | null>(null);
 
@@ -471,6 +394,207 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         abortController.current = null;
       }
     };
+  }, []);
+
+  // دالة محسنة للحصول على إعدادات اللغة مع تخزين مؤقت
+  const getLanguageSettings = useCallback(async (orgId: string) => {
+    // التحقق من وجود اللغة في الكاش أولاً
+    const cachedLanguage = localStorage.getItem(`org-language-${orgId}`);
+    const cacheTimestamp = localStorage.getItem(`org-language-timestamp-${orgId}`);
+    
+    // إذا كان الكاش صالحاً لمدة 30 دقيقة، استخدمه
+    if (cachedLanguage && cacheTimestamp) {
+      const cacheAge = Date.now() - parseInt(cacheTimestamp);
+      if (cacheAge < 30 * 60 * 1000) { // 30 دقيقة
+        console.log('🚀 [TenantContext] استخدام اللغة من الكاش:', cachedLanguage);
+        return cachedLanguage;
+      }
+    }
+    
+    try {
+      const [orgData, organizationSettings] = await Promise.all([
+        getOrganizationById(orgId),
+        getOrganizationSettings(orgId)
+      ]);
+
+      console.log('🔄 [TenantContext] لم يتم العثور على اللغة، استخدام fallback ذكي...');
+
+      let detectedLanguage = 'ar'; // افتراضي
+
+      // ترتيب أولوية المصادر
+      const possibleLanguages = [
+        orgData?.default_language,
+        organizationSettings?.[0]?.default_language,
+        orgData?.language,
+        organizationSettings?.[0]?.language,
+        (organizationSettings as any)?.general?.default_language,
+        'ar' // Arabic as fallback
+      ];
+
+      // العثور على أول لغة صالحة
+      for (const lang of possibleLanguages) {
+        if (lang && typeof lang === 'string' && lang.trim() !== '') {
+          detectedLanguage = lang;
+          break;
+        }
+      }
+
+      // حفظ في الكاش
+      localStorage.setItem(`org-language-${orgId}`, detectedLanguage);
+      localStorage.setItem(`org-language-timestamp-${orgId}`, Date.now().toString());
+
+      console.log('🇸🇦 [TenantContext] استخدام اللغة:', detectedLanguage);
+      console.log('💾 [TenantContext] تم حفظ اللغة في الكاش:', detectedLanguage);
+
+      return detectedLanguage;
+    } catch (error) {
+      console.error('❌ [TenantContext] خطأ في الحصول على إعدادات اللغة:', error);
+      return 'ar'; // fallback
+    }
+  }, []);
+
+  // تحديث بيانات المنظمة وإرسال إشارة تحديث اللغة
+  const updateOrganizationFromData = useCallback((orgData: any) => {
+    if (!orgData) return null;
+
+    const organizationSettings = orgData.organization_settings || 
+                                 orgData.settings || 
+                                 {};
+
+    // البحث الشامل عن اللغة الافتراضية في جميع الأماكن الممكنة
+    let defaultLanguage = orgData.default_language || 
+                         organizationSettings.default_language || 
+                         orgData.language ||
+                         organizationSettings.language ||
+                         (organizationSettings.general && organizationSettings.general.default_language) ||
+                         (organizationSettings.general && organizationSettings.general.language) ||
+                         (orgData.store_settings && orgData.store_settings.default_language) ||
+                         (orgData.store_settings && orgData.store_settings.language) ||
+                         null;
+
+    // إذا لم نجد اللغة، استخدم fallback ذكي بناءً على اسم النطاق
+    if (!defaultLanguage) {
+      console.log('🔄 [TenantContext] لم يتم العثور على اللغة، استخدام fallback ذكي...');
+      
+      // تحليل اسم المنظمة أو النطاق للتنبؤ باللغة
+      const orgName = (orgData.name || '').toLowerCase();
+      const orgSubdomain = (orgData.subdomain || '').toLowerCase();
+      const orgDomain = (orgData.domain || '').toLowerCase();
+      
+      // قائمة كلمات فرنسية شائعة
+      const frenchKeywords = ['collection', 'boutique', 'mode', 'style', 'paris', 'france'];
+      // قائمة كلمات إنجليزية شائعة  
+      const englishKeywords = ['shop', 'store', 'market', 'online', 'digital', 'tech'];
+      
+      const textToAnalyze = `${orgName} ${orgSubdomain} ${orgDomain}`;
+      
+      // تحقق من الكلمات الفرنسية
+      const hasFrenchKeywords = frenchKeywords.some(keyword => textToAnalyze.includes(keyword));
+      // تحقق من الكلمات الإنجليزية
+      const hasEnglishKeywords = englishKeywords.some(keyword => textToAnalyze.includes(keyword));
+      
+      if (hasFrenchKeywords) {
+        defaultLanguage = 'fr';
+        console.log('🇫🇷 [TenantContext] تم استنتاج اللغة الفرنسية من النص:', textToAnalyze);
+      } else if (hasEnglishKeywords) {
+        defaultLanguage = 'en';
+        console.log('🇺🇸 [TenantContext] تم استنتاج اللغة الإنجليزية من النص:', textToAnalyze);
+      } else {
+        // افتراضي: عربي
+        defaultLanguage = 'ar';
+        console.log('🇸🇦 [TenantContext] استخدام اللغة العربية كافتراضية');
+      }
+      
+      // تخزين اللغة في التخزين المحلي كبديل للاستخدام المستقبلي
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`org_language_${orgData.id}`, defaultLanguage);
+        console.log('💾 [TenantContext] تم حفظ اللغة المستنتجة في التخزين المحلي:', defaultLanguage);
+      }
+    }
+
+    console.log('🔍 [TenantContext] تفاصيل البحث عن اللغة:', {
+      'orgData.default_language': orgData.default_language,
+      'organizationSettings.default_language': organizationSettings.default_language,
+      'orgData.language': orgData.language,
+      'organizationSettings.language': organizationSettings.language,
+      'general.default_language': organizationSettings.general?.default_language,
+      'general.language': organizationSettings.general?.language,
+      'store_settings.default_language': orgData.store_settings?.default_language,
+      'store_settings.language': orgData.store_settings?.language,
+      finalLanguage: defaultLanguage,
+      organizationId: orgData.id,
+      organizationName: orgData.name
+    });
+
+    // طباعة البيانات الكاملة لفهم التركيبة
+    console.log('📋 [TenantContext] البيانات الكاملة للمنظمة:', {
+      keys: Object.keys(orgData),
+      settingsKeys: organizationSettings ? Object.keys(organizationSettings) : [],
+      orgDataKeys: Object.keys(orgData),
+      orgDataValues: Object.keys(orgData).map(key => ({ [key]: orgData[key] })),
+      organizationSettings: organizationSettings,
+      fullOrgData: orgData
+    });
+
+    // فحص خاص للبحث عن اللغة في أي مكان
+    const findLanguageInObject = (obj: any, path = ''): any[] => {
+      const results: any[] = [];
+      for (const [key, value] of Object.entries(obj || {})) {
+        const currentPath = path ? `${path}.${key}` : key;
+        if (key.toLowerCase().includes('lang') || key.toLowerCase().includes('locale')) {
+          results.push({ path: currentPath, key, value });
+        }
+        if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+          results.push(...findLanguageInObject(value, currentPath));
+        }
+      }
+      return results;
+    };
+
+    const languageFields = findLanguageInObject(orgData);
+    console.log('🔍 [TenantContext] جميع الحقول المرتبطة باللغة:', languageFields);
+
+    const orgObject: Organization = {
+      id: orgData.id,
+      name: orgData.name || orgData.business_name || 'متجر',
+      description: orgData.description,
+      logo_url: orgData.logo_url,
+      domain: orgData.domain,
+      subdomain: orgData.subdomain,
+      subscription_tier: orgData.subscription_tier || 'free',
+      subscription_status: orgData.subscription_status || 'trial',
+      settings: {
+        ...organizationSettings,
+        default_language: defaultLanguage
+      },
+      created_at: orgData.created_at,
+      updated_at: orgData.updated_at,
+      owner_id: orgData.owner_id
+    };
+
+    // إرسال إشارة تحديث اللغة إذا كانت متوفرة
+    if (defaultLanguage) {
+      console.log('🚀 [TenantContext] إرسال حدث تحديث اللغة:', {
+        language: defaultLanguage,
+        organizationId: orgData.id,
+        timestamp: new Date().toLocaleTimeString()
+      });
+      
+      // إرسال حدث تحديث اللغة للمكونات الأخرى
+      if (typeof window !== 'undefined') {
+        const languageUpdateEvent = new CustomEvent('organizationLanguageUpdate', {
+          detail: {
+            language: defaultLanguage,
+            organizationId: orgData.id
+          }
+        });
+        window.dispatchEvent(languageUpdateEvent);
+      }
+    } else {
+      console.warn('⚠️ [TenantContext] لم يتم العثور على اللغة الافتراضية في بيانات المنظمة:', orgData);
+    }
+
+    return orgObject;
   }, []);
 
   // التحقق من النطاق المخصص عند بدء التشغيل
@@ -509,7 +633,8 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     if (authOrganization && !organization && !loadingOrganization.current) {
       // تحويل بيانات المؤسسة من AuthContext إلى النموذج المطلوب لـ TenantContext
-      setOrganization(updateOrganizationFromData(authOrganization));
+      const orgData = updateOrganizationFromData(authOrganization);
+      setOrganization(orgData);
       
       // حفظ معرف المؤسسة في التخزين المحلي
       localStorage.setItem('bazaar_organization_id', authOrganization.id);
@@ -528,133 +653,33 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return await fetchOrganizationUnified(params);
   }, []);
 
-  // useEffect للتحقق من الحالة الأولية وبدء تحميل بيانات المؤسسة
+  // useEffect لتحميل بيانات المؤسسة مع منع التكرار
   useEffect(() => {
-    // منع التشغيل إذا كان التحميل جارياً أو اكتمل بالفعل
-    if (loadingOrganization.current || (initialized.current && organization)) {
+    // منع التشغيل المتكرر
+    if (loadingOrganization.current || initialized.current) {
+      console.log('🚫 [TenantContext] تجاهل useEffect - التحميل جاري أو مكتمل');
       return;
     }
 
-    // منع التشغيل أثناء تحميل المصادقة
-    if (authLoading) {
-      return;
-    }
-
-    // فحص العلامة العالمية مع timeout للحماية من التعليق
-    if (window.bazaarTenantLoading) {
-      // انتظار قصير ثم إعادة المحاولة في حالة التعليق
-      setTimeout(() => {
-        if (window.bazaarTenantLoading) {
-          window.bazaarTenantLoading = false;
-        }
-      }, 3000);
-      return;
-    }
-
-    // وضع علامة عالمية أن التحميل بدأ
-    window.bazaarTenantLoading = true;
     loadingOrganization.current = true;
-    setIsLoading(true);
-    setError(null);
 
-    const loadTenantData = async () => {
-      try {
-        const maxRetries = 2;
-        const API_TIMEOUTS = { RETRY_DELAY: 1000 };
+    console.log('🏢 [TenantContext] بدء تحميل بيانات المؤسسة:', {
+      hostname: window.location.hostname,
+      pathname: window.location.pathname,
+      timestamp: new Date().toLocaleTimeString()
+    });
 
-        // إعداد timeout عام للحماية
-        const loadingTimeout = setTimeout(() => {
-          window.bazaarTenantLoading = false;
-          loadingOrganization.current = false;
-          setIsLoading(false);
-          setError(new Error('انتهت مهلة تحميل بيانات المؤسسة'));
-        }, 15000);
+    // تنظيف timeout السابق
+    if (loadingTimeout.current) {
+      clearTimeout(loadingTimeout.current);
+      loadingTimeout.current = null;
+    }
 
-        let org = null;
-        const currentHostname = window.location.hostname;
-        const subdomain = currentSubdomain || await extractSubdomain(currentHostname);
-        const storedOrgId = localStorage.getItem('bazaar_organization_id');
-
-        // Promise للتحميل مع timeout
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('انتهت مهلة جلب بيانات المؤسسة')), 10000);
-        });
-
-        const loadPromise = (async () => {
-          // فحص cache أولاً
-          const cacheKey = storedOrgId ? `org-id-${storedOrgId}` : 
-                          (currentHostname.includes('localhost') ? `org-subdomain-${subdomain}` : `org-domain-${currentHostname}`);
-
-          if (window.organizationCache?.has(cacheKey)) {
-            const cached = window.organizationCache.get(cacheKey);
-            if (cached && (Date.now() - cached.timestamp) < 10 * 60 * 1000) {
-              return updateOrganizationFromData(cached.data);
-            }
-          }
-          
-          let orgData = null;
-
-          // استراتيجية الأولوية: orgId > domain > subdomain
-          if (storedOrgId) {
-            orgData = await fetchOrganizationUnified({ orgId: storedOrgId });
-          } else if (currentHostname && !currentHostname.includes('localhost')) {
-            orgData = await fetchOrganizationUnified({ hostname: currentHostname });
-          } else if (subdomain && subdomain !== 'main') {
-            orgData = await fetchOrganizationUnified({ subdomain });
-          }
-          
-          if (orgData) {
-            return updateOrganizationFromData(orgData);
-          } else {
-          }
-
-          return null;
-        })();
-
-        org = await Promise.race([loadPromise, timeoutPromise]);
-
-        if (org) {
-          setOrganization(org);
-          updateLocalStorageOrgId(org.id);
-
-          // تحقق ما إذا كان المستخدم الحالي هو مسؤول المؤسسة
-          if (userRef.current && userRef.current.id === org.owner_id) {
-            setIsOrgAdmin(true);
-          }
-
-          initialized.current = true;
-          retryCount.current = 0;
-        } else {
-          throw new Error('لم يتم العثور على بيانات المؤسسة');
-        }
-
-        // تنظيف timeout
-        clearTimeout(loadingTimeout);
-
-      } catch (error) {
-        
-        // إعادة المحاولة مع حد أقصى
-        if (retryCount.current < maxRetries) {
-          retryCount.current += 1;
-          setTimeout(() => {
-            initialized.current = false;
-            window.bazaarTenantLoading = false;
-            loadingOrganization.current = false;
-            loadTenantData();
-          }, API_TIMEOUTS.RETRY_DELAY * retryCount.current);
-        } else {
-          setOrganization(null);
-          setError(error as Error);
-        }
-      } finally {
-        window.bazaarTenantLoading = false;
-        loadingOrganization.current = false;
-        setIsLoading(false);
-      }
-    };
-    
-    loadTenantData();
-  }, [currentSubdomain, authLoading]);
+    loadTenantData().finally(() => {
+      loadingOrganization.current = false;
+      initialized.current = true;
+    });
+  }, []); // dependencies فارغة لمنع التكرار
 
   // إنشاء مؤسسة جديدة - محسنة مع useCallback
   const createOrganization = useCallback(async (
@@ -784,8 +809,8 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
         
         if (orgData) {
-
-          setOrganization(updateOrganizationFromData(orgData));
+          const org = updateOrganizationFromData(orgData);
+          if (org) setOrganization(org);
           localStorage.setItem('bazaar_organization_id', orgData.id);
           
           // تحقق ما إذا كان المستخدم الحالي هو مسؤول المؤسسة
@@ -807,7 +832,8 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const org = await getOrganizationBySubdomain(subdomain);
       
       if (org) {
-        setOrganization(updateOrganizationFromData(org));
+        const orgObject = updateOrganizationFromData(org);
+        if (orgObject) setOrganization(orgObject);
         localStorage.setItem('bazaar_organization_id', org.id);
       } else {
         setOrganization(null);
@@ -819,7 +845,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       loadingOrganization.current = false;
       setIsLoading(false);
     }
-  }, [currentSubdomain, authLoading, user, getOrganizationBySubdomain]);
+  }, [currentSubdomain, authLoading, user, getOrganizationBySubdomain, updateOrganizationFromData]);
 
   // استخدام useMemo لتجنب إعادة الإنشاء
   const value = useMemo(() => ({
@@ -845,7 +871,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   return <TenantContext.Provider value={value}>
     {children}
-    <LoadingIndicator isLoading={isLoading} error={error} retryCount={retryCount.current} />
   </TenantContext.Provider>;
 };
 
@@ -861,22 +886,4 @@ function useTenant(): TenantContextType {
 // تصدير مع اسم صريح للـ Fast Refresh
 export { useTenant };
 
-// معالجة مشكلة نوع settings
-const updateOrganizationFromData = (orgData: any): Organization => {
-  return {
-    id: orgData.id,
-    name: orgData.name,
-    description: orgData.description,
-    logo_url: orgData.logo_url,
-    domain: orgData.domain,
-    subdomain: orgData.subdomain,
-    subscription_tier: orgData.subscription_tier || 'free',
-    subscription_status: orgData.subscription_status || 'inactive',
-    settings: typeof orgData.settings === 'string' 
-      ? JSON.parse(orgData.settings || '{}') 
-      : (orgData.settings || {}),
-    created_at: orgData.created_at,
-    updated_at: orgData.updated_at,
-    owner_id: orgData.owner_id
-  };
-};
+

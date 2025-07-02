@@ -52,22 +52,21 @@ let performanceStats = {
 // دالة لطباعة إحصائيات الأداء
 const logPerformanceStats = () => {
   if (process.env.NODE_ENV === 'development') {
-    console.log('📊 Employee API Performance Stats:', {
-      ...performanceStats,
-      employeesCacheHitRate: performanceStats.employeesRequests > 0 
-        ? `${((performanceStats.employeesCacheHits / performanceStats.employeesRequests) * 100).toFixed(1)}%` 
-        : '0%',
-      statsCacheHitRate: performanceStats.statsRequests > 0 
-        ? `${((performanceStats.statsCacheHits / performanceStats.statsRequests) * 100).toFixed(1)}%` 
-        : '0%'
-    });
+    // طباعة الإحصائيات فقط إذا كان هناك نشاط فعلي
+    if (performanceStats.employeesRequests > 0 || performanceStats.statsRequests > 0) {
+    }
   }
 };
 
-// طباعة الإحصائيات كل 30 ثانية في وضع التطوير
-if (process.env.NODE_ENV === 'development') {
-  setInterval(logPerformanceStats, 30000);
-}
+// متغير لضمان تشغيل setInterval مرة واحدة فقط
+let performanceStatsInterval: NodeJS.Timeout | null = null;
+
+// دالة لبدء تتبع الأداء عند الحاجة
+const startPerformanceTracking = () => {
+  if (process.env.NODE_ENV === 'development' && !performanceStatsInterval) {
+    performanceStatsInterval = setInterval(logPerformanceStats, 30000);
+  }
+};
 
 // دالة محسنة للحصول على معرف المؤسسة
 const getOrganizationId = async (): Promise<string | null> => {
@@ -109,7 +108,6 @@ const getOrganizationId = async (): Promise<string | null> => {
     
     return null;
   } catch (err) {
-    console.error('Error getting organization ID:', err);
     return null;
   }
 };
@@ -118,17 +116,18 @@ export const getEmployees = async (): Promise<Employee[]> => {
   const now = Date.now();
   performanceStats.employeesRequests++;
   
+  // بدء تتبع الأداء عند أول استخدام
+  startPerformanceTracking();
+  
   // استخدام cache إذا كان حديثاً
   if (cachedEmployees && (now - lastEmployeesFetch) < EMPLOYEES_CACHE_DURATION) {
     performanceStats.employeesCacheHits++;
-    console.log('🎯 Using cached employees data');
     return cachedEmployees;
   }
   
   // إذا كان هناك طلب جاري، انتظر نتيجته بدلاً من إنشاء طلب جديد
   if (ongoingEmployeesRequest) {
     performanceStats.duplicateRequestsBlocked++;
-    console.log('🔄 Waiting for ongoing employees request');
     return await ongoingEmployeesRequest;
   }
   
@@ -152,13 +151,11 @@ export const getEmployees = async (): Promise<Employee[]> => {
 // الدالة الفعلية لجلب الموظفين
 const performGetEmployees = async (): Promise<Employee[]> => {
   try {
-    console.log('🔍 Fetching employees from database');
     
     // الحصول على معرف المؤسسة (مع cache)
     const organizationId = await getOrganizationId();
     
     if (!organizationId) {
-      console.warn('No organization ID found');
       return [];
     }
 
@@ -171,14 +168,35 @@ const performGetEmployees = async (): Promise<Employee[]> => {
       .order('created_at', { ascending: false });
     
     if (error) {
-      console.error('Error fetching employees:', error);
       return [];
     }
 
-    console.log(`✅ Fetched ${data?.length || 0} employees`);
-    return data || [];
+    // تحويل البيانات للنوع المطلوب مع معالجة آمنة للأنواع
+          return (data || []).map(user => ({
+        id: user.id,
+        user_id: user.auth_user_id || user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role as 'employee' | 'admin',
+        is_active: user.is_active,
+        last_login: user.last_login || null,
+        created_at: user.created_at,
+        updated_at: user.updated_at,
+        organization_id: user.organization_id,
+        permissions: {
+          accessPOS: false,
+          manageOrders: false,
+          processPayments: false,
+          manageUsers: false,
+          viewReports: false,
+          manageProducts: false,
+          manageServices: false,
+          manageEmployees: false,
+          viewOrders: false
+        }
+      })) as Employee[];
   } catch (err) {
-    console.error('Error in performGetEmployees:', err);
     return [];
   }
 };
@@ -196,7 +214,12 @@ export const getEmployeeById = async (id: string): Promise<Employee | null> => {
     throw new Error(error.message);
   }
   
-  return data;
+  // تحويل البيانات للنوع المطلوب
+  return {
+    ...data,
+    role: data.role as 'employee' | 'admin',
+    permissions: typeof data.permissions === 'object' ? data.permissions : {}
+  } as Employee;
 };
 
 // إنشاء موظف جديد
@@ -278,7 +301,7 @@ export const createEmployee = async (
         employee_name: userData.name,
         p_organization_id: organizationId,
         employee_phone: userData.phone || null,
-        employee_permissions: userData.permissions || '{}'
+        employee_permissions: '{}'
       }
     );
 
@@ -334,7 +357,15 @@ export const createEmployee = async (
     if (!rpcResult || typeof rpcResult !== 'object') { 
       throw new Error('لم يتم إرجاع بيانات سجل الموظف بعد الإنشاء.');
     }
-    createdUserRecord = rpcResult as Employee; 
+    
+    // تحويل البيانات للنوع المطلوب
+    createdUserRecord = {
+      ...rpcResult,
+      role: (rpcResult as any).role as 'employee' | 'admin',
+      permissions: typeof (rpcResult as any).permissions === 'object' 
+        ? (rpcResult as any).permissions 
+        : {}
+    } as Employee;
 
   } catch (error) { 
     throw error; 
@@ -411,12 +442,16 @@ export const updateEmployee = async (
   id: string, 
   updates: Partial<Omit<Employee, 'id' | 'created_at'>>
 ): Promise<Employee> => {
+  // إزالة permissions من التحديثات لتجنب تعارض الأنواع
+  const { permissions, ...otherUpdates } = updates;
+  const processedUpdates = {
+    ...otherUpdates,
+    updated_at: new Date().toISOString()
+  };
+
   const { data, error } = await supabase
     .from('users')
-    .update({
-      ...updates,
-      updated_at: new Date().toISOString()
-    })
+    .update(processedUpdates)
     .eq('id', id)
     .eq('role', 'employee')
     .select()
@@ -426,7 +461,12 @@ export const updateEmployee = async (
     throw new Error(error.message);
   }
   
-  return data;
+  // تحويل البيانات للنوع المطلوب
+  return {
+    ...data,
+    role: data.role as 'employee' | 'admin',
+    permissions: typeof data.permissions === 'object' ? data.permissions : {}
+  } as Employee;
 };
 
 // تغيير كلمة مرور الموظف
@@ -458,7 +498,12 @@ export const toggleEmployeeStatus = async (id: string, isActive: boolean): Promi
     throw new Error(error.message);
   }
   
-  return data;
+  // تحويل البيانات للنوع المطلوب
+  return {
+    ...data,
+    role: data.role as 'employee' | 'admin',
+    permissions: typeof data.permissions === 'object' ? data.permissions : {}
+  } as Employee;
 };
 
 // حذف موظف
@@ -496,6 +541,12 @@ export const addEmployeeSalary = async (
   }
 ): Promise<EmployeeSalary> => {
   try {
+    // الحصول على معرف المؤسسة
+    const organizationId = await getOrganizationId();
+    if (!organizationId) {
+      throw new Error('No organization ID found');
+    }
+
     // تحويل البيانات لتتوافق مع واجهة EmployeeSalary
     const salaryData = {
       employee_id: employeeId,
@@ -503,7 +554,8 @@ export const addEmployeeSalary = async (
       start_date: data.date,
       type: data.type,
       status: data.status,
-      notes: data.note
+      notes: data.note,
+      organization_id: organizationId
     };
     
     // إضافة الراتب في قاعدة البيانات
@@ -514,7 +566,13 @@ export const addEmployeeSalary = async (
       .single();
 
     if (error) throw error;
-    return newSalary;
+    
+    // تحويل البيانات للنوع المطلوب
+    return {
+      ...newSalary,
+      type: newSalary.type as 'monthly' | 'commission' | 'bonus' | 'other',
+      status: newSalary.status as 'pending' | 'paid' | 'cancelled'
+    } as EmployeeSalary;
   } catch (error) {
     throw error;
   }
@@ -532,7 +590,12 @@ export const getEmployeeSalaries = async (employeeId: string): Promise<EmployeeS
     throw new Error(error.message);
   }
   
-  return data || [];
+  // تحويل البيانات للنوع المطلوب
+  return (data || []).map(salary => ({
+    ...salary,
+    type: salary.type as 'monthly' | 'commission' | 'bonus' | 'other',
+    status: salary.status as 'pending' | 'paid' | 'cancelled'
+  })) as EmployeeSalary[];
 };
 
 // إضافة نشاط للموظف
@@ -543,6 +606,12 @@ export const addEmployeeActivity = async (activity: Omit<EmployeeActivity, 'id' 
   } catch (error) {
   }
   
+  // الحصول على معرف المؤسسة
+  const organizationId = await getOrganizationId();
+  if (!organizationId) {
+    throw new Error('No organization ID found');
+  }
+  
   const { data, error } = await supabase
     .from('employee_activities')
     .insert([{
@@ -551,6 +620,7 @@ export const addEmployeeActivity = async (activity: Omit<EmployeeActivity, 'id' 
       action_details: activity.action_details,
       related_entity: activity.related_entity,
       related_entity_id: activity.related_entity_id,
+      organization_id: organizationId,
       created_at: new Date().toISOString()
     }])
     .select()
@@ -560,7 +630,12 @@ export const addEmployeeActivity = async (activity: Omit<EmployeeActivity, 'id' 
     throw new Error(error.message);
   }
   
-  return data;
+  // تحويل البيانات للنوع المطلوب
+  return {
+    ...data,
+    action_type: data.action_type as 'login' | 'logout' | 'order_created' | 'service_assigned' | 'product_updated' | 'other',
+    related_entity: data.related_entity as 'order' | 'service' | 'product' | 'customer' | 'other'
+  } as EmployeeActivity;
 };
 
 // جلب نشاطات الموظف
@@ -576,7 +651,12 @@ export const getEmployeeActivities = async (employeeId: string, limit = 20): Pro
     throw new Error(error.message);
   }
   
-  return data || [];
+  // تحويل البيانات للنوع المطلوب
+  return (data || []).map(activity => ({
+    ...activity,
+    action_type: activity.action_type as 'login' | 'logout' | 'order_created' | 'service_assigned' | 'product_updated' | 'other',
+    related_entity: activity.related_entity as 'order' | 'service' | 'product' | 'customer' | 'other'
+  })) as EmployeeActivity[];
 };
 
 // جلب إحصائيات الموظفين
@@ -586,16 +666,19 @@ export const getEmployeeStats = async (): Promise<{
   inactive: number;
 }> => {
   const now = Date.now();
+  performanceStats.statsRequests++;
+  
+  // بدء تتبع الأداء عند أول استخدام
+  startPerformanceTracking();
   
   // استخدام cache إذا كان حديثاً
   if (cachedStats && (now - lastStatsFetch) < STATS_CACHE_DURATION) {
-    console.log('🎯 Using cached stats data');
+    performanceStats.statsCacheHits++;
     return cachedStats;
   }
   
   // إذا كان هناك طلب جاري، انتظر نتيجته بدلاً من إنشاء طلب جديد
   if (ongoingStatsRequest) {
-    console.log('🔄 Waiting for ongoing stats request');
     return await ongoingStatsRequest;
   }
   
@@ -623,13 +706,11 @@ const performGetEmployeeStats = async (): Promise<{
   inactive: number;
 }> => {
   try {
-    console.log('🔍 Fetching employee stats from database');
     
     // الحصول على معرف المؤسسة (مع cache)
     const organizationId = await getOrganizationId();
     
     if (!organizationId) {
-      console.warn('No organization ID found for stats');
       return { total: 0, active: 0, inactive: 0 };
     }
 
@@ -660,11 +741,6 @@ const performGetEmployeeStats = async (): Promise<{
     ]);
     
     if (totalResult.error || activeResult.error || inactiveResult.error) {
-      console.error('Error fetching employee stats:', {
-        total: totalResult.error,
-        active: activeResult.error,
-        inactive: inactiveResult.error
-      });
       return { total: 0, active: 0, inactive: 0 };
     }
     
@@ -674,10 +750,8 @@ const performGetEmployeeStats = async (): Promise<{
       inactive: inactiveResult.count || 0
     };
 
-    console.log(`✅ Fetched employee stats:`, stats);
     return stats;
   } catch (error) {
-    console.error('Error in performGetEmployeeStats:', error);
     return {
       total: 0,
       active: 0,
@@ -714,7 +788,9 @@ export const getEmployeePerformance = async (employeeId: string): Promise<{
     }
     
     const salesTotal = salesData?.reduce((sum, order) => {
-      return sum + (parseFloat(order.total) || 0);
+      // تحويل القيمة إلى نص أولاً ثم إلى رقم
+      const totalValue = typeof order.total === 'string' ? order.total : String(order.total || 0);
+      return sum + (parseFloat(totalValue) || 0);
     }, 0) || 0;
     
     // عدد الخدمات التي قدمها الموظف - تصحيح اسم الحقل

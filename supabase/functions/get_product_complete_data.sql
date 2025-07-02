@@ -107,7 +107,7 @@ BEGIN
     v_additional_images := '[]'::json;
   END IF;
 
-  -- جلب الألوان
+  -- جلب الألوان مع المقاسات
   IF p_data_scope IN ('medium', 'full', 'ultra') THEN
     SELECT COALESCE(
       (SELECT JSON_AGG(
@@ -118,7 +118,19 @@ BEGIN
           'image_url', pcol.image_url,
           'quantity', pcol.quantity,
           'price', pcol.price,
-          'is_default', pcol.is_default
+          'is_default', pcol.is_default,
+          'sizes', COALESCE(
+            (SELECT JSON_AGG(
+              JSON_BUILD_OBJECT(
+                'id', ps.id,
+                'size_name', ps.size_name,
+                'quantity', ps.quantity,
+                'price', ps.price,
+                'is_default', ps.is_default
+              ) ORDER BY ps.created_at
+            ) FROM product_sizes ps WHERE ps.color_id = pcol.id),
+            '[]'::json
+          )
         ) ORDER BY pcol.created_at
       ) FROM product_colors pcol WHERE pcol.product_id = p_product_id),
       '[]'::json
@@ -239,7 +251,12 @@ BEGIN
   -- إنشاء الإحصائيات
   SELECT JSON_BUILD_OBJECT(
     'total_colors', (SELECT COUNT(*) FROM product_colors WHERE product_id = p_product_id),
-    'total_sizes', 0,
+    'total_sizes', (
+      SELECT COUNT(*) 
+      FROM product_sizes ps 
+      JOIN product_colors pc ON ps.color_id = pc.id 
+      WHERE pc.product_id = p_product_id
+    ),
     'total_images', (SELECT COUNT(*) FROM product_images WHERE product_id = p_product_id),
     'total_wholesale_tiers', (SELECT COUNT(*) FROM wholesale_tiers WHERE product_id = p_product_id),
     'has_advanced_settings', EXISTS(SELECT 1 FROM product_advanced_settings WHERE product_id = p_product_id),

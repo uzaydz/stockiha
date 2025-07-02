@@ -66,15 +66,11 @@ export const getCategories = async (organizationId?: string) => {
  */
 export const getSubcategories = async (categoryId?: string, organizationId?: string) => {
   try {
-    console.log('🔍 getSubcategories called with:', { categoryId, organizationId });
     
-    console.log('📞 About to call UnifiedRequestManager.getProductSubcategories()...');
     let allSubcategories = await UnifiedRequestManager.getProductSubcategories();
-    console.log('📦 Raw subcategories from DB:', allSubcategories?.length || 0, allSubcategories);
     
     // إذا لم توجد فئات فرعية، إرجاع مصفوفة فارغة
     if (!allSubcategories || !Array.isArray(allSubcategories)) {
-      console.log('❌ No subcategories or not array');
       return [];
     }
 
@@ -84,20 +80,16 @@ export const getSubcategories = async (categoryId?: string, organizationId?: str
       allSubcategories = allSubcategories.filter((sub: any) => 
         sub.organization_id === organizationId
       );
-      console.log(`🔧 Filtered by organization_id: ${beforeFilter} → ${allSubcategories.length}`);
     }
 
     // فلترة حسب categoryId إذا كان محدداً
     if (categoryId) {
       const beforeFilter = allSubcategories.length;
       allSubcategories = allSubcategories.filter((sub: any) => sub.category_id === categoryId);
-      console.log(`🔧 Filtered by categoryId: ${beforeFilter} → ${allSubcategories.length}`);
     }
 
-    console.log('✅ Final subcategories result:', allSubcategories.length);
     return allSubcategories || [];
   } catch (error) {
-    console.error('❌ Error fetching subcategories:', error);
     return [];
   }
 };

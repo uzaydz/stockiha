@@ -141,6 +141,44 @@ export const ProductCategoriesEditor: React.FC<ProductCategoriesEditorProps> = (
     }
   }, [showCategoryPicker, availableCategories.length, categoriesLoading, organizationId])
 
+  // تحديث المعاينة فوريًا عند تغيير إعدادات العرض
+  useEffect(() => {
+    // تحديث إعدادات المعاينة مع بيانات الفئات الحقيقية
+    const previewCategories = availableCategories.length > 0 
+      ? availableCategories.slice(0, settings.displayCount || 6)
+      : []
+    
+    const updatedSettings = {
+      ...settings,
+      _previewCategories: previewCategories
+    }
+    
+    // تحديث الإعدادات في المكون الأب
+    onUpdate('_previewCategories', previewCategories)
+    
+    // إرسال إشارة لتحديث المعاينة
+    const previewUpdateEvent = new CustomEvent('storePreviewUpdate', {
+      detail: {
+        componentType: 'product_categories',
+        settings: updatedSettings,
+        timestamp: Date.now()
+      }
+    })
+    window.dispatchEvent(previewUpdateEvent)
+  }, [
+    settings.displayCount,
+    settings.maxCategories,
+    settings.displayStyle,
+    settings.backgroundStyle,
+    settings.showDescription,
+    settings.showProductCount,
+    settings.showImages,
+    settings.enableHoverEffects,
+    settings.selectionMethod,
+    settings.selectedCategories,
+    availableCategories
+  ])
+
   // تصفية الفئات حسب البحث
   const filteredCategories = useMemo(() => {
     if (!categorySearchQuery) return availableCategories

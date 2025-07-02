@@ -26,6 +26,7 @@ import { ProductPageProvider } from '@/context/ProductPageContext';
 
 import queryClient from "@/lib/config/queryClient";
 import i18n from '@/i18n';
+import { applyFontsOptimized } from '@/utils/performanceOptimizer';
 
 interface SmartProviderWrapperProps {
   children: ReactNode;
@@ -241,16 +242,14 @@ export const SmartProviderWrapper: React.FC<SmartProviderWrapperProps> = ({ chil
   const pageType = useMemo(() => determinePageType(location.pathname), [location.pathname]);
   const config = PROVIDER_CONFIGS[pageType];
   
-  // لوغ في وضع التطوير مع debouncing لتجنب الطباعة المفرطة
+
+
+  // 🎨 تطبيق الخطوط عند تغيير المسار (محسن لتجنب reflow)
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      const timeoutId = setTimeout(() => {
-        console.log(`🔧 SmartProvider: ${location.pathname} → ${pageType}`, config);
-      }, 100); // تأخير 100ms لتجميع الطلبات المتتالية
-      
-      return () => clearTimeout(timeoutId);
-    }
-  }, [location.pathname, pageType, config]);
+    // استخدام الدالة المحسنة
+    const timeout = setTimeout(applyFontsOptimized, 50);
+    return () => clearTimeout(timeout);
+  }, [location.pathname]);
 
   // بناء الـ providers layer by layer
   let content = children;
@@ -351,4 +350,4 @@ export const SmartProviderWrapper: React.FC<SmartProviderWrapperProps> = ({ chil
   return <>{content}</>;
 };
 
-export default SmartProviderWrapper; 
+export default SmartProviderWrapper;

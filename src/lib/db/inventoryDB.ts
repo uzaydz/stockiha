@@ -1,4 +1,4 @@
-import Dexie from 'dexie';
+import { Dexie } from 'dexie';
 
 // تعريف واجهة عملية المخزون
 export interface InventoryTransaction {

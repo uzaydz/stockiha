@@ -80,7 +80,7 @@ export const ProductPageProvider: React.FC<ProductPageProviderProps> = ({
   subdomain,
   hostname
 }) => {
-  // جلب بيانات المؤسسة
+  // جلب بيانات المؤسسة - مع منع الطلبات المكررة
   const {
     data: organization,
     isLoading: orgLoading,
@@ -90,13 +90,15 @@ export const ProductPageProvider: React.FC<ProductPageProviderProps> = ({
     queryKey: ['product-page-organization', { organizationId, subdomain, hostname }],
     queryFn: () => fetchOrganizationData({ organizationId, subdomain, hostname }),
     enabled: !!(organizationId || subdomain || hostname),
-    staleTime: 10 * 60 * 1000, // 10 دقائق
-    gcTime: 30 * 60 * 1000, // 30 دقيقة
-    retry: 2,
+    staleTime: 15 * 60 * 1000, // 15 دقيقة (زيادة للحد من الطلبات)
+    gcTime: 60 * 60 * 1000, // 60 دقيقة
+    retry: 1, // تقليل المحاولات لتسريع التحميل
     refetchOnWindowFocus: false,
+    refetchOnReconnect: false, // منع إعادة الطلب عند إعادة الاتصال
+    refetchOnMount: false, // منع إعادة الطلب عند كل mount
   });
 
-  // جلب إعدادات المؤسسة
+  // جلب إعدادات المؤسسة - مع منع الطلبات المكررة
   const {
     data: organizationSettings,
     isLoading: settingsLoading,
@@ -106,13 +108,15 @@ export const ProductPageProvider: React.FC<ProductPageProviderProps> = ({
     queryKey: ['product-page-settings', organization?.id],
     queryFn: () => fetchOrganizationSettings(organization.id),
     enabled: !!organization?.id,
-    staleTime: 15 * 60 * 1000, // 15 دقيقة
-    gcTime: 45 * 60 * 1000, // 45 دقيقة
+    staleTime: 20 * 60 * 1000, // 20 دقيقة (زيادة للحد من الطلبات)
+    gcTime: 60 * 60 * 1000, // 60 دقيقة
     retry: 1,
     refetchOnWindowFocus: false,
+    refetchOnReconnect: false, // منع إعادة الطلب عند إعادة الاتصال
+    refetchOnMount: false, // منع إعادة الطلب عند كل mount
   });
 
-  // جلب المحافظات (مرة واحدة فقط)
+  // جلب المحافظات (مرة واحدة فقط) - مع منع الطلبات المكررة
   const {
     data: yalidineProvinces,
     isLoading: provincesLoading,
@@ -121,10 +125,12 @@ export const ProductPageProvider: React.FC<ProductPageProviderProps> = ({
   } = useQuery({
     queryKey: ['yalidine-provinces-light'],
     queryFn: fetchYalidineProvinces,
-    staleTime: 60 * 60 * 1000, // ساعة واحدة
+    staleTime: 2 * 60 * 60 * 1000, // ساعتين (زيادة للحد من الطلبات)
     gcTime: 24 * 60 * 60 * 1000, // 24 ساعة
-    retry: 2,
+    retry: 1, // تقليل المحاولات
     refetchOnWindowFocus: false,
+    refetchOnReconnect: false, // منع إعادة الطلب عند إعادة الاتصال
+    refetchOnMount: false, // منع إعادة الطلب عند كل mount
   });
 
   // تحديد اللغة الافتراضية
@@ -185,4 +191,4 @@ export const useProductPageOrganization = () => {
   return organization;
 };
 
-export default ProductPageContext; 
+export default ProductPageContext;

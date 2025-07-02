@@ -99,22 +99,42 @@ function isHSLColor(color: string): boolean {
  * تطبيق الثيم على العناصر في الصفحة
  */
 function applyThemeToDOM(theme: UnifiedTheme): void {
+  console.log('🎨 [ThemeManager] بدء تطبيق الثيم:', {
+    primaryColor: theme.primaryColor,
+    secondaryColor: theme.secondaryColor,
+    mode: theme.mode,
+    organizationId: theme.organizationId,
+    customCss: theme.customCss ? 'موجود' : 'غير موجود',
+    timestamp: new Date().toLocaleTimeString()
+  });
+  
   // إنشاء مفتاح للثيم الحالي
   const themeKey = `${theme.primaryColor}-${theme.secondaryColor}-${theme.mode}-${theme.organizationId || 'global'}`;
   
+  console.log('🔑 [ThemeManager] مفتاح الثيم:', {
+    currentKey: themeKey,
+    previousKey: currentAppliedTheme,
+    isSameTheme: currentAppliedTheme === themeKey
+  });
+  
   // تجنب تطبيق الثيم نفسه مرة أخرى
   if (currentAppliedTheme === themeKey) {
+    console.log('⏭️ [ThemeManager] تجاهل - نفس الثيم مطبق بالفعل');
     return;
   }
   
   // التحقق من نوع الصفحة
   const pageType = getCurrentPageType();
+  console.log('📄 [ThemeManager] نوع الصفحة:', pageType);
 
   // إذا كانت الصفحة العامة، نستخدم الثيم العام دائماً
   // لكن فقط إذا لم يكن هناك معرف مؤسسة
   if (pageType === 'global' && !theme.organizationId) {
-    theme = getStoredTheme('global') || DEFAULT_GLOBAL_THEME;
+    const globalTheme = getStoredTheme('global') || DEFAULT_GLOBAL_THEME;
+    console.log('🌍 [ThemeManager] تطبيق الثيم العام:', globalTheme);
+    theme = globalTheme;
   } else if (pageType === 'store' && theme.organizationId) {
+    console.log('🏪 [ThemeManager] تطبيق ثيم المتجر');
   }
 
   // حفظ مفتاح الثيم الحالي
@@ -122,11 +142,18 @@ function applyThemeToDOM(theme: UnifiedTheme): void {
   
   const root = document.documentElement;
   
+  console.log('🎯 [ThemeManager] بدء تطبيق الألوان على DOM');
+  
   // تطبيق اللون الأساسي
   if (theme.primaryColor) {
     const primaryHSL = isHSLColor(theme.primaryColor) 
       ? theme.primaryColor 
       : hexToHSL(theme.primaryColor);
+
+    console.log('🔴 [ThemeManager] تطبيق اللون الأساسي:', {
+      original: theme.primaryColor,
+      hsl: primaryHSL
+    });
 
     // تطبيق اللون الأساسي على جميع العناصر الممكنة
     const elementsToUpdate = [root, document.body];
@@ -155,6 +182,14 @@ function applyThemeToDOM(theme: UnifiedTheme): void {
         element.style.setProperty('--primary-lighter', `${hue} ${saturation}% ${Math.min(lightness + 20, 85)}%`, 'important');
         element.style.setProperty('--primary-darker', `${hue} ${saturation}% ${Math.max(lightness - 20, 25)}%`, 'important');
       });
+      
+      console.log('🎨 [ThemeManager] الألوان المشتقة:', {
+        hue,
+        saturation,
+        lightness,
+        lighter: `${hue} ${saturation}% ${Math.min(lightness + 20, 85)}%`,
+        darker: `${hue} ${saturation}% ${Math.max(lightness - 20, 25)}%`
+      });
     }
   }
   
@@ -163,6 +198,11 @@ function applyThemeToDOM(theme: UnifiedTheme): void {
     const secondaryHSL = isHSLColor(theme.secondaryColor) 
       ? theme.secondaryColor 
       : hexToHSL(theme.secondaryColor);
+    
+    console.log('🟡 [ThemeManager] تطبيق اللون الثانوي:', {
+      original: theme.secondaryColor,
+      hsl: secondaryHSL
+    });
     
     const elementsToUpdate = [root, document.body];
     elementsToUpdate.forEach(element => {
@@ -180,6 +220,11 @@ function applyThemeToDOM(theme: UnifiedTheme): void {
     effectiveMode = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
   
+  console.log('🌙 [ThemeManager] تطبيق وضع المظهر:', {
+    themeMode: theme.mode,
+    effectiveMode
+  });
+  
   // إضافة الفئة الجديدة مع التأكد من عدم فقدانها
   root.classList.add(effectiveMode);
   document.body.classList.add(effectiveMode);
@@ -194,6 +239,8 @@ function applyThemeToDOM(theme: UnifiedTheme): void {
   
   // تطبيق CSS المخصص
   if (theme.customCss) {
+    console.log('💅 [ThemeManager] تطبيق CSS مخصص:', theme.customCss.substring(0, 100) + '...');
+    
     const styleId = 'bazaar-unified-custom-css';
     let styleElement = document.getElementById(styleId) as HTMLStyleElement;
     
@@ -208,6 +255,8 @@ function applyThemeToDOM(theme: UnifiedTheme): void {
   
   // إنشاء أو تحديث عنصر style للألوان المخصصة للمؤسسة
   if (theme.primaryColor || theme.secondaryColor) {
+    console.log('🎯 [ThemeManager] إنشاء CSS override للألوان');
+    
     const orgStyleId = 'bazaar-org-theme-override';
     let orgStyleElement = document.getElementById(orgStyleId) as HTMLStyleElement;
     
@@ -216,10 +265,12 @@ function applyThemeToDOM(theme: UnifiedTheme): void {
       orgStyleElement.id = orgStyleId;
       // Always append to ensure it's at the end
       document.head.appendChild(orgStyleElement);
+      console.log('📝 [ThemeManager] إنشاء عنصر style جديد');
     } else {
       // Remove and re-append to ensure it's at the end
       orgStyleElement.remove();
       document.head.appendChild(orgStyleElement);
+      console.log('🔄 [ThemeManager] إعادة ترتيب عنصر style موجود');
     }
     
     // إنشاء CSS يحتوي على الألوان المخصصة مع أولوية عالية
@@ -627,6 +678,11 @@ export function updateOrganizationTheme(
     custom_css?: string;
   }
 ): void {
+  console.log('🏢 [updateOrganizationTheme] بدء تحديث ثيم المؤسسة:', {
+    organizationId,
+    settings,
+    timestamp: new Date().toLocaleTimeString()
+  });
   
   // تحويل theme_mode من 'auto' إلى 'system'
   let themeMode: 'light' | 'dark' | 'system' = 'light';
@@ -635,6 +691,11 @@ export function updateOrganizationTheme(
   } else if (settings.theme_mode === 'light' || settings.theme_mode === 'dark') {
     themeMode = settings.theme_mode;
   }
+
+  console.log('🔄 [updateOrganizationTheme] تحويل وضع الثيم:', {
+    original: settings.theme_mode,
+    converted: themeMode
+  });
 
   const theme: UnifiedTheme = {
     primaryColor: settings.theme_primary_color || DEFAULT_STORE_THEME.primaryColor,
@@ -645,10 +706,16 @@ export function updateOrganizationTheme(
     lastUpdated: Date.now()
   };
   
+  console.log('🎨 [updateOrganizationTheme] الثيم المُنشأ:', theme);
+  
   // حفظ وتطبيق الثيم
+  console.log('💾 [updateOrganizationTheme] حفظ الثيم في localStorage');
   saveTheme(theme, 'organization');
+  
+  console.log('🎯 [updateOrganizationTheme] تطبيق الثيم على DOM');
   applyThemeToDOM(theme);
   
+  console.log('✅ [updateOrganizationTheme] تم تحديث ثيم المؤسسة بنجاح');
 }
 
 /**

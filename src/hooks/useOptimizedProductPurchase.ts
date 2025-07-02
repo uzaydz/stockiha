@@ -1,6 +1,23 @@
 import { useQuery } from '@tanstack/react-query';
 import { getSupabaseClient } from '@/lib/supabase';
 import { useTenant } from '@/context/TenantContext';
+import { getStaticProvinces } from '@/lib/static-provinces';
+
+// تعريف الأنواع
+interface ProductData {
+  success: boolean;
+  product: any;
+  provinces: any[];
+  categories: any[];
+  services: any[];
+  organizationSettings: any;
+  organization: any;
+  metadata: {
+    fetched_at: string;
+    cache_duration: number;
+    version: string;
+  };
+}
 
 /**
  * Hook محسن لجلب بيانات صفحة شراء المنتج
@@ -16,17 +33,16 @@ export const useOptimizedProductPurchase = (productSlug?: string) => {
     isLoading,
     error,
     refetch
-  } = useQuery({
+  } = useQuery<ProductData>({
     queryKey: ['optimized-product-purchase', productSlug, currentOrganization?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<ProductData> => {
       if (!productSlug || !currentOrganization?.id) {
         throw new Error('Product slug and Organization ID are required');
       }
 
-      // تشغيل الاستدعاءات الأساسية بالتوازي
+      // تشغيل الاستدعاءات الأساسية بالتوازي - باستخدام البيانات الثابتة للولايات
       const [
         productResult,
-        provincesResult,
         categoriesResult,
         servicesResult,
         organizationSettingsResult
@@ -44,30 +60,25 @@ export const useOptimizedProductPurchase = (productSlug?: string) => {
           .eq('is_active', true)
           .single(),
           
-        // 2. الولايات المتاحة للتوصيل
-        supabase
-          .from('yalidine_provinces_global')
-          .select('id, name, is_deliverable')
-          .eq('is_deliverable', true)
-          .order('name'),
-          
-        // 3. فئات المنتجات
+        // 2. فئات المنتجات
         supabase
           .from('product_categories')
           .select('id, name, slug')
           .order('name'),
           
-        // 4. الخدمات المتاحة
+        // 3. الخدمات المتاحة
         supabase
           .from('services')
           .select('id, name, price, is_available')
           .eq('organization_id', currentOrganization.id)
           .eq('is_available', true),
           
-        // 5. إعدادات المؤسسة
-        supabase.rpc('get_organization_settings_direct', {
-          org_id: currentOrganization.id
-        })
+        // 4. إعدادات المؤسسة - استدعاء مبسط
+        supabase
+          .from('organization_settings')
+          .select('*')
+          .eq('organization_id', currentOrganization.id)
+          .maybeSingle()
       ]);
 
       // فحص الأخطاء
@@ -77,14 +88,16 @@ export const useOptimizedProductPurchase = (productSlug?: string) => {
       if (!productResult.data) {
         throw new Error('المنتج غير موجود');
       }
-      if (provincesResult.error) console.warn('Provinces fetch error:', provincesResult.error);
       if (categoriesResult.error) console.warn('Categories fetch error:', categoriesResult.error);
       if (servicesResult.error) console.warn('Services fetch error:', servicesResult.error);
+
+      // استخدام البيانات الثابتة للولايات بدلاً من قاعدة البيانات
+      const staticProvinces = getStaticProvinces();
 
       return {
         success: true,
         product: productResult.data,
-        provinces: provincesResult.data || [],
+        provinces: staticProvinces, // الولايات الثابتة بدلاً من قاعدة البيانات
         categories: categoriesResult.data || [],
         services: servicesResult.data || [],
         organizationSettings: organizationSettingsResult.data || {},
@@ -98,7 +111,7 @@ export const useOptimizedProductPurchase = (productSlug?: string) => {
     },
     enabled: !!productSlug && !!currentOrganization?.id && !isOrganizationLoading,
     staleTime: 2 * 60 * 1000, // دقيقتان
-    cacheTime: 10 * 60 * 1000, // 10 دقائق
+    gcTime: 10 * 60 * 1000, // 10 دقائق (gcTime بدلاً من cacheTime)
     retry: (failureCount, error) => {
       // إعادة المحاولة فقط للأخطاء الشبكية، وليس لعدم وجود المنتج
       if (error?.message?.includes('غير موجود')) return false;

@@ -50,4 +50,4 @@ export const ProductPageLayout: React.FC<ProductPageLayoutProps> = ({
   );
 };
 
-export default ProductPageLayout; 
+export default ProductPageLayout;

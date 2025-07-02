@@ -500,22 +500,18 @@ export class UnifiedRequestManager {
    * جلب فئات فرعية - موحد
    */
   static async getProductSubcategories() {
-    console.log('🚀 UnifiedRequestManager.getProductSubcategories() called');
     return executeRequest(
       `unified_subcategories_all`,
       async () => {
-        console.log('🔍 Executing subcategories query...');
         const { data, error } = await supabase
           .from('product_subcategories')
           .select('*')
           .order('name');
         
         if (error) {
-          console.error('❌ Error fetching subcategories:', error);
           return [];
         }
         
-        console.log('✅ Subcategories query success:', data?.length || 0);
         return data || [];
       },
       15 * 60 * 1000 // 15 دقيقة
@@ -776,9 +772,13 @@ export const useUnifiedUser = (userId: string) => {
   return useQuery({
     queryKey: ['unified_user', userId],
     queryFn: () => UnifiedRequestManager.getUserById(userId),
-    staleTime: 15 * 60 * 1000, // 15 دقيقة
-    gcTime: 30 * 60 * 1000, // 30 دقيقة
+    staleTime: 60 * 60 * 1000, // ساعة كاملة (زيادة من 15 دقيقة)
+    gcTime: 4 * 60 * 60 * 1000, // 4 ساعات (زيادة من 30 دقيقة)
     enabled: !!userId,
+    refetchOnWindowFocus: false, // منع التحديث عند التركيز
+    refetchOnMount: false, // منع التحديث عند التركيب المتكرر
+    retry: 1, // تقليل المحاولات
+    retryDelay: 3000,
   });
 };
 

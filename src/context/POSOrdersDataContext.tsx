@@ -952,23 +952,25 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
   const [filters, setFilters] = React.useState<POSOrderFilters>({});
   const [currentPage, setCurrentPage] = React.useState(1);
 
-  // React Query للإحصائيات
+  // React Query لإحصائيات الطلبات
   const {
-    data: stats,
-    isLoading: isStatsLoading,
-    error: statsError,
-    refetch: refetchStats
+    data: orderStats,
+    isLoading: isOrderStatsLoading,
+    error: orderStatsError
   } = useQuery({
-    queryKey: ['pos-orders-stats', orgId],
+    queryKey: ['pos-order-stats', orgId],
     queryFn: () => fetchPOSOrderStats(orgId!),
     enabled: !!orgId,
-    staleTime: 2 * 60 * 1000, // دقيقتان للإحصائيات (بيانات ديناميكية)
-    gcTime: 10 * 60 * 1000, // 10 دقائق
-    retry: 3,
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
+    staleTime: 5 * 60 * 1000, // 5 دقائق (زيادة من دقيقتين)
+    gcTime: 30 * 60 * 1000, // 30 دقيقة (زيادة من 15)
+    retry: 1,
+    retryDelay: 2000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchInterval: false, // إيقاف التحديث التلقائي
   });
 
-  // React Query للطلبيات
+  // React Query لطلبيات الطلبات
   const {
     data: ordersData,
     isLoading: isOrdersLoading,
@@ -1007,10 +1009,12 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
     queryKey: ['organization-settings', orgId],
     queryFn: () => fetchOrganizationSettings(orgId!),
     enabled: !!orgId,
-    staleTime: 30 * 60 * 1000, // 30 دقيقة
-    gcTime: 2 * 60 * 60 * 1000, // ساعتان
-    retry: 2,
-    retryDelay: 1000,
+    staleTime: 2 * 60 * 60 * 1000, // ساعتان (زيادة من 30 دقيقة)
+    gcTime: 4 * 60 * 60 * 1000, // 4 ساعات
+    retry: 1,
+    retryDelay: 2000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   // React Query لاشتراكات المؤسسة
@@ -1020,23 +1024,29 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
     queryKey: ['organization-subscriptions', orgId],
     queryFn: () => fetchOrganizationSubscriptions(orgId!),
     enabled: !!orgId,
-    staleTime: 15 * 60 * 1000, // 15 دقيقة
-    gcTime: 60 * 60 * 1000, // ساعة
-    retry: 2,
-    retryDelay: 1000,
+    staleTime: 60 * 60 * 1000, // ساعة (زيادة من 15 دقيقة)
+    gcTime: 4 * 60 * 60 * 1000, // 4 ساعات
+    retry: 1,
+    retryDelay: 2000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   // React Query لإعدادات نقطة البيع
   const {
-    data: posSettings
+    data: posSettings,
+    isLoading: isPOSSettingsLoading,
+    error: posSettingsError
   } = useQuery({
     queryKey: ['pos-settings', orgId],
     queryFn: () => fetchPOSSettings(orgId!),
     enabled: !!orgId,
-    staleTime: 20 * 60 * 1000, // 20 دقيقة
-    gcTime: 2 * 60 * 60 * 1000, // ساعتان
-    retry: 2,
-    retryDelay: 1000,
+    staleTime: 30 * 60 * 1000, // 30 دقيقة (زيادة من 10)
+    gcTime: 2 * 60 * 60 * 1000, // ساعتان (زيادة من 30 دقيقة)
+    retry: 1,
+    retryDelay: 2000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   // دوال التحديث
@@ -1045,8 +1055,8 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
   }, [queryClient]);
 
   const refreshStats = useCallback(async () => {
-    await refetchStats();
-  }, [refetchStats]);
+    await refetchOrders();
+  }, [refetchOrders]);
 
   const refreshOrders = useCallback(async (page?: number, newFilters?: POSOrderFilters) => {
     if (page) setCurrentPage(page);
@@ -1075,13 +1085,13 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
       }
 
       // إعادة تحميل البيانات
-      await Promise.all([refetchStats(), refetchOrders()]);
+      await Promise.all([refetchOrders()]);
       
       return true;
     } catch (error) {
       return false;
     }
-  }, [refetchStats, refetchOrders]);
+  }, [refetchOrders]);
 
   const updatePaymentStatus = useCallback(async (
     orderId: string, 
@@ -1108,13 +1118,13 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
       }
 
       // إعادة تحميل البيانات
-      await Promise.all([refetchStats(), refetchOrders()]);
+      await Promise.all([refetchOrders()]);
       
       return true;
     } catch (error) {
       return false;
     }
-  }, [refetchStats, refetchOrders]);
+  }, [refetchOrders]);
 
   const deleteOrder = useCallback(async (orderId: string): Promise<boolean> => {
     try {
@@ -1287,13 +1297,13 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
       }
 
       // إعادة تحميل البيانات
-      await Promise.all([refetchStats(), refetchOrders()]);
+      await Promise.all([refetchOrders()]);
       
       return true;
     } catch (error) {
       return false;
     }
-  }, [refetchStats, refetchOrders]);
+  }, [refetchOrders]);
 
   // تحديث طلبية في الكاش بدلاً من إعادة تحميل كل البيانات
   const updateOrderInCache = useCallback((updatedOrder: POSOrderWithDetails) => {
@@ -1319,9 +1329,9 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
     
     // تحديث الإحصائيات أيضاً إذا لزم الأمر
     if (updatedOrder.payment_status || updatedOrder.status) {
-      refetchStats();
+      refetchOrders();
     }
-  }, [queryClient, orgId, currentPage, filters, refetchStats]);
+  }, [queryClient, orgId, currentPage, filters, refetchOrders]);
 
   // دوال الفلترة والصفحات
   const handleSetFilters = useCallback((newFilters: POSOrderFilters) => {
@@ -1334,19 +1344,19 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
   }, []);
 
   // حساب حالة التحميل الإجمالية
-  const isLoading = isStatsLoading || isOrdersLoading || isEmployeesLoading;
+  const isLoading = isOrderStatsLoading || isOrdersLoading || isEmployeesLoading;
 
   // جمع الأخطاء
   const errors = useMemo(() => ({
-    stats: statsError?.message,
+    stats: orderStatsError?.message,
     orders: ordersError?.message,
     employees: employeesError?.message,
-  }), [statsError, ordersError, employeesError]);
+  }), [orderStatsError, ordersError, employeesError]);
 
   // قيمة Context
   const contextValue = useMemo<POSOrdersData>(() => ({
     // البيانات
-    stats: stats || null,
+    stats: orderStats || null,
     orders: ordersData?.orders || [],
     employees,
     
@@ -1363,7 +1373,7 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
     
     // حالات التحميل
     isLoading,
-    isStatsLoading,
+    isOrderStatsLoading,
     isOrdersLoading,
     isEmployeesLoading,
     
@@ -1391,8 +1401,8 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
     // دوال lazy loading
     fetchOrderDetails,
   }), [
-    stats, ordersData, employees, currentPage, organizationSettings, 
-    organizationSubscriptions, posSettings, isLoading, isStatsLoading, 
+    orderStats, ordersData, employees, currentPage, organizationSettings, 
+    organizationSubscriptions, posSettings, isLoading, isOrderStatsLoading, 
     isOrdersLoading, isEmployeesLoading, errors, refreshAll, refreshStats, 
     refreshOrders, handleSetFilters, handleSetPage, updateOrderStatus, 
     updatePaymentStatus, deleteOrder, updateOrderInCache

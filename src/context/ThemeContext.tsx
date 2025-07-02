@@ -53,42 +53,47 @@ function applyThemeToDOM(theme: Theme) {
     effectiveTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
   
-  // تطبيق الثيم بطريقة بسيطة وسريعة
+  // تطبيق الثيم بطريقة مبسطة وسريعة
   requestAnimationFrame(() => {
-    // إزالة الفئات السابقة من جميع العناصر المحتملة
+    // إزالة الفئات السابقة
     root.classList.remove('light', 'dark');
     body.classList.remove('light', 'dark');
     
-    // إضافة الفئة الجديدة إلى جميع العناصر
+    // إضافة الفئة الجديدة
     root.classList.add(effectiveTheme);
     body.classList.add(effectiveTheme);
     
-    // تعيين data attribute كنسخة احتياطية
+    // تعيين data attribute
     root.setAttribute('data-theme', effectiveTheme);
     body.setAttribute('data-theme', effectiveTheme);
     
-    // تحديث color-scheme للمتصفح
-    document.body.style.colorScheme = effectiveTheme;
-    root.style.colorScheme = effectiveTheme;
+    // تحديث color-scheme بطريقة أكثر أماناً
+    if (root.style.colorScheme !== effectiveTheme) {
+      root.style.colorScheme = effectiveTheme;
+    }
+    if (body.style.colorScheme !== effectiveTheme) {
+      body.style.colorScheme = effectiveTheme;
+    }
     
     // تحديث meta theme-color للمتصفحات المحمولة
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
-      const themeColor = effectiveTheme === 'dark' ? '#0f172a' : '#ffffff';
+      const themeColor = effectiveTheme === 'dark' ? '#111827' : '#ffffff';
       metaThemeColor.setAttribute('content', themeColor);
     }
-    
-    // فرض إعادة حساب الأنماط
-    root.style.display = 'none';
-    root.offsetHeight; // Force reflow
-    root.style.display = '';
   });
 }
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialOrganizationId }) => {
+  console.log('🎬 [ThemeProvider] تهيئة ThemeProvider:', {
+    initialOrganizationId,
+    hasOrganizationId: !!initialOrganizationId,
+    timestamp: new Date().toLocaleTimeString()
+  });
+  
   const location = useLocation();
   const [currentOrganizationId, setCurrentOrganizationId] = useState<string | undefined>(initialOrganizationId);
-  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isTransitioning] = useState(false);
   const [theme, setThemeState] = useState<Theme>(() => {
     // التحقق من وجود تفضيل مخزن من إعدادات المؤسسة أولاً
     const orgThemePreference = localStorage.getItem('theme-preference') as Theme;
@@ -110,62 +115,93 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
     return 'light';
   });
 
-  // دالة تحديث الثيم بشكل سريع وبسيط
+  // دالة تحديث الثيم بشكل محسن
   const setTheme = useCallback((newTheme: Theme) => {
     if (newTheme === theme) return;
-    
-    setIsTransitioning(true);
     
     // حفظ التفضيل في localStorage
     localStorage.setItem('theme', newTheme);
     
-    // تطبيق الثيم على DOM
-    applyThemeToDOM(newTheme);
-    
-    // تحديث الحالة
+    // تحديث الحالة أولاً (سيؤدي إلى تطبيق الثيم عبر useEffect)
     setThemeState(newTheme);
-    
-    // إنهاء حالة الانتقال بسرعة
-    setTimeout(() => {
-      setIsTransitioning(false);
-    }, 150);
   }, [theme]);
 
   // تطبيق ثيم المؤسسة
   const applyOrganizationTheme = useCallback(async () => {
-    if (!currentOrganizationId) return;
+    if (!currentOrganizationId) {
+      console.log('⚠️ [ThemeContext] لا يوجد معرف مؤسسة لتطبيق الثيم');
+      return;
+    }
+    
+    console.log('🔍 [ThemeContext] بدء جلب إعدادات المؤسسة:', {
+      organizationId: currentOrganizationId,
+      currentTheme: theme,
+      timestamp: new Date().toLocaleTimeString()
+    });
     
     try {
       const settings = await getOrganizationSettings(currentOrganizationId);
       
-      if (settings) {
+      console.log('📋 [ThemeContext] إعدادات المؤسسة المُستلمة:', settings);
+      console.log('🔍 [ThemeContext] تفاصيل الإعدادات:', {
+        themeMode: settings?.[0]?.theme_mode,
+        primaryColor: settings?.[0]?.theme_primary_color,
+        secondaryColor: settings?.[0]?.theme_secondary_color,
+        customCss: settings?.[0]?.custom_css,
+        fullSettings: settings?.[0]
+      });
+      
+      if (settings && settings.length > 0) {
+        const orgSettings = settings[0]; // أخذ أول عنصر من المصفوفة
+        
         // تطبيق وضع الثيم
-        if (settings.theme_mode) {
-          const orgTheme = convertThemeMode(settings.theme_mode);
+        if (orgSettings.theme_mode) {
+          const orgTheme = convertThemeMode(orgSettings.theme_mode);
+          
+          console.log('🔄 [ThemeContext] تحويل وضع الثيم:', {
+            dbThemeMode: orgSettings.theme_mode,
+            convertedTheme: orgTheme,
+            currentTheme: theme
+          });
           
           // حفظ تفضيل المؤسسة
           localStorage.setItem('theme-preference', orgTheme);
           
           // تطبيق الثيم إذا كان مختلفاً
           if (orgTheme !== theme) {
+            console.log('🎨 [ThemeContext] تطبيق وضع ثيم جديد:', orgTheme);
             setTheme(orgTheme);
+          } else {
+            console.log('✅ [ThemeContext] وضع الثيم مطابق، لا حاجة للتغيير');
           }
         }
         
         // تطبيق ألوان المؤسسة المخصصة مباشرة
-        if (settings.theme_primary_color || settings.theme_secondary_color || settings.custom_css) {
+        if (orgSettings.theme_primary_color || orgSettings.theme_secondary_color || orgSettings.custom_css) {
+          console.log('🎨 [ThemeContext] تطبيق ألوان مخصصة:', {
+            primaryColor: orgSettings.theme_primary_color,
+            secondaryColor: orgSettings.theme_secondary_color,
+            hasCustomCss: !!orgSettings.custom_css
+          });
+          
           // استخدام setTimeout لضمان تطبيق الألوان بعد تطبيق الثيم
           setTimeout(() => {
+            console.log('⏰ [ThemeContext] تطبيق الألوان بعد التأخير');
             updateOrganizationTheme(currentOrganizationId, {
-              theme_primary_color: settings.theme_primary_color,
-              theme_secondary_color: settings.theme_secondary_color,
-              theme_mode: settings.theme_mode,
-              custom_css: settings.custom_css
+              theme_primary_color: orgSettings.theme_primary_color,
+              theme_secondary_color: orgSettings.theme_secondary_color,
+              theme_mode: orgSettings.theme_mode,
+              custom_css: orgSettings.custom_css
             });
           }, 50);
+        } else {
+          console.log('⚪ [ThemeContext] لا توجد ألوان مخصصة لتطبيقها في الإعدادات');
         }
+      } else {
+        console.log('❌ [ThemeContext] لم يتم العثور على إعدادات للمؤسسة أو المصفوفة فارغة');
       }
     } catch (error) {
+      console.error('🚨 [ThemeContext] خطأ في جلب إعدادات المؤسسة:', error);
     }
   }, [currentOrganizationId, theme, setTheme]);
 
@@ -174,32 +210,59 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
     applyThemeToDOM(theme);
   }, []);
 
-  // إعادة تطبيق الثيم عند تغيير المسار (لحل مشكلة عدم تطبيق الثيم بعد التنقل)
+  // إعادة تطبيق ثيم المؤسسة عند تغيير المسار
   useEffect(() => {
-    // تطبيق الثيم مع تأخير بسيط لضمان اكتمال عملية التنقل
-    const timeoutId = setTimeout(() => {
-      applyThemeToDOM(theme);
-      
-      // إعادة تطبيق ثيم المؤسسة إذا كان موجوداً
-      if (currentOrganizationId) {
-        applyOrganizationTheme();
-      }
-    }, 10);
+    console.log('🛤️ [ThemeContext] تغيير المسار:', {
+      pathname: location.pathname,
+      organizationId: currentOrganizationId,
+      hasOrganization: !!currentOrganizationId
+    });
+    
+    // فقط تطبيق الثيم في المسارات المهمة (تجنب POS وصفحات أخرى)
+    const shouldApplyTheme = location.pathname === '/' || 
+                            location.pathname.includes('/products') ||
+                            location.pathname.includes('/dashboard') ||
+                            location.pathname.includes('/store');
+    
+    if (currentOrganizationId && shouldApplyTheme) {
+      console.log('🔄 [ThemeContext] إعادة تطبيق ثيم المؤسسة بسبب تغيير المسار');
+      applyOrganizationTheme();
+    } else {
+      console.log('⚠️ [ThemeContext] تجاهل تطبيق الثيم لهذا المسار أو لعدم وجود معرف مؤسسة');
+    }
+  }, [location.pathname, currentOrganizationId, applyOrganizationTheme]);
 
-    return () => clearTimeout(timeoutId);
-  }, [location.pathname, theme, currentOrganizationId, applyOrganizationTheme]);
-
-  // مراقبة تغييرات معرف المؤسسة
+  // مراقبة تغييرات معرف المؤسسة (مع debounce لتجنب التكرار)
   useEffect(() => {
+    console.log('🏢 [ThemeContext] مراقبة تغيير معرف المؤسسة:', {
+      initial: initialOrganizationId,
+      current: currentOrganizationId,
+      needsUpdate: initialOrganizationId !== currentOrganizationId
+    });
+    
     if (initialOrganizationId !== currentOrganizationId) {
+      console.log('🔄 [ThemeContext] تحديث معرف المؤسسة الحالي');
       setCurrentOrganizationId(initialOrganizationId);
     }
   }, [initialOrganizationId, currentOrganizationId]);
 
-  // تطبيق ثيم المؤسسة عند تغيير المعرف
+  // تطبيق ثيم المؤسسة عند تغيير المعرف (مع تأخير لتجنب التكرار)
   useEffect(() => {
+    console.log('🎯 [ThemeContext] مراقبة تغيير معرف المؤسسة للثيم:', {
+      organizationId: currentOrganizationId,
+      hasOrganization: !!currentOrganizationId
+    });
+    
     if (currentOrganizationId) {
-      applyOrganizationTheme();
+      console.log('🚀 [ThemeContext] تطبيق ثيم المؤسسة الجديد مع تأخير');
+      // إضافة تأخير لتجنب الاستدعاءات المتكررة
+      const timeoutId = setTimeout(() => {
+        applyOrganizationTheme();
+      }, 500); // تأخير نصف ثانية
+      
+      return () => clearTimeout(timeoutId);
+    } else {
+      console.log('⚪ [ThemeContext] لا يوجد معرف مؤسسة، تجاهل التحديث');
     }
   }, [currentOrganizationId, applyOrganizationTheme]);
 
@@ -226,51 +289,9 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
     initializeSystemThemeListener();
   }, []);
 
-  // مراقب للتأكد من بقاء فئة الثيم على العناصر
+  // تطبيق الثيم عند تغييره
   useEffect(() => {
-    const root = document.documentElement;
-    const body = document.body;
-    let effectiveTheme = theme;
-    
-    if (theme === 'system') {
-      effectiveTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
-
-    // دالة للتحقق من وتطبيق الثيم
-    const ensureThemeApplied = (element: HTMLElement) => {
-      if (!element.classList.contains(effectiveTheme)) {
-        element.classList.remove('light', 'dark');
-        element.classList.add(effectiveTheme);
-        element.setAttribute('data-theme', effectiveTheme);
-      }
-    };
-
-    // إنشاء مراقب للتغييرات
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-          const target = mutation.target as HTMLElement;
-          ensureThemeApplied(target);
-        }
-      });
-    });
-
-    // بدء المراقبة على كل من html و body
-    observer.observe(root, {
-      attributes: true,
-      attributeFilter: ['class']
-    });
-    
-    observer.observe(body, {
-      attributes: true,
-      attributeFilter: ['class']
-    });
-
-    // تطبيق الثيم مباشرة
-    ensureThemeApplied(root);
-    ensureThemeApplied(body);
-
-    return () => observer.disconnect();
+    applyThemeToDOM(theme);
   }, [theme]);
 
   // تحسين الأداء بمنع إعادة الرسم غير الضرورية

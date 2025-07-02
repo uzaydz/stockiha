@@ -59,7 +59,6 @@ const Employees = () => {
       
       setUserStatus(status);
     } catch (error) {
-      console.error('Error in checkUserAndLoadEmployees:', error);
     }
   };
 
@@ -75,7 +74,6 @@ const Employees = () => {
       setEmployees(employeesData);
       setStats(statsData);
     } catch (error) {
-      console.error('Error loading employees:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء تحميل بيانات الموظفين',

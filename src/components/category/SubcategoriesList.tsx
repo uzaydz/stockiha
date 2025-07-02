@@ -72,7 +72,6 @@ const SubcategoriesList = ({ category }: SubcategoriesListProps) => {
       const data = await getSubcategories(category.id, category.organization_id);
       setSubcategories(data);
     } catch (error) {
-      console.error('Error fetching subcategories:', error);
       toast.error('حدث خطأ أثناء تحميل الفئات الفرعية');
     } finally {
       setIsLoading(false);

@@ -440,7 +440,6 @@ const ProductForm = () => {
 
     // تحقق خاص من أخطاء الألوان
     if (errors.colors) {
-      console.error('❌ ProductForm - خطأ في الألوان:', errors.colors);
     }
     
     toast.error(`يرجى إصلاح ${errorCount} خطأ في النموذج`);

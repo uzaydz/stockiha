@@ -1,16 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Clock, 
-  Zap, 
-  Calendar,
-  Timer,
-  Flame,
-  AlertTriangle,
-  Sparkles
-} from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+  ClockIcon, 
+  FireIcon, 
+  CalendarDaysIcon,
+  BoltIcon 
+} from '@heroicons/react/24/outline';
 import { cn } from '@/lib/utils';
 
 // أنواع البيانات
@@ -57,26 +52,8 @@ const useOfferTimer = (settings: OfferTimerSettings) => {
   const [isExpired, setIsExpired] = useState(false);
   const [isActive, setIsActive] = useState(false);
 
-
-
   const getEndTime = useCallback(() => {
     const now = new Date();
-    
-    // تنظيف المؤقتات المنتهية أولاً
-    const keys = Object.keys(localStorage);
-    
-    keys.forEach(key => {
-      if (key.startsWith('offer_timer_')) {
-        try {
-          const data = JSON.parse(localStorage.getItem(key) || '{}');
-          if (data.endTime && new Date(data.endTime).getTime() <= now.getTime()) {
-            localStorage.removeItem(key);
-          }
-        } catch {
-          localStorage.removeItem(key);
-        }
-      }
-    });
     
     switch (settings.offer_timer_type) {
       case 'specific_date':
@@ -92,7 +69,6 @@ const useOfferTimer = (settings: OfferTimerSettings) => {
             const parsed = JSON.parse(existingTimer);
             const savedEndTime = new Date(parsed.endTime);
             
-            // 🔧 التحقق من أن المؤقت المحفوظ لم ينته بعد
             if (savedEndTime.getTime() > now.getTime()) {
               return savedEndTime;
             } else {
@@ -105,8 +81,6 @@ const useOfferTimer = (settings: OfferTimerSettings) => {
         
         const duration = settings.offer_timer_duration_minutes || 60;
         const endTime = new Date(now.getTime() + duration * 60 * 1000);
-        
-
         
         localStorage.setItem(cookieKey, JSON.stringify({
           endTime: endTime.toISOString(),
@@ -164,87 +138,12 @@ const useOfferTimer = (settings: OfferTimerSettings) => {
     const interval = setInterval(updateTimer, 1000);
 
     return () => clearInterval(interval);
-  }, [
-    settings.offer_timer_enabled, 
-    settings.offer_timer_type, 
-    settings.offer_timer_duration_minutes, 
-    settings.offer_timer_end_date,
-    settings.offer_timer_restart_for_new_session
-  ]);
+  }, [settings, getEndTime, calculateTimeRemaining]);
 
   return { timeRemaining, isExpired, isActive };
 };
 
-// مكون عرض الوقت الفردي
-const TimeUnit: React.FC<{
-  value: number;
-  label: string;
-  isUrgent?: boolean;
-}> = ({ value, label, isUrgent = false }) => {
-  return (
-    <motion.div className="text-center">
-      <div className={cn(
-        "relative rounded-xl py-3 px-4 min-w-[70px] font-mono font-bold text-2xl md:text-3xl shadow-lg transition-all duration-300",
-        "border-2 bg-gradient-to-br",
-        isUrgent 
-          ? "border-red-400 text-red-600 bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950/30 dark:to-red-900/20 dark:border-red-600/50 dark:text-red-400" 
-          : "border-primary/30 text-primary bg-gradient-to-br from-primary/5 to-primary/10 dark:from-primary/10 dark:to-primary/5"
-      )}>
-        <motion.span
-          key={value}
-          initial={{ y: -20, opacity: 0, scale: 0.8 }}
-          animate={{ y: 0, opacity: 1, scale: 1 }}
-          transition={{ 
-            type: "spring", 
-            stiffness: 400, 
-            damping: 25,
-            duration: 0.3 
-          }}
-        >
-          {value.toString().padStart(2, '0')}
-        </motion.span>
-        
-        {/* تأثير وهج */}
-        <div className={cn(
-          "absolute inset-0 rounded-xl opacity-30 blur-xl transition-all duration-300",
-          isUrgent ? "bg-red-400" : "bg-primary/20"
-        )} />
-      </div>
-      
-      <div className={cn(
-        "text-xs md:text-sm mt-2 font-medium transition-colors duration-300",
-        isUrgent ? "text-red-600 dark:text-red-400" : "text-muted-foreground"
-      )}>
-        {label}
-      </div>
-    </motion.div>
-  );
-};
-
-// مكون الفاصل المتحرك
-const TimeSeparator: React.FC<{ isUrgent?: boolean }> = ({ isUrgent = false }) => {
-  return (
-    <motion.div
-      animate={{ 
-        opacity: [1, 0.3, 1],
-        scale: [1, 0.8, 1]
-      }}
-      transition={{ 
-        duration: 1.5,
-        repeat: Infinity,
-        ease: "easeInOut"
-      }}
-      className={cn(
-        "flex items-center justify-center text-3xl font-bold self-center mb-6",
-        isUrgent ? "text-red-500" : "text-primary/60"
-      )}
-    >
-      :
-    </motion.div>
-  );
-};
-
-// المكون الرئيسي
+// مكون المؤقت المحسن
 const ProductOfferTimer: React.FC<ProductOfferTimerProps> = ({
   settings,
   className,
@@ -252,176 +151,134 @@ const ProductOfferTimer: React.FC<ProductOfferTimerProps> = ({
 }) => {
   const { timeRemaining, isExpired, isActive } = useOfferTimer(settings);
 
-  // إذا لم يكن المؤقت نشطاً أو انتهى
   if (!isActive || isExpired) {
     return null;
   }
 
-  // تحديد حالة الإلحاح
-  const isUrgent = timeRemaining.total < 300000; // أقل من 5 دقائق
-  const isVeryUrgent = timeRemaining.total < 60000; // أقل من دقيقة
-
-  // أيقونة ديناميكية حسب النوع
+  // تحديد الأيقونة
   const getIcon = () => {
     switch (settings.offer_timer_type) {
-      case 'specific_date': return Calendar;
-      case 'evergreen': return Zap;
-      case 'fixed_duration_per_visitor': return Timer;
-      default: return Clock;
+      case 'specific_date': return CalendarDaysIcon;
+      case 'evergreen': return BoltIcon;
+      case 'fixed_duration_per_visitor': return ClockIcon;
+      default: return ClockIcon;
     }
   };
 
   const Icon = getIcon();
+  const isUrgent = timeRemaining.total < 300000; // أقل من 5 دقائق
 
-  // النصوص
-  const textAbove = settings.offer_timer_text_above || settings.offer_timer_title || "⚡ عرض محدود الوقت";
-  const textBelow = settings.offer_timer_text_below || "استفد من العرض قبل انتهاء الوقت!";
+  // مكونات الوقت مع تحسين العرض
+  const timeUnits = [
+    { label: 'يوم', value: timeRemaining.days, show: timeRemaining.days > 0 },
+    { label: 'ساعة', value: timeRemaining.hours, show: timeRemaining.days > 0 || timeRemaining.hours > 0 },
+    { label: 'دقيقة', value: timeRemaining.minutes, show: true },
+    { label: 'ثانية', value: timeRemaining.seconds, show: timeRemaining.days === 0 && timeRemaining.hours === 0 }
+  ].filter(unit => unit.show);
 
   return (
     <AnimatePresence>
       <motion.div
-        initial={{ opacity: 0, y: 20, scale: 0.95 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: -20, scale: 0.95 }}
-        transition={{ duration: 0.4, type: "spring", stiffness: 300 }}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -10 }}
         className={cn("w-full", className)}
       >
-        <Card className={cn(
-          "overflow-hidden border-2 shadow-xl transition-all duration-300",
-          isUrgent 
-            ? "border-red-400 bg-gradient-to-br from-red-50/80 to-orange-50/80 dark:from-red-950/20 dark:to-orange-950/20 shadow-red-200/50 dark:shadow-red-950/30" 
-            : "border-primary/20 bg-gradient-to-br from-primary/5 to-secondary/5 shadow-primary/10"
-        )}>
-          {/* Header */}
-          <div className={cn(
-            "px-4 py-3 border-b-2 flex items-center justify-center gap-2 relative overflow-hidden",
-            isUrgent 
-              ? "bg-gradient-to-r from-red-500 to-orange-500 border-red-400 text-white" 
-              : "bg-gradient-to-r from-primary to-primary/80 border-primary/20 text-primary-foreground"
-          )}>
-            {/* خلفية متحركة */}
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" />
-            
-            <motion.div
-              animate={isUrgent ? { 
-                rotate: [0, 5, -5, 0],
-                scale: [1, 1.1, 1]
-              } : {}}
-              transition={isUrgent ? { 
-                duration: 2, 
-                repeat: Infinity,
-                ease: "easeInOut"
-              } : {}}
-            >
-              {isUrgent ? (
-                <AlertTriangle className="h-5 w-5 text-yellow-300" />
-              ) : (
-                <Icon className="h-5 w-5" />
-              )}
-            </motion.div>
-            
-            <h3 className="font-bold text-sm md:text-base text-center">
-              {textAbove}
-            </h3>
-            
-            {isUrgent && (
+        {/* البطاقة الرئيسية للمؤقت */}
+        <div className="bg-gradient-to-br from-primary/5 via-transparent to-primary/5 rounded-2xl p-4 space-y-3">
+          {/* العنوان مع الأيقونة */}
+          <div className="flex items-center gap-3">
+            <div className={cn(
+              "p-2 rounded-xl",
+              isUrgent 
+                ? "bg-red-100 dark:bg-red-900/30" 
+                : "bg-primary/10 dark:bg-primary/20"
+            )}>
               <motion.div
-                animate={{ opacity: [0, 1, 0] }}
-                transition={{ duration: 1, repeat: Infinity }}
+                animate={isUrgent ? { scale: [1, 1.05, 1] } : {}}
+                transition={isUrgent ? { duration: 1.5, repeat: Infinity } : {}}
               >
-                <Sparkles className="h-4 w-4 text-yellow-300" />
+                <Icon className={cn(
+                  "w-4 h-4",
+                  isUrgent 
+                    ? "text-red-600 dark:text-red-400" 
+                    : "text-primary"
+                )} />
               </motion.div>
-            )}
+            </div>
+            <div className="flex-1">
+              <h3 className="text-base font-semibold flex items-center gap-2">
+                {settings.offer_timer_text_above || "عرض محدود"}
+                {isUrgent && (
+                  <FireIcon className="w-3 h-3 text-red-500 dark:text-red-400 animate-pulse" />
+                )}
+              </h3>
+            </div>
           </div>
 
-          {/* Timer Content */}
-          <CardContent className="p-6">
-            <div className="flex items-center justify-center gap-2 md:gap-4">
-              {/* أيام */}
-              {timeRemaining.days > 0 && (
-                <>
-                  <TimeUnit 
-                    value={timeRemaining.days} 
-                    label="يوم" 
-                    isUrgent={isUrgent} 
-                  />
-                  <TimeSeparator isUrgent={isUrgent} />
-                </>
-              )}
-              
-              {/* ساعات */}
-              <TimeUnit 
-                value={timeRemaining.hours} 
-                label="ساعة" 
-                isUrgent={isUrgent} 
-              />
-              <TimeSeparator isUrgent={isUrgent} />
-              
-              {/* دقائق */}
-              <TimeUnit 
-                value={timeRemaining.minutes} 
-                label="دقيقة" 
-                isUrgent={isUrgent} 
-              />
-              <TimeSeparator isUrgent={isUrgent} />
-              
-              {/* ثواني */}
-              <TimeUnit 
-                value={timeRemaining.seconds} 
-                label="ثانية" 
-                isUrgent={isUrgent} 
-              />
-            </div>
-
-            {/* النص السفلي */}
-            {textBelow && (
-              <motion.div 
-                className="mt-6 text-center"
-                animate={isUrgent ? { 
-                  scale: [1, 1.02, 1]
-                } : {}}
-                transition={isUrgent ? { 
-                  duration: 2, 
-                  repeat: Infinity,
-                  ease: "easeInOut"
-                } : {}}
-              >
-                <div className={cn(
-                  "inline-flex items-center gap-2 px-4 py-2 rounded-full font-medium text-sm",
-                  isUrgent 
-                    ? "bg-gradient-to-r from-red-500/20 to-orange-500/20 text-red-700 dark:text-red-300 border border-red-300 dark:border-red-600" 
-                    : "bg-primary/10 text-primary border border-primary/20"
-                )}>
-                  <Flame className={cn(
-                    "h-4 w-4",
-                    isUrgent ? "text-red-500" : "text-primary"
-                  )} />
-                  {textBelow}
-                </div>
-              </motion.div>
-            )}
-
-            {/* شريط التقدم للحالات العاجلة */}
-            {isVeryUrgent && (
-              <motion.div 
-                className="mt-4 h-2 bg-red-100 dark:bg-red-950/30 rounded-full overflow-hidden"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-              >
+          {/* عداد الوقت المدمج */}
+          <div className="flex items-center justify-center gap-2 flex-wrap">
+            {timeUnits.map((unit, index) => (
+              <React.Fragment key={unit.label}>
                 <motion.div
-                  className="h-full bg-gradient-to-r from-red-500 to-orange-500"
-                  animate={{
-                    width: [`${(timeRemaining.total / 60000) * 100}%`, "0%"]
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="flex items-center gap-1"
+                >
+                  <motion.span
+                    key={unit.value}
+                    initial={{ scale: 1.1 }}
+                    animate={{ scale: 1 }}
+                    className={cn(
+                      "text-xl font-bold min-w-[2rem] text-center",
+                      isUrgent 
+                        ? "text-red-600 dark:text-red-400" 
+                        : "text-primary"
+                    )}
+                  >
+                    {unit.value.toString().padStart(2, '0')}
+                  </motion.span>
+                  <span className="text-xs text-muted-foreground font-medium">
+                    {unit.label}
+                  </span>
+                </motion.div>
+                {index < timeUnits.length - 1 && (
+                  <span className="text-muted-foreground mx-1">:</span>
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+
+          {/* شريط التقدم للحالة العاجلة */}
+          {isUrgent && (
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-red-600 dark:text-red-400 font-medium">
+                  ينتهي قريباً!
+                </span>
+                <span className="text-red-500 dark:text-red-400">⚡</span>
+              </div>
+              <div className="w-full bg-red-100 dark:bg-red-900/30 rounded-full h-1.5">
+                <motion.div
+                  className="bg-gradient-to-r from-red-500 to-red-600 dark:from-red-400 dark:to-red-500 h-1.5 rounded-full"
+                  initial={{ width: "100%" }}
+                  animate={{ 
+                    width: `${Math.max(5, (timeRemaining.total / 300000) * 100)}%`
                   }}
-                  transition={{
-                    duration: timeRemaining.total / 1000,
-                    ease: "linear"
-                  }}
+                  transition={{ duration: 1 }}
                 />
-              </motion.div>
-            )}
-          </CardContent>
-        </Card>
+              </div>
+            </div>
+          )}
+
+          {/* نص إضافي */}
+          {settings.offer_timer_text_below && (
+            <div className="text-center text-xs text-muted-foreground">
+              {settings.offer_timer_text_below}
+            </div>
+          )}
+        </div>
       </motion.div>
     </AnimatePresence>
   );

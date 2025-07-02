@@ -154,6 +154,7 @@ interface ComponentProps {
   canMoveUp: boolean;
   canMoveDown: boolean;
   viewport?: ViewportSize;
+  previewCategories?: any[];
 }
 
 // مكون شريط أدوات المكون
@@ -465,20 +466,35 @@ const ComponentWrapper = React.forwardRef<HTMLDivElement, ComponentProps>(({
         break
         
       case 'product_categories':
-        // 🚀 تمرير بيانات المعاينة من خلال settings للمحرر
-        const categoriesSettings = component.settings._previewCategories 
-          ? component.settings 
-          : { ...component.settings, _previewCategories: [] }
+        // 🚀 تحديث إعدادات المعاينة لتعكس جميع الإعدادات من المحرر
+        const categoriesSettings = {
+          ...component.settings,
+          // إضافة الفئات المحددة للمعاينة إذا كانت متاحة
+          _previewCategories: component.settings.selectedCategories || [],
+          // التأكد من تمرير جميع إعدادات العرض
+          selectionMethod: component.settings.selectionMethod || 'automatic',
+          displayCount: component.settings.displayCount || component.settings.maxCategories || 6,
+          showDescription: component.settings.showDescription ?? true,
+          showProductCount: component.settings.showProductCount ?? true,
+          showImages: component.settings.showImages ?? true,
+          displayStyle: component.settings.displayStyle || 'cards',
+          backgroundStyle: component.settings.backgroundStyle || 'light',
+          showViewAllButton: component.settings.showViewAllButton ?? true,
+          enableHoverEffects: component.settings.enableHoverEffects ?? true
+        }
         
         content = (
-          <ProductCategories 
-            title={component.settings.title}
-            description={component.settings.description}
-            useRealCategories={component.settings.useRealCategories ?? true}
-            selectedCategoryId={component.settings.selectedCategoryId}
-            settings={categoriesSettings}
-            key={`product-categories-${JSON.stringify(component.settings).substring(0, 50)}`}
-          />
+          <div className="store-preview-categories">
+            <ProductCategories 
+              title={component.settings.title}
+              description={component.settings.description}
+              useRealCategories={component.settings.useRealCategories ?? true}
+              selectedCategoryId={component.settings.selectedCategoryId}
+              settings={categoriesSettings}
+              categories={component.settings._previewCategories || []}
+              key={`product-categories-${JSON.stringify(categoriesSettings).substring(0, 50)}`}
+            />
+          </div>
         )
         break
         

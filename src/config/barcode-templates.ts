@@ -85,7 +85,7 @@ const idealTemplateCss = `
   /* Ideal Template Styles */
   .barcode-label.template-ideal {
     padding: 2.5mm; /* More padding for a cleaner, spacious look */
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif;
     display: flex; /* Use flexbox for better control */
     flex-direction: column;
     align-items: center;
@@ -225,7 +225,7 @@ export const barcodeTemplates: BarcodeTemplate[] = [
         padding: 1.5mm !important; /* Reduced padding for more content space */
         height: 100%;
         box-sizing: border-box;
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif;
         overflow: hidden; /* Prevent content from spilling out of the label */
       }
       .barcode-label.template-qr-plus-barcode .store-name-header-new {

@@ -26,7 +26,7 @@
 /* المحتوى الرئيسي للوحة */
 .properties-panel-enhanced {
   direction: rtl;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   will-change: transform, opacity, width;

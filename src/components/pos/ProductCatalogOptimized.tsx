@@ -12,8 +12,8 @@ import { cn } from '@/lib/utils';
 import { formatPrice } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { motion, AnimatePresence } from "framer-motion";
-import { getCategories, Category } from '@/lib/api/unified-api';
 import { useTenant } from '@/context/TenantContext';
+import { usePOSData } from '@/context/POSDataContext';
 import { getPaginatedProducts, searchProductsAutocomplete, getProductsStats, transformDatabaseProduct } from '@/lib/api/pos-products-api';
 import { useInView } from 'react-intersection-observer';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -22,16 +22,16 @@ import { useDebounce } from '@/hooks/useDebounce';
 
 interface ProductCatalogOptimizedProps {
   onAddToCart: (product: Product) => void;
-  onStockUpdate?: (productId: string, stockChange: number) => void; // إضافة callback لتحديث المخزون
-  isReturnMode?: boolean; // إضافة خاصية وضع الإرجاع
+  onStockUpdate?: (productId: string, stockChange: number) => void;
+  isReturnMode?: boolean;
 }
 
 export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, isReturnMode = false }: ProductCatalogOptimizedProps) {
   const { currentOrganization } = useTenant();
+  const { productCategories } = usePOSData();
   
   // حالة البيانات
   const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
   const [stats, setStats] = useState<any>(null);
   
   // حالة Pagination
@@ -70,22 +70,6 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
     return viewMode === 'grid' ? 50 : viewMode === 'compact' ? 80 : 30;
   }, [viewMode]);
 
-  // جلب الفئات
-  useEffect(() => {
-    const fetchCategories = async () => {
-      if (!currentOrganization?.id) return;
-      
-      try {
-        const fetchedCategories = await getCategories(currentOrganization.id);
-        setCategories(fetchedCategories);
-      } catch (error) {
-        setCategories([]);
-      }
-    };
-
-    fetchCategories();
-  }, [currentOrganization?.id]);
-  
   // جلب إحصائيات المنتجات
   useEffect(() => {
     const fetchStats = async () => {
@@ -141,40 +125,7 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
     };
     
     loadFirstPage();
-  }, [debouncedSearchQuery, selectedCategory, sortOption, sortOrder, currentOrganization?.id, pageSize]); // هذا useEffect يحتاج dependencies لأنه المسؤول عن التحديث عند تغيير الفلاتر
-  
-  // تحميل المزيد عند الوصول لنهاية القائمة
-  useEffect(() => {
-    if (inView && hasNextPage && !isLoadingMore && !isInitialLoading && currentOrganization?.id) {
-      const loadMore = async () => {
-        setIsLoadingMore(true);
-        
-        try {
-          const response = await getPaginatedProducts(currentOrganization.id, {
-            page: currentPage + 1,
-            pageSize,
-            searchQuery: debouncedSearchQuery || undefined,
-            categoryId: selectedCategory !== 'all' ? selectedCategory : undefined,
-            sortBy: sortOption,
-            sortOrder: sortOrder,
-            includeVariants: true
-          });
-          
-          const transformedProducts = response.products.map(transformDatabaseProduct);
-          setProducts(prev => [...prev, ...transformedProducts]);
-          setCurrentPage(response.currentPage);
-          setTotalPages(response.pageCount);
-          setTotalProducts(response.totalCount);
-          setHasNextPage(response.hasNextPage);
-        } catch (error) {
-        } finally {
-          setIsLoadingMore(false);
-        }
-      };
-      
-      loadMore();
-    }
-  }, [inView, hasNextPage, isLoadingMore, isInitialLoading, currentPage, currentOrganization?.id, pageSize, debouncedSearchQuery, selectedCategory, sortOption, sortOrder]);
+  }, [debouncedSearchQuery, selectedCategory, sortOption, sortOrder, currentOrganization?.id, pageSize]);
 
   // دالة لتحديث المخزون محلياً (يمكن استدعاؤها من الخارج)
   const updateLocalStock = useCallback((productId: string, stockChange: number) => {
@@ -233,9 +184,9 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
 
   // دالة للحصول على الفئات المعروضة
   const displayCategories = useMemo(() => {
-    if (!categories.length) return [];
+    if (!productCategories.length) return [];
     
-    const categoriesWithCount = categories
+    const categoriesWithCount = productCategories
       .filter(cat => cat.is_active)
       .map(cat => {
         // في هذا الإصدار، سنستخدم الإحصائيات من stats
@@ -246,7 +197,6 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
         return {
           id: cat.id,
           name: cat.name,
-          icon: cat.icon,
           productCount
         };
       })
@@ -268,7 +218,7 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
     }
 
     return categoriesWithCount;
-  }, [categories, products, categorySearchQuery]);
+  }, [productCategories, products, categorySearchQuery]);
   
   // معالج إضافة المنتج للسلة
   const handleProductClick = useCallback((product: Product) => {
@@ -525,13 +475,13 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
             >
-              {categories.length > 5 && (
+              {productCategories.length > 5 && (
                 <div className="mb-2">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                     <Input
                       type="text"
-                      placeholder={`بحث في ${categories.length} فئة...`}
+                      placeholder={`بحث في ${productCategories.length} فئة...`}
                       className="pl-9 h-8 text-sm border-primary/20 focus:border-primary"
                       value={categorySearchQuery}
                       onChange={(e) => setCategorySearchQuery(e.target.value)}

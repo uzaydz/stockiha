@@ -1,6 +1,6 @@
 import localforage from 'localforage';
 import { Product } from '@/api/productService';
-import Dexie from 'dexie';
+import { Dexie } from 'dexie';
 import { v4 as uuidv4 } from 'uuid';
 
 // تكوين قواعد البيانات المحلية

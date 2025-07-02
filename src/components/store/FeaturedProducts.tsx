@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, ShoppingCart, Eye, ChevronRight, Star, ArrowRight, GripHorizontal, Layers, TrendingUp, Sparkles } from 'lucide-react';
+import { Heart, ShoppingCart, Eye, ChevronRight, Star, ArrowRight, GripHorizontal, Layers, TrendingUp, Sparkles, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -198,200 +198,107 @@ const FeaturedProducts = ({
   useEffect(() => {
 
     const fetchSelectedProducts = async () => {
-      if (
-        selectionMethod === 'manual' && 
-        selectedProducts.length > 0 && 
-        initialProducts.length === 0 && 
-        organizationId
-      ) {
+      if (selectionMethod === 'manual' && selectedProducts.length > 0 && initialProducts.length === 0) {
         setLoading(true);
         try {
-          const allProducts = await getProducts(organizationId);
-          const filteredProducts = allProducts.filter(product => 
-            selectedProducts.includes(product.id)
-          );
-          setFetchedProducts(filteredProducts.map(convertDatabaseProductToStoreProduct));
+          // إذا كانت هناك منتجات مختارة يدوياً، اجلبها
+          const response = await getProducts(organizationId || '');
+          
+          if (response && Array.isArray(response)) {
+            const filteredProducts = response.filter(product => 
+              selectedProducts.includes(product.id)
+            );
+            const convertedProducts = filteredProducts.map(convertDatabaseProductToStoreProduct);
+            setFetchedProducts(convertedProducts);
+          } else {
+            setFetchedProducts([]);
+          }
         } catch (error) {
+          console.error('خطأ في جلب المنتجات المختارة:', error);
           setFetchedProducts([]);
-        } finally {
-          setLoading(false);
         }
+        setLoading(false);
       } else {
+        setLoading(false);
       }
     };
 
     fetchSelectedProducts();
-  }, [selectionMethod, selectedProducts, initialProducts.length, organizationId]);
+  }, [selectionMethod, selectedProducts, organizationId, initialProducts.length]);
 
-  // 🚀 استخدام البيانات المحسنة مباشرة بدلاً من طلبات API إضافية
+  // منطق عرض المنتجات المحسن
   const displayedProducts = useMemo(() => {
-    
-    // فحص بيانات الصور في المنتجات المستلمة
+    // إذا كانت هناك منتجات محددة من الخدمة، استخدمها
     if (initialProducts && initialProducts.length > 0) {
-      initialProducts.slice(0, 3).forEach((product, index) => {
-      });
-    } else {
+      const products = initialProducts.slice(0, displayCount);
+      return products;
     }
     
-    // تحديد مصدر البيانات - تجنب استخدام ShopContext إلا في الحالات الضرورية
-    let sourceProducts: Product[] = [];
-    
-    if (initialProducts && initialProducts.length > 0) {
-      // استخدام البيانات المُمررة (من المتجر الحقيقي)
-      sourceProducts = initialProducts;
-    } else if (fetchedProducts.length > 0) {
-      // استخدام البيانات المجلبة (من محرر المتجر)
-      sourceProducts = fetchedProducts;
-    } else if (selectionMethod === 'automatic' && shopProducts && shopProducts.length > 0 && !organizationId) {
-      // استخدام بيانات ShopContext فقط للاختيار التلقائي وعندما لا تتوفر بيانات أخرى ولا يوجد organizationId
-      sourceProducts = shopProducts.map(product => ({
-        id: product.id,
-        name: product.name,
-        description: product.description || '',
-        price: typeof product.price === 'string' ? parseFloat(product.price) : product.price,
-        discount_price: product.compareAtPrice ? 
-          (typeof product.compareAtPrice === 'string' ? parseFloat(product.compareAtPrice) : product.compareAtPrice) : 
-          undefined,
-        imageUrl: product.thumbnailImage || '',
-        category: product.category,
-        stock_quantity: product.stockQuantity || 0,
-        is_featured: product.isFeatured || false,
-        is_new: product.isNew || false,
-        slug: product.name.toLowerCase().replace(/\s+/g, '-'),
-        rating: 4.5 // قيمة افتراضية
-      }));
-    } else {
+    // استخدم المنتجات المجلبة إذا كانت موجودة
+    if (fetchedProducts && fetchedProducts.length > 0) {
+      return fetchedProducts.slice(0, displayCount);
     }
     
-    if (sourceProducts.length > 0) {
-      let filteredProducts = [...sourceProducts];
+    // استخدم منتجات المتجر إذا كانت متاحة
+    if (shopProducts && shopProducts.length > 0) {
+      let filtered = [...shopProducts];
       
-      // تطبيق الفلترة حسب طريقة الاختيار
-      if (selectionMethod === 'manual') {
-        // إذا كان الاختيار يدوي، فالمنتجات المُمررة هي بالفعل المنتجات المحددة
-        // لا نحتاج لفلترة إضافية
-      } else if (selectionMethod === 'automatic') {
-        const originalCount = filteredProducts.length;
-        switch (selectionCriteria) {
-          case 'featured':
-            filteredProducts = filteredProducts.filter(p => p.is_featured);
-            break;
-          case 'newest':
-            filteredProducts = filteredProducts.filter(p => p.is_new);
-            break;
-          case 'discounted':
-            filteredProducts = filteredProducts.filter(p => p.discount_price && p.discount_price < p.price);
-            break;
-          case 'best_selling':
-            // يمكن إضافة منطق للمنتجات الأكثر مبيعاً هنا
-            break;
-        }
+      if (selectionCriteria === 'featured') {
+        filtered = filtered.filter(p => p.isFeatured);
+      } else if (selectionCriteria === 'newest') {
+        filtered = filtered.filter(p => p.isNew);
+      } else if (selectionCriteria === 'discounted') {
+        filtered = filtered.filter(p => p.compareAtPrice && p.compareAtPrice < p.price);
       }
       
-      // تحديد العدد المناسب للعرض
-      const finalDisplayCount = selectionMethod === 'manual' && selectedProducts.length > 0 
-        ? Math.max(selectedProducts.length, displayCount) // عرض جميع المنتجات المحددة يدوياً
-        : displayCount;
-      
-      const finalProducts = filteredProducts.slice(0, finalDisplayCount);
-      return finalProducts;
+      return filtered.slice(0, displayCount);
     }
     
-    // إذا لم تتوفر أي بيانات، إرجاع مصفوفة فارغة بدلاً من المنتجات الافتراضية
-    // هذا يمنع عرض منتجات وهمية عندما لا تتوفر بيانات حقيقية
-    return [];
-  }, [initialProducts, fetchedProducts, shopProducts, selectionMethod, selectionCriteria, selectedProducts, displayCount]);
+    // استخدم المنتجات الافتراضية كخيار أخير
+    return getDefaultProducts(t).slice(0, displayCount);
+  }, [initialProducts, fetchedProducts, shopProducts, displayCount, selectionCriteria, t]);
 
-  // دالة مساعدة لاختبار صحة روابط الصور
-  const validateImageUrl = useCallback((url: string): Promise<boolean> => {
-    return new Promise((resolve) => {
-      if (!url || url.trim() === '') {
-        resolve(false);
-        return;
-      }
-      
-      // تجنب اختبار الصور المؤقتة مثل blob أو data URLs
-      if (url.startsWith('blob:') || url.startsWith('data:')) {
-        resolve(true);
-        return;
-      }
-      
-      // تصحيح الرابط إذا لم يكن يحتوي على بروتوكول
-      let testUrl = url;
-      if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        if (url.startsWith('//')) {
-          testUrl = `https:${url}`;
-        } else if (!url.startsWith('/')) {
-          testUrl = `https://${url}`;
-        } else {
-          // المسارات النسبية تحتاج إلى أصل (origin)
-          testUrl = `${window.location.origin}${url}`;
-        }
-      }
-      
-      // استبدال المسافات بـ %20
-      testUrl = testUrl.replace(/\s+/g, '%20');
-      
-      // فحص الصورة بطريقة أبسط باستخدام طلب HEAD لتجنب مشاكل CORS
-      fetch(testUrl, { method: 'HEAD', mode: 'no-cors' })
-        .then(() => {
-          resolve(true);
-        })
-        .catch(() => {
-          resolve(false);
-        });
-      
-      // تعيين مهلة للرد في حال لم يستجب الخادم
-      setTimeout(() => {
-        resolve(false);
-      }, 3000);
-    });
-  }, []);
-
+  // معالجة الصور التالفة
   useEffect(() => {
-    // إضافة معالجة للصور غير القابلة للتحميل
     const handleBrokenImages = () => {
-      try {
-        // البحث عن جميع صور المنتجات في الصفحة
-        const productImages = document.querySelectorAll('.product-image');
+      const images = document.querySelectorAll('.product-image');
+      images.forEach((img: Element) => {
+        const imgElement = img as HTMLImageElement;
         
-        productImages.forEach((img, index) => {
-          const imgElement = img as HTMLImageElement;
-          
-          // التحقق من أن الصورة لم تحمل بعد أو فشل تحميلها
-          if (imgElement.complete && imgElement.naturalWidth === 0) {
-            imgElement.src = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470';
-            // تأكد من أن الصورة فوق الخلفية
-            imgElement.style.zIndex = '25';
-            imgElement.style.opacity = '1';
-          }
-          
-          // إضافة معالج أخطاء لكل صورة
-          imgElement.addEventListener('error', function(e) {
-            // استبدل المصدر بصورة افتراضية
-            imgElement.src = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470';
-            // تأكد من أن الصورة فوق الخلفية
-            imgElement.style.zIndex = '25';
-            imgElement.style.opacity = '1';
-          });
-        });
-      } catch (error) {
-      }
+        // إزالة مستمعي الأحداث الموجودين لتجنب التكرار
+        imgElement.onload = null;
+        imgElement.onerror = null;
+        
+        imgElement.onload = () => {
+          imgElement.style.zIndex = '25';
+        };
+        
+        imgElement.onerror = () => {
+          imgElement.src = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470';
+          imgElement.style.zIndex = '25';
+        };
+      });
     };
 
-    // تشغيل معالجة الصور بعد تحميل المكون
-    const timer = setTimeout(handleBrokenImages, 1000);
+    // تأخير معالجة الصور قليلاً للسماح للعناصر بالتحميل
+    const timer = setTimeout(handleBrokenImages, 100);
     
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      // تنظيف مستمعي الأحداث عند الإزالة
+      const images = document.querySelectorAll('.product-image');
+      images.forEach((img: Element) => {
+        const imgElement = img as HTMLImageElement;
+        imgElement.onload = null;
+        imgElement.onerror = null;
+      });
+    };
   }, [displayedProducts]);
 
-  useEffect(() => {
-    setViewType(displayType);
-  }, [displayType]);
-  
+  // وظيفة إضافة/إزالة من المفضلة
   const toggleFavorite = (productId: string) => {
     setFavorites(prev => 
-      prev.includes(productId)
+      prev.includes(productId) 
         ? prev.filter(id => id !== productId)
         : [...prev, productId]
     );
@@ -403,17 +310,18 @@ const FeaturedProducts = ({
     visible: {
       opacity: 1,
       transition: {
-        staggerChildren: 0.1
+        staggerChildren: 0.08
       }
     }
   };
 
   const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
+    hidden: { opacity: 0, y: 30, scale: 0.95 },
     visible: {
       opacity: 1,
       y: 0,
-      transition: { duration: 0.5 }
+      scale: 1,
+      transition: { duration: 0.4, ease: "easeOut" }
     }
   };
 
@@ -424,196 +332,229 @@ const FeaturedProducts = ({
   };
   
   return (
-    <section className="py-24 bg-gradient-to-b from-background via-muted/10 to-background relative overflow-hidden">
-      {/* زخارف خلفية */}
-      <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-primary/5 to-transparent"></div>
-      <div className="absolute -left-24 top-20 w-64 h-64 rounded-full bg-primary/5 blur-3xl"></div>
-      <div className="absolute -right-24 bottom-20 w-64 h-64 rounded-full bg-primary/5 blur-3xl"></div>
+    <section className="py-16 md:py-20 lg:py-24 relative overflow-hidden bg-background">
+      {/* خلفية متدرجة محسنة */}
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/3 via-background to-secondary/3"></div>
+      <div className="absolute top-20 -left-40 w-80 h-80 bg-gradient-to-br from-primary/10 to-secondary/10 rounded-full blur-3xl opacity-60"></div>
+      <div className="absolute bottom-20 -right-40 w-80 h-80 bg-gradient-to-br from-secondary/10 to-primary/10 rounded-full blur-3xl opacity-60"></div>
       
-      <div className="container px-4 mx-auto relative">
-        <div className="text-center mb-16">
-          <div className="inline-block px-4 py-1.5 mb-6 bg-primary/10 rounded-full text-sm text-primary font-medium">
-            <Sparkles className="w-4 h-4 inline-block mr-2" />
+      {/* نقاط زخرفية */}
+      <div className="absolute top-32 right-20 w-2 h-2 bg-primary/20 rounded-full"></div>
+      <div className="absolute top-48 right-32 w-1 h-1 bg-secondary/30 rounded-full"></div>
+      <div className="absolute bottom-40 left-20 w-3 h-3 bg-primary/15 rounded-full"></div>
+      
+      <div className="container px-4 mx-auto relative z-10">
+        {/* العنوان الرئيسي المحسن */}
+        <motion.div 
+          className="text-center mb-12 md:mb-16"
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+        >
+          <motion.div 
+            className="inline-flex items-center gap-2 px-4 py-2 mb-6 bg-gradient-to-r from-primary/10 to-secondary/10 backdrop-blur-sm rounded-full text-primary font-medium text-sm border border-primary/20"
+            whileHover={{ scale: 1.05 }}
+            transition={{ duration: 0.2 }}
+          >
+            <Sparkles className="w-4 h-4" />
             {t('featuredProducts.featuredLabel')}
-          </div>
-          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
+          </motion.div>
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight mb-4 bg-gradient-to-r from-foreground via-primary to-foreground bg-clip-text text-transparent bg-300% animate-gradient-x">
             {title || t('featuredProducts.title')}
           </h2>
-          <p className="max-w-2xl mx-auto text-muted-foreground">
+          <div className="w-20 h-1 bg-gradient-to-r from-primary to-secondary mx-auto mb-6 rounded-full"></div>
+          <p className="max-w-2xl mx-auto text-muted-foreground text-lg leading-relaxed">
             {description || t('featuredProducts.description')}
           </p>
-        </div>
+        </motion.div>
         
-        <div className="flex flex-wrap items-center justify-between mb-10 bg-card/50 backdrop-blur-sm rounded-xl p-4 border border-border/50 shadow-sm">
-          <div className="flex items-center mb-4 md:mb-0">
-            <TrendingUp className="h-5 w-5 text-primary mr-2" />
-            <Link to="/products" className="text-primary font-medium text-sm hover:underline flex items-center group">
-              {t('featuredProducts.allProducts')}
-              <ChevronRight className="h-4 w-4 ml-1 transition-transform group-hover:translate-x-1" />
-            </Link>
+        {/* شريط التحكم المحسن */}
+        <motion.div 
+          className="flex flex-col sm:flex-row items-center justify-between mb-12 bg-card/60 backdrop-blur-sm rounded-2xl p-4 sm:p-6 border border-border/50 shadow-lg"
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
+          <div className="flex items-center mb-4 sm:mb-0">
+            <div className="flex items-center gap-3 px-4 py-2 bg-primary/10 rounded-full">
+              <TrendingUp className="h-5 w-5 text-primary" />
+              <Link to="/products" className="text-primary font-medium text-sm hover:text-primary/80 transition-colors flex items-center group">
+                {t('featuredProducts.allProducts')}
+                <ChevronRight className="h-4 w-4 ml-1 transition-transform group-hover:translate-x-1" />
+              </Link>
+            </div>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground hidden sm:block">{t('featuredProducts.viewMode')}:</span>
             <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant={viewType === 'grid' ? 'default' : 'outline'} 
-                    size="icon" 
-                    className="h-9 w-9 rounded-lg" 
-                    onClick={() => setViewType('grid')}
-                  >
-                    <GripHorizontal className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t('featuredProducts.gridView')}</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant={viewType === 'list' ? 'default' : 'outline'} 
-                    size="icon" 
-                    className="h-9 w-9 rounded-lg" 
-                    onClick={() => setViewType('list')}
-                  >
-                    <Layers className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t('featuredProducts.listView')}</TooltipContent>
-              </Tooltip>
+              <div className="flex items-center gap-2 bg-muted/50 rounded-xl p-1">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant={viewType === 'grid' ? 'default' : 'ghost'} 
+                      size="sm"
+                      className="h-9 px-3 rounded-lg transition-all duration-200" 
+                      onClick={() => setViewType('grid')}
+                    >
+                      <GripHorizontal className="h-4 w-4 mr-2" />
+                      <span className="hidden sm:inline">{t('featuredProducts.grid')}</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{t('featuredProducts.gridView')}</TooltipContent>
+                </Tooltip>
+                
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant={viewType === 'list' ? 'default' : 'ghost'} 
+                      size="sm"
+                      className="h-9 px-3 rounded-lg transition-all duration-200" 
+                      onClick={() => setViewType('list')}
+                    >
+                      <Layers className="h-4 w-4 mr-2" />
+                      <span className="hidden sm:inline">{t('featuredProducts.list')}</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{t('featuredProducts.listView')}</TooltipContent>
+                </Tooltip>
+              </div>
             </TooltipProvider>
           </div>
-        </div>
+        </motion.div>
         
         {loading ? (
-          // عرض حالة التحميل
-          <div className="text-center py-20">
-            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
-            <p className="mt-4 text-muted-foreground">{t('featuredProducts.loading')}</p>
-          </div>
+          // عرض حالة التحميل المحسن
+          <motion.div 
+            className="text-center py-20"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+          >
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-primary/10 rounded-full mb-6">
+              <div className="w-8 h-8 border-4 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+            </div>
+            <h3 className="text-lg font-medium mb-2">{t('featuredProducts.loading')}</h3>
+            <p className="text-muted-foreground">{t('featuredProducts.loadingMessage')}</p>
+          </motion.div>
         ) : displayedProducts && displayedProducts.length > 0 ? (
           <motion.div 
             variants={containerVariants}
             initial="hidden"
             whileInView="visible"
-            viewport={{ once: true, margin: "-50px" }}
+            viewport={{ once: true, margin: "-100px" }}
             className={viewType === 'grid' 
-              ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8" 
+              ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 lg:gap-8" 
               : "space-y-6"
             }
           >
             {displayedProducts.map((product) => (
               <motion.div key={product.id} variants={itemVariants}>
                 {viewType === 'grid' ? (
-                  <Card className="group h-full overflow-hidden border border-border/50 hover:border-primary/50 bg-background/80 backdrop-blur-sm shadow-sm hover:shadow-xl transition-all duration-500 rounded-2xl">
-                    <div className="relative overflow-hidden aspect-square bg-gray-100 border border-gray-200">
+                  <Card className="group h-full overflow-hidden border border-border/50 hover:border-primary/40 bg-card/80 backdrop-blur-sm shadow-lg hover:shadow-2xl transition-all duration-500 rounded-3xl relative">
+                    {/* تأثير الوهج عند الـ hover */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-secondary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-3xl"></div>
+                    
+                    <div className="relative overflow-hidden aspect-[4/3] bg-gradient-to-br from-muted/20 to-muted/5 rounded-t-3xl">
                       <Link to={`/products/${product.slug}`} className="block w-full h-full">
                         {product.imageUrl ? (
                           <>
-                            {/* الصورة الرئيسية */}
                             <img 
                               key={`product-image-${product.id}`}
                               src={product.imageUrl}
                               alt={product.name}
-                              className="product-image w-full h-full object-cover absolute inset-0 z-20 transition-opacity duration-300"
+                              className="product-image w-full h-full object-contain p-4 transition-all duration-500 group-hover:scale-105"
                               onLoad={(e) => {
-                                // عند تحميل الصورة بنجاح، تأكد من أنها فوق الخلفية
-                                e.currentTarget.style.zIndex = '25';
+                                e.currentTarget.style.opacity = '1';
                               }}
                               onError={(e) => {
-                                // استبدل المصدر بصورة افتراضية
                                 e.currentTarget.src = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470';
-                                e.currentTarget.style.zIndex = '25';
                               }}
                               loading="lazy"
+                              style={{ opacity: 0 }}
                             />
-                            
-                            {/* أيقونة احتياطية في الخلفية */}
-                            <div className="absolute inset-0 flex items-center justify-center bg-gray-50 z-10">
-                              <div className="text-gray-400 flex flex-col items-center justify-center p-4">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                </svg>
-                                <span className="text-xs text-center">{product.name}</span>
-                              </div>
-                            </div>
                           </>
                         ) : (
-                          // عرض أيقونة للمنتجات التي ليس لها صورة
-                          <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
-                            <div className="text-gray-400 flex flex-col items-center justify-center p-4">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                              </svg>
-                              <span className="text-xs text-center">{product.name}</span>
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="text-muted-foreground/50 flex flex-col items-center p-4">
+                              <Package className="h-16 w-16 mb-3" />
+                              <span className="text-sm font-medium text-center line-clamp-2">{product.name}</span>
                             </div>
                           </div>
                         )}
                       </Link>
                       
-                      {/* العلامات */}
-                      <div className="absolute top-2 left-2 z-20 flex flex-col gap-1">
+                      {/* العلامات المحسنة */}
+                      <div className="absolute top-3 left-3 z-20 flex flex-col gap-2">
                         {product.discount_price && (
-                          <Badge variant="secondary" className="bg-red-100 text-red-800 hover:bg-red-200 font-medium">
+                          <Badge className="bg-gradient-to-r from-red-500 to-red-600 text-white border-0 shadow-lg backdrop-blur-sm font-bold">
                             {calculateDiscount(Number(product.price), Number(product.discount_price))}
                           </Badge>
                         )}
                         {product.is_new && (
-                          <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-200 font-medium">
+                          <Badge className="bg-gradient-to-r from-emerald-500 to-emerald-600 text-white border-0 shadow-lg backdrop-blur-sm font-bold">
                             {t('featuredProducts.new')}
                           </Badge>
                         )}
                       </div>
                       
-                      <div className="absolute bottom-0 left-0 right-0 p-3 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-t from-black/50 to-transparent">
+                      {/* أزرار الإجراءات السريعة */}
+                      <div className="absolute bottom-3 left-3 right-3 z-20 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-2 group-hover:translate-y-0">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <Button variant="secondary" size="icon" className="h-9 w-9 rounded-full bg-white/90 hover:bg-white">
-                              <ShoppingCart className="h-4 w-4 text-black" />
+                            <Button 
+                              size="icon" 
+                              className="h-10 w-10 rounded-full bg-background/90 hover:bg-background text-foreground shadow-lg backdrop-blur-sm border border-border/50"
+                            >
+                              <ShoppingCart className="h-4 w-4" />
                             </Button>
                             <Button 
-                              variant="secondary" 
                               size="icon" 
-                              className="h-9 w-9 rounded-full bg-white/90 hover:bg-white"
-                              onClick={() => toggleFavorite(product.id)}
+                              className="h-10 w-10 rounded-full bg-background/90 hover:bg-background text-foreground shadow-lg backdrop-blur-sm border border-border/50"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                toggleFavorite(product.id);
+                              }}
                             >
-                              <Heart className={`h-4 w-4 ${favorites.includes(product.id) ? 'fill-red-500 text-red-500' : 'text-black'}`} />
+                              <Heart className={`h-4 w-4 transition-colors ${favorites.includes(product.id) ? 'fill-red-500 text-red-500' : ''}`} />
                             </Button>
                           </div>
-                          <Button variant="secondary" size="icon" className="h-9 w-9 rounded-full bg-white/90 hover:bg-white">
-                            <Eye className="h-4 w-4 text-black" />
+                          <Button 
+                            size="icon" 
+                            className="h-10 w-10 rounded-full bg-background/90 hover:bg-background text-foreground shadow-lg backdrop-blur-sm border border-border/50"
+                          >
+                            <Eye className="h-4 w-4" />
                           </Button>
                         </div>
                       </div>
                     </div>
                     
-                    <CardContent className="p-4">
-                      <Link to={`/products/${product.slug}`} className="block mb-1 text-sm text-muted-foreground hover:text-primary transition-colors">
+                    <CardContent className="p-4 lg:p-6 relative z-10">
+                      <Link to={`/products/${product.slug}`} className="block mb-2 text-sm text-muted-foreground hover:text-primary transition-colors">
                         {typeof product.category === 'object' && product.category !== null
                           ? (product.category as { name: string }).name
                           : product.category}
                       </Link>
-                      <Link to={`/products/${product.slug}`} className="block font-semibold mb-3 hover:text-primary transition-colors line-clamp-2">
+                      <Link to={`/products/${product.slug}`} className="block font-bold text-lg mb-3 hover:text-primary transition-colors line-clamp-2 leading-tight">
                         {product.name}
                       </Link>
                       
-                      <div className="flex items-center gap-1 mb-3">
+                      <div className="flex items-center gap-1 mb-4">
                         {[...Array(5)].map((_, i) => (
                           <Star 
                             key={i}
-                            className={`w-3.5 h-3.5 ${i < Math.floor(product.rating || 0) ? "text-yellow-400 fill-yellow-400" : "text-gray-300"}`}
+                            className={`w-4 h-4 ${i < Math.floor(product.rating || 0) ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground/30"}`}
                           />
                         ))}
-                        <span className="text-xs text-muted-foreground ml-1">{product.rating?.toFixed(1)}</span>
+                        <span className="text-sm text-muted-foreground ml-2 font-medium">{product.rating?.toFixed(1)}</span>
                       </div>
                       
-                      <div className="flex items-center justify-between mt-2">
+                      <div className="flex items-center justify-between">
                         {product.discount_price ? (
                           <div className="flex flex-col">
-                            <span className="text-base font-bold text-primary">
+                            <span className="text-xl font-bold text-primary">
                               {product.discount_price.toLocaleString()} {t('featuredProducts.currency')}
                             </span>
                             <span className="text-sm text-muted-foreground line-through">
@@ -621,15 +562,15 @@ const FeaturedProducts = ({
                             </span>
                           </div>
                         ) : (
-                          <span className="text-base font-bold text-primary">
+                          <span className="text-xl font-bold text-primary">
                             {product.price.toLocaleString()} {t('featuredProducts.currency')}
                           </span>
                         )}
                         
-                        <div className={`text-xs px-3 py-1 rounded-full ${
-                          product.stock_quantity <= 0 ? "bg-red-100 text-red-800" : 
-                          product.stock_quantity < 10 ? "bg-amber-100 text-amber-800" : 
-                          "bg-green-100 text-green-800"
+                        <div className={`text-xs px-3 py-1.5 rounded-full font-medium ${
+                          product.stock_quantity <= 0 ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300" : 
+                          product.stock_quantity < 10 ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" : 
+                          "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
                         }`}>
                           {product.stock_quantity <= 0 ? t('featuredProducts.stock.outOfStock') : 
                            product.stock_quantity < 10 ? t('featuredProducts.stock.limitedQuantity') : 
@@ -638,100 +579,87 @@ const FeaturedProducts = ({
                       </div>
                     </CardContent>
                     
-                    <CardFooter className="p-4 pt-0">
-                      <Button asChild className="w-full" variant="outline">
+                    <CardFooter className="p-4 lg:p-6 pt-0 relative z-10">
+                      <Button asChild className="w-full h-12 rounded-xl font-medium bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary text-white shadow-lg hover:shadow-xl transition-all duration-300">
                         <Link to={`/products/${product.slug}`} className="flex items-center justify-center gap-2">
                           {t('featuredProducts.viewProduct')}
-                          <ChevronRight className="h-4 w-4" />
+                          <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                         </Link>
                       </Button>
                     </CardFooter>
                   </Card>
                 ) : (
-                  <div className="relative flex flex-col sm:flex-row items-stretch border border-border/50 hover:border-primary/50 rounded-xl overflow-hidden bg-background/80 hover:shadow-md transition-all duration-300">
-                    <div className="relative w-full sm:w-40 aspect-square">
+                  // تصميم القائمة المحسن
+                  <div className="relative flex flex-col sm:flex-row items-stretch border border-border/50 hover:border-primary/40 rounded-2xl overflow-hidden bg-card/80 backdrop-blur-sm hover:shadow-xl transition-all duration-300 group">
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary/2 to-secondary/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    
+                    <div className="relative w-full sm:w-48 aspect-square sm:aspect-[4/3]">
                       <Link to={`/products/${product.slug}`} className="block w-full h-full">
                         {product.imageUrl ? (
                           <>
-                            {/* الصورة الرئيسية */}
                             <img 
                               key={`product-image-${product.id}`}
                               src={product.imageUrl}
                               alt={product.name}
-                              className="product-image w-full h-full object-cover absolute inset-0 z-20 transition-opacity duration-300"
+                              className="product-image w-full h-full object-contain p-4 transition-transform duration-300 group-hover:scale-105"
                               onLoad={(e) => {
-                                // عند تحميل الصورة بنجاح، تأكد من أنها فوق الخلفية
-                                e.currentTarget.style.zIndex = '25';
+                                e.currentTarget.style.opacity = '1';
                               }}
                               onError={(e) => {
-                                // استبدل المصدر بصورة افتراضية
                                 e.currentTarget.src = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470';
-                                e.currentTarget.style.zIndex = '25';
                               }}
                               loading="lazy"
-                            />
-                            
-                            {/* أيقونة احتياطية في الخلفية */}
-                            <div className="absolute inset-0 flex items-center justify-center bg-gray-50 z-10">
-                              <div className="text-gray-400 flex flex-col items-center justify-center p-4">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                </svg>
-                                <span className="text-xs text-center">{product.name}</span>
-                              </div>
-                            </div>
+                              style={{ opacity: 0 }}
+                                                         />
                           </>
                         ) : (
-                          // عرض أيقونة للمنتجات التي ليس لها صورة
-                          <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
-                            <div className="text-gray-400 flex flex-col items-center justify-center p-4">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                              </svg>
-                              <span className="text-xs text-center">{product.name}</span>
+                          <div className="absolute inset-0 flex items-center justify-center bg-muted/20">
+                            <div className="text-muted-foreground/50 flex flex-col items-center p-4">
+                              <Package className="h-12 w-12 mb-2" />
+                              <span className="text-sm text-center line-clamp-2">{product.name}</span>
                             </div>
                           </div>
                         )}
                       </Link>
                       
                       {/* العلامات */}
-                      <div className="absolute top-2 left-2 z-20 flex flex-col gap-1">
+                      <div className="absolute top-3 left-3 z-20 flex flex-col gap-1">
                         {product.discount_price && (
-                          <Badge variant="secondary" className="bg-red-100 text-red-800 hover:bg-red-200 font-medium">
+                          <Badge className="bg-gradient-to-r from-red-500 to-red-600 text-white border-0 shadow-md">
                             {calculateDiscount(Number(product.price), Number(product.discount_price))}
                           </Badge>
                         )}
                         {product.is_new && (
-                          <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-200 font-medium">
+                          <Badge className="bg-gradient-to-r from-emerald-500 to-emerald-600 text-white border-0 shadow-md">
                             {t('featuredProducts.new')}
                           </Badge>
                         )}
                       </div>
                     </div>
                     
-                    <div className="flex-1 p-4 flex flex-col justify-between">
+                    <div className="flex-1 p-6 flex flex-col justify-between relative z-10">
                       <div>
-                        <Link to={`/products/${product.slug}`} className="block text-sm text-muted-foreground hover:text-primary transition-colors">
+                        <Link to={`/products/${product.slug}`} className="block text-sm text-muted-foreground hover:text-primary transition-colors mb-2">
                           {typeof product.category === 'object' && product.category !== null
                             ? (product.category as { name: string }).name
                             : product.category}
                         </Link>
-                        <Link to={`/products/${product.slug}`} className="block font-semibold mb-2 hover:text-primary transition-colors">
+                        <Link to={`/products/${product.slug}`} className="block font-bold text-xl mb-3 hover:text-primary transition-colors line-clamp-2">
                           {product.name}
                         </Link>
                         
-                        <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
+                        <p className="text-muted-foreground mb-4 line-clamp-2 leading-relaxed">
                           {product.description}
                         </p>
                         
-                        <div className="flex items-center gap-1 mb-3">
+                        <div className="flex items-center gap-1 mb-4">
                           {[...Array(5)].map((_, i) => (
                             <Star 
                               key={i}
-                              className={`w-3.5 h-3.5 ${i < Math.floor(product.rating || 0) ? "text-yellow-400 fill-yellow-400" : "text-gray-300"}`}
+                              className={`w-4 h-4 ${i < Math.floor(product.rating || 0) ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground/30"}`}
                             />
                           ))}
-                          <span className="text-xs text-muted-foreground ml-1">{product.rating?.toFixed(1)}</span>
+                          <span className="text-sm text-muted-foreground ml-2 font-medium">{product.rating?.toFixed(1)}</span>
                         </div>
                       </div>
                       
@@ -739,34 +667,37 @@ const FeaturedProducts = ({
                         <div className="flex flex-col">
                           {product.discount_price ? (
                             <>
-                              <span className="text-base font-bold text-primary">
+                              <span className="text-2xl font-bold text-primary">
                                 {product.discount_price.toLocaleString()} {t('featuredProducts.currency')}
                               </span>
-                              <span className="text-sm text-muted-foreground line-through">
+                              <span className="text-lg text-muted-foreground line-through">
                                 {product.price.toLocaleString()} {t('featuredProducts.currency')}
                               </span>
                             </>
                           ) : (
-                            <span className="text-base font-bold text-primary">
+                            <span className="text-2xl font-bold text-primary">
                               {product.price.toLocaleString()} {t('featuredProducts.currency')}
                             </span>
                           )}
                         </div>
                         
-                        <div className="flex items-center gap-2">
-                          <Button asChild variant="secondary" size="sm" className="h-9 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <Button asChild className="h-11 px-6 rounded-xl font-medium bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary text-white shadow-lg hover:shadow-xl transition-all duration-300">
                             <Link to={`/products/${product.slug}`} className="flex items-center gap-2">
-                              <Eye className="h-4 w-4 mr-1" />
+                              <Eye className="h-4 w-4" />
                               {t('featuredProducts.viewProduct')}
                             </Link>
                           </Button>
                           <Button 
                             variant="outline" 
                             size="icon" 
-                            className="h-9 w-9 rounded-lg"
-                            onClick={() => toggleFavorite(product.id)}
+                            className="h-11 w-11 rounded-xl border-2 hover:bg-primary/5 transition-all duration-300"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              toggleFavorite(product.id);
+                            }}
                           >
-                            <Heart className={`h-4 w-4 ${favorites.includes(product.id) ? 'fill-red-500 text-red-500' : ''}`} />
+                            <Heart className={`h-5 w-5 transition-colors ${favorites.includes(product.id) ? 'fill-red-500 text-red-500' : ''}`} />
                           </Button>
                         </div>
                       </div>
@@ -777,24 +708,37 @@ const FeaturedProducts = ({
             ))}
           </motion.div>
         ) : (
-          // عرض حالة عدم وجود منتجات
-          <div className="text-center py-20 bg-muted/20 rounded-lg border border-dashed border-muted-foreground/30">
-            <div className="inline-block p-3 bg-primary/10 rounded-full mb-4">
-              <ShoppingCart className="w-6 h-6 text-primary" />
+          // عرض حالة عدم وجود منتجات المحسن
+          <motion.div 
+            className="text-center py-20 bg-gradient-to-br from-muted/30 to-muted/10 rounded-3xl border-2 border-dashed border-muted-foreground/20"
+            initial={{ opacity: 0, scale: 0.95 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+          >
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-primary/10 rounded-full mb-6">
+              <ShoppingCart className="w-10 h-10 text-primary" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">{t('featuredProducts.noProducts')}</h3>
-            <p className="text-muted-foreground">{t('featuredProducts.noProductsMessage')}</p>
-          </div>
+            <h3 className="text-2xl font-bold mb-3">{t('featuredProducts.noProducts')}</h3>
+            <p className="text-muted-foreground text-lg max-w-md mx-auto">{t('featuredProducts.noProductsMessage')}</p>
+          </motion.div>
         )}
         
-        <div className="text-center mt-16">
-          <Button asChild variant="outline" size="lg" className="rounded-full px-8">
-            <Link to="/products" className="flex items-center gap-2">
+        {/* زر عرض جميع المنتجات المحسن */}
+        <motion.div 
+          className="text-center mt-16"
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+        >
+          <Button asChild size="lg" className="h-14 px-8 rounded-2xl font-medium bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 text-white shadow-lg hover:shadow-xl transition-all duration-300 group">
+            <Link to="/products" className="flex items-center gap-3">
               {t('featuredProducts.browseAllProducts')}
-              <ArrowRight className="h-4 w-4" />
+              <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
             </Link>
           </Button>
-        </div>
+        </motion.div>
       </div>
     </section>
   );

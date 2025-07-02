@@ -145,7 +145,6 @@ export interface ProductColor {
   is_default: boolean;
   barcode?: string;
   variant_number?: number;
-  has_sizes: boolean;
   sizes: ProductSize[];
 }
 
@@ -373,7 +372,7 @@ export const getProductCompleteData = async (
 // دوال مساعدة لتحليل البيانات
 export const getProductMainPrice = (product: CompleteProduct): number => {
   // إذا كان للمنتج متغيرات وأسعار مختلفة، أعد أقل سعر
-  if (product.variants.has_variants && product.variants.use_variant_prices) {
+  if (product.variants?.has_variants && product.variants.use_variant_prices && product.variants.colors && Array.isArray(product.variants.colors)) {
     const colorPrices = product.variants.colors
       .filter(color => color.price !== null && color.price !== undefined)
       .map(color => color.price!);
@@ -385,11 +384,13 @@ export const getProductMainPrice = (product: CompleteProduct): number => {
     // تحقق من أسعار المقاسات
     const sizePrices: number[] = [];
     product.variants.colors.forEach(color => {
-      color.sizes.forEach(size => {
-        if (size.price !== null && size.price !== undefined) {
-          sizePrices.push(size.price);
-        }
-      });
+      if (color.sizes && Array.isArray(color.sizes)) {
+        color.sizes.forEach(size => {
+          if (size.price !== null && size.price !== undefined) {
+            sizePrices.push(size.price);
+          }
+        });
+      }
     });
 
     if (sizePrices.length > 0) {
@@ -397,7 +398,7 @@ export const getProductMainPrice = (product: CompleteProduct): number => {
     }
   }
 
-  return product.pricing.price;
+  return product.pricing?.price || 0;
 };
 
 export const getProductMaxPrice = (product: CompleteProduct): number => {
@@ -430,34 +431,37 @@ export const getProductMaxPrice = (product: CompleteProduct): number => {
 };
 
 export const getTotalStock = (product: CompleteProduct): number => {
-  if (product.variants.has_variants) {
+  if (product.variants?.has_variants && product.variants.colors && Array.isArray(product.variants.colors)) {
     if (product.variants.use_sizes) {
       // جمع كميات جميع المقاسات
       return product.variants.colors.reduce((total, color) => {
+        if (!color.sizes || !Array.isArray(color.sizes)) {
+          return total + (color.quantity || 0);
+        }
         return total + color.sizes.reduce((colorTotal, size) => {
-          return colorTotal + size.quantity;
+          return colorTotal + (size.quantity || 0);
         }, 0);
       }, 0);
     } else {
       // جمع كميات الألوان فقط
       return product.variants.colors.reduce((total, color) => {
-        return total + color.quantity;
+        return total + (color.quantity || 0);
       }, 0);
     }
   }
 
-  return product.inventory.stock_quantity;
+  return product.inventory?.stock_quantity || 0;
 };
 
 export const getDefaultColor = (product: CompleteProduct): ProductColor | null => {
-  if (!product.variants.has_variants) return null;
+  if (!product.variants?.has_variants || !product.variants.colors || !Array.isArray(product.variants.colors)) return null;
   
   const defaultColor = product.variants.colors.find(color => color.is_default);
   return defaultColor || product.variants.colors[0] || null;
 };
 
 export const getDefaultSize = (color: ProductColor): ProductSize | null => {
-  if (!color.has_sizes || color.sizes.length === 0) return null;
+  if (!color.sizes || color.sizes.length === 0) return null;
   
   const defaultSize = color.sizes.find(size => size.is_default);
   return defaultSize || color.sizes[0] || null;
@@ -475,7 +479,7 @@ export const getVariantPrice = (
   if (colorId) {
     const color = product.variants.colors.find(c => c.id === colorId);
     if (color) {
-      if (sizeId && color.has_sizes) {
+      if (sizeId && color.sizes && color.sizes.length > 0) {
         const size = color.sizes.find(s => s.id === sizeId);
         if (size && size.price !== null && size.price !== undefined) {
           return size.price;
@@ -496,19 +500,19 @@ export const getVariantStock = (
   colorId?: string, 
   sizeId?: string
 ): number => {
-  if (!product.variants.has_variants) {
-    return product.inventory.stock_quantity;
+  if (!product.variants?.has_variants || !product.variants.colors || !Array.isArray(product.variants.colors)) {
+    return product.inventory?.stock_quantity || 0;
   }
 
   if (colorId) {
     const color = product.variants.colors.find(c => c.id === colorId);
     if (color) {
-      if (sizeId && color.has_sizes) {
+      if (sizeId && color.sizes && Array.isArray(color.sizes) && color.sizes.length > 0) {
         const size = color.sizes.find(s => s.id === sizeId);
-        return size ? size.quantity : 0;
+        return size ? (size.quantity || 0) : 0;
       }
       
-      return color.quantity;
+      return color.quantity || 0;
     }
   }
 

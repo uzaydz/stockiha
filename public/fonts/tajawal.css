@@ -1,0 +1,72 @@
+/* 
+🎨 خط Tajawal المحلي - العمل بدون اتصال إنترنت
+📦 جميع الأوزان المطلوبة: Regular (400)، Medium (500)، Bold (700)
+🚀 تحميل سريع مع خطوط احتياطية محلية
+⚡ لا حاجة لاتصال الإنترنت
+*/
+
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tajawal-regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('./tajawal-medium.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./tajawal-bold.woff2') format('woff2');
+}
+
+/* تحسينات إضافية للنص العربي */
+* {
+  font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+}
+
+/* إضافة family أخرى بنفس المواصفات */
+@font-face {
+  font-family: 'TajawalForced';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./tajawal-regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'TajawalForced';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('./tajawal-medium.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'TajawalForced';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./tajawal-bold.woff2') format('woff2');
+}
+
+body {
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* التأكد من أن Tajawal يُستخدم في كل مكان */
+h1, h2, h3, h4, h5, h6, p, span, div, a, button, input, textarea, select {
+  font-family: 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+} 

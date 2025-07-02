@@ -15,9 +15,7 @@ export const clearSubcategoriesCache = (organizationId?: string) => {
       UnifiedRequestManager.clearCache(`unified_subcategories_${organizationId}`);
     }
     
-    console.log('🧹 Subcategories cache cleared successfully');
   } catch (error) {
-    console.error('❌ Error clearing subcategories cache:', error);
   }
 };
 
@@ -36,9 +34,7 @@ export const clearCategoriesCache = (organizationId?: string) => {
     UnifiedRequestManager.clearCache('categories');
     UnifiedRequestManager.clearCache('unified_categories_all');
     
-    console.log('Categories cache cleared successfully');
   } catch (error) {
-    console.error('Error clearing categories cache:', error);
   }
 };
 
@@ -48,4 +44,4 @@ export const clearCategoriesCache = (organizationId?: string) => {
 export const clearAllCategoriesCache = (organizationId?: string) => {
   clearCategoriesCache(organizationId);
   clearSubcategoriesCache(organizationId);
-}; 
+};

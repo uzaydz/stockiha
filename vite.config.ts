@@ -29,6 +29,19 @@ function rawContentPlugin(): Plugin {
 }
 
 // Custom plugin to ensure correct content types
+function lodashResolverPlugin(): Plugin {
+  return {
+    name: 'lodash-resolver',
+    resolveId(id: string) {
+      if (id.startsWith('lodash/')) {
+        // Convert lodash/func to lodash-es/func automatically
+        return `lodash-es/${id.slice(7)}`;
+      }
+      return null;
+    }
+  };
+}
+
 function contentTypePlugin(): Plugin {
   return {
     name: 'content-type-plugin',
@@ -38,6 +51,23 @@ function contentTypePlugin(): Plugin {
         if (req.url === '/' || req.url?.endsWith('.html')) {
           res.setHeader('Content-Type', 'text/html; charset=utf-8');
         }
+        
+        // 🎨 إعدادات خاصة لملفات الخطوط
+        if (req.url?.endsWith('.woff2')) {
+          res.setHeader('Content-Type', 'font/woff2');
+          res.setHeader('Cache-Control', 'public, max-age=31536000');
+          res.setHeader('Access-Control-Allow-Origin', '*');
+        }
+        if (req.url?.endsWith('.woff')) {
+          res.setHeader('Content-Type', 'font/woff');
+          res.setHeader('Cache-Control', 'public, max-age=31536000');
+          res.setHeader('Access-Control-Allow-Origin', '*');
+        }
+        if (req.url?.endsWith('.css')) {
+          res.setHeader('Content-Type', 'text/css; charset=utf-8');
+          res.setHeader('Cache-Control', 'public, max-age=3600');
+        }
+        
         next();
       });
     }
@@ -60,15 +90,43 @@ export default defineConfig(({ command, mode }) => {
     server: {
       host: "::",
       port: 8080,
-      // تحسين HMR
+      
+      // 🚀 تحسين HMR للأداء الفائق
       hmr: {
-        overlay: isDev,
+        overlay: false, // تعطيل overlay لتقليل الضوضاء
+        // استخدام نفس المنفذ لتجنب مشاكل WebSocket
+        port: 8080,
       },
-      // تحسين الذاكرة
+      
+      // ⚡ تحسين مراقبة الملفات
       watch: {
         usePolling: false,
-        interval: 100,
+        interval: 250, // زيادة المهلة لتقليل عدد المراقبات
+        ignored: [
+          '**/node_modules/**',
+          '**/dist/**',
+          '**/backups/**',
+          '**/.git/**',
+          '**/dist_electron/**',
+          '**/logs/**',
+          // تجاهل ملفات النسخ الاحتياطي والمؤقتة
+          '**/*backup*/**',
+          '**/*.log',
+          '**/.DS_Store',
+          '**/*.tmp',
+          '**/*.temp'
+        ],
+        // تحسين استهلاك الذاكرة
+        depth: 99,
+        followSymlinks: false,
+        ignoreInitial: true,
+        // تجميع الأحداث
+        awaitWriteFinish: {
+          stabilityThreshold: 50,
+          pollInterval: 50
+        }
       },
+      
       cors: true,
       fs: {
         strict: false,
@@ -176,6 +234,7 @@ export default defineConfig(({ command, mode }) => {
       
       // Component tagger للتطوير فقط
       isDev && componentTagger(),
+      lodashResolverPlugin(),
       contentTypePlugin(),
       rawContentPlugin(),
       // CSP تم تعطيله مؤقتاً لحل مشاكل الاتصال
@@ -189,80 +248,61 @@ export default defineConfig(({ command, mode }) => {
         template: 'treemap', // أو 'sunburst' أو 'network'
       }),
       
-      // إضافة Node.js polyfills لحل مشكلة util module
+      // 🎯 polyfills خفيفة للويب فقط
       nodePolyfills({
         globals: {
-          Buffer: true,
-          global: true,
-          process: true,
+          Buffer: false, // تقليل الحمولة
+          global: false,
+          process: false,
         },
-        protocolImports: true,
-        include: ['util', 'stream', 'buffer', 'process', 'crypto'],
+        protocolImports: false,
+        include: ['util', 'buffer'], // الأساسي فقط
+        exclude: [
+          'fs', 'path', 'os', 'crypto', 'stream', 'http', 'https',
+          'url', 'querystring', 'timers', 'console'
+        ]
       }),
     ].filter(Boolean),
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
+        
+        // 🎯 تحسين للويب فقط - إزالة Node.js polyfills الثقيلة
         'react': path.resolve(__dirname, './node_modules/react'),
         'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
-        stream: 'stream-browserify',
-        path: 'path-browserify',
-        util: 'util',
-        buffer: 'buffer',
-        crypto: 'crypto-browserify',
-        assert: 'assert',
-        http: 'stream-http',
-        https: 'https-browserify',
-        os: 'os-browserify',
-        url: 'url',
-        zlib: 'browserify-zlib',
-        fs: 'memfs',
-        // إصلاح مشكلة WebSocket لـ Supabase - تعطيل ws module
-        'ws': path.resolve(__dirname, 'src/utils/websocket-polyfill.ts'),
-        // إصلاح مشكلة lodash CommonJS
-        'lodash/get': 'lodash-es/get',
-        'lodash/isString': 'lodash-es/isString',
-        'lodash/isNaN': 'lodash-es/isNaN',
-        'lodash/isNumber': 'lodash-es/isNumber',
-        'lodash/isObject': 'lodash-es/isObject',
-        'lodash/isArray': 'lodash-es/isArray',
-        'lodash/isFunction': 'lodash-es/isFunction',
-        'lodash/isEmpty': 'lodash-es/isEmpty',
-        'lodash/isNil': 'lodash-es/isNil',
-        'lodash/isUndefined': 'lodash-es/isUndefined',
-        'lodash/pick': 'lodash-es/pick',
-        'lodash/omit': 'lodash-es/omit',
-        'lodash/merge': 'lodash-es/merge',
-        'lodash/clone': 'lodash-es/clone',
-        'lodash/cloneDeep': 'lodash-es/cloneDeep',
-        'lodash/debounce': 'lodash-es/debounce',
-        'lodash/throttle': 'lodash-es/throttle',
-        // إصلاح مشكلة react-is
-        'react-is': 'react-is',
-        // إصلاح مشكلة recharts
-        'recharts': 'recharts',
+        
+        // ✅ polyfills أساسية للويب فقط
+        'util': 'util',
+        'buffer': 'buffer',
+        
+        // 🚀 Universal lodash resolver - handles ALL lodash imports automatically
+        'lodash': 'lodash-es',
       },
-      dedupe: ['react', 'react-dom'],
-      // تحسينات للتوافق مع Electron
-      mainFields: ['browser', 'module', 'jsnext:main', 'jsnext']
+      
+      dedupe: ['react', 'react-dom', 'react-router-dom'],
+      
+      // 🌐 تحسين للمتصفحات الحديثة
+      mainFields: ['browser', 'module', 'main'],
+      
+      // ⚡ تحسين سرعة الـ resolution
+      extensions: ['.ts', '.tsx', '.js', '.jsx', '.json']
     },
     define: {
-      '__dirname': JSON.stringify('/'),
-      'process.env': process.env,
-      'process.type': JSON.stringify(process.env.NODE_ENV === 'production' ? 'renderer' : ''),
-      // إضافة متغيرات لدعم Electron
+      // 🌐 تحسين للويب فقط
       'global': 'globalThis',
-      // Polyfills للوحدات الضرورية
-      'Buffer': ['buffer', 'Buffer'],
-      'process': 'process',
+      
+      // ⚡ متغيرات البيئة الأساسية
       'import.meta.env.VITE_DOMAIN_PROXY': JSON.stringify(env.VITE_DOMAIN_PROXY || 'connect.ktobi.online'),
       'import.meta.env.VITE_API_URL': JSON.stringify(env.VITE_API_URL || 'http://localhost:3001/api'),
       'import.meta.env.VITE_VERCEL_PROJECT_ID': JSON.stringify(env.VITE_VERCEL_PROJECT_ID || ''),
       'import.meta.env.VITE_VERCEL_API_TOKEN': JSON.stringify(env.VITE_VERCEL_API_TOKEN || ''),
+      
+      // 🎯 متغيرات التطبيق
       __DEV__: isDev,
       __PROD__: isProd,
       __VERSION__: JSON.stringify(process.env.npm_package_version || '1.0.0'),
-      // React environment variables
+      
+      // ✅ متغيرات React الأساسية فقط
       'process.env.NODE_ENV': JSON.stringify(isDev ? 'development' : 'production'),
     },
     build: {
@@ -320,19 +360,113 @@ export default defineConfig(({ command, mode }) => {
             return `assets/[name]-[hash].${ext}`;
           },
           manualChunks: {
-            'core-infra': [
-              './src/lib/cache/deduplication.ts',
-              './src/lib/authSingleton.ts',
-              './src/lib/performance-tracking.ts'
+            // ✅ Core Infrastructure (تحميل أولي فقط)
+            'core-react': ['react', 'react-dom', 'react/jsx-runtime'],
+            'core-router': ['react-router-dom', '@remix-run/router'],
+            
+            // ✅ Essential UI (تحميل عند الحاجة)
+            'ui-base': [
+              'lucide-react',
+              'class-variance-authority', 
+              'clsx',
+              'tailwind-merge'
             ],
-            'pos-logic': [
+            
+            // 🔄 Split Heavy Libraries (lazy load)
+            'charts-heavy': [
+              '@nivo/bar', '@nivo/line', '@nivo/pie',
+              'recharts', 'chart.js', 'react-chartjs-2'
+            ],
+            
+            'editors-heavy': [
+              '@monaco-editor/react',
+              '@tinymce/tinymce-react'
+            ],
+            
+            'ui-heavy-mui': [
+              '@mui/material', '@mui/icons-material', '@mui/x-date-pickers',
+              '@emotion/react', '@emotion/styled'
+            ],
+            
+            'ui-heavy-antd': ['antd'],
+            
+            'radix-ui': [
+              '@radix-ui/react-accordion', '@radix-ui/react-alert-dialog',
+              '@radix-ui/react-aspect-ratio', '@radix-ui/react-avatar',
+              '@radix-ui/react-checkbox', '@radix-ui/react-collapsible',
+              '@radix-ui/react-context-menu', '@radix-ui/react-dialog',
+              '@radix-ui/react-dropdown-menu', '@radix-ui/react-hover-card',
+              '@radix-ui/react-icons', '@radix-ui/react-label',
+              '@radix-ui/react-menubar', '@radix-ui/react-navigation-menu',
+              '@radix-ui/react-popover', '@radix-ui/react-progress',
+              '@radix-ui/react-radio-group', '@radix-ui/react-scroll-area',
+              '@radix-ui/react-select', '@radix-ui/react-separator',
+              '@radix-ui/react-slider', '@radix-ui/react-slot',
+              '@radix-ui/react-switch', '@radix-ui/react-tabs',
+              '@radix-ui/react-toast', '@radix-ui/react-toggle',
+              '@radix-ui/react-toggle-group', '@radix-ui/react-tooltip'
+            ],
+            
+            'pdf-printing': [
+              'jspdf', 'jspdf-autotable', 'html2canvas',
+              'react-to-print', 'react-barcode', 'qrcode', 'qrcode.react'
+            ],
+            
+            'database-heavy': [
+              'better-sqlite3', 'sql.js', 'sqlite3',
+              'dexie', 'dexie-observable'
+            ],
+            
+            'animation-motion': ['framer-motion'],
+            
+            'form-validation': [
+              'react-hook-form', '@hookform/resolvers',
+              'zod', 'zod-to-json-schema'
+            ],
+            
+            'data-utils': [
+              'lodash-es', 'date-fns', 'dayjs',
+              'uuid', 'nanoid'
+            ],
+            
+            'network-libs': [
+              'axios', 'axios-retry',
+              '@supabase/supabase-js', '@supabase/auth-helpers-react', '@supabase/realtime-js'
+            ],
+            
+            'state-management': [
+              '@tanstack/react-query', '@tanstack/react-query-persist-client',
+              '@tanstack/query-sync-storage-persister',
+              'zustand', 'valtio', 'immer'
+            ],
+            
+            'i18n-localization': [
+              'i18next', 'react-i18next', 'i18next-browser-languagedetector'
+            ],
+            
+            'monitoring-sentry': [
+              '@sentry/react', '@sentry/browser', '@sentry/tracing', '@sentry/replay'
+            ],
+            
+            // 🔧 Split App Logic
+            'pos-module': [
               './src/context/POSDataContext.tsx',
+              './src/pages/POSOptimized.tsx'
             ],
-            'dashboard-logic': [
-              './src/context/DashboardDataContext.tsx'
+            
+            'dashboard-module': [
+              './src/context/DashboardDataContext.tsx',
+              './src/pages/Dashboard.tsx'
             ],
-            'store-logic': [
-                './src/context/StoreContext.tsx'
+            
+            'store-editor': [
+              './src/pages/admin/StoreEditor.tsx',
+              './src/components/store-editor'
+            ],
+            
+            'landing-pages': [
+              './src/pages/landing',
+              './src/components/landing'
             ]
           }
         } as OutputOptions,
@@ -349,115 +483,167 @@ export default defineConfig(({ command, mode }) => {
         // ضمان ترتيب التحميل الصحيح
         makeAbsoluteExternalsRelative: false,
       },
-      // تحسين ضغط الصور
-      assetsInlineLimit: 4096, // 4KB
-      // تجنب مشاكل تقسيم الشفرة في Electron
+      // 🎯 تحسين للويب فقط (بدون Electron)
+      assetsInlineLimit: 4096, // 4KB للويب - تصغير لضمان عدم inline للخطوط
+      
+      // 🎨 إعدادات خاصة لملفات الأصول
+      assetsInclude: ['**/*.woff2', '**/*.woff', '**/*.ttf'],
+      
+      // 🚀 تحسين CommonJS للويب
       commonjsOptions: {
         include: [/node_modules/],
         transformMixedEsModules: true,
-        requireReturnsDefault: 'auto',
-        // تحسين hoisting لتجنب مشاكل التهيئة
-        hoistTransitiveImports: false,
+        requireReturnsDefault: 'preferred',
         ignoreTryCatch: false,
         strictRequires: false,
-        // إصلاح مشكلة react-is و recharts و React context
-        namedExports: {
-          'react': ['createContext', 'useContext', 'useState', 'useEffect', 'useMemo', 'useCallback', 'useRef', 'Suspense', 'lazy', 'Fragment', 'createElement', 'Children', 'Component', 'PureComponent', 'memo', 'forwardRef', 'useImperativeHandle', 'useLayoutEffect', 'useReducer', 'useDeferredValue', 'useTransition', 'startTransition', 'cloneElement', 'isValidElement'],
-          'react-dom': ['render', 'createRoot', 'hydrateRoot', 'findDOMNode', 'unmountComponentAtNode', 'createPortal', 'flushSync'],
-          'react-router': ['createBrowserRouter', 'createHashRouter', 'createMemoryRouter', 'RouterProvider', 'useNavigate', 'useLocation', 'useParams', 'useSearchParams', 'Outlet', 'Navigate', 'Link', 'NavLink'],
-          'react-router-dom': ['BrowserRouter', 'HashRouter', 'MemoryRouter', 'Routes', 'Route', 'Link', 'NavLink', 'useNavigate', 'useLocation', 'useParams', 'useSearchParams', 'Outlet', 'Navigate'],
-          'react-is': ['isFragment', 'isValidElementType', 'isElement'],
-          'recharts': ['ResponsiveContainer', 'LineChart', 'BarChart', 'PieChart', 'XAxis', 'YAxis', 'CartesianGrid', 'Tooltip', 'Legend', 'Line', 'Bar', 'Cell', 'RadialBarChart', 'RadialBar'],
-        },
       },
-      chunkSizeWarningLimit: 1000,
       
-      // PERFORMANCE OPTIMIZATION: CSS code splitting
-      cssCodeSplit: true,
-      // تحسين خاص لـ React في Vercel
+      chunkSizeWarningLimit: 2000, // زيادة الحد للويب
+      
+      // 🎨 تقسيم CSS للأداء - معطل مؤقتاً لحل مشكلة الخطوط
+      cssCodeSplit: false, // إعطاء CSS أولوية لضمان تحميل الخطوط
+      
+      // ⚡ تحسين module preloading للويب
       modulePreload: {
-        polyfill: true
+        polyfill: true,
+        resolveDependencies: (filename, deps) => {
+          // تحميل المكونات الأساسية أولاً
+          return deps.filter(dep => 
+            dep.includes('react') || 
+            dep.includes('router') || 
+            dep.includes('core-')
+          );
+        }
       },
     },
-    // تشغيل الشفرة في محتوى واحد في Electron
+    // 🚀 PERFORMANCE OPTIMIZATION: Selective Pre-optimization
     optimizeDeps: {
       force: isDev,
+      // ✅ تحسين مسبق للضروريات فقط (Core + UI Base)
       include: [
+        // Core React (ضروري دائماً)
         'react',
         'react/jsx-runtime',
-        'react/jsx-dev-runtime',
+        'react/jsx-dev-runtime', 
         'react-dom',
         'react-dom/client',
+        
+        // Core Routing (ضروري للتنقل)
         'react-router-dom',
         'react-router',
         '@remix-run/router',
+        
+        // Essential State Management
         '@tanstack/react-query',
+        
+        // Essential Network
         '@supabase/supabase-js',
+        
+        // Essential Database
+        'dexie',
+        
+        // Essential Utilities (needed by many components) 
+        // 'lodash', // تم إزالة مؤقتاً لحل مشكلة chunks
+        'lodash-es',
+        
+        // Common utilities that cause import issues
+        'react-intersection-observer',
+        'react-transition-group',
+        'react-smooth',
+        'reduce-css-calc',
+        'eventemitter3',
+        'is-retry-allowed',
+        
+        // Essential UI Base (خفيفة ومطلوبة)
         'lucide-react',
         'class-variance-authority',
         'clsx',
         'tailwind-merge',
-        // إضافة polyfills للنود
+        'classnames',
+        
+        // Core Polyfills Only
         'util',
-        'stream-browserify',
         'buffer',
         'process',
-        // إضافة lodash-es للتحسين المسبق
-        'lodash-es/get',
-        'lodash-es/isString', 
-        'lodash-es/isNaN',
-        'lodash-es/isNumber',
-        'lodash-es/isObject',
-        'lodash-es/isArray',
-        'lodash-es/isFunction',
-        'lodash-es/isEmpty',
-        'lodash-es/isNil',
-        'lodash-es/isUndefined',
-        'lodash-es/pick',
-        'lodash-es/omit',
-        'lodash-es/merge',
-        'lodash-es/clone',
-        'lodash-es/cloneDeep',
-        'lodash-es/debounce',
-        'lodash-es/throttle',
-        // إضافة react-is للتحسين المسبق
+        
+        // Essential React Utils
         'react-is',
-        // إضافة recharts للتحسين المسبق مع تفاصيل أكثر
-        'recharts',
-        'recharts/es6',
-        'recharts/es6/cartesian/CartesianGrid',
-        'recharts/es6/chart/BarChart',
-        'recharts/es6/chart/PieChart',
-        'recharts/es6/chart/RadialBarChart',
-        'recharts/es6/component/ResponsiveContainer',
-        'recharts/es6/component/Tooltip',
-        'recharts/es6/component/Legend',
+        'use-sync-external-store',
+        'use-sync-external-store/shim',
+        'prop-types'
       ],
-      exclude: [
-        // استبعاد المكتبات الثقيلة من التحسين المسبق
-        'jspdf',
+      
+              // 🚨 استبعاد جميع المكتبات الثقيلة من التحسين المسبق  
+        exclude: [
+          // Heavy Charts & Graphics (keep these for lazy loading)
+          '@nivo/bar', '@nivo/line', '@nivo/pie',
+          'recharts', 'chart.js', 'react-chartjs-2',
+        
+        // Heavy Editors
+        '@monaco-editor/react',
+        '@tinymce/tinymce-react',
+        
+        // Heavy UI Libraries
+        '@mui/material', '@mui/icons-material', '@mui/x-date-pickers',
+        '@emotion/react', '@emotion/styled',
+        'antd',
+        
+        // Heavy PDF & Image Processing
+        'jspdf', 'jspdf-autotable',
         'html2canvas',
-        // استبعاد lodash القديم لصالح lodash-es
-        'lodash/get',
-        'lodash/isString',
-        'lodash/isNaN', 
-        'lodash/isNumber',
-        'lodash/isObject',
-        'lodash/isArray',
-        'lodash/isFunction',
-        'lodash/isEmpty',
-        'lodash/isNil',
-        'lodash/isUndefined',
-        'lodash/pick',
-        'lodash/omit',
-        'lodash/merge',
-        'lodash/clone',
-        'lodash/cloneDeep',
-        'lodash/debounce',
-        'lodash/throttle',
+        'jimp',
+        'potrace',
+        
+        // Heavy Database
+        'better-sqlite3',
+        'sql.js',
+        'sqlite3',
+        
+        // Lodash (causes chunking issues when pre-optimized)
+        'lodash',
+        
+        // Heavy Animation
+        'framer-motion',
+        
+        // All Radix UI (load on demand)
+        '@radix-ui/react-accordion', '@radix-ui/react-alert-dialog',
+        '@radix-ui/react-aspect-ratio', '@radix-ui/react-avatar',
+        '@radix-ui/react-checkbox', '@radix-ui/react-collapsible',
+        '@radix-ui/react-context-menu', '@radix-ui/react-dialog',
+        '@radix-ui/react-dropdown-menu', '@radix-ui/react-hover-card',
+        '@radix-ui/react-icons', '@radix-ui/react-label',
+        '@radix-ui/react-menubar', '@radix-ui/react-navigation-menu',
+        '@radix-ui/react-popover', '@radix-ui/react-progress',
+        '@radix-ui/react-radio-group', '@radix-ui/react-scroll-area',
+        '@radix-ui/react-select', '@radix-ui/react-separator',
+        '@radix-ui/react-slider', '@radix-ui/react-slot',
+        '@radix-ui/react-switch', '@radix-ui/react-tabs',
+        '@radix-ui/react-toast', '@radix-ui/react-toggle',
+        '@radix-ui/react-toggle-group', '@radix-ui/react-tooltip',
+        
+        // Heavy Utilities
+        'axios',
+        'axios-retry',
+        
+        // Monitoring (load async)
+        '@sentry/react', '@sentry/browser', '@sentry/tracing', '@sentry/replay',
+        
+        // Context Providers (load on demand)
         './src/context/POSDataContext.tsx',
+        './src/context/DashboardDataContext.tsx',
         './src/lib/cache/deduplication.ts'
       ],
+      
+      // 🔧 تحسين عملية الاكتشاف
+      holdUntilCrawlEnd: false,
+      
+             // ⚡ تسريع عملية التحسين 
+       esbuildOptions: {
+         target: 'es2020',
+         keepNames: true,
+         minify: false, // لا نضغط في optimizeDeps
+         treeShaking: false, // لا نقطع الشجرة في optimizeDeps
+       }
     },
     preview: {
       port: 8080,
@@ -470,6 +656,9 @@ export default defineConfig(({ command, mode }) => {
           additionalData: `@import "@/styles/variables.scss";`,
         },
       },
+      // 🎨 إعدادات CSS محسنة للخطوط
+      modules: false,
+      postcss: undefined // استخدام PostCSS الافتراضي
     },
     esbuild: {
       target: 'es2020',
