@@ -675,6 +675,65 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       loadingTimeout.current = null;
     }
 
+    const loadTenantData = async () => {
+      try {
+        console.log('🔄 [TenantContext] تغيير حالة التحميل:', {
+          isLoading: true,
+          hasOrganization: false,
+          timestamp: new Date().toLocaleTimeString()
+        });
+
+        setIsLoading(true);
+        setError(null);
+
+        // إعداد timeout عام للحماية
+        const loadingTimeout = setTimeout(() => {
+          loadingOrganization.current = false;
+          setIsLoading(false);
+          setError(new Error('انتهت مهلة تحميل بيانات المؤسسة'));
+        }, 15000);
+
+        let org = null;
+        const currentHostname = window.location.hostname;
+        const subdomain = currentSubdomain || await extractSubdomain(currentHostname);
+        const storedOrgId = localStorage.getItem('bazaar_organization_id');
+
+        // استراتيجية الأولوية: orgId > domain > subdomain
+        let orgData = null;
+        if (storedOrgId) {
+          orgData = await fetchOrganizationUnified({ orgId: storedOrgId });
+        } else if (currentHostname && !currentHostname.includes('localhost')) {
+          orgData = await fetchOrganizationUnified({ hostname: currentHostname });
+        } else if (subdomain && subdomain !== 'main') {
+          orgData = await fetchOrganizationUnified({ subdomain });
+        }
+        
+        if (orgData) {
+          org = updateOrganizationFromData(orgData);
+          setOrganization(org);
+          updateLocalStorageOrgId(org.id);
+
+          // تحقق ما إذا كان المستخدم الحالي هو مسؤول المؤسسة
+          if (user && user.id === org.owner_id) {
+            setIsOrgAdmin(true);
+          }
+        } else {
+          console.log('❌ [TenantContext] لم يتم العثور على بيانات المؤسسة');
+          setOrganization(null);
+        }
+
+        // تنظيف timeout
+        clearTimeout(loadingTimeout);
+
+      } catch (error) {
+        console.error('❌ [TenantContext] خطأ في تحميل بيانات المؤسسة:', error);
+        setOrganization(null);
+        setError(error as Error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
     loadTenantData().finally(() => {
       loadingOrganization.current = false;
       initialized.current = true;

@@ -1,6 +1,10 @@
 /* 🌐 تحميل خطوط Tajawal من Google Fonts كـ backup */
 @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap');
 
+/* استيراد ملفات CSS الإضافية */
+@import './components/landing-page-builder/styles/cta-button.css';
+@import './styles/apps-management.css';
+
 /* 🎨 تعريفات خطوط Tajawal المحلية - أولوية عالية مع أكثر من مسار */
 @font-face {
   font-family: 'TajawalForced';
@@ -61,11 +65,6 @@
        url('./fonts/tajawal-bold.woff2') format('woff2'),
        url('../public/fonts/tajawal-bold.woff2') format('woff2');
 }
-
-@import './components/landing-page-builder/styles/cta-button.css';
-
-/* استيراد تحسينات إدارة التطبيقات */
-@import './styles/apps-management.css';
 
 @tailwind base;
 @tailwind components;

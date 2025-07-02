@@ -413,8 +413,7 @@ export default defineConfig(({ command, mode }) => {
             ],
             
             'database-heavy': [
-              'better-sqlite3', 'sql.js', 'sqlite3',
-              'dexie', 'dexie-observable'
+              'dexie'
             ],
             
             'animation-motion': ['framer-motion'],
@@ -464,13 +463,17 @@ export default defineConfig(({ command, mode }) => {
               './src/components/store-editor'
             ],
             
-            'landing-pages': [
-              './src/pages/landing',
-              './src/components/landing'
-            ]
+
           }
         } as OutputOptions,
-        external: isProd ? [] : undefined,
+        external: isProd ? [
+          'better-sqlite3',
+          'sqlite3',
+          'sql.js',
+          'path',
+          'fs',
+          'os'
+        ] : undefined,
         // تحسين خاص لـ Vercel
         preserveEntrySignatures: 'strict',
         // تخفيف قوة tree-shaking لمنع حذف الأكواد المهمة
@@ -594,10 +597,7 @@ export default defineConfig(({ command, mode }) => {
         'jimp',
         'potrace',
         
-        // Heavy Database
-        'better-sqlite3',
-        'sql.js',
-        'sqlite3',
+        // Heavy Database (Node.js only libraries removed)
         
         // Lodash (causes chunking issues when pre-optimized)
         'lodash',
