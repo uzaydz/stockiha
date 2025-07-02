@@ -49,25 +49,65 @@ const browserRouterOptions = {
   basename: '/'
 };
 
-// 🎨 ThemeProvider Wrapper لجلب organizationId من TenantContext
+// 🎨 ThemeProvider Wrapper محسن - نسخة واحدة فقط
 const ThemeProviderWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentOrganization, isLoading, error } = useTenant();
+  const [organizationId, setOrganizationId] = React.useState<string | undefined>(undefined);
+  const [hasInitialized, setHasInitialized] = React.useState(false);
+  const logTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   
-  console.log('🎯 [ThemeProviderWrapper] حالة المؤسسة:', {
-    organizationId: currentOrganization?.id,
-    organizationName: currentOrganization?.name,
-    isLoading,
-    hasError: !!error,
-    timestamp: new Date().toLocaleTimeString()
-  });
+  // تحديث معرف المؤسسة فقط عند الحاجة
+  React.useEffect(() => {
+    if (!isLoading && currentOrganization?.id && currentOrganization.id !== organizationId) {
+      // إلغاء أي timeout سابق
+      if (logTimeoutRef.current) {
+        clearTimeout(logTimeoutRef.current);
+      }
+      
+      // تسجيل مع تأخير لتجنب التكرار
+      logTimeoutRef.current = setTimeout(() => {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('🎯 [ThemeProviderWrapper] تحديث معرف المؤسسة:', {
+            oldId: organizationId,
+            newId: currentOrganization.id,
+            organizationName: currentOrganization.name,
+            timestamp: new Date().toLocaleTimeString()
+          });
+        }
+      }, 100);
+      
+      setOrganizationId(currentOrganization.id);
+      setHasInitialized(true);
+    } else if (!isLoading && !currentOrganization && hasInitialized) {
+      // المستخدم غير مرتبط بمؤسسة
+      setOrganizationId(undefined);
+    }
+  }, [currentOrganization?.id, isLoading, organizationId, hasInitialized]);
   
-  // إذا كان هناك خطأ، أظهر رسالة الخطأ
-  if (error) {
-    console.error('❌ [ThemeProviderWrapper] خطأ في تحميل المؤسسة:', error);
-  }
+  // تسجيل الأخطاء (مرة واحدة فقط)
+  React.useEffect(() => {
+    if (error && process.env.NODE_ENV === 'development') {
+      console.error('❌ [ThemeProviderWrapper] خطأ في تحميل المؤسسة:', error);
+    }
+  }, [error]);
+  
+  // تنظيف الموارد
+  React.useEffect(() => {
+    return () => {
+      if (logTimeoutRef.current) {
+        clearTimeout(logTimeoutRef.current);
+      }
+    };
+  }, []);
+  
+  // **استخدام مرجع ثابت للـ ThemeProvider** لمنع إعادة الإنشاء
+  const themeProviderKey = React.useMemo(() => 
+    `theme-provider-${organizationId || 'global'}`, 
+    [organizationId]
+  );
   
   return (
-    <ThemeProvider initialOrganizationId={currentOrganization?.id}>
+    <ThemeProvider key={themeProviderKey} initialOrganizationId={organizationId}>
       {children}
     </ThemeProvider>
   );

@@ -268,33 +268,68 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const lastVisibilityChangeRef = useRef<number>(Date.now());
   const isInitializingRef = useRef(false);
 
-  // تحديث حالة المصادقة مع التحقق من التكرار المحسن
+  // تحديث حالة المصادقة مع التحقق المحسن من التكرار
   const updateAuthState = useCallback((newSession: Session | null, newUser: SupabaseUser | null, clearAll: boolean = false) => {
+    // منع معالجة متزامنة
+    if (isProcessingToken) {
+      return;
+    }
 
-    // التحقق من التكرار - تجنب تحديث الحالة إذا لم تتغير
+    // تحقق فائق من التكرار مع مقارنة شاملة
     if (!clearAll && session && newSession && user && newUser) {
-      if (session.access_token === newSession.access_token && user.id === newUser.id) {
+      const isSameSession = (
+        session.access_token === newSession.access_token &&
+        session.refresh_token === newSession.refresh_token &&
+        session.expires_at === newSession.expires_at
+      );
+      const isSameUser = (
+        user.id === newUser.id &&
+        user.email === newUser.email &&
+        user.updated_at === newUser.updated_at
+      );
+      
+      if (isSameSession && isSameUser) {
         return;
       }
     }
 
-    if (clearAll) {
-      setSession(null);
-      setUser(null);
-      setUserProfile(null);
-      setOrganization(null);
-      saveAuthState(null, null, true);
-      // مسح البيانات الإضافية
-      localStorage.removeItem('current_user_profile');
-      localStorage.removeItem('current_organization');
-    } else {
-      setSession(newSession);
-      setUser(newUser);
-      if (newSession && newUser) {
-        saveAuthState(newSession, newUser);
-      }
+    // إضافة debouncing لمنع التحديثات السريعة المتكررة
+    const now = Date.now();
+    if (lastEventRef.current && (now - lastEventRef.current.timestamp) < 100) {
+      return;
     }
-  }, [session, user]);
+
+    setIsProcessingToken(true);
+
+    try {
+      if (clearAll) {
+        setSession(null);
+        setUser(null);
+        setUserProfile(null);
+        setOrganization(null);
+        saveAuthState(null, null, true);
+        // مسح البيانات الإضافية
+        localStorage.removeItem('current_user_profile');
+        localStorage.removeItem('current_organization');
+      } else {
+        setSession(newSession);
+        setUser(newUser);
+        if (newSession && newUser) {
+          saveAuthState(newSession, newUser);
+        }
+      }
+
+      // تحديث مرجع آخر حدث
+      lastEventRef.current = {
+        event: clearAll ? 'clear' : 'update',
+        sessionId: newSession?.access_token?.substring(0, 10) || null,
+        timestamp: now
+      };
+    } finally {
+      // تأخير إعادة تعيين flag للسماح بمعالجة العمليات التابعة
+      setTimeout(() => setIsProcessingToken(false), 50);
+    }
+  }, [session, user, isProcessingToken]);
 
   // دالة تسجيل الخروج وحذف البيانات
   const signOutAndClearState = useCallback(async () => {
@@ -675,100 +710,134 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [user?.id, userProfile?.id, hasInitialSessionCheck, isProcessingToken, isLoading]);
 
-  // Effect to fetch user profile and organization with debouncing
-  useEffect(() => {
-    const fetchUserData = async () => {
+  // Cache لمنع التحميل المتكرر مع TTL
+  const userDataCacheRef = useRef<{
+    userId: string;
+    timestamp: number;
+    data: { userProfile: UserProfile; organization: Organization | null };
+  } | null>(null);
+
+  // دالة fetchUserData محسنة مع cache وdebouncing قوي
+  const fetchUserData = useCallback(async () => {
+    if (!user || !session) {
+      // إذا لم يكن هناك user أو session، امسح البيانات فقط إذا كانت موجودة
+      if ((userProfile || organization) && !isProcessingToken) {
+        setUserProfile(null);
+        setOrganization(null);
+      }
+      if (isLoading && !isProcessingToken) {
+        setIsLoading(false);
+      }
+      return;
+    }
+
+    // منع multiple fetches في نفس الوقت أو للمستخدم نفسه
+    if (fetchingUserDataRef.current) {
+      return;
+    }
+
+    // التحقق من cache صالح (5 دقائق)
+    const now = Date.now();
+    if (userDataCacheRef.current && 
+        userDataCacheRef.current.userId === user.id && 
+        (now - userDataCacheRef.current.timestamp) < 5 * 60 * 1000) {
       
-      if (user && session) {
-        // منع multiple fetches في نفس الوقت
-        if (fetchingUserDataRef.current) {
-          return;
-        }
+      if (!userProfile || userProfile.id !== user.id) {
+        setUserProfile(userDataCacheRef.current.data.userProfile);
+      }
+      if (!organization && userDataCacheRef.current.data.organization) {
+        setOrganization(userDataCacheRef.current.data.organization);
+      }
+      setIsLoading(false);
+      return;
+    }
 
-        // إذا كانت البيانات محملة بالفعل والمؤسسة موجودة، لا نحتاج لإعادة تحميلها
-        if (userProfile && userProfile.id === user.id && organization && userProfile.organization_id) {
-          setIsLoading(false);
-          return;
-        }
+    // إذا كانت البيانات محملة بالفعل ومطابقة للمستخدم الحالي
+    if (userProfile && userProfile.id === user.id && 
+        (!userProfile.organization_id || organization)) {
+      setIsLoading(false);
+      return;
+    }
 
-        // إذا كان userProfile موجود لكن organization غير موجود، نحتاج لإعادة التحميل
-        if (userProfile && userProfile.id === user.id && (!organization || !userProfile.organization_id)) {
-        }
+    // استخدام البيانات المحفوظة كنقطة بداية سريعة
+    if (savedUserData.userProfile && 
+        savedUserData.userProfile.id === user.id && 
+        !userProfile) {
+      setUserProfile(savedUserData.userProfile);
+      if (savedUserData.organization && 
+          savedUserData.organization.id === savedUserData.userProfile.organization_id) {
+        setOrganization(savedUserData.organization);
+      }
+      setIsLoading(false);
+      return;
+    }
 
-        // إذا كان لدينا profile محفوظ وصالح للمستخدم الحالي، استخدمه مؤقتاً
-        if (savedUserData.userProfile && savedUserData.userProfile.id === user.id && !userProfile) {
-          setUserProfile(savedUserData.userProfile);
-          if (savedUserData.organization && savedUserData.organization.id === savedUserData.userProfile.organization_id) {
-            setOrganization(savedUserData.organization);
-          }
-          setIsLoading(false);
-          return;
-        }
-
-        fetchingUserDataRef.current = true;
-        setIsLoading(true);
+    // بدء عملية تحميل جديدة مع حماية من التكرار
+    fetchingUserDataRef.current = true;
+    setIsLoading(true);
+    
+    try {
+      // استخدام timeout للحماية من التعليق
+      const profilePromise = getCurrentUserProfile();
+      const timeoutPromise = new Promise<null>((_, reject) => 
+        setTimeout(() => reject(new Error('timeout')), 8000)
+      );
+      
+      let profile = await Promise.race([profilePromise, timeoutPromise]);
+      
+      if (profile) {
+        profile = await addCallCenterAgentData(profile);
+        setUserProfile(profile as UserProfile);
         
-        try {
-          
-          // إضافة timeout لـ getCurrentUserProfile
-          const profilePromise = getCurrentUserProfile();
-          const timeoutPromise = new Promise<null>((_, reject) => 
-            setTimeout(() => reject(new Error('getCurrentUserProfile timeout')), 5000)
-          );
-          
-          let profile = await Promise.race([profilePromise, timeoutPromise]);
-          
-          // إضافة بيانات وكيل مركز الاتصال إذا كان موجوداً
-          if (profile) {
-            profile = await addCallCenterAgentData(profile);
-          }
-          
-          setUserProfile(profile as UserProfile);
-          
-          if (profile?.organization_id) {
-            const org = await getOrganizationById(profile.organization_id);
+        let org = null;
+        if (profile.organization_id) {
+          try {
+            org = await getOrganizationById(profile.organization_id);
             setOrganization(org);
-            
-            // كونسول لمراقبة بيانات المؤسسة من AuthContext
-            
-            // حفظ جميع بيانات المستخدم مرة واحدة
-            saveUserDataToStorage(profile, org, profile.organization_id);
-          } else {
-             setOrganization(null);
-             // حفظ البيانات بدون organization
-             saveUserDataToStorage(profile, null, null);
+          } catch (orgError) {
+            console.warn('فشل في تحميل بيانات المؤسسة:', orgError);
+            setOrganization(null);
           }
-        } catch (error) {
-          // في حالة الخطأ، استخدم البيانات المحفوظة إن وجدت
-          if (savedUserData.userProfile && savedUserData.userProfile.id === user.id) {
-            setUserProfile(savedUserData.userProfile);
-            if (savedUserData.organization) {
-              setOrganization(savedUserData.organization);
-            }
-          }
-        } finally {
-          setIsLoading(false);
-          setIsProcessingToken(false);
-          fetchingUserDataRef.current = false;
-        }
-      } else {
-        if (isProcessingToken) {
-          return;
-        }
-
-        // إذا لم يكن هناك user أو session، امسح البيانات
-        if (userProfile || organization) {
-          setUserProfile(null);
+        } else {
           setOrganization(null);
         }
-        if (isLoading) {
-          setIsLoading(false);
+        
+        // حفظ في cache محلي
+        userDataCacheRef.current = {
+          userId: user.id,
+          timestamp: now,
+          data: { userProfile: profile, organization: org }
+        };
+        
+        // حفظ في localStorage
+        saveUserDataToStorage(profile, org, profile.organization_id);
+      }
+    } catch (error) {
+      console.warn('خطأ في تحميل بيانات المستخدم:', error);
+      
+      // استخدام البيانات المحفوظة عند الخطأ
+      if (savedUserData.userProfile && savedUserData.userProfile.id === user.id) {
+        setUserProfile(savedUserData.userProfile);
+        if (savedUserData.organization) {
+          setOrganization(savedUserData.organization);
         }
       }
-    };
+    } finally {
+      setIsLoading(false);
+      setIsProcessingToken(false);
+      fetchingUserDataRef.current = false;
+    }
+  }, [user?.id, session?.access_token, isProcessingToken, userProfile?.id, organization?.id, savedUserData]);
 
-    fetchUserData();
-  }, [user?.id, session?.access_token, isProcessingToken]); // إزالة userProfile و organization من dependencies
+  // useEffect محسن مع debouncing قوي
+  useEffect(() => {
+    // إضافة debouncing لمنع الاستدعاءات المتكررة
+    const timeoutId = setTimeout(() => {
+      fetchUserData();
+    }, 100); // 100ms debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [fetchUserData]);
 
   const signIn = async (email: string, password: string) => {
     setIsLoading(true);

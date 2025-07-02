@@ -1018,6 +1018,46 @@ export async function createUserSession(
       };
     }
 
+    // تحسين التحقق من الجلسة الموجودة مع TTL أطول
+    const existingSessionKey = `user_session_${user.id}_${sessionToken}`;
+    const existingSession = localStorage.getItem(existingSessionKey);
+    
+    if (existingSession) {
+      try {
+        const sessionData = JSON.parse(existingSession);
+        const now = Date.now();
+        // زيادة مدة cache إلى 5 دقائق لتقليل الطلبات
+        if (now - sessionData.timestamp < 5 * 60 * 1000) {
+          console.log('🔄 [createUserSession] استخدام جلسة محفوظة محلياً');
+          return {
+            success: true,
+            sessionId: sessionData.sessionId
+          };
+        }
+      } catch (parseError) {
+        // إذا كانت البيانات تالفة، احذفها
+        localStorage.removeItem(existingSessionKey);
+      }
+    }
+
+    // إضافة rate limiting عالمي لمنع الطلبات المتكررة
+    const rateLimitKey = `session_rate_limit_${user.id}`;
+    const lastRequest = localStorage.getItem(rateLimitKey);
+    
+    if (lastRequest) {
+      const timeSinceLastRequest = Date.now() - parseInt(lastRequest);
+      if (timeSinceLastRequest < 2000) { // 2 ثوان minimum بين الطلبات
+        console.log('🚦 [createUserSession] rate limit - تجاهل الطلب');
+        return {
+          success: true,
+          sessionId: 'rate-limited'
+        };
+      }
+    }
+    
+    // تحديث timestamp آخر طلب
+    localStorage.setItem(rateLimitKey, Date.now().toString());
+
     // الحصول على معلومات الطلب
     const ipAddress = await getClientIP();
     const userAgent = navigator.userAgent;
@@ -1032,17 +1072,41 @@ export async function createUserSession(
     });
 
     if (error) {
+      // معالجة محسنة لخطأ 409 (Conflict) - جلسة موجودة بالفعل
+      if (error.code === '23505' || error.message?.includes('duplicate') || error.message?.includes('conflict')) {
+        console.log('🔄 [createUserSession] جلسة موجودة بالفعل، استخدام الجلسة الحالية');
+        
+        // حفظ جلسة افتراضية لتجنب إعادة المحاولة
+        const fallbackSessionId = `existing_${Date.now()}`;
+        localStorage.setItem(existingSessionKey, JSON.stringify({
+          sessionId: fallbackSessionId,
+          timestamp: Date.now()
+        }));
+        
+        return {
+          success: true,
+          sessionId: fallbackSessionId
+        };
+      }
+      
       return {
         success: false,
-        error: 'فشل في إنشاء الجلسة'
+        error: `فشل في إنشاء الجلسة: ${error.message || 'خطأ غير معروف'}`
       };
     }
+
+    // حفظ معلومات الجلسة محلياً عند النجاح
+    localStorage.setItem(existingSessionKey, JSON.stringify({
+      sessionId: data,
+      timestamp: Date.now()
+    }));
 
     return {
       success: true,
       sessionId: data
     };
   } catch (error) {
+    console.error('خطأ في إنشاء الجلسة:', error);
     return {
       success: false,
       error: 'حدث خطأ غير متوقع'

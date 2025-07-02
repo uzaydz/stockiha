@@ -231,7 +231,7 @@ interface POSData {
   // دوال مساعدة للمخزون
   getProductStock: (productId: string, colorId?: string, sizeId?: string) => number;
   updateProductStock: (productId: string, colorId: string | null, sizeId: string | null, newQuantity: number) => Promise<boolean>;
-  updateProductStockInCache: (productId: string, colorId: string | null, sizeId: string | null, quantityToReduce: number) => void;
+  updateProductStockInCache: (productId: string, colorId: string | null, sizeId: string | null, quantityChange: number) => void;
   checkLowStock: (productId: string) => boolean;
   getProductPrice: (productId: string, quantity: number, colorId?: string, sizeId?: string) => number;
 }
@@ -614,6 +614,203 @@ const fetchOrganizationAppsEnhanced = async (orgId: string): Promise<Organizatio
   });
 };
 
+// دالة موحدة لجلب البيانات مع cache ذكي
+const fetchPOSCompleteData = async (orgId: string): Promise<{
+  products: POSProductWithVariants[];
+  subscriptions: SubscriptionService[];
+  categories: SubscriptionCategory[];
+  productCategories: ProductCategory[];
+  posSettings: any;
+  organizationApps: OrganizationApp[];
+  users: any[];
+  customers: any[];
+  orderStats: any;
+  errors: Record<string, string>;
+}> => {
+  // منع الاستدعاءات المتكررة للمنظمة نفسها
+  const cacheKey = `pos-complete-data-${orgId}`;
+  const existingRequest = (window as any)[`fetching_${cacheKey}`];
+  
+  if (existingRequest) {
+    console.log('🔄 [POSDataContext] استدعاء موجود، انتظار النتيجة...');
+    return await existingRequest;
+  }
+
+  // إنشاء Promise جديد ومشاركته
+  const fetchPromise = (async () => {
+    try {
+      console.log('🚀 [POSDataContext] بدء جلب البيانات الكاملة للمؤسسة:', orgId);
+
+      // تنفيذ جميع الطلبات بالتوازي مع error handling محسن
+      const [
+        productsResult,
+        subscriptionsResult,
+        categoriesResult,
+        productCategoriesResult,
+        posSettingsResult,
+        organizationAppsResult,
+        usersResult,
+        customersResult,
+        orderStatsResult
+      ] = await Promise.allSettled([
+        deduplicateRequest(`products-${orgId}`, () => fetchPOSProductsWithVariants(orgId)),
+        deduplicateRequest(`subscriptions-${orgId}`, () => fetchPOSSubscriptionsEnhanced(orgId)),
+        deduplicateRequest(`categories-${orgId}`, () => fetchPOSCategoriesEnhanced(orgId)),
+        deduplicateRequest(`product-categories-${orgId}`, () => fetchProductCategories(orgId)),
+        deduplicateRequest(`pos-settings-${orgId}`, () => fetchPOSSettingsEnhanced(orgId)),
+        deduplicateRequest(`organization-apps-${orgId}`, () => fetchOrganizationAppsEnhanced(orgId)),
+        deduplicateRequest(`users-${orgId}`, () => fetchPOSUsers(orgId)),
+        deduplicateRequest(`customers-${orgId}`, () => fetchPOSCustomers(orgId)),
+        deduplicateRequest(`order-stats-${orgId}`, () => fetchPOSOrderStats(orgId))
+      ]);
+
+      // معالجة النتائج مع تسجيل الأخطاء
+      const errors: Record<string, string> = {};
+      
+      const products = productsResult.status === 'fulfilled' ? productsResult.value : [];
+      if (productsResult.status === 'rejected') {
+        console.error('❌ خطأ في جلب المنتجات:', productsResult.reason);
+        errors.products = 'فشل في جلب المنتجات';
+      }
+
+      const subscriptions = subscriptionsResult.status === 'fulfilled' ? subscriptionsResult.value : [];
+      if (subscriptionsResult.status === 'rejected') {
+        console.error('❌ خطأ في جلب الاشتراكات:', subscriptionsResult.reason);
+        errors.subscriptions = 'فشل في جلب الاشتراكات';
+      }
+
+      const categories = categoriesResult.status === 'fulfilled' ? categoriesResult.value : [];
+      if (categoriesResult.status === 'rejected') {
+        console.error('❌ خطأ في جلب الفئات:', categoriesResult.reason);
+        errors.categories = 'فشل في جلب فئات الاشتراكات';
+      }
+
+      const productCategories = productCategoriesResult.status === 'fulfilled' ? productCategoriesResult.value : [];
+      if (productCategoriesResult.status === 'rejected') {
+        console.error('❌ خطأ في جلب فئات المنتجات:', productCategoriesResult.reason);
+        errors.productCategories = 'فشل في جلب فئات المنتجات';
+      }
+
+      const posSettings = posSettingsResult.status === 'fulfilled' ? posSettingsResult.value : null;
+      if (posSettingsResult.status === 'rejected') {
+        console.error('❌ خطأ في جلب إعدادات POS:', posSettingsResult.reason);
+        errors.posSettings = 'فشل في جلب إعدادات نقطة البيع';
+      }
+
+      const organizationApps = organizationAppsResult.status === 'fulfilled' ? organizationAppsResult.value : [];
+      if (organizationAppsResult.status === 'rejected') {
+        console.error('❌ خطأ في جلب تطبيقات المؤسسة:', organizationAppsResult.reason);
+        errors.organizationApps = 'فشل في جلب تطبيقات المؤسسة';
+      }
+
+      const users = usersResult.status === 'fulfilled' ? usersResult.value : [];
+      if (usersResult.status === 'rejected') {
+        console.error('❌ خطأ في جلب المستخدمين:', usersResult.reason);
+        errors.users = 'فشل في جلب المستخدمين';
+      }
+
+      const customers = customersResult.status === 'fulfilled' ? customersResult.value : [];
+      if (customersResult.status === 'rejected') {
+        console.error('❌ خطأ في جلب العملاء:', customersResult.reason);
+        errors.customers = 'فشل في جلب العملاء';
+      }
+
+      const orderStats = orderStatsResult.status === 'fulfilled' ? orderStatsResult.value : {};
+      if (orderStatsResult.status === 'rejected') {
+        console.error('❌ خطأ في جلب إحصائيات الطلبات:', orderStatsResult.reason);
+        errors.orderStats = 'فشل في جلب إحصائيات الطلبات';
+      }
+
+      const result = {
+        products,
+        subscriptions,
+        categories,
+        productCategories,
+        posSettings,
+        organizationApps,
+        users,
+        customers,
+        orderStats,
+        errors
+      };
+
+      console.log('✅ [POSDataContext] تم جلب البيانات بنجاح:', {
+        productsCount: products.length,
+        subscriptionsCount: subscriptions.length,
+        categoriesCount: categories.length,
+        productCategoriesCount: productCategories.length,
+        hasSettings: !!posSettings,
+        appsCount: organizationApps.length,
+        usersCount: users.length,
+        customersCount: customers.length,
+        hasOrderStats: !!orderStats,
+        errorsCount: Object.keys(errors).length
+      });
+
+      return result;
+    } catch (error) {
+      console.error('❌ [POSDataContext] خطأ عام في جلب البيانات:', error);
+      throw error;
+    } finally {
+      // تنظيف العلامة
+      delete (window as any)[`fetching_${cacheKey}`];
+    }
+  })();
+
+  // حفظ Promise العالمي
+  (window as any)[`fetching_${cacheKey}`] = fetchPromise;
+
+  return await fetchPromise;
+};
+
+// دوال مساعدة للجلب الفردي
+const fetchPOSUsers = async (orgId: string): Promise<any[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, name, email, role')
+      .eq('organization_id', orgId)
+      .eq('is_active', true)
+      .order('name', { ascending: true })
+      .limit(50);
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('خطأ في جلب المستخدمين:', error);
+    return [];
+  }
+};
+
+const fetchPOSCustomers = async (orgId: string): Promise<any[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('customers')
+      .select('id, name, phone, email, created_at, updated_at, organization_id')
+      .eq('organization_id', orgId)
+      .order('name', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('خطأ في جلب العملاء:', error);
+    return [];
+  }
+};
+
+const fetchPOSOrderStats = async (orgId: string): Promise<any> => {
+  try {
+    const { data, error } = await supabase
+      .rpc('get_pos_order_stats', { org_id: orgId });
+
+    if (error) throw error;
+    return data || {};
+  } catch (error) {
+    console.error('خطأ في جلب إحصائيات الطلبات:', error);
+    return {};
+  }
+};
+
 // =================================================================
 // 🎯 POSDataProvider Component المحسن
 // =================================================================
@@ -779,7 +976,7 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
     productId: string,
     colorId: string | null,
     sizeId: string | null,
-    quantityToReduce: number
+    quantityChange: number // تغيير الاسم لتوضيح أنه تغيير وليس دائماً تقليل
   ) => {
     
     // استخدام invalidateQueries + setQueryData للتأكد من re-render
@@ -801,7 +998,10 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
                 ...color,
                 sizes: color.sizes?.map(size => {
                   if (size.id === sizeId) {
-                    const newQuantity = Math.max(0, size.quantity - quantityToReduce);
+                    // التغيير: استخدام العملية الصحيحة بناءً على إشارة quantityChange
+                    // إذا كانت quantityChange سالبة (إرجاع)، ستؤدي إلى إضافة للمخزون
+                    // إذا كانت quantityChange موجبة (بيع)، ستؤدي إلى تقليل من المخزون
+                    const newQuantity = Math.max(0, size.quantity - quantityChange);
                     return { ...size, quantity: newQuantity };
                   }
                   return size;
@@ -814,14 +1014,16 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
           // تحديث لون محدد
           updatedProduct.colors = product.colors?.map(color => {
             if (color.id === colorId) {
-              const newQuantity = Math.max(0, color.quantity - quantityToReduce);
+              // نفس المنطق: quantityChange سالبة = إضافة، موجبة = تقليل
+              const newQuantity = Math.max(0, color.quantity - quantityChange);
               return { ...color, quantity: newQuantity };
             }
             return color;
           }) || [];
         } else {
           // تحديث المنتج الأساسي
-          const newQuantity = Math.max(0, product.stock_quantity - quantityToReduce);
+          // نفس المنطق: quantityChange سالبة = إضافة، موجبة = تقليل
+          const newQuantity = Math.max(0, product.stock_quantity - quantityChange);
           updatedProduct.stock_quantity = newQuantity;
           updatedProduct.stockQuantity = newQuantity;
           updatedProduct.actual_stock_quantity = newQuantity;

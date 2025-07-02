@@ -32,6 +32,17 @@ export const DashboardRoutes = () => (
           </SubscriptionCheck>
         } />
         
+        {/* إضافة منتج جديد */}
+        <Route path="/dashboard/products/new" element={
+          <SubscriptionCheck>
+            <PermissionGuard requiredPermissions={['manageProducts']}>
+              <Suspense fallback={<PageLoader message="جاري تحميل نموذج المنتج..." />}>
+                <LazyRoutes.ProductForm />
+              </Suspense>
+            </PermissionGuard>
+          </SubscriptionCheck>
+        } />
+        
         <Route path="/dashboard/inventory" element={
           <SubscriptionCheck>
             <Suspense fallback={<PageLoader message="جاري تحميل المخزون..." />}>
@@ -48,6 +59,19 @@ export const DashboardRoutes = () => (
               </Suspense>
             </PermissionGuard>
           </SubscriptionCheck>
+        } />
+        
+        {/* خدمات الإصلاح */}
+        <Route path="/dashboard/repair-services" element={
+          <ConditionalRoute appId="repair-services">
+            <SubscriptionCheck>
+              <PermissionGuard requiredPermissions={['viewServices']}>
+                <Suspense fallback={<PageLoader message="جاري تحميل خدمات الإصلاح..." />}>
+                  <LazyRoutes.RepairServices />
+                </Suspense>
+              </PermissionGuard>
+            </SubscriptionCheck>
+          </ConditionalRoute>
         } />
         
         {/* المبيعات والطلبات */}
@@ -242,6 +266,17 @@ export const DashboardRoutes = () => (
           </SubscriptionCheck>
         } />
         
+        {/* إضافة مشتريات جديدة من الموردين */}
+        <Route path="/dashboard/suppliers/purchases/new" element={
+          <SubscriptionCheck>
+            <PermissionGuard requiredPermissions={['manageSuppliers']}>
+              <Suspense fallback={<PageLoader message="جاري تحميل نموذج مشتريات جديدة..." />}>
+                <LazyRoutes.SupplierPurchases />
+              </Suspense>
+            </PermissionGuard>
+          </SubscriptionCheck>
+        } />
+        
         <Route path="/dashboard/suppliers/payments" element={
           <SubscriptionCheck>
             <Suspense fallback={<PageLoader message="جاري تحميل مدفوعات الموردين..." />}>
@@ -258,6 +293,19 @@ export const DashboardRoutes = () => (
               </Suspense>
             </PermissionGuard>
           </SubscriptionCheck>
+        } />
+        
+        {/* تحميل الألعاب */}
+        <Route path="/dashboard/game-downloads" element={
+          <ConditionalRoute appId="game-downloads">
+            <SubscriptionCheck>
+              <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+                <Suspense fallback={<PageLoader message="جاري تحميل إدارة الألعاب..." />}>
+                  <LazyRoutes.GameDownloadsPage />
+                </Suspense>
+              </PermissionGuard>
+            </SubscriptionCheck>
+          </ConditionalRoute>
         } />
         
         {/* الإعدادات */}

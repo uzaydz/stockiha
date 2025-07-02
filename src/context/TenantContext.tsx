@@ -29,6 +29,9 @@ if (typeof window !== 'undefined' && !window.organizationCache) {
 
 const ORGANIZATION_CACHE_TTL = 10 * 60 * 1000; // 10 دقائق
 
+// إضافة cache لمنع الاستدعاءات المتكررة
+const pendingRequests = new Map<string, Promise<any>>();
+
 // دالة موحدة لجلب المنظمة مع cache ذكي
 const fetchOrganizationUnified = async (params: {
   orgId?: string;
@@ -37,133 +40,131 @@ const fetchOrganizationUnified = async (params: {
 }): Promise<any> => {
   const { orgId, hostname, subdomain } = params;
   
-  // تحديد مفتاح cache بناء على المعاملات
-  let cacheKey = '';
-  let fetchType: 'byId' | 'byDomain' | 'bySubdomain' = 'byId';
+  // تحديد نوع الجلب
+  let fetchType: 'byId' | 'byDomain' | 'bySubdomain';
+  let cacheKey: string;
   
   if (orgId) {
-    cacheKey = `org-id-${orgId}`;
     fetchType = 'byId';
-  } else if (hostname && !hostname.includes('localhost')) {
-    cacheKey = `org-domain-${hostname}`;
+    cacheKey = `org-id-${orgId}`;
+  } else if (hostname) {
     fetchType = 'byDomain';
+    cacheKey = `org-domain-${hostname}`;
   } else if (subdomain) {
-    cacheKey = `org-subdomain-${subdomain}`;
     fetchType = 'bySubdomain';
+    cacheKey = `org-subdomain-${subdomain}`;
   } else {
     return null;
   }
-  
-  // فحص cache أولاً
+
+  // التحقق من وجود طلب مماثل قيد التنفيذ
+  if (pendingRequests.has(cacheKey)) {
+    console.log('🔄 [fetchOrganizationUnified] استخدام طلب قيد التنفيذ:', cacheKey);
+    return await pendingRequests.get(cacheKey);
+  }
+
+  // التحقق من cache أولاً
   if (window.organizationCache?.has(cacheKey)) {
-    const cached = window.organizationCache.get(cacheKey);
-    if (cached && (Date.now() - cached.timestamp) < ORGANIZATION_CACHE_TTL) {
+    const cached = window.organizationCache.get(cacheKey)!;
+    const now = Date.now();
+    
+    if (now - cached.timestamp < ORGANIZATION_CACHE_TTL) {
+      console.log('💾 [fetchOrganizationUnified] استخدام البيانات المحفوظة:', cacheKey);
       return cached.data;
+    } else {
+      // إزالة البيانات منتهية الصلاحية
+      window.organizationCache.delete(cacheKey);
     }
   }
-  
-  // منع الاستدعاءات المتكررة للمفتاح نفسه
+
+  // إنشاء مفتاح انتظار لمنع الاستدعاءات المتكررة
   const pendingKey = `pending-${cacheKey}`;
-  if (window.organizationCache?.has(pendingKey)) {
-    // انتظار لمدة قصيرة ثم إعادة المحاولة
-    await new Promise(resolve => setTimeout(resolve, 100));
-    if (window.organizationCache?.has(cacheKey)) {
-      const cached = window.organizationCache.get(cacheKey);
-      if (cached && (Date.now() - cached.timestamp) < ORGANIZATION_CACHE_TTL) {
-        return cached.data;
-      }
-    }
-  }
   
-  // وضع علامة على أن الاستدعاء جاري
-  if (window.organizationCache) {
-    window.organizationCache.set(pendingKey, {
-      data: null,
-      timestamp: Date.now(),
-      type: fetchType
-    });
-  }
-  
-  // جلب البيانات من قاعدة البيانات
-  
-  let orgData = null;
-  
-  try {
-    console.log('🔎 [fetchOrganizationUnified] جلب البيانات:', {
-      fetchType,
-      orgId,
-      hostname,
-      subdomain,
-      cacheKey
-    });
-    
-    switch (fetchType) {
-      case 'byId':
-        if (orgId) {
-          console.log('🆔 [fetchOrganizationUnified] جلب بـ ID:', orgId);
-          orgData = await getOrganizationById(orgId);
-        }
-        break;
-      case 'byDomain':
-        if (hostname) {
-          console.log('🌐 [fetchOrganizationUnified] جلب بـ Domain:', hostname);
-          orgData = await getOrganizationByDomain(hostname);
-        }
-        break;
-      case 'bySubdomain':
-        if (subdomain) {
-          console.log('🔗 [fetchOrganizationUnified] جلب بـ Subdomain:', subdomain);
-          orgData = await getOrganizationBySubdomain(subdomain);
-        }
-        break;
-    }
-    
-    console.log('📋 [fetchOrganizationUnified] نتيجة الجلب:', {
-      found: !!orgData,
-      orgData: orgData ? { id: orgData.id, name: orgData.name, subdomain: orgData.subdomain } : null
-    });
-    
-    // حفظ في cache إذا تم العثور على البيانات
-    if (orgData && window.organizationCache) {
-      window.organizationCache.set(cacheKey, {
-        data: orgData,
-        timestamp: Date.now(),
-        type: fetchType
+  // إنشاء Promise جديد وحفظه
+  const fetchPromise = (async () => {
+    try {
+      let orgData = null;
+      
+      console.log('🔎 [fetchOrganizationUnified] جلب البيانات:', {
+        fetchType,
+        orgId,
+        hostname,
+        subdomain,
+        cacheKey
       });
       
-      // حفظ نفس البيانات بمفاتيح مختلفة لتجنب الاستدعاءات المستقبلية
-      if (orgData.id && fetchType !== 'byId') {
-        window.organizationCache.set(`org-id-${orgData.id}`, {
+      switch (fetchType) {
+        case 'byId':
+          if (orgId) {
+            console.log('🆔 [fetchOrganizationUnified] جلب بـ ID:', orgId);
+            orgData = await getOrganizationById(orgId);
+          }
+          break;
+        case 'byDomain':
+          if (hostname) {
+            console.log('🌐 [fetchOrganizationUnified] جلب بـ Domain:', hostname);
+            orgData = await getOrganizationByDomain(hostname);
+          }
+          break;
+        case 'bySubdomain':
+          if (subdomain) {
+            console.log('🔗 [fetchOrganizationUnified] جلب بـ Subdomain:', subdomain);
+            orgData = await getOrganizationBySubdomain(subdomain);
+          }
+          break;
+      }
+      
+      console.log('📋 [fetchOrganizationUnified] نتيجة الجلب:', {
+        found: !!orgData,
+        orgData: orgData ? { id: orgData.id, name: orgData.name, subdomain: orgData.subdomain } : null
+      });
+      
+      // حفظ في cache إذا تم العثور على البيانات
+      if (orgData && window.organizationCache) {
+        window.organizationCache.set(cacheKey, {
           data: orgData,
           timestamp: Date.now(),
-          type: 'byId'
+          type: fetchType
         });
+        
+        // حفظ نفس البيانات بمفاتيح مختلفة لتجنب الاستدعاءات المستقبلية
+        if (orgData.id && fetchType !== 'byId') {
+          window.organizationCache.set(`org-id-${orgData.id}`, {
+            data: orgData,
+            timestamp: Date.now(),
+            type: 'byId'
+          });
+        }
+        if (orgData.subdomain && fetchType !== 'bySubdomain') {
+          window.organizationCache.set(`org-subdomain-${orgData.subdomain}`, {
+            data: orgData,
+            timestamp: Date.now(),
+            type: 'bySubdomain'
+          });
+        }
+        if (orgData.domain && fetchType !== 'byDomain') {
+          window.organizationCache.set(`org-domain-${orgData.domain}`, {
+            data: orgData,
+            timestamp: Date.now(),
+            type: 'byDomain'
+          });
+        }
       }
-      if (orgData.subdomain && fetchType !== 'bySubdomain') {
-        window.organizationCache.set(`org-subdomain-${orgData.subdomain}`, {
-          data: orgData,
-          timestamp: Date.now(),
-          type: 'bySubdomain'
-        });
-      }
-      if (orgData.domain && fetchType !== 'byDomain') {
-        window.organizationCache.set(`org-domain-${orgData.domain}`, {
-          data: orgData,
-          timestamp: Date.now(),
-          type: 'byDomain'
-        });
-      }
+      
+      return orgData;
+    } catch (error) {
+      console.error('❌ [fetchOrganizationUnified] خطأ في الجلب:', error);
+      return null;
+    } finally {
+      // إزالة من قائمة الطلبات المعلقة
+      pendingRequests.delete(cacheKey);
     }
-    
-    return orgData;
-  } catch (error) {
-    return null;
-  } finally {
-    // إزالة علامة الانتظار
-    if (window.organizationCache?.has(pendingKey)) {
-      window.organizationCache.delete(pendingKey);
-    }
-  }
+  })();
+
+  // حفظ Promise في قائمة الطلبات المعلقة
+  pendingRequests.set(cacheKey, fetchPromise);
+  
+  return await fetchPromise;
 };
 
 // دالة لتنظيف cache منتهي الصلاحية
@@ -629,20 +630,27 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     checkCustomDomain();
   }, []);
 
-  // مزامنة بيانات المؤسسة من AuthContext إلى TenantContext - محسنة
+  // مزامنة بيانات المؤسسة من AuthContext محسنة لمنع التكرار
   useEffect(() => {
-    if (authOrganization && !organization && !loadingOrganization.current) {
-      // تحويل بيانات المؤسسة من AuthContext إلى النموذج المطلوب لـ TenantContext
-      const orgData = updateOrganizationFromData(authOrganization);
-      setOrganization(orgData);
-      
-      // حفظ معرف المؤسسة في التخزين المحلي
-      localStorage.setItem('bazaar_organization_id', authOrganization.id);
-      setIsLoading(false);
-      initialized.current = true;
-      setError(null);
+    // تجنب المعالجة إذا كانت البيانات موجودة بالفعل أو جاري التحميل
+    if (!authOrganization || organization || loadingOrganization.current || initialized.current) {
+      return;
     }
-  }, [authOrganization]); // إزالة organization من dependencies
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔄 [TenantContext] مزامنة بيانات المؤسسة من AuthContext:', authOrganization.id);
+    }
+
+    // تحويل بيانات المؤسسة من AuthContext إلى النموذج المطلوب لـ TenantContext
+    const orgData = updateOrganizationFromData(authOrganization);
+    setOrganization(orgData);
+    
+    // حفظ معرف المؤسسة في التخزين المحلي
+    localStorage.setItem('bazaar_organization_id', authOrganization.id);
+    setIsLoading(false);
+    initialized.current = true;
+    setError(null);
+  }, [authOrganization, organization]); // إضافة organization للتحقق من الحالة
 
   // دالة موحدة ومحسنة لجلب المنظمة
   const fetchOrganizationOptimized = useCallback(async (params: {
@@ -653,41 +661,57 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return await fetchOrganizationUnified(params);
   }, []);
 
-  // useEffect لتحميل بيانات المؤسسة مع منع التكرار
+  // useEffect محسن لتحميل بيانات المؤسسة مع منع التكرار الكامل
   useEffect(() => {
     // منع التشغيل المتكرر
-    if (loadingOrganization.current || initialized.current) {
-      console.log('🚫 [TenantContext] تجاهل useEffect - التحميل جاري أو مكتمل');
+    if (loadingOrganization.current || initialized.current || organization) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🚫 [TenantContext] تجاهل useEffect - التحميل جاري أو مكتمل:', {
+          loadingOrganization: loadingOrganization.current,
+          initialized: initialized.current,
+          hasOrganization: !!organization
+        });
+      }
       return;
     }
 
-    loadingOrganization.current = true;
-
-    console.log('🏢 [TenantContext] بدء تحميل بيانات المؤسسة:', {
-      hostname: window.location.hostname,
-      pathname: window.location.pathname,
-      timestamp: new Date().toLocaleTimeString()
-    });
-
-    // تنظيف timeout السابق
-    if (loadingTimeout.current) {
-      clearTimeout(loadingTimeout.current);
-      loadingTimeout.current = null;
+    // التحقق من وجود authOrganization أولاً
+    if (authOrganization) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🏢 [TenantContext] استخدام بيانات المؤسسة من AuthContext');
+      }
+      const orgData = updateOrganizationFromData(authOrganization);
+      setOrganization(orgData);
+      localStorage.setItem('bazaar_organization_id', authOrganization.id);
+      setIsLoading(false);
+      initialized.current = true;
+      setError(null);
+      return;
     }
 
+    // إذا لم توجد بيانات من AuthContext، قم بالجلب
     const loadTenantData = async () => {
-      try {
-        console.log('🔄 [TenantContext] تغيير حالة التحميل:', {
-          isLoading: true,
-          hasOrganization: false,
+      // التحقق مرة أخرى قبل البدء
+      if (loadingOrganization.current || initialized.current) {
+        return;
+      }
+
+      loadingOrganization.current = true;
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🏢 [TenantContext] بدء تحميل بيانات المؤسسة:', {
+          hostname: window.location.hostname,
+          pathname: window.location.pathname,
           timestamp: new Date().toLocaleTimeString()
         });
+      }
 
+      try {
         setIsLoading(true);
         setError(null);
 
         // إعداد timeout عام للحماية
-        const loadingTimeout = setTimeout(() => {
+        const loadingTimeoutId = setTimeout(() => {
           loadingOrganization.current = false;
           setIsLoading(false);
           setError(new Error('انتهت مهلة تحميل بيانات المؤسسة'));
@@ -718,12 +742,14 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             setIsOrgAdmin(true);
           }
         } else {
-          console.log('❌ [TenantContext] لم يتم العثور على بيانات المؤسسة');
+          if (process.env.NODE_ENV === 'development') {
+            console.log('❌ [TenantContext] لم يتم العثور على بيانات المؤسسة');
+          }
           setOrganization(null);
         }
 
         // تنظيف timeout
-        clearTimeout(loadingTimeout);
+        clearTimeout(loadingTimeoutId);
 
       } catch (error) {
         console.error('❌ [TenantContext] خطأ في تحميل بيانات المؤسسة:', error);
@@ -731,14 +757,16 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setError(error as Error);
       } finally {
         setIsLoading(false);
+        loadingOrganization.current = false;
+        initialized.current = true;
       }
     };
 
-    loadTenantData().finally(() => {
-      loadingOrganization.current = false;
-      initialized.current = true;
-    });
-  }, []); // dependencies فارغة لمنع التكرار
+    // تأخير قصير لتجنب التصارع مع AuthContext
+    const timeoutId = setTimeout(loadTenantData, 100);
+    
+    return () => clearTimeout(timeoutId);
+  }, [authOrganization, user]); // إضافة authOrganization و user كـ dependencies
 
   // إنشاء مؤسسة جديدة - محسنة مع useCallback
   const createOrganization = useCallback(async (

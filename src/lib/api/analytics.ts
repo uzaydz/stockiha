@@ -1,4 +1,35 @@
 import { supabase } from '@/lib/supabase';
+import { getCachedUser } from '@/lib/authCache';
+
+// 🔐 Auth Helper للـ Analytics - يستخدم cache موحد
+let currentAnalyticsUser: { userId: string; timestamp: number } | null = null;
+const AUTH_CACHE_TTL = 60000; // دقيقة واحدة
+
+async function getAnalyticsUserId(): Promise<string> {
+  const now = Date.now();
+  
+  // استخدام cache محلي أولاً
+  if (currentAnalyticsUser && (now - currentAnalyticsUser.timestamp) < AUTH_CACHE_TTL) {
+    return currentAnalyticsUser.userId;
+  }
+  
+  try {
+    // استخدام getCachedUser بدلاً من supabase.auth.getUser
+    const user = await getCachedUser();
+    const userId = user?.id || '00000000-0000-0000-0000-000000000000';
+    
+    // تحديث cache محلي
+    currentAnalyticsUser = {
+      userId,
+      timestamp: now
+    };
+    
+    return userId;
+  } catch (error) {
+    console.warn('⚠️ [Analytics] فشل في جلب معرف المستخدم، استخدام معرف افتراضي');
+    return '00000000-0000-0000-0000-000000000000';
+  }
+}
 
 // نظام Cache ذكي لمنع تكرار طلبات get_sales_summary
 interface AnalyticsCacheEntry<T> {
@@ -199,8 +230,7 @@ export const getSalesSummary = async (
     }
 
     // الحصول على معرف المستخدم الحالي
-    const { data: { user } } = await supabase.auth.getUser();
-    const userId = user?.id || '00000000-0000-0000-0000-000000000000'; // استخدام معرف افتراضي إذا كان المستخدم غير مسجل دخوله
+    const userId = await getAnalyticsUserId();
 
     // حساب نطاقات التاريخ
     const { dateRange, prevDateRange } = getDateRanges(period, startDate, endDate);
@@ -379,8 +409,7 @@ export const getMonthlySales = async (
     }
 
     // الحصول على معرف المستخدم الحالي
-    const { data: { user } } = await supabase.auth.getUser();
-    const userId = user?.id || '00000000-0000-0000-0000-000000000000'; // استخدام معرف افتراضي إذا كان المستخدم غير مسجل دخوله
+    const userId = await getAnalyticsUserId();
 
     // تحديد نطاق التاريخ
     const { dateRange } = getDateRanges(period, startDate, endDate);
@@ -463,8 +492,7 @@ export const getTopProducts = async (
     }
 
     // الحصول على معرف المستخدم الحالي
-    const { data: { user } } = await supabase.auth.getUser();
-    const userId = user?.id || '00000000-0000-0000-0000-000000000000'; // استخدام معرف افتراضي إذا كان المستخدم غير مسجل دخوله
+    const userId = await getAnalyticsUserId();
 
     // تحديد نطاق التاريخ
     const { dateRange } = getDateRanges(period, startDate, endDate);
@@ -532,8 +560,7 @@ export const getTopCategories = async (
     }
 
     // الحصول على معرف المستخدم الحالي
-    const { data: { user } } = await supabase.auth.getUser();
-    const userId = user?.id || '00000000-0000-0000-0000-000000000000'; // استخدام معرف افتراضي إذا كان المستخدم غير مسجل دخوله
+    const userId = await getAnalyticsUserId();
 
     // تحديد نطاق التاريخ
     const { dateRange } = getDateRanges(period, startDate, endDate);
@@ -591,8 +618,7 @@ export const getExpenses = async (
     }
 
     // الحصول على معرف المستخدم الحالي
-    const { data: { user } } = await supabase.auth.getUser();
-    const userId = user?.id || '00000000-0000-0000-0000-000000000000'; // استخدام معرف افتراضي إذا كان المستخدم غير مسجل دخوله
+    const userId = await getAnalyticsUserId();
 
     // تحديد نطاق التاريخ
     const { dateRange } = getDateRanges(period, startDate, endDate);
@@ -642,7 +668,7 @@ export const getExpenses = async (
     });
 
     const result = {
-      total: totalExpenses.total_amount || 0,
+      total: (totalExpenses as any).total_amount || (totalExpenses as any).total_expenses || 0,
       categories
     };
 
@@ -666,8 +692,7 @@ export const getInventoryStatus = async (
     }
 
     // الحصول على معرف المستخدم الحالي
-    const { data: { user } } = await supabase.auth.getUser();
-    const userId = user?.id || '00000000-0000-0000-0000-000000000000'; // استخدام معرف افتراضي إذا كان المستخدم غير مسجل دخوله
+    const userId = await getAnalyticsUserId();
 
     // استعلام لحالة المخزون
     const { data, error } = await supabase.rpc(
