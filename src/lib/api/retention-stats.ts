@@ -38,7 +38,6 @@ export async function fetchRetentionStats(organizationId: string): Promise<Reten
       .eq('organization_id', organizationId);
 
     if (logsError) {
-      console.error('Error fetching inventory logs:', logsError);
       throw new Error(`Failed to fetch inventory logs: ${logsError.message}`);
     }
 
@@ -147,7 +146,6 @@ export async function fetchRetentionStats(organizationId: string): Promise<Reten
       .eq('organization_id', organizationId);
 
     if (policiesError) {
-      console.warn('Warning fetching retention policies:', policiesError);
     }
 
     // إنشاء النتيجة النهائية
@@ -173,7 +171,6 @@ export async function fetchRetentionStats(organizationId: string): Promise<Reten
     return result;
 
   } catch (error) {
-    console.error('Error in fetchRetentionStats:', error);
     throw new Error(`Failed to fetch retention statistics: ${error.message}`);
   }
 }
@@ -262,4 +259,4 @@ export async function exportInventoryLogs(
   }
 
   return inventoryLogs;
-} 
+}

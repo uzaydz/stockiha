@@ -166,4 +166,4 @@ export const addPreloadLinks = (urls: string[]): void => {
 export const removePreloadLinks = (): void => {
   const links = document.querySelectorAll('link[rel="preload"][as="image"]');
   links.forEach(link => link.remove());
-}; 
+};

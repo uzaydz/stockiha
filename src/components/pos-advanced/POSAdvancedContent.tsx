@@ -569,4 +569,4 @@ const POSAdvancedContent: React.FC<POSAdvancedContentProps> = ({
   );
 };
 
-export default POSAdvancedContent; 
+export default POSAdvancedContent;

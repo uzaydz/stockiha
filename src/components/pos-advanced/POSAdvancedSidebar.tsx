@@ -377,4 +377,4 @@ const POSAdvancedSidebar: React.FC<POSAdvancedSidebarProps> = ({
   );
 };
 
-export default POSAdvancedSidebar; 
+export default POSAdvancedSidebar;

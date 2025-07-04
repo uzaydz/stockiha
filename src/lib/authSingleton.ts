@@ -45,7 +45,6 @@ class AuthSingleton {
   private readonly REQUEST_TIMEOUT = 15000; // 15 ثانية
 
   private constructor() {
-    console.log('🔐 AuthSingleton: تم إنشاء المثيل الوحيد');
   }
 
   public static getInstance(): AuthSingleton {
@@ -67,7 +66,6 @@ class AuthSingleton {
       return this.initPromise;
     }
 
-    console.log('🚀 AuthSingleton: بدء التهيئة');
     this.initPromise = this._doInitialize();
     return this.initPromise;
   }
@@ -78,7 +76,6 @@ class AuthSingleton {
       const cached = this.loadFromLocalStorage();
       if (cached && this.isCacheValid(cached)) {
         this.cache = cached;
-        console.log('✅ AuthSingleton: تم استعادة البيانات من localStorage');
       }
 
       // انتظار النظام الموحد مع timeout
@@ -91,13 +88,11 @@ class AuthSingleton {
       this.setupAuthListener();
       
       this.isInitialized = true;
-      console.log('✅ AuthSingleton: تمت التهيئة بنجاح');
       
       // إشعار المشتركين
       this.notifySubscribers();
       
     } catch (error) {
-      console.error('❌ AuthSingleton: خطأ في التهيئة:', error);
       this.cache = {
         data: { session: null, user: null, timestamp: Date.now() },
         expiresAt: Date.now() + this.CACHE_TTL,
@@ -120,7 +115,6 @@ class AuthSingleton {
     }
     
     if (!isSupabaseReady()) {
-      console.warn('⚠️ AuthSingleton: timeout انتظار Supabase');
     }
   }
 
@@ -130,14 +124,12 @@ class AuthSingleton {
   private async fetchAuthData(requestId: string): Promise<AuthData> {
     // التحقق من وجود طلب مماثل
     if (this.activeRequests.has(requestId)) {
-      console.log(`🔄 AuthSingleton: استخدام طلب موجود (${requestId})`);
       return this.activeRequests.get(requestId)!;
     }
 
     // التحقق من cache
     if (this.cache && this.isCacheValid(this.cache)) {
       this.cacheHits++;
-      console.log(`💾 AuthSingleton: استخدام cache (${requestId})`);
       return this.cache.data;
     }
 
@@ -161,9 +153,7 @@ class AuthSingleton {
   private async performAuthRequest(requestId: string): Promise<AuthData> {
     this.totalRequests++;
     this.networkRequests++;
-    
-    console.log(`🌐 AuthSingleton: طلب شبكة جديد (${requestId})`);
-    
+
     const timeoutPromise = new Promise<never>((_, reject) => 
       setTimeout(() => reject(new Error('Auth request timeout')), this.REQUEST_TIMEOUT)
     );
@@ -194,15 +184,12 @@ class AuthSingleton {
       // حفظ في localStorage
       this.saveToLocalStorage(this.cache);
 
-      console.log(`✅ AuthSingleton: نجح الطلب (${requestId})`);
       return authData;
 
     } catch (error) {
-      console.error(`❌ AuthSingleton: فشل الطلب (${requestId}):`, error);
       
       // محاولة fallback سريع مع getSession مباشرة
       try {
-        console.log('🔄 AuthSingleton: محاولة fallback سريع...');
         const { data: { session }, error: fallbackError } = await supabase.auth.getSession();
         
         if (!fallbackError && session) {
@@ -219,16 +206,13 @@ class AuthSingleton {
             requestId: `${requestId}-fallback`
           };
           
-          console.log('✅ AuthSingleton: نجح الـ fallback');
           return authData;
         }
       } catch (fallbackError) {
-        console.warn('⚠️ AuthSingleton: فشل الـ fallback أيضاً');
       }
       
       // في حالة الخطأ، استخدم cache قديم إن وجد
       if (this.cache) {
-        console.log('💾 AuthSingleton: استخدام cache قديم بسبب الخطأ');
         return this.cache.data;
       }
 
@@ -255,7 +239,6 @@ class AuthSingleton {
         requestId: cache.requestId
       }));
     } catch (error) {
-      console.warn('⚠️ AuthSingleton: فشل حفظ localStorage:', error);
     }
   }
 
@@ -274,7 +257,6 @@ class AuthSingleton {
         };
       }
     } catch (error) {
-      console.warn('⚠️ AuthSingleton: فشل تحميل localStorage:', error);
     }
     return null;
   }
@@ -287,11 +269,18 @@ class AuthSingleton {
       return;
     }
 
-    console.log('👂 AuthSingleton: إعداد مستمع المصادقة');
+    let lastEvent = '';
+    let lastEventTime = 0;
     
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        console.log(`🔄 AuthSingleton: تغيير حالة المصادقة - ${event}`);
+        const now = Date.now();
+        
+        // تجنب طباعة نفس الحدث إذا تكرر خلال ثانيتين
+        if (event !== lastEvent || (now - lastEventTime) > 2000) {
+          lastEvent = event;
+          lastEventTime = now;
+        }
         
         const authData: AuthData = {
           session,
@@ -380,7 +369,6 @@ class AuthSingleton {
       try {
         callback(this.cache.data);
       } catch (error) {
-        console.error('❌ AuthSingleton: خطأ في إشعار المشترك:', error);
       }
     }
     
@@ -407,7 +395,6 @@ class AuthSingleton {
       try {
         subscriber.callback(this.cache!.data);
       } catch (error) {
-        console.error('❌ AuthSingleton: خطأ في إشعار مشترك:', error);
       }
     });
   }
@@ -426,7 +413,6 @@ class AuthSingleton {
     try {
       localStorage.removeItem('bazaar_auth_singleton_cache');
     } catch (error) {
-      console.warn('⚠️ AuthSingleton: فشل مسح localStorage:', error);
     }
     
     this.notifySubscribers();
@@ -436,7 +422,6 @@ class AuthSingleton {
    * فرض تحديث البيانات (لحالات خاصة)
    */
   public async forceRefresh(): Promise<AuthData> {
-    console.log('🔄 AuthSingleton: فرض تحديث البيانات');
     
     // مسح cache
     this.cache = null;
@@ -491,7 +476,6 @@ class AuthSingleton {
     this.activeRequests.clear();
     this.cache = null;
     
-    console.log('🧹 AuthSingleton: تم تنظيف الموارد');
   }
 }
 
@@ -508,22 +492,31 @@ export const getAuthStats = () => authSingleton.getStats();
 
 // تهيئة تلقائية عند التحميل
 authSingleton.initialize().catch(error => {
-  console.error('❌ AuthSingleton: فشل التهيئة التلقائية:', error);
 });
 
-// طباعة إحصائيات الأداء كل 30 ثانية في بيئة التطوير
+// طباعة إحصائيات الأداء بشكل ذكي في بيئة التطوير
 if (process.env.NODE_ENV === 'development') {
+  let lastLogTime = 0;
+  let lastTotalRequests = 0;
+  
   setInterval(() => {
     const stats = authSingleton.getStats();
-    if (stats.totalRequests > 0) {
-      console.log('📊 Auth Performance Summary:', {
-        '🎯 Total Requests': stats.totalRequests,
-        '💾 Cache Hits': stats.cacheHits,
-        '🌐 Network Requests': stats.networkRequests,
-        '📈 Hit Ratio': stats.cacheHitRatio,
-        '🎮 Status': stats.isInitialized ? 'Ready' : 'Initializing',
-        '💾 Cache': stats.cacheStatus
-      });
+    const now = Date.now();
+    
+    // اطبع الإحصائيات فقط إذا:
+    // 1. كان هناك طلبات جديدة منذ آخر مرة
+    // 2. أو مر أكثر من 5 دقائق منذ آخر طباعة
+    // 3. أو كان هناك مشاكل في الأداء (نسبة cache منخفضة)
+    const hasNewRequests = stats.totalRequests > lastTotalRequests;
+    const timeSinceLastLog = now - lastLogTime;
+    const poorPerformance = stats.totalRequests > 10 && parseFloat(stats.cacheHitRatio) < 70;
+    
+    if (hasNewRequests || timeSinceLastLog > 300000 || poorPerformance) {
+      if (stats.totalRequests > 0) {
+        
+        lastLogTime = now;
+        lastTotalRequests = stats.totalRequests;
+      }
     }
-  }, 30000); // كل 30 ثانية
+  }, 60000); // كل دقيقة بدلاً من 30 ثانية
 }

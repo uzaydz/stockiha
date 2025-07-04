@@ -462,7 +462,6 @@ export default defineConfig(({ command, mode }) => {
               './src/pages/admin/StoreEditor.tsx',
               './src/components/store-editor'
             ],
-            
 
           }
         } as OutputOptions,

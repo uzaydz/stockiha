@@ -130,23 +130,17 @@ const fetchInventoryTrackingData = async (
   });
 
   if (error) {
-    console.error('خطأ في استدعاء دالة RPC:', error);
     throw new Error(`فشل في تحميل بيانات تتبع المخزون: ${error.message}`);
   }
 
   // تسجيل البيانات للتنقيح
-  console.log('📊 [InventoryTracking] البيانات المستلمة:', data);
 
   const rpcData = data as RPCResponse;
   
   if (rpcData?.success && rpcData.data) {
-    console.log('📊 [Statistics]:', rpcData.data.statistics);
-    console.log('📊 [User Activities]:', rpcData.data.user_activities);
-    console.log('📊 [Recent Activities]:', rpcData.data.recent_activities?.length);
   }
   
   if (!rpcData?.success) {
-    console.error('📊 [InventoryTracking] فشل RPC:', rpcData?.error);
     throw new Error(rpcData?.error?.message || 'فشل في تحميل البيانات');
   }
 
@@ -250,7 +244,6 @@ const AdvancedInventoryTrackingPage: React.FC = () => {
       link.click();
       
     } catch (error) {
-      console.error('خطأ في التصدير:', error);
     } finally {
       setIsExporting(false);
     }
@@ -574,4 +567,4 @@ const AdvancedInventoryTrackingPage: React.FC = () => {
   );
 };
 
-export default AdvancedInventoryTrackingPage; 
+export default AdvancedInventoryTrackingPage;

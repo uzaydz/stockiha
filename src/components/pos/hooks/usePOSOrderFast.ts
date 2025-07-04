@@ -79,15 +79,6 @@ export function usePOSOrderFast(currentUser: User | null) {
        // الحصول على organization_id من المستخدم الحالي أو استخدام القيمة الافتراضية
       const organizationId = currentUser?.organization_id || 'a8168bc9-d092-4386-bf85-56e28f67b211';
 
-       console.log('🔍 [usePOSOrderFast] تشخيص البيانات المدخلة:', {
-         cartItemsLength: cartItems.length,
-         selectedServicesLength: selectedServices.length,
-         selectedSubscriptionsLength: selectedSubscriptions.length,
-         cartItems: cartItems,
-         employeeId: orderDetails.employeeId,
-         total: orderDetails.total
-       });
-
        // التحقق من البيانات المطلوبة
        if (!cartItems.length && !selectedServices.length && !selectedSubscriptions.length) {
          throw new Error('لا توجد عناصر في الطلب');
@@ -95,10 +86,6 @@ export function usePOSOrderFast(currentUser: User | null) {
 
        // معالجة الاشتراكات منفصلة عن المنتجات
        if (selectedSubscriptions.length > 0) {
-         console.log('🔍 [usePOSOrderFast] معالجة الاشتراكات:', {
-           subscriptionsCount: selectedSubscriptions.length,
-           subscriptions: selectedSubscriptions
-         });
 
          // معالجة كل اشتراك منفصل
          for (const subscription of selectedSubscriptions) {
@@ -124,7 +111,6 @@ export function usePOSOrderFast(currentUser: User | null) {
                .single();
 
              if (transactionError) {
-               console.error('❌ خطأ في معالجة الاشتراك:', transactionError);
                throw new Error(`فشل في معالجة الاشتراك ${subscription.name}: ${transactionError.message}`);
              }
 
@@ -139,20 +125,16 @@ export function usePOSOrderFast(currentUser: User | null) {
                  .eq('id', subscription.selectedPricing.id);
 
                if (updateError) {
-                 console.warn('⚠️ تحذير: فشل في تحديث مخزون الاشتراك:', updateError);
                }
              }
 
-             console.log('✅ تم معالجة الاشتراك بنجاح:', transactionData);
            } catch (subscriptionError: any) {
-             console.error('❌ خطأ في معالجة الاشتراك:', subscriptionError);
              throw new Error(`فشل في معالجة الاشتراك: ${subscriptionError.message}`);
            }
          }
 
          // إذا كان لدينا اشتراكات فقط (بدون منتجات)، إرجاع نتيجة مباشرة
          if (cartItems.length === 0 && selectedServices.length === 0) {
-           console.log('🎯 [usePOSOrderFast] تم معالجة الاشتراكات فقط بنجاح');
            
            // إنشاء معرف طلب وهمي للاشتراكات
            const subscriptionOrderId = uuidv4();
@@ -243,35 +225,22 @@ export function usePOSOrderFast(currentUser: User | null) {
         const resultData = result as any;
         
         // طباعة النتيجة الكاملة للتشخيص
-        console.log('🔍 [DEBUG] نتيجة دالة create_pos_order_fast:', resultData);
         
         // التحقق من النجاح بطرق متعددة
         const isSuccess = resultData?.success === true || 
                          (resultData?.id && resultData?.customer_order_number);
-        
-        console.log('🔍 [DEBUG] تشخيص النجاح:', { 
-          isSuccess, 
-          hasId: !!resultData?.id, 
-          hasCustomerOrderNumber: !!resultData?.customer_order_number,
-          successFlag: resultData?.success,
-          resultData 
-        });
-        
+
         if (!isSuccess) {
-          console.error('❌ [ERROR] فشل في إنشاء الطلب:', resultData);
           
           // إضافة تحليل أعمق للخطأ
           if (resultData?.error?.includes('GROUP BY')) {
-            console.error('❌ [ERROR] خطأ GROUP BY detected');
           }
           
           throw new Error(resultData?.error || 'فشل في إنشاء الطلب');
         }
 
         const processingTime = Math.round(performance.now() - startTime);
-        
-        console.log(`✅ [SUCCESS] تم إنشاء الطلب بنجاح! ID: ${resultData.id}, Number: ${resultData.customer_order_number}`);
-        
+
         // 🔄 إعادة تحديث المخزون في الواجهة بعد نجاح العملية
         try {
           // إشعال حدث لتحديث المخزون في الـ cache المحلي
@@ -294,7 +263,6 @@ export function usePOSOrderFast(currentUser: User | null) {
             .in('id', productIds);
           
           if (updatedProducts) {
-            console.log('🔄 [INVENTORY-UPDATE] تم تحديث بيانات المخزون:', updatedProducts);
             
             // إشعال حدث آخر مع البيانات المحدثة
             window.dispatchEvent(new CustomEvent('pos-products-refreshed', {
@@ -302,7 +270,6 @@ export function usePOSOrderFast(currentUser: User | null) {
             }));
           }
         } catch (inventoryUpdateError) {
-          console.warn('⚠️ [WARNING] فشل في تحديث بيانات المخزون المحلية:', inventoryUpdateError);
           // لا نرمي خطأ هنا لأن الطلب نجح فعلياً
         }
         
@@ -318,7 +285,6 @@ export function usePOSOrderFast(currentUser: User | null) {
       }
 
       // إذا لم تكن هناك منتجات ووصلنا هنا، فهذا يعني أن كل شيء تم بنجاح
-      console.log('🎯 [usePOSOrderFast] تم إنهاء العملية بنجاح');
       return {
         orderId: '',
         customerOrderNumber: 0
@@ -326,9 +292,7 @@ export function usePOSOrderFast(currentUser: User | null) {
 
     } catch (error: any) {
       const processingTime = Math.round(performance.now() - startTime);
-      
-      console.error('❌ [usePOSOrderFast] خطأ في المعالجة:', error);
-      
+
       // إظهار toast بدون blocking
       requestIdleCallback(() => {
         if (!abortControllerRef.current?.signal.aborted) {

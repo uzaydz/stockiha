@@ -122,7 +122,6 @@ const QuickCategoryManager: React.FC<QuickCategoryManagerProps> = ({
       form.reset();
       setSelectedIcon('📁');
     } catch (error) {
-      console.error('Error managing category:', error);
       toast.error(editingCategory ? 'فشل في تحديث الفئة' : 'فشل في إنشاء الفئة');
     }
   };
@@ -133,7 +132,6 @@ const QuickCategoryManager: React.FC<QuickCategoryManagerProps> = ({
         await deleteCategoryMutation.mutateAsync(category.id);
         toast.success('تم حذف الفئة بنجاح');
       } catch (error) {
-        console.error('Error deleting category:', error);
         toast.error('فشل في حذف الفئة');
       }
     }
@@ -376,4 +374,4 @@ const QuickCategoryManager: React.FC<QuickCategoryManagerProps> = ({
   );
 };
 
-export default QuickCategoryManager; 
+export default QuickCategoryManager;

@@ -306,4 +306,4 @@ const UserActivitiesSection: React.FC<UserActivitiesSectionProps> = ({
   );
 };
 
-export default UserActivitiesSection; 
+export default UserActivitiesSection;

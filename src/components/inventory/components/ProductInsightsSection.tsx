@@ -366,11 +366,6 @@ const ProductInsightsSection: React.FC<ProductInsightsSectionProps> = ({
   // إضافة تحقق مؤقت للبيانات
   useEffect(() => {
     if (productInsights.length > 0) {
-      console.log('📊 Product Insights Data:', {
-        original: productInsights[0],
-        enhanced: enhancedInsights[0],
-        totalProducts: productInsights.length
-      });
     }
   }, [productInsights]);
 
@@ -571,4 +566,4 @@ const ProductInsightsSection: React.FC<ProductInsightsSectionProps> = ({
   );
 };
 
-export default ProductInsightsSection; 
+export default ProductInsightsSection;

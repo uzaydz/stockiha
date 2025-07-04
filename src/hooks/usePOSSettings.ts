@@ -40,11 +40,49 @@ export function usePOSSettings({ organizationId }: UsePOSSettingsProps): UsePOSS
   const { toast } = useToast();
 
   const hasPermission = useCallback(() => {
-    if(!userProfile) return false;
-    // التحقق من الصلاحيات: مدير عام، مدير المؤسسة، أو صلاحية محددة
-    return userProfile.is_super_admin || 
-           userProfile.is_org_admin || 
-           (userProfile.permissions && (userProfile.permissions as any)?.managePOSSettings === true);
+    if(!userProfile) {
+      return false;
+    }
+    
+    // تسجيل معلومات المستخدم للتشخيص (مرة واحدة فقط)
+    if (process.env.NODE_ENV === 'development') {
+    }
+    
+    // التحقق من المدير الأعلى
+    if (userProfile.is_super_admin === true) {
+      return true;
+    }
+    
+    // التحقق من مدير المؤسسة
+    if (userProfile.is_org_admin === true) {
+      return true;
+    }
+    
+    // التحقق من الدور - admin أو owner
+    if (userProfile.role === 'admin' || userProfile.role === 'owner') {
+      return true;
+    }
+    
+    // التحقق من الصلاحية المحددة managePOSSettings
+    if (userProfile.permissions && typeof userProfile.permissions === 'object') {
+      const permissions = userProfile.permissions as any;
+      if (permissions.managePOSSettings === true) {
+        return true;
+      }
+    }
+    
+    // إذا كان المستخدم لديه صلاحية الوصول لنقطة البيع، فلنسمح له بالوصول للإعدادات
+    if (userProfile.permissions && typeof userProfile.permissions === 'object') {
+      const permissions = userProfile.permissions as any;
+      if (permissions.accessPOS === true || permissions.manageOrders === true) {
+        return true;
+      }
+    }
+    
+    // إذا فشل التحقق من جميع الصلاحيات، اطبع رسالة تحذير
+    if (process.env.NODE_ENV === 'development') {
+    }
+    return false;
   }, [userProfile]);
 
   const fetchSettings = useCallback(async () => {

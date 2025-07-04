@@ -102,7 +102,6 @@ const OrganizationSetup = () => {
         }
       }
     } catch (error) {
-      console.error('خطأ في إنشاء المؤسسة:', error);
       toast({
         title: 'حدث خطأ غير متوقع',
         description: 'يرجى المحاولة مرة أخرى أو الاتصال بالدعم الفني',

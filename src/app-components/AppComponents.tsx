@@ -16,18 +16,23 @@ const isRunningInElectron = isElectron();
 
 // 🔧 مكون لتحديد متى يتم عرض مؤشر المزامنة
 export const SyncManagerWrapper = () => {
-  const location = useLocation();
+  // إخفاء SyncManager تماماً من الواجهة الأمامية
+  return null;
   
-  // التحقق إذا كان المسار الحالي هو صفحة لوحة التحكم
-  const isDashboardPage = location.pathname.includes('/dashboard') || 
-                          location.pathname.includes('/super-admin');
+  // الكود القديم (معطل):
+  // const location = useLocation();
+  // const isDashboardPage = location.pathname.startsWith('/dashboard') || 
+  //                        location.pathname.startsWith('/pos') ||
+  //                        location.pathname === '/' ||
+  //                        location.pathname.startsWith('/inventory') ||
+  //                        location.pathname.startsWith('/orders');
   
-  // إظهار SyncManager فقط في صفحات لوحة التحكم وفي بيئة Electron
-  if (!isDashboardPage || !isRunningInElectron) {
-    return null;
-  }
+  // // إظهار SyncManager فقط في صفحات لوحة التحكم وفي بيئة Electron
+  // if (!isDashboardPage) {
+  //   return null;
+  // }
   
-  return <SyncManager autoSync={true} syncInterval={60000} showIndicator={true} />;
+  // return <SyncManager autoSync={true} syncInterval={60000} showIndicator={true} />;
 };
 
 // 🎯 مكون لمعالجة تبديل علامات التبويب
@@ -157,10 +162,8 @@ export const useAppInitialization = () => {
                             window.location.pathname.includes('/dashboard');
       
       if (!shouldSkipSync) {
-        console.log('🔄 [AppComponents] مزامنة الفئات مسموحة للمسار:', window.location.pathname);
         syncCategoriesDataOnStartup();
       } else {
-        console.log('⏭️ [AppComponents] تجاهل مزامنة الفئات للمسار:', window.location.pathname);
       }
     }, 2000); // تأخير ثانيتان بدلاً من ثانية واحدة
     

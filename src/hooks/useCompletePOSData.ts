@@ -258,4 +258,4 @@ export const useCompletePOSData = () => {
   };
 };
 
-export default useCompletePOSData; 
+export default useCompletePOSData;

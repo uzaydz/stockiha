@@ -32,7 +32,6 @@ const SupabaseDebugPanel: React.FC<SupabaseDebugPanelProps> = ({
       setDiagnostics(report);
       setLastUpdate(new Date());
     } catch (error) {
-      console.error('خطأ في تحديث تشخيص Supabase:', error);
     } finally {
       setIsRefreshing(false);
     }
@@ -43,7 +42,6 @@ const SupabaseDebugPanel: React.FC<SupabaseDebugPanelProps> = ({
       cleanupSupabaseClients();
       await refreshDiagnostics();
     } catch (error) {
-      console.error('خطأ في تنظيف عملاء Supabase:', error);
     }
   };
 
@@ -196,4 +194,4 @@ const SupabaseDebugPanel: React.FC<SupabaseDebugPanelProps> = ({
   );
 };
 
-export default SupabaseDebugPanel; 
+export default SupabaseDebugPanel;

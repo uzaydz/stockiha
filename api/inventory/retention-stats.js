@@ -38,7 +38,6 @@ export default async function handler(req, res) {
       .eq('organization_id', organizationId);
 
     if (totalError) {
-      console.error('Error fetching total stats:', totalError);
       return res.status(500).json({ error: 'Failed to fetch total statistics' });
     }
 
@@ -135,7 +134,6 @@ export default async function handler(req, res) {
       .eq('organization_id', organizationId);
 
     if (policiesError) {
-      console.warn('Warning fetching retention policies:', policiesError);
     }
 
     const response = {
@@ -151,11 +149,10 @@ export default async function handler(req, res) {
     return res.status(200).json(response);
 
   } catch (globalError) {
-    console.error('Global error in retention-stats API:', globalError);
     return res.status(500).json({ 
       error: 'Internal server error',
       message: globalError.message,
       stack: process.env.NODE_ENV === 'development' ? globalError.stack : undefined
     });
   }
-} 
+}

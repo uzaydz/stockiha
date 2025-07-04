@@ -241,8 +241,6 @@ export const SmartProviderWrapper: React.FC<SmartProviderWrapperProps> = ({ chil
   // تحديد نوع الصفحة والـ providers المطلوبة
   const pageType = useMemo(() => determinePageType(location.pathname), [location.pathname]);
   const config = PROVIDER_CONFIGS[pageType];
-  
-
 
   // 🎨 تطبيق الخطوط عند تغيير المسار (محسن لتجنب reflow)
   useEffect(() => {

@@ -139,7 +139,8 @@ export const SelectField = ({
           id={field.id}
           defaultValue={field.value || field.defaultValue || ''}
           required={field.required}
-          className="w-full px-4 py-3 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 bg-background text-foreground shadow-sm appearance-none hover:border-muted-foreground"
+          className="w-full px-4 py-3 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 bg-background text-foreground shadow-sm appearance-none hover:border-muted-foreground text-base md:text-sm min-h-[44px] md:min-h-[40px] touch-manipulation"
+          style={{ fontSize: '16px' }} // منع التكبير التلقائي على iOS
           onChange={(e) => {
             if (updateValue && field.name) {
               updateValue(field.name, e.target.value);
@@ -233,10 +234,14 @@ export const ProvinceField = ({
     { id: 48, name: "غليزان" }
   ];
   
-  // استخدام البيانات المحملة أو البيانات الاحتياطية
+  // استخدام البيانات المتوفرة أو البيانات الاحتياطية
   const availableProvinces = field.provinces && field.provinces.length > 0 
     ? field.provinces 
     : fallbackProvinces;
+  
+  // تسجيل للتشخيص
+  if (!field.provinces || field.provinces.length === 0) {
+  }
   
   return (
     <div className={`mb-4 ${className}`}>
@@ -251,13 +256,8 @@ export const ProvinceField = ({
           id={field.id}
           value={field.value || field.defaultValue || ''}
           required={field.required}
-          className="w-full px-4 py-3 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 bg-background text-foreground shadow-sm appearance-none hover:border-muted-foreground
-          /* تحسينات للهاتف المحمول */
-          text-base sm:text-sm
-          min-h-[44px] sm:min-h-[40px]
-          touch-manipulation
-          /* منع التكبير التلقائي على iOS */
-          [@media(max-width:768px)]:text-[16px]"
+          className="w-full px-4 py-3 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 bg-background text-foreground shadow-sm appearance-none hover:border-muted-foreground text-base md:text-sm min-h-[44px] md:min-h-[40px] touch-manipulation"
+          style={{ fontSize: '16px' }} // منع التكبير التلقائي على iOS
           onChange={(e) => {
             const newProvinceId = e.target.value;
             handleProvinceChange(newProvinceId, municipalityFieldId);

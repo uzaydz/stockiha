@@ -1382,7 +1382,6 @@ const getDefaultLanguageFromDatabase = async (useImmediateCache = false): Promis
       
       if (cacheAge < cacheDuration) {
         if (process.env.NODE_ENV === 'development') {
-          console.log('🎯 Using cached language:', languageCache.language, `(age: ${Math.round(cacheAge/1000)}s)`);
         }
         return languageCache.language;
       }
@@ -1447,12 +1446,6 @@ const getDefaultLanguageFromDatabase = async (useImmediateCache = false): Promis
          const languageResult = settingsDataArray && settingsDataArray.length > 0 ? settingsDataArray[0].default_language : null;
          
          if (process.env.NODE_ENV === 'development') {
-           console.log('🔍 [i18n] نتيجة استعلام اللغة:', {
-             organizationId,
-             settingsDataArray,
-             languageResult,
-             error: languageError
-           });
          }
           
         if (!languageError && languageResult && typeof languageResult === 'string') {
@@ -1465,7 +1458,6 @@ const getDefaultLanguageFromDatabase = async (useImmediateCache = false): Promis
           };
           
           if (process.env.NODE_ENV === 'development') {
-            console.log('🌐 Language from cache + DB:', languageResult);
           }
           
           return languageResult;
@@ -1489,7 +1481,6 @@ const getDefaultLanguageFromDatabase = async (useImmediateCache = false): Promis
             };
             
             if (process.env.NODE_ENV === 'development') {
-              console.log('🌐 Language from direct query:', settingsData.default_language);
             }
             
             return settingsData.default_language;
@@ -1497,7 +1488,6 @@ const getDefaultLanguageFromDatabase = async (useImmediateCache = false): Promis
         }
       } catch (error) {
         if (process.env.NODE_ENV === 'development') {
-          console.warn('Error fetching language from cached org:', error);
         }
       }
     }
@@ -1555,14 +1545,12 @@ const getDefaultLanguageFromDatabase = async (useImmediateCache = false): Promis
     };
     
     if (process.env.NODE_ENV === 'development') {
-      console.log('🌐 Using default language: ar');
     }
     
     return 'ar';
     
   } catch (error) {
     if (process.env.NODE_ENV === 'development') {
-      console.warn('Error in getDefaultLanguageFromDatabase:', error);
     }
     
     // حفظ اللغة الافتراضية في التخزين المؤقت حتى في حالة الخطأ
@@ -1595,7 +1583,6 @@ const getInitialLanguage = async (): Promise<string> => {
       const dbLanguage = await getDefaultLanguageFromDatabase(true);
       if (dbLanguage && dbLanguage !== 'ar') {
         if (process.env.NODE_ENV === 'development') {
-          console.log('🚀 Fast language detection:', dbLanguage);
         }
         return dbLanguage;
       }
@@ -1688,14 +1675,12 @@ const updateLanguageFromDatabase = async () => {
       // تطبيق اللغة الافتراضية إذا لزم الأمر وكانت مختلفة
       if (shouldUseDefaultLanguage && defaultLanguage !== i18n.language) {
         if (process.env.NODE_ENV === 'development') {
-          console.log('🔄 Updating language from DB:', defaultLanguage);
         }
         await i18n.changeLanguage(defaultLanguage);
       }
       
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
-        console.warn('Error updating language from database:', error);
       }
     }
   }
@@ -1732,11 +1717,6 @@ if (typeof window !== 'undefined') {
                                     cached.data.organization_settings?.default_language;
               
               if (defaultLanguage && defaultLanguage !== i18n.language && ['ar', 'en', 'fr'].includes(defaultLanguage)) {
-                console.log('🔄 [i18n] اكتشاف لغة مختلفة في cache، تطبيق التحديث:', {
-                  cachedLanguage: defaultLanguage,
-                  currentLanguage: i18n.language,
-                  attempt: checkAttempts
-                });
                 
                 await i18n.changeLanguage(defaultLanguage);
                 clearInterval(periodicLanguageCheck);
@@ -1748,7 +1728,6 @@ if (typeof window !== 'undefined') {
       }
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
-        console.warn('خطأ في الفحص الدوري للغة:', error);
       }
     }
   }, 1000);
@@ -1756,18 +1735,10 @@ if (typeof window !== 'undefined') {
   // الاستماع لأحداث تحديث اللغة من TenantContext
   window.addEventListener('organizationLanguageUpdate', async (event: CustomEvent) => {
     const { language, organizationId } = event.detail;
-    
-    console.log('🎯 [i18n] تلقي حدث تحديث اللغة:', {
-      newLanguage: language,
-      currentLanguage: i18n.language,
-      organizationId: organizationId,
-      timestamp: new Date().toLocaleTimeString()
-    });
-    
+
     // التحقق من صحة اللغة
     if (language && ['ar', 'en', 'fr'].includes(language) && language !== i18n.language) {
       try {
-        console.log('🚀 [i18n] تطبيق اللغة الجديدة فوراً:', language);
         await i18n.changeLanguage(language);
         
         // إيقاف الفحص الدوري لأننا حصلنا على اللغة الصحيحة
@@ -1781,7 +1752,6 @@ if (typeof window !== 'undefined') {
         };
         
       } catch (error) {
-        console.error('❌ [i18n] خطأ في تغيير اللغة:', error);
       }
     }
   });
@@ -1790,30 +1760,17 @@ if (typeof window !== 'undefined') {
 // إضافة مستمع لأحداث تحديث المنظمة واللغة
 if (typeof window !== 'undefined') {
   window.addEventListener('organizationLanguageUpdate', (event: any) => {
-    console.log('🎯 [i18n] استلام حدث تحديث اللغة:', {
-      eventDetail: event.detail,
-      currentLanguage: i18n.language,
-      timestamp: new Date().toLocaleTimeString()
-    });
     
     if (event.detail && event.detail.language) {
       const newLang = event.detail.language;
       if (newLang && ['ar', 'en', 'fr'].includes(newLang)) {
         if (newLang !== i18n.language) {
-          console.log('🔄 [i18n] تطبيق اللغة الجديدة:', {
-            from: i18n.language,
-            to: newLang,
-            organizationId: event.detail.organizationId
-          });
           i18n.changeLanguage(newLang);
         } else {
-          console.log('✅ [i18n] اللغة مطابقة، لا حاجة للتغيير:', newLang);
         }
       } else {
-        console.warn('⚠️ [i18n] لغة غير مدعومة:', newLang);
       }
     } else {
-      console.warn('⚠️ [i18n] حدث تحديث اللغة بدون بيانات صحيحة:', event);
     }
   });
 }

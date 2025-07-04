@@ -79,15 +79,12 @@ const LoginForm = () => {
     try {
       // 🔧 إصلاح خاص لمشكلة تسجيل الدخول
       // تجاوز فحص 2FA المعقد والانتقال مباشرة لتسجيل الدخول
-      
-      console.log('🔐 محاولة تسجيل دخول مباشرة للمستخدم:', email);
-      
+
       // محاولة تسجيل الدخول المباشر أولاً
       try {
         await proceedWithDirectLogin(email, password);
         return;
       } catch (directLoginError) {
-        console.log('❌ فشل في تسجيل الدخول المباشر، محاولة الطريقة التقليدية');
       }
 
       // إذا فشل التسجيل المباشر، استخدم الطريقة التقليدية
@@ -151,7 +148,6 @@ const LoginForm = () => {
           return;
         } else {
           // 🔧 محاولة أخيرة: تسجيل دخول مباشر بدون فحص 2FA
-          console.log('🔄 محاولة تسجيل دخول مباشر بدون فحص 2FA');
           try {
             await proceedWithDirectLogin(email, password);
             return;
@@ -189,7 +185,6 @@ const LoginForm = () => {
       // إذا لم يكن يحتاج للمصادقة الثنائية، متابعة تسجيل الدخول العادي
       await proceedWithLogin(email, password);
     } catch (error) {
-      console.error('❌ خطأ في تسجيل الدخول:', error);
       // محاولة أخيرة للتسجيل المباشر
       try {
         await proceedWithDirectLogin(email, password);
@@ -202,7 +197,6 @@ const LoginForm = () => {
 
   // 🔧 دالة تسجيل دخول مباشر بدون فحص 2FA
   const proceedWithDirectLogin = async (loginEmail: string, loginPassword: string) => {
-    console.log('🚀 بدء تسجيل الدخول المباشر');
     
     try {
       // استخدام Supabase مباشرة بدون فحوصات معقدة
@@ -212,7 +206,6 @@ const LoginForm = () => {
       });
 
       if (error) {
-        console.error('❌ خطأ في تسجيل الدخول المباشر:', error);
         
         // معالجة أخطاء محددة
         if (error.message?.includes('Invalid login credentials')) {
@@ -230,8 +223,6 @@ const LoginForm = () => {
         throw new Error('بيانات الجلسة غير متاحة');
       }
 
-      console.log('✅ نجح تسجيل الدخول المباشر');
-      
       // تحديث معرف المؤسسة إذا كان متاحاً
       try {
         const { data: userData } = await supabase
@@ -244,12 +235,10 @@ const LoginForm = () => {
           localStorage.setItem('bazaar_organization_id', userData.organization_id);
         }
       } catch (orgError) {
-        console.log('⚠️ لم يتم العثور على معرف المؤسسة');
       }
 
       await handleSuccessfulLogin();
     } catch (error) {
-      console.error('❌ فشل في التسجيل المباشر:', error);
       throw error;
     }
   };

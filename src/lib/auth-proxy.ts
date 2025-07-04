@@ -21,7 +21,6 @@ export async function getUser(): Promise<{ data: { user: User | null }; error: n
       error: null
     };
   } catch (error) {
-    console.warn('⚠️ Auth Proxy: fallback إلى الطريقة الأصلية للمصادقة');
     return await supabase.auth.getUser();
   }
 }
@@ -38,7 +37,6 @@ export async function getSession(): Promise<{ data: { session: Session | null };
       error: null
     };
   } catch (error) {
-    console.warn('⚠️ Auth Proxy: fallback إلى الطريقة الأصلية للجلسة');
     return await supabase.auth.getSession();
   }
 }
@@ -71,7 +69,6 @@ export async function getCurrentUserSafe(): Promise<User | null> {
   try {
     return await authSingleton.getUser();
   } catch (error) {
-    console.error('❌ Auth Proxy: خطأ في جلب المستخدم:', error);
     return null;
   }
 }
@@ -83,11 +80,9 @@ export async function getCurrentUserIdOptimized(): Promise<string | null> {
   try {
     const userId = await authSingleton.getUserId();
     if (!userId) {
-      console.warn('⚠️ Auth Proxy: لا يوجد مستخدم مصادق عليه');
     }
     return userId;
   } catch (error) {
-    console.error('❌ Auth Proxy: خطأ في جلب معرف المستخدم:', error);
     return null;
   }
 }
@@ -133,7 +128,6 @@ export async function getAuthData(): Promise<{
       isAuthenticated: !!(authData.user && authData.session)
     };
   } catch (error) {
-    console.error('❌ Auth Proxy: خطأ في جلب بيانات المصادقة:', error);
     return {
       user: null,
       session: null,
@@ -199,7 +193,6 @@ export async function refreshAuthData(): Promise<void> {
   try {
     await authSingleton.forceRefresh();
   } catch (error) {
-    console.error('❌ Auth Proxy: فشل تحديث بيانات المصادقة:', error);
   }
 }
 
@@ -215,15 +208,6 @@ export function getAuthPerformanceStats() {
  */
 export function logAuthStats(): void {
   const stats = authSingleton.getStats();
-  console.log('📊 Auth Performance Stats:', {
-    '🎯 إجمالي الطلبات': stats.totalRequests,
-    '💾 Cache Hits': stats.cacheHits,
-    '🌐 طلبات الشبكة': stats.networkRequests,
-    '📈 نسبة Cache Hit': stats.cacheHitRatio,
-    '👥 المشتركين': stats.subscribers,
-    '✅ مهيأ': stats.isInitialized ? 'نعم' : 'لا',
-    '💾 حالة Cache': stats.cacheStatus
-  });
 }
 
 // تصدير كوب إضافي لسهولة الاستخدام
@@ -242,4 +226,4 @@ export const authProxy = {
   refreshAuthData,
   getAuthPerformanceStats,
   logAuthStats
-}; 
+};

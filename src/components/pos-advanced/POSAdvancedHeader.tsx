@@ -271,4 +271,4 @@ const POSAdvancedHeader: React.FC<POSAdvancedHeaderProps> = ({
   );
 };
 
-export default POSAdvancedHeader; 
+export default POSAdvancedHeader;

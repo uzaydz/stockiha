@@ -122,14 +122,6 @@ const POS = () => {
     organization_id: customer.organization_id
   }));
 
-  console.log('🔍 [POS] تشخيص العملاء:', {
-    allCustomersLength: allCustomers.length,
-    allCustomers: allCustomers,
-    filteredUsersLength: filteredUsers.length,
-    filteredUsers: filteredUsers,
-    posDataCustomers: posData?.customers
-  });
-
   // Hook السلة المحسن
   const {
     tabs,
@@ -149,6 +141,7 @@ const POS = () => {
     addVariantToCart,
     removeItemFromCart,
     updateItemQuantity,
+    updateItemPrice,
     clearCart,
     addService,
     removeService,
@@ -404,12 +397,12 @@ const POS = () => {
                   {isReturnMode ? (
                     <Cart 
                       cartItems={returnItems}
-                    customers={filteredUsers}
+                      customers={filteredUsers}
                       updateItemQuantity={updateReturnItemQuantity}
                       removeItemFromCart={removeReturnItem}
                       clearCart={clearReturnCart}
                       submitOrder={processReturn}
-                    currentUser={currentUser}
+                      currentUser={currentUser}
                       selectedServices={[]}
                       removeService={() => {}}
                       updateServicePrice={() => {}}
@@ -431,16 +424,17 @@ const POS = () => {
                       addTab={addTab}
                       removeTab={removeTab}
                       updateTab={updateTab}
-                    customers={filteredUsers}
-                    updateItemQuantity={(tabId, index, quantity) => updateItemQuantity(index, quantity)}
-                    removeItemFromCart={(tabId, index) => removeItemFromCart(index)}
-                    clearCart={clearCart}
+                      customers={filteredUsers}
+                      updateItemQuantity={(tabId, index, quantity) => updateItemQuantity(index, quantity)}
+                      updateItemPrice={(tabId, index, price) => updateItemPrice(index, price)}
+                      removeItemFromCart={(tabId, index) => removeItemFromCart(index)}
+                      clearCart={clearCart}
                       submitOrder={submitOrder}
-                    currentUser={currentUser}
-                    removeService={removeService}
-                    updateServicePrice={updateServicePrice}
-                    removeSubscription={removeSubscription}
-                    updateSubscriptionPrice={updateSubscriptionPrice}
+                      currentUser={currentUser}
+                      removeService={removeService}
+                      updateServicePrice={updateServicePrice}
+                      removeSubscription={removeSubscription}
+                      updateSubscriptionPrice={updateSubscriptionPrice}
                     />
                   )}
                 </div>

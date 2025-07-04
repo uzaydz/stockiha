@@ -1029,7 +1029,6 @@ export async function createUserSession(
         const now = Date.now();
         // زيادة مدة cache إلى 10 دقائق لتقليل الطلبات
         if (now - sessionData.timestamp < 10 * 60 * 1000) {
-          console.log('🔄 [createUserSession] استخدام جلسة محفوظة محلياً');
           return {
             success: true,
             sessionId: sessionData.sessionId
@@ -1048,7 +1047,6 @@ export async function createUserSession(
     if (lastRequest) {
       const timeSinceLastRequest = Date.now() - parseInt(lastRequest);
       if (timeSinceLastRequest < 5000) { // 5 ثوان minimum بين الطلبات
-        console.log('🚦 [createUserSession] rate limit - تجاهل الطلب');
         return {
           success: true,
           sessionId: 'rate-limited'
@@ -1069,7 +1067,6 @@ export async function createUserSession(
         timestamp: Date.now()
       }));
       
-      console.log('✅ [createUserSession] جلسة نشطة موجودة، تجاهل إنشاء جديدة');
       return {
         success: true,
         sessionId: fallbackSessionId
@@ -1097,7 +1094,6 @@ export async function createUserSession(
             error.message?.includes('duplicate') || 
             error.message?.includes('conflict') ||
             error.message?.includes('409')) {
-          console.log('🔄 [createUserSession] جلسة موجودة بالفعل، استخدام الجلسة الحالية');
           
           // حفظ جلسة افتراضية لتجنب إعادة المحاولة
           const fallbackSessionId = `existing_${Date.now()}`;
@@ -1111,9 +1107,7 @@ export async function createUserSession(
             sessionId: fallbackSessionId
           };
         }
-        
-        console.warn('⚠️ [createUserSession] فشل إنشاء جلسة، لكن المتابعة بدونها:', error);
-        
+
         // حتى لو فشل إنشاء الجلسة، نعتبر العملية ناجحة
         const fallbackSessionId = `fallback_${Date.now()}`;
         localStorage.setItem(existingSessionKey, JSON.stringify({
@@ -1133,14 +1127,12 @@ export async function createUserSession(
         timestamp: Date.now()
       }));
 
-      console.log('✅ [createUserSession] تم إنشاء جلسة جديدة بنجاح');
       return {
         success: true,
         sessionId: data
       };
 
     } catch (networkError) {
-      console.warn('⚠️ [createUserSession] خطأ شبكة، المتابعة بدون إنشاء جلسة:', networkError);
       
       // في حالة خطأ الشبكة، نتابع بدون إنشاء جلسة
       const fallbackSessionId = `network_error_${Date.now()}`;
@@ -1156,7 +1148,6 @@ export async function createUserSession(
     }
 
   } catch (error) {
-    console.error('❌ خطأ عام في إنشاء الجلسة:', error);
     
     // حتى في حالة الخطأ العام، نعتبر العملية ناجحة لتجنب توقف التطبيق
     return {
@@ -1362,7 +1353,6 @@ export async function createCurrentUserSession(): Promise<{
     if (quickCheck) {
       const skipTime = parseInt(quickCheck);
       if (Date.now() - skipTime < 30000) { // تجاهل لمدة 30 ثانية
-        console.log('⏭️ [createCurrentUserSession] تجاهل إنشاء جلسة - تم تعطيلها مؤقتاً');
         return { success: true };
       }
     }
@@ -1371,7 +1361,6 @@ export async function createCurrentUserSession(): Promise<{
     const { data: { session }, error: authError } = await supabase.auth.getSession();
     
     if (authError || !session?.user || !session?.access_token) {
-      console.log('📝 [createCurrentUserSession] لا توجد جلسة نشطة، تجاهل إنشاء جلسة');
       return { success: true };
     }
 
@@ -1388,11 +1377,9 @@ export async function createCurrentUserSession(): Promise<{
         return { success: true };
       }
     } catch (sessionError) {
-      console.warn('⚠️ [createCurrentUserSession] فشل إنشاء جلسة، لكن المتابعة:', sessionError);
     }
 
     // تجاهل المحاولات البديلة لتجنب 409 Conflicts
-    console.log('✅ [createCurrentUserSession] تم تجاهل إنشاء جلسة لتجنب التضارب');
     
     // تعطيل محاولات إنشاء الجلسة مؤقتاً
     localStorage.setItem('skip_session_creation', Date.now().toString());
@@ -1400,7 +1387,6 @@ export async function createCurrentUserSession(): Promise<{
     return { success: true };
 
   } catch (error) {
-    console.warn('⚠️ [createCurrentUserSession] خطأ عام، لكن المتابعة:', error);
     return { success: true };
   }
 }

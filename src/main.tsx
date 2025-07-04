@@ -4,8 +4,6 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { StrictMode } from 'react';
 
-
-
 // ✅ Essential imports only for web
 // 🎨 تحميل CSS أولاً لضمان تطبيق الخطوط قبل React
 import './index.css';
@@ -68,12 +66,6 @@ const ThemeProviderWrapper: React.FC<{ children: React.ReactNode }> = ({ childre
       // تسجيل مع تأخير لتجنب التكرار
       logTimeoutRef.current = setTimeout(() => {
         if (process.env.NODE_ENV === 'development') {
-          console.log('🎯 [ThemeProviderWrapper] تحديث معرف المؤسسة:', {
-            oldId: organizationId,
-            newId: currentOrganization.id,
-            organizationName: currentOrganization.name,
-            timestamp: new Date().toLocaleTimeString()
-          });
         }
       }, 100);
       
@@ -88,7 +80,6 @@ const ThemeProviderWrapper: React.FC<{ children: React.ReactNode }> = ({ childre
   // تسجيل الأخطاء (مرة واحدة فقط)
   React.useEffect(() => {
     if (error && process.env.NODE_ENV === 'development') {
-      console.error('❌ [ThemeProviderWrapper] خطأ في تحميل المؤسسة:', error);
     }
   }, [error]);
   
@@ -186,7 +177,6 @@ if (root) {
   });
 
 } else {
-  console.error('❌ فشل في العثور على root element');
 }
 
 // 🚀 Immediate Critical Loading - No Delay

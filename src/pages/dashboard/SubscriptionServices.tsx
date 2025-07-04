@@ -25,9 +25,7 @@ import { SubscriptionService } from '@/components/subscription-services/types';
 const SubscriptionServicesPage = () => {
   const { user, organizationId, isLoading } = useUser();
   const { currentOrganization } = useTenant();
-  
 
-  
   // Dialog states
   const [isPricingDialogOpen, setIsPricingDialogOpen] = useState(false);
   const [isAddServiceDialogOpen, setIsAddServiceDialogOpen] = useState(false);

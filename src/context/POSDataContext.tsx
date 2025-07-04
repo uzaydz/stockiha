@@ -425,7 +425,6 @@ const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWi
 
 const fetchPOSSubscriptionsEnhanced = async (orgId: string): Promise<SubscriptionService[]> => {
   return deduplicateRequest(`pos-subscriptions-enhanced-${orgId}`, async () => {
-    console.log('🔍 [fetchPOSSubscriptionsEnhanced] بدء جلب خدمات الاشتراكات للمؤسسة:', orgId);
     
     // جلب الخدمات مع الأسعار
     const { data: servicesData, error: servicesError } = await supabase
@@ -439,21 +438,11 @@ const fetchPOSSubscriptionsEnhanced = async (orgId: string): Promise<Subscriptio
       .order('is_featured', { ascending: false })
       .order('created_at', { ascending: false });
 
-    console.log('📊 [fetchPOSSubscriptionsEnhanced] نتيجة الاستعلام:', {
-      orgId,
-      servicesCount: servicesData?.length || 0,
-      hasError: !!servicesError,
-      error: servicesError?.message,
-      services: servicesData
-    });
-
     if (servicesError) {
-      console.error('❌ [fetchPOSSubscriptionsEnhanced] خطأ في جلب الخدمات:', servicesError);
       throw servicesError;
     }
 
     if (!servicesData || servicesData.length === 0) {
-      console.log('⚠️ [fetchPOSSubscriptionsEnhanced] لا توجد خدمات اشتراكات للمؤسسة:', orgId);
       return [];
     }
 
@@ -647,14 +636,12 @@ const fetchPOSCompleteData = async (orgId: string): Promise<{
   const existingRequest = (window as any)[`fetching_${cacheKey}`];
   
   if (existingRequest) {
-    console.log('🔄 [POSDataContext] استدعاء موجود، انتظار النتيجة...');
     return await existingRequest;
   }
 
   // إنشاء Promise جديد ومشاركته
   const fetchPromise = (async () => {
     try {
-      console.log('🚀 [POSDataContext] بدء جلب البيانات الكاملة للمؤسسة:', orgId);
 
       // تنفيذ جميع الطلبات بالتوازي مع error handling محسن
       const [
@@ -684,55 +671,46 @@ const fetchPOSCompleteData = async (orgId: string): Promise<{
       
       const products = productsResult.status === 'fulfilled' ? productsResult.value : [];
       if (productsResult.status === 'rejected') {
-        console.error('❌ خطأ في جلب المنتجات:', productsResult.reason);
         errors.products = 'فشل في جلب المنتجات';
       }
 
       const subscriptions = subscriptionsResult.status === 'fulfilled' ? subscriptionsResult.value : [];
       if (subscriptionsResult.status === 'rejected') {
-        console.error('❌ خطأ في جلب الاشتراكات:', subscriptionsResult.reason);
         errors.subscriptions = 'فشل في جلب الاشتراكات';
       }
 
       const categories = categoriesResult.status === 'fulfilled' ? categoriesResult.value : [];
       if (categoriesResult.status === 'rejected') {
-        console.error('❌ خطأ في جلب الفئات:', categoriesResult.reason);
         errors.categories = 'فشل في جلب فئات الاشتراكات';
       }
 
       const productCategories = productCategoriesResult.status === 'fulfilled' ? productCategoriesResult.value : [];
       if (productCategoriesResult.status === 'rejected') {
-        console.error('❌ خطأ في جلب فئات المنتجات:', productCategoriesResult.reason);
         errors.productCategories = 'فشل في جلب فئات المنتجات';
       }
 
       const posSettings = posSettingsResult.status === 'fulfilled' ? posSettingsResult.value : null;
       if (posSettingsResult.status === 'rejected') {
-        console.error('❌ خطأ في جلب إعدادات POS:', posSettingsResult.reason);
         errors.posSettings = 'فشل في جلب إعدادات نقطة البيع';
       }
 
       const organizationApps = organizationAppsResult.status === 'fulfilled' ? organizationAppsResult.value : [];
       if (organizationAppsResult.status === 'rejected') {
-        console.error('❌ خطأ في جلب تطبيقات المؤسسة:', organizationAppsResult.reason);
         errors.organizationApps = 'فشل في جلب تطبيقات المؤسسة';
       }
 
       const users = usersResult.status === 'fulfilled' ? usersResult.value : [];
       if (usersResult.status === 'rejected') {
-        console.error('❌ خطأ في جلب المستخدمين:', usersResult.reason);
         errors.users = 'فشل في جلب المستخدمين';
       }
 
       const customers = customersResult.status === 'fulfilled' ? customersResult.value : [];
       if (customersResult.status === 'rejected') {
-        console.error('❌ خطأ في جلب العملاء:', customersResult.reason);
         errors.customers = 'فشل في جلب العملاء';
       }
 
       const orderStats = orderStatsResult.status === 'fulfilled' ? orderStatsResult.value : {};
       if (orderStatsResult.status === 'rejected') {
-        console.error('❌ خطأ في جلب إحصائيات الطلبات:', orderStatsResult.reason);
         errors.orderStats = 'فشل في جلب إحصائيات الطلبات';
       }
 
@@ -749,22 +727,8 @@ const fetchPOSCompleteData = async (orgId: string): Promise<{
         errors
       };
 
-      console.log('✅ [POSDataContext] تم جلب البيانات بنجاح:', {
-        productsCount: products.length,
-        subscriptionsCount: subscriptions.length,
-        categoriesCount: categories.length,
-        productCategoriesCount: productCategories.length,
-        hasSettings: !!posSettings,
-        appsCount: organizationApps.length,
-        usersCount: users.length,
-        customersCount: customers.length,
-        hasOrderStats: !!orderStats,
-        errorsCount: Object.keys(errors).length
-      });
-
       return result;
     } catch (error) {
-      console.error('❌ [POSDataContext] خطأ عام في جلب البيانات:', error);
       throw error;
     } finally {
       // تنظيف العلامة
@@ -792,7 +756,6 @@ const fetchPOSUsers = async (orgId: string): Promise<any[]> => {
     if (error) throw error;
     return data || [];
   } catch (error) {
-    console.error('خطأ في جلب المستخدمين:', error);
     return [];
   }
 };
@@ -808,7 +771,6 @@ const fetchPOSCustomers = async (orgId: string): Promise<any[]> => {
     if (error) throw error;
     return data || [];
   } catch (error) {
-    console.error('خطأ في جلب العملاء:', error);
     return [];
   }
 };
@@ -821,7 +783,6 @@ const fetchPOSOrderStats = async (orgId: string): Promise<any> => {
     if (error) throw error;
     return data || {};
   } catch (error) {
-    console.error('خطأ في جلب إحصائيات الطلبات:', error);
     return {};
   }
 };
@@ -861,11 +822,6 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
   });
 
   // تشخيص مشكلة خدمات الاشتراكات
-  console.log('🔍 [POSDataProvider] تشخيص subscriptions:', { 
-    orgId, 
-    hasOrgId: !!orgId, 
-    currentOrganization: currentOrganization?.id 
-  });
 
   // React Query لخدمات الاشتراك المحسنة
   const {
@@ -875,7 +831,6 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
   } = useQuery({
     queryKey: ['pos-subscriptions-enhanced', orgId],
     queryFn: () => {
-      console.log('🚀 [useQuery] استدعاء fetchPOSSubscriptionsEnhanced:', { orgId });
       return fetchPOSSubscriptionsEnhanced(orgId!);
     },
     enabled: !!orgId,
@@ -885,13 +840,6 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
     retryDelay: 1000,
     refetchOnWindowFocus: true, // إجبار التحديث للاختبار
     refetchOnMount: true, // إجبار التحديث عند التركيب
-  });
-
-  console.log('🔍 [POSDataProvider] حالة subscriptions:', { 
-    subscriptions, 
-    subscriptionsLength: subscriptions.length,
-    isSubscriptionsLoading, 
-    subscriptionsError: subscriptionsError?.message 
   });
 
   // React Query لفئات الاشتراك المحسنة
@@ -1010,7 +958,6 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
   }, [queryClient]);
 
   const refreshSubscriptions = useCallback(async () => {
-    console.log('🔄 [refreshSubscriptions] إجبار تحديث خدمات الاشتراك');
     await queryClient.invalidateQueries({ queryKey: ['pos-subscriptions-enhanced'] });
     await queryClient.refetchQueries({ queryKey: ['pos-subscriptions-enhanced'] });
   }, [queryClient]);
@@ -1024,7 +971,6 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
   }, [queryClient]);
 
   const refreshCustomers = useCallback(async () => {
-    console.log('🔄 [refreshCustomers] إجبار تحديث العملاء');
     await queryClient.invalidateQueries({ queryKey: ['pos-customers-enhanced'] });
     await queryClient.refetchQueries({ queryKey: ['pos-customers-enhanced'] });
   }, [queryClient]);
@@ -1032,12 +978,9 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
   // مستمع لتحديث العملاء عند إضافة عميل جديد
   useEffect(() => {
     const handleCustomersUpdate = async (event: any) => {
-      console.log('🔄 [POSDataContext] استلام حدث تحديث العملاء');
-      console.log('🔄 [POSDataContext] العملاء الحاليين قبل التحديث:', customers.length);
       
       try {
         // إجبار إعادة تحميل البيانات مباشرة
-        console.log('🚀 [POSDataContext] إجبار refetch للعملاء');
         await queryClient.invalidateQueries({ 
           queryKey: ['pos-customers-enhanced', orgId],
           exact: true 
@@ -1048,14 +991,8 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
           queryKey: ['pos-customers-enhanced', orgId],
           exact: true 
         });
-        
-        console.log('✅ [POSDataContext] نتيجة التحديث:', {
-          resultLength: result?.[0]?.data?.length,
-          success: !!result?.[0]?.data
-        });
-        
+
       } catch (error) {
-        console.error('❌ [POSDataContext] خطأ في تحديث العملاء:', error);
       }
     };
 

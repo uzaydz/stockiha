@@ -630,4 +630,4 @@ const InventoryActivitiesTable: React.FC<InventoryActivitiesTableProps> = ({
   );
 };
 
-export default InventoryActivitiesTable; 
+export default InventoryActivitiesTable;

@@ -338,11 +338,6 @@ const LossDeclarations: React.FC = () => {
         const productsWithVariants = data.map((product: any) => {
           // تسجيل للتتبع (فقط في التطوير)
           if (process.env.NODE_ENV === 'development') {
-            console.log('منتج تم جلبه:', {
-              name: product.name,
-              sku: product.sku,
-              stock_quantity: product.stock_quantity
-            });
           }
           
           return {
@@ -551,11 +546,9 @@ const LossDeclarations: React.FC = () => {
           const lossItemsData = createForm.lossItems.map(item => {
             // التحقق من صحة البيانات قبل الحفظ
             if (typeof item.stock_before_loss !== 'number' || item.stock_before_loss < 0) {
-              console.error('خطأ في stock_before_loss:', item);
               throw new Error(`خطأ في بيانات المخزون للمنتج ${item.product_name}`);
             }
             if (typeof item.stock_after_loss !== 'number' || item.stock_after_loss < 0) {
-              console.error('خطأ في stock_after_loss:', item);
               throw new Error(`خطأ في بيانات المخزون بعد الخسارة للمنتج ${item.product_name}`);
             }
             
@@ -676,13 +669,6 @@ const LossDeclarations: React.FC = () => {
     
     // تسجيل للتتبع (فقط في التطوير)
     if (process.env.NODE_ENV === 'development') {
-      console.log('إضافة منتج للخسارة:', {
-        product_name: product.name,
-        variant_name: variant?.variant_display_name,
-        currentStock,
-        initialQuantity,
-        stockAfterLoss
-      });
     }
 
     setCreateForm(prev => ({
@@ -753,13 +739,6 @@ const LossDeclarations: React.FC = () => {
             
             // تسجيل للتتبع (فقط في التطوير)
             if (process.env.NODE_ENV === 'development') {
-              console.log('تحديث كمية الخسارة:', {
-                product_name: item.product_name,
-                stockBefore,
-                newQuantity,
-                validQuantity,
-                stock_after_loss: updatedItem.stock_after_loss
-              });
             }
           }
           
@@ -909,7 +888,6 @@ const LossDeclarations: React.FC = () => {
                 .eq('id', item.size_id);
 
               if (sizeError) {
-                console.error('خطأ في تحديث مخزون المقاس:', sizeError);
               }
             } else if (item.color_id) {
               // متغير لون فقط
@@ -921,7 +899,6 @@ const LossDeclarations: React.FC = () => {
                 .eq('id', item.color_id);
 
               if (colorError) {
-                console.error('خطأ في تحديث مخزون اللون:', colorError);
               }
             }
           } else {
@@ -934,7 +911,6 @@ const LossDeclarations: React.FC = () => {
               .eq('id', item.product_id);
 
             if (productError) {
-              console.error('خطأ في تحديث مخزون المنتج:', productError);
             }
           }
 
@@ -986,7 +962,6 @@ const LossDeclarations: React.FC = () => {
       setLossToDelete(null);
 
     } catch (error: any) {
-      console.error('خطأ في حذف الخسارة:', error);
       toast.error(error.message || 'حدث خطأ أثناء حذف الخسارة');
     } finally {
       setIsDeleting(false);
@@ -1026,7 +1001,6 @@ const LossDeclarations: React.FC = () => {
       setEditFormData({});
 
     } catch (error: any) {
-      console.error('خطأ في تحديث الخسارة:', error);
       toast.error(error.message || 'حدث خطأ أثناء تحديث الخسارة');
     } finally {
       setIsUpdating(false);
@@ -1081,7 +1055,6 @@ const LossDeclarations: React.FC = () => {
 
       setSelectedLossItems(formattedItems);
     } catch (error: any) {
-      console.error('خطأ في جلب عناصر الخسارة:', error);
       toast.error(error.message || 'حدث خطأ في جلب عناصر الخسارة');
       setSelectedLossItems([]);
     } finally {

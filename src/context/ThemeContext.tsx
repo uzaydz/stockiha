@@ -91,11 +91,6 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
 
   // تسجيل التهيئة مرة واحدة فقط بطريقة أكثر تحكماً
   if (isDebug && !initLogRef.current && initialOrganizationId) {
-    console.log('🎬 [ThemeProvider] تهيئة ThemeProvider:', {
-      initialOrganizationId,
-      hasOrganizationId: !!initialOrganizationId,
-      timestamp: new Date().toLocaleTimeString()
-    });
     initLogRef.current = true;
   }
   
@@ -136,7 +131,6 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
     if (newTheme === theme) return;
     
     if (isDebug) {
-      console.log('🎨 [ThemeContext] تغيير الثيم:', { from: theme, to: newTheme });
     }
     
     // حفظ التفضيل في localStorage
@@ -157,14 +151,12 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
     // منع التشغيل المتزامن
     if (isApplyingThemeRef.current) {
       if (isDebug) {
-        console.log('⏸️ [ThemeContext] منع التشغيل المتزامن لتطبيق ثيم المؤسسة');
       }
       return;
     }
 
     if (!initialOrganizationId) {
       if (isDebug) {
-        console.log('⚠️ [ThemeContext] لا يوجد معرف مؤسسة لتطبيق الثيم');
       }
       return;
     }
@@ -172,7 +164,6 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
     // منع التطبيق المتكرر لنفس المؤسسة
     if (lastAppliedOrganizationIdRef.current === initialOrganizationId && hasInitializedRef.current) {
       if (isDebug) {
-        console.log('⏭️ [ThemeContext] تم تطبيق ثيم هذه المؤسسة بالفعل');
       }
       return;
     }
@@ -182,17 +173,11 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
 
     try {
       if (isDebug) {
-        console.log('🔍 [ThemeContext] بدء جلب إعدادات المؤسسة:', {
-          organizationId: initialOrganizationId,
-          currentTheme: theme,
-          timestamp: new Date().toLocaleTimeString()
-        });
       }
 
       const settings = await getOrganizationSettings(initialOrganizationId);
       
       if (isDebug) {
-        console.log('📋 [ThemeContext] إعدادات المؤسسة المُستلمة:', settings);
       }
       
       if (settings) {
@@ -203,11 +188,6 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
           const orgTheme = convertThemeMode(orgSettings.theme_mode);
           
           if (isDebug) {
-            console.log('🔄 [ThemeContext] تحويل وضع الثيم:', {
-              dbThemeMode: orgSettings.theme_mode,
-              convertedTheme: orgTheme,
-              currentTheme: theme
-            });
           }
           
           // حفظ تفضيل المؤسسة
@@ -216,22 +196,15 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
           // تطبيق الثيم إذا كان مختلفاً
           if (orgTheme !== theme && orgTheme !== lastAppliedThemeRef.current) {
             if (isDebug) {
-              console.log('🎨 [ThemeContext] تطبيق وضع ثيم جديد:', orgTheme);
             }
             setTheme(orgTheme);
           } else if (isDebug) {
-            console.log('✅ [ThemeContext] وضع الثيم مطابق، لا حاجة للتغيير');
           }
         }
         
         // تطبيق ألوان المؤسسة المخصصة
         if (orgSettings.theme_primary_color || orgSettings.theme_secondary_color || orgSettings.custom_css) {
           if (isDebug) {
-            console.log('🎨 [ThemeContext] تطبيق ألوان مخصصة:', {
-              primaryColor: orgSettings.theme_primary_color,
-              secondaryColor: orgSettings.theme_secondary_color,
-              hasCustomCss: !!orgSettings.custom_css
-            });
           }
           
           // إلغاء أي timeout سابق
@@ -254,10 +227,8 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
         lastAppliedOrganizationIdRef.current = initialOrganizationId;
         hasInitializedRef.current = true;
       } else if (isDebug) {
-        console.log('❌ [ThemeContext] لم يتم العثور على إعدادات للمؤسسة');
       }
     } catch (error) {
-      console.error('🚨 [ThemeContext] خطأ في جلب إعدادات المؤسسة:', error);
     } finally {
       // إزالة العلم
       isApplyingThemeRef.current = false;
@@ -288,10 +259,6 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
     
     if (shouldApplyOrganizationTheme) {
       if (isDebug) {
-        console.log('🔄 [ThemeContext] تطبيق ثيم المؤسسة للمسار:', {
-          pathname: location.pathname,
-          organizationId: initialOrganizationId
-        });
       }
       
       // إلغاء أي timeout سابق

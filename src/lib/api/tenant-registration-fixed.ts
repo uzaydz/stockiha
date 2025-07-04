@@ -109,13 +109,11 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
   organizationId?: string;
 }> => {
   try {
-    console.log('🚀 [TenantRegistration] بدء عملية تسجيل المؤسسة المحسنة...');
 
     // التحقق من توفر النطاق الفرعي باستخدام الوظيفة المحسنة
     const subdomainCheck = await checkSubdomainAvailabilityWithRetry(data.subdomain);
     
     if (!subdomainCheck.available) {
-      console.warn('⚠️ [TenantRegistration] النطاق الفرعي غير متاح:', data.subdomain);
       
       // إجراء تشخيص مفصل للمشكلة
       const diagnostics = await diagnoseFinalRegistration('', data.subdomain);
@@ -123,9 +121,7 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
       // البحث عن نطاقات بديلة
       try {
         const similarSubdomains = await findSimilarSubdomains(data.subdomain);
-        console.log('🔍 [TenantRegistration] نطاقات بديلة مقترحة:', similarSubdomains);
       } catch (similarError) {
-        console.warn('⚠️ [TenantRegistration] لا يمكن العثور على نطاقات بديلة');
       }
       
       return {
@@ -134,10 +130,7 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
       };
     }
 
-    console.log('✅ [TenantRegistration] النطاق الفرعي متاح:', data.subdomain);
-
     // 1. إنشاء المستخدم في نظام المصادقة (استخدام العميل العادي فقط)
-    console.log('👤 [TenantRegistration] إنشاء حساب المستخدم...');
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: data.email,
       password: generateSecurePassword(),
@@ -151,7 +144,6 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
     });
 
     if (authError) {
-      console.error('❌ [TenantRegistration] فشل إنشاء حساب المستخدم:', authError);
       return { 
         success: false, 
         error: `فشل إنشاء حساب المستخدم: ${authError.message}` 
@@ -159,17 +151,13 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
     }
 
     if (!authData.user) {
-      console.error('❌ [TenantRegistration] بيانات المستخدم غير مكتملة');
       return { 
         success: false, 
         error: 'فشل إنشاء حساب المستخدم: بيانات غير مكتملة' 
       };
     }
 
-    console.log('✅ [TenantRegistration] تم إنشاء حساب المستخدم بنجاح:', authData.user.id);
-
     // 2. البحث عن خطة التجربة المجانية باستخدام API مباشر
-    console.log('📋 [TenantRegistration] البحث عن خطة التجربة المجانية...');
     const trialPlanResult = await executeAdminQuery('subscription_plans', {
       action: 'select',
       filters: {
@@ -183,15 +171,12 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
       : null;
 
     if (!trialPlan) {
-      console.warn('⚠️ [TenantRegistration] لم يتم العثور على خطة تجربة متاحة');
     }
 
     // 3. فحص أخير للنطاق الفرعي قبل الإنشاء
-    console.log('🔍 [TenantRegistration] فحص أخير للنطاق الفرعي...');
     const finalSubdomainCheck = await checkSubdomainAvailabilityWithRetry(data.subdomain);
     
     if (!finalSubdomainCheck.available) {
-      console.error('❌ [TenantRegistration] النطاق الفرعي أصبح مستخدماً أثناء العملية');
       return {
         success: false,
         error: 'النطاق الفرعي أصبح مستخدماً أثناء عملية التسجيل. يرجى اختيار نطاق آخر.'
@@ -199,7 +184,6 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
     }
 
     // 4. إنشاء المؤسسة باستخدام الوظيفة المحسنة
-    console.log('🏢 [TenantRegistration] إنشاء المؤسسة...');
     const trialEndDate = new Date();
     trialEndDate.setDate(trialEndDate.getDate() + 5); // 5 أيام تجربة مجانية
 
@@ -225,7 +209,6 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
     );
 
     if (!organizationResult.success) {
-      console.error('❌ [TenantRegistration] فشل إنشاء المؤسسة:', organizationResult.error);
       
       // إجراء تشخيص مفصل عند فشل إنشاء المؤسسة
       const diagnostics = await diagnoseFinalRegistration(authData.user.id, data.subdomain);
@@ -236,12 +219,9 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
       };
     }
 
-    console.log('✅ [TenantRegistration] تم إنشاء المؤسسة بنجاح:', organizationResult.organizationId);
-
     // 5. التحقق من وجود اشتراك تجريبي وإنشاؤه إذا لم يكن موجوداً
     let subscriptionId = null;
     if (trialPlan) {
-      console.log('📝 [TenantRegistration] التحقق من الاشتراك التجريبي...');
       
       try {
         // أولاً: التحقق من وجود اشتراك موجود بالفعل
@@ -256,7 +236,6 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
 
         if (existingSubscriptionResult.data && Array.isArray(existingSubscriptionResult.data) && existingSubscriptionResult.data.length > 0) {
           subscriptionId = existingSubscriptionResult.data[0].id;
-          console.log('✅ [TenantRegistration] تم العثور على اشتراك تجريبي موجود');
         } else {
           // إنشاء اشتراك تجريبي جديد
           const subscriptionData = {
@@ -279,29 +258,22 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
           });
 
           if (subscriptionResult.error) {
-            console.warn('⚠️ [TenantRegistration] فشل إنشاء اشتراك تجريبي:', subscriptionResult.error);
           } else if (subscriptionResult.data) {
             // معالجة أفضل لأنواع الاستجابات المختلفة
             if (Array.isArray(subscriptionResult.data) && subscriptionResult.data.length > 0) {
               subscriptionId = subscriptionResult.data[0].id;
-              console.log('✅ [TenantRegistration] تم إنشاء اشتراك تجريبي بنجاح');
             } else if (subscriptionResult.data && typeof subscriptionResult.data === 'object' && subscriptionResult.data.id) {
               subscriptionId = subscriptionResult.data.id;
-              console.log('✅ [TenantRegistration] تم إنشاء اشتراك تجريبي بنجاح');
             } else {
-              console.log('✅ [TenantRegistration] تم إنشاء اشتراك تجريبي (استجابة فارغة - طبيعي)');
             }
           }
         }
       } catch (subscriptionError) {
-        console.warn('⚠️ [TenantRegistration] خطأ في معالجة الاشتراك التجريبي:', subscriptionError);
       }
     } else {
-      console.warn('⚠️ [TenantRegistration] لا توجد خطة تجربة متاحة');
     }
 
     // 6. ربط المستخدم بالمؤسسة في جدول users
-    console.log('🔗 [TenantRegistration] ربط المستخدم بالمؤسسة...');
     try {
       const userLinkResult = await executeAdminQuery('users', {
         action: 'upsert',
@@ -320,16 +292,12 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
       });
 
       if (userLinkResult.error) {
-        console.warn('⚠️ [TenantRegistration] فشل ربط المستخدم بالمؤسسة:', userLinkResult.error);
       } else {
-        console.log('✅ [TenantRegistration] تم ربط المستخدم بالمؤسسة بنجاح');
       }
     } catch (linkError) {
-      console.warn('⚠️ [TenantRegistration] خطأ في ربط المستخدم:', linkError);
     }
 
     // 7. تحديث التخزين المحلي وإجبار TenantContext على التحديث
-    console.log('🔄 [TenantRegistration] تحديث بيانات التخزين المحلي...');
     try {
       // تحديث معرف المؤسسة في التخزين المحلي
       localStorage.setItem('bazaar_organization_id', organizationResult.organizationId);
@@ -349,12 +317,8 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
         detail: { organizationId: organizationResult.organizationId }
       }));
       
-      console.log('✅ [TenantRegistration] تم تحديث التخزين المحلي بنجاح');
     } catch (storageError) {
-      console.warn('⚠️ [TenantRegistration] خطأ في تحديث التخزين المحلي:', storageError);
     }
-
-    console.log('🎉 [TenantRegistration] تم إكمال عملية التسجيل بنجاح!');
 
     return {
       success: true,
@@ -364,7 +328,6 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
     };
 
   } catch (error) {
-    console.error('❌ [TenantRegistration] خطأ عام في عملية التسجيل:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'حدث خطأ غير متوقع أثناء التسجيل'

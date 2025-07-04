@@ -316,7 +316,6 @@ const FeaturedProducts = ({
             setFetchedProducts([]);
           }
         } catch (error) {
-          console.error('خطأ في جلب المنتجات المختارة:', error);
           setFetchedProducts([]);
         }
         setLoading(false);

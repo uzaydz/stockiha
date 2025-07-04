@@ -62,6 +62,7 @@ interface CartTabManagerProps {
   // بيانات أخرى
   customers: User[];
   updateItemQuantity: (tabId: string, index: number, quantity: number) => void;
+  updateItemPrice?: (tabId: string, index: number, price: number) => void;
   removeItemFromCart: (tabId: string, index: number) => void;
   clearCart: (tabId: string) => void;
   submitOrder: (order: Partial<Order>) => Promise<{orderId: string, customerOrderNumber: number}>;
@@ -87,6 +88,7 @@ const CartTabManager: React.FC<CartTabManagerProps> = ({
   updateTab,
   customers,
   updateItemQuantity,
+  updateItemPrice = () => {},
   removeItemFromCart,
   clearCart,
   submitOrder,
@@ -101,11 +103,6 @@ const CartTabManager: React.FC<CartTabManagerProps> = ({
   returnNotes = '',
   setReturnNotes = () => {}
 }) => {
-  console.log('🔍 [CartTabManager] العملاء المُمررة:', { 
-    customersLength: customers.length, 
-    customers: customers,
-    activeTabId: activeTabId
-  });
   
   const [editingTabId, setEditingTabId] = useState<string>('');
   const [editingName, setEditingName] = useState<string>('');
@@ -191,6 +188,11 @@ const CartTabManager: React.FC<CartTabManagerProps> = ({
   const handleUpdateItemQuantity = (index: number, quantity: number) => {
     if (!activeTab) return;
     updateItemQuantity(activeTab.id, index, quantity);
+  };
+
+  const handleUpdateItemPrice = (index: number, price: number) => {
+    if (!activeTab) return;
+    updateItemPrice(activeTab.id, index, price);
   };
 
   const handleRemoveItemFromCart = (index: number) => {
@@ -350,6 +352,7 @@ const CartTabManager: React.FC<CartTabManagerProps> = ({
           cartItems={activeTab.cartItems}
           customers={customers}
           updateItemQuantity={handleUpdateItemQuantity}
+          updateItemPrice={handleUpdateItemPrice}
           removeItemFromCart={handleRemoveItemFromCart}
           clearCart={handleClearCart}
           submitOrder={submitOrder}

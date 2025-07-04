@@ -516,4 +516,4 @@ const BatchesOverviewSection: React.FC<BatchesOverviewSectionProps> = ({
   );
 };
 
-export default BatchesOverviewSection; 
+export default BatchesOverviewSection;

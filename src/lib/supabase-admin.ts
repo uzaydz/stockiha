@@ -28,13 +28,11 @@ export const getSupabaseAdmin = () => {
     adminInstanceInitialized = true; // وضع علامة على أن التهيئة قيد التنفيذ
     
     if (!supabaseUrl || !supabaseServiceKey) {
-      console.warn('❌ مفاتيح Supabase Admin غير مكتملة');
       adminInstanceInitialized = false; // إعادة تعيين العلامة في حالة الفشل
       return null;
     }
     
     try {
-      console.log('🔧 [SupabaseAdmin] إنشاء عميل المسؤول المحسن...');
       
       // إنشاء اتصال Supabase باستخدام مفتاح الخدمة لتجاوز سياسات RLS
       // تم تحسينه لتجنب تعارضات GoTrueClient
@@ -84,11 +82,8 @@ export const getSupabaseAdmin = () => {
       (window as any).__BAZAAR_ADMIN_CLIENT_CREATED__ = true;
       (window as any).__BAZAAR_ADMIN_CLIENT__ = supabaseAdminInstance;
       (supabaseAdminInstance as any).__BAZAAR_ADMIN_CLIENT__ = true;
-      
-      console.log('✅ [SupabaseAdmin] تم إنشاء عميل المسؤول المحسن بنجاح');
-      
+
     } catch (error) {
-      console.error('❌ [SupabaseAdmin] فشل إنشاء عميل المسؤول:', error);
       supabaseAdminInstance = null;
       adminInstanceInitialized = false; // إعادة تعيين العلامة في حالة الفشل
       (window as any).__BAZAAR_ADMIN_CLIENT_CREATED__ = false;
@@ -111,7 +106,6 @@ export const supabaseAdmin = new Proxy({} as ReturnType<typeof createClient<Data
 
 // دالة لتنظيف عميل المسؤول عند الحاجة
 export const cleanupAdminClient = () => {
-  console.log('🧹 [SupabaseAdmin] تنظيف عميل المسؤول...');
   supabaseAdminInstance = null;
   adminInstanceInitialized = false;
   (window as any).__BAZAAR_ADMIN_CLIENT_CREATED__ = false;
@@ -158,19 +152,12 @@ export const executeAdminOperation = async (operation: {
       try {
         result = JSON.parse(responseText);
       } catch (jsonError) {
-        console.warn('⚠️ [AdminOperation] تحذير: لا يمكن تحليل الاستجابة كـ JSON:', responseText);
         result = responseText; // إرجاع النص الخام إذا فشل تحليل JSON
       }
     }
     
     return { data: result, error: null };
   } catch (error) {
-    console.error('❌ [AdminOperation] خطأ في العملية:', {
-      error: error instanceof Error ? error.message : error,
-      endpoint: operation.endpoint,
-      method: operation.method,
-      data: operation.data
-    });
     return { data: null, error };
   }
 };
@@ -262,7 +249,6 @@ export const executeAdminQuery = async (table: string, operation: {
  */
 export const createAdminRequest = async (operation: (client: any) => Promise<any>) => {
   try {
-    console.log('⚠️ [AdminRequest] استخدام createAdminRequest قد ينشئ GoTrueClient إضافي');
     
     // محاولة استخدام العميل الرئيسي أولاً مع تعديل Headers
     const { supabase } = await import('./supabase-unified');
@@ -300,7 +286,6 @@ export const createAdminRequest = async (operation: (client: any) => Promise<any
     
     return result;
   } catch (error) {
-    console.error('❌ خطأ في طلب المسؤول:', error);
     throw error;
   }
 };

@@ -34,17 +34,6 @@ const RequireTenant = ({ children }: RequireTenantProps) => {
 
   // تشخيص شامل لـ RequireTenant
   if (import.meta.env.DEV) {
-    console.log('🔍 [RequireTenant] تشخيص:', {
-      currentOrganization: !!currentOrganization,
-      organization: !!organization,
-      isLoading,
-      waitingForOrgData,
-      error: !!error,
-      pathname: location.pathname,
-      user: !!user,
-      userProfile: !!userProfile,
-      timestamp: new Date().toLocaleTimeString()
-    });
   }
   
   // التحقق من وجود مؤسسة في أي من السياقين
@@ -64,7 +53,6 @@ const RequireTenant = ({ children }: RequireTenantProps) => {
       await refreshOrganizationData();
       setRetryCount(prev => prev + 1);
     } catch (error) {
-      console.error('فشل في إعادة تحميل بيانات المؤسسة:', error);
     } finally {
       setIsRefreshing(false);
     }
@@ -73,7 +61,6 @@ const RequireTenant = ({ children }: RequireTenantProps) => {
   useEffect(() => {
     // في حالة وجود خطأ في تحميل بيانات المؤسسة
     if (error && !isLoading && requiresOrganization && !waitingForOrgData) {
-      console.error('خطأ في تحميل بيانات المؤسسة:', error);
       
       // محاولة إعادة تحميل البيانات مرة واحدة فقط
       if (retryCount === 0) {

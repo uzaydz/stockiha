@@ -15,104 +15,70 @@ export const useFormInitialization = ({
   productId,
   setExtendedFields,
 }: FormInitializationProps) => {
+  const [isLoading, setIsLoading] = useState(false);
+  
   useEffect(() => {
     if (!formFields || !Array.isArray(formFields)) {
       setExtendedFields([]);
       return;
     }
     
-    const newExtendedFields = formFields.filter(field => field && field.isVisible).map(field => {
-      let initialValue = field.defaultValue || '';
-      if (field.type === 'deliveryType' && !initialValue) {
-        initialValue = 'home';
-      }
-      return {
-        ...field,
-        isLoading: false,
-        value: initialValue, 
-      };
-    });
-
-    const provinceFields = newExtendedFields.filter(field => field.type === 'province');
-    const municipalityFields = newExtendedFields.filter(field => field.type === 'municipality');
-
-    for (const municipalityField of municipalityFields) {
-      const provinceFieldId = municipalityField.linkedFields?.provinceField;
-      if (provinceFieldId) {
-        municipalityField.dependency = {
-          fieldId: provinceFieldId,
-          value: '*',
-        };
-      }
-    }
-
-    const loadProvinces = async () => {
+    const initializeForm = async () => {
+      setIsLoading(true);
+      
       try {
-        // تعيين حالة التحميل لحقول الولايات
-        for (const field of provinceFields) {
-          field.isLoading = true;
-        }
-        setExtendedFields([...newExtendedFields]); // Update with loading state
+        const newExtendedFields = await Promise.all(
+          formFields.map(async (field) => {
+            const extendedField: ExtendedFormField = {
+              ...field,
+              id: field.id || `field-${Math.random().toString(36).substr(2, 9)}`,
+              value: field.defaultValue || '',
+              isLoading: false,
+              linkedFields: field.linkedFields || {}
+            };
 
-        // استدعاء getProvinces بدون معامل organizationId لأنه اختياري
-        const provinces = await getProvinces();
-        
-        if (!provinces || provinces.length === 0) {
-          console.warn('لم يتم العثور على ولايات أو فشل في تحميل البيانات');
-          // Reset loading state even if no provinces found
-          for (const field of provinceFields) {
-            field.isLoading = false;
-            // إضافة بيانات احتياطية في حالة فشل التحميل
-            (field as ExtendedFormField).provinces = [
-              { id: 16, name: "الجزائر" },
-              { id: 31, name: "وهران" },
-              { id: 25, name: "قسنطينة" },
-              { id: 19, name: "سطيف" },
-              { id: 23, name: "عنابة" }
-            ];
-          }
-          setExtendedFields([...newExtendedFields]);
-          return;
-        }
+            // تحميل الولايات للحقول من نوع province
+            if (field.type === 'province') {
+              try {
+                extendedField.isLoading = true;
+                
+                // استخدام organizationId إذا كان متوفراً، وإلا استخدام undefined
+                const organizationId = currentOrganization?.id;
+                
+                const provinces = await getProvinces(organizationId);
+                
+                extendedField.provinces = provinces || [];
+                extendedField.isLoading = false;
+                
+                // إضافة fallback في حالة عدم توفر البيانات
+                if (!provinces || provinces.length === 0) {
+                }
+              } catch (error) {
+                extendedField.provinces = [];
+                extendedField.isLoading = false;
+              }
+            }
 
-        const formattedProvinces = provinces.map(province => ({
-          id: province.id,
-          name: province.name
-        }));
+            // تحميل البلديات للحقول من نوع municipality
+            if (field.type === 'municipality') {
+              extendedField.municipalities = [];
+              extendedField.isLoading = false;
+            }
 
-        console.log('تم تحميل الولايات بنجاح:', formattedProvinces.length);
+            return extendedField;
+          })
+        );
 
-        for (const field of provinceFields) {
-          (field as ExtendedFormField).provinces = formattedProvinces;
-          field.isLoading = false;
-        }
-        setExtendedFields([...newExtendedFields]);
+        setExtendedFields(newExtendedFields);
       } catch (error) {
-        console.error('خطأ في تحميل الولايات:', error);
-        for (const field of provinceFields) {
-          field.isLoading = false;
-          // إضافة بيانات احتياطية في حالة الخطأ
-          (field as ExtendedFormField).provinces = [
-            { id: 16, name: "الجزائر" },
-            { id: 31, name: "وهران" },
-            { id: 25, name: "قسنطينة" },
-            { id: 19, name: "سطيف" },
-            { id: 23, name: "عنابة" },
-            { id: 9, name: "البليدة" },
-            { id: 15, name: "تيزي وزو" },
-            { id: 29, name: "معسكر" }
-          ];
-        }
-        setExtendedFields([...newExtendedFields]); // Update with error state (loading false)
+        setExtendedFields([]);
+      } finally {
+        setIsLoading(false);
       }
     };
 
-    if (newExtendedFields.length > 0) {
-      if (provinceFields.length > 0) {
-        loadProvinces();
-      } else {
-        setExtendedFields(newExtendedFields);
-      }
-    }
-  }, [formFields, currentOrganization, productId, setExtendedFields]);
+    initializeForm();
+  }, [formFields, currentOrganization?.id, productId, setExtendedFields]);
+  
+  return { isLoading };
 };

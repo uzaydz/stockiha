@@ -133,4 +133,4 @@ export const initPerformanceOptimizations = () => {
       setTimeout(applyFontsOptimized, 100);
     }
   }
-}; 
+};

@@ -146,16 +146,13 @@ export const usePOSBarcode = ({
   // معالجة الباركود المسح ضوئياً - استخدام refs بدلاً من الدوال مباشرة
   const processBarcodeScanned = useCallback(async (rawBarcode: string) => {
     const barcode = cleanBarcodeInput(rawBarcode);
-    
-    console.log('🔍 [usePOSBarcode] معالجة باركود:', { rawBarcode, cleanedBarcode: barcode });
-    
+
     if (!barcode || barcode.length === 0) {
       toast.error('الباركود المُدخل غير صالح. تأكد من إعدادات قارئ الباركود.');
       return;
     }
 
     const currentProducts = productsRef.current;
-    console.log('🔍 [usePOSBarcode] البحث في المنتجات:', { productsCount: currentProducts.length });
     
     // البحث في المنتجات الأساسية
     const product = currentProducts.find(p => {
@@ -333,11 +330,9 @@ export const usePOSBarcode = ({
 
   // إضافة وإزالة مستمع الأحداث - الآن مع دالة مستقرة
   useEffect(() => {
-    console.log('🔍 [usePOSBarcode] تهيئة مستمع الأحداث للسكانر');
     document.addEventListener('keypress', handleKeyPress);
     
     return () => {
-      console.log('🔍 [usePOSBarcode] إزالة مستمع الأحداث للسكانر');
       document.removeEventListener('keypress', handleKeyPress);
     };
   }, []); // dependencies فارغة لأن handleKeyPress أصبحت مستقرة
@@ -345,11 +340,6 @@ export const usePOSBarcode = ({
   // تأكيد تهيئة السكانر عند تحديث المنتجات أو الدوال
   useEffect(() => {
     if (products.length > 0 && onAddToCartRef.current && onAddVariantRef.current) {
-      console.log('✅ [usePOSBarcode] السكانر جاهز للعمل', {
-        productsCount: products.length,
-        hasAddToCart: !!onAddToCartRef.current,
-        hasAddVariant: !!onAddVariantRef.current
-      });
     }
   }, [products.length]);
 

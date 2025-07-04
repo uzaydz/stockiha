@@ -144,11 +144,9 @@ const TenantRegistrationForm = () => {
         // التحقق من تحديث المؤسسة في localStorage
         const storedOrgId = localStorage.getItem('bazaar_organization_id');
         if (storedOrgId === organizationId) {
-          console.log('✅ [TenantRegistrationForm] تم تأكيد تحديث بيانات المؤسسة');
           navigate('/dashboard', { replace: true });
         } else {
           // إذا لم تتحدث البيانات، أجبر التحديث
-          console.log('🔄 [TenantRegistrationForm] إجبار تحديث البيانات...');
           localStorage.setItem('bazaar_organization_id', organizationId);
           
           // إرسال event إضافي للتأكد
@@ -165,7 +163,6 @@ const TenantRegistrationForm = () => {
         toast.error(`فشل التسجيل: ${error || 'حدث خطأ غير متوقع'}`);
       }
     } catch (error) {
-      console.error('❌ [TenantRegistrationForm] خطأ في التسجيل:', error);
       toast.error('حدث خطأ أثناء التسجيل. يرجى المحاولة مرة أخرى.');
     } finally {
       setIsLoading(false);

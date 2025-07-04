@@ -3,7 +3,6 @@ import { toast } from 'sonner';
 import { Product, Order, User as AppUser } from '@/types';
 import { supabase } from '@/lib/supabase';
 
-
 interface CartItem {
   product: Product;
   quantity: number;
@@ -142,7 +141,6 @@ export const usePOSReturn = ({
       });
 
       if (error) {
-        console.error('❌ [RETURN] خطأ في RPC:', error);
         throw error;
       }
 
@@ -182,7 +180,6 @@ export const usePOSReturn = ({
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'خطأ غير معروف';
-      console.error('❌ [RETURN] خطأ في معالجة الإرجاع:', error);
       toast.error(`حدث خطأ في معالجة الإرجاع: ${errorMessage}`);
       throw error;
     }

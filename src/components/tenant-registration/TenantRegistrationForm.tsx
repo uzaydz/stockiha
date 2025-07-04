@@ -141,7 +141,6 @@ const TenantRegistrationForm = () => {
         try {
           await refreshData();
         } catch (error) {
-          console.warn('تحذير: فشل تحديث AuthContext:', error);
         }
         
         // انتظار قصير ثم إعادة تحميل الصفحة لضمان تحديث كامل للحالة

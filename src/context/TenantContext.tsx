@@ -72,7 +72,6 @@ const fetchOrganizationUnified = async (params: {
 
   // التحقق من وجود طلب مماثل قيد التنفيذ
   if (pendingRequests.has(cacheKey)) {
-    console.log('🔄 [fetchOrganizationUnified] استخدام طلب قيد التنفيذ:', cacheKey);
     return await pendingRequests.get(cacheKey);
   }
 
@@ -82,7 +81,6 @@ const fetchOrganizationUnified = async (params: {
     const now = Date.now();
     
     if (now - cached.timestamp < ORGANIZATION_CACHE_TTL) {
-      console.log('💾 [fetchOrganizationUnified] استخدام البيانات المحفوظة:', cacheKey);
       return cached.data;
     } else {
       // إزالة البيانات منتهية الصلاحية
@@ -97,41 +95,25 @@ const fetchOrganizationUnified = async (params: {
   const fetchPromise = (async () => {
     try {
       let orgData = null;
-      
-      console.log('🔎 [fetchOrganizationUnified] جلب البيانات:', {
-        fetchType,
-        orgId,
-        hostname,
-        subdomain,
-        cacheKey
-      });
-      
+
       switch (fetchType) {
         case 'byId':
           if (orgId) {
-            console.log('🆔 [fetchOrganizationUnified] جلب بـ ID:', orgId);
             orgData = await getOrganizationById(orgId);
           }
           break;
         case 'byDomain':
           if (hostname) {
-            console.log('🌐 [fetchOrganizationUnified] جلب بـ Domain:', hostname);
             orgData = await getOrganizationByDomain(hostname);
           }
           break;
         case 'bySubdomain':
           if (subdomain) {
-            console.log('🔗 [fetchOrganizationUnified] جلب بـ Subdomain:', subdomain);
             orgData = await getOrganizationBySubdomain(subdomain);
           }
           break;
       }
-      
-      console.log('📋 [fetchOrganizationUnified] نتيجة الجلب:', {
-        found: !!orgData,
-        orgData: orgData ? { id: orgData.id, name: orgData.name, subdomain: orgData.subdomain } : null
-      });
-      
+
       // حفظ في cache إذا تم العثور على البيانات
       if (orgData && window.organizationCache) {
         window.organizationCache.set(cacheKey, {
@@ -166,7 +148,6 @@ const fetchOrganizationUnified = async (params: {
       
       return orgData;
     } catch (error) {
-      console.error('❌ [fetchOrganizationUnified] خطأ في الجلب:', error);
       return null;
     } finally {
       // إزالة من قائمة الطلبات المعلقة
@@ -261,30 +242,20 @@ const isMainDomain = (hostname: string): boolean => {
 
 // استخراج النطاق الفرعي من اسم المضيف - محسن مع cache
 const extractSubdomain = async (hostname: string): Promise<string | null> => {
-  console.log('🔧 [extractSubdomain] بدء استخراج النطاق الفرعي:', { hostname });
   
   // التعامل مع السابدومين في بيئة localhost المحلية
   if (hostname.includes('localhost')) {
     // إزالة رقم المنفذ إذا كان موجوداً
     const hostnameWithoutPort = hostname.split(':')[0];
     const parts = hostnameWithoutPort.split('.');
-    
-    console.log('🏠 [extractSubdomain] معالجة localhost:', {
-      hostnameWithoutPort,
-      parts,
-      partsLength: parts.length,
-      firstPart: parts[0]
-    });
-    
+
     // مثال: mystore.localhost أو lmrpoxcvvd.localhost
     if (parts.length >= 2 && parts[0] !== 'localhost' && parts[0] !== 'www' && parts[0] !== '') {
-      console.log('✅ [extractSubdomain] تم العثور على نطاق فرعي:', parts[0]);
       return parts[0];
     }
     
     // إذا كان فقط localhost بدون سابدومين
     if (hostnameWithoutPort === 'localhost') {
-      console.log('🏠 [extractSubdomain] localhost بدون نطاق فرعي، العودة بـ main');
       return 'main';
     }
   }
@@ -363,11 +334,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   
   // مراقبة تغيير isLoading state
   useEffect(() => {
-    console.log('🔄 [TenantContext] تغيير حالة التحميل:', {
-      isLoading,
-      hasOrganization: !!organization,
-      timestamp: new Date().toLocaleTimeString()
-    });
   }, [isLoading, organization]);
   const [error, setError] = useState<Error | null>(null);
   const [retryCount, setRetryCount] = useState(0);
@@ -420,7 +386,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (cachedLanguage && cacheTimestamp) {
       const cacheAge = Date.now() - parseInt(cacheTimestamp);
       if (cacheAge < 30 * 60 * 1000) { // 30 دقيقة
-        console.log('🚀 [TenantContext] استخدام اللغة من الكاش:', cachedLanguage);
         return cachedLanguage;
       }
     }
@@ -430,8 +395,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         getOrganizationById(orgId),
         getOrganizationSettings(orgId)
       ]);
-
-      console.log('🔄 [TenantContext] لم يتم العثور على اللغة، استخدام fallback ذكي...');
 
       let detectedLanguage = 'ar'; // افتراضي
 
@@ -457,12 +420,8 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       localStorage.setItem(`org-language-${orgId}`, detectedLanguage);
       localStorage.setItem(`org-language-timestamp-${orgId}`, Date.now().toString());
 
-      console.log('🇸🇦 [TenantContext] استخدام اللغة:', detectedLanguage);
-      console.log('💾 [TenantContext] تم حفظ اللغة في الكاش:', detectedLanguage);
-
       return detectedLanguage;
     } catch (error) {
-      console.error('❌ [TenantContext] خطأ في الحصول على إعدادات اللغة:', error);
       return 'ar'; // fallback
     }
   }, []);
@@ -488,7 +447,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     // إذا لم نجد اللغة، استخدم fallback ذكي بناءً على اسم النطاق
     if (!defaultLanguage) {
-      console.log('🔄 [TenantContext] لم يتم العثور على اللغة، استخدام fallback ذكي...');
       
       // تحليل اسم المنظمة أو النطاق للتنبؤ باللغة
       const orgName = (orgData.name || '').toLowerCase();
@@ -509,46 +467,20 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       
       if (hasFrenchKeywords) {
         defaultLanguage = 'fr';
-        console.log('🇫🇷 [TenantContext] تم استنتاج اللغة الفرنسية من النص:', textToAnalyze);
       } else if (hasEnglishKeywords) {
         defaultLanguage = 'en';
-        console.log('🇺🇸 [TenantContext] تم استنتاج اللغة الإنجليزية من النص:', textToAnalyze);
       } else {
         // افتراضي: عربي
         defaultLanguage = 'ar';
-        console.log('🇸🇦 [TenantContext] استخدام اللغة العربية كافتراضية');
       }
       
       // تخزين اللغة في التخزين المحلي كبديل للاستخدام المستقبلي
       if (typeof window !== 'undefined') {
         localStorage.setItem(`org_language_${orgData.id}`, defaultLanguage);
-        console.log('💾 [TenantContext] تم حفظ اللغة المستنتجة في التخزين المحلي:', defaultLanguage);
       }
     }
 
-    console.log('🔍 [TenantContext] تفاصيل البحث عن اللغة:', {
-      'orgData.default_language': orgData.default_language,
-      'organizationSettings.default_language': organizationSettings.default_language,
-      'orgData.language': orgData.language,
-      'organizationSettings.language': organizationSettings.language,
-      'general.default_language': organizationSettings.general?.default_language,
-      'general.language': organizationSettings.general?.language,
-      'store_settings.default_language': orgData.store_settings?.default_language,
-      'store_settings.language': orgData.store_settings?.language,
-      finalLanguage: defaultLanguage,
-      organizationId: orgData.id,
-      organizationName: orgData.name
-    });
-
     // طباعة البيانات الكاملة لفهم التركيبة
-    console.log('📋 [TenantContext] البيانات الكاملة للمنظمة:', {
-      keys: Object.keys(orgData),
-      settingsKeys: organizationSettings ? Object.keys(organizationSettings) : [],
-      orgDataKeys: Object.keys(orgData),
-      orgDataValues: Object.keys(orgData).map(key => ({ [key]: orgData[key] })),
-      organizationSettings: organizationSettings,
-      fullOrgData: orgData
-    });
 
     // فحص خاص للبحث عن اللغة في أي مكان
     const findLanguageInObject = (obj: any, path = ''): any[] => {
@@ -566,7 +498,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
 
     const languageFields = findLanguageInObject(orgData);
-    console.log('🔍 [TenantContext] جميع الحقول المرتبطة باللغة:', languageFields);
 
     const orgObject: Organization = {
       id: orgData.id,
@@ -588,11 +519,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     // إرسال إشارة تحديث اللغة إذا كانت متوفرة
     if (defaultLanguage) {
-      console.log('🚀 [TenantContext] إرسال حدث تحديث اللغة:', {
-        language: defaultLanguage,
-        organizationId: orgData.id,
-        timestamp: new Date().toLocaleTimeString()
-      });
       
       // إرسال حدث تحديث اللغة للمكونات الأخرى
       if (typeof window !== 'undefined') {
@@ -605,7 +531,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         window.dispatchEvent(languageUpdateEvent);
       }
     } else {
-      console.warn('⚠️ [TenantContext] لم يتم العثور على اللغة الافتراضية في بيانات المنظمة:', orgData);
     }
 
     return orgObject;
@@ -651,7 +576,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     if (process.env.NODE_ENV === 'development') {
-      console.log('🔄 [TenantContext] مزامنة بيانات المؤسسة من AuthContext:', authOrganization.id);
     }
 
     // تحويل بيانات المؤسسة من AuthContext إلى النموذج المطلوب لـ TenantContext
@@ -679,11 +603,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // منع التشغيل المتكرر
     if (loadingOrganization.current || initialized.current) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('🚫 [TenantContext] تجاهل useEffect - التحميل جاري أو مكتمل:', {
-          loadingOrganization: loadingOrganization.current,
-          initialized: initialized.current,
-          hasOrganization: !!organization
-        });
       }
       return;
     }
@@ -697,7 +616,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // التحقق من وجود authOrganization أولاً
     if (authOrganization) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('🏢 [TenantContext] استخدام بيانات المؤسسة من AuthContext');
       }
       const orgData = updateOrganizationFromData(authOrganization);
       setOrganization(orgData);
@@ -718,11 +636,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       loadingOrganization.current = true;
 
       if (process.env.NODE_ENV === 'development') {
-        console.log('🏢 [TenantContext] بدء تحميل بيانات المؤسسة:', {
-          hostname: window.location.hostname,
-          pathname: window.location.pathname,
-          timestamp: new Date().toLocaleTimeString()
-        });
       }
 
       try {
@@ -762,7 +675,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           }
         } else {
           if (process.env.NODE_ENV === 'development') {
-            console.log('❌ [TenantContext] لم يتم العثور على بيانات المؤسسة');
           }
           setOrganization(null);
         }
@@ -771,7 +683,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         clearTimeout(loadingTimeoutId);
 
       } catch (error) {
-        console.error('❌ [TenantContext] خطأ في تحميل بيانات المؤسسة:', error);
         setOrganization(null);
         setError(error as Error);
       } finally {
@@ -954,14 +865,12 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const refreshOrganizationData = useCallback(async () => {
     if (authLoading || loadingOrganization.current) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('🚫 [TenantContext] تجاهل تحديث المؤسسة - التحميل جاري');
       }
       return;
     }
 
          // استخدام debouncedRefresh للحد من التكرار
      if (process.env.NODE_ENV === 'development') {
-       console.log('🔄 [TenantContext] طلب تحديث بيانات المؤسسة');
      }
      debouncedRefresh();
   }, [authLoading, debouncedRefresh]);
@@ -974,7 +883,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const { organizationId } = event.detail || {};
       
       if (organizationId && organizationId !== organization?.id) {
-        console.log('🔔 [TenantContext] استلام إشعار تغيير المؤسسة:', organizationId);
         
         // إلغاء أي timeout سابق
         if (timeoutId) {
@@ -1047,5 +955,3 @@ function useTenant(): TenantContextType {
 
 // تصدير مع اسم صريح للـ Fast Refresh
 export { useTenant };
-
-

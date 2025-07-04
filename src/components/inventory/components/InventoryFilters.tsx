@@ -428,4 +428,4 @@ const InventoryFilters: React.FC<InventoryFiltersProps> = ({
   );
 };
 
-export default InventoryFilters; 
+export default InventoryFilters;

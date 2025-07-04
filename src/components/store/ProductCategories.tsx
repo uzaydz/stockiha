@@ -373,8 +373,7 @@ const ProductCategories = ({
             
             {/* تحسين التدرج */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent"></div>
-            
-              
+
           </div>
           )}
           

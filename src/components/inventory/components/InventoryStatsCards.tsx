@@ -259,4 +259,4 @@ const InventoryStatsCards: React.FC<InventoryStatsCardsProps> = ({ statistics, i
   );
 };
 
-export default InventoryStatsCards; 
+export default InventoryStatsCards;

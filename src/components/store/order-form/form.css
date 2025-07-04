@@ -42,6 +42,38 @@
   cursor: not-allowed;
 }
 
+/* إصلاح مشاكل select على الهاتف المحمول */
+.custom-form select {
+  /* إزالة المظهر الافتراضي */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  
+  /* منع التكبير التلقائي على iOS */
+  font-size: 16px;
+  
+  /* تحسين التفاعل */
+  touch-action: manipulation;
+  
+  /* ضمان عرض القائمة المنسدلة */
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: left 12px center;
+  background-size: 16px;
+  padding-left: 40px;
+}
+
+/* إخفاء السهم الافتراضي في IE/Edge */
+.custom-form select::-ms-expand {
+  display: none;
+}
+
+/* تحسين العرض على Firefox */
+.custom-form select:-moz-focusring {
+  color: transparent;
+  text-shadow: 0 0 0 #000;
+}
+
 /* تنسيقات متجاوبة */
 @media (max-width: 768px) {
   .custom-form {
@@ -50,22 +82,33 @@
   
   /* تحسين عرض حقول الولايات والبلديات على الهاتف المحمول */
   .custom-form select {
-    font-size: 16px; /* منع التكبير التلقائي على iOS */
+    font-size: 16px !important; /* منع التكبير التلقائي على iOS */
     min-height: 44px; /* الحد الأدنى للمس المريح */
-    padding: 12px 16px;
-    -webkit-appearance: none;
-    appearance: none;
-    background-size: 12px;
-    background-position: left 12px center;
-    background-repeat: no-repeat;
+    padding: 12px 40px 12px 16px;
+    border-radius: 8px;
+    line-height: 1.5;
+    
+    /* ضمان عرض النص بوضوح */
+    color: var(--foreground);
+    background-color: var(--background);
+    
+    /* تحسين الحدود */
+    border: 2px solid var(--border);
+  }
+  
+  .custom-form select:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(var(--primary), 0.1);
+    outline: none;
   }
   
   /* تحسين العرض على الشاشات الصغيرة جداً */
   @media (max-width: 480px) {
     .custom-form select {
-      font-size: 16px;
-      padding: 14px 18px;
+      font-size: 16px !important;
+      padding: 14px 40px 14px 18px;
       border-radius: 8px;
+      min-height: 48px;
     }
     
     .custom-form label {
@@ -107,8 +150,16 @@
 @media (hover: none) and (pointer: coarse) {
   .custom-form select:focus {
     outline: none;
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 2px rgba(var(--color-primary), 0.3);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(var(--primary), 0.3);
+  }
+  
+  /* ضمان عرض الخيارات بوضوح */
+  .custom-form select option {
+    font-size: 16px;
+    padding: 8px 12px;
+    background-color: var(--background);
+    color: var(--foreground);
   }
 }
 
@@ -116,6 +167,43 @@
 .custom-form select:disabled {
   background-color: rgba(0, 0, 0, 0.05);
   color: rgba(0, 0, 0, 0.5);
+  cursor: not-allowed;
+}
+
+/* إصلاح مشكلة عدم ظهور الخيارات على بعض الأجهزة */
+.custom-form select {
+  /* ضمان أن العنصر قابل للنقر */
+  pointer-events: auto;
+  user-select: none;
+  
+  /* تحسين z-index للتأكد من ظهور القائمة */
+  position: relative;
+  z-index: 1;
+}
+
+.custom-form select:focus,
+.custom-form select:active {
+  z-index: 10;
+}
+
+/* تحسين عرض placeholder */
+.custom-form select option[disabled] {
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+
+/* تحسين التباين للقراءة الأفضل */
+@media (max-width: 768px) {
+  .custom-form select {
+    font-weight: 400;
+    letter-spacing: 0.025em;
+  }
+  
+  .custom-form select option {
+    font-weight: 400;
+    padding: 12px 16px;
+    line-height: 1.5;
+  }
 }
 
 /* تحسين عرض skeleton loading */

@@ -66,7 +66,6 @@ export const RetentionPolicyManager: React.FC = () => {
       setStatsData(data);
       
     } catch (error) {
-      console.error('خطأ في تحميل إحصائيات الاحتفاظ:', error);
       setError(error instanceof Error ? error.message : 'خطأ غير متوقع');
     } finally {
       setLoading(false);
@@ -131,7 +130,6 @@ export const RetentionPolicyManager: React.FC = () => {
         window.URL.revokeObjectURL(url);
       }
     } catch (error) {
-      console.error('خطأ في تنزيل البيانات:', error);
       setError('فشل في تحميل البيانات للتصدير');
     } finally {
       setCleanupLoading(false);
@@ -160,7 +158,6 @@ export const RetentionPolicyManager: React.FC = () => {
       
       return result;
     } catch (error) {
-      console.error('خطأ في تنظيف السجلات:', error);
       return { success: false, error: error.message };
     } finally {
       setCleanupLoading(false);
@@ -623,4 +620,4 @@ export const RetentionPolicyManager: React.FC = () => {
       </Tabs>
     </motion.div>
   );
-}; 
+};

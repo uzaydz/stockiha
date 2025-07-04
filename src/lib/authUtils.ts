@@ -39,7 +39,6 @@ export async function getCurrentUserOptimized(): Promise<{ user: any; error: any
   
   // منع الطلبات المتزامنة الزائدة
   if (activeRequests >= MAX_CONCURRENT_REQUESTS) {
-    console.warn('🚦 [Auth] تجاهل طلب جلب المستخدم - عدد كبير من الطلبات النشطة');
     return { user: currentUserCache?.user || null, error: null };
   }
   
@@ -58,7 +57,6 @@ export async function getCurrentUserOptimized(): Promise<{ user: any; error: any
       
       return { user, error };
     } catch (error) {
-      console.error('❌ [Auth] خطأ في جلب المستخدم:', error);
       return { user: null, error };
     } finally {
       activeRequests--;
@@ -130,7 +128,6 @@ export async function getCurrentSessionOptimized(): Promise<{ session: any; erro
       
       return { session, error };
     } catch (error) {
-      console.error('❌ [Auth] خطأ في جلب الجلسة:', error);
       return { session: null, error };
     }
   })();
@@ -173,4 +170,4 @@ export function setupAuthCacheListeners(): void {
       clearAllAuthCaches();
     }
   });
-} 
+}

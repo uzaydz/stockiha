@@ -31,7 +31,6 @@ export const AuthPerformanceMonitor: React.FC<{
       const currentStats = getAuthPerformanceStats();
       setStats(currentStats);
     } catch (error) {
-      console.warn('⚠️ فشل في جلب إحصائيات المصادقة:', error);
     }
   };
 
@@ -179,7 +178,6 @@ export const AuthPerformanceMonitor: React.FC<{
                 </button>
                 <button
                   onClick={() => {
-                    console.log('📊 Auth Stats:', stats);
                     alert('تم طباعة الإحصائيات في Console');
                   }}
                   className="px-2 py-1 bg-gray-600 hover:bg-gray-700 rounded text-xs transition-colors"
@@ -215,4 +213,4 @@ export const AuthPerformanceMonitor: React.FC<{
   );
 };
 
-export default AuthPerformanceMonitor; 
+export default AuthPerformanceMonitor;

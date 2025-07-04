@@ -26,7 +26,6 @@ async function getAnalyticsUserId(): Promise<string> {
     
     return userId;
   } catch (error) {
-    console.warn('⚠️ [Analytics] فشل في جلب معرف المستخدم، استخدام معرف افتراضي');
     return '00000000-0000-0000-0000-000000000000';
   }
 }

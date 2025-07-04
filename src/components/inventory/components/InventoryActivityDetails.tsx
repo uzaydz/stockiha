@@ -541,4 +541,4 @@ const InventoryActivityDetails: React.FC<InventoryActivityDetailsProps> = ({
   );
 };
 
-export default InventoryActivityDetails; 
+export default InventoryActivityDetails;

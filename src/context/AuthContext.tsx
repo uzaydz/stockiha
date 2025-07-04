@@ -353,10 +353,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // دالة تحديث البيانات
   const refreshData = useCallback(async () => {
-    console.log('🔄 [AuthContext] refreshData بدء التنفيذ:', { hasUser: !!user, hasSession: !!session });
     
     if (!user || !session) {
-      console.log('❌ [AuthContext] لا يوجد مستخدم أو جلسة:', { user: !!user, session: !!session });
       return;
     }
 
@@ -798,7 +796,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             org = await getOrganizationById(profile.organization_id);
             setOrganization(org);
           } catch (orgError) {
-            console.warn('فشل في تحميل بيانات المؤسسة:', orgError);
             setOrganization(null);
           }
         } else {
@@ -816,7 +813,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         saveUserDataToStorage(profile, org, profile.organization_id);
       }
     } catch (error) {
-      console.warn('خطأ في تحميل بيانات المستخدم:', error);
       
       // استخدام البيانات المحفوظة عند الخطأ
       if (savedUserData.userProfile && savedUserData.userProfile.id === user.id) {

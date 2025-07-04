@@ -22,7 +22,6 @@ const clearOldSubscriptionCache = () => {
     localStorage.removeItem(key);
   });
   
-  console.log('🧹 [useSubscriptionServices] تم مسح cache القديم');
 };
 
 export const useSubscriptionServices = (organizationId: string | undefined) => {

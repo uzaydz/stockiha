@@ -1,11 +1,22 @@
 -- 🎯 دالة RPC شاملة للتحليلات المالية المتقدمة
 -- تحسب جميع مصادر الإيرادات والأرباح بطريقة مثالية
 
+-- 🗑️ حذف النسخة القديمة من الدالة لتجنب التعارض
+DROP FUNCTION IF EXISTS get_complete_financial_analytics(UUID, TIMESTAMP WITH TIME ZONE, TIMESTAMP WITH TIME ZONE, UUID);
+
 CREATE OR REPLACE FUNCTION get_complete_financial_analytics(
     p_organization_id UUID,
     p_start_date TIMESTAMP WITH TIME ZONE,
     p_end_date TIMESTAMP WITH TIME ZONE,
-    p_employee_id UUID DEFAULT NULL
+    p_employee_id UUID DEFAULT NULL,
+    -- فلاتر متقدمة جديدة
+    p_branch_id UUID DEFAULT NULL,
+    p_transaction_type TEXT DEFAULT NULL,
+    p_payment_method TEXT DEFAULT NULL,
+    p_min_amount NUMERIC DEFAULT NULL,
+    p_max_amount NUMERIC DEFAULT NULL,
+    p_include_partial_payments BOOLEAN DEFAULT TRUE,
+    p_include_refunds BOOLEAN DEFAULT TRUE
 )
 RETURNS TABLE(
     -- إجماليات رئيسية
@@ -160,10 +171,11 @@ BEGIN
                                     p.purchase_price
                                 ) * oi.quantity
                             ELSE
-                                -- للمنتجات العادية: متوسط تكلفة FIFO
+                                -- للمنتجات العادية: أقدم تكلفة FIFO (أول داخل أول خارج)
                                 COALESCE(
-                                    (SELECT AVG(purchase_price) FROM inventory_batches 
-                                     WHERE product_id = p.id AND is_active = true),
+                                    (SELECT purchase_price FROM inventory_batches 
+                                     WHERE product_id = p.id AND is_active = true 
+                                     ORDER BY created_at ASC LIMIT 1),
                                     p.purchase_price
                                 ) * oi.quantity
                         END
@@ -201,12 +213,24 @@ BEGIN
     FROM orders o
     WHERE 
         o.organization_id = p_organization_id
-        AND o.created_at BETWEEN p_start_date AND p_end_date
+        AND o.created_at >= p_start_date::timestamp
+        AND o.created_at < (p_end_date::timestamp + INTERVAL '1 day')
         AND o.status != 'cancelled'
         AND (o.is_online = FALSE OR o.is_online IS NULL)
         AND (p_employee_id IS NULL OR o.employee_id = p_employee_id)
         -- ✅ الشرط المهم: كل طلب مدفوع أو مدفوع جزئياً يحسب فائدته كاملة
-        AND (o.amount_paid > 0 OR o.payment_status = 'paid');
+        AND (
+            CASE 
+                WHEN p_include_partial_payments = TRUE THEN (o.amount_paid > 0 OR o.payment_status = 'paid')
+                ELSE o.payment_status = 'paid'
+            END
+        )
+        -- 🔍 فلاتر متقدمة جديدة (تم إزالة branch_id من orders لأنه غير موجود)
+        -- AND (p_branch_id IS NULL OR o.branch_id = p_branch_id)
+        AND (p_transaction_type IS NULL OR p_transaction_type = 'all' OR p_transaction_type = 'pos')
+        AND (p_payment_method IS NULL OR p_payment_method = 'all' OR o.payment_method = p_payment_method)
+        AND (p_min_amount IS NULL OR o.total >= p_min_amount)
+        AND (p_max_amount IS NULL OR o.total <= p_max_amount);
     
     v_pos_sales_profit := v_pos_sales_revenue - v_pos_sales_cost;
     
@@ -268,15 +292,33 @@ BEGIN
     FROM online_orders oo
     WHERE 
         oo.organization_id = p_organization_id
-        AND oo.created_at BETWEEN p_start_date AND p_end_date
+        AND oo.created_at >= p_start_date::timestamp
+        AND oo.created_at < (p_end_date::timestamp + INTERVAL '1 day')
         AND oo.status != 'cancelled'
         -- ✅ فقط الطلبيات المؤكدة مع العميل (للدفع عند التوصيل)
-        AND EXISTS (
-            SELECT 1 FROM call_confirmation_statuses 
-            WHERE id = oo.call_confirmation_status_id 
-            AND name IN ('confirmed', 'delivered', 'completed')
+        AND (
+            CASE 
+                WHEN p_include_refunds = TRUE THEN 
+                    EXISTS (
+                        SELECT 1 FROM call_confirmation_statuses 
+                        WHERE id = oo.call_confirmation_status_id 
+                        AND name IN ('confirmed', 'delivered', 'completed')
+                    )
+                ELSE 
+                    EXISTS (
+                        SELECT 1 FROM call_confirmation_statuses 
+                        WHERE id = oo.call_confirmation_status_id 
+                        AND name IN ('confirmed', 'delivered', 'completed')
+                    ) AND oo.status != 'returned'
+            END
         )
-        AND (p_employee_id IS NULL OR oo.employee_id = p_employee_id);
+        AND (p_employee_id IS NULL OR oo.employee_id = p_employee_id)
+        -- 🔍 فلاتر متقدمة جديدة للمبيعات الإلكترونية (تم إزالة branch_id من online_orders لأنه غير موجود)
+        -- AND (p_branch_id IS NULL OR oo.branch_id = p_branch_id)
+        AND (p_transaction_type IS NULL OR p_transaction_type = 'all' OR p_transaction_type = 'online')
+        AND (p_payment_method IS NULL OR p_payment_method = 'all' OR oo.payment_method = p_payment_method)
+        AND (p_min_amount IS NULL OR oo.total >= p_min_amount)
+        AND (p_max_amount IS NULL OR oo.total <= p_max_amount);
     
     v_online_sales_profit := v_online_sales_revenue - v_online_sales_cost;
     
@@ -288,9 +330,15 @@ BEGIN
     FROM repair_orders
     WHERE 
         organization_id = p_organization_id
-        AND created_at BETWEEN p_start_date AND p_end_date
+        AND created_at >= p_start_date::timestamp AND created_at < (p_end_date::timestamp + INTERVAL '1 day')
         AND status NOT IN ('ملغي', 'cancelled') -- استبعاد الطلبيات الملغية
-        AND (p_employee_id IS NULL OR received_by = p_employee_id);
+        AND (p_employee_id IS NULL OR received_by = p_employee_id)
+        -- 🔍 فلاتر متقدمة جديدة لخدمات التصليح (تم إزالة branch_id لأنه غير موجود)
+        -- AND (p_branch_id IS NULL OR branch_id = p_branch_id)
+        AND (p_transaction_type IS NULL OR p_transaction_type = 'all' OR p_transaction_type = 'repair')
+        AND (p_payment_method IS NULL OR p_payment_method = 'all' OR payment_method = p_payment_method)
+        AND (p_min_amount IS NULL OR total_cost >= p_min_amount)
+        AND (p_max_amount IS NULL OR total_cost <= p_max_amount);
     
     -- 🔍 رسالة تتبع لخدمات التصليح
     RAISE NOTICE '🔧 خدمات التصليح: المبلغ=%, العدد=%, التاريخ من % إلى %', 
@@ -308,7 +356,7 @@ BEGIN
         FROM service_bookings
         WHERE 
             organization_id = p_organization_id
-            AND scheduled_date BETWEEN p_start_date AND p_end_date;
+            AND scheduled_date >= p_start_date::timestamp AND scheduled_date < (p_end_date::timestamp + INTERVAL '1 day');
     END IF;
     
     -- 🔍 رسالة تتبع لحجز الخدمات
@@ -326,8 +374,14 @@ BEGIN
         FROM game_download_orders
         WHERE 
             organization_id = p_organization_id
-            AND created_at BETWEEN p_start_date AND p_end_date
-            AND (p_employee_id IS NULL OR assigned_to = p_employee_id);
+            AND created_at >= p_start_date::timestamp AND created_at < (p_end_date::timestamp + INTERVAL '1 day')
+            AND (p_employee_id IS NULL OR assigned_to = p_employee_id)
+            -- 🔍 فلاتر متقدمة جديدة لتحميل الألعاب (تم إزالة branch_id لأنه غير موجود)
+            -- AND (p_branch_id IS NULL OR branch_id = p_branch_id)
+            AND (p_transaction_type IS NULL OR p_transaction_type = 'all' OR p_transaction_type = 'games')
+            AND (p_payment_method IS NULL OR p_payment_method = 'all' OR payment_method = p_payment_method)
+            AND (p_min_amount IS NULL OR price >= p_min_amount)
+            AND (p_max_amount IS NULL OR price <= p_max_amount);
     END IF;
     
     -- 🔍 رسالة تتبع لتحميل الألعاب
@@ -346,7 +400,13 @@ BEGIN
         FROM subscription_transactions
         WHERE 
             organization_id = p_organization_id
-            AND created_at BETWEEN p_start_date AND p_end_date;
+            AND created_at >= p_start_date::timestamp AND created_at < (p_end_date::timestamp + INTERVAL '1 day')
+            -- 🔍 فلاتر متقدمة جديدة للاشتراكات (تم إزالة branch_id لأنه غير موجود)
+            -- AND (p_branch_id IS NULL OR branch_id = p_branch_id)
+            AND (p_transaction_type IS NULL OR p_transaction_type = 'all' OR p_transaction_type = 'subscription')
+            AND (p_payment_method IS NULL OR p_payment_method = 'all' OR payment_method = p_payment_method)
+            AND (p_min_amount IS NULL OR amount >= p_min_amount)
+            AND (p_max_amount IS NULL OR amount <= p_max_amount);
             
         -- 🔍 رسالة تتبع للاشتراكات
         RAISE NOTICE '🔒 الاشتراكات: المبلغ=%, التكلفة=%, العدد=%', 
@@ -366,7 +426,7 @@ BEGIN
         FROM currency_sales
         WHERE 
             organization_id = p_organization_id
-            AND created_at BETWEEN p_start_date AND p_end_date;
+            AND created_at >= p_start_date::timestamp AND created_at < (p_end_date::timestamp + INTERVAL '1 day');
             
         -- 🔍 رسالة تتبع لبيع العملات
         RAISE NOTICE '💱 بيع العملات: المبلغ=%, العدد=%', v_currency_revenue, v_currency_count;
@@ -386,7 +446,7 @@ BEGIN
         FROM flexi_sales
         WHERE 
             organization_id = p_organization_id
-            AND created_at BETWEEN p_start_date AND p_end_date;
+            AND created_at >= p_start_date::timestamp AND created_at < (p_end_date::timestamp + INTERVAL '1 day');
             
         -- 🔍 رسالة تتبع لبيع الفليكسي
         RAISE NOTICE '📱 بيع الفليكسي: المبلغ=%, العدد=%', v_flexi_revenue, v_flexi_count;
@@ -397,7 +457,9 @@ BEGIN
     -- ✅ بيع Flexi: كل ما يُدفع = ربح كامل
     v_flexi_profit := v_flexi_revenue;
     
-    -- 💰 9. حساب المديونية وتأثيرها على رأس المال
+    -- 💰 9. حساب المديونية وتأثيرها على رأس المال (تصحيح منطق الحساب)
+    -- الديون المستحقة الحالية (لا ترتبط بتاريخ إنشاء الطلب، بل بالحالة الحالية)
+    -- ولكن للتحليل اليومي، نحتاج الديون من الطلبات التي تمت في النطاق الزمني المحدد
     SELECT 
         COALESCE(SUM(remaining_amount), 0),
         COALESCE(SUM(amount_paid), 0)
@@ -405,7 +467,8 @@ BEGIN
     FROM orders
     WHERE 
         organization_id = p_organization_id
-        AND created_at BETWEEN p_start_date AND p_end_date
+        AND DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Africa/Algiers') >= p_start_date::timestamp::date
+        AND DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Africa/Algiers') <= p_end_date::timestamp::date
         AND remaining_amount > 0
         AND status != 'cancelled'
         AND (is_online = FALSE OR is_online IS NULL);
@@ -425,7 +488,8 @@ BEGIN
     FROM orders o
     WHERE 
         o.organization_id = p_organization_id
-        AND o.created_at BETWEEN p_start_date AND p_end_date
+        AND DATE(o.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Africa/Algiers') >= p_start_date::timestamp::date
+        AND DATE(o.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Africa/Algiers') <= p_end_date::timestamp::date
         AND o.remaining_amount > 0
         AND o.status != 'cancelled'
         AND (o.is_online = FALSE OR o.is_online IS NULL);
@@ -439,7 +503,7 @@ BEGIN
         FROM losses
         WHERE 
             organization_id = p_organization_id
-            AND incident_date BETWEEN p_start_date AND p_end_date;
+            AND incident_date >= p_start_date::timestamp AND incident_date < (p_end_date::timestamp + INTERVAL '1 day');
     END IF;
     
     -- 🔄 11. حساب الإرجاعات
@@ -450,18 +514,20 @@ BEGIN
         FROM returns
         WHERE 
             organization_id = p_organization_id
-            AND created_at BETWEEN p_start_date AND p_end_date;
+            AND created_at >= p_start_date::timestamp AND created_at < (p_end_date::timestamp + INTERVAL '1 day');
     END IF;
     
-    -- 💳 12. حساب المصروفات (تصحيح المشكلة)
-    -- المصروفات العادية - تحديث الشرط ليشمل جميع الحالات المعتمدة
+    -- 💳 12. حساب المصروفات (تصحيح المشكلة الزمنية النهائي)
+    -- المصروفات العادية - استخدام expense_date مع فلتر دقيق للنطاق الزمني المطلوب فقط
     SELECT 
         COALESCE(SUM(amount), 0)
     INTO v_one_time_expenses
     FROM expenses
     WHERE 
         organization_id = p_organization_id
-        AND expense_date BETWEEN p_start_date::DATE AND p_end_date::DATE
+        -- التحويل الصحيح: فقط التواريخ التي تقع ضمن النطاق المطلوب
+        AND expense_date >= p_start_date::timestamp
+        AND expense_date < (p_end_date::timestamp + INTERVAL '1 day')
         AND (is_recurring = FALSE OR is_recurring IS NULL)
         AND (is_deleted = FALSE OR is_deleted IS NULL)
         -- تحديث شرط الحالة ليشمل الحالات المختلفة
@@ -492,14 +558,14 @@ BEGIN
         WHERE 
             e.organization_id = p_organization_id
             AND re.status = 'active'
-            AND re.start_date <= p_end_date::DATE
-            AND (re.end_date IS NULL OR re.end_date >= p_start_date::DATE);
+            AND re.start_date <= p_end_date::timestamp::date
+            AND (re.end_date IS NULL OR re.end_date >= p_start_date::timestamp::date);
     END IF;
     
     -- 📊 13. حساب الإجماليات
     v_total_revenue := v_pos_sales_revenue + v_online_sales_revenue + v_repair_revenue + 
                        v_service_bookings_revenue + v_game_downloads_revenue + 
-                       v_subscription_revenue + v_currency_revenue + v_flexi_revenue - v_returns_amount;
+                       v_subscription_revenue + v_currency_revenue + v_flexi_revenue;
     
     v_total_cost := v_pos_sales_cost + v_online_sales_cost + v_subscription_cost;
     
@@ -509,8 +575,8 @@ BEGIN
     
     v_total_expenses := v_one_time_expenses + v_recurring_expenses;
     
-    -- 💎 الربح الصافي = الربح الإجمالي - المصروفات - الخسائر - الإرجاعات + المبالغ المدفوعة من الديون
-    v_total_net_profit := v_total_gross_profit - v_total_expenses - v_losses_cost - v_returns_amount + v_paid_debt;
+    -- 💎 الربح الصافي = الربح الإجمالي - المصروفات - الخسائر - الإرجاعات (بدون إضافة الديون المدفوعة)
+    v_total_net_profit := v_total_gross_profit - v_total_expenses - v_losses_cost - v_returns_amount;
     
     -- 📈 هامش الربح
     v_profit_margin := CASE 

@@ -1,0 +1,748 @@
+-- 🎯 دالة RPC شاملة للتحليلات المالية المتقدمة
+-- تحسب جميع مصادر الإيرادات والأرباح بطريقة مثالية
+
+CREATE OR REPLACE FUNCTION get_complete_financial_analytics(
+    p_organization_id UUID,
+    p_start_date TIMESTAMP WITH TIME ZONE,
+    p_end_date TIMESTAMP WITH TIME ZONE,
+    p_employee_id UUID DEFAULT NULL,
+    -- فلاتر متقدمة جديدة
+    p_branch_id UUID DEFAULT NULL,
+    p_transaction_type TEXT DEFAULT NULL,
+    p_payment_method TEXT DEFAULT NULL,
+    p_min_amount NUMERIC DEFAULT NULL,
+    p_max_amount NUMERIC DEFAULT NULL,
+    p_include_partial_payments BOOLEAN DEFAULT TRUE,
+    p_include_refunds BOOLEAN DEFAULT TRUE
+)
+RETURNS TABLE(
+    -- إجماليات رئيسية
+    total_revenue NUMERIC,
+    total_cost NUMERIC,
+    total_gross_profit NUMERIC,
+    total_expenses NUMERIC,
+    total_net_profit NUMERIC,
+    profit_margin_percentage NUMERIC,
+    
+    -- تفاصيل المبيعات
+    pos_sales_revenue NUMERIC,
+    pos_sales_cost NUMERIC,
+    pos_sales_profit NUMERIC,
+    pos_orders_count INTEGER,
+    
+    online_sales_revenue NUMERIC,
+    online_sales_cost NUMERIC,
+    online_sales_profit NUMERIC,
+    online_orders_count INTEGER,
+    
+    -- الخدمات
+    repair_services_revenue NUMERIC,
+    repair_services_profit NUMERIC,
+    repair_orders_count INTEGER,
+    
+    service_bookings_revenue NUMERIC,
+    service_bookings_profit NUMERIC,
+    service_bookings_count INTEGER,
+    
+    game_downloads_revenue NUMERIC,
+    game_downloads_profit NUMERIC,
+    game_downloads_count INTEGER,
+    
+    subscription_services_revenue NUMERIC,
+    subscription_services_profit NUMERIC,
+    subscription_transactions_count INTEGER,
+    
+    currency_sales_revenue NUMERIC,
+    currency_sales_profit NUMERIC,
+    currency_sales_count INTEGER,
+    
+    flexi_sales_revenue NUMERIC,
+    flexi_sales_profit NUMERIC,
+    flexi_sales_count INTEGER,
+    
+    -- المديونية
+    total_debt_amount NUMERIC,
+    debt_impact_on_capital NUMERIC,
+    paid_debt_amount NUMERIC,
+    
+    -- الخسائر والإرجاعات
+    total_losses_cost NUMERIC,
+    total_losses_selling_value NUMERIC,
+    total_returns_amount NUMERIC,
+    
+    -- المصروفات
+    one_time_expenses NUMERIC,
+    recurring_expenses_annual NUMERIC,
+    
+    -- تحليلات إضافية
+    avg_order_value NUMERIC,
+    total_transactions_count INTEGER,
+    
+    -- تفاصيل JSON للتحليل المتقدم
+    detailed_breakdown JSONB
+) AS $$
+DECLARE
+    -- متغيرات للمبيعات POS
+    v_pos_sales_revenue NUMERIC := 0;
+    v_pos_sales_cost NUMERIC := 0;
+    v_pos_sales_profit NUMERIC := 0;
+    v_pos_orders_count INTEGER := 0;
+    
+    -- متغيرات للمبيعات Online
+    v_online_sales_revenue NUMERIC := 0;
+    v_online_sales_cost NUMERIC := 0;
+    v_online_sales_profit NUMERIC := 0;
+    v_online_orders_count INTEGER := 0;
+    
+    -- متغيرات للخدمات
+    v_repair_revenue NUMERIC := 0;
+    v_repair_profit NUMERIC := 0;
+    v_repair_count INTEGER := 0;
+    
+    v_service_bookings_revenue NUMERIC := 0;
+    v_service_bookings_profit NUMERIC := 0;
+    v_service_bookings_count INTEGER := 0;
+    
+    v_game_downloads_revenue NUMERIC := 0;
+    v_game_downloads_profit NUMERIC := 0;
+    v_game_downloads_count INTEGER := 0;
+    
+    v_subscription_revenue NUMERIC := 0;
+    v_subscription_cost NUMERIC := 0;
+    v_subscription_profit NUMERIC := 0;
+    v_subscription_count INTEGER := 0;
+    
+    v_currency_revenue NUMERIC := 0;
+    v_currency_profit NUMERIC := 0;
+    v_currency_count INTEGER := 0;
+    
+    v_flexi_revenue NUMERIC := 0;
+    v_flexi_profit NUMERIC := 0;
+    v_flexi_count INTEGER := 0;
+    
+    -- متغيرات المديونية والخسائر
+    v_total_debt NUMERIC := 0;
+    v_debt_impact NUMERIC := 0;
+    v_paid_debt NUMERIC := 0;
+    
+    v_losses_cost NUMERIC := 0;
+    v_losses_selling NUMERIC := 0;
+    v_returns_amount NUMERIC := 0;
+    
+    -- متغيرات المصروفات
+    v_one_time_expenses NUMERIC := 0;
+    v_recurring_expenses NUMERIC := 0;
+    
+    -- متغيرات إجمالية
+    v_total_revenue NUMERIC := 0;
+    v_total_cost NUMERIC := 0;
+    v_total_gross_profit NUMERIC := 0;
+    v_total_expenses NUMERIC := 0;
+    v_total_net_profit NUMERIC := 0;
+    v_profit_margin NUMERIC := 0;
+    v_avg_order_value NUMERIC := 0;
+    v_total_transactions INTEGER := 0;
+    
+    v_detailed_breakdown JSONB;
+BEGIN
+    
+    -- 🛒 1. حساب أرباح مبيعات نقطة البيع (POS)
+    SELECT 
+        COALESCE(SUM(o.total), 0),
+        COALESCE(SUM(
+            CASE 
+                -- حساب التكلفة باستخدام نظام FIFO أو سعر الشراء العادي
+                WHEN EXISTS (
+                    SELECT 1 FROM inventory_batches ib 
+                    JOIN order_items oi ON oi.product_id = ib.product_id 
+                    WHERE oi.order_id = o.id
+                ) THEN (
+                    -- استخدام FIFO cost من inventory_batches
+                    SELECT COALESCE(SUM(
+                        CASE 
+                            WHEN oi.color_id IS NOT NULL OR oi.size_id IS NOT NULL THEN
+                                -- للمتغيرات: استخدام متوسط سعر المتغير أو السعر الأساسي
+                                COALESCE(
+                                    (SELECT pc.purchase_price FROM product_colors pc WHERE pc.id = oi.color_id),
+                                    (SELECT ps.purchase_price FROM product_sizes ps WHERE ps.id = oi.size_id),
+                                    p.purchase_price
+                                ) * oi.quantity
+                            ELSE
+                                -- للمنتجات العادية: متوسط تكلفة FIFO
+                                COALESCE(
+                                    (SELECT AVG(purchase_price) FROM inventory_batches 
+                                     WHERE product_id = p.id AND is_active = true),
+                                    p.purchase_price
+                                ) * oi.quantity
+                        END
+                    ), 0)
+                    FROM order_items oi
+                    JOIN products p ON oi.product_id = p.id
+                    WHERE oi.order_id = o.id
+                )
+                ELSE (
+                    -- الطريقة التقليدية للمنتجات بدون FIFO
+                    SELECT COALESCE(SUM(
+                        CASE 
+                            WHEN oi.color_id IS NOT NULL THEN
+                                COALESCE(
+                                    (SELECT pc.purchase_price FROM product_colors pc WHERE pc.id = oi.color_id),
+                                    p.purchase_price
+                                ) * oi.quantity
+                            WHEN oi.size_id IS NOT NULL THEN
+                                COALESCE(
+                                    (SELECT ps.purchase_price FROM product_sizes ps WHERE ps.id = oi.size_id),
+                                    p.purchase_price
+                                ) * oi.quantity
+                            ELSE
+                                p.purchase_price * oi.quantity
+                        END
+                    ), 0)
+                    FROM order_items oi
+                    JOIN products p ON oi.product_id = p.id
+                    WHERE oi.order_id = o.id
+                )
+            END
+        ), 0),
+        COUNT(*)
+    INTO v_pos_sales_revenue, v_pos_sales_cost, v_pos_orders_count
+    FROM orders o
+    WHERE 
+        o.organization_id = p_organization_id
+        AND o.created_at >= p_start_date::timestamp
+        AND o.created_at < (p_end_date::timestamp + INTERVAL '1 day')
+        AND o.status != 'cancelled'
+        AND (o.is_online = FALSE OR o.is_online IS NULL)
+        AND (p_employee_id IS NULL OR o.employee_id = p_employee_id)
+        -- ✅ الشرط المهم: كل طلب مدفوع أو مدفوع جزئياً يحسب فائدته كاملة
+        AND (
+            CASE 
+                WHEN p_include_partial_payments = TRUE THEN (o.amount_paid > 0 OR o.payment_status = 'paid')
+                ELSE o.payment_status = 'paid'
+            END
+        )
+        -- 🔍 فلاتر متقدمة جديدة (تم إزالة branch_id من orders لأنه غير موجود)
+        -- AND (p_branch_id IS NULL OR o.branch_id = p_branch_id)
+        AND (p_transaction_type IS NULL OR p_transaction_type = 'all' OR p_transaction_type = 'pos')
+        AND (p_payment_method IS NULL OR p_payment_method = 'all' OR o.payment_method = p_payment_method)
+        AND (p_min_amount IS NULL OR o.total >= p_min_amount)
+        AND (p_max_amount IS NULL OR o.total <= p_max_amount);
+    
+    v_pos_sales_profit := v_pos_sales_revenue - v_pos_sales_cost;
+    
+    -- 🌐 2. حساب أرباح المبيعات الإلكترونية
+    SELECT 
+        COALESCE(SUM(oo.total), 0),
+        COALESCE(SUM(
+            CASE 
+                WHEN EXISTS (
+                    SELECT 1 FROM inventory_batches ib 
+                    JOIN online_order_items ooi ON ooi.product_id = ib.product_id 
+                    WHERE ooi.order_id = oo.id
+                ) THEN (
+                    SELECT COALESCE(SUM(
+                        CASE 
+                            WHEN ooi.color_id IS NOT NULL OR ooi.size_id IS NOT NULL THEN
+                                COALESCE(
+                                    (SELECT pc.purchase_price FROM product_colors pc WHERE pc.id = ooi.color_id),
+                                    (SELECT ps.purchase_price FROM product_sizes ps WHERE ps.id = ooi.size_id),
+                                    p.purchase_price
+                                ) * ooi.quantity
+                            ELSE
+                                COALESCE(
+                                    (SELECT AVG(purchase_price) FROM inventory_batches 
+                                     WHERE product_id = p.id AND is_active = true),
+                                    p.purchase_price
+                                ) * ooi.quantity
+                        END
+                    ), 0)
+                    FROM online_order_items ooi
+                    JOIN products p ON ooi.product_id = p.id
+                    WHERE ooi.order_id = oo.id
+                )
+                ELSE (
+                    SELECT COALESCE(SUM(
+                        CASE 
+                            WHEN ooi.color_id IS NOT NULL THEN
+                                COALESCE(
+                                    (SELECT pc.purchase_price FROM product_colors pc WHERE pc.id = ooi.color_id),
+                                    p.purchase_price
+                                ) * ooi.quantity
+                            WHEN ooi.size_id IS NOT NULL THEN
+                                COALESCE(
+                                    (SELECT ps.purchase_price FROM product_sizes ps WHERE ps.id = ooi.size_id),
+                                    p.purchase_price
+                                ) * ooi.quantity
+                            ELSE
+                                p.purchase_price * ooi.quantity
+                        END
+                    ), 0)
+                    FROM online_order_items ooi
+                    JOIN products p ON ooi.product_id = p.id
+                    WHERE ooi.order_id = oo.id
+                )
+            END
+        ), 0),
+        COUNT(*)
+    INTO v_online_sales_revenue, v_online_sales_cost, v_online_orders_count
+    FROM online_orders oo
+    WHERE 
+        oo.organization_id = p_organization_id
+        AND oo.created_at >= p_start_date::timestamp
+        AND oo.created_at < (p_end_date::timestamp + INTERVAL '1 day')
+        AND oo.status != 'cancelled'
+        -- ✅ فقط الطلبيات المؤكدة مع العميل (للدفع عند التوصيل)
+        AND (
+            CASE 
+                WHEN p_include_refunds = TRUE THEN 
+                    EXISTS (
+                        SELECT 1 FROM call_confirmation_statuses 
+                        WHERE id = oo.call_confirmation_status_id 
+                        AND name IN ('confirmed', 'delivered', 'completed')
+                    )
+                ELSE 
+                    EXISTS (
+                        SELECT 1 FROM call_confirmation_statuses 
+                        WHERE id = oo.call_confirmation_status_id 
+                        AND name IN ('confirmed', 'delivered', 'completed')
+                    ) AND oo.status != 'returned'
+            END
+        )
+        AND (p_employee_id IS NULL OR oo.employee_id = p_employee_id)
+        -- 🔍 فلاتر متقدمة جديدة للمبيعات الإلكترونية (تم إزالة branch_id من online_orders لأنه غير موجود)
+        -- AND (p_branch_id IS NULL OR oo.branch_id = p_branch_id)
+        AND (p_transaction_type IS NULL OR p_transaction_type = 'all' OR p_transaction_type = 'online')
+        AND (p_payment_method IS NULL OR p_payment_method = 'all' OR oo.payment_method = p_payment_method)
+        AND (p_min_amount IS NULL OR oo.total >= p_min_amount)
+        AND (p_max_amount IS NULL OR oo.total <= p_max_amount);
+    
+    v_online_sales_profit := v_online_sales_revenue - v_online_sales_cost;
+    
+    -- 🔧 3. حساب أرباح خدمات التصليح
+    SELECT 
+        COALESCE(SUM(CASE WHEN paid_amount > 0 THEN paid_amount ELSE 0 END), 0),
+        COUNT(CASE WHEN paid_amount > 0 THEN 1 END)
+    INTO v_repair_revenue, v_repair_count
+    FROM repair_orders
+    WHERE 
+        organization_id = p_organization_id
+        AND created_at BETWEEN p_start_date AND p_end_date
+        AND status NOT IN ('ملغي', 'cancelled') -- استبعاد الطلبيات الملغية
+        AND (p_employee_id IS NULL OR received_by = p_employee_id)
+        -- 🔍 فلاتر متقدمة جديدة لخدمات التصليح (تم إزالة branch_id لأنه غير موجود)
+        -- AND (p_branch_id IS NULL OR branch_id = p_branch_id)
+        AND (p_transaction_type IS NULL OR p_transaction_type = 'all' OR p_transaction_type = 'repair')
+        AND (p_payment_method IS NULL OR p_payment_method = 'all' OR payment_method = p_payment_method)
+        AND (p_min_amount IS NULL OR total_cost >= p_min_amount)
+        AND (p_max_amount IS NULL OR total_cost <= p_max_amount);
+    
+    -- 🔍 رسالة تتبع لخدمات التصليح
+    RAISE NOTICE '🔧 خدمات التصليح: المبلغ=%, العدد=%, التاريخ من % إلى %', 
+        v_repair_revenue, v_repair_count, p_start_date, p_end_date;
+    
+    -- ✅ خدمات التصليح: كل ما يُدفع = ربح كامل (بدون تكلفة شراء)
+    v_repair_profit := v_repair_revenue;
+    
+    -- 📅 4. حساب أرباح الحجوزات والخدمات
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'service_bookings') THEN
+        SELECT 
+            COALESCE(SUM(CASE WHEN status = 'completed' THEN price ELSE 0 END), 0),
+            COUNT(CASE WHEN status = 'completed' THEN 1 END)
+        INTO v_service_bookings_revenue, v_service_bookings_count
+        FROM service_bookings
+        WHERE 
+            organization_id = p_organization_id
+            AND scheduled_date BETWEEN p_start_date AND p_end_date;
+    END IF;
+    
+    -- 🔍 رسالة تتبع لحجز الخدمات
+    RAISE NOTICE '📅 حجز الخدمات: المبلغ=%, العدد=%', v_service_bookings_revenue, v_service_bookings_count;
+    
+    -- ✅ الخدمات المحجوزة: كل ما يُدفع = ربح كامل
+    v_service_bookings_profit := v_service_bookings_revenue;
+    
+    -- 🎮 5. حساب أرباح تحميل الألعاب
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'game_download_orders') THEN
+        SELECT 
+            COALESCE(SUM(CASE WHEN payment_status IN ('paid', 'partial') THEN amount_paid ELSE 0 END), 0),
+            COUNT(CASE WHEN payment_status IN ('paid', 'partial') THEN 1 END)
+        INTO v_game_downloads_revenue, v_game_downloads_count
+        FROM game_download_orders
+        WHERE 
+            organization_id = p_organization_id
+            AND created_at BETWEEN p_start_date AND p_end_date
+            AND (p_employee_id IS NULL OR assigned_to = p_employee_id)
+            -- 🔍 فلاتر متقدمة جديدة لتحميل الألعاب (تم إزالة branch_id لأنه غير موجود)
+            -- AND (p_branch_id IS NULL OR branch_id = p_branch_id)
+            AND (p_transaction_type IS NULL OR p_transaction_type = 'all' OR p_transaction_type = 'games')
+            AND (p_payment_method IS NULL OR p_payment_method = 'all' OR payment_method = p_payment_method)
+            AND (p_min_amount IS NULL OR price >= p_min_amount)
+            AND (p_max_amount IS NULL OR price <= p_max_amount);
+    END IF;
+    
+    -- 🔍 رسالة تتبع لتحميل الألعاب
+    RAISE NOTICE '🎮 تحميل الألعاب: المبلغ=%, العدد=%', v_game_downloads_revenue, v_game_downloads_count;
+    
+    -- ✅ تحميل الألعاب: كل ما يُدفع = ربح كامل (خدمة رقمية)
+    v_game_downloads_profit := v_game_downloads_revenue;
+    
+    -- 🔒 6. حساب أرباح خدمات الاشتراك
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'subscription_transactions') THEN
+        SELECT 
+            COALESCE(SUM(CASE WHEN payment_status IN ('paid', 'completed') THEN amount ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN payment_status IN ('paid', 'completed') THEN COALESCE(cost, 0) ELSE 0 END), 0),
+            COUNT(CASE WHEN payment_status IN ('paid', 'completed') THEN 1 END)
+        INTO v_subscription_revenue, v_subscription_cost, v_subscription_count
+        FROM subscription_transactions
+        WHERE 
+            organization_id = p_organization_id
+            AND created_at BETWEEN p_start_date AND p_end_date
+            -- 🔍 فلاتر متقدمة جديدة للاشتراكات (تم إزالة branch_id لأنه غير موجود)
+            -- AND (p_branch_id IS NULL OR branch_id = p_branch_id)
+            AND (p_transaction_type IS NULL OR p_transaction_type = 'all' OR p_transaction_type = 'subscription')
+            AND (p_payment_method IS NULL OR p_payment_method = 'all' OR payment_method = p_payment_method)
+            AND (p_min_amount IS NULL OR amount >= p_min_amount)
+            AND (p_max_amount IS NULL OR amount <= p_max_amount);
+            
+        -- 🔍 رسالة تتبع للاشتراكات
+        RAISE NOTICE '🔒 الاشتراكات: المبلغ=%, التكلفة=%, العدد=%', 
+            v_subscription_revenue, v_subscription_cost, v_subscription_count;
+    ELSE
+        RAISE NOTICE '⚠️ جدول subscription_transactions غير موجود';
+    END IF;
+    
+    v_subscription_profit := v_subscription_revenue - v_subscription_cost;
+    
+    -- 💱 7. حساب أرباح بيع العملات
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'currency_sales') THEN
+        SELECT 
+            COALESCE(SUM(CASE WHEN status = 'completed' THEN amount ELSE 0 END), 0),
+            COUNT(CASE WHEN status = 'completed' THEN 1 END)
+        INTO v_currency_revenue, v_currency_count
+        FROM currency_sales
+        WHERE 
+            organization_id = p_organization_id
+            AND created_at BETWEEN p_start_date AND p_end_date;
+            
+        -- 🔍 رسالة تتبع لبيع العملات
+        RAISE NOTICE '💱 بيع العملات: المبلغ=%, العدد=%', v_currency_revenue, v_currency_count;
+    ELSE
+        RAISE NOTICE '⚠️ جدول currency_sales غير موجود';
+    END IF;
+    
+    -- ✅ بيع العملات: كل ما يُدفع = ربح كامل
+    v_currency_profit := v_currency_revenue;
+    
+    -- 📱 8. حساب أرباح بيع رصيد Flexi
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'flexi_sales') THEN
+        SELECT 
+            COALESCE(SUM(CASE WHEN status = 'completed' THEN amount ELSE 0 END), 0),
+            COUNT(CASE WHEN status = 'completed' THEN 1 END)
+        INTO v_flexi_revenue, v_flexi_count
+        FROM flexi_sales
+        WHERE 
+            organization_id = p_organization_id
+            AND created_at BETWEEN p_start_date AND p_end_date;
+            
+        -- 🔍 رسالة تتبع لبيع الفليكسي
+        RAISE NOTICE '📱 بيع الفليكسي: المبلغ=%, العدد=%', v_flexi_revenue, v_flexi_count;
+    ELSE
+        RAISE NOTICE '⚠️ جدول flexi_sales غير موجود';
+    END IF;
+    
+    -- ✅ بيع Flexi: كل ما يُدفع = ربح كامل
+    v_flexi_profit := v_flexi_revenue;
+    
+    -- 💰 9. حساب المديونية وتأثيرها على رأس المال
+    SELECT 
+        COALESCE(SUM(remaining_amount), 0),
+        COALESCE(SUM(amount_paid), 0)
+    INTO v_total_debt, v_paid_debt
+    FROM orders
+    WHERE 
+        organization_id = p_organization_id
+        AND created_at BETWEEN p_start_date AND p_end_date
+        AND remaining_amount > 0
+        AND status != 'cancelled'
+        AND (is_online = FALSE OR is_online IS NULL);
+    
+    -- 💸 حساب تأثير المديونية على رأس المال
+    -- المديونية = خسارة مؤقتة من رأس المال إلى أن يتم الدفع
+    SELECT 
+        COALESCE(SUM(
+            (o.total - o.amount_paid) - (
+                SELECT COALESCE(SUM(p.purchase_price * oi.quantity), 0)
+                FROM order_items oi
+                JOIN products p ON oi.product_id = p.id
+                WHERE oi.order_id = o.id
+            )
+        ), 0)
+    INTO v_debt_impact
+    FROM orders o
+    WHERE 
+        o.organization_id = p_organization_id
+        AND o.created_at BETWEEN p_start_date AND p_end_date
+        AND o.remaining_amount > 0
+        AND o.status != 'cancelled'
+        AND (o.is_online = FALSE OR o.is_online IS NULL);
+    
+    -- 📉 10. حساب الخسائر
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'losses') THEN
+        SELECT 
+            COALESCE(SUM(CASE WHEN status IN ('approved', 'processed') THEN total_cost_value ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN status IN ('approved', 'processed') THEN total_selling_value ELSE 0 END), 0)
+        INTO v_losses_cost, v_losses_selling
+        FROM losses
+        WHERE 
+            organization_id = p_organization_id
+            AND incident_date BETWEEN p_start_date AND p_end_date;
+    END IF;
+    
+    -- 🔄 11. حساب الإرجاعات
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'returns') THEN
+        SELECT 
+            COALESCE(SUM(CASE WHEN status IN ('approved', 'completed') THEN refund_amount ELSE 0 END), 0)
+        INTO v_returns_amount
+        FROM returns
+        WHERE 
+            organization_id = p_organization_id
+            AND created_at BETWEEN p_start_date AND p_end_date;
+    END IF;
+    
+    -- 💳 12. حساب المصروفات (تصحيح المشكلة)
+    -- المصروفات العادية - تحديث الشرط ليشمل جميع الحالات المعتمدة
+    SELECT 
+        COALESCE(SUM(amount), 0)
+    INTO v_one_time_expenses
+    FROM expenses
+    WHERE 
+        organization_id = p_organization_id
+        AND expense_date BETWEEN p_start_date::DATE AND p_end_date::DATE
+        AND (is_recurring = FALSE OR is_recurring IS NULL)
+        AND (is_deleted = FALSE OR is_deleted IS NULL)
+        -- تحديث شرط الحالة ليشمل الحالات المختلفة
+        AND (
+            status IN ('approved', 'completed', 'paid') 
+            OR status IS NULL 
+            OR status = ''
+        );
+    
+    -- المصروفات المتكررة (تقدير سنوي مقسوم على الفترة)
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'recurring_expenses') THEN
+        SELECT 
+            COALESCE(SUM(
+                CASE re.frequency
+                    WHEN 'daily' THEN e.amount * 365
+                    WHEN 'weekly' THEN e.amount * 52
+                    WHEN 'monthly' THEN e.amount * 12
+                    WHEN 'quarterly' THEN e.amount * 4
+                    WHEN 'yearly' THEN e.amount
+                    ELSE e.amount * 12 -- افتراضي شهري
+                END * (
+                    EXTRACT(DAYS FROM (p_end_date - p_start_date)) / 365.0
+                )
+            ), 0)
+        INTO v_recurring_expenses
+        FROM recurring_expenses re
+        JOIN expenses e ON re.expense_id = e.id
+        WHERE 
+            e.organization_id = p_organization_id
+            AND re.status = 'active'
+            AND re.start_date <= p_end_date::DATE
+            AND (re.end_date IS NULL OR re.end_date >= p_start_date::DATE);
+    END IF;
+    
+    -- 📊 13. حساب الإجماليات
+    v_total_revenue := v_pos_sales_revenue + v_online_sales_revenue + v_repair_revenue + 
+                       v_service_bookings_revenue + v_game_downloads_revenue + 
+                       v_subscription_revenue + v_currency_revenue + v_flexi_revenue - v_returns_amount;
+    
+    v_total_cost := v_pos_sales_cost + v_online_sales_cost + v_subscription_cost;
+    
+    v_total_gross_profit := v_pos_sales_profit + v_online_sales_profit + v_repair_profit + 
+                           v_service_bookings_profit + v_game_downloads_profit + 
+                           v_subscription_profit + v_currency_profit + v_flexi_profit;
+    
+    v_total_expenses := v_one_time_expenses + v_recurring_expenses;
+    
+    -- 💎 الربح الصافي = الربح الإجمالي - المصروفات - الخسائر - الإرجاعات + المبالغ المدفوعة من الديون
+    v_total_net_profit := v_total_gross_profit - v_total_expenses - v_losses_cost - v_returns_amount + v_paid_debt;
+    
+    -- 📈 هامش الربح
+    v_profit_margin := CASE 
+        WHEN v_total_revenue > 0 THEN (v_total_net_profit / v_total_revenue) * 100
+        ELSE 0 
+    END;
+    
+    -- 📊 متوسط قيمة الطلب
+    v_total_transactions := v_pos_orders_count + v_online_orders_count + v_repair_count + 
+                           v_service_bookings_count + v_game_downloads_count + 
+                           v_subscription_count + v_currency_count + v_flexi_count;
+    
+    v_avg_order_value := CASE 
+        WHEN v_total_transactions > 0 THEN v_total_revenue / v_total_transactions
+        ELSE 0 
+    END;
+    
+    -- 🗂️ 14. إنشاء تفاصيل JSON
+    v_detailed_breakdown := jsonb_build_object(
+        'sales_breakdown', jsonb_build_object(
+            'pos_sales', jsonb_build_object(
+                'revenue', v_pos_sales_revenue,
+                'cost', v_pos_sales_cost, 
+                'profit', v_pos_sales_profit,
+                'orders_count', v_pos_orders_count
+            ),
+            'online_sales', jsonb_build_object(
+                'revenue', v_online_sales_revenue,
+                'cost', v_online_sales_cost,
+                'profit', v_online_sales_profit, 
+                'orders_count', v_online_orders_count
+            )
+        ),
+        'services_breakdown', jsonb_build_object(
+            'repair_services', jsonb_build_object(
+                'revenue', v_repair_revenue,
+                'profit', v_repair_profit,
+                'orders_count', v_repair_count
+            ),
+            'service_bookings', jsonb_build_object(
+                'revenue', v_service_bookings_revenue,
+                'profit', v_service_bookings_profit,
+                'bookings_count', v_service_bookings_count
+            ),
+            'game_downloads', jsonb_build_object(
+                'revenue', v_game_downloads_revenue,
+                'profit', v_game_downloads_profit,
+                'downloads_count', v_game_downloads_count
+            ),
+            'subscriptions', jsonb_build_object(
+                'revenue', v_subscription_revenue,
+                'cost', v_subscription_cost,
+                'profit', v_subscription_profit,
+                'transactions_count', v_subscription_count
+            ),
+            'currency_sales', jsonb_build_object(
+                'revenue', v_currency_revenue,
+                'profit', v_currency_profit,
+                'sales_count', v_currency_count
+            ),
+            'flexi_sales', jsonb_build_object(
+                'revenue', v_flexi_revenue,
+                'profit', v_flexi_profit,
+                'sales_count', v_flexi_count
+            )
+        ),
+        'financial_health', jsonb_build_object(
+            'debt_analysis', jsonb_build_object(
+                'total_debt', v_total_debt,
+                'paid_debt', v_paid_debt,
+                'debt_impact_on_capital', v_debt_impact
+            ),
+            'losses_and_returns', jsonb_build_object(
+                'losses_cost_value', v_losses_cost,
+                'losses_selling_value', v_losses_selling,
+                'returns_amount', v_returns_amount
+            ),
+            'expenses', jsonb_build_object(
+                'one_time_expenses', v_one_time_expenses,
+                'recurring_expenses_prorated', v_recurring_expenses
+            )
+        )
+    );
+    
+    -- 📋 15. إرجاع النتائج
+    RETURN QUERY
+    SELECT 
+        v_total_revenue,
+        v_total_cost,
+        v_total_gross_profit,
+        v_total_expenses,
+        v_total_net_profit,
+        v_profit_margin,
+        
+        v_pos_sales_revenue,
+        v_pos_sales_cost,
+        v_pos_sales_profit,
+        v_pos_orders_count,
+        
+        v_online_sales_revenue,
+        v_online_sales_cost,
+        v_online_sales_profit,
+        v_online_orders_count,
+        
+        v_repair_revenue,
+        v_repair_profit,
+        v_repair_count,
+        
+        v_service_bookings_revenue,
+        v_service_bookings_profit,
+        v_service_bookings_count,
+        
+        v_game_downloads_revenue,
+        v_game_downloads_profit,
+        v_game_downloads_count,
+        
+        v_subscription_revenue,
+        v_subscription_profit,
+        v_subscription_count,
+        
+        v_currency_revenue,
+        v_currency_profit,
+        v_currency_count,
+        
+        v_flexi_revenue,
+        v_flexi_profit,
+        v_flexi_count,
+        
+        v_total_debt,
+        v_debt_impact,
+        v_paid_debt,
+        
+        v_losses_cost,
+        v_losses_selling,
+        v_returns_amount,
+        
+        v_one_time_expenses,
+        v_recurring_expenses,
+        
+        v_avg_order_value,
+        v_total_transactions,
+        
+        v_detailed_breakdown;
+        
+END;
+$$ LANGUAGE plpgsql;
+
+-- 📝 تعليق على الدالة
+COMMENT ON FUNCTION get_complete_financial_analytics(UUID, TIMESTAMP WITH TIME ZONE, TIMESTAMP WITH TIME ZONE, UUID) IS 
+'دالة شاملة لحساب جميع الإيرادات والأرباح والخسائر مع دعم:
+- نقطة البيع مع نظام FIFO والمتغيرات
+- المبيعات الإلكترونية (فقط المؤكدة)
+- خدمات التصليح والحجوزات
+- تحميل الألعاب
+- خدمات الاشتراك مع أسعار الشراء والبيع
+- بيع العملات والرصيد
+- المديونية وتأثيرها على رأس المال
+- الخسائر والإرجاعات
+- المصروفات العادية والمتكررة
+- التحليل التفصيلي بصيغة JSON';
+
+-- ✅ إنشاء فهرس لتحسين الأداء
+CREATE INDEX IF NOT EXISTS idx_financial_analytics_orders_date_org 
+ON orders(organization_id, created_at, status, is_online) 
+WHERE status != 'cancelled';
+
+CREATE INDEX IF NOT EXISTS idx_financial_analytics_online_orders_date_org 
+ON online_orders(organization_id, created_at, status, call_confirmation_status_id) 
+WHERE status != 'cancelled';
+
+CREATE INDEX IF NOT EXISTS idx_financial_analytics_expenses_date_org 
+ON expenses(organization_id, expense_date, status, is_recurring);
+
+-- 🎉 اختبار الدالة
+-- SELECT * FROM get_complete_financial_analytics(
+--     'your-organization-id'::UUID,
+--     '2025-01-01 00:00:00+00'::TIMESTAMP WITH TIME ZONE,
+--     '2025-12-31 23:59:59+00'::TIMESTAMP WITH TIME ZONE
+-- ); 

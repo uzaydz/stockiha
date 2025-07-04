@@ -25,6 +25,7 @@ interface CartProps {
   customers: User[];
   updateItemQuantity: (index: number, quantity: number) => void;
   removeItemFromCart: (index: number) => void;
+  updateItemPrice?: (index: number, price: number) => void;
   clearCart: () => void;
   submitOrder: (order: Partial<Order>) => Promise<{orderId: string, customerOrderNumber: number}>;
   currentUser: User | null;
@@ -36,7 +37,13 @@ interface CartProps {
   })[];
   removeService?: (serviceId: string) => void;
   updateServicePrice?: (serviceId: string, price: number) => void;
-  selectedSubscriptions?: any[];
+  selectedSubscriptions?: {
+    id: string;
+    name?: string;
+    final_price?: number;
+    selling_price?: number;
+    [key: string]: unknown;
+  }[];
   removeSubscription?: (subscriptionId: string) => void;
   updateSubscriptionPrice?: (subscriptionId: string, price: number) => void;
   isReturnMode?: boolean;
@@ -51,6 +58,7 @@ export default function Cart({
   customers,
   updateItemQuantity,
   removeItemFromCart,
+  updateItemPrice,
   clearCart,
   submitOrder,
   currentUser,
@@ -227,11 +235,9 @@ export default function Cart({
       return;
     }
 
-    console.log('🚀 [handleAddCustomer] بدء إنشاء عميل جديد:', newCustomer);
     setIsAddingCustomer(true);
     try {
       const createdCustomer = await createCustomer(newCustomer);
-      console.log('✅ [handleAddCustomer] تم إنشاء العميل:', createdCustomer);
       
       if (createdCustomer) {
         setSelectedCustomer(createdCustomer);
@@ -239,7 +245,6 @@ export default function Cart({
         setIsNewCustomerDialogOpen(false);
         setNewCustomer({ name: '', email: '', phone: '' });
         
-        console.log('🔄 [handleAddCustomer] إرسال حدث تحديث العملاء');
         // 🔄 تحديث React Query cache للعملاء
         // إشعار النظام بضرورة إعادة تحميل بيانات العملاء
         window.dispatchEvent(new CustomEvent('customers-updated', { 
@@ -248,14 +253,12 @@ export default function Cart({
         
         // إضافة تأخير قصير للتأكد من التحديث
         setTimeout(() => {
-          console.log('🔄 [handleAddCustomer] تحديث إضافي بعد ثانية واحدة');
           window.dispatchEvent(new CustomEvent('customers-updated', { 
             detail: { newCustomer: createdCustomer } 
           }));
         }, 1000);
       }
     } catch (error) {
-      console.error('❌ [handleAddCustomer] خطأ في إنشاء العميل:', error);
       toast.error("حدث خطأ أثناء إضافة العميل");
     } finally {
       setIsAddingCustomer(false);
@@ -281,7 +284,7 @@ export default function Cart({
       }
       
       const numAmountPaid = parseFloat(amountPaid);
-      const paymentStatus = (numAmountPaid >= finalTotal || (isPartialPayment && !considerRemainingAsPartial)) ? 'paid' : 'pending';
+      const paymentStatus: 'paid' | 'pending' | 'failed' = (numAmountPaid >= finalTotal || (isPartialPayment && !considerRemainingAsPartial)) ? 'paid' : 'pending';
 
       // 🚀 تحضير بيانات الطلب بشكل محسن
       const orderDetails = {
@@ -312,14 +315,6 @@ export default function Cart({
       };
 
       // في وضع الإرجاع، استخدام دالة الإرجاع، وإلا استخدام الدالة السريعة
-      console.log(`🔄 [CART] نوع العملية: ${isReturnMode ? 'إرجاع' : 'بيع'}`);
-      console.log('🔍 [CART] تشخيص البيانات قبل الإرسال:', {
-        cartItemsLength: cartItems.length,
-        selectedServicesLength: selectedServices.length,
-        selectedSubscriptionsLength: selectedSubscriptions.length,
-        cartItems: cartItems,
-        orderDetails: orderDetails
-      });
       
       const orderResult = isReturnMode 
         ? await submitOrder(orderDetails)
@@ -329,8 +324,6 @@ export default function Cart({
             selectedServices,
             selectedSubscriptions
           );
-          
-      console.log(`✅ [CART] نتيجة العملية:`, orderResult);
 
       // التحقق من نجاح العملية
       if (!orderResult || !orderResult.orderId) {
@@ -375,9 +368,9 @@ export default function Cart({
         }, { timeout: 100 });
       }
 
-    } catch (error: any) {
-      console.error('❌ [CART] خطأ في handlePaymentComplete:', error);
-      toast.error(error?.message || "حدث خطأ أثناء إنشاء الطلب");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'حدث خطأ غير معروف';
+      toast.error(errorMessage || "حدث خطأ أثناء إنشاء الطلب");
     }
   }, [
     cartItems,
@@ -391,7 +384,7 @@ export default function Cart({
     returnNotes,
     isSubmitting,
     amountPaid,
-    total,
+
     paymentMethod,
     subtotal,
     actualDiscountAmount,
@@ -522,6 +515,8 @@ export default function Cart({
                     index={index}
                     updateItemQuantity={updateItemQuantity}
                     removeItemFromCart={removeItemFromCart}
+                    updateItemPrice={updateItemPrice}
+                    canEditPrice={true}
                     relatedProducts={[]}
                     onRelatedProductClick={handleRelatedProductClick}
                   />
@@ -583,11 +578,6 @@ export default function Cart({
       />
       
       {/* نوافذ حوارية محسنة */}
-      {console.log('🔍 [Cart] العملاء المُمررة إلى PaymentDialog:', { 
-        customersLength: customers.length, 
-        customers: customers,
-        isPaymentDialogOpen: isPaymentDialogOpen
-      })}
       <PaymentDialogOptimized
         isOpen={isPaymentDialogOpen}
         onOpenChange={setIsPaymentDialogOpen}

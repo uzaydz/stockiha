@@ -563,7 +563,6 @@ export const DashboardRoutes = () => (
             </PermissionGuard>
           </SubscriptionCheck>
         } />
-        
 
       </Route>
     </Route>

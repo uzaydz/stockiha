@@ -110,7 +110,6 @@ const QuickExpenseDialog: React.FC<QuickExpenseDialogProps> = ({
       
       onOpenChange(false);
     } catch (error) {
-      console.error('Error creating expense:', error);
       toast.error('فشل في إضافة المصروف', {
         description: 'حدث خطأ أثناء إضافة المصروف. يرجى المحاولة مرة أخرى.',
       });
@@ -140,7 +139,6 @@ const QuickExpenseDialog: React.FC<QuickExpenseDialogProps> = ({
       setShowNewCategoryForm(false);
       setNewCategoryName('');
     } catch (error) {
-      console.error('Error creating category:', error);
       toast.error('فشل في إنشاء الفئة', {
         description: 'حدث خطأ أثناء إنشاء الفئة. يرجى المحاولة مرة أخرى.',
       });
@@ -389,4 +387,4 @@ const QuickExpenseDialog: React.FC<QuickExpenseDialogProps> = ({
   );
 };
 
-export default QuickExpenseDialog; 
+export default QuickExpenseDialog;
