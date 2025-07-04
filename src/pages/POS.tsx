@@ -30,6 +30,7 @@ import RepairServiceDialog from '@/components/repair/RepairServiceDialog';
 import RepairOrderPrint from '@/components/repair/RepairOrderPrint';
 import QuickReturnDialog from '@/components/pos/QuickReturnDialog';
 import CalculatorComponent from '@/components/pos/Calculator';
+import QuickExpenseDialog from '@/components/pos/QuickExpenseDialog';
 
 // استيراد مكونات UI
 import {
@@ -88,6 +89,7 @@ const POS = () => {
   const [repairQueuePosition, setRepairQueuePosition] = useState(0);
   const [isQuickReturnOpen, setIsQuickReturnOpen] = useState(false);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
+  const [isQuickExpenseOpen, setIsQuickExpenseOpen] = useState(false);
 
   // مرجع لدالة تحديث المخزون
   const productCatalogUpdateFunction = useRef<((productId: string, stockChange: number) => void) | null>(null);
@@ -119,6 +121,14 @@ const POS = () => {
     updatedAt: new Date(customer.updated_at || customer.created_at),
     organization_id: customer.organization_id
   }));
+
+  console.log('🔍 [POS] تشخيص العملاء:', {
+    allCustomersLength: allCustomers.length,
+    allCustomers: allCustomers,
+    filteredUsersLength: filteredUsers.length,
+    filteredUsers: filteredUsers,
+    posDataCustomers: posData?.customers
+  });
 
   // Hook السلة المحسن
   const {
@@ -212,6 +222,7 @@ const POS = () => {
     onQuickReturnOpen: () => setIsQuickReturnOpen(true),
     onPOSSettingsOpen: () => setIsPOSSettingsOpen(true),
     onRefreshData: refreshProducts,
+    onQuickExpenseOpen: () => setIsQuickExpenseOpen(true),
     isLoading: isPOSDataLoading
   });
 
@@ -361,6 +372,7 @@ const POS = () => {
           onPOSSettingsOpen={() => setIsPOSSettingsOpen(true)}
           onRepairDialogOpen={() => setIsRepairDialogOpen(true)}
           onRefreshData={handleRefreshData}
+          onQuickExpenseOpen={() => setIsQuickExpenseOpen(true)}
         />
           
           <div className="grid grid-cols-12 gap-4 h-full">
@@ -523,6 +535,12 @@ const POS = () => {
       <CalculatorComponent
         isOpen={isCalculatorOpen}
         onOpenChange={setIsCalculatorOpen}
+      />
+
+      {/* نافذة المصروف السريع */}
+      <QuickExpenseDialog
+        isOpen={isQuickExpenseOpen}
+        onOpenChange={setIsQuickExpenseOpen}
       />
 
       {/* نافذة طباعة وصل التصليح */}

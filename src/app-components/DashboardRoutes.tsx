@@ -240,6 +240,17 @@ export const DashboardRoutes = () => (
           </SubscriptionCheck>
         } />
         
+        {/* التحليلات المالية الشاملة */}
+        <Route path="/dashboard/financial-analytics" element={
+          <SubscriptionCheck>
+            <PermissionGuard requiredPermissions={['viewFinancialReports']}>
+              <Suspense fallback={<PageLoader message="جاري تحميل التحليلات المالية..." />}>
+                <LazyRoutes.FinancialAnalytics />
+              </Suspense>
+            </PermissionGuard>
+          </SubscriptionCheck>
+        } />
+        
         {/* نقطة البيع */}
         <Route path="/dashboard/pos" element={
           <ConditionalRoute appId="pos-system">
@@ -247,6 +258,19 @@ export const DashboardRoutes = () => (
               <PermissionGuard requiredPermissions={['accessPOS']}>
                 <Suspense fallback={<PageLoader message="جاري تحميل نقطة البيع..." />}>
                   <LazyRoutes.POSOptimized />
+                </Suspense>
+              </PermissionGuard>
+            </SubscriptionCheck>
+          </ConditionalRoute>
+        } />
+        
+        {/* نقطة البيع المتقدمة */}
+        <Route path="/dashboard/pos-advanced" element={
+          <ConditionalRoute appId="pos-system">
+            <SubscriptionCheck>
+              <PermissionGuard requiredPermissions={['accessPOS']}>
+                <Suspense fallback={<PageLoader message="جاري تحميل نقطة البيع المتقدمة..." />}>
+                  <LazyRoutes.POSAdvanced />
                 </Suspense>
               </PermissionGuard>
             </SubscriptionCheck>
@@ -539,6 +563,8 @@ export const DashboardRoutes = () => (
             </PermissionGuard>
           </SubscriptionCheck>
         } />
+        
+
       </Route>
     </Route>
   </>

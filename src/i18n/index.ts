@@ -406,7 +406,8 @@ const arTranslations = {
     "deliveryMethod": "طريقة التوصيل",
     "freeShipping": "شحن مجاني!",
     "shippingPrice": "سعر الشحن",
-    "deliveryOptions": "خيارات التوصيل"
+    "deliveryOptions": "خيارات التوصيل",
+    "usingFallbackProvinces": "يتم استخدام قائمة الولايات الاحتياطية"
   },
   "common": {
     "loading": "جاري التحميل...",
@@ -845,7 +846,8 @@ const enTranslations = {
     "toHome": "To Home",
     "totalAmount": "Total Amount",
     "currency": "DZD",
-    "required": "*"
+    "required": "*",
+    "usingFallbackProvinces": "Using fallback provinces list"
   },
   "common": {
     "loading": "Loading...",
@@ -1284,7 +1286,8 @@ const frTranslations = {
     "toHome": "À Domicile",
     "totalAmount": "Montant Total",
     "currency": "DZD",
-    "required": "*"
+    "required": "*",
+    "usingFallbackProvinces": "Utilisation de la liste de provinces de secours"
   },
   "common": {
     "loading": "Chargement...",

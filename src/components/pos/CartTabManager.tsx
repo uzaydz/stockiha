@@ -101,6 +101,12 @@ const CartTabManager: React.FC<CartTabManagerProps> = ({
   returnNotes = '',
   setReturnNotes = () => {}
 }) => {
+  console.log('🔍 [CartTabManager] العملاء المُمررة:', { 
+    customersLength: customers.length, 
+    customers: customers,
+    activeTabId: activeTabId
+  });
+  
   const [editingTabId, setEditingTabId] = useState<string>('');
   const [editingName, setEditingName] = useState<string>('');
 

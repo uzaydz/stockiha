@@ -47,4 +47,89 @@
   .custom-form {
     padding: 0 1rem;
   }
+  
+  /* تحسين عرض حقول الولايات والبلديات على الهاتف المحمول */
+  .custom-form select {
+    font-size: 16px; /* منع التكبير التلقائي على iOS */
+    min-height: 44px; /* الحد الأدنى للمس المريح */
+    padding: 12px 16px;
+    -webkit-appearance: none;
+    appearance: none;
+    background-size: 12px;
+    background-position: left 12px center;
+    background-repeat: no-repeat;
+  }
+  
+  /* تحسين العرض على الشاشات الصغيرة جداً */
+  @media (max-width: 480px) {
+    .custom-form select {
+      font-size: 16px;
+      padding: 14px 18px;
+      border-radius: 8px;
+    }
+    
+    .custom-form label {
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+    
+    /* تحسين المسافات */
+    .custom-form .mb-4 {
+      margin-bottom: 1.5rem;
+    }
+  }
+  
+  /* تحسين أيقونة السهم في حقل select */
+  .custom-form .relative .pointer-events-none {
+    right: 12px;
+    left: auto;
+  }
+  
+  /* تحسين عرض الأخطاء */
+  .custom-form .text-red-500 {
+    font-size: 12px;
+    margin-top: 4px;
+  }
+  
+  /* تحسين عرض النصوص المساعدة */
+  .custom-form .text-muted-foreground {
+    font-size: 12px;
+    line-height: 1.4;
+  }
+}
+
+/* تحسينات إضافية للمتصفحات المختلفة */
+.custom-form select::-ms-expand {
+  display: none; /* إخفاء السهم الافتراضي في IE */
+}
+
+/* تحسين التركيز على الأجهزة المحمولة */
+@media (hover: none) and (pointer: coarse) {
+  .custom-form select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(var(--color-primary), 0.3);
+  }
+}
+
+/* تحسين الحالة المعطلة */
+.custom-form select:disabled {
+  background-color: rgba(0, 0, 0, 0.05);
+  color: rgba(0, 0, 0, 0.5);
+}
+
+/* تحسين عرض skeleton loading */
+.custom-form .animate-pulse {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 } 

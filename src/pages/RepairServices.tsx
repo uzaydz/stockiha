@@ -34,6 +34,13 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -69,7 +76,11 @@ import {
   Loader2,
   RefreshCw,
   ChevronDown,
-  AlertTriangle
+  AlertTriangle,
+  X,
+  SlidersHorizontal,
+  Smartphone,
+  MapPin
 } from 'lucide-react';
 
 import RepairServiceDialog from '@/components/repair/RepairServiceDialog';
@@ -93,6 +104,7 @@ interface RepairOrder {
   order_number?: string;
   customer_name: string;
   customer_phone: string;
+  device_type?: string;
   repair_location_id?: string;
   custom_location?: string;
   issue_description?: string;
@@ -181,6 +193,17 @@ const RepairServicesContent = () => {
   const [repairOrders, setRepairOrders] = useState<RepairOrder[]>([]);
   const [filteredOrders, setFilteredOrders] = useState<RepairOrder[]>([]);
   
+  // حالة الفلترة المتقدمة
+  const [isAdvancedFilterOpen, setIsAdvancedFilterOpen] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState<string>('all');
+  const [selectedDeviceType, setSelectedDeviceType] = useState<string>('all');
+  const [searchType, setSearchType] = useState<'all' | 'name' | 'phone' | 'order' | 'device'>('all');
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'price_asc' | 'price_desc'>('newest');
+  
+  // بيانات للفلترة
+  const [repairLocations, setRepairLocations] = useState<RepairLocation[]>([]);
+  const [deviceTypes, setDeviceTypes] = useState<string[]>([]);
+  
   // حالة نوافذ العمل
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -208,15 +231,16 @@ const RepairServicesContent = () => {
     cancelled: 0,
   });
   
-  // جلب طلبيات التصليح
+  // جلب طلبيات التصليح وبيانات الفلترة
   useEffect(() => {
-    const fetchRepairOrders = async () => {
+    const fetchData = async () => {
       if (!organizationId) return;
       
       try {
         setIsLoading(true);
         
-        const { data, error } = await supabase
+        // جلب طلبيات التصليح
+        const { data: ordersData, error: ordersError } = await supabase
           .from('repair_orders')
           .select(`
             *,
@@ -228,12 +252,31 @@ const RepairServicesContent = () => {
           .eq('organization_id', organizationId)
           .order('created_at', { ascending: false });
           
-        if (error) throw error;
+        if (ordersError) throw ordersError;
         
-        if (data) {
+        // جلب أماكن التصليح
+        const { data: locationsData, error: locationsError } = await supabase
+          .from('repair_locations')
+          .select('*')
+          .eq('organization_id', organizationId)
+          .eq('is_active', true)
+          .order('name');
+          
+        if (locationsError) throw locationsError;
+        
+        if (ordersData) {
           // تحويل البيانات إلى نوع RepairOrder
-          const typedData = data as unknown as RepairOrder[];
+          const typedData = ordersData as unknown as RepairOrder[];
           setRepairOrders(typedData);
+          
+          // استخراج أنواع الأجهزة الفريدة
+          const uniqueDeviceTypes = [...new Set(
+            typedData
+              .map(order => order.device_type)
+              .filter(type => type && type.trim() !== '' && type !== 'غير محدد')
+          )].sort();
+          
+          setDeviceTypes(uniqueDeviceTypes);
           
           // حساب الإحصائيات
           const statusCounts = {
@@ -248,17 +291,22 @@ const RepairServicesContent = () => {
         } else {
           setRepairOrders([]);
         }
+        
+        if (locationsData) {
+          setRepairLocations(locationsData);
+        }
+        
       } catch (error) {
-        toast.error('فشل في جلب طلبيات التصليح');
+        toast.error('فشل في جلب البيانات');
       } finally {
         setIsLoading(false);
       }
     };
     
-    fetchRepairOrders();
-  }, [supabase, organizationId]);
+    fetchData();
+  }, [organizationId]);
   
-  // تصفية الطلبيات حسب التبويب والبحث
+  // تصفية الطلبيات المتقدمة
   useEffect(() => {
     let filtered = [...repairOrders];
     
@@ -274,19 +322,96 @@ const RepairServicesContent = () => {
       filtered = filtered.filter(order => order.status === statusMap[activeTab]);
     }
     
+    // تصفية حسب مكان التصليح
+    if (selectedLocation !== 'all') {
+      if (selectedLocation === 'custom') {
+        filtered = filtered.filter(order => order.custom_location && !order.repair_location_id);
+      } else {
+        filtered = filtered.filter(order => order.repair_location_id === selectedLocation);
+      }
+    }
+    
+    // تصفية حسب نوع الجهاز
+    if (selectedDeviceType !== 'all') {
+      filtered = filtered.filter(order => order.device_type === selectedDeviceType);
+    }
+    
     // تصفية حسب البحث
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(order => 
-        order.customer_name.toLowerCase().includes(query) ||
-        order.customer_phone.includes(query) ||
-        (order.order_number && order.order_number.toLowerCase().includes(query)) ||
-        (order.repair_tracking_code && order.repair_tracking_code.toLowerCase().includes(query))
-      );
+      
+      switch (searchType) {
+        case 'name':
+          filtered = filtered.filter(order => 
+            order.customer_name.toLowerCase().includes(query)
+          );
+          break;
+        case 'phone':
+          filtered = filtered.filter(order => 
+            order.customer_phone.includes(query)
+          );
+          break;
+        case 'order':
+          filtered = filtered.filter(order => 
+            (order.order_number && order.order_number.toLowerCase().includes(query)) ||
+            (order.repair_tracking_code && order.repair_tracking_code.toLowerCase().includes(query))
+          );
+          break;
+        case 'device':
+          filtered = filtered.filter(order => 
+            order.device_type && order.device_type.toLowerCase().includes(query)
+          );
+          break;
+        default: // 'all'
+          filtered = filtered.filter(order => 
+            order.customer_name.toLowerCase().includes(query) ||
+            order.customer_phone.includes(query) ||
+            (order.order_number && order.order_number.toLowerCase().includes(query)) ||
+            (order.repair_tracking_code && order.repair_tracking_code.toLowerCase().includes(query)) ||
+            (order.device_type && order.device_type.toLowerCase().includes(query)) ||
+            (order.repair_location?.name && order.repair_location.name.toLowerCase().includes(query)) ||
+            (order.custom_location && order.custom_location.toLowerCase().includes(query))
+          );
+      }
+    }
+    
+    // ترتيب النتائج
+    switch (sortBy) {
+      case 'oldest':
+        filtered.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        break;
+      case 'price_asc':
+        filtered.sort((a, b) => a.total_price - b.total_price);
+        break;
+      case 'price_desc':
+        filtered.sort((a, b) => b.total_price - a.total_price);
+        break;
+      default: // 'newest'
+        filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     }
     
     setFilteredOrders(filtered);
-  }, [repairOrders, activeTab, searchQuery]);
+  }, [repairOrders, activeTab, searchQuery, selectedLocation, selectedDeviceType, searchType, sortBy]);
+  
+  // دالة إعادة تعيين الفلاتر
+  const resetFilters = () => {
+    setSearchQuery('');
+    setSelectedLocation('all');
+    setSelectedDeviceType('all');
+    setSearchType('all');
+    setSortBy('newest');
+    setActiveTab('all');
+  };
+  
+  // عدد الفلاتر النشطة
+  const activeFiltersCount = [
+    searchQuery !== '',
+    selectedLocation !== 'all',
+    selectedDeviceType !== 'all',
+    searchType !== 'all',
+    sortBy !== 'newest',
+    activeTab !== 'all'
+  ].filter(Boolean).length;
   
   // التعامل مع إضافة طلبية جديدة
   const handleAddSuccess = async (orderId: string, trackingCode: string) => {
@@ -741,51 +866,161 @@ const RepairServicesContent = () => {
         </div>
         
         {/* شريط التبويب والبحث */}
-        <div className="bg-card rounded-md shadow-sm border p-2">
-          <div className="flex flex-col md:flex-row justify-between gap-4 p-2">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full md:w-auto">
-              <TabsList>
-                <TabsTrigger value="all">الكل</TabsTrigger>
-                <TabsTrigger value="pending">قيد الانتظار</TabsTrigger>
-                <TabsTrigger value="inProgress">جاري التصليح</TabsTrigger>
-                <TabsTrigger value="completed">مكتمل</TabsTrigger>
-                <TabsTrigger value="cancelled">ملغي</TabsTrigger>
+        <div className="bg-card rounded-md shadow-sm border">
+          <div className="flex flex-col gap-4 p-4">
+            {/* التبويبات */}
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="grid w-full grid-cols-5">
+                <TabsTrigger value="all">الكل ({stats.total})</TabsTrigger>
+                <TabsTrigger value="pending">قيد الانتظار ({stats.pending})</TabsTrigger>
+                <TabsTrigger value="inProgress">جاري التصليح ({stats.inProgress})</TabsTrigger>
+                <TabsTrigger value="completed">مكتمل ({stats.completed})</TabsTrigger>
+                <TabsTrigger value="cancelled">ملغي ({stats.cancelled})</TabsTrigger>
               </TabsList>
             </Tabs>
             
-            <div className="flex gap-2">
-              <div className="relative w-full md:w-auto">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="بحث..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8 pr-4 w-full md:w-[250px]"
-                />
+            {/* شريط البحث والفلاتر */}
+            <div className="flex flex-col lg:flex-row gap-4">
+              {/* البحث */}
+              <div className="flex flex-1 gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder={
+                      searchType === 'name' ? "البحث بالاسم..." :
+                      searchType === 'phone' ? "البحث برقم الهاتف..." :
+                      searchType === 'order' ? "البحث برقم الطلبية..." :
+                      searchType === 'device' ? "البحث بنوع الجهاز..." :
+                      "البحث في جميع الحقول..."
+                    }
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 pr-4"
+                  />
+                </div>
+                
+                <Select value={searchType} onValueChange={(value) => setSearchType(value as any)}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">جميع الحقول</SelectItem>
+                    <SelectItem value="name">الاسم</SelectItem>
+                    <SelectItem value="phone">رقم الهاتف</SelectItem>
+                    <SelectItem value="order">رقم الطلبية</SelectItem>
+                    <SelectItem value="device">نوع الجهاز</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon">
-                    <Filter className="h-4 w-4" />
+              {/* الفلاتر والترتيب */}
+              <div className="flex gap-2">
+                <Button
+                  variant={isAdvancedFilterOpen ? "default" : "outline"}
+                  onClick={() => setIsAdvancedFilterOpen(!isAdvancedFilterOpen)}
+                  className="gap-2"
+                >
+                  <SlidersHorizontal className="h-4 w-4" />
+                  فلاتر متقدمة
+                  {activeFiltersCount > 0 && (
+                    <Badge variant="secondary" className="ml-1">
+                      {activeFiltersCount}
+                    </Badge>
+                  )}
+                </Button>
+                
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="gap-2">
+                      <Filter className="h-4 w-4" />
+                      ترتيب
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => setSortBy('newest')}>
+                      الأحدث أولاً
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortBy('oldest')}>
+                      الأقدم أولاً
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortBy('price_asc')}>
+                      السعر (تصاعدي)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortBy('price_desc')}>
+                      السعر (تنازلي)
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                
+                {activeFiltersCount > 0 && (
+                  <Button variant="ghost" onClick={resetFilters} className="gap-2">
+                    <X className="h-4 w-4" />
+                    إعادة تعيين
                   </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem>
-                    الأحدث أولاً
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    الأقدم أولاً
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    السعر (تصاعدي)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    السعر (تنازلي)
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                )}
+              </div>
             </div>
+            
+            {/* الفلاتر المتقدمة */}
+            {isAdvancedFilterOpen && (
+              <div className="border-t pt-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {/* فلتر مكان التصليح */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      مكان التصليح
+                    </Label>
+                    <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="اختر مكان التصليح" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">جميع الأماكن</SelectItem>
+                        <SelectItem value="custom">أماكن مخصصة</SelectItem>
+                        {repairLocations.map((location) => (
+                          <SelectItem key={location.id} value={location.id}>
+                            {location.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* فلتر نوع الجهاز */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium flex items-center gap-2">
+                      <Smartphone className="h-4 w-4" />
+                      نوع الجهاز
+                    </Label>
+                    <Select value={selectedDeviceType} onValueChange={setSelectedDeviceType}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="اختر نوع الجهاز" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">جميع الأجهزة</SelectItem>
+                        {deviceTypes.map((deviceType) => (
+                          <SelectItem key={deviceType} value={deviceType}>
+                            {deviceType}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* إحصائيات سريعة */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">النتائج المفلترة</Label>
+                    <div className="text-2xl font-bold text-primary">
+                      {filteredOrders.length}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      من أصل {repairOrders.length} طلبية
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           
           {/* جدول طلبيات التصليح */}
@@ -812,6 +1047,7 @@ const RepairServicesContent = () => {
                   <TableRow>
                     <TableHead>رقم الطلبية</TableHead>
                     <TableHead>العميل</TableHead>
+                    <TableHead>نوع الجهاز</TableHead>
                     <TableHead>الحالة</TableHead>
                     <TableHead>مكان التصليح</TableHead>
                     <TableHead>السعر</TableHead>
@@ -824,13 +1060,30 @@ const RepairServicesContent = () => {
                   {filteredOrders.map(order => (
                     <TableRow key={order.id} className="hover:bg-muted/50">
                       <TableCell className="font-medium" onClick={() => handleViewOrder(order)}>
-                        {order.order_number || order.id.slice(0, 8)}
+                        <div className="flex flex-col">
+                          <span>{order.order_number || order.id.slice(0, 8)}</span>
+                          {order.repair_tracking_code && (
+                            <span className="text-xs text-muted-foreground">
+                              {order.repair_tracking_code}
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell onClick={() => handleViewOrder(order)}>
                         <div>
-                          <div>{order.customer_name}</div>
+                          <div className="font-medium">{order.customer_name}</div>
                           <div className="text-sm text-muted-foreground">{order.customer_phone}</div>
                         </div>
+                      </TableCell>
+                      <TableCell onClick={() => handleViewOrder(order)}>
+                        {order.device_type ? (
+                          <Badge variant="outline" className="gap-1">
+                            <Smartphone className="h-3 w-3" />
+                            {order.device_type}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">غير محدد</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <DropdownMenu>
@@ -859,7 +1112,12 @@ const RepairServicesContent = () => {
                         </DropdownMenu>
                       </TableCell>
                       <TableCell onClick={() => handleViewOrder(order)}>
-                        {order.repair_location ? order.repair_location.name : order.custom_location || 'غير محدد'}
+                        <div className="flex items-center gap-1">
+                          <MapPin className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-sm">
+                            {order.repair_location ? order.repair_location.name : order.custom_location || 'غير محدد'}
+                          </span>
+                        </div>
                       </TableCell>
                       <TableCell onClick={() => handleViewOrder(order)}>
                         {order.price_to_be_determined_later ? (
@@ -867,14 +1125,14 @@ const RepairServicesContent = () => {
                             يحدد لاحقاً
                           </Badge>
                         ) : (
-                          `${order.total_price.toLocaleString()} دج`
+                          <span className="font-medium">{order.total_price.toLocaleString()} دج</span>
                         )}
                       </TableCell>
                       <TableCell onClick={() => handleViewOrder(order)}>
                         {order.price_to_be_determined_later ? (
                           <span className="text-muted-foreground">-</span>
                         ) : (
-                          `${order.paid_amount.toLocaleString()} دج`
+                          <span className="font-medium">{order.paid_amount.toLocaleString()} دج</span>
                         )}
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm" onClick={() => handleViewOrder(order)}>
@@ -1045,23 +1303,43 @@ const RepairServicesContent = () => {
                       </div>
                       
                       <div className="space-y-2">
+                        <div className="text-sm text-muted-foreground">نوع الجهاز</div>
+                        <div>
+                          {selectedOrder.device_type ? (
+                            <div className="flex items-center gap-2">
+                              <Smartphone className="h-4 w-4 text-muted-foreground" />
+                              <span className="font-medium">{selectedOrder.device_type}</span>
+                            </div>
+                          ) : (
+                            <div className="text-muted-foreground">غير محدد</div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
                         <div className="text-sm text-muted-foreground">مكان التصليح</div>
                         <div>
                           {selectedOrder.repair_location ? (
                             <div>
-                              <div className="font-medium">{selectedOrder.repair_location.name}</div>
+                              <div className="flex items-center gap-2">
+                                <MapPin className="h-4 w-4 text-muted-foreground" />
+                                <span className="font-medium">{selectedOrder.repair_location.name}</span>
+                              </div>
                               {selectedOrder.repair_location.description && (
-                                <div className="text-sm text-muted-foreground">{selectedOrder.repair_location.description}</div>
+                                <div className="text-sm text-muted-foreground ml-6">{selectedOrder.repair_location.description}</div>
                               )}
                               {selectedOrder.repair_location.address && (
-                                <div className="text-sm text-muted-foreground">{selectedOrder.repair_location.address}</div>
+                                <div className="text-sm text-muted-foreground ml-6">{selectedOrder.repair_location.address}</div>
                               )}
                               {selectedOrder.repair_location.phone && (
-                                <div className="text-sm text-muted-foreground">هاتف: {selectedOrder.repair_location.phone}</div>
+                                <div className="text-sm text-muted-foreground ml-6">هاتف: {selectedOrder.repair_location.phone}</div>
                               )}
                             </div>
                           ) : selectedOrder.custom_location ? (
-                            <div className="font-medium">{selectedOrder.custom_location}</div>
+                            <div className="flex items-center gap-2">
+                              <MapPin className="h-4 w-4 text-muted-foreground" />
+                              <span className="font-medium">{selectedOrder.custom_location}</span>
+                            </div>
                           ) : (
                             <div className="text-muted-foreground">غير محدد</div>
                           )}

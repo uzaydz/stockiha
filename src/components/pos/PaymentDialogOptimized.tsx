@@ -126,14 +126,28 @@ export default function PaymentDialogOptimized({
 
   // تصفية العملاء بشكل محسن
   const filteredCustomers = useMemo(() => {
-    if (!searchCustomer.trim()) return customers.slice(0, 8); // عرض أول 8 فقط للأداء
+    console.log('🔍 [PaymentDialog] تشخيص العملاء:', {
+      customersLength: customers.length,
+      customers: customers,
+      searchCustomer: searchCustomer,
+      searchTerm: searchCustomer.trim()
+    });
+    
+    if (!searchCustomer.trim()) {
+      const result = customers.slice(0, 8); // عرض أول 8 فقط للأداء
+      console.log('🔍 [PaymentDialog] بدون بحث - النتيجة:', result);
+      return result;
+    }
     
     const searchTerm = searchCustomer.toLowerCase().trim();
-    return customers.filter(customer => 
+    const filtered = customers.filter(customer => 
       customer.name?.toLowerCase().includes(searchTerm) ||
       customer.phone?.includes(searchTerm) ||
       customer.email?.toLowerCase().includes(searchTerm)
     ).slice(0, 8); // حد أقصى 8 نتائج للأداء
+    
+    console.log('🔍 [PaymentDialog] مع البحث - النتيجة:', filtered);
+    return filtered;
   }, [customers, searchCustomer]);
 
   // حساب سريع محسن

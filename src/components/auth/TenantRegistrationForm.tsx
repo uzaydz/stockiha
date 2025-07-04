@@ -126,8 +126,7 @@ const TenantRegistrationForm = () => {
 
     setIsLoading(true);
     try {
-      
-      const { success, error } = await registerTenant({
+      const { success, error, organizationId } = await registerTenant({
         name: values.name,
         email: values.email,
         phone: values.phone,
@@ -136,15 +135,37 @@ const TenantRegistrationForm = () => {
         subdomain: values.subdomain,
       });
       
-      if (success) {
+      if (success && organizationId) {
         toast.success('🎉 تم إنشاء حساب المسؤول بنجاح! مرحباً بك في ستوكيها');
-        setTimeout(() => {
-          navigate('/dashboard');
-        }, 1000);
+        
+        // انتظار قصير للتأكد من تحديث TenantContext
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        // التحقق من تحديث المؤسسة في localStorage
+        const storedOrgId = localStorage.getItem('bazaar_organization_id');
+        if (storedOrgId === organizationId) {
+          console.log('✅ [TenantRegistrationForm] تم تأكيد تحديث بيانات المؤسسة');
+          navigate('/dashboard', { replace: true });
+        } else {
+          // إذا لم تتحدث البيانات، أجبر التحديث
+          console.log('🔄 [TenantRegistrationForm] إجبار تحديث البيانات...');
+          localStorage.setItem('bazaar_organization_id', organizationId);
+          
+          // إرسال event إضافي للتأكد
+          window.dispatchEvent(new CustomEvent('organizationChanged', {
+            detail: { organizationId }
+          }));
+          
+          // انتظار إضافي ثم الانتقال
+          setTimeout(() => {
+            navigate('/dashboard', { replace: true });
+          }, 500);
+        }
       } else {
-        toast.error(`فشل التسجيل: ${error?.message || 'حدث خطأ غير متوقع'}`);
+        toast.error(`فشل التسجيل: ${error || 'حدث خطأ غير متوقع'}`);
       }
     } catch (error) {
+      console.error('❌ [TenantRegistrationForm] خطأ في التسجيل:', error);
       toast.error('حدث خطأ أثناء التسجيل. يرجى المحاولة مرة أخرى.');
     } finally {
       setIsLoading(false);

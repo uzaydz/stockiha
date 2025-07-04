@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { Database } from '@/types/database.types';
+import { supabase } from './supabase-unified';
 
 // هذه القيم يجب أن تكون مخزنة في متغيرات البيئة
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
@@ -15,6 +16,7 @@ let adminInstanceInitialized = false;
 /**
  * دالة للحصول على عميل Supabase بصلاحيات المسؤول
  * تستخدم نمط Singleton لضمان وجود نسخة واحدة فقط
+ * محسنة لتجنب مشكلة Multiple GoTrueClient instances
  */
 export const getSupabaseAdmin = () => {
   // فحص إضافي للتأكد من عدم وجود عميل مسؤول عالمي
@@ -26,48 +28,54 @@ export const getSupabaseAdmin = () => {
     adminInstanceInitialized = true; // وضع علامة على أن التهيئة قيد التنفيذ
     
     if (!supabaseUrl || !supabaseServiceKey) {
+      console.warn('❌ مفاتيح Supabase Admin غير مكتملة');
       adminInstanceInitialized = false; // إعادة تعيين العلامة في حالة الفشل
       return null;
     }
     
     try {
+      console.log('🔧 [SupabaseAdmin] إنشاء عميل المسؤول المحسن...');
       
       // إنشاء اتصال Supabase باستخدام مفتاح الخدمة لتجاوز سياسات RLS
-      // استخدام إعدادات خاصة لتجنب التعارض مع عميل المستخدم العادي
+      // تم تحسينه لتجنب تعارضات GoTrueClient
       supabaseAdminInstance = createClient<Database>(
         supabaseUrl, 
         supabaseServiceKey,
         {
           auth: {
+            // تعطيل كامل لـ Auth client لتجنب تعدد GoTrueClient instances
             autoRefreshToken: false,
             persistSession: false,
-            // إعدادات محددة لتجنب تعارضات المصادقة
             detectSessionInUrl: false,
-            // استخدام مفتاح تخزين مختلف تمامًا مع عشوائية إضافية
-            storageKey: `bazaar-admin-isolated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            // عدم استخدام التخزين المستمر للجلسة نهائياً - storage خالي تماماً
+            // استخدام مفتاح تخزين فريد مع تأكيد العزل
+            storageKey: `bazaar-admin-noauth-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            // تعطيل التخزين تماماً لتجنب التعارضات
             storage: {
               getItem: () => Promise.resolve(null),
               setItem: () => Promise.resolve(),
               removeItem: () => Promise.resolve()
             },
-            // تعطيل كامل لـ GoTrueClient functionality
-            flowType: undefined as any,
+            // تعطيل كامل لـ GoTrueClient
             debug: false
           },
           global: {
             headers: {
-              'X-Client-Info': 'bazaar-admin-client-isolated',
+              'X-Client-Info': 'bazaar-admin-client-v2',
               'X-Admin-Client': 'true',
               'X-Instance-Id': Date.now().toString(),
-              'X-No-Auth': 'true' // إشارة لعدم استخدام المصادقة
+              'X-Service-Role': 'true',
+              'Authorization': `Bearer ${supabaseServiceKey}` // إضافة التوثيق المباشر
             }
           },
-          // إعدادات إضافية لمنع التداخل
+          // تعطيل realtime تماماً للعميل المسؤول
           realtime: {
             params: {
-              eventsPerSecond: 0 // تعطيل realtime تماماً للعميل المسؤول
+              eventsPerSecond: 0
             }
+          },
+          // إعدادات إضافية لتحسين الأداء
+          db: {
+            schema: 'public'
           }
         }
       );
@@ -77,7 +85,10 @@ export const getSupabaseAdmin = () => {
       (window as any).__BAZAAR_ADMIN_CLIENT__ = supabaseAdminInstance;
       (supabaseAdminInstance as any).__BAZAAR_ADMIN_CLIENT__ = true;
       
+      console.log('✅ [SupabaseAdmin] تم إنشاء عميل المسؤول المحسن بنجاح');
+      
     } catch (error) {
+      console.error('❌ [SupabaseAdmin] فشل إنشاء عميل المسؤول:', error);
       supabaseAdminInstance = null;
       adminInstanceInitialized = false; // إعادة تعيين العلامة في حالة الفشل
       (window as any).__BAZAAR_ADMIN_CLIENT_CREATED__ = false;
@@ -100,10 +111,198 @@ export const supabaseAdmin = new Proxy({} as ReturnType<typeof createClient<Data
 
 // دالة لتنظيف عميل المسؤول عند الحاجة
 export const cleanupAdminClient = () => {
+  console.log('🧹 [SupabaseAdmin] تنظيف عميل المسؤول...');
   supabaseAdminInstance = null;
   adminInstanceInitialized = false;
   (window as any).__BAZAAR_ADMIN_CLIENT_CREATED__ = false;
   (window as any).__BAZAAR_ADMIN_CLIENT__ = null;
+};
+
+/**
+ * دالة بديلة محسنة للعمليات التي تتطلب صلاحيات المسؤول
+ * تستخدم REST API مباشرة بدلاً من إنشاء عميل جديد
+ */
+export const executeAdminOperation = async (operation: {
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+  endpoint: string;
+  data?: any;
+  headers?: Record<string, string>;
+}) => {
+  try {
+    const { method, endpoint, data, headers = {} } = operation;
+    
+    // استخدام fetch مباشرة لتجنب إنشاء عميل جديد
+    const response = await fetch(`${supabaseUrl}/rest/v1/${endpoint}`, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseServiceKey}`,
+        'apikey': supabaseServiceKey,
+        'X-Admin-Direct': 'true',
+        'X-No-GoTrue': 'true',
+        ...headers
+      },
+      body: data ? JSON.stringify(data) : undefined
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`HTTP ${response.status}: ${error}`);
+    }
+
+    // التحقق من وجود محتوى للاستجابة قبل تحليل JSON
+    const responseText = await response.text();
+    let result = null;
+    
+    if (responseText && responseText.trim() !== '') {
+      try {
+        result = JSON.parse(responseText);
+      } catch (jsonError) {
+        console.warn('⚠️ [AdminOperation] تحذير: لا يمكن تحليل الاستجابة كـ JSON:', responseText);
+        result = responseText; // إرجاع النص الخام إذا فشل تحليل JSON
+      }
+    }
+    
+    return { data: result, error: null };
+  } catch (error) {
+    console.error('❌ [AdminOperation] خطأ في العملية:', {
+      error: error instanceof Error ? error.message : error,
+      endpoint: operation.endpoint,
+      method: operation.method,
+      data: operation.data
+    });
+    return { data: null, error };
+  }
+};
+
+/**
+ * دالة مباشرة لتنفيذ RPC باستخدام Service Role
+ */
+export const executeAdminRPC = async (functionName: string, params: any = {}) => {
+  return executeAdminOperation({
+    method: 'POST',
+    endpoint: `rpc/${functionName}`,
+    data: params
+  });
+};
+
+/**
+ * دالة محسنة لإنشاء/تحديث البيانات مع Service Role
+ */
+export const executeAdminQuery = async (table: string, operation: {
+  action: 'select' | 'insert' | 'update' | 'upsert' | 'delete';
+  data?: any;
+  filters?: Record<string, any>;
+  columns?: string;
+}) => {
+  const { action, data, filters, columns = '*' } = operation;
+  
+  let endpoint = table;
+  let method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' = 'GET';
+  let queryParams = '';
+  let body = undefined;
+
+  switch (action) {
+    case 'select':
+      method = 'GET';
+      queryParams = `?select=${columns}`;
+      if (filters) {
+        for (const [key, value] of Object.entries(filters)) {
+          queryParams += `&${key}=eq.${value}`;
+        }
+      }
+      break;
+    
+    case 'insert':
+      method = 'POST';
+      body = data;
+      queryParams = `?select=${columns}`;
+      break;
+    
+    case 'upsert':
+      method = 'POST';
+      body = data;
+      queryParams = `?select=${columns}`;
+      break;
+    
+    case 'update':
+      method = 'PATCH';
+      body = data;
+      queryParams = `?select=${columns}`;
+      if (filters) {
+        for (const [key, value] of Object.entries(filters)) {
+          queryParams += `&${key}=eq.${value}`;
+        }
+      }
+      break;
+    
+    case 'delete':
+      method = 'DELETE';
+      if (filters) {
+        queryParams = '?';
+        for (const [key, value] of Object.entries(filters)) {
+          queryParams += `${key}=eq.${value}&`;
+        }
+        queryParams = queryParams.slice(0, -1);
+      }
+      break;
+  }
+
+  return executeAdminOperation({
+    method,
+    endpoint: `${endpoint}${queryParams}`,
+    data: body,
+    headers: action === 'upsert' ? { 'Prefer': 'resolution=merge-duplicates' } : {}
+  });
+};
+
+/**
+ * دالة بديلة للعمليات التي تتطلب صلاحيات المسؤول
+ * تستخدم العميل العادي مع Service Role Key في Headers - محسنة
+ */
+export const createAdminRequest = async (operation: (client: any) => Promise<any>) => {
+  try {
+    console.log('⚠️ [AdminRequest] استخدام createAdminRequest قد ينشئ GoTrueClient إضافي');
+    
+    // محاولة استخدام العميل الرئيسي أولاً مع تعديل Headers
+    const { supabase } = await import('./supabase-unified');
+    
+    // إنشاء نسخة مؤقتة من العميل العادي مع headers المسؤول
+    const tempAdminClient = createClient<Database>(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+        detectSessionInUrl: false,
+        storageKey: `temp-admin-${Date.now()}`,
+        storage: {
+          getItem: () => Promise.resolve(null),
+          setItem: () => Promise.resolve(),
+          removeItem: () => Promise.resolve()
+        }
+      },
+      global: {
+        headers: {
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+          'X-Admin-Request': 'true',
+          'apikey': supabaseServiceKey
+        }
+      }
+    });
+
+    const result = await operation(tempAdminClient);
+    
+    // تنظيف فوري (محاولة)
+    try {
+      (tempAdminClient as any)._realtime?.disconnect?.();
+    } catch (e) {
+      // تجاهل أخطاء التنظيف
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('❌ خطأ في طلب المسؤول:', error);
+    throw error;
+  }
 };
 
 /**

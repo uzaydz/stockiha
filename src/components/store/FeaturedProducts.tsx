@@ -16,6 +16,80 @@ import { useTenant } from '@/context/TenantContext';
 import { useShop } from '@/context/ShopContext';
 import { getProducts } from '@/lib/api/products';
 import { useTranslation } from 'react-i18next';
+import { cn } from '@/lib/utils';
+import { optimizeStoreImage, addPreloadLinks } from '@/lib/imageOptimization';
+
+// مكون محسن لتحميل الصور مع placeholder
+const OptimizedProductImage = ({ 
+  src, 
+  alt, 
+  className,
+  containerClassName,
+  productName 
+}: { 
+  src: string; 
+  alt: string; 
+  className?: string;
+  containerClassName?: string;
+  productName: string;
+}) => {
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
+
+  // تحسين روابط الصور باستخدام المكتبة الموحدة
+  const optimizeImageUrl = (url: string): string => {
+    return optimizeStoreImage(url, 'product');
+  };
+
+  const optimizedSrc = optimizeImageUrl(src);
+
+  useEffect(() => {
+    if (optimizedSrc) {
+      const img = new Image();
+      img.onload = () => setImageLoaded(true);
+      img.onerror = () => setImageError(true);
+      img.src = optimizedSrc;
+    }
+  }, [optimizedSrc]);
+
+  if (imageError || !optimizedSrc) {
+    return (
+      <div className={cn("absolute inset-0 flex items-center justify-center bg-gradient-to-br from-muted/30 to-muted/10", containerClassName)}>
+        <div className="text-muted-foreground/50 flex flex-col items-center p-4">
+          <Package className="h-16 w-16 mb-3" />
+          <span className="text-sm font-medium text-center line-clamp-2">{productName}</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {/* Skeleton placeholder أثناء التحميل */}
+      {!imageLoaded && (
+        <div className="absolute inset-0 bg-gradient-to-br from-muted/40 to-muted/20 animate-pulse flex items-center justify-center">
+          <div className="w-20 h-20 bg-muted/60 rounded-full animate-pulse flex items-center justify-center">
+            <Package className="h-8 w-8 text-muted-foreground/40" />
+          </div>
+        </div>
+      )}
+      
+      {/* الصورة الفعلية */}
+      <img 
+        src={optimizedSrc} 
+        alt={alt}
+        className={cn(
+          "w-full h-full object-contain p-4 transition-all duration-500",
+          imageLoaded ? "opacity-100 scale-100" : "opacity-0 scale-95",
+          className
+        )}
+        loading="eager" // تغيير من lazy إلى eager للصور المهمة
+        onLoad={() => setImageLoaded(true)}
+        onError={() => setImageError(true)}
+      />
+    </>
+  );
+};
 
 // مرجع ثابت لمصفوفة فارغة لتجنب إعادة الإنشاء غير الضروري
 const STABLE_EMPTY_ARRAY = Object.freeze([]);
@@ -51,6 +125,11 @@ interface FeaturedProductsProps {
   organizationId?: string;
 }
 
+// تحسين روابط الصور الافتراضية باستخدام المكتبة الموحدة
+const optimizeDefaultImageUrl = (url: string): string => {
+  return optimizeStoreImage(url, 'product');
+};
+
 // إنشاء المنتجات الافتراضية مع استخدام الترجمة
 const getDefaultProducts = (t: any): Product[] => [
   {
@@ -58,7 +137,7 @@ const getDefaultProducts = (t: any): Product[] => [
     name: t('featuredProducts.defaultProducts.headphones.name'),
     price: 299,
     discount_price: 199,
-    imageUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470',
+    imageUrl: optimizeDefaultImageUrl('https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470'),
     category: t('productCategories.defaultCategories.electronics.name'),
     is_new: true,
     stock_quantity: 100,
@@ -70,7 +149,7 @@ const getDefaultProducts = (t: any): Product[] => [
     id: '2',
     name: t('featuredProducts.defaultProducts.laptop.name'),
     price: 1499,
-    imageUrl: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?q=80&w=1471',
+    imageUrl: optimizeDefaultImageUrl('https://images.unsplash.com/photo-1496181133206-80ce9b88a853?q=80&w=1471'),
     category: t('productCategories.defaultCategories.computers.name'),
     is_new: true,
     stock_quantity: 50,
@@ -83,7 +162,7 @@ const getDefaultProducts = (t: any): Product[] => [
     name: t('featuredProducts.defaultProducts.smartwatch.name'),
     price: 499,
     discount_price: 399,
-    imageUrl: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=1399',
+    imageUrl: optimizeDefaultImageUrl('https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=1399'),
     category: t('productCategories.defaultCategories.accessories.name'),
     stock_quantity: 200,
     slug: 'smart-watch',
@@ -94,7 +173,7 @@ const getDefaultProducts = (t: any): Product[] => [
     id: '4',
     name: t('featuredProducts.defaultProducts.camera.name'),
     price: 899,
-    imageUrl: 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?q=80&w=1470',
+    imageUrl: optimizeDefaultImageUrl('https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?q=80&w=1470'),
     category: t('productCategories.defaultCategories.electronics.name'),
     stock_quantity: 30,
     slug: 'professional-camera',
@@ -119,7 +198,7 @@ const convertDatabaseProductToStoreProduct = (dbProduct: DBProduct): Product => 
     categoryName = dbProduct.category_name;
   }
   
-  // معالجة روابط الصور وتصحيحها
+  // معالجة روابط الصور وتصحيحها مع التحسين
   let imageUrl = '';
   
   // تحقق من وجود thumbnail_url أولاً (يأتي من API الجديد)
@@ -154,9 +233,12 @@ const convertDatabaseProductToStoreProduct = (dbProduct: DBProduct): Product => 
     
     // تأكد من أن الرابط لا يحتوي على مسافات داخلية
     imageUrl = imageUrl.replace(/\s+/g, '%20');
+    
+    // تحسين الصورة إذا كانت من Unsplash
+    imageUrl = optimizeDefaultImageUrl(imageUrl);
   } else {
-    // استخدم صورة افتراضية إذا لم تكن هناك صورة مصغرة
-    imageUrl = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470';
+    // استخدم صورة افتراضية محسنة إذا لم تكن هناك صورة مصغرة
+    imageUrl = optimizeDefaultImageUrl('https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470');
   }
 
   const product = {
@@ -193,6 +275,26 @@ const FeaturedProducts = ({
   const [loading, setLoading] = useState(false);
   const [fetchedProducts, setFetchedProducts] = useState<Product[]>([]);
   const { products: shopProducts } = useShop();
+
+  // Preload صور المنتجات المهمة باستخدام المكتبة المحسنة
+  useEffect(() => {
+    const preloadProductImages = (products: Product[]) => {
+      const imageUrls = products
+        .slice(0, 4)
+        .map(product => product.imageUrl)
+        .filter(Boolean);
+      
+      if (imageUrls.length > 0) {
+        addPreloadLinks(imageUrls);
+      }
+    };
+
+    if (initialProducts && initialProducts.length > 0) {
+      preloadProductImages(initialProducts);
+    } else if (fetchedProducts && fetchedProducts.length > 0) {
+      preloadProductImages(fetchedProducts);
+    }
+  }, [initialProducts, fetchedProducts]);
 
   // جلب المنتجات المحددة يدوياً إذا لم تكن البيانات مُمررة
   useEffect(() => {
@@ -258,42 +360,7 @@ const FeaturedProducts = ({
     return getDefaultProducts(t).slice(0, displayCount);
   }, [initialProducts, fetchedProducts, shopProducts, displayCount, selectionCriteria, t]);
 
-  // معالجة الصور التالفة
-  useEffect(() => {
-    const handleBrokenImages = () => {
-      const images = document.querySelectorAll('.product-image');
-      images.forEach((img: Element) => {
-        const imgElement = img as HTMLImageElement;
-        
-        // إزالة مستمعي الأحداث الموجودين لتجنب التكرار
-        imgElement.onload = null;
-        imgElement.onerror = null;
-        
-        imgElement.onload = () => {
-          imgElement.style.zIndex = '25';
-        };
-        
-        imgElement.onerror = () => {
-          imgElement.src = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470';
-          imgElement.style.zIndex = '25';
-        };
-      });
-    };
-
-    // تأخير معالجة الصور قليلاً للسماح للعناصر بالتحميل
-    const timer = setTimeout(handleBrokenImages, 100);
-    
-    return () => {
-      clearTimeout(timer);
-      // تنظيف مستمعي الأحداث عند الإزالة
-      const images = document.querySelectorAll('.product-image');
-      images.forEach((img: Element) => {
-        const imgElement = img as HTMLImageElement;
-        imgElement.onload = null;
-        imgElement.onerror = null;
-      });
-    };
-  }, [displayedProducts]);
+  // ملاحظة: تم استبدال معالجة الصور التالفة بمكون OptimizedProductImage المحسن
 
   // وظيفة إضافة/إزالة من المفضلة
   const toggleFavorite = (productId: string) => {
@@ -459,31 +526,13 @@ const FeaturedProducts = ({
                     
                     <div className="relative overflow-hidden aspect-[4/3] bg-gradient-to-br from-muted/20 to-muted/5 rounded-t-3xl">
                       <Link to={`/products/${product.slug}`} className="block w-full h-full">
-                        {product.imageUrl ? (
-                          <>
-                            <img 
-                              key={`product-image-${product.id}`}
-                              src={product.imageUrl}
-                              alt={product.name}
-                              className="product-image w-full h-full object-contain p-4 transition-all duration-500 group-hover:scale-105"
-                              onLoad={(e) => {
-                                e.currentTarget.style.opacity = '1';
-                              }}
-                              onError={(e) => {
-                                e.currentTarget.src = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470';
-                              }}
-                              loading="lazy"
-                              style={{ opacity: 0 }}
-                            />
-                          </>
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="text-muted-foreground/50 flex flex-col items-center p-4">
-                              <Package className="h-16 w-16 mb-3" />
-                              <span className="text-sm font-medium text-center line-clamp-2">{product.name}</span>
-                            </div>
-                          </div>
-                        )}
+                        <OptimizedProductImage 
+                          src={product.imageUrl} 
+                          alt={product.name}
+                          className="product-image w-full h-full object-contain p-4 transition-all duration-500 group-hover:scale-105"
+                          containerClassName="absolute inset-0"
+                          productName={product.name}
+                        />
                       </Link>
                       
                       {/* العلامات المحسنة */}
@@ -595,31 +644,13 @@ const FeaturedProducts = ({
                     
                     <div className="relative w-full sm:w-48 aspect-square sm:aspect-[4/3]">
                       <Link to={`/products/${product.slug}`} className="block w-full h-full">
-                        {product.imageUrl ? (
-                          <>
-                            <img 
-                              key={`product-image-${product.id}`}
-                              src={product.imageUrl}
-                              alt={product.name}
-                              className="product-image w-full h-full object-contain p-4 transition-transform duration-300 group-hover:scale-105"
-                              onLoad={(e) => {
-                                e.currentTarget.style.opacity = '1';
-                              }}
-                              onError={(e) => {
-                                e.currentTarget.src = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470';
-                              }}
-                              loading="lazy"
-                              style={{ opacity: 0 }}
-                                                         />
-                          </>
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center bg-muted/20">
-                            <div className="text-muted-foreground/50 flex flex-col items-center p-4">
-                              <Package className="h-12 w-12 mb-2" />
-                              <span className="text-sm text-center line-clamp-2">{product.name}</span>
-                            </div>
-                          </div>
-                        )}
+                        <OptimizedProductImage 
+                          src={product.imageUrl} 
+                          alt={product.name}
+                          className="product-image w-full h-full object-contain p-4 transition-transform duration-300 group-hover:scale-105"
+                          containerClassName="absolute inset-0"
+                          productName={product.name}
+                        />
                       </Link>
                       
                       {/* العلامات */}

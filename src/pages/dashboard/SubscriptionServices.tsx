@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Layout from '@/components/Layout';
-import { useAuth } from '@/context/AuthContext';
+import { useUser } from '@/context/UserContext';
+import { useTenant } from '@/context/TenantContext';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
@@ -22,7 +23,10 @@ import { useSubscriptionServices } from '@/components/subscription-services/useS
 import { SubscriptionService } from '@/components/subscription-services/types';
 
 const SubscriptionServicesPage = () => {
-  const { organization } = useAuth();
+  const { user, organizationId, isLoading } = useUser();
+  const { currentOrganization } = useTenant();
+  
+
   
   // Dialog states
   const [isPricingDialogOpen, setIsPricingDialogOpen] = useState(false);
@@ -67,12 +71,52 @@ const SubscriptionServicesPage = () => {
     fetchServices,
     fetchTransactions,
     refetchAll
-  } = useSubscriptionServices(organization?.id);
+  } = useSubscriptionServices(organizationId);
 
   const handleManagePricing = (service: SubscriptionService) => {
     setSelectedService(service);
     setIsPricingDialogOpen(true);
   };
+
+  // التحقق من وجود organization
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="max-w-7xl mx-auto p-6 space-y-6" dir="rtl">
+          <div className="text-center py-12">
+            <h2 className="text-xl font-semibold text-gray-600 mb-2">جاري التحميل...</h2>
+            <p className="text-gray-500">يرجى الانتظار</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!user) {
+    return (
+      <Layout>
+        <div className="max-w-7xl mx-auto p-6 space-y-6" dir="rtl">
+          <div className="text-center py-12">
+            <h2 className="text-xl font-semibold text-gray-600 mb-2">لم تسجل دخولك بعد</h2>
+            <p className="text-gray-500">يرجى تسجيل الدخول أولاً</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!organizationId) {
+    return (
+      <Layout>
+        <div className="max-w-7xl mx-auto p-6 space-y-6" dir="rtl">
+          <div className="text-center py-12">
+            <h2 className="text-xl font-semibold text-gray-600 mb-2">غير قادر على تحديد المؤسسة</h2>
+            <p className="text-gray-500">يرجى تسجيل الدخول مرة أخرى أو الاتصال بالدعم الفني</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -104,7 +148,10 @@ const SubscriptionServicesPage = () => {
                   )}
                 </Button>
                 
-                <Button onClick={() => setIsAddServiceDialogOpen(true)}>
+                <Button 
+                  onClick={() => setIsAddServiceDialogOpen(true)}
+                  disabled={!organizationId}
+                >
                   <Plus className="h-4 w-4 mr-2" />
                   إضافة خدمة جديدة
                 </Button>
@@ -182,13 +229,15 @@ const SubscriptionServicesPage = () => {
         </Tabs>
 
         {/* Add Service Dialog */}
-        <AddServiceDialog
-          isOpen={isAddServiceDialogOpen}
-          onClose={() => setIsAddServiceDialogOpen(false)}
-          categories={categories}
-          organizationId={organization?.id || ''}
-          onSuccess={fetchServices}
-        />
+        {organizationId && (
+          <AddServiceDialog
+            isOpen={isAddServiceDialogOpen}
+            onClose={() => setIsAddServiceDialogOpen(false)}
+            categories={categories}
+            organizationId={organizationId}
+            onSuccess={fetchServices}
+          />
+        )}
       </div>
     </Layout>
   );

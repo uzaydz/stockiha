@@ -27,6 +27,19 @@ if (typeof window !== 'undefined' && !window.organizationCache) {
   window.organizationCache = new Map();
 }
 
+// دالة debounce للحد من التكرار
+const debounce = (func: Function, wait: number) => {
+  let timeout: NodeJS.Timeout;
+  return function executedFunction(...args: any[]) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+};
+
 const ORGANIZATION_CACHE_TTL = 10 * 60 * 1000; // 10 دقائق
 
 // إضافة cache لمنع الاستدعاءات المتكررة
@@ -664,7 +677,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // useEffect محسن لتحميل بيانات المؤسسة مع منع التكرار الكامل
   useEffect(() => {
     // منع التشغيل المتكرر
-    if (loadingOrganization.current || initialized.current || organization) {
+    if (loadingOrganization.current || initialized.current) {
       if (process.env.NODE_ENV === 'development') {
         console.log('🚫 [TenantContext] تجاهل useEffect - التحميل جاري أو مكتمل:', {
           loadingOrganization: loadingOrganization.current,
@@ -672,6 +685,12 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           hasOrganization: !!organization
         });
       }
+      return;
+    }
+
+    // إذا كانت المؤسسة موجودة بالفعل، لا حاجة لإعادة التحميل
+    if (organization && authOrganization && organization.id === authOrganization.id) {
+      initialized.current = true;
       return;
     }
 
@@ -689,9 +708,9 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return;
     }
 
-    // إذا لم توجد بيانات من AuthContext، قم بالجلب
-    const loadTenantData = async () => {
-      // التحقق مرة أخرى قبل البدء
+    // تأخير أطول للسماح لجميع العمليات بالاكتمال قبل البدء
+    const delayedLoad = async () => {
+      // التحقق مرة أخيرة قبل البدء
       if (loadingOrganization.current || initialized.current) {
         return;
       }
@@ -762,11 +781,102 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     };
 
-    // تأخير قصير لتجنب التصارع مع AuthContext
-    const timeoutId = setTimeout(loadTenantData, 100);
+    // تأخير لضمان تجميع التحديثات وعدم التعارض مع عمليات أخرى
+    const timeoutId = setTimeout(delayedLoad, 500);
     
     return () => clearTimeout(timeoutId);
-  }, [authOrganization, user]); // إضافة authOrganization و user كـ dependencies
+  }, [authOrganization, user]); // إزالة dependencies إضافية غير ضرورية
+
+  // دالة debounced لـ refreshOrganizationData مع منطق التحديث الكامل
+  const debouncedRefresh = useCallback(
+    debounce(async () => {
+      if (loadingOrganization.current) return;
+      
+      setIsLoading(true);
+      setError(null);
+      loadingOrganization.current = true;
+      
+      // إعداد timeout للحماية من التعليق
+      const refreshTimeout = setTimeout(() => {
+        loadingOrganization.current = false;
+        setIsLoading(false);
+        setError(new Error('انتهت مهلة تحديث بيانات المؤسسة'));
+      }, 20000);
+
+      try {
+        // مسح كل التخزين المؤقت المتعلق بالمؤسسة
+        const orgId = localStorage.getItem('bazaar_organization_id');
+        if (orgId) {
+          localStorage.removeItem(`organization:${orgId}`);
+          
+          // مسح أي تخزين مؤقت آخر متعلق بالمؤسسة
+          const keysToRemove = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && (key.includes(orgId) || key.includes('tenant:') || key.includes('domain:'))) {
+              keysToRemove.push(key);
+            }
+          }
+          
+          keysToRemove.forEach(key => {
+            localStorage.removeItem(key);
+          });
+        }
+        
+        // استخدام معرف المؤسسة لجلب البيانات المحدثة مباشرة
+        if (orgId) {
+          const supabaseClient = await getSupabaseClient();
+          
+          const { data: orgData, error: orgError } = await supabaseClient
+            .from('organizations')
+            .select('*')
+            .eq('id', orgId)
+            .single();
+          
+          if (orgError) {
+            throw orgError;
+          }
+          
+          if (orgData) {
+            const org = updateOrganizationFromData(orgData);
+            if (org) setOrganization(org);
+            localStorage.setItem('bazaar_organization_id', orgData.id);
+            
+            // تحقق ما إذا كان المستخدم الحالي هو مسؤول المؤسسة
+            if (user && user.id === orgData.owner_id) {
+              setIsOrgAdmin(true);
+            }
+            
+            return;
+          }
+        }
+        
+        // إذا فشل استرداد البيانات بواسطة المعرف، نعود إلى الطريقة الاحتياطية
+        const subdomain = currentSubdomain || await extractSubdomain(window.location.hostname);
+        localStorage.removeItem(`tenant:subdomain:${subdomain}`);
+        
+        const org = await getOrganizationBySubdomain(subdomain);
+        
+        if (org) {
+          const orgObject = updateOrganizationFromData(org);
+          if (orgObject) setOrganization(orgObject);
+          localStorage.setItem('bazaar_organization_id', org.id);
+        } else {
+          setOrganization(null);
+        }
+      } catch (error) {
+        setError(error as Error);
+      } finally {
+        clearTimeout(refreshTimeout);
+        loadingOrganization.current = false;
+        setIsLoading(false);
+        initialized.current = false; // إعادة تعيين لإمكانية إعادة التحميل
+      }
+    }, 500),
+    [currentSubdomain, user, updateOrganizationFromData, getOrganizationBySubdomain]
+  );
+
+ // إضافة authOrganization و user كـ dependencies
 
   // إنشاء مؤسسة جديدة - محسنة مع useCallback
   const createOrganization = useCallback(async (
@@ -840,99 +950,64 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [user, organization, isOrgAdmin]);
 
-  // تحديث بيانات المؤسسة - محسنة مع useCallback
+  // تحديث بيانات المؤسسة - محسنة مع useCallback و debouncing
   const refreshOrganizationData = useCallback(async () => {
     if (authLoading || loadingOrganization.current) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🚫 [TenantContext] تجاهل تحديث المؤسسة - التحميل جاري');
+      }
       return;
     }
 
-    setIsLoading(true);
-    setError(null);
-    loadingOrganization.current = true;
+         // استخدام debouncedRefresh للحد من التكرار
+     if (process.env.NODE_ENV === 'development') {
+       console.log('🔄 [TenantContext] طلب تحديث بيانات المؤسسة');
+     }
+     debouncedRefresh();
+  }, [authLoading, debouncedRefresh]);
+
+  // الاستماع إلى تغييرات المؤسسة من عمليات التسجيل الجديدة مع debouncing
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
     
-    // إعداد timeout للحماية من التعليق
-    const refreshTimeout = setTimeout(() => {
-      loadingOrganization.current = false;
-      setIsLoading(false);
-      setError(new Error('انتهت مهلة تحديث بيانات المؤسسة'));
-    }, 20000);
+    const handleOrganizationChanged = (event: CustomEvent) => {
+      const { organizationId } = event.detail || {};
+      
+      if (organizationId && organizationId !== organization?.id) {
+        console.log('🔔 [TenantContext] استلام إشعار تغيير المؤسسة:', organizationId);
+        
+        // إلغاء أي timeout سابق
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        
+        // debounce التحديث لمنع التشغيل المتكرر
+        timeoutId = setTimeout(() => {
+          // تحديث معرف المؤسسة
+          localStorage.setItem('bazaar_organization_id', organizationId);
+          
+          // إعادة تعيين الحالة وإجبار إعادة التحميل
+          initialized.current = false;
+          loadingOrganization.current = false;
+          setIsLoading(false);
+          setOrganization(null);
+          setError(null);
+          
+          // تحديث البيانات
+          refreshOrganizationData();
+        }, 300); // تأخير 300ms لتجميع التحديثات
+      }
+    };
 
-    try {
-
-      // مسح كل التخزين المؤقت المتعلق بالمؤسسة
-      const orgId = localStorage.getItem('bazaar_organization_id');
-      if (orgId) {
-        
-        localStorage.removeItem(`organization:${orgId}`);
-        
-        // مسح أي تخزين مؤقت آخر متعلق بالمؤسسة
-        const keysToRemove = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && (key.includes(orgId) || key.includes('tenant:') || key.includes('domain:'))) {
-            keysToRemove.push(key);
-          }
-        }
-        
-        keysToRemove.forEach(key => {
-          
-          localStorage.removeItem(key);
-        });
+    window.addEventListener('organizationChanged', handleOrganizationChanged as EventListener);
+    
+    return () => {
+      window.removeEventListener('organizationChanged', handleOrganizationChanged as EventListener);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
       }
-      
-      // استخدام معرف المؤسسة لجلب البيانات المحدثة مباشرة
-      if (orgId) {
-        
-        const supabaseClient = await getSupabaseClient();
-        
-        const { data: orgData, error: orgError } = await supabaseClient
-          .from('organizations')
-          .select('*')
-          .eq('id', orgId)
-          .single();
-        
-        if (orgError) {
-          throw orgError;
-        }
-        
-        if (orgData) {
-          const org = updateOrganizationFromData(orgData);
-          if (org) setOrganization(org);
-          localStorage.setItem('bazaar_organization_id', orgData.id);
-          
-          // تحقق ما إذا كان المستخدم الحالي هو مسؤول المؤسسة
-          if (user && user.id === orgData.owner_id) {
-            setIsOrgAdmin(true);
-          }
-          
-          return;
-        }
-      }
-      
-      // إذا فشل استرداد البيانات بواسطة المعرف، نعود إلى الطريقة الاحتياطية
-      // استخدام النطاق الفرعي الحالي أو استخراجه من اسم المضيف
-      const subdomain = currentSubdomain || await extractSubdomain(window.location.hostname);
-      
-      // حذف التخزين المؤقت لضمان الحصول على أحدث البيانات
-      localStorage.removeItem(`tenant:subdomain:${subdomain}`);
-      
-      const org = await getOrganizationBySubdomain(subdomain);
-      
-      if (org) {
-        const orgObject = updateOrganizationFromData(org);
-        if (orgObject) setOrganization(orgObject);
-        localStorage.setItem('bazaar_organization_id', org.id);
-      } else {
-        setOrganization(null);
-      }
-    } catch (error) {
-      setError(error as Error);
-    } finally {
-      clearTimeout(refreshTimeout);
-      loadingOrganization.current = false;
-      setIsLoading(false);
-    }
-  }, [currentSubdomain, authLoading, user, getOrganizationBySubdomain, updateOrganizationFromData]);
+    };
+  }, [refreshOrganizationData, organization?.id]);
 
   // استخدام useMemo لتجنب إعادة الإنشاء
   const value = useMemo(() => ({

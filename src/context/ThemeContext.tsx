@@ -89,8 +89,8 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
   const isDebug = process.env.NODE_ENV === 'development';
   const initLogRef = useRef(false);
 
-  // تسجيل التهيئة مرة واحدة فقط
-  if (isDebug && !initLogRef.current) {
+  // تسجيل التهيئة مرة واحدة فقط بطريقة أكثر تحكماً
+  if (isDebug && !initLogRef.current && initialOrganizationId) {
     console.log('🎬 [ThemeProvider] تهيئة ThemeProvider:', {
       initialOrganizationId,
       hasOrganizationId: !!initialOrganizationId,
@@ -270,9 +270,14 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
     lastAppliedThemeRef.current = theme;
   }, [theme]);
 
-  // تطبيق ثيم المؤسسة عند تحميل المؤسسة أو تغيير المسار المهم
+  // تطبيق ثيم المؤسسة عند تحميل المؤسسة أو تغيير المسار المهم مع تحسين الأداء
   useEffect(() => {
     if (!initialOrganizationId) {
+      return;
+    }
+
+    // منع التطبيق المتكرر
+    if (lastAppliedOrganizationIdRef.current === initialOrganizationId && hasInitializedRef.current) {
       return;
     }
 
@@ -289,12 +294,21 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
         });
       }
       
-      // تأخير قصير لضمان تحميل السياق
-      const timeoutId = setTimeout(() => {
-        applyOrganizationTheme();
-      }, 150);
+      // إلغاء أي timeout سابق
+      if (organizationThemeTimeoutRef.current) {
+        clearTimeout(organizationThemeTimeoutRef.current);
+      }
       
-      return () => clearTimeout(timeoutId);
+      // استخدام timeout لتجميع التحديثات
+      organizationThemeTimeoutRef.current = setTimeout(() => {
+        if (window.requestIdleCallback) {
+          window.requestIdleCallback(() => {
+            applyOrganizationTheme();
+          }, { timeout: 500 });
+        } else {
+          applyOrganizationTheme();
+        }
+      }, 200); // تأخير 200ms لتجميع التحديثات
     }
   }, [initialOrganizationId, location.pathname, applyOrganizationTheme, isDebug]);
 

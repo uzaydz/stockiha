@@ -13,6 +13,7 @@ import { Plus } from "lucide-react";
 import { ExpenseForm } from "@/components/expenses/ExpenseForm";
 import { ExpenseFormData } from "@/types/expenses";
 import { useExpenses } from "@/hooks/useExpenses";
+import QuickCategoryManager from "@/components/expenses/QuickCategoryManager";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import {
@@ -138,23 +139,26 @@ export default function ExpensesPage() {
               إدارة ومتابعة مصروفات مؤسستك
             </p>
           </div>
-          <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="ml-2 h-4 w-4" />
-                إضافة مصروف
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>إضافة مصروف جديد</DialogTitle>
-                <DialogDescription>
-                  أضف سجل مصروف جديد لتتبع إنفاقك
-                </DialogDescription>
-              </DialogHeader>
-              <ExpenseForm onSubmit={handleCreateExpense} isSubmitting={isSubmitting} />
-            </DialogContent>
-          </Dialog>
+          <div className="flex gap-2">
+            <QuickCategoryManager />
+            <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="ml-2 h-4 w-4" />
+                  إضافة مصروف
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>إضافة مصروف جديد</DialogTitle>
+                  <DialogDescription>
+                    أضف سجل مصروف جديد لتتبع إنفاقك
+                  </DialogDescription>
+                </DialogHeader>
+                <ExpenseForm onSubmit={handleCreateExpense} isSubmitting={isSubmitting} />
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         <Tabs defaultValue="overview" className="space-y-6">

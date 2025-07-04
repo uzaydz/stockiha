@@ -45,6 +45,10 @@ export const usePOSBarcode = ({
   const lastKeyTimeRef = useRef(0);
   const productsRef = useRef(products);
   const currentOrganizationIdRef = useRef(currentOrganizationId);
+  
+  // إضافة refs للدوال لمنع إعادة تسجيل event listeners
+  const onAddToCartRef = useRef(onAddToCart);
+  const onAddVariantRef = useRef(onAddVariant);
 
   // تحديث refs عند تغير القيم
   useEffect(() => {
@@ -62,6 +66,15 @@ export const usePOSBarcode = ({
   useEffect(() => {
     currentOrganizationIdRef.current = currentOrganizationId;
   }, [currentOrganizationId]);
+
+  // تحديث refs للدوال
+  useEffect(() => {
+    onAddToCartRef.current = onAddToCart;
+  }, [onAddToCart]);
+
+  useEffect(() => {
+    onAddVariantRef.current = onAddVariant;
+  }, [onAddVariant]);
 
   // تنظيف البيانات الواردة من قارئ الباركود
   const cleanBarcodeInput = useCallback((input: string): string => {
@@ -130,9 +143,11 @@ export const usePOSBarcode = ({
     }
   }, [convertSearchResultToProduct]);
 
-  // معالجة الباركود المسح ضوئياً
+  // معالجة الباركود المسح ضوئياً - استخدام refs بدلاً من الدوال مباشرة
   const processBarcodeScanned = useCallback(async (rawBarcode: string) => {
     const barcode = cleanBarcodeInput(rawBarcode);
+    
+    console.log('🔍 [usePOSBarcode] معالجة باركود:', { rawBarcode, cleanedBarcode: barcode });
     
     if (!barcode || barcode.length === 0) {
       toast.error('الباركود المُدخل غير صالح. تأكد من إعدادات قارئ الباركود.');
@@ -140,6 +155,7 @@ export const usePOSBarcode = ({
     }
 
     const currentProducts = productsRef.current;
+    console.log('🔍 [usePOSBarcode] البحث في المنتجات:', { productsCount: currentProducts.length });
     
     // البحث في المنتجات الأساسية
     const product = currentProducts.find(p => {
@@ -149,7 +165,7 @@ export const usePOSBarcode = ({
     });
 
     if (product) {
-      onAddToCart(product);
+      onAddToCartRef.current(product);
       return;
     }
 
@@ -159,7 +175,7 @@ export const usePOSBarcode = ({
         // البحث في الألوان
         const color = prod.colors.find(c => c.barcode && c.barcode.toLowerCase() === barcode.toLowerCase());
         if (color) {
-          onAddVariant(
+          onAddVariantRef.current(
             prod,
             color.id,
             undefined,
@@ -178,7 +194,7 @@ export const usePOSBarcode = ({
             if (color.sizes && color.sizes.length > 0) {
               const size = color.sizes.find(s => s.barcode && s.barcode.toLowerCase() === barcode.toLowerCase());
               if (size) {
-                onAddVariant(
+                onAddVariantRef.current(
                   prod,
                   color.id,
                   size.id,
@@ -203,7 +219,7 @@ export const usePOSBarcode = ({
         const color = foundProduct.colors[0];
         if (color.sizes && color.sizes.length > 0) {
           const size = color.sizes[0];
-          onAddVariant(
+          onAddVariantRef.current(
             foundProduct,
             color.id,
             size.id,
@@ -214,7 +230,7 @@ export const usePOSBarcode = ({
             color.image_url
           );
         } else {
-          onAddVariant(
+          onAddVariantRef.current(
             foundProduct,
             color.id,
             undefined,
@@ -226,15 +242,23 @@ export const usePOSBarcode = ({
           );
         }
       } else {
-        onAddToCart(foundProduct);
+        onAddToCartRef.current(foundProduct);
       }
       return;
     }
 
     toast.error(`لم يتم العثور على منتج بالباركود: ${barcode}`);
-  }, [cleanBarcodeInput, onAddToCart, onAddVariant, searchProductInDatabase]);
+  }, [cleanBarcodeInput, searchProductInDatabase]); // إزالة onAddToCart و onAddVariant من dependencies
 
-  // معالجة مفاتيح لوحة المفاتيح
+  // إضافة ref لدالة معالجة الباركود
+  const processBarcodeScannedRef = useRef<(barcode: string) => Promise<void>>();
+
+  // تحديث ref لدالة معالجة الباركود
+  useEffect(() => {
+    processBarcodeScannedRef.current = processBarcodeScanned;
+  }, [processBarcodeScanned]);
+
+  // معالجة مفاتيح لوحة المفاتيح - استخدام دالة مستقرة
   const handleKeyPress = useCallback(async (event: KeyboardEvent) => {
     const currentTime = Date.now();
     const timeDiff = currentTime - lastKeyTimeRef.current;
@@ -265,8 +289,8 @@ export const usePOSBarcode = ({
     if (event.key === 'Enter') {
       event.preventDefault();
       const currentBuffer = barcodeBufferRef.current;
-      if (currentBuffer.length > 0) {
-        await processBarcodeScanned(currentBuffer);
+      if (currentBuffer.length > 0 && processBarcodeScannedRef.current) {
+        await processBarcodeScannedRef.current(currentBuffer);
         setBarcodeBuffer('');
         barcodeBufferRef.current = '';
       }
@@ -282,22 +306,22 @@ export const usePOSBarcode = ({
       // معالجة فورية للباركودات الطويلة
       if (newBuffer.length >= 13 && timeDiff < 50) {
         setTimeout(() => {
-          if (barcodeBufferRef.current === newBuffer) {
-            processBarcodeScanned(newBuffer);
+          if (barcodeBufferRef.current === newBuffer && processBarcodeScannedRef.current) {
+            processBarcodeScannedRef.current(newBuffer);
             setBarcodeBuffer('');
             barcodeBufferRef.current = '';
           }
         }, 20);
       }
     }
-  }, [processBarcodeScanned]);
+  }, []); // dependencies فارغة لجعل الدالة مستقرة تماماً
 
   // تنظيف البفر بعد فترة من عدم النشاط
   useEffect(() => {
     if (barcodeBuffer.length > 0) {
       const clearBufferTimeout = setTimeout(() => {
-        if (barcodeBuffer.length >= 6) {
-          processBarcodeScanned(barcodeBuffer);
+        if (barcodeBuffer.length >= 6 && processBarcodeScannedRef.current) {
+          processBarcodeScannedRef.current(barcodeBuffer);
         }
         setBarcodeBuffer('');
         barcodeBufferRef.current = '';
@@ -305,13 +329,29 @@ export const usePOSBarcode = ({
 
       return () => clearTimeout(clearBufferTimeout);
     }
-  }, [barcodeBuffer, processBarcodeScanned]);
+  }, [barcodeBuffer]); // إزالة processBarcodeScanned من dependencies
 
-  // إضافة وإزالة مستمع الأحداث
+  // إضافة وإزالة مستمع الأحداث - الآن مع دالة مستقرة
   useEffect(() => {
+    console.log('🔍 [usePOSBarcode] تهيئة مستمع الأحداث للسكانر');
     document.addEventListener('keypress', handleKeyPress);
-    return () => document.removeEventListener('keypress', handleKeyPress);
-  }, [handleKeyPress]);
+    
+    return () => {
+      console.log('🔍 [usePOSBarcode] إزالة مستمع الأحداث للسكانر');
+      document.removeEventListener('keypress', handleKeyPress);
+    };
+  }, []); // dependencies فارغة لأن handleKeyPress أصبحت مستقرة
+
+  // تأكيد تهيئة السكانر عند تحديث المنتجات أو الدوال
+  useEffect(() => {
+    if (products.length > 0 && onAddToCartRef.current && onAddVariantRef.current) {
+      console.log('✅ [usePOSBarcode] السكانر جاهز للعمل', {
+        productsCount: products.length,
+        hasAddToCart: !!onAddToCartRef.current,
+        hasAddVariant: !!onAddVariantRef.current
+      });
+    }
+  }, [products.length]);
 
   return {
     barcodeBuffer,

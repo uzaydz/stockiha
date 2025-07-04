@@ -227,16 +227,35 @@ export default function Cart({
       return;
     }
 
+    console.log('🚀 [handleAddCustomer] بدء إنشاء عميل جديد:', newCustomer);
     setIsAddingCustomer(true);
     try {
       const createdCustomer = await createCustomer(newCustomer);
+      console.log('✅ [handleAddCustomer] تم إنشاء العميل:', createdCustomer);
+      
       if (createdCustomer) {
         setSelectedCustomer(createdCustomer);
         toast.success("تم إضافة العميل بنجاح");
         setIsNewCustomerDialogOpen(false);
         setNewCustomer({ name: '', email: '', phone: '' });
+        
+        console.log('🔄 [handleAddCustomer] إرسال حدث تحديث العملاء');
+        // 🔄 تحديث React Query cache للعملاء
+        // إشعار النظام بضرورة إعادة تحميل بيانات العملاء
+        window.dispatchEvent(new CustomEvent('customers-updated', { 
+          detail: { newCustomer: createdCustomer } 
+        }));
+        
+        // إضافة تأخير قصير للتأكد من التحديث
+        setTimeout(() => {
+          console.log('🔄 [handleAddCustomer] تحديث إضافي بعد ثانية واحدة');
+          window.dispatchEvent(new CustomEvent('customers-updated', { 
+            detail: { newCustomer: createdCustomer } 
+          }));
+        }, 1000);
       }
     } catch (error) {
+      console.error('❌ [handleAddCustomer] خطأ في إنشاء العميل:', error);
       toast.error("حدث خطأ أثناء إضافة العميل");
     } finally {
       setIsAddingCustomer(false);
@@ -272,7 +291,7 @@ export default function Cart({
         subtotal,
         discount: actualDiscountAmount,
         total: finalTotal,
-        status: 'completed',
+        status: 'completed' as const,
         paymentStatus,
         notes: isReturnMode 
           ? returnNotes || 'إرجاع مباشر'
@@ -294,6 +313,13 @@ export default function Cart({
 
       // في وضع الإرجاع، استخدام دالة الإرجاع، وإلا استخدام الدالة السريعة
       console.log(`🔄 [CART] نوع العملية: ${isReturnMode ? 'إرجاع' : 'بيع'}`);
+      console.log('🔍 [CART] تشخيص البيانات قبل الإرسال:', {
+        cartItemsLength: cartItems.length,
+        selectedServicesLength: selectedServices.length,
+        selectedSubscriptionsLength: selectedSubscriptions.length,
+        cartItems: cartItems,
+        orderDetails: orderDetails
+      });
       
       const orderResult = isReturnMode 
         ? await submitOrder(orderDetails)
@@ -307,7 +333,8 @@ export default function Cart({
       console.log(`✅ [CART] نتيجة العملية:`, orderResult);
 
       // التحقق من نجاح العملية
-      if (!orderResult.orderId) {
+      if (!orderResult || !orderResult.orderId) {
+        toast.error("فشل في إنشاء الطلب - لم يتم الحصول على معرف طلب صحيح");
         return;
       }
 
@@ -337,22 +364,25 @@ export default function Cart({
         setIsPrintDialogOpen(true);
       });
 
-      // 🧹 تنظيف مؤجل للنموذج
-      requestIdleCallback(() => {
-        clearCart();
-        setSelectedCustomer(null);
-        setNotes('');
-        setDiscount(0);
-        setAmountPaid('');
-      });
+      // 🧹 تنظيف مؤجل للنموذج - فقط بعد نجاح الطلب
+      if (orderResult.orderId) {
+        requestIdleCallback(() => {
+          clearCart();
+          setSelectedCustomer(null);
+          setNotes('');
+          setDiscount(0);
+          setAmountPaid('');
+        }, { timeout: 100 });
+      }
 
-    } catch (error) {
-      toast.error("حدث خطأ أثناء إنشاء الطلب");
+    } catch (error: any) {
+      console.error('❌ [CART] خطأ في handlePaymentComplete:', error);
+      toast.error(error?.message || "حدث خطأ أثناء إنشاء الطلب");
     }
   }, [
-    cartItems.length,
-    selectedServices.length,
-    selectedSubscriptions.length,
+    cartItems,
+    selectedServices,
+    selectedSubscriptions,
     isPartialPayment,
     considerRemainingAsPartial,
     selectedCustomer,
@@ -373,14 +403,7 @@ export default function Cart({
     subscriptionAccountInfo,
     submitOrder,
     submitOrderFast,
-    cartItems,
-    selectedServices,
-    selectedSubscriptions,
-    clearCart,
-    setSelectedCustomer,
-    setNotes,
-    setDiscount,
-    setAmountPaid
+    clearCart
   ]);
 
   const handlePrintCompleted = () => {
@@ -560,6 +583,11 @@ export default function Cart({
       />
       
       {/* نوافذ حوارية محسنة */}
+      {console.log('🔍 [Cart] العملاء المُمررة إلى PaymentDialog:', { 
+        customersLength: customers.length, 
+        customers: customers,
+        isPaymentDialogOpen: isPaymentDialogOpen
+      })}
       <PaymentDialogOptimized
         isOpen={isPaymentDialogOpen}
         onOpenChange={setIsPaymentDialogOpen}

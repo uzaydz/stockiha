@@ -8,7 +8,8 @@ import {
   CreditCard, 
   RotateCcw, 
   Calculator as CalculatorIcon, 
-  RefreshCw 
+  RefreshCw,
+  Receipt
 } from 'lucide-react';
 
 interface POSHeaderProps {
@@ -22,6 +23,7 @@ interface POSHeaderProps {
   onPOSSettingsOpen: () => void;
   onRepairDialogOpen: () => void;
   onRefreshData: () => Promise<void>;
+  onQuickExpenseOpen: () => void;
 }
 
 const POSHeader: React.FC<POSHeaderProps> = ({
@@ -34,7 +36,8 @@ const POSHeader: React.FC<POSHeaderProps> = ({
   onToggleReturnMode,
   onPOSSettingsOpen,
   onRepairDialogOpen,
-  onRefreshData
+  onRefreshData,
+  onQuickExpenseOpen
 }) => {
   return (
     <>
@@ -105,6 +108,16 @@ const POSHeader: React.FC<POSHeaderProps> = ({
           >
             <CalculatorIcon className="h-4 w-4 mr-2" />
             آلة حاسبة
+          </Button>
+
+          <Button 
+            size="sm"
+            variant="outline"
+            onClick={onQuickExpenseOpen}
+            title="مصروف سريع (Ctrl+E)"
+          >
+            <Receipt className="h-4 w-4 mr-2" />
+            مصروف سريع
           </Button>
           
           {/* زر التبديل لوضع الإرجاع */}

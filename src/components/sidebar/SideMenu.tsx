@@ -59,7 +59,8 @@ import {
   CreditCard,
   Gamepad2,
   ShoppingCart,
-  Activity
+  Activity,
+  Zap
 } from 'lucide-react';
 
 // استيراد سياق التطبيقات
@@ -331,6 +332,13 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
           badge: null
         },
         {
+          title: 'نقطة البيع المتقدمة',
+          icon: Zap,
+          href: '/dashboard/pos-advanced',
+          requiredPermission: 'accessPOS',
+          badge: 'جديد'
+        },
+        {
           title: 'طلبيات نقطة البيع',
           icon: Receipt,
           href: '/dashboard/pos-orders',
@@ -591,6 +599,13 @@ const SideMenu = ({ userRole, userPermissions }: SideMenuProps) => {
       icon: BarChart3,
       requiredPermission: 'viewReports',
       items: [
+        {
+          title: 'التحليلات المالية الشاملة',
+          icon: Activity,
+          href: '/dashboard/financial-analytics',
+          requiredPermission: 'viewFinancialReports',
+          badge: 'جديد'
+        },
         {
           title: 'التقارير المالية',
           icon: BarChart3,

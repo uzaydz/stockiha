@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useCallback, useMemo, ReactNode } from 'react';
+import React, { createContext, useContext, useCallback, useMemo, ReactNode, useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTenant } from './TenantContext';
 import { useAuth } from './AuthContext';
@@ -119,7 +119,7 @@ interface POSProductWithVariants {
   stockQuantity: number;
   stock_quantity: number;
   features?: string[];
-  specifications?: Record<string, string>;
+  specifications?: Record<string, any> | string;
   isDigital: boolean;
   isNew?: boolean;
   isFeatured?: boolean;
@@ -194,6 +194,7 @@ interface POSData {
   productCategories: ProductCategory[];
   posSettings: any;
   organizationApps: OrganizationApp[];
+  customers: any[];
   
   // إحصائيات المخزون
   inventoryStats: {
@@ -211,6 +212,7 @@ interface POSData {
   isCategoriesLoading: boolean;
   isPOSSettingsLoading: boolean;
   isAppsLoading: boolean;
+  isCustomersLoading: boolean;
   
   // الأخطاء
   errors: {
@@ -219,6 +221,7 @@ interface POSData {
     categories?: string;
     posSettings?: string;
     apps?: string;
+    customers?: string;
   };
   
   // دوال التحديث
@@ -227,6 +230,7 @@ interface POSData {
   refreshSubscriptions: () => Promise<void>;
   refreshPOSSettings: () => Promise<void>;
   refreshApps: () => Promise<void>;
+  refreshCustomers: () => Promise<void>;
   
   // دوال مساعدة للمخزون
   getProductStock: (productId: string, colorId?: string, sizeId?: string) => number;
@@ -421,6 +425,7 @@ const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWi
 
 const fetchPOSSubscriptionsEnhanced = async (orgId: string): Promise<SubscriptionService[]> => {
   return deduplicateRequest(`pos-subscriptions-enhanced-${orgId}`, async () => {
+    console.log('🔍 [fetchPOSSubscriptionsEnhanced] بدء جلب خدمات الاشتراكات للمؤسسة:', orgId);
     
     // جلب الخدمات مع الأسعار
     const { data: servicesData, error: servicesError } = await supabase
@@ -434,11 +439,21 @@ const fetchPOSSubscriptionsEnhanced = async (orgId: string): Promise<Subscriptio
       .order('is_featured', { ascending: false })
       .order('created_at', { ascending: false });
 
+    console.log('📊 [fetchPOSSubscriptionsEnhanced] نتيجة الاستعلام:', {
+      orgId,
+      servicesCount: servicesData?.length || 0,
+      hasError: !!servicesError,
+      error: servicesError?.message,
+      services: servicesData
+    });
+
     if (servicesError) {
+      console.error('❌ [fetchPOSSubscriptionsEnhanced] خطأ في جلب الخدمات:', servicesError);
       throw servicesError;
     }
 
     if (!servicesData || servicesData.length === 0) {
+      console.log('⚠️ [fetchPOSSubscriptionsEnhanced] لا توجد خدمات اشتراكات للمؤسسة:', orgId);
       return [];
     }
 
@@ -801,7 +816,7 @@ const fetchPOSCustomers = async (orgId: string): Promise<any[]> => {
 const fetchPOSOrderStats = async (orgId: string): Promise<any> => {
   try {
     const { data, error } = await supabase
-      .rpc('get_pos_order_stats', { org_id: orgId });
+      .rpc('get_pos_order_stats', { p_organization_id: orgId });
 
     if (error) throw error;
     return data || {};
@@ -824,7 +839,7 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const orgId = currentOrganization?.id;
-
+  
   logPOSContextStatus('PROVIDER_INIT', { orgId, hasOrg: !!currentOrganization, hasUser: !!user });
 
   // React Query للمنتجات المحسنة مع المتغيرات والمخزون
@@ -845,6 +860,13 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
     refetchInterval: false, // إيقاف التحديث التلقائي
   });
 
+  // تشخيص مشكلة خدمات الاشتراكات
+  console.log('🔍 [POSDataProvider] تشخيص subscriptions:', { 
+    orgId, 
+    hasOrgId: !!orgId, 
+    currentOrganization: currentOrganization?.id 
+  });
+
   // React Query لخدمات الاشتراك المحسنة
   const {
     data: subscriptions = [],
@@ -852,14 +874,24 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
     error: subscriptionsError
   } = useQuery({
     queryKey: ['pos-subscriptions-enhanced', orgId],
-    queryFn: () => fetchPOSSubscriptionsEnhanced(orgId!),
+    queryFn: () => {
+      console.log('🚀 [useQuery] استدعاء fetchPOSSubscriptionsEnhanced:', { orgId });
+      return fetchPOSSubscriptionsEnhanced(orgId!);
+    },
     enabled: !!orgId,
-    staleTime: 30 * 60 * 1000, // 30 دقيقة (زيادة من 10)
-    gcTime: 2 * 60 * 60 * 1000, // ساعتان (تقليل من 30 دقيقة)
-    retry: 1,
-    retryDelay: 2000,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    staleTime: 5 * 60 * 1000, // 5 دقائق فقط للاختبار
+    gcTime: 10 * 60 * 1000, // 10 دقائق للاختبار
+    retry: 2,
+    retryDelay: 1000,
+    refetchOnWindowFocus: true, // إجبار التحديث للاختبار
+    refetchOnMount: true, // إجبار التحديث عند التركيب
+  });
+
+  console.log('🔍 [POSDataProvider] حالة subscriptions:', { 
+    subscriptions, 
+    subscriptionsLength: subscriptions.length,
+    isSubscriptionsLoading, 
+    subscriptionsError: subscriptionsError?.message 
   });
 
   // React Query لفئات الاشتراك المحسنة
@@ -930,6 +962,24 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
     refetchOnMount: false,
   });
 
+  // React Query للعملاء المحسنة
+  const {
+    data: customers = [],
+    isLoading: isCustomersLoading,
+    error: customersError,
+    refetch: refetchCustomers
+  } = useQuery({
+    queryKey: ['pos-customers-enhanced', orgId],
+    queryFn: () => fetchPOSCustomers(orgId!),
+    enabled: !!orgId,
+    staleTime: 0, // تقليل staleTime للتحديث السريع
+    gcTime: 5 * 60 * 1000, // 5 دقائق
+    retry: 2,
+    retryDelay: 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: true,
+  });
+
   // حساب إحصائيات المخزون
   const inventoryStats = useMemo(() => {
     const totalProducts = products.length;
@@ -960,7 +1010,9 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
   }, [queryClient]);
 
   const refreshSubscriptions = useCallback(async () => {
+    console.log('🔄 [refreshSubscriptions] إجبار تحديث خدمات الاشتراك');
     await queryClient.invalidateQueries({ queryKey: ['pos-subscriptions-enhanced'] });
+    await queryClient.refetchQueries({ queryKey: ['pos-subscriptions-enhanced'] });
   }, [queryClient]);
 
   const refreshPOSSettings = useCallback(async () => {
@@ -970,6 +1022,49 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
   const refreshApps = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: ['pos-organization-apps-enhanced'] });
   }, [queryClient]);
+
+  const refreshCustomers = useCallback(async () => {
+    console.log('🔄 [refreshCustomers] إجبار تحديث العملاء');
+    await queryClient.invalidateQueries({ queryKey: ['pos-customers-enhanced'] });
+    await queryClient.refetchQueries({ queryKey: ['pos-customers-enhanced'] });
+  }, [queryClient]);
+
+  // مستمع لتحديث العملاء عند إضافة عميل جديد
+  useEffect(() => {
+    const handleCustomersUpdate = async (event: any) => {
+      console.log('🔄 [POSDataContext] استلام حدث تحديث العملاء');
+      console.log('🔄 [POSDataContext] العملاء الحاليين قبل التحديث:', customers.length);
+      
+      try {
+        // إجبار إعادة تحميل البيانات مباشرة
+        console.log('🚀 [POSDataContext] إجبار refetch للعملاء');
+        await queryClient.invalidateQueries({ 
+          queryKey: ['pos-customers-enhanced', orgId],
+          exact: true 
+        });
+        
+        // إعادة تحميل البيانات
+        const result = await queryClient.refetchQueries({ 
+          queryKey: ['pos-customers-enhanced', orgId],
+          exact: true 
+        });
+        
+        console.log('✅ [POSDataContext] نتيجة التحديث:', {
+          resultLength: result?.[0]?.data?.length,
+          success: !!result?.[0]?.data
+        });
+        
+      } catch (error) {
+        console.error('❌ [POSDataContext] خطأ في تحديث العملاء:', error);
+      }
+    };
+
+    window.addEventListener('customers-updated', handleCustomersUpdate);
+    
+    return () => {
+      window.removeEventListener('customers-updated', handleCustomersUpdate);
+    };
+  }, [queryClient, orgId]);
 
   // دالة خاصة لتحديث المخزون في cache مباشرة (optimistic update)
   const updateProductStockInCache = useCallback((
@@ -1186,14 +1281,15 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
   const isLoading = isProductsLoading || isSubscriptionsLoading || isCategoriesLoading || 
                    isPOSSettingsLoading || isAppsLoading;
 
-  // جمع الأخطاء
+  // تجميع الأخطاء
   const errors = useMemo(() => ({
     products: productsError?.message,
     subscriptions: subscriptionsError?.message,
     categories: categoriesError?.message,
     posSettings: posSettingsError?.message,
     apps: appsError?.message,
-  }), [productsError, subscriptionsError, categoriesError, posSettingsError, appsError]);
+    customers: customersError?.message,
+  }), [productsError, subscriptionsError, categoriesError, posSettingsError, appsError, customersError]);
 
   // قيمة Context المحسنة
   const contextValue = useMemo<POSData>(() => ({
@@ -1204,6 +1300,7 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
     productCategories,
     posSettings,
     organizationApps,
+    customers,
     
     // إحصائيات المخزون
     inventoryStats,
@@ -1215,6 +1312,7 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
     isCategoriesLoading,
     isPOSSettingsLoading,
     isAppsLoading,
+    isCustomersLoading,
     
     // الأخطاء
     errors,
@@ -1225,6 +1323,7 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
     refreshSubscriptions,
     refreshPOSSettings,
     refreshApps,
+    refreshCustomers,
     
     // دوال المخزون
     getProductStock,

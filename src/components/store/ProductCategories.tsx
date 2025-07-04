@@ -9,6 +9,70 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { useTranslation } from 'react-i18next';
+import { optimizeStoreImage, addPreloadLinks } from '@/lib/imageOptimization';
+
+// مكون محسن لتحميل الصور مع placeholder
+const OptimizedImage = ({ 
+  src, 
+  alt, 
+  className, 
+  fallbackColor 
+}: { 
+  src: string; 
+  alt: string; 
+  className?: string; 
+  fallbackColor?: string; 
+}) => {
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    if (src) {
+      const img = new Image();
+      img.onload = () => setImageLoaded(true);
+      img.onerror = () => setImageError(true);
+      img.src = src;
+    }
+  }, [src]);
+
+  if (imageError || !src) {
+    return (
+      <div className={cn(
+        "w-full h-full bg-gradient-to-br flex items-center justify-center",
+        fallbackColor || 'from-primary/20 to-secondary/20'
+      )}>
+        <div className="w-24 h-24 sm:w-28 sm:h-28 bg-white/25 rounded-full flex items-center justify-center backdrop-blur-sm border border-white/20">
+          <Layers className="h-12 w-12 sm:h-14 sm:w-14 text-white drop-shadow-lg" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full h-full relative bg-gradient-to-br from-muted/20 to-muted/5 flex items-center justify-center p-3 sm:p-4">
+      {/* Skeleton placeholder أثناء التحميل */}
+      {!imageLoaded && (
+        <div className="absolute inset-0 bg-gradient-to-br from-muted/40 to-muted/20 animate-pulse rounded-t-2xl flex items-center justify-center">
+          <div className="w-16 h-16 bg-muted/60 rounded-full animate-pulse"></div>
+        </div>
+      )}
+      
+      {/* الصورة الفعلية */}
+      <img 
+        src={src} 
+        alt={alt}
+        className={cn(
+          "w-full h-full object-contain transition-all duration-500 drop-shadow-sm",
+          imageLoaded ? "opacity-100 scale-100" : "opacity-0 scale-95",
+          className
+        )}
+        loading="eager" // تغيير من lazy إلى eager للصور المهمة
+        onLoad={() => setImageLoaded(true)}
+        onError={() => setImageError(true)}
+      />
+    </div>
+  );
+};
 
 interface ProductCategoriesProps {
   title?: string;
@@ -23,12 +87,11 @@ interface ProductCategoriesProps {
     displayCount?: number;
     maxCategories?: number;
     showDescription?: boolean;
-
     showImages?: boolean;
     displayStyle?: string;
     backgroundStyle?: string;
     showViewAllButton?: boolean;
-    _previewCategories?: string[];
+    _previewCategories?: string[] | ExtendedCategory[];
   };
 }
 
@@ -52,6 +115,11 @@ const categoryIcons = {
   layers: Layers,
 };
 
+// استخدام مكتبة تحسين الصور الموحدة
+const optimizeImageUrl = (url: string): string => {
+  return optimizeStoreImage(url, 'category');
+};
+
 // إنشاء الفئات الافتراضية مع استخدام الترجمة
 const getDefaultCategories = (t: any): ExtendedCategory[] => [
   {
@@ -59,7 +127,7 @@ const getDefaultCategories = (t: any): ExtendedCategory[] => [
     name: t('productCategories.defaultCategories.electronics.name'),
     description: t('productCategories.defaultCategories.electronics.description'),
     slug: 'electronics',
-    imageUrl: 'https://images.unsplash.com/photo-1550009158-9ebf69173e03?q=80&w=1901',
+    imageUrl: optimizeImageUrl('https://images.unsplash.com/photo-1550009158-9ebf69173e03?q=80&w=1901'),
     icon: 'devices',
     color: 'from-blue-500 to-indigo-600'
   },
@@ -68,7 +136,7 @@ const getDefaultCategories = (t: any): ExtendedCategory[] => [
     name: t('productCategories.defaultCategories.computers.name'),
     description: t('productCategories.defaultCategories.computers.description'),
     slug: 'computers',
-    imageUrl: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?q=80&w=1471',
+    imageUrl: optimizeImageUrl('https://images.unsplash.com/photo-1496181133206-80ce9b88a853?q=80&w=1471'),
     icon: 'laptops',
     color: 'from-sky-500 to-cyan-600'
   },
@@ -77,7 +145,7 @@ const getDefaultCategories = (t: any): ExtendedCategory[] => [
     name: t('productCategories.defaultCategories.smartphones.name'),
     description: t('productCategories.defaultCategories.smartphones.description'),
     slug: 'smartphones',
-    imageUrl: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?q=80&w=1580',
+    imageUrl: optimizeImageUrl('https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?q=80&w=1580'),
     icon: 'phones',
     color: 'from-emerald-500 to-teal-600'
   },
@@ -86,7 +154,7 @@ const getDefaultCategories = (t: any): ExtendedCategory[] => [
     name: t('productCategories.defaultCategories.headphones.name'),
     description: t('productCategories.defaultCategories.headphones.description'),
     slug: 'headphones',
-    imageUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470',
+    imageUrl: optimizeImageUrl('https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470'),
     icon: 'headphones',
     color: 'from-amber-500 to-orange-600'
   },
@@ -95,7 +163,7 @@ const getDefaultCategories = (t: any): ExtendedCategory[] => [
     name: t('productCategories.defaultCategories.monitors.name'),
     description: t('productCategories.defaultCategories.monitors.description'),
     slug: 'monitors',
-    imageUrl: 'https://images.unsplash.com/photo-1527219525722-f9767a7f2884?q=80&w=1473',
+    imageUrl: optimizeImageUrl('https://images.unsplash.com/photo-1527219525722-f9767a7f2884?q=80&w=1473'),
     icon: 'monitors',
     color: 'from-violet-500 to-purple-600'
   },
@@ -104,7 +172,7 @@ const getDefaultCategories = (t: any): ExtendedCategory[] => [
     name: t('productCategories.defaultCategories.accessories.name'),
     description: t('productCategories.defaultCategories.accessories.description'),
     slug: 'accessories',
-    imageUrl: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=1399',
+    imageUrl: optimizeImageUrl('https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=1399'),
     icon: 'accessories',
     color: 'from-rose-500 to-pink-600'
   }
@@ -125,7 +193,7 @@ const mapRealCategoriesToExtended = (categories: any[], t: any): ExtendedCategor
         name: category.name,
         description: category.description || t('productCategories.fallbackDescription'),
         slug: category.slug,
-        imageUrl: category.image_url || category.imageUrl || '', 
+        imageUrl: category.image_url || category.imageUrl ? optimizeImageUrl(category.image_url || category.imageUrl) : '', 
         icon: iconKey,
         color: getRandomGradient()
       };
@@ -174,6 +242,20 @@ const ProductCategories = ({
   
   const activeCategoryId = selectedCategoryId || urlCategoryId;
 
+  // Preload صور الفئات المهمة
+  useEffect(() => {
+    if (optimizedCategories && optimizedCategories.length > 0) {
+      const imageUrls = optimizedCategories
+        .slice(0, 6)
+        .map(category => category.imageUrl)
+        .filter(Boolean);
+      
+      if (imageUrls.length > 0) {
+        addPreloadLinks(imageUrls);
+      }
+    }
+  }, [optimizedCategories]);
+
   // 🚀 استخدام البيانات المحسنة مباشرة بدلاً من طلبات API إضافية
   const displayedCategories = useMemo(() => {
     
@@ -184,11 +266,11 @@ const ProductCategories = ({
     if (settings._previewCategories && settings._previewCategories.length > 0) {
       // التحقق من نوع البيانات - إذا كانت objects بدلاً من IDs
       if (typeof settings._previewCategories[0] === 'object') {
-        categoriesToUse = settings._previewCategories;
+        categoriesToUse = settings._previewCategories as ExtendedCategory[];
       } else if (optimizedCategories.length > 0) {
         // إذا كانت IDs، فلتر الفئات المحسنة
         categoriesToUse = optimizedCategories.filter(cat => 
-          settings._previewCategories!.includes(cat.id)
+          (settings._previewCategories as string[]).includes(cat.id)
         );
       }
     }
@@ -268,19 +350,12 @@ const ProductCategories = ({
           >
             {category.imageUrl ? (
               <>
-                <div className="w-full h-full relative bg-gradient-to-br from-muted/20 to-muted/5 flex items-center justify-center p-3 sm:p-4">
-                  <img 
-                    src={category.imageUrl} 
-                    alt={category.name}
-                    className="w-full h-full object-contain transition-transform duration-300 ease-out group-hover:scale-102 drop-shadow-sm"
-                    loading="lazy"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.style.display = 'none';
-                      target.parentElement?.classList.add('bg-gradient-to-br', category.color || 'from-primary/20 to-secondary/20');
-                    }}
-                  />
-                </div>
+                <OptimizedImage 
+                  src={category.imageUrl} 
+                  alt={category.name}
+                  className="group-hover:scale-102"
+                  fallbackColor={category.color}
+                />
                 {/* تأثير subtle للـ hover */}
                 <div className="absolute inset-0 bg-gradient-to-t from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               </>

@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -53,13 +54,16 @@ interface Loss {
   total_cost_value: number;
   total_selling_value: number;
   total_items_count: number;
+  items_count: number;
   reported_by: string;
   witness_employee_id?: string;
   witness_name?: string;
   requires_manager_approval?: boolean;
+  requires_investigation?: boolean;
   approved_by?: string;
   approved_at?: string;
   approval_notes?: string;
+  investigation_notes?: string;
   location_description?: string;
   external_reference?: string;
   insurance_claim?: boolean;
@@ -210,21 +214,51 @@ const LossDeclarations: React.FC = () => {
   const [loadingVariants, setLoadingVariants] = useState(false);
   const [isVariantDialogOpen, setIsVariantDialogOpen] = useState(false);
 
+  // State إضافي للحذف والتعديل
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [lossToDelete, setLossToDelete] = useState<Loss | null>(null);
+  const [lossToEdit, setLossToEdit] = useState<Loss | null>(null);
+  const [editFormData, setEditFormData] = useState<Partial<Loss>>({});
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  // State لعرض تفاصيل الخسارة والمنتجات
+  const [selectedLossItems, setSelectedLossItems] = useState<LossItem[]>([]);
+  const [loadingLossItems, setLoadingLossItems] = useState(false);
+
   // Fetch losses
   const fetchLosses = useCallback(async () => {
     if (!currentOrganization?.id) return;
 
     setLoading(true);
     try {
-      // استخدام جدول losses بدلاً من loss_declarations
-      const { data, error } = await supabase
+      // جلب الخسائر أولاً
+      const { data: lossesData, error: lossesError } = await (supabase as any)
         .from('losses')
         .select('*')
         .eq('organization_id', currentOrganization.id)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setLosses((data as Loss[]) || []);
+      if (lossesError) throw lossesError;
+
+      // جلب عدد المنتجات لكل خسارة
+      const lossesWithItemCount = await Promise.all(
+        (lossesData || []).map(async (loss: any) => {
+          const { count, error: countError } = await (supabase as any)
+            .from('loss_items')
+            .select('*', { count: 'exact', head: true })
+            .eq('loss_id', loss.id);
+
+          return {
+            ...loss,
+            items_count: countError ? 0 : (count || 0),
+            total_items_count: loss.total_items_count || (countError ? 0 : (count || 0))
+          };
+        })
+      );
+
+      setLosses(lossesWithItemCount as Loss[]);
     } catch (error) {
       setLosses([]);
       // toast.error('حدث خطأ في جلب تصريحات الخسائر');
@@ -238,7 +272,7 @@ const LossDeclarations: React.FC = () => {
     if (!currentOrganization?.id) return;
 
     try {
-      const { data: losses } = await supabase
+      const { data: losses } = await (supabase as any)
         .from('losses')
         .select('status, total_cost_value, total_selling_value')
         .eq('organization_id', currentOrganization.id);
@@ -301,13 +335,24 @@ const LossDeclarations: React.FC = () => {
 
       if (data) {
         // إضافة معلومات المتغيرات للمنتجات
-        const productsWithVariants = data.map((product: any) => ({
-          ...product,
-          has_colors: product.product_colors && product.product_colors.length > 0,
-          has_sizes: product.product_sizes && product.product_sizes.length > 0,
-          product_colors: undefined, // إزالة البيانات المؤقتة
-          product_sizes: undefined
-        }));
+        const productsWithVariants = data.map((product: any) => {
+          // تسجيل للتتبع (فقط في التطوير)
+          if (process.env.NODE_ENV === 'development') {
+            console.log('منتج تم جلبه:', {
+              name: product.name,
+              sku: product.sku,
+              stock_quantity: product.stock_quantity
+            });
+          }
+          
+          return {
+            ...product,
+            has_colors: product.product_colors && product.product_colors.length > 0,
+            has_sizes: product.product_sizes && product.product_sizes.length > 0,
+            product_colors: undefined, // إزالة البيانات المؤقتة
+            product_sizes: undefined
+          };
+        });
         setProducts(productsWithVariants);
       } else {
         setProducts([]);
@@ -327,12 +372,12 @@ const LossDeclarations: React.FC = () => {
       const [colorsQuery, sizesQuery, productQuery] = await Promise.all([
         supabase
           .from('product_colors')
-          .select('id, name, color_code')
+          .select('id, name, color_code, quantity')
           .eq('product_id', productId),
         
         supabase
           .from('product_sizes')
-          .select('id, size_name, color_id')
+          .select('id, size_name, color_id, quantity')
           .eq('product_id', productId),
           
         supabase
@@ -380,7 +425,7 @@ const LossDeclarations: React.FC = () => {
               size_id: size.id,
               size_name: size.size_name,
               size_code: size.size_name, // استخدام size_name كـ size_code
-              current_stock: Math.floor(Math.random() * 100), // مؤقت
+              current_stock: color.quantity || 0,
               variant_display_name: `${color.name} - ${size.size_name}`
             });
           });
@@ -400,7 +445,7 @@ const LossDeclarations: React.FC = () => {
             color_id: color.id,
             color_name: color.name,
             color_code: color.color_code,
-            current_stock: Math.floor(Math.random() * 100), // مؤقت
+            current_stock: color.quantity || 0,
             variant_display_name: color.name
           });
         });
@@ -419,7 +464,7 @@ const LossDeclarations: React.FC = () => {
             size_id: size.id,
             size_name: size.size_name,
             size_code: size.size_name,
-            current_stock: Math.floor(Math.random() * 100), // مؤقت
+            current_stock: size.quantity || 0,
             variant_display_name: size.size_name
           });
         });
@@ -475,7 +520,7 @@ const LossDeclarations: React.FC = () => {
         loss_type: createForm.lossType,
         loss_category: createForm.lossCategory,
         loss_description: createForm.lossDescription,
-        incident_date: createForm.incidentDate,
+        incident_date: new Date(createForm.incidentDate).toISOString(),
         location_description: createForm.locationDescription,
         witness_name: createForm.witnessName,
         requires_manager_approval: createForm.requiresManagerApproval,
@@ -493,7 +538,7 @@ const LossDeclarations: React.FC = () => {
       };
 
       // إدراج الخسارة
-      const { data: loss, error: lossError } = await supabase
+      const { data: loss, error: lossError } = await (supabase as any)
         .from('losses')
         .insert([lossData])
         .select()
@@ -503,7 +548,18 @@ const LossDeclarations: React.FC = () => {
 
               // إدراج عناصر الخسارة
         if (loss) {
-          const lossItemsData = createForm.lossItems.map(item => ({
+          const lossItemsData = createForm.lossItems.map(item => {
+            // التحقق من صحة البيانات قبل الحفظ
+            if (typeof item.stock_before_loss !== 'number' || item.stock_before_loss < 0) {
+              console.error('خطأ في stock_before_loss:', item);
+              throw new Error(`خطأ في بيانات المخزون للمنتج ${item.product_name}`);
+            }
+            if (typeof item.stock_after_loss !== 'number' || item.stock_after_loss < 0) {
+              console.error('خطأ في stock_after_loss:', item);
+              throw new Error(`خطأ في بيانات المخزون بعد الخسارة للمنتج ${item.product_name}`);
+            }
+            
+            return {
             loss_id: loss.id,
             product_id: item.product_id,
             product_name: item.product_name,
@@ -515,23 +571,24 @@ const LossDeclarations: React.FC = () => {
             total_selling_value: item.quantity_lost * item.unit_selling_price,
             loss_condition: item.loss_condition,
             loss_percentage: 100, // افتراضي 100% خسارة
-            stock_before_loss: item.variant_stock_before || null,
-            stock_after_loss: item.variant_stock_after || null,
+            stock_before_loss: item.stock_before_loss,
+            stock_after_loss: item.stock_after_loss,
             color_id: item.color_id || null,
             size_id: item.size_id || null,
             color_name: item.color_name || null,
             size_name: item.size_name || null,
-            variant_stock_before: item.variant_stock_before || null,
-            variant_stock_after: item.variant_stock_after || null,
+            variant_stock_before: item.variant_stock_before,
+            variant_stock_after: item.variant_stock_after,
             variant_info: item.variant_display_name ? {
               display_name: item.variant_display_name,
               type: item.color_id && item.size_id ? 'color_size' : 
                     item.color_id ? 'color_only' : 
                     item.size_id ? 'size_only' : 'main'
             } : null
-          }));
+          };
+          });
 
-          const { error: itemsError } = await supabase
+          const { error: itemsError } = await (supabase as any)
             .from('loss_items')
             .insert(lossItemsData);
 
@@ -553,7 +610,7 @@ const LossDeclarations: React.FC = () => {
     if (!user?.id) return;
 
     try {
-      const { data, error } = await supabase.rpc('process_loss_declaration', {
+      const { data, error } = await (supabase as any).rpc('process_loss_declaration', {
         p_loss_id: lossId,
         p_action: action,
         p_processed_by: user.id,
@@ -563,13 +620,13 @@ const LossDeclarations: React.FC = () => {
 
       if (error) throw error;
 
-      if (data.success) {
+      if ((data as any)?.success) {
         toast.success(`تم ${action === 'approve' ? 'الموافقة على' : action === 'reject' ? 'رفض' : action === 'investigate' ? 'التحقيق في' : 'معالجة'} تصريح الخسارة`);
         fetchLosses();
         fetchStats();
         setIsActionDialogOpen(false);
       } else {
-        toast.error(data.error || 'حدث خطأ في معالجة تصريح الخسارة');
+        toast.error((data as any)?.error || 'حدث خطأ في معالجة تصريح الخسارة');
       }
     } catch (error) {
       toast.error('حدث خطأ في معالجة تصريح الخسارة');
@@ -604,6 +661,30 @@ const LossDeclarations: React.FC = () => {
       return;
     }
 
+    // تحديد المخزون الحالي بشكل صحيح
+    const currentStock = variant ? (variant.current_stock || 0) : (product.stock_quantity || 0);
+    const initialQuantity = 1;
+    
+    // التحقق من وجود مخزون كافي
+    if (currentStock <= 0) {
+      toast.error(`لا يوجد مخزون متاح لهذا المنتج. المخزون الحالي: ${currentStock}`);
+      return;
+    }
+    
+    // التأكد من أن المخزون بعد الخسارة لا يصبح سالباً
+    const stockAfterLoss = Math.max(0, currentStock - initialQuantity);
+    
+    // تسجيل للتتبع (فقط في التطوير)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('إضافة منتج للخسارة:', {
+        product_name: product.name,
+        variant_name: variant?.variant_display_name,
+        currentStock,
+        initialQuantity,
+        stockAfterLoss
+      });
+    }
+
     setCreateForm(prev => ({
       ...prev,
       lossItems: [
@@ -612,20 +693,20 @@ const LossDeclarations: React.FC = () => {
           product_id: product.id,
           product_name: product.name,
           product_sku: product.sku,
-          quantity_lost: 1,
+          quantity_lost: initialQuantity,
           unit_cost: variant?.product_purchase_price || product.purchase_price,
           unit_selling_price: variant?.product_price || product.price,
           loss_condition: 'completely_damaged',
-          stock_before_loss: variant?.current_stock || product.stock_quantity,
-          stock_after_loss: (variant?.current_stock || product.stock_quantity) - 1,
+          stock_before_loss: currentStock,
+          stock_after_loss: stockAfterLoss,
           // معلومات المتغير
           color_id: variant?.color_id,
           size_id: variant?.size_id,
           color_name: variant?.color_name,
           size_name: variant?.size_name,
           variant_display_name: variant?.variant_display_name,
-          variant_stock_before: variant?.current_stock,
-          variant_stock_after: (variant?.current_stock || 0) - 1
+          variant_stock_before: variant?.current_stock || currentStock,
+          variant_stock_after: variant?.current_stock ? Math.max(0, variant.current_stock - initialQuantity) : stockAfterLoss
         }
       ]
     }));
@@ -656,8 +737,30 @@ const LossDeclarations: React.FC = () => {
           // إذا تم تغيير الكمية، حديث المخزون بعد الخسارة
           if (field === 'quantity_lost') {
             const stockBefore = item.stock_before_loss || item.variant_stock_before || 0;
-            updatedItem.stock_after_loss = Math.max(0, stockBefore - value);
-            updatedItem.variant_stock_after = Math.max(0, (item.variant_stock_before || 0) - value);
+            const newQuantity = Math.max(0, parseInt(value) || 0); // التأكد من أن الكمية موجبة
+            
+            // التأكد من أن الكمية المفقودة لا تتجاوز المخزون المتاح
+            const maxLossQuantity = stockBefore;
+            const validQuantity = Math.min(newQuantity, maxLossQuantity);
+            
+            if (newQuantity > maxLossQuantity) {
+              toast.error(`الكمية المفقودة لا يمكن أن تتجاوز المخزون المتاح (${maxLossQuantity})`);
+            }
+            
+            updatedItem.quantity_lost = validQuantity;
+            updatedItem.stock_after_loss = Math.max(0, stockBefore - validQuantity);
+            updatedItem.variant_stock_after = Math.max(0, (item.variant_stock_before || stockBefore) - validQuantity);
+            
+            // تسجيل للتتبع (فقط في التطوير)
+            if (process.env.NODE_ENV === 'development') {
+              console.log('تحديث كمية الخسارة:', {
+                product_name: item.product_name,
+                stockBefore,
+                newQuantity,
+                validQuantity,
+                stock_after_loss: updatedItem.stock_after_loss
+              });
+            }
           }
           
           return updatedItem;
@@ -776,6 +879,215 @@ const LossDeclarations: React.FC = () => {
       setProducts([]);
     }
   }, [productSearchQuery]);
+
+  // دالة حذف الخسارة مع إعادة المنتجات للمخزون
+  const deleteLoss = async (lossId: string) => {
+    setIsDeleting(true);
+    try {
+      // 1. جلب عناصر الخسارة
+      const { data: lossItems, error: itemsError } = await (supabase as any)
+        .from('loss_items')
+        .select('*')
+        .eq('loss_id', lossId);
+
+      if (itemsError) {
+        throw new Error(`خطأ في جلب عناصر الخسارة: ${itemsError.message}`);
+      }
+
+      // 2. إعادة المنتجات للمخزون
+      if (lossItems && lossItems.length > 0) {
+        for (const item of lossItems) {
+          if (item.color_id || item.size_id) {
+            // التعامل مع المتغيرات
+            if (item.size_id && item.color_id) {
+              // متغير كامل (لون + مقاس)
+              const { error: sizeError } = await (supabase as any)
+                .from('product_sizes')
+                .update({ 
+                  quantity: (supabase as any).raw(`quantity + ${item.quantity_lost}`) 
+                })
+                .eq('id', item.size_id);
+
+              if (sizeError) {
+                console.error('خطأ في تحديث مخزون المقاس:', sizeError);
+              }
+            } else if (item.color_id) {
+              // متغير لون فقط
+              const { error: colorError } = await (supabase as any)
+                .from('product_colors')
+                .update({ 
+                  quantity: (supabase as any).raw(`quantity + ${item.quantity_lost}`) 
+                })
+                .eq('id', item.color_id);
+
+              if (colorError) {
+                console.error('خطأ في تحديث مخزون اللون:', colorError);
+              }
+            }
+          } else {
+            // منتج أساسي
+            const { error: productError } = await (supabase as any)
+              .from('products')
+              .update({ 
+                stock_quantity: (supabase as any).raw(`stock_quantity + ${item.quantity_lost}`) 
+              })
+              .eq('id', item.product_id);
+
+            if (productError) {
+              console.error('خطأ في تحديث مخزون المنتج:', productError);
+            }
+          }
+
+          // إضافة سجل في inventory_log
+          await (supabase as any)
+            .from('inventory_log')
+            .insert({
+              product_id: item.product_id,
+              type: 'loss_reversal',
+              quantity: item.quantity_lost,
+              previous_stock: (item.stock_before_loss || 0) - item.quantity_lost,
+              new_stock: item.stock_before_loss || 0,
+              notes: `إلغاء خسارة: ${lossToDelete?.loss_number}`,
+              reference_id: lossId,
+              reference_type: 'loss_deletion',
+              organization_id: currentOrganization?.id
+            });
+        }
+      }
+
+              // 3. حذف عناصر الخسارة
+        const { error: deleteItemsError } = await (supabase as any)
+          .from('loss_items')
+          .delete()
+          .eq('loss_id', lossId);
+
+        if (deleteItemsError) {
+          throw new Error(`خطأ في حذف عناصر الخسارة: ${deleteItemsError.message}`);
+        }
+
+        // 4. حذف الخسارة
+        const { error: deleteLossError } = await (supabase as any)
+          .from('losses')
+          .delete()
+          .eq('id', lossId);
+
+      if (deleteLossError) {
+        throw new Error(`خطأ في حذف الخسارة: ${deleteLossError.message}`);
+      }
+
+      toast.success('تم حذف الخسارة بنجاح وإعادة المنتجات للمخزون');
+      
+      // تحديث القائمة
+      fetchLosses();
+      fetchStats();
+      
+      // إغلاق النافذة
+      setIsDeleteDialogOpen(false);
+      setLossToDelete(null);
+
+    } catch (error: any) {
+      console.error('خطأ في حذف الخسارة:', error);
+      toast.error(error.message || 'حدث خطأ أثناء حذف الخسارة');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+    // دالة تعديل الخسارة
+  const updateLoss = async () => {
+    if (!lossToEdit || !editFormData) return;
+
+    setIsUpdating(true);
+    try {
+      const { error } = await (supabase as any)
+        .from('losses')
+        .update({
+          loss_type: editFormData.loss_type || lossToEdit.loss_type,
+          loss_description: editFormData.loss_description || lossToEdit.loss_description,
+          incident_date: editFormData.incident_date || lossToEdit.incident_date,
+          notes: editFormData.notes || lossToEdit.notes,
+          requires_investigation: editFormData.requires_investigation ?? lossToEdit.requires_investigation,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', lossToEdit.id);
+
+      if (error) {
+        throw new Error(`خطأ في تحديث الخسارة: ${error.message}`);
+      }
+
+      toast.success('تم تحديث الخسارة بنجاح');
+      
+      // تحديث القائمة
+      fetchLosses();
+      
+      // إغلاق النافذة
+      setIsEditDialogOpen(false);
+      setLossToEdit(null);
+      setEditFormData({});
+
+    } catch (error: any) {
+      console.error('خطأ في تحديث الخسارة:', error);
+      toast.error(error.message || 'حدث خطأ أثناء تحديث الخسارة');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  // دالة جلب المنتجات المرتبطة بتصريح خسارة
+  const fetchLossItems = async (lossId: string) => {
+    setLoadingLossItems(true);
+    try {
+      const { data, error } = await (supabase as any)
+        .from('loss_items')
+        .select(`
+          *,
+          products:product_id (
+            name,
+            sku,
+            stock_quantity
+          )
+        `)
+        .eq('loss_id', lossId);
+
+      if (error) {
+        throw new Error(`خطأ في جلب عناصر الخسارة: ${error.message}`);
+      }
+
+      // تحويل البيانات لتطابق interface LossItem
+      const formattedItems: LossItem[] = (data || []).map((item: any) => ({
+        id: item.id,
+        product_id: item.product_id,
+        product_name: item.products?.name || item.product_name,
+        product_sku: item.products?.sku || item.product_sku,
+        quantity_lost: item.lost_quantity,
+        loss_percentage: item.loss_percentage,
+        unit_cost: item.unit_cost_price,
+        unit_selling_price: item.unit_selling_price,
+        total_cost_value: item.total_cost_value,
+        total_selling_value: item.total_selling_value,
+        loss_condition: item.loss_condition,
+        stock_before_loss: item.stock_before_loss ?? (item.products?.stock_quantity || 0),
+        stock_after_loss: item.stock_after_loss ?? Math.max(0, (item.products?.stock_quantity || 0) - item.lost_quantity),
+        inventory_adjusted: item.inventory_adjusted,
+        color_id: item.color_id,
+        size_id: item.size_id,
+        color_name: item.color_name,
+        size_name: item.size_name,
+        variant_display_name: item.variant_info?.display_name,
+        variant_stock_before: item.variant_stock_before,
+        variant_stock_after: item.variant_stock_after,
+        variant_info: item.variant_info
+      }));
+
+      setSelectedLossItems(formattedItems);
+    } catch (error: any) {
+      console.error('خطأ في جلب عناصر الخسارة:', error);
+      toast.error(error.message || 'حدث خطأ في جلب عناصر الخسارة');
+      setSelectedLossItems([]);
+    } finally {
+      setLoadingLossItems(false);
+    }
+  };
 
   return (
     <Layout>
@@ -1317,7 +1629,7 @@ const LossDeclarations: React.FC = () => {
                           <TableCell>
                             {new Date(loss.incident_date).toLocaleDateString('ar')}
                           </TableCell>
-                          <TableCell>{loss.items_count}</TableCell>
+                          <TableCell>{loss.total_items_count || loss.items_count || 0}</TableCell>
                           <TableCell className="text-red-600 font-medium">
                             {formatCurrency(loss.total_cost_value)}
                           </TableCell>
@@ -1335,11 +1647,37 @@ const LossDeclarations: React.FC = () => {
                                 variant="outline"
                                 onClick={() => {
                                   setSelectedLoss(loss);
+                                  fetchLossItems(loss.id);
                                   setIsDetailsDialogOpen(true);
                                 }}
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
+                              
+                              {/* زر التعديل */}
+                              {loss.status !== 'rejected' && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setLossToEdit(loss);
+                                    setEditFormData({
+                                      loss_type: loss.loss_type,
+                                      loss_description: loss.loss_description,
+                                      incident_date: loss.incident_date,
+                                      notes: loss.notes,
+                                      requires_investigation: loss.requires_investigation
+                                    });
+                                    fetchLossItems(loss.id);
+                                    setIsEditDialogOpen(true);
+                                  }}
+                                  title="تعديل الخسارة"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                              )}
+                              
+                              {/* زر المعالجة */}
                               {(loss.status === 'pending' || loss.status === 'approved') && (
                                 <Button
                                   size="sm"
@@ -1348,8 +1686,24 @@ const LossDeclarations: React.FC = () => {
                                     setSelectedLoss(loss);
                                     setIsActionDialogOpen(true);
                                   }}
+                                  title="معالجة الخسارة"
                                 >
-                                  <Edit className="h-4 w-4" />
+                                  <Package className="h-4 w-4" />
+                                </Button>
+                              )}
+                              
+                              {/* زر الحذف */}
+                              {(loss.status === 'pending' || loss.status === 'approved') && (
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => {
+                                    setLossToDelete(loss);
+                                    setIsDeleteDialogOpen(true);
+                                  }}
+                                  title="حذف الخسارة وإعادة المنتجات للمخزون"
+                                >
+                                  <Trash2 className="h-4 w-4" />
                                 </Button>
                               )}
                             </div>
@@ -1454,7 +1808,7 @@ const LossDeclarations: React.FC = () => {
                   <CardContent className="space-y-4">
                     <div>
                       <Label>وصف الحادثة</Label>
-                      <p className="mt-1">{selectedLoss.description}</p>
+                      <p className="mt-1">{selectedLoss.loss_description}</p>
                     </div>
                     {selectedLoss.notes && (
                       <div>
@@ -1596,6 +1950,363 @@ const LossDeclarations: React.FC = () => {
                 </Button>
               </div>
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Loss Details Dialog */}
+        <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" aria-describedby="details-dialog-description">
+            <DialogHeader>
+              <DialogTitle>تفاصيل تصريح الخسارة</DialogTitle>
+              <div id="details-dialog-description" className="sr-only">
+                عرض تفاصيل تصريح الخسارة والمنتجات المرتبطة به
+              </div>
+            </DialogHeader>
+            
+            {selectedLoss && (
+              <div className="space-y-6">
+                {/* معلومات التصريح */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5" />
+                      معلومات التصريح
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>رقم التصريح</Label>
+                      <p className="font-medium">{selectedLoss.loss_number}</p>
+                    </div>
+                    <div>
+                      <Label>نوع الخسارة</Label>
+                      <p className="font-medium">{getTypeLabel(selectedLoss.loss_type)}</p>
+                    </div>
+                    <div>
+                      <Label>تاريخ الحادثة</Label>
+                      <p className="font-medium">{new Date(selectedLoss.incident_date).toLocaleDateString('ar')}</p>
+                    </div>
+                    <div>
+                      <Label>الحالة</Label>
+                      <div>{getStatusBadge(selectedLoss.status)}</div>
+                    </div>
+                    <div>
+                      <Label>قيمة التكلفة الإجمالية</Label>
+                      <p className="font-medium text-red-600">{formatCurrency(selectedLoss.total_cost_value)}</p>
+                    </div>
+                    <div>
+                      <Label>قيمة البيع الإجمالية</Label>
+                      <p className="font-medium text-red-600">{formatCurrency(selectedLoss.total_selling_value)}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <Label>وصف الحادثة</Label>
+                      <p className="mt-1 p-2 bg-muted rounded">{selectedLoss.loss_description}</p>
+                    </div>
+                    {selectedLoss.notes && (
+                      <div className="col-span-2">
+                        <Label>ملاحظات</Label>
+                        <p className="mt-1 p-2 bg-muted rounded">{selectedLoss.notes}</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* المنتجات المفقودة */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Package className="h-5 w-5" />
+                      المنتجات المفقودة ({selectedLossItems.length})
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {loadingLossItems ? (
+                      <div className="flex justify-center py-8">
+                        <RefreshCw className="h-8 w-8 animate-spin" />
+                      </div>
+                    ) : selectedLossItems.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>المنتج</TableHead>
+                              <TableHead>الكمية المفقودة</TableHead>
+                              <TableHead>تكلفة الوحدة</TableHead>
+                              <TableHead>سعر البيع</TableHead>
+                              <TableHead>إجمالي التكلفة</TableHead>
+                              <TableHead>إجمالي البيع</TableHead>
+                              <TableHead>حالة الخسارة</TableHead>
+                              <TableHead>المخزون قبل/بعد</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {selectedLossItems.map((item) => (
+                              <TableRow key={item.id}>
+                                <TableCell>
+                                  <div>
+                                    <p className="font-medium">{item.product_name}</p>
+                                    <p className="text-sm text-muted-foreground">{item.product_sku}</p>
+                                    {item.variant_display_name && (
+                                      <p className="text-xs text-blue-600">
+                                        {item.variant_display_name}
+                                      </p>
+                                    )}
+                                    {(item.color_name || item.size_name) && (
+                                      <div className="text-xs text-muted-foreground">
+                                        {item.color_name && <span>اللون: {item.color_name}</span>}
+                                        {item.color_name && item.size_name && <span> | </span>}
+                                        {item.size_name && <span>المقاس: {item.size_name}</span>}
+                                      </div>
+                                    )}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="font-medium">{item.quantity_lost}</TableCell>
+                                <TableCell>{formatCurrency(item.unit_cost)}</TableCell>
+                                <TableCell>{formatCurrency(item.unit_selling_price)}</TableCell>
+                                <TableCell className="text-red-600 font-medium">
+                                  {formatCurrency(item.total_cost_value || (item.quantity_lost * item.unit_cost))}
+                                </TableCell>
+                                <TableCell className="text-red-600 font-medium">
+                                  {formatCurrency(item.total_selling_value || (item.quantity_lost * item.unit_selling_price))}
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant="outline">
+                                    {item.loss_condition === 'completely_damaged' ? 'تالف بالكامل' :
+                                     item.loss_condition === 'partially_damaged' ? 'تالف جزئياً' :
+                                     item.loss_condition === 'expired' ? 'منتهي الصلاحية' :
+                                     item.loss_condition === 'missing' ? 'مفقود' :
+                                     item.loss_condition === 'stolen' ? 'مسروق' :
+                                     item.loss_condition === 'defective' ? 'معيب' :
+                                     item.loss_condition === 'contaminated' ? 'ملوث' :
+                                     item.loss_condition}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="text-sm">
+                                    <div>قبل: {item.stock_before_loss || item.variant_stock_before || 0}</div>
+                                    <div>بعد: {item.stock_after_loss || item.variant_stock_after || 0}</div>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        لا توجد منتجات مرتبطة بهذا التصريح
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <div className="flex justify-end">
+                  <Button variant="outline" onClick={() => setIsDetailsDialogOpen(false)}>
+                    إغلاق
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Loss Dialog */}
+        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <DialogContent aria-describedby="delete-dialog-description">
+            <DialogHeader>
+              <DialogTitle>حذف تصريح الخسارة</DialogTitle>
+              <div id="delete-dialog-description" className="sr-only">
+                تأكيد حذف تصريح الخسارة وإعادة المنتجات للمخزون
+              </div>
+            </DialogHeader>
+            
+            {lossToDelete && (
+              <div className="space-y-4">
+                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5" />
+                    <div>
+                      <h4 className="font-medium text-yellow-800">تحذير هام</h4>
+                      <p className="text-sm text-yellow-700 mt-1">
+                        سيتم حذف تصريح الخسارة نهائياً وإعادة جميع المنتجات المفقودة إلى المخزون.
+                        هذا الإجراء لا يمكن التراجع عنه.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <p><strong>رقم التصريح:</strong> {lossToDelete.loss_number}</p>
+                  <p><strong>النوع:</strong> {getTypeLabel(lossToDelete.loss_type)}</p>
+                  <p><strong>قيمة التكلفة:</strong> {formatCurrency(lossToDelete.total_cost_value)}</p>
+                  <p><strong>عدد العناصر:</strong> {lossToDelete.total_items_count || lossToDelete.items_count || 0}</p>
+                </div>
+                
+                <div className="flex gap-2 justify-end">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setIsDeleteDialogOpen(false);
+                      setLossToDelete(null);
+                    }}
+                    disabled={isDeleting}
+                  >
+                    إلغاء
+                  </Button>
+                  <Button 
+                    variant="destructive"
+                    onClick={() => deleteLoss(lossToDelete.id)}
+                    disabled={isDeleting}
+                  >
+                    {isDeleting ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        جاري الحذف...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        حذف نهائي
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Loss Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="max-w-2xl" aria-describedby="edit-dialog-description">
+            <DialogHeader>
+              <DialogTitle>تعديل تصريح الخسارة</DialogTitle>
+              <div id="edit-dialog-description" className="sr-only">
+                نموذج تعديل تفاصيل تصريح الخسارة
+              </div>
+            </DialogHeader>
+            
+            {lossToEdit && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="edit-loss-type">نوع الخسارة</Label>
+                    <Select
+                      value={editFormData.loss_type || lossToEdit.loss_type}
+                      onValueChange={(value) => setEditFormData(prev => ({ ...prev, loss_type: value as any }))}
+                    >
+                      <SelectTrigger id="edit-loss-type">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="damaged">تلف</SelectItem>
+                        <SelectItem value="expired">انتهاء صلاحية</SelectItem>
+                        <SelectItem value="theft">سرقة</SelectItem>
+                        <SelectItem value="spoilage">فساد</SelectItem>
+                        <SelectItem value="breakage">كسر</SelectItem>
+                        <SelectItem value="defective">معيب</SelectItem>
+                        <SelectItem value="other">أخرى</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="edit-incident-date">تاريخ الحادثة</Label>
+                    <Input
+                      id="edit-incident-date"
+                      type="date"
+                      value={editFormData.incident_date || lossToEdit.incident_date?.split('T')[0]}
+                      onChange={(e) => setEditFormData(prev => ({ ...prev, incident_date: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="edit-description">وصف الحادثة</Label>
+                  <Textarea
+                    id="edit-description"
+                    value={editFormData.loss_description || lossToEdit.loss_description}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, loss_description: e.target.value }))}
+                    rows={3}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="edit-notes">ملاحظات</Label>
+                  <Textarea
+                    id="edit-notes"
+                    value={editFormData.notes || lossToEdit.notes || ''}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, notes: e.target.value }))}
+                    rows={2}
+                  />
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="edit-requires-investigation"
+                    checked={editFormData.requires_investigation ?? lossToEdit.requires_investigation}
+                    onCheckedChange={(checked) => setEditFormData(prev => ({ ...prev, requires_investigation: checked as boolean }))}
+                  />
+                  <Label htmlFor="edit-requires-investigation">يتطلب تحقيق</Label>
+                </div>
+
+                {/* عرض المنتجات المرتبطة */}
+                <div className="space-y-2">
+                  <Label>المنتجات المرتبطة بهذا التصريح:</Label>
+                  {loadingLossItems ? (
+                    <div className="flex justify-center py-4">
+                      <RefreshCw className="h-6 w-6 animate-spin" />
+                    </div>
+                  ) : selectedLossItems.length > 0 ? (
+                    <div className="max-h-40 overflow-y-auto border rounded p-2">
+                      {selectedLossItems.map((item) => (
+                        <div key={item.id} className="flex justify-between items-center py-1 text-sm">
+                          <div>
+                            <span className="font-medium">{item.product_name}</span>
+                            {item.variant_display_name && (
+                              <span className="text-blue-600 ml-2">({item.variant_display_name})</span>
+                            )}
+                          </div>
+                          <span className="text-muted-foreground">الكمية: {item.quantity_lost}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">لا توجد منتجات مرتبطة</p>
+                  )}
+                </div>
+                
+                <div className="flex gap-2 justify-end">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setIsEditDialogOpen(false);
+                      setLossToEdit(null);
+                      setEditFormData({});
+                    }}
+                    disabled={isUpdating}
+                  >
+                    إلغاء
+                  </Button>
+                  <Button 
+                    onClick={updateLoss}
+                    disabled={isUpdating}
+                  >
+                    {isUpdating ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        جاري التحديث...
+                      </>
+                    ) : (
+                      <>
+                        <Edit className="h-4 w-4 mr-2" />
+                        حفظ التغييرات
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       </div>

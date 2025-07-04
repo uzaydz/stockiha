@@ -232,7 +232,48 @@ BEGIN
         );
     END IF;
 
-    -- إدراج جميع عناصر الطلبية في عملية واحدة
+    -- ✅ معالجة المخزون باستخدام نظام FIFO أولاً (قبل إدراج order_items)
+    FOR item_record IN 
+        SELECT 
+            (item->>'product_id')::UUID as product_id,
+            (item->>'quantity')::INTEGER as quantity,
+            item->>'color_id' as color_id,
+            item->>'size_id' as size_id
+        FROM json_array_elements(p_items::json) AS item
+        WHERE item->>'product_id' IS NOT NULL
+    LOOP
+        -- استدعاء دالة FIFO للمنتجات مع المتغيرات
+        SELECT process_pos_sale_with_variants_fifo(
+            item_record.product_id,
+            item_record.quantity,
+            p_organization_id,
+            CASE 
+                WHEN item_record.color_id IS NOT NULL THEN item_record.color_id::UUID
+                ELSE NULL
+            END,
+            CASE 
+                WHEN item_record.size_id IS NOT NULL THEN item_record.size_id::UUID
+                ELSE NULL
+            END,
+            v_new_order_id
+        ) INTO fifo_result;
+        
+        -- التحقق من نجاح عملية FIFO
+        IF NOT (fifo_result->>'success')::boolean THEN
+            RAISE EXCEPTION 'فشل في معالجة المخزون للمنتج %: %', 
+                item_record.product_id, fifo_result->>'error';
+        END IF;
+        
+        -- إضافة معلومات التكلفة إلى النتيجة
+        fifo_results := fifo_results || jsonb_build_object(
+            'product_id', item_record.product_id,
+            'quantity', item_record.quantity,
+            'fifo_cost', fifo_result->>'total_cost',
+            'average_cost', fifo_result->>'average_cost_per_unit'
+        );
+    END LOOP;
+
+    -- إدراج جميع عناصر الطلبية في عملية واحدة (بعد معالجة المخزون)
     INSERT INTO order_items (
         id,
         order_id,
@@ -276,47 +317,6 @@ BEGIN
         (item_data->>'created_at')::timestamp
     FROM unnest(v_items_data) AS item_data;
 
-    -- ✅ معالجة المخزون باستخدام نظام FIFO
-    FOR item_record IN 
-        SELECT 
-            (item->>'product_id')::UUID as product_id,
-            (item->>'quantity')::INTEGER as quantity,
-            item->>'color_id' as color_id,
-            item->>'size_id' as size_id
-        FROM json_array_elements(p_items::json) AS item
-        WHERE item->>'product_id' IS NOT NULL
-    LOOP
-        -- استدعاء دالة FIFO للمنتجات مع المتغيرات
-        SELECT process_pos_sale_with_variants_fifo(
-            item_record.product_id,
-            item_record.quantity,
-            p_organization_id,
-            CASE 
-                WHEN item_record.color_id IS NOT NULL THEN item_record.color_id::UUID
-                ELSE NULL
-            END,
-            CASE 
-                WHEN item_record.size_id IS NOT NULL THEN item_record.size_id::UUID
-                ELSE NULL
-            END,
-            v_new_order_id
-        ) INTO fifo_result;
-        
-        -- التحقق من نجاح عملية FIFO
-        IF NOT (fifo_result->>'success')::boolean THEN
-            RAISE EXCEPTION 'فشل في معالجة المخزون للمنتج %: %', 
-                item_record.product_id, fifo_result->>'error';
-        END IF;
-        
-        -- إضافة معلومات التكلفة إلى النتيجة
-        fifo_results := fifo_results || jsonb_build_object(
-            'product_id', item_record.product_id,
-            'quantity', item_record.quantity,
-            'fifo_cost', fifo_result->>'total_cost',
-            'average_cost', fifo_result->>'average_cost_per_unit'
-        );
-    END LOOP;
-
     -- إنشاء JSON للنتيجة
     SELECT json_build_object(
         'id', v_new_order_id,
@@ -333,7 +333,8 @@ BEGIN
         'updated_at', NOW(),
         'success', true,
         'message', 'تم إنشاء الطلب بنجاح',
-        'fifo_results', fifo_results
+        'fifo_results', fifo_results,
+        'debug_info', 'Order created successfully with ID: ' || v_new_order_id
     ) INTO v_result;
 
     RETURN v_result;
@@ -366,90 +367,75 @@ ON order_items (order_id, product_id, created_at DESC);
 COMMENT ON FUNCTION create_pos_order_fast IS 
 'دالة محسنة لإنشاء طلبات POS بسرعة فائقة - تستخدم Bulk Insert و Product Caching';
 
--- ✅ إنشاء trigger محسن للتعامل مع FIFO
-CREATE OR REPLACE FUNCTION log_sales_to_inventory_smart()
+-- ❌ حذف الـ trigger المتداخل والمسبب للمشكلة
+DROP TRIGGER IF EXISTS log_sales_trigger ON order_items;
+DROP TRIGGER IF EXISTS log_sales_trigger_smart ON order_items;
+DROP FUNCTION IF EXISTS log_sales_to_inventory_smart();
+
+-- ✅ إنشاء trigger محدود للطلبيات العادية فقط (ليس POS)
+CREATE OR REPLACE FUNCTION log_sales_to_inventory_limited()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
+DECLARE
+    order_type TEXT;
+    order_employee_id UUID;
 BEGIN
-    -- التحقق من نوع الطلبية
-    DECLARE
-        order_type TEXT;
-        existing_log_count INTEGER;
-        order_employee_id UUID;
-    BEGIN
-        -- جلب نوع الطلبية ومعرف الموظف
-        SELECT COALESCE(pos_order_type, 'regular'), employee_id
-        INTO order_type, order_employee_id
-        FROM orders 
-        WHERE id = NEW.order_id;
-        
-        -- التحقق من وجود سجل FIFO مسبق لنفس المنتج والطلبية
-        SELECT COUNT(*)
-        INTO existing_log_count
-        FROM inventory_log
-        WHERE product_id = NEW.product_id 
-        AND reference_id = NEW.order_id 
-        AND reference_type = 'pos_order'
-        AND created_at >= NOW() - INTERVAL '1 minute';
-        
-        -- إذا كانت طلبية POS ولديها سجل FIFO مسبق، لا نضيف سجل إضافي
-        IF order_type = 'pos' AND existing_log_count > 0 THEN
-            RETURN NEW;
-        END IF;
-        
-        -- للطلبيات العادية أو POS بدون FIFO، أضف السجل التقليدي
-        INSERT INTO inventory_log(
-            product_id,
-            quantity,
-            previous_stock,
-            new_stock,
-            type,
-            reference_id,
-            reference_type,
-            notes,
-            organization_id,
-            created_by
-        )
-        SELECT 
-            NEW.product_id,
-            NEW.quantity,
-            p.stock_quantity + NEW.quantity, -- المخزون قبل البيع
-            p.stock_quantity,                -- المخزون بعد البيع
-            'sale',
-            NEW.order_id,
-            CASE 
-                WHEN order_type = 'pos' THEN 'pos_order'
-                ELSE 'order'
-            END,
-            'بيع من خلال طلب رقم ' || NEW.order_id,
-            NEW.organization_id,
-            order_employee_id
-        FROM products p
-        WHERE p.id = NEW.product_id;
-        
-        -- للطلبيات العادية، نحدث المخزون يدوياً
-        IF order_type != 'pos' THEN
-            UPDATE products 
-            SET stock_quantity = stock_quantity - NEW.quantity,
-                updated_at = NOW(),
-                last_inventory_update = NOW()
-            WHERE id = NEW.product_id;
-        END IF;
-        
+    -- جلب نوع الطلبية
+    SELECT COALESCE(pos_order_type, 'regular'), employee_id
+    INTO order_type, order_employee_id
+    FROM orders 
+    WHERE id = NEW.order_id;
+    
+    -- للطلبيات POS: لا نفعل شيء (دالة FIFO تتولى الأمر)
+    IF order_type = 'pos' THEN
         RETURN NEW;
-    END;
+    END IF;
+    
+    -- للطلبيات العادية فقط، أضف السجل التقليدي
+    INSERT INTO inventory_log(
+        product_id,
+        quantity,
+        previous_stock,
+        new_stock,
+        type,
+        reference_id,
+        reference_type,
+        notes,
+        organization_id,
+        created_by
+    )
+    SELECT 
+        NEW.product_id,
+        NEW.quantity,
+        p.stock_quantity + NEW.quantity, -- المخزون قبل البيع
+        p.stock_quantity,                -- المخزون بعد البيع
+        'sale',
+        NEW.order_id,
+        'order',
+        'بيع من خلال طلب عادي رقم ' || NEW.order_id,
+        NEW.organization_id,
+        order_employee_id
+    FROM products p
+    WHERE p.id = NEW.product_id;
+    
+    -- تحديث المخزون للطلبيات العادية
+    UPDATE products 
+    SET stock_quantity = stock_quantity - NEW.quantity,
+        updated_at = NOW(),
+        last_inventory_update = NOW()
+    WHERE id = NEW.product_id;
+    
+    RETURN NEW;
 END;
 $$;
 
--- حذف الـ trigger القديم وإنشاء الجديد
-DROP TRIGGER IF EXISTS log_sales_trigger ON order_items;
-DROP TRIGGER IF EXISTS log_sales_trigger_smart ON order_items;
-
-CREATE TRIGGER log_sales_trigger_smart
+-- إنشاء trigger محدود للطلبيات العادية فقط (إذا لم يكن موجوداً)
+DROP TRIGGER IF EXISTS log_sales_trigger_limited ON order_items;
+CREATE TRIGGER log_sales_trigger_limited
     AFTER INSERT ON order_items
     FOR EACH ROW
-    EXECUTE FUNCTION log_sales_to_inventory_smart();
+    EXECUTE FUNCTION log_sales_to_inventory_limited();
 
 -- ✅ دالة مركزية لإعادة تزامن المخزون
 CREATE OR REPLACE FUNCTION sync_product_inventory(p_product_id UUID)

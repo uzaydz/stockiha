@@ -6,6 +6,7 @@ interface UsePOSKeyboardOptions {
   onQuickReturnOpen: () => void;
   onPOSSettingsOpen: () => void;
   onRefreshData: () => Promise<void>;
+  onQuickExpenseOpen: () => void;
   isLoading?: boolean;
 }
 
@@ -14,6 +15,7 @@ export const usePOSKeyboard = ({
   onQuickReturnOpen,
   onPOSSettingsOpen,
   onRefreshData,
+  onQuickExpenseOpen,
   isLoading = false
 }: UsePOSKeyboardOptions) => {
 
@@ -40,6 +42,13 @@ export const usePOSKeyboard = ({
       return;
     }
 
+    // اختصار Ctrl+E لفتح المصروف السريع
+    if (event.ctrlKey && event.key === 'e' && !event.shiftKey) {
+      event.preventDefault();
+      onQuickExpenseOpen();
+      return;
+    }
+
     // اختصار Ctrl+F5 للتحديث السريع
     if (event.ctrlKey && event.key === 'F5') {
       event.preventDefault();
@@ -55,7 +64,7 @@ export const usePOSKeyboard = ({
       }
       return;
     }
-  }, [onCalculatorOpen, onQuickReturnOpen, onPOSSettingsOpen, onRefreshData, isLoading]);
+  }, [onCalculatorOpen, onQuickReturnOpen, onPOSSettingsOpen, onRefreshData, onQuickExpenseOpen, isLoading]);
 
   // إضافة وإزالة مستمع الأحداث
   useEffect(() => {

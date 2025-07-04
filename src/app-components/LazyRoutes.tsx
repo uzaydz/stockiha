@@ -53,11 +53,13 @@ export const PaymentHistory = lazy(() => import('../pages/dashboard/PaymentHisto
 export const Employees = lazy(() => import('../pages/dashboard/Employees'));
 export const Expenses = lazy(() => import('../pages/dashboard/Expenses'));
 export const Analytics = lazy(() => import('../pages/dashboard/Analytics'));
+export const FinancialAnalytics = lazy(() => import('../pages/FinancialAnalytics'));
 export const Invoices = lazy(() => import('../pages/dashboard/Invoices'));
 export const FinancialReports = lazy(() => import('../pages/dashboard/reports'));
 
 // ============ نقطة البيع ============
 export const POSOptimized = lazy(() => import('../pages/POSOptimized'));
+export const POSAdvanced = lazy(() => import('../pages/POSAdvanced'));
 export const POSOrdersOptimized = lazy(() => import('../pages/POSOrdersOptimized'));
 export const ProductReturns = lazy(() => import('../pages/returns/ProductReturns'));
 export const LossDeclarations = lazy(() => import('../pages/losses/LossDeclarations'));

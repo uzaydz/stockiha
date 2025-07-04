@@ -353,8 +353,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // دالة تحديث البيانات
   const refreshData = useCallback(async () => {
+    console.log('🔄 [AuthContext] refreshData بدء التنفيذ:', { hasUser: !!user, hasSession: !!session });
     
     if (!user || !session) {
+      console.log('❌ [AuthContext] لا يوجد مستخدم أو جلسة:', { user: !!user, session: !!session });
       return;
     }
 

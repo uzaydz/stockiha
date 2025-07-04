@@ -141,12 +141,14 @@ const TenantRegistrationForm = () => {
         try {
           await refreshData();
         } catch (error) {
+          console.warn('تحذير: فشل تحديث AuthContext:', error);
         }
         
-        // التوجيه إلى stockiha.com/dashboard بدلاً من النطاق الفرعي
+        // انتظار قصير ثم إعادة تحميل الصفحة لضمان تحديث كامل للحالة
         setTimeout(() => {
-          navigate('/dashboard');
-        }, 1000); // تأخير قصير لإظهار رسالة النجاح
+          // إعادة تحميل الصفحة لضمان تحديث كامل لـ Context
+          window.location.href = '/dashboard';
+        }, 1500); // تأخير أطول قليلاً لضمان استكمال جميع العمليات
       } else {
         const errorMessage = error || 'حدث خطأ غير متوقع أثناء التسجيل';
         toast.error(`فشل التسجيل: ${errorMessage}`);

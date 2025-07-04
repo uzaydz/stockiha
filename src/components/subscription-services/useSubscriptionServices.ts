@@ -9,7 +9,28 @@ import {
   TransactionStats 
 } from './types';
 
+// مسح cache للفئات القديمة
+const clearOldSubscriptionCache = () => {
+  const keysToRemove = [
+    'subscription_services_cache',
+    'subscription_categories_cache', 
+    'subscription_transactions_cache',
+    'subscription_stats_cache'
+  ];
+  
+  keysToRemove.forEach(key => {
+    localStorage.removeItem(key);
+  });
+  
+  console.log('🧹 [useSubscriptionServices] تم مسح cache القديم');
+};
+
 export const useSubscriptionServices = (organizationId: string | undefined) => {
+  // مسح cache عند التحميل الأولي
+  useEffect(() => {
+    clearOldSubscriptionCache();
+  }, []);
+
   // Services state
   const [services, setServices] = useState<SubscriptionService[]>([]);
   const [categories, setCategories] = useState<SubscriptionServiceCategory[]>([]);

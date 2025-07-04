@@ -48,19 +48,28 @@ export const useFormInitialization = ({
 
     const loadProvinces = async () => {
       try {
-        if (!currentOrganization) return;
-
+        // تعيين حالة التحميل لحقول الولايات
         for (const field of provinceFields) {
           field.isLoading = true;
         }
         setExtendedFields([...newExtendedFields]); // Update with loading state
 
-        const provinces = await getProvinces(currentOrganization.id);
+        // استدعاء getProvinces بدون معامل organizationId لأنه اختياري
+        const provinces = await getProvinces();
         
         if (!provinces || provinces.length === 0) {
+          console.warn('لم يتم العثور على ولايات أو فشل في تحميل البيانات');
           // Reset loading state even if no provinces found
           for (const field of provinceFields) {
             field.isLoading = false;
+            // إضافة بيانات احتياطية في حالة فشل التحميل
+            (field as ExtendedFormField).provinces = [
+              { id: 16, name: "الجزائر" },
+              { id: 31, name: "وهران" },
+              { id: 25, name: "قسنطينة" },
+              { id: 19, name: "سطيف" },
+              { id: 23, name: "عنابة" }
+            ];
           }
           setExtendedFields([...newExtendedFields]);
           return;
@@ -71,14 +80,28 @@ export const useFormInitialization = ({
           name: province.name
         }));
 
+        console.log('تم تحميل الولايات بنجاح:', formattedProvinces.length);
+
         for (const field of provinceFields) {
           (field as ExtendedFormField).provinces = formattedProvinces;
           field.isLoading = false;
         }
         setExtendedFields([...newExtendedFields]);
       } catch (error) {
+        console.error('خطأ في تحميل الولايات:', error);
         for (const field of provinceFields) {
           field.isLoading = false;
+          // إضافة بيانات احتياطية في حالة الخطأ
+          (field as ExtendedFormField).provinces = [
+            { id: 16, name: "الجزائر" },
+            { id: 31, name: "وهران" },
+            { id: 25, name: "قسنطينة" },
+            { id: 19, name: "سطيف" },
+            { id: 23, name: "عنابة" },
+            { id: 9, name: "البليدة" },
+            { id: 15, name: "تيزي وزو" },
+            { id: 29, name: "معسكر" }
+          ];
         }
         setExtendedFields([...newExtendedFields]); // Update with error state (loading false)
       }

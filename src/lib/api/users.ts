@@ -164,7 +164,6 @@ export const clearProfileCache = () => {
 
 // Helper function to get current auth user's profile from the users table - محسّن للسرعة
 export const getCurrentUserProfile = async (): Promise<User | null> => {
-  
   try {
     // التحقق من الـ cache أولاً
     const startTime = Date.now();
@@ -284,7 +283,7 @@ export const getCurrentUserProfile = async (): Promise<User | null> => {
       );
       
       const { data: userById, error: idError } = await Promise.race([dbPromise, shortDbTimeoutPromise]);
-
+      
       if (!idError && userById) {
         userProfile = userById;
         
@@ -323,7 +322,6 @@ export const getCurrentUserProfile = async (): Promise<User | null> => {
 
     // إذا وجدنا مستخدماً، نعيده وحفظه في الـ cache
     if (userProfile) {
-      
       // حفظ organization_id في localStorage إذا كان متوفراً
       if (userProfile.organization_id) {
         const currentStoredId = localStorage.getItem('bazaar_organization_id');
