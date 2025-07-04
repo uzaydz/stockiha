@@ -28,6 +28,7 @@ import {
   getMunicipalitiesByWilayaId,
   type YalidineMunicipality
 } from '@/data/yalidine-municipalities-complete';
+import { useProductPurchaseTranslation } from '@/hooks/useProductPurchaseTranslation';
 
 // تحسين تعريفات الأنواع
 export type FormFieldType = 'text' | 'email' | 'tel' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'number';
@@ -195,6 +196,9 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
   onSizeSelect
 }) => {
   
+  // استخدام الترجمة المخصصة
+  const { productFormRenderer, translateDynamicText } = useProductPurchaseTranslation();
+  
   // تحسين معالجة البيانات بـ useMemo
   const { 
     fields, 
@@ -212,10 +216,10 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
       const colorField: FormField = {
         id: 'product_color',
         name: 'product_color',
-        label: 'اختر اللون',
+        label: productFormRenderer.selectColor(),
         type: 'radio',
         required: true,
-        description: 'اختر اللون المفضل للمنتج',
+        description: productFormRenderer.selectColorDescription(),
         options: product.colors.map(color => ({
           label: color.name,
           value: color.id
@@ -229,10 +233,10 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
       const sizeField: FormField = {
         id: 'product_size',
         name: 'product_size',
-        label: 'اختر المقاس',
+        label: productFormRenderer.selectSize(),
         type: 'radio',
         required: true,
-        description: 'اختر المقاس المناسب',
+        description: productFormRenderer.selectSizeDescription(),
         options: selectedColor.sizes.map(size => ({
           label: size.size_name,
           value: size.id
@@ -241,15 +245,27 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
       dynamicFields.push(sizeField);
     }
 
+    // ترجمة النصوص في الحقول الأساسية
+    const translatedBaseFields = baseFields.map(field => ({
+      ...field,
+      label: translateDynamicText(field.label),
+      placeholder: field.placeholder ? translateDynamicText(field.placeholder) : field.placeholder,
+      description: field.description ? translateDynamicText(field.description) : field.description,
+      options: field.options?.map(option => ({
+        ...option,
+        label: translateDynamicText(option.label)
+      }))
+    }));
+
     return {
-      fields: [...dynamicFields, ...baseFields],
+      fields: [...dynamicFields, ...translatedBaseFields],
       isLoading: loading || isSubmitting,
       submitHandler: onFormSubmit || onSubmit,
-      formTitle: externalFormData?.name || 'معلومات الطلب',
-      formDescription: externalFormData?.description,
-      submitButtonText: externalFormData?.submitButtonText || 'إرسال الطلب'
+      formTitle: externalFormData?.name ? translateDynamicText(externalFormData.name) : productFormRenderer.orderForm(),
+      formDescription: externalFormData?.description ? translateDynamicText(externalFormData.description) : undefined,
+      submitButtonText: externalFormData?.submitButtonText ? translateDynamicText(externalFormData.submitButtonText) : productFormRenderer.submitOrder()
     };
-  }, [externalFormData, directFields, loading, isSubmitting, onFormSubmit, onSubmit, product, selectedColor]);
+  }, [externalFormData, directFields, loading, isSubmitting, onFormSubmit, onSubmit, product, selectedColor, productFormRenderer, translateDynamicText]);
 
   const [formData, setFormData] = useState<ProductFormData>(() => ({
     ...initialData,
@@ -285,9 +301,9 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
 
   // تحسين أسماء حقول الولايات والبلديات بـ useMemo
   const fieldNames = useMemo(() => ({
-    province: ['province', 'wilaya', 'state', 'الولاية'],
-    municipality: ['municipality', 'commune', 'city', 'البلدية', 'المدينة']
-  }), []);
+    province: ['province', 'wilaya', 'state', productFormRenderer.selectProvince().toLowerCase()],
+    municipality: ['municipality', 'commune', 'city', productFormRenderer.selectMunicipality().toLowerCase()]
+  }), [productFormRenderer]);
 
   // تحسين العثور على الحقول بـ useMemo
   const { provinceField, municipalityField } = useMemo(() => {
@@ -311,45 +327,45 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
   // validation logic
   const validateField = useCallback((field: FormField, value: ProductFormDataValue): string => {
     if (field.required && (!value || value === '')) {
-      return `${field.label} مطلوب`;
+      return `${field.label} ${productFormRenderer.requiredField()}`;
     }
 
     if (field.validation && value) {
       const { pattern, message, min, max } = field.validation;
       
-      if (pattern && typeof value === 'string') {
-        const regex = new RegExp(pattern);
-        if (!regex.test(value)) {
-          return message || `${field.label} غير صحيح`;
+              if (pattern && typeof value === 'string') {
+          const regex = new RegExp(pattern);
+          if (!regex.test(value)) {
+            return message || `${field.label} ${productFormRenderer.invalidField()}`;
+          }
         }
-      }
 
       if (field.type === 'number' && typeof value === 'number') {
         if (min !== undefined && value < min) {
-          return `${field.label} يجب أن يكون أكبر من ${min}`;
+          return `${field.label} ${productFormRenderer.mustBeGreaterThan()} ${min}`;
         }
         if (max !== undefined && value > max) {
-          return `${field.label} يجب أن يكون أقل من ${max}`;
+          return `${field.label} ${productFormRenderer.mustBeLessThan()} ${max}`;
         }
       }
 
-      if (field.type === 'email' && typeof value === 'string') {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(value)) {
-          return 'البريد الإلكتروني غير صحيح';
+              if (field.type === 'email' && typeof value === 'string') {
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(value)) {
+            return productFormRenderer.invalidEmail();
+          }
         }
-      }
 
-      if (field.type === 'tel' && typeof value === 'string') {
-        const phoneRegex = /^[0-9+\-\s()]+$/;
-        if (!phoneRegex.test(value)) {
-          return 'رقم الهاتف غير صحيح';
+              if (field.type === 'tel' && typeof value === 'string') {
+          const phoneRegex = /^[0-9+\-\s()]+$/;
+          if (!phoneRegex.test(value)) {
+            return productFormRenderer.invalidPhone();
+          }
         }
-      }
     }
 
     return '';
-  }, []);
+  }, [productFormRenderer]);
 
   // validate all fields - محسن للأداء
   const validateForm = useCallback((): { isValid: boolean; errors: FormErrors } => {
@@ -368,7 +384,7 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
       isValid: Object.keys(newErrors).length === 0,
       errors: newErrors
     };
-  }, [fields.length, Object.keys(formData).length]); // dependencies محسنة
+  }, [fields.length, Object.keys(formData).length, validateField]); // dependencies محسنة
 
   // تحديث البلديات عند تغيير الولاية
   useEffect(() => {
@@ -544,7 +560,7 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
             aria-invalid={fieldError && isFieldTouched}
             aria-describedby={fieldError ? `${field.id}-error` : undefined}
           >
-            <SelectValue placeholder={field.placeholder || 'اختر الولاية'} />
+                            <SelectValue placeholder={field.placeholder || productFormRenderer.selectProvince()} />
           </SelectTrigger>
           <SelectContent className="rounded-xl border border-border shadow-lg">
             {provinces.map((province) => (
@@ -612,7 +628,7 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
           <div className="w-full px-4 py-3 border border-border rounded-lg bg-muted/50 text-muted-foreground flex items-center justify-center">
             <div className="flex items-center gap-2">
               <MapPinIcon className="w-4 h-4" />
-              اختر الولاية أولاً
+                                  {productFormRenderer.selectProvinceFirst()}
             </div>
           </div>
         </motion.div>
@@ -652,7 +668,7 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
             aria-invalid={fieldError && isFieldTouched}
             aria-describedby={fieldError ? `${field.id}-error` : undefined}
           >
-            <SelectValue placeholder={field.placeholder || 'اختر البلدية'} />
+                            <SelectValue placeholder={field.placeholder || productFormRenderer.selectMunicipality()} />
           </SelectTrigger>
           <SelectContent className="rounded-xl border border-border shadow-lg">
             {availableMunicipalities.map((municipality) => (
@@ -851,7 +867,7 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
                             )}
                             <div>
                               <span className="font-medium block text-foreground">{option.label}</span>
-                              <span className="text-xs text-muted-foreground block mt-1">اللون المتاح للمنتج</span>
+                              <span className="text-xs text-muted-foreground block mt-1">{productFormRenderer.availableColor()}</span>
                             </div>
                           </>
                         )}
@@ -863,8 +879,8 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
                               <span className="text-xs font-bold text-secondary">{option.label.charAt(0).toUpperCase()}</span>
                             </div>
                             <div>
-                              <span className="font-medium block text-foreground">مقاس {option.label}</span>
-                              <span className="text-xs text-muted-foreground block mt-1">المقاس المتاح</span>
+                                              <span className="font-medium block text-foreground">{productFormRenderer.sizeLabel()} {option.label}</span>
+                <span className="text-xs text-muted-foreground block mt-1">{productFormRenderer.availableSize()}</span>
                             </div>
                           </>
                         )}
@@ -878,10 +894,10 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
                             <div>
                               <span className="font-medium block text-foreground">{option.label}</span>
                               {isHome && (
-                                <span className="text-xs text-muted-foreground block mt-1">توصيل الطلب مباشرة إلى عنوانك</span>
+                                <span className="text-xs text-muted-foreground block mt-1">{productFormRenderer.homeDelivery()}</span>
                               )}
                               {isDesk && (
-                                <span className="text-xs text-muted-foreground block mt-1">استلام الطلب من مكتب شركة التوصيل</span>
+                                <span className="text-xs text-muted-foreground block mt-1">{productFormRenderer.officeDelivery()}</span>
                               )}
                             </div>
                           </>
@@ -944,14 +960,14 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
             >
               <Alert variant="destructive" className="py-2">
                 <ExclamationTriangleIcon className="h-4 w-4" />
-                <AlertDescription className="text-sm">{fieldError}</AlertDescription>
+                <AlertDescription className="text-sm">{translateDynamicText(fieldError)}</AlertDescription>
               </Alert>
             </motion.div>
           )}
         </AnimatePresence>
       </motion.div>
     );
-  }, [formData, updateFormData, isLoading, getFieldIcon, errors, touched]);
+  }, [formData, updateFormData, isLoading, getFieldIcon, errors, touched, translateDynamicText]);
 
   // تحديد نوع عرض الحقل
   const renderField = useCallback((field: FormField) => {
@@ -1107,14 +1123,14 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
                       {/* النصوص */}
                       <div className="flex-1 text-right">
                         <div className="text-lg font-bold text-gray-900 dark:text-white group-hover:text-primary transition-colors duration-300">
-                          {isLoading ? 'جاري المعالجة...' : submitButtonText}
+                          {isLoading ? productFormRenderer.processing() : submitButtonText}
                         </div>
                         <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                           {isLoading 
-                            ? 'يرجى الانتظار...' 
+                            ? productFormRenderer.pleaseWait() 
                             : showValidation && !isFormValid 
-                              ? 'يرجى تصحيح الأخطاء أولاً'
-                              : 'اضغط لإرسال النموذج'
+                              ? translateDynamicText(productFormRenderer.fixErrorsFirst())
+                              : translateDynamicText(productFormRenderer.clickToSubmit())
                           }
                         </div>
                       </div>

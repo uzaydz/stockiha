@@ -152,4 +152,4 @@ const ProductHeader = memo(({
 
 ProductHeader.displayName = 'ProductHeader';
 
-export { ProductHeader };
+export { ProductHeader }; 

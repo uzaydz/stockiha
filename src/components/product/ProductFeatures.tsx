@@ -10,6 +10,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { CompleteProduct } from '@/lib/api/productComplete';
 import { cn } from '@/lib/utils';
+import { useProductPurchaseTranslation } from '@/hooks/useProductPurchaseTranslation';
 
 interface ProductFeaturesProps {
   product: CompleteProduct;
@@ -57,6 +58,8 @@ const specVariants = {
 
 const ProductFeatures = memo<ProductFeaturesProps>(({ product, className }) => {
   
+  const { productFeatures } = useProductPurchaseTranslation();
+  
   // تحسين معالجة الميزات بـ useMemo
   const featuresData = useMemo(() => {
     if (!product?.features_and_specs) {
@@ -71,7 +74,7 @@ const ProductFeatures = memo<ProductFeaturesProps>(({ product, className }) => {
       features.push({
         id: 'fast_shipping',
         icon: TruckIcon,
-        title: 'شحن سريع',
+        title: productFeatures.shipping(),
         description: featuresSpec.fast_shipping_text || 'شحن سريع لجميع الولايات',
         color: 'text-blue-600 dark:text-blue-400',
         bgColor: 'bg-blue-50/80 dark:bg-blue-900/20',
@@ -83,7 +86,7 @@ const ProductFeatures = memo<ProductFeaturesProps>(({ product, className }) => {
       features.push({
         id: 'money_back',
         icon: ShieldCheckIcon,
-        title: 'ضمان الاسترداد',
+        title: productFeatures.returns(),
         description: featuresSpec.money_back_text || 'ضمان استرداد المال خلال 7 أيام',
         color: 'text-green-600 dark:text-green-400',
         bgColor: 'bg-green-50/80 dark:bg-green-900/20',
@@ -95,7 +98,7 @@ const ProductFeatures = memo<ProductFeaturesProps>(({ product, className }) => {
       features.push({
         id: 'quality_guarantee',
         icon: CheckCircleIcon,
-        title: 'ضمان الجودة',
+        title: productFeatures.warranty(),
         description: featuresSpec.quality_guarantee_text || 'ضمان جودة المنتج لمدة سنة',
         color: 'text-purple-600 dark:text-purple-400',
         bgColor: 'bg-purple-50/80 dark:bg-purple-900/20',
@@ -145,7 +148,7 @@ const ProductFeatures = memo<ProductFeaturesProps>(({ product, className }) => {
           <div className="flex items-center gap-3">
             <SparklesIcon className="w-6 h-6 text-primary" />
             <h3 className="text-xl font-bold text-foreground dark:text-white">
-              مميزات المنتج
+              {productFeatures.features()}
             </h3>
           </div>
           
@@ -208,7 +211,7 @@ const ProductFeatures = memo<ProductFeaturesProps>(({ product, className }) => {
           <div className="flex items-center gap-3">
             <DocumentTextIcon className="w-6 h-6 text-primary" />
             <h4 className="text-xl font-bold text-foreground dark:text-white">
-              المواصفات التقنية
+              {productFeatures.specifications()}
             </h4>
           </div>
           

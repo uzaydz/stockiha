@@ -2,8 +2,8 @@ import React, { memo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { MinusIcon, PlusIcon } from '@heroicons/react/24/outline';
-import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
+import { useProductPurchaseTranslation } from '@/hooks/useProductPurchaseTranslation';
 
 interface ProductQuantitySelectorProps {
   quantity: number;
@@ -22,7 +22,7 @@ const ProductQuantitySelector = memo<ProductQuantitySelectorProps>(({
   className,
   basePrice = 0
 }) => {
-  const { t } = useTranslation();
+  const { productQuantitySelector } = useProductPurchaseTranslation();
   
   // تحسين معالجات الأحداث بـ useCallback
   const handleDecrease = useCallback(() => {
@@ -50,10 +50,10 @@ const ProductQuantitySelector = memo<ProductQuantitySelectorProps>(({
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-foreground flex items-center">
           <span className="inline-block w-1 h-4 bg-primary rounded-full ml-2"></span>
-          {t('productOptions.quantity')}
+          {productQuantitySelector.quantity()}
         </h3>
         <span className="text-xs text-primary font-medium px-3 py-1 bg-primary/5 rounded-full">
-          {maxQuantity > 0 ? t('productOptions.available', { count: maxQuantity }) : t('productOptions.unavailable')}
+          {maxQuantity > 0 ? productQuantitySelector.availableStock(maxQuantity) : productQuantitySelector.outOfStock()}
         </span>
       </div>
 
@@ -92,9 +92,7 @@ const ProductQuantitySelector = memo<ProductQuantitySelectorProps>(({
           {/* معلومات إضافية في الأسفل */}
           {basePrice > 0 && (
             <div className="text-muted-foreground text-sm text-center w-full border-t border-border pt-3 mt-1">
-              {t('productOptions.totalPrice', { 
-                price: (quantity * basePrice).toLocaleString() 
-              })}
+              {productQuantitySelector.totalPrice()}: {(quantity * basePrice).toLocaleString()} {productQuantitySelector.currency()}
             </div>
           )}
         </div>

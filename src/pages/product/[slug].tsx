@@ -52,7 +52,7 @@ const ProductPage = () => {
       </Helmet>
       
       {/* توجيه المستخدم إلى صفحة شراء المنتج */}
-      <Navigate to={`/product-purchase/${slug}`} replace />
+      <Navigate to={`/product-purchase-max-v2/${slug}`} replace />
     </>
   );
 };

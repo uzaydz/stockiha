@@ -10,6 +10,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { CompleteProduct, ProductColor, ProductSize, getFinalPrice } from '@/lib/api/productComplete';
 import { cn } from '@/lib/utils';
+import { useProductPurchaseTranslation } from '@/hooks/useProductPurchaseTranslation';
 
 interface ProductPriceDisplayProps {
   product: CompleteProduct;
@@ -26,6 +27,9 @@ const ProductPriceDisplay = memo<ProductPriceDisplayProps>(({
   selectedSize,
   className
 }) => {
+  
+  // استخدام الترجمة المخصصة
+  const { productPriceDisplay } = useProductPurchaseTranslation();
   
   // تحسين حسابات السعر بـ useMemo
   const priceData = useMemo(() => {
@@ -68,7 +72,7 @@ const ProductPriceDisplay = memo<ProductPriceDisplayProps>(({
           <div className="p-2 bg-primary/10 rounded-xl">
             <CurrencyDollarIcon className="w-5 h-5 text-primary" />
           </div>
-          <h3 className="text-lg font-semibold">السعر</h3>
+          <h3 className="text-lg font-semibold">{productPriceDisplay.price()}</h3>
         </div>
 
         {/* السعر الحالي */}
@@ -76,17 +80,17 @@ const ProductPriceDisplay = memo<ProductPriceDisplayProps>(({
           <span className="text-4xl lg:text-5xl font-bold text-primary">
             {priceData.formattedPrice}
           </span>
-          <span className="text-xl font-medium text-primary">دج</span>
+          <span className="text-xl font-medium text-primary">{productPriceDisplay.currency()}</span>
           
           {/* السعر الأصلي مع الخصم */}
           {priceData.hasDiscount && (
             <div className="flex items-center gap-2">
               <span className="text-lg text-muted-foreground line-through">
-                {priceData.formattedOriginalPrice} دج
+                {priceData.formattedOriginalPrice} {productPriceDisplay.currency()}
               </span>
               <Badge className="bg-red-100 text-red-700 hover:bg-red-100">
                 <FireIcon className="w-3 h-3 ml-1" />
-                -{priceData.discountPercentage.toFixed(0)}%
+                {productPriceDisplay.discount()} {priceData.discountPercentage.toFixed(0)}%
               </Badge>
             </div>
           )}
@@ -108,7 +112,7 @@ const ProductPriceDisplay = memo<ProductPriceDisplayProps>(({
             <div className="flex items-center gap-2 text-green-700">
               <SparklesIcon className="w-4 h-4" />
               <span className="text-sm font-medium">
-                وفرت {priceData.formattedDiscount} دج من هذا المنتج
+                {productPriceDisplay.saveAmount()} {priceData.formattedDiscount} {productPriceDisplay.currency()} من هذا المنتج
               </span>
             </div>
           </div>
@@ -127,18 +131,18 @@ const ProductPriceDisplay = memo<ProductPriceDisplayProps>(({
             <span className="text-muted-foreground">الإجمالي:</span>
             <div className="text-right">
               <span className="text-2xl font-bold text-primary">{priceData.formattedTotalPrice}</span>
-              <span className="text-lg font-semibold text-primary mr-1">دج</span>
+              <span className="text-lg font-semibold text-primary mr-1">{productPriceDisplay.currency()}</span>
               {priceData.hasDiscount && (
-                <div className="text-sm text-muted-foreground line-through">
-                  {priceData.formattedTotalOriginalPrice} دج
-                </div>
+                                  <div className="text-sm text-muted-foreground line-through">
+                    {priceData.formattedTotalOriginalPrice} {productPriceDisplay.currency()}
+                  </div>
               )}
             </div>
           </div>
           
           <div className="flex justify-between items-center text-xs text-muted-foreground border-t border-border pt-2">
             <span>سعر القطعة الواحدة:</span>
-            <span>{priceData.formattedPrice} دج</span>
+            <span>{priceData.formattedPrice} {productPriceDisplay.currency()}</span>
           </div>
         </div>
       )}

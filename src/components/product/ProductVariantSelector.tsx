@@ -4,6 +4,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { CompleteProduct, ProductColor, ProductSize } from '@/lib/api/productComplete';
 import { cn } from '@/lib/utils';
+import { useProductPurchaseTranslation } from '@/hooks/useProductPurchaseTranslation';
 
 interface ProductVariantSelectorProps {
   product: CompleteProduct;
@@ -62,6 +63,9 @@ const ProductVariantSelector = memo<ProductVariantSelectorProps>(({
   className
 }) => {
   
+  // استخدام الترجمة المخصصة
+  const { productVariantSelector } = useProductPurchaseTranslation();
+  
   // تحسين فحص المتغيرات بـ useMemo
   const variantData = useMemo(() => {
     if (!product?.variants?.has_variants || !product.variants.colors || product.variants.colors.length === 0) {
@@ -107,7 +111,7 @@ const ProductVariantSelector = memo<ProductVariantSelectorProps>(({
       >
         <div className="flex items-center justify-between">
           <Label className="text-base font-semibold text-foreground dark:text-white">
-            اللون
+            {productVariantSelector.color()}
           </Label>
           {selectedColor?.name && (
             <Badge 
@@ -215,7 +219,7 @@ const ProductVariantSelector = memo<ProductVariantSelectorProps>(({
         >
           <div className="flex items-center justify-between">
             <Label className="text-base font-semibold text-foreground dark:text-white">
-              المقاس
+              {productVariantSelector.size()}
             </Label>
             {selectedSize?.size_name && (
               <Badge 

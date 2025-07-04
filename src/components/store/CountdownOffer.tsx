@@ -102,7 +102,7 @@ const CountdownOffer: React.FC<CountdownOfferProps> = ({
   }
 
   // رابط المنتج
-  const productUrl = productSlug ? `/products/${productSlug}` : `/product/${productId}`;
+  const productUrl = productSlug ? `/product-purchase-max-v2/${productSlug}` : `/product-purchase-max-v2/${productId}`;
 
   return (
     <Card className={`overflow-hidden border ${getThemeClasses()} ${className}`}>

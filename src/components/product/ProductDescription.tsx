@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useProductPurchaseTranslation } from '@/hooks/useProductPurchaseTranslation';
 
 interface ProductDescriptionProps {
   description: string;
@@ -43,6 +44,9 @@ const ProductDescription = memo(({
   className
 }: ProductDescriptionProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  
+  // استخدام الترجمة المخصصة
+  const { productDescription } = useProductPurchaseTranslation();
   
   // تحسين الحسابات بالـ useMemo
   const textData = useMemo(() => {
@@ -147,12 +151,12 @@ const ProductDescription = memo(({
             >
               {isExpanded ? (
                 <>
-                  <span>عرض أقل</span>
+                  <span>{productDescription.showLess()}</span>
                   <ChevronUpIcon className="w-4 h-4" />
                 </>
               ) : (
                 <>
-                  <span>اقرأ المزيد</span>
+                  <span>{productDescription.readMore()}</span>
                   <ChevronDownIcon className="w-4 h-4" />
                 </>
               )}

@@ -2,6 +2,7 @@ import React, { memo, useCallback, useMemo, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SparklesIcon, CheckIcon, CurrencyDollarIcon, TruckIcon, ArrowDownIcon } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/utils';
+import { useProductPurchaseTranslation } from '@/hooks/useProductPurchaseTranslation';
 
 interface ProductActionsProps {
   totalPrice: number;
@@ -68,6 +69,9 @@ const ProductActions = memo(({
   
   const [isVisible, setIsVisible] = useState(true);
   const [isAtForm, setIsAtForm] = useState(false);
+  
+  // استخدام الترجمة المخصصة
+  const { productActions } = useProductPurchaseTranslation();
 
   // تحسين الحسابات بالـ useMemo
   const { formattedTotalPrice, formattedProductPrice, formattedDeliveryFee } = useMemo(() => {
@@ -181,12 +185,12 @@ const ProductActions = memo(({
                 <div className="flex items-center justify-between text-sm">
                   <div className="flex items-center space-x-2 space-x-reverse text-gray-600 dark:text-gray-400">
                     <CurrencyDollarIcon className="h-4 w-4" />
-                    <span>المنتج: {formattedProductPrice} {currency}</span>
+                    <span>{productActions.product()} {formattedProductPrice} {currency}</span>
                   </div>
                   <div className="flex items-center space-x-2 space-x-reverse text-gray-600 dark:text-gray-400">
                     <TruckIcon className="h-4 w-4" />
                     <span>
-                      التوصيل: {isCalculatingDelivery ? (
+                      {productActions.delivery()} {isCalculatingDelivery ? (
                         <LoadingSpinner />
                       ) : (
                         `${formattedDeliveryFee} ${currency}`
@@ -233,16 +237,16 @@ const ProductActions = memo(({
                   
                   <div className="text-right">
                     <div className="text-lg font-bold">
-                      {buyingNow ? 'جاري المعالجة...' : 
-                       isCalculatingDelivery ? 'حساب السعر...' : 
-                       document.querySelector('form') ? 'اطلب الآن' :
-                       'اشتري الآن'}
+                      {buyingNow ? productActions.calculating() : 
+                       isCalculatingDelivery ? productActions.calculating() : 
+                       document.querySelector('form') ? productActions.orderNow() :
+                       productActions.buyNow()}
                     </div>
                     <div className="text-sm opacity-90">
-                      {buyingNow ? 'يرجى الانتظار' : 
-                       isCalculatingDelivery ? 'جاري الحساب' : 
-                       document.querySelector('form') ? 'انتقل للنموذج' :
-                       'شراء مباشر'}
+                      {buyingNow ? productActions.calculating() : 
+                       isCalculatingDelivery ? productActions.calculating() : 
+                       document.querySelector('form') ? productActions.scrollToForm() :
+                       productActions.completeOrder()}
                     </div>
                   </div>
                 </div>

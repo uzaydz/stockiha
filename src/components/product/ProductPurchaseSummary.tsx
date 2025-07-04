@@ -1,6 +1,5 @@
 import React, { memo, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { useTranslation } from 'react-i18next';
 import { 
   ShoppingCartIcon, 
   CubeIcon, 
@@ -11,6 +10,7 @@ import {
   SparklesIcon
 } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/utils';
+import { useProductPurchaseTranslation } from '@/hooks/useProductPurchaseTranslation';
 
 interface ProductPurchaseSummaryProps {
   // بيانات المنتج
@@ -105,7 +105,7 @@ const ProductPurchaseSummary = memo<ProductPurchaseSummaryProps>(({
   currency = 'دج',
   className = ''
 }) => {
-  const { t } = useTranslation();
+  const { productPurchaseSummary } = useProductPurchaseTranslation();
 
   // تحسين تنسيق السعر بـ useCallback
   const formatPrice = useCallback((price: number) => {
@@ -126,7 +126,7 @@ const ProductPurchaseSummary = memo<ProductPurchaseSummaryProps>(({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
           </svg>
         </div>
-        <h3 className="text-lg font-semibold">{t('orderForm.orderSummary')}</h3>
+        <h3 className="text-lg font-semibold">{productPurchaseSummary.orderSummary()}</h3>
       </div>
 
       {/* تفاصيل المنتج (الألوان والأحجام) */}
@@ -134,13 +134,13 @@ const ProductPurchaseSummary = memo<ProductPurchaseSummaryProps>(({
         <div className="bg-background/50 rounded-xl p-4 space-y-2">
           {selectedColor && (
             <div className="flex items-center gap-2 text-sm">
-              <span className="text-muted-foreground">{t('orderForm.color')}</span>
+              <span className="text-muted-foreground">{productPurchaseSummary.color()}:</span>
               <span className="font-medium">{selectedColor.name}</span>
             </div>
           )}
           {selectedSize && (
             <div className="flex items-center gap-2 text-sm">
-              <span className="text-muted-foreground">{t('orderForm.size')}</span>
+              <span className="text-muted-foreground">{productPurchaseSummary.size()}:</span>
               <span className="font-medium">{selectedSize.name}</span>
             </div>
           )}
@@ -151,7 +151,7 @@ const ProductPurchaseSummary = memo<ProductPurchaseSummaryProps>(({
       <div className="space-y-3">
         {/* سعر المنتج */}
         <div className="flex justify-between items-center">
-          <span className="text-muted-foreground">{t('orderForm.product', { count: quantity })}</span>
+          <span className="text-muted-foreground">{productPurchaseSummary.productPrice()} ({quantity} قطعة):</span>
           <span className="font-medium">{formatPrice(basePrice * quantity)} {currency}</span>
         </div>
 
@@ -166,10 +166,10 @@ const ProductPurchaseSummary = memo<ProductPurchaseSummaryProps>(({
         {/* رسوم التوصيل */}
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <span className="text-muted-foreground">{t('orderForm.deliveryFees')}</span>
+            <span className="text-muted-foreground">{productPurchaseSummary.deliveryFees()}:</span>
             {deliveryType && (
               <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
-                {deliveryType === 'home' ? t('orderForm.toHome') : 'للمكتب'}
+                {deliveryType === 'home' ? productPurchaseSummary.toHome() : productPurchaseSummary.toOffice()}
               </span>
             )}
           </div>
@@ -201,7 +201,7 @@ const ProductPurchaseSummary = memo<ProductPurchaseSummaryProps>(({
 
       {/* المجموع الكلي */}
       <div className="flex justify-between items-center">
-        <span className="text-lg font-semibold">{t('orderForm.totalAmount')}</span>
+        <span className="text-lg font-semibold">{productPurchaseSummary.totalAmount()}</span>
         <div className="text-right">
           <span className="text-2xl font-bold text-primary">{formatPrice(total)}</span>
           <span className="text-lg font-semibold text-primary mr-1">{currency}</span>

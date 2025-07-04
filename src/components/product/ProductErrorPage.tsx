@@ -10,6 +10,7 @@ import {
   ShoppingBagIcon
 } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/utils';
+import { useProductPurchaseTranslation } from '@/hooks/useProductPurchaseTranslation';
 
 interface ProductErrorPageProps {
   error?: string;
@@ -68,6 +69,9 @@ const ProductErrorPage = memo(({
   className
 }: ProductErrorPageProps) => {
   const navigate = useNavigate();
+  
+  // استخدام الترجمة المخصصة
+  const { productErrorPage } = useProductPurchaseTranslation();
 
   // تحسين الوظائف بـ useCallback
   const handleGoHome = useCallback(() => {
@@ -86,17 +90,17 @@ const ProductErrorPage = memo(({
     }
   }, [onRetry]);
 
-  // تحسين النصوص بـ useMemo
+  // تحسين النصوص بـ useMemo مع الترجمة
   const errorContent = useMemo(() => ({
-    title: error || 'المنتج غير موجود',
-    description: 'عذراً، لم نتمكن من العثور على هذا المنتج أو حدث خطأ في تحميله. يمكنك المحاولة مرة أخرى أو تصفح منتجاتنا الأخرى.',
+    title: error || productErrorPage.productNotFound(),
+    description: productErrorPage.errorMessage(),
     suggestions: [
-      '🔍 تحقق من رابط المنتج',
-      '🔄 أعد تحميل الصفحة', 
-      '🛍️ تصفح منتجاتنا الأخرى',
-      '🏠 ارجع للصفحة الرئيسية'
+      productErrorPage.suggestions.checkLink(),
+      productErrorPage.suggestions.reloadPage(), 
+      productErrorPage.suggestions.browseProducts(),
+      productErrorPage.suggestions.goHome()
     ]
-  }), [error]);
+  }), [error, productErrorPage]);
 
   return (
     <div className={cn(
@@ -172,7 +176,7 @@ const ProductErrorPage = memo(({
               className="mb-8 p-4 rounded-xl bg-muted/30 dark:bg-muted/20 border border-border/30"
             >
               <h3 className="text-sm font-semibold mb-3 text-muted-foreground">
-                جرب هذه الحلول:
+                {productErrorPage.tryTheseSolutions()}
               </h3>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 {errorContent.suggestions.map((suggestion, index) => (
@@ -211,7 +215,7 @@ const ProductErrorPage = memo(({
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
                   <ArrowPathIcon className="w-5 h-5 ml-2" />
-                  حاول مرة أخرى
+                  {productErrorPage.buttons.retry()}
                 </Button>
               </motion.div>
               
@@ -233,7 +237,7 @@ const ProductErrorPage = memo(({
                   size="lg"
                 >
                   <ShoppingBagIcon className="w-5 h-5 ml-2" />
-                  تصفح المنتجات
+                  {productErrorPage.buttons.browseProducts()}
                 </Button>
               </motion.div>
               
@@ -252,7 +256,7 @@ const ProductErrorPage = memo(({
                   )}
                 >
                   <HomeIcon className="w-4 h-4 ml-2" />
-                  العودة للرئيسية
+                  {productErrorPage.buttons.goHome()}
                 </Button>
               </motion.div>
             </motion.div>

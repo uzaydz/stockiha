@@ -65,12 +65,12 @@ const ProductCard = React.memo(({
 
   const handleBuyNow = (e: React.MouseEvent) => {
     e.stopPropagation();
-    navigate(`/products/${product.slug}?buy=true`);
+    navigate(`/product-purchase-max-v2/${product.slug}`);
     toast.success(t('productCard.buyingProduct', { productName: product.name }));
   };
 
   const handleViewProduct = () => {
-    navigate(`/products/${product.slug}`);
+    navigate(`/product-purchase-max-v2/${product.slug}`);
   };
 
   // حساب نسبة الخصم

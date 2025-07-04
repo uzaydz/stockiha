@@ -1,5 +1,5 @@
 CREATE OR REPLACE FUNCTION get_product_complete_data(
-  p_product_id UUID,
+  p_product_identifier TEXT, -- يمكن أن يكون UUID أو slug
   p_organization_id UUID DEFAULT NULL,
   p_include_inactive BOOLEAN DEFAULT FALSE,
   p_data_scope TEXT DEFAULT 'full' -- 'basic', 'medium', 'full', 'ultra'
@@ -12,6 +12,7 @@ DECLARE
   v_result JSON;
   v_product_exists BOOLEAN := FALSE;
   v_org_id UUID;
+  v_product_id UUID;
   v_form_data JSON;
   v_additional_images JSON;
   v_product_colors JSON;
@@ -19,19 +20,54 @@ DECLARE
   v_advanced_settings JSON;
   v_marketing_settings JSON;
   v_stats JSON;
+  v_is_uuid BOOLEAN;
 BEGIN
+  -- التحقق إذا كان المعرف UUID أم slug
+  v_is_uuid := p_product_identifier ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+  
+  -- الحصول على product_id الفعلي
+  IF v_is_uuid THEN
+    -- إذا كان UUID، استخدمه مباشرة
+    v_product_id := p_product_identifier::UUID;
+  ELSE
+    -- إذا كان slug، احصل على ID من الدالة الموجودة
+    IF p_organization_id IS NULL THEN
+      RETURN JSON_BUILD_OBJECT(
+        'success', FALSE,
+        'error', JSON_BUILD_OBJECT(
+          'message', 'Organization ID is required when using slug',
+          'code', 'MISSING_ORGANIZATION_ID',
+          'timestamp', NOW()
+        )
+      );
+    END IF;
+    
+    SELECT get_product_id_by_slug(p_product_identifier, p_organization_id) INTO v_product_id;
+    
+    IF v_product_id IS NULL THEN
+      RETURN JSON_BUILD_OBJECT(
+        'success', FALSE,
+        'error', JSON_BUILD_OBJECT(
+          'message', 'Product not found with given slug',
+          'code', 'PRODUCT_NOT_FOUND',
+          'timestamp', NOW()
+        )
+      );
+    END IF;
+  END IF;
+
   -- التحقق من وجود المنتج أولاً
   SELECT 
     EXISTS(
       SELECT 1 FROM products 
-      WHERE id = p_product_id 
+      WHERE id = v_product_id 
       AND (p_organization_id IS NULL OR organization_id = p_organization_id)
       AND (p_include_inactive = TRUE OR is_active = TRUE)
     ),
     organization_id
   INTO v_product_exists, v_org_id
   FROM products 
-  WHERE id = p_product_id;
+  WHERE id = v_product_id;
 
   -- إذا لم يوجد المنتج، إرجاع خطأ
   IF NOT v_product_exists THEN
@@ -64,7 +100,7 @@ BEGIN
         FROM form_settings fs
         WHERE fs.organization_id = v_org_id
         AND fs.is_active = TRUE
-        AND fs.product_ids @> JSON_BUILD_ARRAY(p_product_id::text)::jsonb
+        AND fs.product_ids @> JSON_BUILD_ARRAY(v_product_id::text)::jsonb
         ORDER BY fs.updated_at DESC
         LIMIT 1
       ),
@@ -100,7 +136,7 @@ BEGIN
           'url', pi.image_url,
           'sort_order', pi.sort_order
         ) ORDER BY pi.sort_order
-      ) FROM product_images pi WHERE pi.product_id = p_product_id),
+      ) FROM product_images pi WHERE pi.product_id = v_product_id),
       '[]'::json
     ) INTO v_additional_images;
   ELSE
@@ -132,7 +168,7 @@ BEGIN
             '[]'::json
           )
         ) ORDER BY pcol.created_at
-      ) FROM product_colors pcol WHERE pcol.product_id = p_product_id),
+      ) FROM product_colors pcol WHERE pcol.product_id = v_product_id),
       '[]'::json
     ) INTO v_product_colors;
   ELSE
@@ -148,7 +184,7 @@ BEGIN
           'min_quantity', wt.min_quantity,
           'price', wt.price
         ) ORDER BY wt.min_quantity
-      ) FROM wholesale_tiers wt WHERE wt.product_id = p_product_id),
+      ) FROM wholesale_tiers wt WHERE wt.product_id = v_product_id),
       '[]'::json
     ) INTO v_wholesale_tiers;
   ELSE
@@ -162,7 +198,7 @@ BEGIN
       'skip_cart', COALESCE(pas.skip_cart, TRUE)
     ) INTO v_advanced_settings
     FROM product_advanced_settings pas 
-    WHERE pas.product_id = p_product_id 
+    WHERE pas.product_id = v_product_id 
     LIMIT 1;
   END IF;
 
@@ -216,14 +252,14 @@ BEGIN
       -- 🔧 إضافة معلومات تشخيصية للتطوير
       JSONB_BUILD_OBJECT(
         'debug_info', JSONB_BUILD_OBJECT(
-          'product_id', p_product_id,
+          'product_id', v_product_id,
           'pms_found', CASE WHEN pms.id IS NOT NULL THEN TRUE ELSE FALSE END,
           'offer_timer_enabled_raw', pms.offer_timer_enabled,
           'query_timestamp', NOW()
         )
       ) as debug_info
       FROM product_marketing_settings pms 
-      WHERE pms.product_id = p_product_id 
+      WHERE pms.product_id = v_product_id 
       LIMIT 1
     )
     SELECT 
@@ -241,7 +277,7 @@ BEGIN
         'test_mode', TRUE,
         'debug_info', JSON_BUILD_OBJECT(
           'error', 'No product_marketing_settings found',
-          'product_id', p_product_id,
+          'product_id', v_product_id,
           'query_timestamp', NOW()
         )
       );
@@ -250,17 +286,17 @@ BEGIN
 
   -- إنشاء الإحصائيات
   SELECT JSON_BUILD_OBJECT(
-    'total_colors', (SELECT COUNT(*) FROM product_colors WHERE product_id = p_product_id),
+    'total_colors', (SELECT COUNT(*) FROM product_colors WHERE product_id = v_product_id),
     'total_sizes', (
       SELECT COUNT(*) 
       FROM product_sizes ps 
       JOIN product_colors pc ON ps.color_id = pc.id 
-      WHERE pc.product_id = p_product_id
+      WHERE pc.product_id = v_product_id
     ),
-    'total_images', (SELECT COUNT(*) FROM product_images WHERE product_id = p_product_id),
-    'total_wholesale_tiers', (SELECT COUNT(*) FROM wholesale_tiers WHERE product_id = p_product_id),
-    'has_advanced_settings', EXISTS(SELECT 1 FROM product_advanced_settings WHERE product_id = p_product_id),
-    'has_marketing_settings', EXISTS(SELECT 1 FROM product_marketing_settings WHERE product_id = p_product_id),
+    'total_images', (SELECT COUNT(*) FROM product_images WHERE product_id = v_product_id),
+    'total_wholesale_tiers', (SELECT COUNT(*) FROM wholesale_tiers WHERE product_id = v_product_id),
+    'has_advanced_settings', EXISTS(SELECT 1 FROM product_advanced_settings WHERE product_id = v_product_id),
+    'has_marketing_settings', EXISTS(SELECT 1 FROM product_marketing_settings WHERE product_id = v_product_id),
     'has_custom_form', v_form_data->>'type' = 'custom',
     'last_updated', NOW()
   ) INTO v_stats;
@@ -315,7 +351,7 @@ BEGIN
     LEFT JOIN shipping_provider_clones spc ON p.shipping_clone_id = spc.id
     LEFT JOIN shipping_providers sp ON p.shipping_provider_id = sp.id OR spc.original_provider_id = sp.id
     LEFT JOIN organization_templates ot ON p.form_template_id = ot.id
-    WHERE p.id = p_product_id
+    WHERE p.id = v_product_id
   )
   SELECT 
     JSON_BUILD_OBJECT(

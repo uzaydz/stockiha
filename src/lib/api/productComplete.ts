@@ -145,6 +145,7 @@ export interface ProductColor {
   is_default: boolean;
   barcode?: string;
   variant_number?: number;
+  has_sizes?: boolean;
   sizes: ProductSize[];
 }
 
@@ -343,7 +344,7 @@ export interface ErrorInfo {
 
 // الدالة الرئيسية لجلب بيانات المنتج الكاملة
 export const getProductCompleteData = async (
-  productId: string,
+  productIdentifier: string, // يمكن أن يكون ID أو slug
   options: {
     organizationId?: string;
     includeInactive?: boolean;
@@ -352,8 +353,8 @@ export const getProductCompleteData = async (
 ): Promise<ProductCompleteResponse | null> => {
   try {
 
-    const { data, error } = await supabase.rpc('get_product_complete_data', {
-      p_product_id: productId,
+    const { data, error } = await supabase.rpc('get_product_complete_data' as any, {
+      p_product_identifier: productIdentifier, // تم تغيير الاسم
       p_organization_id: options.organizationId || null,
       p_include_inactive: options.includeInactive || false,
       p_data_scope: options.dataScope || 'full'

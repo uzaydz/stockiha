@@ -193,7 +193,7 @@ export default function TestimonialCard({ testimonial }: TestimonialCardProps) {
           <div className="mt-auto pt-4 border-t border-gray-100 dark:border-gray-800">
             {productSlug ? (
               <Link 
-                to={`/products/${productSlug}`}
+                to={`/product-purchase-max-v2/${productSlug}`}
                 className={cn(
                   "block transition-colors rounded-md -mx-2 px-2 py-1",
                   "hover:bg-muted/40 active:bg-muted"

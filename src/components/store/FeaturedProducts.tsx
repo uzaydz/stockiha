@@ -524,7 +524,7 @@ const FeaturedProducts = ({
                     <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-secondary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-3xl"></div>
                     
                     <div className="relative overflow-hidden aspect-[4/3] bg-gradient-to-br from-muted/20 to-muted/5 rounded-t-3xl">
-                      <Link to={`/products/${product.slug}`} className="block w-full h-full">
+                      <Link to={`/product-purchase-max-v2/${product.slug}`} className="block w-full h-full">
                         <OptimizedProductImage 
                           src={product.imageUrl} 
                           alt={product.name}
@@ -580,12 +580,12 @@ const FeaturedProducts = ({
                     </div>
                     
                     <CardContent className="p-4 lg:p-6 relative z-10">
-                      <Link to={`/products/${product.slug}`} className="block mb-2 text-sm text-muted-foreground hover:text-primary transition-colors">
+                      <Link to={`/product-purchase-max-v2/${product.slug}`} className="block mb-2 text-sm text-muted-foreground hover:text-primary transition-colors">
                         {typeof product.category === 'object' && product.category !== null
                           ? (product.category as { name: string }).name
                           : product.category}
                       </Link>
-                      <Link to={`/products/${product.slug}`} className="block font-bold text-lg mb-3 hover:text-primary transition-colors line-clamp-2 leading-tight">
+                      <Link to={`/product-purchase-max-v2/${product.slug}`} className="block font-bold text-lg mb-3 hover:text-primary transition-colors line-clamp-2 leading-tight">
                         {product.name}
                       </Link>
                       
@@ -629,7 +629,7 @@ const FeaturedProducts = ({
                     
                     <CardFooter className="p-4 lg:p-6 pt-0 relative z-10">
                       <Button asChild className="w-full h-12 rounded-xl font-medium bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary text-white shadow-lg hover:shadow-xl transition-all duration-300">
-                        <Link to={`/products/${product.slug}`} className="flex items-center justify-center gap-2">
+                        <Link to={`/product-purchase-max-v2/${product.slug}`} className="flex items-center justify-center gap-2">
                           {t('featuredProducts.viewProduct')}
                           <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                         </Link>
@@ -642,7 +642,7 @@ const FeaturedProducts = ({
                     <div className="absolute inset-0 bg-gradient-to-br from-primary/2 to-secondary/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     
                     <div className="relative w-full sm:w-48 aspect-square sm:aspect-[4/3]">
-                      <Link to={`/products/${product.slug}`} className="block w-full h-full">
+                      <Link to={`/product-purchase-max-v2/${product.slug}`} className="block w-full h-full">
                         <OptimizedProductImage 
                           src={product.imageUrl} 
                           alt={product.name}
@@ -669,12 +669,12 @@ const FeaturedProducts = ({
                     
                     <div className="flex-1 p-6 flex flex-col justify-between relative z-10">
                       <div>
-                        <Link to={`/products/${product.slug}`} className="block text-sm text-muted-foreground hover:text-primary transition-colors mb-2">
+                        <Link to={`/product-purchase-max-v2/${product.slug}`} className="block text-sm text-muted-foreground hover:text-primary transition-colors mb-2">
                           {typeof product.category === 'object' && product.category !== null
                             ? (product.category as { name: string }).name
                             : product.category}
                         </Link>
-                        <Link to={`/products/${product.slug}`} className="block font-bold text-xl mb-3 hover:text-primary transition-colors line-clamp-2">
+                        <Link to={`/product-purchase-max-v2/${product.slug}`} className="block font-bold text-xl mb-3 hover:text-primary transition-colors line-clamp-2">
                           {product.name}
                         </Link>
                         
@@ -713,7 +713,7 @@ const FeaturedProducts = ({
                         
                         <div className="flex items-center gap-3">
                           <Button asChild className="h-11 px-6 rounded-xl font-medium bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary text-white shadow-lg hover:shadow-xl transition-all duration-300">
-                            <Link to={`/products/${product.slug}`} className="flex items-center gap-2">
+                            <Link to={`/product-purchase-max-v2/${product.slug}`} className="flex items-center gap-2">
                               <Eye className="h-4 w-4" />
                               {t('featuredProducts.viewProduct')}
                             </Link>

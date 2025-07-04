@@ -116,6 +116,12 @@ export const PublicRoutes = () => (
         <LazyRoutes.ProductPurchasePageV3 />
       </Suspense>
     } />
+    {/* دعم slug بالإضافة إلى ID */}
+    <Route path="/product/:productIdentifier" element={
+      <Suspense fallback={<PageLoader />}>
+        <LazyRoutes.ProductPurchasePageV3 />
+      </Suspense>
+    } />
     <Route path="/product-public/:productId" element={
       <Suspense fallback={<PageLoader />}>
         <LazyRoutes.ProductPurchasePageMaxPublic />

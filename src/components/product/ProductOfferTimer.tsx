@@ -7,6 +7,7 @@ import {
   BoltIcon 
 } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/utils';
+import { useProductPurchaseTranslation } from '@/hooks/useProductPurchaseTranslation';
 
 // أنواع البيانات
 interface OfferTimerSettings {
@@ -150,6 +151,7 @@ const ProductOfferTimer: React.FC<ProductOfferTimerProps> = ({
   theme = 'default'
 }) => {
   const { timeRemaining, isExpired, isActive } = useOfferTimer(settings);
+  const { productOfferTimer } = useProductPurchaseTranslation();
 
   if (!isActive || isExpired) {
     return null;
@@ -170,10 +172,10 @@ const ProductOfferTimer: React.FC<ProductOfferTimerProps> = ({
 
   // مكونات الوقت مع تحسين العرض
   const timeUnits = [
-    { label: 'يوم', value: timeRemaining.days, show: timeRemaining.days > 0 },
-    { label: 'ساعة', value: timeRemaining.hours, show: timeRemaining.days > 0 || timeRemaining.hours > 0 },
-    { label: 'دقيقة', value: timeRemaining.minutes, show: true },
-    { label: 'ثانية', value: timeRemaining.seconds, show: timeRemaining.days === 0 && timeRemaining.hours === 0 }
+    { label: productOfferTimer.days(), value: timeRemaining.days, show: timeRemaining.days > 0 },
+    { label: productOfferTimer.hours(), value: timeRemaining.hours, show: timeRemaining.days > 0 || timeRemaining.hours > 0 },
+    { label: productOfferTimer.minutes(), value: timeRemaining.minutes, show: true },
+    { label: productOfferTimer.seconds(), value: timeRemaining.seconds, show: timeRemaining.days === 0 && timeRemaining.hours === 0 }
   ].filter(unit => unit.show);
 
   return (
@@ -208,7 +210,7 @@ const ProductOfferTimer: React.FC<ProductOfferTimerProps> = ({
             </div>
             <div className="flex-1">
               <h3 className="text-base font-semibold flex items-center gap-2">
-                {settings.offer_timer_text_above || "عرض محدود"}
+                {settings.offer_timer_text_above || productOfferTimer.limitedOffer()}
                 {isUrgent && (
                   <FireIcon className="w-3 h-3 text-red-500 dark:text-red-400 animate-pulse" />
                 )}
@@ -255,7 +257,7 @@ const ProductOfferTimer: React.FC<ProductOfferTimerProps> = ({
             <div className="space-y-1">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-red-600 dark:text-red-400 font-medium">
-                  ينتهي قريباً!
+                  {productOfferTimer.hurryUp()}
                 </span>
                 <span className="text-red-500 dark:text-red-400">⚡</span>
               </div>

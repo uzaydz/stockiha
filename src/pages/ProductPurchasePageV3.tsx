@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Separator } from '@/components/ui/separator';
+import { toast } from 'sonner';
 
 // استيراد المكونات الجديدة المحسنة
 import { NavbarMain } from '@/components/navbar/NavbarMain';
@@ -31,6 +32,10 @@ import {
   calculateDeliveryFeesOptimized,
   type DeliveryCalculationResult 
 } from '@/lib/delivery-calculator';
+
+// إضافة استيراد دالة معالجة الطلبيات
+import { processOrder } from '@/api/store';
+import { useAbandonedCartTracking } from '@/hooks/useAbandonedCartTracking';
 
 // الأنواع
 interface Product {
@@ -75,7 +80,9 @@ interface Product {
 }
 
 const ProductPurchasePageV3: React.FC = React.memo(() => {
-  const { productId } = useParams<{ productId: string }>();
+  const { productId, productIdentifier } = useParams<{ productId?: string; productIdentifier?: string }>();
+  // استخدام productIdentifier إذا كان متوفراً، وإلا استخدام productId
+  const actualProductId = productIdentifier || productId;
   const navigate = useNavigate();
   const { organization } = useProductPage();
   
@@ -87,12 +94,17 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
   
   // حالات المكون
   const [submittedFormData, setSubmittedFormData] = useState<Record<string, any>>({});
+  
+  // تتبع تغييرات submittedFormData
+  useEffect(() => {
+    console.log('💾 تحديث submittedFormData:', submittedFormData);
+  }, [submittedFormData]);
   const [deliveryCalculation, setDeliveryCalculation] = useState<DeliveryCalculationResult | null>(null);
   const [isCalculatingDelivery, setIsCalculatingDelivery] = useState(false);
 
   // استخدام hook المخصص لإدارة حالة المنتج - مع منع الطلبات المكررة
   const [state, actions] = useProductPurchase({
-    productId,
+    productId: actualProductId,
     organizationId: organization?.id || undefined,
     dataScope: 'ultra'
   });
@@ -164,20 +176,37 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
     shareProduct
   } = actions;
 
-  // استدعاء useCallback خارج أي شروط مشروطة
-  const handleFormSubmit = useCallback((data: Record<string, any>) => {
-    setSubmittedFormData(data);
-  }, []);
-
-  const handleFormChange = useCallback((data: Record<string, any>) => {
-    setSubmittedFormData(data);
-  }, []);
-
   // الحصول على organizationId مع تثبيت القيمة
   const organizationId = useMemo(() => {
     const id = (organization as any)?.id || (product?.organization as any)?.id || null;
     return id;
   }, [(organization as any)?.id, (product?.organization as any)?.id]);
+
+  // hook الطلبات المتروكة المحسّن
+  const [isSavingCart, abandonedCartActions] = useAbandonedCartTracking({
+    productId: actualProductId,
+    productColorId: selectedColor?.id,
+    productSizeId: selectedSize?.id,
+    quantity,
+    subtotal: priceInfo?.price || 0,
+    deliveryFee: deliveryCalculation?.deliveryFee || 0,
+    discountAmount: priceInfo?.discount || 0,
+    organizationId: organizationId,
+    enabled: true,
+    saveInterval: 3, // حفظ كل 3 ثوان
+    minPhoneLength: 8
+  });
+
+  const handleFormChange = useCallback((data: Record<string, any>) => {
+    console.log('📝 تغيير في بيانات النموذج:', data);
+    console.log('🔑 المفاتيح الحالية:', Object.keys(data));
+    setSubmittedFormData(data);
+    
+    // حفظ مؤجل للطلب المتروك عند تغيير البيانات (تقليل الاستدعاءات)
+    if (data.phone && data.phone.length >= 8) {
+      abandonedCartActions.debouncedSave(data);
+    }
+  }, [abandonedCartActions]);
 
   // إعداد مؤقت العرض
   const offerTimerSettings = useMemo(() => {
@@ -290,18 +319,218 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
     };
   }, [product, deliveryCalculation, isCalculatingDelivery]);
 
+  // معالجة إرسال النموذج والطلبية
+  const handleFormSubmit = useCallback(async (data: Record<string, any>) => {
+    try {
+      // إضافة console.log لتتبع البيانات
+      console.group('🔍 تتبع بيانات النموذج - handleFormSubmit');
+      console.log('📋 البيانات المستلمة:', data);
+      console.log('🏢 معرف المؤسسة:', organizationId);
+      console.log('📦 بيانات المنتج:', product ? 'موجود' : 'غير موجود');
+      
+      // التحقق من الحقول المطلوبة
+      console.log('🔍 التحقق من الحقول المطلوبة:');
+      console.log('  - customer_name:', data.customer_name);
+      console.log('  - customer_phone:', data.customer_phone);
+      console.log('  - province:', data.province);
+      console.log('  - municipality:', data.municipality);
+      
+      // عرض جميع مفاتيح البيانات
+      console.log('🗝️ جميع المفاتيح المتاحة:', Object.keys(data));
+      console.groupEnd();
+      
+      // حفظ بيانات النموذج
+      setSubmittedFormData(data);
+      
+      // التحقق من وجود البيانات المطلوبة
+      if (!product || !organizationId) {
+        console.error('❌ خطأ: بيانات المنتج أو المؤسسة مفقودة');
+        toast.error('حدث خطأ في تحميل بيانات المنتج');
+        return;
+      }
+
+      // التحقق من وجود بيانات النموذج المطلوبة - مع فحص أسماء مختلفة
+      const customerName = data.customer_name || data.name || data.full_name || data.fullName;
+      const customerPhone = data.customer_phone || data.phone || data.telephone || data.mobile;
+      
+      console.log('🔍 البحث عن أسماء مختلفة للحقول:');
+      console.log('  - customer_name:', data.customer_name);
+      console.log('  - name:', data.name);
+      console.log('  - full_name:', data.full_name);
+      console.log('  - fullName:', data.fullName);
+      console.log('  - customer_phone:', data.customer_phone);
+      console.log('  - phone:', data.phone);
+      console.log('  - telephone:', data.telephone);
+      console.log('  - mobile:', data.mobile);
+      console.log('✅ النتيجة النهائية:', { customerName, customerPhone });
+      
+      if (!customerName || !customerPhone) {
+        console.error('❌ خطأ: بيانات العميل مفقودة');
+        console.log('المطلوب: اسم العميل ورقم الهاتف');
+        console.log('الموجود:', { customerName, customerPhone });
+        toast.error('يرجى ملء جميع البيانات المطلوبة (الاسم ورقم الهاتف)');
+        return;
+      }
+
+      // إعداد بيانات الطلبية
+      const orderPayload = {
+        fullName: customerName,
+        phone: customerPhone,
+        province: data.province,
+        municipality: data.municipality,
+        address: data.address || '',
+        city: data.city || '',
+        deliveryCompany: deliveryCalculation?.shippingProvider?.code || 'yalidine',
+        deliveryOption: deliveryCalculation?.deliveryType || 'home',
+        paymentMethod: 'cash_on_delivery',
+        notes: data.notes || '',
+        productId: product.id,
+        productColorId: selectedColor?.id || null,
+        productSizeId: selectedSize?.id || null,
+        sizeName: selectedSize?.size_name || null,
+        quantity: quantity,
+        unitPrice: priceInfo.price,
+        totalPrice: (priceInfo.price * quantity) + (deliveryCalculation?.deliveryFee || 0),
+        deliveryFee: deliveryCalculation?.deliveryFee || 0,
+        formData: data,
+        metadata: {
+          product_image: product.images?.thumbnail_image || product.images?.additional_images?.[0]?.url,
+          shipping_provider: deliveryCalculation?.shippingProvider || { name: 'ياليدين', code: 'yalidine' },
+          selected_color_name: selectedColor?.name,
+          selected_size_name: selectedSize?.size_name
+        }
+      };
+      
+      console.log('📦 بيانات الطلبية المرسلة لـ processOrder:', orderPayload);
+      
+      // معالجة الطلبية باستخدام الواجهة الصحيحة
+      const result = await processOrder(organizationId, orderPayload);
+      
+      console.log('📋 نتيجة processOrder:', result);
+      
+      if (result && !result.error) {
+        console.log('✅ نجحت معالجة الطلبية!');
+        toast.success('تم إنشاء الطلبية بنجاح!');
+        
+        // تحويل الطلب المتروك إلى طلب مُكتمل
+        const orderId = result.id || result.order_id;
+        if (orderId) {
+          await abandonedCartActions.markAsConverted(orderId);
+        }
+        
+        // التوجه لصفحة الشكر مع رقم الطلب
+        const orderNumber = result.order_number || result.orderNumber || Math.floor(Math.random() * 10000);
+        console.log('🎯 رقم الطلب:', orderNumber);
+        navigate(`/thank-you?orderNumber=${orderNumber}`, {
+          state: {
+            orderNumber: orderNumber,
+            fromProductPage: true,
+            productId: product.id,
+            organizationId: organizationId
+          }
+        });
+      } else {
+        console.error('❌ فشلت معالجة الطلبية:', result);
+        toast.error(result?.error || 'حدث خطأ أثناء إنشاء الطلبية');
+      }
+    } catch (error) {
+      console.error('خطأ في معالجة الطلبية:', error);
+      toast.error('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى');
+    }
+  }, [
+    product, 
+    organizationId, 
+    quantity, 
+    priceInfo, 
+    deliveryCalculation, 
+    selectedColor, 
+    selectedSize, 
+    navigate
+  ]);
+
   // معالجة الشراء المباشر
   const handleBuyNow = useCallback(async () => {
-    const result = await buyNow();
-    if (result.success) {
-      navigate('/checkout', {
-        state: {
-          orderData: result.data,
-          fromProductPage: true
+    try {
+      // التحقق من وجود البيانات المطلوبة
+      if (!product || !organizationId) {
+        toast.error('حدث خطأ في تحميل بيانات المنتج');
+        return;
+      }
+
+      // التحقق من وجود بيانات النموذج المطلوبة
+      if (!submittedFormData.customer_name || !submittedFormData.customer_phone) {
+        toast.error('يرجى ملء جميع البيانات المطلوبة');
+        return;
+      }
+
+
+
+      // معالجة الطلبية باستخدام الواجهة الصحيحة
+      const result = await processOrder(organizationId, {
+        fullName: submittedFormData.customer_name,
+        phone: submittedFormData.customer_phone,
+        province: submittedFormData.province,
+        municipality: submittedFormData.municipality,
+        address: submittedFormData.address || '',
+        city: submittedFormData.city || '',
+        deliveryCompany: deliveryCalculation?.shippingProvider?.code || 'yalidine',
+        deliveryOption: deliveryCalculation?.deliveryType || 'home',
+        paymentMethod: 'cash_on_delivery',
+        notes: submittedFormData.notes || '',
+        productId: product.id,
+        productColorId: selectedColor?.id || null,
+        productSizeId: selectedSize?.id || null,
+        sizeName: selectedSize?.size_name || null,
+        quantity: quantity,
+        unitPrice: priceInfo.price,
+        totalPrice: (priceInfo.price * quantity) + (deliveryCalculation?.deliveryFee || 0),
+        deliveryFee: deliveryCalculation?.deliveryFee || 0,
+        formData: submittedFormData,
+        metadata: {
+          product_image: product.images?.thumbnail_image || product.images?.additional_images?.[0]?.url,
+          shipping_provider: deliveryCalculation?.shippingProvider || { name: 'ياليدين', code: 'yalidine' },
+          selected_color_name: selectedColor?.name,
+          selected_size_name: selectedSize?.size_name
         }
       });
+      
+      if (result && !result.error) {
+        toast.success('تم إنشاء الطلبية بنجاح!');
+        
+        // تحويل الطلب المتروك إلى طلب مُكتمل
+        const orderId = result.id || result.order_id;
+        if (orderId) {
+          await abandonedCartActions.markAsConverted(orderId);
+        }
+        
+        // التوجه لصفحة الشكر مع رقم الطلب
+        const orderNumber = result.order_number || result.orderNumber || Math.floor(Math.random() * 10000);
+        navigate(`/thank-you?orderNumber=${orderNumber}`, {
+          state: {
+            orderNumber: orderNumber,
+            fromProductPage: true,
+            productId: product.id,
+            organizationId: organizationId
+          }
+        });
+      } else {
+        toast.error(result?.error || 'حدث خطأ أثناء إنشاء الطلبية');
+      }
+    } catch (error) {
+      console.error('خطأ في معالجة الطلبية:', error);
+      toast.error('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى');
     }
-  }, [buyNow, navigate]);
+  }, [
+    product, 
+    organizationId, 
+    quantity, 
+    priceInfo, 
+    deliveryCalculation, 
+    submittedFormData, 
+    selectedColor, 
+    selectedSize, 
+    navigate
+  ]);
 
   // معالجة إعادة المحاولة
   const handleRetry = useCallback(() => {
@@ -479,6 +708,7 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
                   onFormSubmit={handleFormSubmit}
                   onFormChange={handleFormChange}
                   loading={buyingNow}
+                  isSubmitting={buyingNow}
                   className="mb-4"
                   // تمرير بيانات المنتج والمزامنة
                   product={{
@@ -490,6 +720,19 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
                   onColorSelect={setSelectedColor}
                   onSizeSelect={setSelectedSize}
                 />
+
+                {/* مؤشر حفظ الطلب المتروك */}
+                {isSavingCart && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg p-3 mb-4"
+                  >
+                    <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                    <span>جاري حفظ بياناتك...</span>
+                  </motion.div>
+                )}
 
                 {/* ملخص الطلب */}
                 <motion.div
