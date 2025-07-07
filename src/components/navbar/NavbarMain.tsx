@@ -100,25 +100,15 @@ export function NavbarMain({
     hasAttemptedLoad: hasAttemptedNavigationLoad
   } = usePhaseLoader('navigation');
   
-  // إضافة المساحة المطلوبة للمحتوى تحت النافبار الثابت
+  // تعطيل إضافة المساحة التلقائية للمحتوى - سيتم التحكم بها من خلال كل صفحة حسب الحاجة
   useEffect(() => {
-    // تحديد ارتفاع النافبار الثابت
+    // تحديد ارتفاع النافبار الثابت للاستخدام في CSS variables
     const navbarHeight = '64px'; // تطابق h-16 في tailwind
-    
-    // تحقق إذا لم تكن المساحة مضافة بالفعل
-    if (!document.body.style.paddingTop || document.body.style.paddingTop !== navbarHeight) {
-      document.documentElement.style.setProperty('--navbar-height', navbarHeight);
-      document.body.style.paddingTop = navbarHeight;
-    }
+    document.documentElement.style.setProperty('--navbar-height', navbarHeight);
     
     // تنظيف التأثير عند إلغاء المكون
     return () => {
-      // تأكد من عدم حذف المساحة إذا كان هناك navbar آخر يستخدمها
-      const navbarsInPage = document.querySelectorAll('[data-navbar="true"]');
-      if (navbarsInPage.length <= 1) {
-        document.body.style.paddingTop = '';
-        document.documentElement.style.removeProperty('--navbar-height');
-      }
+      document.documentElement.style.removeProperty('--navbar-height');
     };
   }, []);
   

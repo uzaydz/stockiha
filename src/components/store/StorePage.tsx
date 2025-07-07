@@ -40,6 +40,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { getDefaultFooterSettings, mergeFooterSettings } from '@/lib/footerSettings';
 import '@/utils/themeDebugger'; // أداة تشخيص الثيم
+import { ShopProvider } from '@/context/ShopContext';
 
 interface StorePageProps {
   storeData?: Partial<StoreInitializationData>;
@@ -547,8 +548,8 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
           product_count: cat.product_count || 0
         }))} />
         
-        {/* إضافة المساحة المناسبة للنافبار الثابت */}
-        <main className="flex-1 pt-16">
+        {/* المحتوى الرئيسي بدون مسافة إضافية */}
+        <main className="flex-1">
           {dataLoading && (!storeData || Object.keys(storeData).length === 0) && <SkeletonLoader type="banner" />}
           {!dataLoading && dataError && !storeData?.organization_details?.id && (
              <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] p-4 text-center">
@@ -655,7 +656,7 @@ const StorePage = ({ storeData: initialStoreData = {} }: StorePageProps) => {
                                 category: categoryName,
                                 is_new: !!dbProduct.is_new,
                                 stock_quantity: Number(dbProduct.stock_quantity || 0),
-                                slug: typeof dbProduct.slug === 'string' ? dbProduct.slug : dbProduct.id,
+                                slug: typeof dbProduct.slug === 'string' && dbProduct.slug ? dbProduct.slug : (dbProduct.id || `product-${Date.now()}`),
                                 rating: 4.5
                               };
                             };

@@ -152,7 +152,7 @@ const ProductPurchaseSummary = memo<ProductPurchaseSummaryProps>(({
         {/* سعر المنتج */}
         <div className="flex justify-between items-center">
           <span className="text-muted-foreground">{productPurchaseSummary.productPrice()} ({quantity} قطعة):</span>
-          <span className="font-medium">{formatPrice(basePrice * quantity)} {currency}</span>
+          <span className="font-medium">{formatPrice(subtotal)} {currency}</span>
         </div>
 
         {/* الخصم */}

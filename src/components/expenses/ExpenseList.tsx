@@ -53,6 +53,7 @@ import {
   Edit2,
 } from "lucide-react";
 import { ar } from "date-fns/locale";
+import { toast } from "sonner";
 
 interface CustomPaginationProps {
   totalPages: number;
@@ -242,7 +243,12 @@ export function ExpenseList({ showRecurringOnly }: { showRecurringOnly?: boolean
         await deleteExpenseMutation.mutateAsync(expenseId);
         setIsDeleteDialogOpen(false);
         setExpenseToDelete(null);
+        
+        // Show success message
+        toast.success("تم حذف المصروف بنجاح");
       } catch (error) {
+        // Show error message
+        toast.error("فشل في حذف المصروف");
       }
     }
   };
@@ -645,11 +651,12 @@ export function ExpenseList({ showRecurringOnly }: { showRecurringOnly?: boolean
                             <DropdownMenuLabel>الإجراءات</DropdownMenuLabel>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
-                              // onClick={() => handleEdit(expense)}
-                              onClick={() => {
-                                setSelectedExpense(null);
-                              }}
-                            />
+                              onClick={() => handleDelete(expense.id)}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              حذف المصروف
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -661,6 +668,40 @@ export function ExpenseList({ showRecurringOnly }: { showRecurringOnly?: boolean
           </div>
         )}
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <div className="p-2 rounded-full bg-red-100 dark:bg-red-900/20">
+                <Trash2 className="h-5 w-5 text-red-600 dark:text-red-400" />
+              </div>
+              تأكيد حذف المصروف
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              هل أنت متأكد من حذف هذا المصروف؟ لا يمكن التراجع عن هذا الإجراء.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800"
+              disabled={deleteExpenseMutation.isPending}
+            >
+              {deleteExpenseMutation.isPending ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  جاري الحذف...
+                </div>
+              ) : (
+                "حذف"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

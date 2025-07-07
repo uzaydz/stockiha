@@ -1,31 +1,34 @@
-import React from 'react';
-import { UseFormReturn, Controller } from 'react-hook-form';
+import React, { useState, useEffect } from 'react';
+import { UseFormReturn } from 'react-hook-form';
 import { ProductFormValues } from '@/types/product';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from "@/components/ui/form";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Textarea } from "@/components/ui/textarea";
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 import { 
   Facebook, 
   Target, 
   BarChart2, 
-  AlertTriangle, 
   Info, 
-  Settings2, 
   Play,
-  Link as LinkIcon,
   Server,
   Eye,
   TestTube2,
-  Shield
+  Shield,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 
-// Adjusted Google Icon - using a generic analytics or ads icon
+// أيقونة جوجل محسنة
 const GoogleAdsIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-area-chart">
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M3 3v18h18"/>
     <path d="M7 12v5h12V8l-5 5-4-4Z"/>
   </svg>
@@ -39,300 +42,372 @@ interface ConversionTrackingTabProps {
 
 const ConversionTrackingTab: React.FC<ConversionTrackingTabProps> = ({ form, organizationId, productId }) => {
   const { control, watch } = form;
+  const [expandedSections, setExpandedSections] = useState<string[]>(['facebook']);
+  const [forceUpdate, setForceUpdate] = useState(0);
+
+  // مراقبة القيم مع إجبار إعادة الرسم
+  const watchedValues = watch([
+    'marketingSettings.test_mode',
+    'marketingSettings.enable_facebook_pixel',
+    'marketingSettings.enable_google_ads_tracking',
+    'marketingSettings.enable_tiktok_pixel',
+    'marketingSettings.enable_facebook_conversion_api'
+  ]);
+
+  const [isTestMode, facebookEnabled, googleEnabled, tiktokEnabled, facebookApiEnabled] = watchedValues;
+
+  // إجبار إعادة الرسم عند تغيير أي قيمة
+  useEffect(() => {
+    setForceUpdate(prev => prev + 1);
+  }, [isTestMode, facebookEnabled, googleEnabled, tiktokEnabled, facebookApiEnabled]);
+
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev => 
+      prev.includes(section) 
+        ? prev.filter(s => s !== section)
+        : [...prev, section]
+    );
+  };
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader className="pb-4">
-          <CardTitle className="text-lg font-semibold flex items-center gap-2">
-            <div className="bg-primary/10 p-2 rounded-full">
-              <BarChart2 className="h-4 w-4 text-primary" />
+    <div className="space-y-6" key={forceUpdate}>
+      {/* Header */}
+      <div className="text-center space-y-4">
+        <div className="flex items-center justify-center gap-3">
+          <div className="bg-gradient-to-br from-primary/20 to-primary/10 p-3 rounded-xl">
+            <BarChart2 className="h-6 w-6 text-primary" />
+          </div>
+          <div>
+            <h2 className="text-xl font-semibold text-foreground">تتبع التحويلات المتقدم</h2>
+            <p className="text-sm text-muted-foreground">تتبع دقيق عبر منصات متعددة</p>
+          </div>
             </div>
-            تتبع التحويلات المتقدم
-            <Badge variant="outline" className="text-xs">Pixel + Conversion API</Badge>
-          </CardTitle>
-          <CardDescription>
-            قم بإعداد تتبع دقيق للتحويلات يجمع بين البكسل والـ Conversion API لضمان دقة البيانات
-          </CardDescription>
-          
-          <Alert className="bg-blue-50 border-blue-200">
-            <Info className="h-4 w-4 text-blue-600" />
-            <AlertDescription className="text-blue-800">
-              هذا النظام يدعم تتبع مزدوج (Pixel + Server-side) لضمان دقة عالية ومقاومة ad blockers
-            </AlertDescription>
-          </Alert>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-8">
-            
-            {/* وضع الاختبار العام */}
-            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+        
+        <div className="flex items-center justify-center gap-2">
+          <Badge variant="outline" className="text-xs">Pixel + API</Badge>
+          <Badge variant="outline" className="text-xs">Server-side</Badge>
+          <Badge variant="outline" className="text-xs">Ad Blocker Resistant</Badge>
+        </div>
+      </div>
+
+      {/* Test Mode Toggle */}
+      <Card className="border-amber-200/60 bg-gradient-to-r from-amber-50/80 to-orange-50/60 dark:from-amber-950/40 dark:to-orange-950/30">
+        <CardContent className="p-4">
               <FormField
                 control={control}
                 name="marketingSettings.test_mode"
                 render={({ field }) => (
                   <FormItem>
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3 space-x-reverse">
-                        <div className="bg-yellow-100 p-2 rounded-full">
-                          <TestTube2 className="w-4 h-4 text-yellow-600" />
+                  <div className="flex items-center gap-3">
+                    <div className="bg-amber-100 dark:bg-amber-900/60 p-2 rounded-lg">
+                      <TestTube2 className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                         </div>
                         <div>
-                          <FormLabel className="font-medium text-yellow-900">وضع الاختبار</FormLabel>
-                          <div className="text-xs text-yellow-700">
-                            تفعيل وضع الاختبار لجميع منصات التتبع
-                          </div>
+                      <FormLabel className="font-medium text-amber-900 dark:text-amber-100">
+                        وضع الاختبار
+                      </FormLabel>
+                      <p className="text-xs text-amber-700 dark:text-amber-300">
+                        تفعيل وضع التطوير لجميع المنصات
+                      </p>
                         </div>
                       </div>
                       <FormControl>
-                        <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    <Switch 
+                      checked={field.value || false} 
+                      onCheckedChange={(checked) => {
+                        field.onChange(checked);
+                        // إجبار إعادة الرسم فوراً
+                        setTimeout(() => setForceUpdate(prev => prev + 1), 0);
+                      }}
+                      className="data-[state=checked]:bg-amber-500"
+                    />
                       </FormControl>
                     </div>
                   </FormItem>
                 )}
               />
-            </div>
+        </CardContent>
+      </Card>
 
-            {/* Facebook Pixel & Conversion API Section */}
+      {/* Platforms */}
             <div className="space-y-4">
-              <div className="flex items-center gap-3 p-4 bg-blue-50/50 border border-blue-200 rounded-lg">
-                <div className="bg-blue-100 p-2 rounded-full">
-                  <Facebook className="h-5 w-5 text-blue-600" />
+        {/* Facebook */}
+        <Card className="overflow-hidden transition-all duration-300 hover:shadow-md">
+          <CardHeader 
+            className="cursor-pointer p-4 hover:bg-muted/30 transition-colors"
+            onClick={() => toggleSection('facebook')}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="bg-blue-100 dark:bg-blue-900/60 p-2.5 rounded-xl">
+                  <Facebook className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-blue-900">فيسبوك - تتبع مزدوج</h3>
-                  <p className="text-sm text-blue-700">Pixel (العميل) + Conversion API (الخادم)</p>
+                  <CardTitle className="text-base font-medium">فيسبوك</CardTitle>
+                  <p className="text-sm text-muted-foreground">Pixel + Conversion API</p>
                 </div>
               </div>
-
+              <div className="flex items-center gap-2">
+                {facebookEnabled && (
+                  <Badge variant="secondary" className="bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400">
+                    <CheckCircle2 className="w-3 h-3 mr-1" />
+                    مفعل
+                  </Badge>
+                )}
+                {expandedSections.includes('facebook') ? (
+                  <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                )}
+              </div>
+            </div>
+          </CardHeader>
+          
+          {expandedSections.includes('facebook') && (
+            <CardContent className="p-4 pt-0 space-y-4">
+              {/* Main Toggle */}
               <FormField
                 control={control}
                 name="marketingSettings.enable_facebook_pixel"
                 render={({ field }) => (
                   <FormItem>
-                    <div className="flex items-center justify-between p-4 border border-border rounded-lg bg-muted/20 hover:bg-muted/30 transition-colors">
-                      <div className="flex items-center space-x-3 space-x-reverse">
-                        <div className="bg-blue-100 p-2 rounded-full">
+                    <div className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
+                      <div className="flex items-center gap-3">
                           <Eye className="w-4 h-4 text-blue-600" />
-                        </div>
                         <div>
                           <FormLabel className="font-medium">تفعيل فيسبوك بكسل</FormLabel>
-                          <div className="text-xs text-muted-foreground">
-                            تتبع من جانب العميل (Client-side)
-                          </div>
+                          <p className="text-xs text-muted-foreground">تتبع من جانب العميل</p>
                         </div>
                       </div>
                       <FormControl>
-                        <Switch checked={field.value} onCheckedChange={field.onChange} />
+                        <Switch 
+                          checked={field.value || false} 
+                          onCheckedChange={(checked) => {
+                            field.onChange(checked);
+                            // إجبار إعادة الرسم فوراً
+                            setTimeout(() => setForceUpdate(prev => prev + 1), 0);
+                          }}
+                        />
                       </FormControl>
                     </div>
                   </FormItem>
                 )}
               />
 
-              {watch('marketingSettings.enable_facebook_pixel') && (
-                <div className="space-y-4 border-t pt-4">
-                  <h4 className="text-sm font-medium flex items-center gap-2">
-                    <Settings2 className="w-4 h-4 text-muted-foreground" />
-                    إعدادات فيسبوك بكسل
-                  </h4>
-                  
-                  <div className="grid gap-4">
+              {facebookEnabled && (
+                <div className="space-y-4 animate-in slide-in-from-top-2 duration-300">
+                  {/* Pixel ID */}
                     <FormField
                       control={control}
                       name="marketingSettings.facebook_pixel_id"
                       render={({ field }) => (
                         <FormItem>
-                          <div className="space-y-2">
-                            <FormLabel className="text-sm font-medium">معرف البيكسل *</FormLabel>
+                        <FormLabel className="text-sm font-medium">معرف البيكسل</FormLabel>
                             <FormControl>
                               <Input 
                                 placeholder="123456789012345" 
                                 value={field.value || ''} 
                                 onChange={field.onChange}
-                                className="h-10"
+                            className="h-10 font-mono"
                               />
                             </FormControl>
                             <FormDescription className="text-xs">
-                              أدخل معرف فيسبوك بيكسل (15 رقم)
+                          معرف فيسبوك بيكسل (15 رقم)
                             </FormDescription>
-                          </div>
+                        <FormMessage />
                         </FormItem>
                       )}
                     />
 
-                    {/* Conversion API Section */}
-                    <div className="border border-green-200 rounded-lg p-4 bg-green-50/30">
+                  <Separator />
+
+                  {/* Conversion API */}
+                  <div className="space-y-4">
                       <FormField
                         control={control}
                         name="marketingSettings.enable_facebook_conversion_api"
                         render={({ field }) => (
                           <FormItem>
-                            <div className="flex items-center justify-between mb-4">
-                              <div className="flex items-center space-x-3 space-x-reverse">
-                                <div className="bg-green-100 p-2 rounded-full">
-                                  <Server className="w-4 h-4 text-green-600" />
-                                </div>
+                          <div className="flex items-center justify-between p-3 bg-green-50/50 dark:bg-green-950/20 rounded-lg border border-green-200/50 dark:border-green-800/30">
+                            <div className="flex items-center gap-3">
+                              <Server className="w-4 h-4 text-green-600 dark:text-green-400" />
                                 <div>
-                                  <FormLabel className="font-medium text-green-900">تفعيل Conversion API</FormLabel>
-                                  <div className="text-xs text-green-700">
-                                    تتبع من جانب الخادم لضمان دقة أعلى
-                                  </div>
-                                </div>
+                                <FormLabel className="font-medium text-green-900 dark:text-green-100">
+                                  Conversion API
+                                </FormLabel>
+                                <p className="text-xs text-green-700 dark:text-green-300">
+                                  تتبع من جانب الخادم
+                                </p>
+                              </div>
                               </div>
                               <FormControl>
-                                <Switch checked={field.value} onCheckedChange={field.onChange} />
+                              <Switch 
+                                checked={field.value || false} 
+                                onCheckedChange={(checked) => {
+                                  field.onChange(checked);
+                                  // إجبار إعادة الرسم فوراً
+                                  setTimeout(() => setForceUpdate(prev => prev + 1), 0);
+                                }}
+                                className="data-[state=checked]:bg-green-500"
+                              />
                               </FormControl>
                             </div>
                           </FormItem>
                         )}
                       />
 
-                      {watch('marketingSettings.enable_facebook_conversion_api') && (
-                        <div className="space-y-4">
+                    {facebookApiEnabled && (
+                      <div className="space-y-4 pl-4 border-l-2 border-green-200 dark:border-green-800">
                           <FormField
                             control={control}
                             name="marketingSettings.facebook_access_token"
                             render={({ field }) => (
                               <FormItem>
-                                <div className="space-y-2">
                                   <FormLabel className="text-sm font-medium flex items-center gap-2">
                                     <Shield className="w-3 h-3" />
-                                    رمز الوصول *
+                                رمز الوصول
                                   </FormLabel>
                                   <FormControl>
                                     <Textarea 
                                       placeholder="EAABC..." 
                                       value={field.value || ''} 
                                       onChange={field.onChange}
-                                      className="h-20 resize-none"
+                                  className="h-16 resize-none font-mono text-xs"
                                     />
                                   </FormControl>
                                   <FormDescription className="text-xs">
-                                    رمز الوصول لـ Conversion API من Facebook Business
+                                رمز الوصول من Facebook Business
                                   </FormDescription>
-                                </div>
+                              <FormMessage />
                               </FormItem>
                             )}
                           />
 
-                          <FormField
-                            control={control}
-                            name="marketingSettings.facebook_dataset_id"
-                            render={({ field }) => (
-                              <FormItem>
-                                <div className="space-y-2">
-                                  <FormLabel className="text-sm font-medium">معرف Dataset</FormLabel>
-                                  <FormControl>
-                                    <Input 
-                                      placeholder="1234567890123456" 
-                                      value={field.value || ''} 
-                                      onChange={field.onChange}
-                                      className="h-10"
-                                    />
-                                  </FormControl>
-                                  <FormDescription className="text-xs">
-                                    معرف مجموعة البيانات (اختياري لتحسين المطابقة)
-                                  </FormDescription>
-                                </div>
-                              </FormItem>
-                            )}
-                          />
-
+                        {isTestMode && (
                           <FormField
                             control={control}
                             name="marketingSettings.facebook_test_event_code"
                             render={({ field }) => (
                               <FormItem>
-                                <div className="space-y-2">
                                   <FormLabel className="text-sm font-medium">كود اختبار الأحداث</FormLabel>
                                   <FormControl>
                                     <Input 
                                       placeholder="TEST12345" 
                                       value={field.value || ''} 
                                       onChange={field.onChange}
-                                      className="h-10"
+                                    className="h-10 font-mono"
                                     />
                                   </FormControl>
                                   <FormDescription className="text-xs">
-                                    كود الاختبار لتتبع الأحداث في وضع التطوير
+                                  كود الاختبار لوضع التطوير
                                   </FormDescription>
-                                </div>
+                                <FormMessage />
                               </FormItem>
                             )}
                           />
+                        )}
                         </div>
                       )}
                     </div>
+
+                  {/* Help Link */}
+                  <div className="flex items-center justify-center">
+                    <Button variant="ghost" size="sm" className="text-xs text-muted-foreground">
+                      <ExternalLink className="w-3 h-3 mr-1" />
+                      دليل إعداد فيسبوك بكسل
+                    </Button>
                   </div>
                 </div>
               )}
-            </div>
+            </CardContent>
+          )}
+        </Card>
 
-            {/* Google Ads Section */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 p-4 bg-green-50/50 border border-green-200 rounded-lg">
-                <div className="bg-green-100 p-2 rounded-full">
+        {/* Google Ads */}
+        <Card className="overflow-hidden transition-all duration-300 hover:shadow-md">
+          <CardHeader 
+            className="cursor-pointer p-4 hover:bg-muted/30 transition-colors"
+            onClick={() => toggleSection('google')}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="bg-green-100 dark:bg-green-900/60 p-2.5 rounded-xl">
                   <GoogleAdsIcon />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-green-900">جوجل Ads - تتبع التحويلات</h3>
-                  <p className="text-sm text-green-700">Google Analytics + Enhanced Conversions</p>
+                  <CardTitle className="text-base font-medium">جوجل Ads</CardTitle>
+                  <p className="text-sm text-muted-foreground">Analytics + Enhanced Conversions</p>
                 </div>
               </div>
-
+              <div className="flex items-center gap-2">
+                {googleEnabled && (
+                  <Badge variant="secondary" className="bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400">
+                    <CheckCircle2 className="w-3 h-3 mr-1" />
+                    مفعل
+                  </Badge>
+                )}
+                {expandedSections.includes('google') ? (
+                  <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                )}
+              </div>
+            </div>
+          </CardHeader>
+          
+          {expandedSections.includes('google') && (
+            <CardContent className="p-4 pt-0 space-y-4">
+              {/* Main Toggle */}
               <FormField
                 control={control}
                 name="marketingSettings.enable_google_ads_tracking"
                 render={({ field }) => (
                   <FormItem>
-                    <div className="flex items-center justify-between p-4 border border-border rounded-lg bg-muted/20 hover:bg-muted/30 transition-colors">
-                      <div className="flex items-center space-x-3 space-x-reverse">
-                        <div className="bg-green-100 p-2 rounded-full">
+                    <div className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
+                      <div className="flex items-center gap-3">
                           <Target className="w-4 h-4 text-green-600" />
-                        </div>
                         <div>
-                          <FormLabel className="font-medium">تفعيل تتبع جوجل Ads</FormLabel>
-                          <div className="text-xs text-muted-foreground">
-                            تمكين تتبع التحويلات لحملات جوجل Ads
-                          </div>
+                          <FormLabel className="font-medium">تفعيل تتبع جوجل</FormLabel>
+                          <p className="text-xs text-muted-foreground">تتبع التحويلات والتحليلات</p>
                         </div>
                       </div>
                       <FormControl>
-                        <Switch checked={field.value} onCheckedChange={field.onChange} />
+                        <Switch 
+                          checked={field.value || false} 
+                          onCheckedChange={(checked) => {
+                            field.onChange(checked);
+                            // إجبار إعادة الرسم فوراً
+                            setTimeout(() => setForceUpdate(prev => prev + 1), 0);
+                          }}
+                        />
                       </FormControl>
                     </div>
                   </FormItem>
                 )}
               />
 
-              {watch('marketingSettings.enable_google_ads_tracking') && (
-                <div className="space-y-4 border-t pt-4">
-                  <h4 className="text-sm font-medium flex items-center gap-2">
-                    <Settings2 className="w-4 h-4 text-muted-foreground" />
-                    إعدادات جوجل Ads
-                  </h4>
-                  
+              {googleEnabled && (
+                <div className="space-y-4 animate-in slide-in-from-top-2 duration-300">
                   <div className="grid gap-4">
                     <FormField
                       control={control}
                       name="marketingSettings.google_gtag_id"
                       render={({ field }) => (
                         <FormItem>
-                          <div className="space-y-2">
-                            <FormLabel className="text-sm font-medium">Google Tag ID *</FormLabel>
+                          <FormLabel className="text-sm font-medium">Google Tag ID</FormLabel>
                             <FormControl>
                               <Input 
                                 placeholder="G-XXXXXXXXXX or AW-XXXXXXXXXX" 
                                 value={field.value || ''} 
                                 onChange={field.onChange}
-                                className="h-10"
+                              className="h-10 font-mono"
                               />
                             </FormControl>
                             <FormDescription className="text-xs">
                               معرف Google Analytics 4 أو Google Ads
                             </FormDescription>
-                          </div>
+                          <FormMessage />
                         </FormItem>
                       )}
                     />
@@ -342,185 +417,155 @@ const ConversionTrackingTab: React.FC<ConversionTrackingTabProps> = ({ form, org
                       name="marketingSettings.google_ads_conversion_id"
                       render={({ field }) => (
                         <FormItem>
-                          <div className="space-y-2">
                             <FormLabel className="text-sm font-medium">معرف التحويل</FormLabel>
                             <FormControl>
                               <Input 
                                 placeholder="AW-1234567890" 
                                 value={field.value || ''} 
                                 onChange={field.onChange}
-                                className="h-10"
+                              className="h-10 font-mono"
                               />
                             </FormControl>
                             <FormDescription className="text-xs">
-                              أدخل معرف التحويل من جوجل Ads
+                            معرف التحويل من جوجل Ads
                             </FormDescription>
-                          </div>
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={control}
-                      name="marketingSettings.google_ads_conversion_label"
-                      render={({ field }) => (
-                        <FormItem>
-                          <div className="space-y-2">
-                            <FormLabel className="text-sm font-medium">تسمية التحويل</FormLabel>
-                            <FormControl>
-                              <Input 
-                                placeholder="purchase-conversion" 
-                                value={field.value || ''} 
-                                onChange={field.onChange}
-                                className="h-10"
-                              />
-                            </FormControl>
-                            <FormDescription className="text-xs">
-                              تسمية التحويل المحددة في جوجل Ads
-                            </FormDescription>
-                          </div>
+                          <FormMessage />
                         </FormItem>
                       )}
                     />
                   </div>
+
+                  <div className="flex items-center justify-center">
+                    <Button variant="ghost" size="sm" className="text-xs text-muted-foreground">
+                      <ExternalLink className="w-3 h-3 mr-1" />
+                      دليل إعداد جوجل Ads
+                    </Button>
+                  </div>
                 </div>
               )}
-            </div>
+            </CardContent>
+          )}
+        </Card>
 
-            {/* TikTok Pixel Section */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 p-4 bg-pink-50/50 border border-pink-200 rounded-lg">
-                <div className="bg-pink-100 p-2 rounded-full">
-                  <Play className="h-5 w-5 text-pink-600" />
+        {/* TikTok */}
+        <Card className="overflow-hidden transition-all duration-300 hover:shadow-md">
+          <CardHeader 
+            className="cursor-pointer p-4 hover:bg-muted/30 transition-colors"
+            onClick={() => toggleSection('tiktok')}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="bg-pink-100 dark:bg-pink-900/60 p-2.5 rounded-xl">
+                  <Play className="h-5 w-5 text-pink-600 dark:text-pink-400" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-pink-900">تيك توك - تتبع التحويلات</h3>
-                  <p className="text-sm text-pink-700">TikTok Pixel + Events API</p>
+                  <CardTitle className="text-base font-medium">تيك توك</CardTitle>
+                  <p className="text-sm text-muted-foreground">Pixel + Events API</p>
                 </div>
               </div>
-
+              <div className="flex items-center gap-2">
+                {tiktokEnabled && (
+                  <Badge variant="secondary" className="bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400">
+                    <CheckCircle2 className="w-3 h-3 mr-1" />
+                    مفعل
+                  </Badge>
+                )}
+                {expandedSections.includes('tiktok') ? (
+                  <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                )}
+              </div>
+            </div>
+          </CardHeader>
+          
+          {expandedSections.includes('tiktok') && (
+            <CardContent className="p-4 pt-0 space-y-4">
               <FormField
                 control={control}
                 name="marketingSettings.enable_tiktok_pixel"
                 render={({ field }) => (
                   <FormItem>
-                    <div className="flex items-center justify-between p-4 border border-border rounded-lg bg-muted/20 hover:bg-muted/30 transition-colors">
-                      <div className="flex items-center space-x-3 space-x-reverse">
-                        <div className="bg-pink-100 p-2 rounded-full">
+                    <div className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
+                      <div className="flex items-center gap-3">
                           <Target className="w-4 h-4 text-pink-600" />
-                        </div>
                         <div>
                           <FormLabel className="font-medium">تفعيل تيك توك بكسل</FormLabel>
-                          <div className="text-xs text-muted-foreground">
-                            تمكين تتبع التحويلات لتيك توك
-                          </div>
+                          <p className="text-xs text-muted-foreground">تتبع التحويلات لتيك توك</p>
                         </div>
                       </div>
                       <FormControl>
-                        <Switch checked={field.value} onCheckedChange={field.onChange} />
+                        <Switch 
+                          checked={field.value || false} 
+                          onCheckedChange={(checked) => {
+                            field.onChange(checked);
+                            // إجبار إعادة الرسم فوراً
+                            setTimeout(() => setForceUpdate(prev => prev + 1), 0);
+                          }}
+                        />
                       </FormControl>
                     </div>
                   </FormItem>
                 )}
               />
 
-              {watch('marketingSettings.enable_tiktok_pixel') && (
-                <div className="space-y-4 border-t pt-4">
-                  <h4 className="text-sm font-medium flex items-center gap-2">
-                    <Settings2 className="w-4 h-4 text-muted-foreground" />
-                    إعدادات تيك توك بكسل
-                  </h4>
-                  
-                  <div className="grid gap-4">
+              {tiktokEnabled && (
+                <div className="space-y-4 animate-in slide-in-from-top-2 duration-300">
                     <FormField
                       control={control}
                       name="marketingSettings.tiktok_pixel_id"
                       render={({ field }) => (
                         <FormItem>
-                          <div className="space-y-2">
-                            <FormLabel className="text-sm font-medium">معرف تيك توك بكسل *</FormLabel>
+                        <FormLabel className="text-sm font-medium">معرف تيك توك بكسل</FormLabel>
                             <FormControl>
                               <Input 
                                 placeholder="C9A1B2C3D4E5F6G7H8I9J0" 
                                 value={field.value || ''} 
                                 onChange={field.onChange}
-                                className="h-10"
+                            className="h-10 font-mono"
                               />
                             </FormControl>
                             <FormDescription className="text-xs">
-                              أدخل معرف تيك توك بكسل
+                          معرف بيكسل تيك توك
                             </FormDescription>
-                          </div>
+                        <FormMessage />
                         </FormItem>
                       )}
                     />
 
-                    <FormField
-                      control={control}
-                      name="marketingSettings.tiktok_access_token"
-                      render={({ field }) => (
-                        <FormItem>
-                          <div className="space-y-2">
-                            <FormLabel className="text-sm font-medium">رمز الوصول للـ Events API</FormLabel>
-                            <FormControl>
-                              <Textarea 
-                                placeholder="abc123..." 
-                                value={field.value || ''} 
-                                onChange={field.onChange}
-                                className="h-20 resize-none"
-                              />
-                            </FormControl>
-                            <FormDescription className="text-xs">
-                              رمز وصول TikTok Events API (اختياري للتتبع المتقدم)
-                            </FormDescription>
-                          </div>
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={control}
-                      name="marketingSettings.tiktok_test_event_code"
-                      render={({ field }) => (
-                        <FormItem>
-                          <div className="space-y-2">
-                            <FormLabel className="text-sm font-medium">كود اختبار الأحداث</FormLabel>
-                            <FormControl>
-                              <Input 
-                                placeholder="TEST12345" 
-                                value={field.value || ''} 
-                                onChange={field.onChange}
-                                className="h-10"
-                              />
-                            </FormControl>
-                            <FormDescription className="text-xs">
-                              كود الاختبار لتتبع الأحداث في وضع التطوير
-                            </FormDescription>
-                          </div>
-                        </FormItem>
-                      )}
-                    />
+                  <div className="flex items-center justify-center">
+                    <Button variant="ghost" size="sm" className="text-xs text-muted-foreground">
+                      <ExternalLink className="w-3 h-3 mr-1" />
+                      دليل إعداد تيك توك بكسل
+                    </Button>
                   </div>
                 </div>
               )}
+            </CardContent>
+          )}
+        </Card>
             </div>
 
-            {/* معلومات مهمة */}
-            <Alert>
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>
-                <strong>ملاحظات مهمة:</strong>
-                <ul className="mt-2 space-y-1 text-sm">
-                  <li>• تأكد من إعداد الأحداث في لوحة تحكم كل منصة</li>
-                  <li>• اختبر البكسلات باستخدام أدوات التطوير</li>
-                  <li>• مراجعة سياسة الخصوصية لتتوافق مع GDPR</li>
-                  <li>• في وضع الاختبار لن يتم إرسال بيانات حقيقية</li>
-                </ul>
-              </AlertDescription>
-            </Alert>
+      {/* Summary */}
+      {(facebookEnabled || googleEnabled || tiktokEnabled) && (
+        <Card className="bg-gradient-to-r from-green-50/50 to-emerald-50/30 dark:from-green-950/20 dark:to-emerald-950/10 border-green-200/50 dark:border-green-800/30">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="bg-green-100 dark:bg-green-900/60 p-2 rounded-lg">
+                <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <p className="font-medium text-green-900 dark:text-green-100">
+                  تم تفعيل {[facebookEnabled, googleEnabled, tiktokEnabled].filter(Boolean).length} منصة
+                </p>
+                <p className="text-xs text-green-700 dark:text-green-300">
+                  {isTestMode ? 'وضع الاختبار مفعل' : 'وضع الإنتاج مفعل'}
+                </p>
+              </div>
           </div>
         </CardContent>
       </Card>
+      )}
     </div>
   );
 };

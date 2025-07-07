@@ -572,7 +572,8 @@ export default defineConfig(({ command, mode }) => {
         'react-is',
         'use-sync-external-store',
         'use-sync-external-store/shim',
-        'prop-types'
+        'prop-types',
+        'hoist-non-react-statics'
       ],
       
               // 🚨 استبعاد جميع المكتبات الثقيلة من التحسين المسبق  

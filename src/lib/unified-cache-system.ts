@@ -1,4 +1,5 @@
-import LRUCache from 'lru-cache';
+// UNIFIED CACHE DISABLED - تم تعطيل النظام الموحد للكاش لتوفير الذاكرة
+// import LRUCache from 'lru-cache';
 
 interface CacheConfig {
   maxSize: number;
@@ -29,9 +30,11 @@ interface CacheStats {
   compressionRatio: number;
 }
 
-class UnifiedCacheSystem {
+export class UnifiedCacheSystem {
   private static instance: UnifiedCacheSystem;
-  private caches: Map<string, LRUCache<string, CacheEntry<any>>> = new Map();
+  // DISABLED: Heavy cache system
+  // private caches: Map<string, LRUCache<string, CacheEntry<any>>> = new Map();
+  private caches: Map<string, Map<string, CacheEntry<any>>> = new Map();
   private stats: Map<string, CacheStats> = new Map();
   private compressionWorker?: Worker;
   private persistenceTimer?: NodeJS.Timeout;
@@ -105,17 +108,18 @@ class UnifiedCacheSystem {
     const config = { ...preset, ...customConfig };
 
     // إنشاء LRU cache
-    const cache = new LRUCache<string, CacheEntry<any>>({
-      max: config.maxSize,
-      ttl: config.ttl,
-      updateAgeOnGet: true,
-      allowStale: true,
-      noDeleteOnStaleGet: false,
-      dispose: (value, key) => {
-        this.updateStats(name, 'evictions', 1);
-      }
-    });
-
+    // const cache = new LRUCache<string, CacheEntry<any>>({
+    //   max: config.maxSize,
+    //   ttl: config.ttl,
+    //   updateAgeOnGet: true,
+    //   allowStale: true,
+    //   noDeleteOnStaleGet: false,
+    //   dispose: (value, key) => {
+    //     this.updateStats(name, 'evictions', 1);
+    //   }
+    // });
+    
+    const cache = new Map<string, CacheEntry<any>>();
     this.caches.set(name, cache);
     
     // إنشاء إحصائيات
@@ -457,6 +461,22 @@ class UnifiedCacheSystem {
     }
     this.saveToStorage();
     this.clearAll();
+  }
+
+  private getOrCreateCache(namespace: string): Map<string, CacheEntry<any>> {
+    if (!this.caches.has(namespace)) {
+      // DISABLED: LRU Cache - using simple Map instead
+      // const cache = new LRUCache<string, CacheEntry<any>>({
+      //   max: 100,
+      //   ttl: 5 * 60 * 1000, // 5 minutes
+      //   updateAgeOnGet: true,
+      //   updateAgeOnHas: false,
+      // });
+      
+      const cache = new Map<string, CacheEntry<any>>();
+      this.caches.set(namespace, cache);
+    }
+    return this.caches.get(namespace)!;
   }
 }
 

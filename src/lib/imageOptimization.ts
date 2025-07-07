@@ -149,15 +149,25 @@ export const createPreloadLink = (url: string): HTMLLinkElement => {
 };
 
 /**
- * إضافة preload links للصور المهمة
+ * إضافة preload links للصور المهمة - محسن لتجنب التحذيرات
  */
-export const addPreloadLinks = (urls: string[]): void => {
-  urls.forEach(url => {
-    if (url) {
-      const link = createPreloadLink(url);
-      document.head.appendChild(link);
-    }
-  });
+export const addPreloadLinks = (urls: string[], delay: number = 0): void => {
+  // إضافة تأخير اختياري لتجنب preload غير الضروري
+  setTimeout(() => {
+    urls.forEach(url => {
+      if (url && !document.querySelector(`link[rel="preload"][href="${url}"]`)) {
+        const link = createPreloadLink(url);
+        document.head.appendChild(link);
+        
+        // إزالة تلقائية بعد 10 ثوان إذا لم يتم استخدام الصورة
+        setTimeout(() => {
+          if (link.parentNode) {
+            link.remove();
+          }
+        }, 10000);
+      }
+    });
+  }, delay);
 };
 
 /**
@@ -166,4 +176,43 @@ export const addPreloadLinks = (urls: string[]): void => {
 export const removePreloadLinks = (): void => {
   const links = document.querySelectorAll('link[rel="preload"][as="image"]');
   links.forEach(link => link.remove());
+};
+
+/**
+ * preload ذكي للصور - يحمل فقط الصور المرئية أو التي ستكون مرئية قريباً
+ */
+export const smartPreloadImages = (urls: string[], options: {
+  immediate?: boolean;
+  delay?: number;
+  priority?: 'high' | 'low';
+} = {}): void => {
+  const { immediate = false, delay = 1000, priority = 'low' } = options;
+  
+  if (immediate) {
+    // للصور المهمة جداً (مثل صورة المنتج الحالي)
+    addPreloadLinks(urls.slice(0, 2), 0);
+  } else {
+    // للصور الأخرى، استخدم Intersection Observer للتحميل عند الحاجة
+    if ('IntersectionObserver' in window) {
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            addPreloadLinks(urls, delay);
+            observer.disconnect();
+          }
+        });
+      }, {
+        rootMargin: '100px' // ابدأ التحميل قبل 100px من ظهور العنصر
+      });
+      
+      // مراقبة العنصر الأول في الصفحة للبدء
+      const firstElement = document.querySelector('main, #root, body > div');
+      if (firstElement) {
+        observer.observe(firstElement);
+      }
+    } else {
+      // fallback للمتصفحات القديمة
+      setTimeout(() => addPreloadLinks(urls), delay);
+    }
+  }
 };

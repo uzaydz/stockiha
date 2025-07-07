@@ -18,8 +18,6 @@ const LoginForm = () => {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [redirectPath, setRedirectPath] = useState<string | null>(null);
-  const [isElectron, setIsElectron] = useState(false);
-  
   // حالات المصادقة الثنائية
   const [show2FA, setShow2FA] = useState(false);
   const [twoFactorData, setTwoFactorData] = useState<{
@@ -31,23 +29,6 @@ const LoginForm = () => {
     email: string;
     password: string;
   } | null>(null);
-
-  // التحقق إذا كنا في بيئة Electron
-  useEffect(() => {
-    const checkElectron = () => {
-      const isElectronApp = !!(window as any).electronAPI || !!(window as any).__ELECTRON_APP__;
-      
-      setIsElectron(isElectronApp);
-
-      // في Electron، نضع قيم افتراضية للتطبيق
-      if (isElectronApp) {
-        if (!email) setEmail('admin@stockiha.com');
-        if (!password) setPassword('password123');
-      }
-    };
-
-    checkElectron();
-  }, []);
 
   // Get redirect path on component mount
   useEffect(() => {
@@ -351,11 +332,7 @@ const LoginForm = () => {
               مستخدم النطاق {currentSubdomain}
             </span>
           )}
-          {isElectron && (
-            <span className="block mt-2 text-green-500 font-medium">
-              تطبيق Electron - نسخة سطح المكتب
-            </span>
-          )}
+
         </CardDescription>
       </CardHeader>
       <CardContent>

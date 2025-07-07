@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { useTranslation } from 'react-i18next';
-import { optimizeStoreImage, addPreloadLinks } from '@/lib/imageOptimization';
+import { optimizeStoreImage, smartPreloadImages } from '@/lib/imageOptimization';
 
 // مكون محسن لتحميل الصور مع placeholder
 const OptimizedImage = ({ 
@@ -251,7 +251,7 @@ const ProductCategories = ({
         .filter(Boolean);
       
       if (imageUrls.length > 0) {
-        addPreloadLinks(imageUrls);
+        smartPreloadImages(imageUrls, { immediate: false, delay: 1500 });
       }
     }
   }, [optimizedCategories]);

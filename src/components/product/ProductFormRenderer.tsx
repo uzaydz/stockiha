@@ -9,6 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { 
   DocumentTextIcon, 
   MapPinIcon, 
@@ -20,7 +21,9 @@ import {
   CheckCircleIcon,
   HomeIcon,
   TruckIcon,
-  CheckIcon
+  CheckIcon,
+  SwatchIcon,
+  TagIcon
 } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/utils';
 import { 
@@ -173,6 +176,181 @@ const errorVariants = {
     transition: { duration: 0.2 }
   }
 };
+
+// مكون محسن لعرض الألوان
+const ColorSelector = memo(({ 
+  colors, 
+  selectedValue, 
+  onSelect, 
+  productFormRenderer 
+}: {
+  colors: Array<{
+    id: string;
+    name: string;
+    color_code?: string;
+    image_url?: string;
+  }>;
+  selectedValue: string;
+  onSelect: (value: string) => void;
+  productFormRenderer: any;
+}) => {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-primary/40 flex items-center justify-center">
+          <SwatchIcon className="w-4 h-4 text-primary" />
+        </div>
+        <Label className="text-base font-semibold text-foreground">{productFormRenderer.selectColor()}</Label>
+      </div>
+      
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+        {colors.map((color) => {
+          const isSelected = selectedValue === color.id;
+          
+          return (
+            <motion.div
+              key={color.id}
+              className={cn(
+                "relative group p-3 rounded-2xl border-2 cursor-pointer transition-all duration-300",
+                "hover:shadow-lg hover:-translate-y-1",
+                isSelected 
+                  ? "border-primary bg-gradient-to-br from-primary/10 to-primary/5 shadow-lg scale-105" 
+                  : "border-border hover:border-primary/60 bg-card"
+              )}
+              onClick={() => onSelect(color.id)}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              {/* مؤشر الاختيار */}
+              {isSelected && (
+                <motion.div
+                  className="absolute -top-2 -right-2 w-6 h-6 bg-primary rounded-full flex items-center justify-center shadow-md"
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                >
+                  <CheckIcon className="w-3 h-3 text-white" />
+                </motion.div>
+              )}
+              
+              {/* عرض الصورة أو اللون */}
+              <div className="flex flex-col items-center space-y-2">
+                {color.image_url ? (
+                  <div className="relative">
+                    <img 
+                      src={color.image_url} 
+                      alt={color.name}
+                      className="w-14 h-14 rounded-xl object-cover border-2 border-white shadow-md group-hover:shadow-lg transition-shadow"
+                    />
+                    {!isSelected && (
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 rounded-xl transition-colors" />
+                    )}
+                  </div>
+                ) : color.color_code ? (
+                  <div className="relative">
+                    <div 
+                      className="w-14 h-14 rounded-xl border-2 border-white shadow-md group-hover:shadow-lg transition-shadow" 
+                      style={{ backgroundColor: color.color_code }}
+                    />
+                    {!isSelected && (
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 rounded-xl transition-colors" />
+                    )}
+                  </div>
+                ) : (
+                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/20 to-primary/40 border-2 border-primary/30 flex items-center justify-center shadow-md">
+                    <SwatchIcon className="w-6 h-6 text-primary" />
+                  </div>
+                )}
+                
+                <span className="text-xs font-medium text-center leading-tight text-foreground group-hover:text-primary transition-colors">
+                  {color.name}
+                </span>
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
+// مكون محسن لعرض المقاسات
+const SizeSelector = memo(({ 
+  sizes, 
+  selectedValue, 
+  onSelect, 
+  productFormRenderer 
+}: {
+  sizes: Array<{
+    id: string;
+    size_name: string;
+    price?: number;
+  }>;
+  selectedValue: string;
+  onSelect: (value: string) => void;
+  productFormRenderer: any;
+}) => {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-secondary/20 to-secondary/40 flex items-center justify-center">
+          <TagIcon className="w-4 h-4 text-secondary" />
+        </div>
+        <Label className="text-base font-semibold text-foreground">{productFormRenderer.selectSize()}</Label>
+      </div>
+      
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2">
+        {sizes.map((size) => {
+          const isSelected = selectedValue === size.id;
+          
+          return (
+            <motion.div
+              key={size.id}
+              className={cn(
+                "relative group p-3 rounded-xl border-2 cursor-pointer transition-all duration-300 text-center",
+                "hover:shadow-lg hover:-translate-y-1",
+                isSelected 
+                  ? "border-primary bg-gradient-to-br from-primary/10 to-primary/5 shadow-lg scale-105" 
+                  : "border-border hover:border-primary/60 bg-card"
+              )}
+              onClick={() => onSelect(size.id)}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              {/* مؤشر الاختيار */}
+              {isSelected && (
+                <motion.div
+                  className="absolute -top-2 -right-2 w-5 h-5 bg-primary rounded-full flex items-center justify-center shadow-md"
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                >
+                  <CheckIcon className="w-2.5 h-2.5 text-white" />
+                </motion.div>
+              )}
+              
+              <div className="flex flex-col items-center space-y-1">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-primary/40 flex items-center justify-center mb-1">
+                  <span className="text-sm font-bold text-primary">
+                    {size.size_name}
+                  </span>
+                </div>
+                <span className="text-xs font-medium text-foreground group-hover:text-primary transition-colors">
+                  {size.size_name}
+                </span>
+                {size.price && (
+                  <Badge variant="secondary" className="text-xs px-2 py-1">
+                    {size.price.toLocaleString()} د.ج
+                  </Badge>
+                )}
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
 
 const ProductFormRenderer = memo<ProductFormRendererProps>(({
   formData: externalFormData,
@@ -792,28 +970,31 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
             </Label>
           </div>
         ) : field.type === 'radio' && field.options ? (
-          // تحقق من نوع التوصيل لتطبيق التصميم الخاص
-          field.name.toLowerCase().includes('delivery') || 
-          field.name.toLowerCase().includes('توصيل') ||
-          field.label.toLowerCase().includes('delivery') ||
-          field.label.toLowerCase().includes('توصيل') ||
-          // إضافة حقول الألوان والمقاسات
-          field.name === 'product_color' ||
-          field.name === 'product_size' ? (
-            <div 
-              className="grid grid-cols-1 gap-4"
-              data-color-selector={field.name === 'product_color' ? 'true' : undefined}
-              data-size-selector={field.name === 'product_size' ? 'true' : undefined}
-            >
+          // التحقق من نوع الحقل لتطبيق التصميم المناسب
+          field.name === 'product_color' ? (
+            <ColorSelector
+              colors={product?.colors || []}
+              selectedValue={currentValue as string || ''}
+              onSelect={(value) => updateFormData(field.name, value)}
+              productFormRenderer={productFormRenderer}
+            />
+          ) : field.name === 'product_size' ? (
+            <SizeSelector
+              sizes={selectedColor?.sizes || []}
+              selectedValue={currentValue as string || ''}
+              onSelect={(value) => updateFormData(field.name, value)}
+              productFormRenderer={productFormRenderer}
+            />
+          ) : field.name.toLowerCase().includes('delivery') || 
+            field.name.toLowerCase().includes('توصيل') ||
+            field.label.toLowerCase().includes('delivery') ||
+            field.label.toLowerCase().includes('توصيل') ? (
+            // تصميم خاص للتوصيل
+            <div className="grid grid-cols-1 gap-4">
               {field.options.map((option) => {
                 const isSelected = currentValue === option.value;
                 const isHome = option.value === 'home' || option.label.toLowerCase().includes('منزل') || option.label.toLowerCase().includes('home');
                 const isDesk = option.value === 'desk' || option.value === 'office' || option.label.toLowerCase().includes('مكتب') || option.label.toLowerCase().includes('office');
-                const isColor = field.name === 'product_color';
-                const isSize = field.name === 'product_size';
-                
-                // العثور على بيانات اللون للصورة
-                const colorData = isColor ? product?.colors?.find(c => c.id === option.value) : null;
                 
                 return (
                   <div 
@@ -846,62 +1027,18 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
                     </div>
                     <label htmlFor={`${field.id}-${option.value}`} className="flex-1 cursor-pointer">
                       <div className="flex items-center">
-                        {/* أيقونات ومحتوى خاص للألوان */}
-                        {isColor && (
-                          <>
-                            {colorData?.image_url ? (
-                              <img 
-                                src={colorData.image_url} 
-                                alt={option.label}
-                                className="ml-3 h-12 w-12 rounded-lg object-cover border border-border shadow-sm"
-                              />
-                            ) : colorData?.color_code ? (
-                              <div 
-                                className="ml-3 h-8 w-8 rounded-full border border-border shadow-sm" 
-                                style={{ backgroundColor: colorData.color_code }}
-                              />
-                            ) : (
-                              <div className="ml-3 h-8 w-8 rounded-full bg-gradient-to-br from-primary/20 to-primary/40 border border-primary/30 flex items-center justify-center">
-                                <span className="text-xs font-bold text-primary">🎨</span>
-                              </div>
-                            )}
-                            <div>
-                              <span className="font-medium block text-foreground">{option.label}</span>
-                              <span className="text-xs text-muted-foreground block mt-1">{productFormRenderer.availableColor()}</span>
-                            </div>
-                          </>
-                        )}
-                        
-                        {/* أيقونات ومحتوى خاص للمقاسات */}
-                        {isSize && (
-                          <>
-                            <div className="ml-3 h-8 w-8 rounded-lg bg-gradient-to-br from-secondary/20 to-secondary/40 border border-secondary/30 flex items-center justify-center">
-                              <span className="text-xs font-bold text-secondary">{option.label.charAt(0).toUpperCase()}</span>
-                            </div>
-                            <div>
-                                              <span className="font-medium block text-foreground">{productFormRenderer.sizeLabel()} {option.label}</span>
-                <span className="text-xs text-muted-foreground block mt-1">{productFormRenderer.availableSize()}</span>
-                            </div>
-                          </>
-                        )}
-                        
-                        {/* المحتوى الأصلي للتوصيل */}
-                        {!isColor && !isSize && (
-                          <>
-                            {isHome && <HomeIcon className="ml-3 h-5 w-5 text-primary" />}
-                            {isDesk && <BuildingOfficeIcon className="ml-3 h-5 w-5 text-primary" />}
-                            {!isHome && !isDesk && <TruckIcon className="ml-3 h-5 w-5 text-primary" />}
-                            <div>
-                              <span className="font-medium block text-foreground">{option.label}</span>
-                              {isHome && (
-                                <span className="text-xs text-muted-foreground block mt-1">{productFormRenderer.homeDelivery()}</span>
-                              )}
-                              {isDesk && (
-                                <span className="text-xs text-muted-foreground block mt-1">{productFormRenderer.officeDelivery()}</span>
-                              )}
-                            </div>
-                          </>
-                        )}
+                        {isHome && <HomeIcon className="ml-3 h-5 w-5 text-primary" />}
+                        {isDesk && <BuildingOfficeIcon className="ml-3 h-5 w-5 text-primary" />}
+                        {!isHome && !isDesk && <TruckIcon className="ml-3 h-5 w-5 text-primary" />}
+                        <div>
+                          <span className="font-medium block text-foreground">{option.label}</span>
+                          {isHome && (
+                            <span className="text-xs text-muted-foreground block mt-1">{productFormRenderer.homeDelivery()}</span>
+                          )}
+                          {isDesk && (
+                            <span className="text-xs text-muted-foreground block mt-1">{productFormRenderer.officeDelivery()}</span>
+                          )}
+                        </div>
                       </div>
                     </label>
                   </div>
@@ -967,7 +1104,7 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
         </AnimatePresence>
       </motion.div>
     );
-  }, [formData, updateFormData, isLoading, getFieldIcon, errors, touched, translateDynamicText]);
+  }, [formData, updateFormData, isLoading, getFieldIcon, errors, touched, translateDynamicText, product, selectedColor, productFormRenderer]);
 
   // تحديد نوع عرض الحقل
   const renderField = useCallback((field: FormField) => {
@@ -1027,16 +1164,21 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
       animate="visible"
     >
       <div className="space-y-6">
-        <div className="bg-card p-6 rounded-lg border border-border shadow-sm">
-          <h2 className="text-xl font-semibold mb-6 text-foreground border-b border-border pb-3">
-            {formTitle}
-          </h2>
+        <div className="bg-card p-6 rounded-2xl border border-border shadow-sm">
+          <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/40 flex items-center justify-center">
+              <DocumentTextIcon className="w-5 h-5 text-primary" />
+            </div>
+            <h2 className="text-xl font-semibold text-foreground">
+              {formTitle}
+            </h2>
+          </div>
           {formDescription && (
-            <p className="text-muted-foreground mb-6">{formDescription}</p>
+            <p className="text-muted-foreground mb-6 text-sm leading-relaxed">{formDescription}</p>
           )}
           
-          <form onSubmit={handleFormSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                      <form onSubmit={handleFormSubmit} className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-8">
               <AnimatePresence mode="popLayout">
                 {fields.map((field) => (
                   <motion.div 
@@ -1047,7 +1189,9 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
                         field.name.toLowerCase().includes('delivery') || 
                         field.name.toLowerCase().includes('توصيل') ||
                         field.label.toLowerCase().includes('delivery') ||
-                        field.label.toLowerCase().includes('توصيل')
+                        field.label.toLowerCase().includes('توصيل') ||
+                        field.name === 'product_color' ||
+                        field.name === 'product_size'
                       )) ? 'md:col-span-2' : ''
                     )}
                     layout
@@ -1061,91 +1205,37 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
             {submitHandler && (
               <div className="mt-8">
                 <motion.div
-                  className="relative"
+                  whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   transition={{ type: "spring", stiffness: 400, damping: 17 }}
                 >
-                  <input
-                    type="radio"
-                    id="submit-button"
-                    name="submit-action"
-                    value="submit"
-                    checked={true}
-                    onChange={() => {}}
-                    className="sr-only peer"
-                  />
-                  <label
-                    htmlFor="submit-button"
+                  <Button
+                    type="submit"
+                    disabled={isLoading}
                     className={cn(
-                      "group relative w-full flex items-center justify-between p-6 rounded-2xl border-2 cursor-pointer transition-all duration-300",
-                      "bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-800 dark:to-gray-900/50",
-                      "border-gray-200 dark:border-gray-700",
-                      "hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10",
-                      "peer-checked:border-primary peer-checked:shadow-xl peer-checked:shadow-primary/20",
-                      isLoading || (showValidation && !isFormValid) 
-                        ? "opacity-70 cursor-not-allowed" 
-                        : "hover:scale-[1.02] active:scale-[0.98]"
+                      "w-full h-14 text-lg font-semibold rounded-2xl transition-all duration-300",
+                      "bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary",
+                      "shadow-lg hover:shadow-xl hover:shadow-primary/25",
+                      "border-0 text-white",
+                      "disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:scale-100",
+                      "flex items-center justify-center gap-3"
                     )}
-                    onClick={isLoading || (showValidation && !isFormValid) ? undefined : (e) => {
-                      e.preventDefault();
-                      const form = (e.target as HTMLElement).closest('form');
-                      if (form) {
-                        const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
-                        form.dispatchEvent(submitEvent);
-                      }
-                    }}
                   >
-                    <div className="flex items-center space-x-4 space-x-reverse flex-1">
-                      {/* دائرة التحديد */}
-                      <div className={cn(
-                        "w-6 h-6 rounded-full border-2 transition-all duration-300 flex items-center justify-center",
-                        "border-primary bg-primary"
-                      )}>
-                        <div className="w-2 h-2 bg-white rounded-full" />
-                      </div>
-                      
-                      {/* أيقونة الإجراء */}
-                      <div className={cn(
-                        "w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300",
-                        "bg-gradient-to-br from-primary to-primary-darker shadow-lg",
-                        "group-hover:shadow-xl group-hover:scale-110"
-                      )}>
-                        {isLoading ? (
-                          <svg className="animate-spin h-6 w-6 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                        ) : (
-                          <CheckCircleIcon className="w-6 h-6 text-white" />
-                        )}
-                      </div>
-                      
-                      {/* النصوص */}
-                      <div className="flex-1 text-right">
-                        <div className="text-lg font-bold text-gray-900 dark:text-white group-hover:text-primary transition-colors duration-300">
-                          {isLoading ? productFormRenderer.processing() : submitButtonText}
-                        </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                          {isLoading 
-                            ? productFormRenderer.pleaseWait() 
-                            : showValidation && !isFormValid 
-                              ? translateDynamicText(productFormRenderer.fixErrorsFirst())
-                              : translateDynamicText(productFormRenderer.clickToSubmit())
-                          }
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* مؤشر التحديد */}
-                    <motion.div
-                      className="absolute left-4 top-1/2 transform -translate-y-1/2"
-                      initial={{ scale: 0, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                    >
-                      <div className="w-2 h-2 bg-primary rounded-full" />
-                    </motion.div>
-                  </label>
+                    {isLoading ? (
+                      <>
+                        <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>{productFormRenderer.processing()}</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircleIcon className="w-5 h-5" />
+                        <span>{submitButtonText}</span>
+                      </>
+                    )}
+                  </Button>
                 </motion.div>
               </div>
             )}

@@ -102,7 +102,7 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             .eq('organization_id', organizationId)
             .eq('is_active', true)
             .order('created_at', { ascending: false })
-            .limit(500); // إضافة حد أقصى للمنتجات
+            .limit(30); // تقليل الحد الأقصى لتحسين الأداء
             
           if (productsError) {
             return [];
@@ -242,7 +242,7 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const fetchData = useCallback(async () => {
     try {
       // Skip if already initialized and data is loaded
-      if (isInitialized.current && products.length > 0 && orders.length > 0) {
+      if (isInitialized.current && Array.isArray(products) && products.length > 0 && Array.isArray(orders) && orders.length > 0) {
         
         return;
       }

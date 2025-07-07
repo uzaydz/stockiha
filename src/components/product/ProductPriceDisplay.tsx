@@ -2,13 +2,12 @@ import React, { useMemo, memo } from 'react';
 import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 import { 
-  ArrowTrendingDownIcon, 
   TagIcon, 
   CurrencyDollarIcon,
-  SparklesIcon,
-  FireIcon
+  CalculatorIcon,
+  CheckCircleIcon
 } from '@heroicons/react/24/outline';
-import { CompleteProduct, ProductColor, ProductSize, getFinalPrice } from '@/lib/api/productComplete';
+import { CompleteProduct, ProductColor, ProductSize, getFinalPrice, getSpecialOfferSummary, SpecialOffer } from '@/lib/api/productComplete';
 import { cn } from '@/lib/utils';
 import { useProductPurchaseTranslation } from '@/hooks/useProductPurchaseTranslation';
 
@@ -17,6 +16,8 @@ interface ProductPriceDisplayProps {
   quantity: number;
   selectedColor?: ProductColor;
   selectedSize?: ProductSize;
+  selectedOffer?: SpecialOffer | null;
+  hideSpecialOfferDetails?: boolean; // إخفاء تفاصيل العرض الخاص
   className?: string;
 }
 
@@ -25,6 +26,8 @@ const ProductPriceDisplay = memo<ProductPriceDisplayProps>(({
   quantity, 
   selectedColor, 
   selectedSize,
+  selectedOffer,
+  hideSpecialOfferDetails = false,
   className
 }) => {
   
@@ -34,8 +37,17 @@ const ProductPriceDisplay = memo<ProductPriceDisplayProps>(({
   // تحسين حسابات السعر بـ useMemo
   const priceData = useMemo(() => {
     const priceInfo = getFinalPrice(product, quantity, selectedColor?.id, selectedSize?.id);
-    const totalPrice = priceInfo.price * quantity;
+    
+    // حساب العروض الخاصة
+    const offerSummary = getSpecialOfferSummary(product, selectedOffer, quantity);
+    
+    // استخدام السعر النهائي مع العروض الخاصة إذا كانت مطبقة
+    const finalPrice = offerSummary.offerApplied ? offerSummary.finalPrice / offerSummary.finalQuantity : priceInfo.price;
+    const finalQuantity = offerSummary.offerApplied ? offerSummary.finalQuantity : quantity;
+    
+    const totalPrice = offerSummary.offerApplied ? offerSummary.finalPrice : priceInfo.price * quantity;
     const totalOriginalPrice = priceInfo.originalPrice * quantity;
+    const totalCompareAtPrice = priceInfo.compareAtPrice ? priceInfo.compareAtPrice * quantity : undefined;
     
     // تنسيق الأسعار
     const formatPrice = (price: number) => {
@@ -47,104 +59,147 @@ const ProductPriceDisplay = memo<ProductPriceDisplayProps>(({
 
     return {
       ...priceInfo,
+      price: finalPrice, // استخدام السعر النهائي مع العروض الخاصة
       totalPrice,
       totalOriginalPrice,
-      formattedPrice: formatPrice(priceInfo.price),
+      totalCompareAtPrice,
+      finalQuantity,
+      offerApplied: offerSummary.offerApplied,
+      offerSavings: offerSummary.savings,
+      selectedOffer,
+      formattedPrice: formatPrice(finalPrice),
       formattedOriginalPrice: formatPrice(priceInfo.originalPrice),
+      formattedCompareAtPrice: priceInfo.compareAtPrice ? formatPrice(priceInfo.compareAtPrice) : undefined,
       formattedTotalPrice: formatPrice(totalPrice),
       formattedTotalOriginalPrice: formatPrice(totalOriginalPrice),
-      formattedDiscount: priceInfo.discount ? formatPrice(priceInfo.discount * quantity) : null,
-      hasDiscount: priceInfo.originalPrice > priceInfo.price,
-      discountPercentage: priceInfo.discountPercentage || 0
+      formattedTotalCompareAtPrice: totalCompareAtPrice ? formatPrice(totalCompareAtPrice) : undefined,
+      formattedDiscount: priceInfo.discount ? formatPrice(priceInfo.discount * quantity + offerSummary.savings) : (offerSummary.savings > 0 ? formatPrice(offerSummary.savings) : null),
+      hasDiscount: priceInfo.originalPrice > finalPrice || offerSummary.offerApplied,
+      hasCompareAtDiscount: priceInfo.hasCompareAtPrice && priceInfo.compareAtPrice! > finalPrice,
+      discountPercentage: priceInfo.discountPercentage || 0,
+      compareAtDiscountPercentage: priceInfo.compareAtDiscountPercentage || 0
     };
-  }, [product, quantity, selectedColor, selectedSize]);
+  }, [product, quantity, selectedColor, selectedSize, selectedOffer]);
 
   return (
-    <div className={cn("space-y-6", className)}>
-      {/* البطاقة الرئيسية للسعر */}
+    <div className={cn("space-y-4", className)} data-lov-id="src/components/product/ProductPriceDisplay.tsx">
+      {/* البطاقة الرئيسية للسعر - مُبسطة */}
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-br from-primary/5 via-transparent to-primary/5 rounded-2xl p-6 space-y-4"
+        transition={{ duration: 0.4, ease: "easeOut" }}
+        className="relative bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/60 dark:border-gray-700/60 shadow-lg overflow-hidden"
       >
-        {/* العنوان */}
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 bg-primary/10 rounded-xl">
-            <CurrencyDollarIcon className="w-5 h-5 text-primary" />
-          </div>
-          <h3 className="text-lg font-semibold">{productPriceDisplay.price()}</h3>
-        </div>
-
-        {/* السعر الحالي */}
-        <div className="flex items-baseline gap-3 flex-wrap">
-          <span className="text-4xl lg:text-5xl font-bold text-primary">
-            {priceData.formattedPrice}
-          </span>
-          <span className="text-xl font-medium text-primary">{productPriceDisplay.currency()}</span>
-          
-          {/* السعر الأصلي مع الخصم */}
-          {priceData.hasDiscount && (
-            <div className="flex items-center gap-2">
-              <span className="text-lg text-muted-foreground line-through">
-                {priceData.formattedOriginalPrice} {productPriceDisplay.currency()}
-              </span>
-              <Badge className="bg-red-100 text-red-700 hover:bg-red-100">
-                <FireIcon className="w-3 h-3 ml-1" />
-                {productPriceDisplay.discount()} {priceData.discountPercentage.toFixed(0)}%
+        {/* خط علوي ديكوري */}
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary/60 via-primary to-primary/60" />
+        
+        <div className="p-6">
+          {/* السعر المقارن والخصم */}
+          {priceData.hasCompareAtDiscount && priceData.formattedCompareAtPrice && (
+            <div className="flex items-center justify-between mb-3">
+              <Badge className="bg-gradient-to-r from-red-500 to-red-600 text-white text-sm px-3 py-1 font-semibold">
+                عرض خاص -{priceData.compareAtDiscountPercentage.toFixed(0)}%
               </Badge>
+              <div className="flex items-center gap-2">
+                <span className="text-lg text-muted-foreground line-through">
+                  {priceData.formattedCompareAtPrice}
+                </span>
+                <span className="text-sm text-muted-foreground line-through">
+                  {productPriceDisplay.currency()}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* السعر الحالي */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <CurrencyDollarIcon className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-foreground">{productPriceDisplay.price()}</h3>
+                {priceData.isWholesale && (
+                  <Badge variant="outline" className="text-xs mt-1">
+                    <TagIcon className="w-3 h-3 ml-1" />
+                    سعر الجملة
+                  </Badge>
+                )}
+              </div>
+            </div>
+            
+            <div className="text-right">
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-black text-primary">
+                  {priceData.formattedPrice}
+                </span>
+                <span className="text-lg font-bold text-primary/70">
+                  {productPriceDisplay.currency()}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* رسالة التوفير المختصرة - يُخفى عند تفعيل hideSpecialOfferDetails */}
+          {!hideSpecialOfferDetails && (priceData.hasCompareAtDiscount || priceData.offerApplied) && (
+            <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-200/50 dark:border-green-700/50">
+              <div className="flex items-center gap-2">
+                <CheckCircleIcon className="w-4 h-4 text-green-600 dark:text-green-400" />
+                <span className="text-green-800 dark:text-green-200 font-semibold text-sm">
+                  {priceData.offerApplied && priceData.selectedOffer ? (
+                    <>عرض خاص: {priceData.selectedOffer.name} - وفّر {priceData.offerSavings.toLocaleString('ar-DZ')} {productPriceDisplay.currency()}</>
+                  ) : (
+                    <>وفّر {((priceData.compareAtPrice! - priceData.price) * quantity).toLocaleString('ar-DZ')} {productPriceDisplay.currency()}</>
+                  )}
+                </span>
+              </div>
             </div>
           )}
         </div>
-
-        {/* شارة سعر الجملة */}
-        {priceData.isWholesale && (
-          <div className="flex items-center gap-2">
-            <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">
-              <TagIcon className="w-3 h-3 ml-1" />
-              سعر الجملة
-            </Badge>
-          </div>
-        )}
-
-        {/* معلومات التوفير */}
-        {priceData.hasDiscount && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-            <div className="flex items-center gap-2 text-green-700">
-              <SparklesIcon className="w-4 h-4" />
-              <span className="text-sm font-medium">
-                {productPriceDisplay.saveAmount()} {priceData.formattedDiscount} {productPriceDisplay.currency()} من هذا المنتج
-              </span>
-            </div>
-          </div>
-        )}
       </motion.div>
 
-      {/* إجمالي السعر للكمية */}
-      {quantity > 1 && (
-        <div className="bg-background/50 rounded-xl p-4 space-y-2">
-          <div className="flex items-center gap-2 text-sm mb-3">
-            <span className="text-muted-foreground">المجموع الإجمالي</span>
-            <span className="text-primary font-medium">({quantity} قطع)</span>
-          </div>
-          
-          <div className="flex justify-between items-center">
-            <span className="text-muted-foreground">الإجمالي:</span>
+      {/* إجمالي السعر للكمية - مُبسط - يُخفى عند تفعيل hideSpecialOfferDetails */}
+      {!hideSpecialOfferDetails && (quantity > 1 || priceData.offerApplied) && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1, duration: 0.4 }}
+          className="bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-200/60 dark:border-gray-700/60 p-4"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <CalculatorIcon className="w-4 h-4 text-primary" />
+              </div>
+              <div>
+                <span className="text-base font-semibold text-foreground">المجموع الكلي</span>
+                <p className="text-xs text-muted-foreground">
+                  {priceData.offerApplied ? (
+                    <>لعدد {priceData.finalQuantity} قطع (طلبت {quantity})</>
+                  ) : (
+                    <>لعدد {quantity} قطع</>
+                  )}
+                </p>
+              </div>
+            </div>
+            
             <div className="text-right">
-              <span className="text-2xl font-bold text-primary">{priceData.formattedTotalPrice}</span>
-              <span className="text-lg font-semibold text-primary mr-1">{productPriceDisplay.currency()}</span>
-              {priceData.hasDiscount && (
-                                  <div className="text-sm text-muted-foreground line-through">
-                    {priceData.formattedTotalOriginalPrice} {productPriceDisplay.currency()}
-                  </div>
+              {priceData.hasCompareAtDiscount && priceData.formattedTotalCompareAtPrice && (
+                <div className="text-sm text-muted-foreground line-through mb-1">
+                  {priceData.formattedTotalCompareAtPrice} {productPriceDisplay.currency()}
+                </div>
               )}
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-black text-primary">
+                  {priceData.formattedTotalPrice}
+                </span>
+                <span className="text-sm font-bold text-primary/70">
+                  {productPriceDisplay.currency()}
+                </span>
+              </div>
             </div>
           </div>
-          
-          <div className="flex justify-between items-center text-xs text-muted-foreground border-t border-border pt-2">
-            <span>سعر القطعة الواحدة:</span>
-            <span>{priceData.formattedPrice} {productPriceDisplay.currency()}</span>
-          </div>
-        </div>
+        </motion.div>
       )}
     </div>
   );

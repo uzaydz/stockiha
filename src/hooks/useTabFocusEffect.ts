@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { isElectron } from '@/lib/isElectron';
 
 interface TabFocusOptions {
   onFocus?: () => void | (() => void);
@@ -29,8 +28,8 @@ export function useTabFocusEffect(
   const cleanupRef = useRef<(() => void) | undefined | void>(undefined);
   const [isVisible, setIsVisible] = useState<boolean>(document.visibilityState === 'visible');
   const lastVisibleState = useRef<boolean>(document.visibilityState === 'visible');
-  // تحديد ما إذا كان التطبيق يعمل في بيئة Electron
-  const isRunningInElectron = isElectron();
+  // الموقع يعمل في بيئة الويب فقط
+  const isRunningInElectron = false;
 
   // إذا كان هناك عميل React Query عالمي، نستخدمه لتعليق وإعادة تفعيل الاستعلامات
   const getQueryClient = () => {

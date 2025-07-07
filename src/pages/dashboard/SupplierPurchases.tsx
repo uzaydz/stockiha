@@ -12,6 +12,7 @@ import {
   getSupplierById, 
   getPurchaseById, 
   createPurchase, 
+  updatePurchase,
   createSupplier,
   Supplier, 
   SupplierPurchase, 
@@ -187,12 +188,69 @@ export default function SupplierPurchases() {
     
     try {
       if (purchaseId && purchaseId !== 'new' && selectedPurchase) {
-        // تحديث مشتريات موجودة - سيتم تنفيذه لاحقًا
-        toast({
-          title: 'غير مدعوم',
-          description: 'تحديث المشتريات غير مدعوم حاليًا',
-          variant: 'destructive',
+        // تحديث مشتريات موجودة
+        const purchaseData = {
+          purchase_number: data.purchase_number,
+          supplier_id: data.supplier_id,
+          purchase_date: data.purchase_date.toISOString(),
+          due_date: data.due_date ? data.due_date.toISOString() : undefined,
+          payment_terms: data.payment_terms,
+          notes: data.notes,
+          status: data.status,
+          total_amount: calculateTotalAmount(data.items),
+          paid_amount: data.paid_amount || 0,
+        };
+        
+        // تحقق من وجود عناصر في المشتريات
+        if (!data.items || data.items.length === 0) {
+          toast({
+            title: 'خطأ في البيانات',
+            description: 'يجب إضافة عنصر واحد على الأقل للمشتريات',
+            variant: 'destructive',
+          });
+          return;
+        }
+        
+        const items = data.items.map((item: any) => {
+          const productId = item.product_id === 'none' || !item.product_id ? null : item.product_id;
+
+          return {
+            product_id: productId,
+            description: item.description,
+            quantity: Number(item.quantity) || 0,
+            unit_price: Number(item.unit_price) || 0,
+            tax_rate: Number(item.tax_rate) || 0,
+          };
         });
+
+        try {
+          const result = await updatePurchase(organizationId, purchaseId, purchaseData, items);
+          
+          if (result) {
+            toast({
+              title: 'تم التحديث بنجاح',
+              description: `تم تحديث المشتريات رقم ${result.purchase_number} بنجاح`,
+            });
+            
+            // تحديث الحالة المحلية
+            setSelectedPurchase(result);
+            setHasChanges(true);
+            
+            // إغلاق النافذة المنبثقة
+            handleCloseDialog();
+          }
+        } catch (error: any) {
+          let errorMessage = 'فشل في تحديث المشتريات';
+          if (error?.message) {
+            errorMessage = `خطأ: ${error.message}`;
+          }
+          
+          toast({
+            title: 'خطأ في تحديث المشتريات',
+            description: errorMessage,
+            variant: 'destructive',
+          });
+        }
       } else {
         // إضافة مشتريات جديدة
 

@@ -70,9 +70,15 @@ export const useProductFormTabs = ({
         return watchThumbnailImage ? 'complete' : 'empty';
       case 'pricing_inventory':
         return watchPrice > 0 ? 'complete' : 'empty';
+      case 'special_offers':
+        return 'optional';
       case 'variants':
         if (!watchHasVariants) return 'optional';
         return productColors.length > 0 ? 'complete' : 'empty';
+      case 'shipping_templates':
+        return 'optional';
+      case 'conversion_tracking':
+        return 'optional';
       case 'advanced':
         return 'optional';
       default:
@@ -112,6 +118,16 @@ export const useProductFormTabs = ({
       tooltip: "حدد سعر المنتج وكمية المخزون",
       color: "green"
     },
+    {
+      value: "special_offers",
+      label: "العروض الخاصة",
+      shortLabel: "عروض",
+      icon: "Gift",
+      description: "عروض الباقات والكميات",
+      required: false,
+      tooltip: "إنشاء عروض خاصة للباقات والكميات المختلفة",
+      color: "purple"
+    },
     ...(watchHasVariants ? [{
       value: "variants",
       label: "المتغيرات",
@@ -123,13 +139,33 @@ export const useProductFormTabs = ({
       color: "purple"
     }] : []),
     {
-      value: "advanced",
-      label: "خيارات متقدمة",
-      shortLabel: "متقدم",
-      icon: "Settings",
-      description: "الجملة، التوصيل، والتسويق",
+      value: "shipping_templates",
+      label: "التوصيل والنماذج",
+      shortLabel: "توصيل",
+      icon: "Truck",
+      description: "خيارات التوصيل والنماذج",
       required: false,
-      tooltip: "إعدادات الجملة والتوصيل والتسويق",
+      tooltip: "إعداد خيارات التوصيل والنماذج المختلفة",
+      color: "green"
+    },
+    {
+      value: "conversion_tracking",
+      label: "تتبع التحويلات المتقدم",
+      shortLabel: "تتبع",
+      icon: "BarChart2",
+      description: "فيسبوك، جوجل، وتيك توك",
+      required: false,
+      tooltip: "إعداد تتبع التحويلات عبر منصات متعددة",
+      color: "indigo"
+    },
+    {
+      value: "advanced",
+      label: "إعدادات عامة",
+      shortLabel: "عامة",
+      icon: "Settings",
+      description: "الجملة والإعدادات العامة",
+      required: false,
+      tooltip: "إعدادات الجملة والإعدادات العامة الأخرى",
       color: "amber"
     }
   ], [watchHasVariants]);

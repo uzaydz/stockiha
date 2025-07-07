@@ -149,7 +149,7 @@ import PermissionGuard from './components/auth/PermissionGuard';
 import useTabFocusEffect from './hooks/useTabFocusEffect';
 import useReactQueryState from './hooks/useReactQueryState';
 import { useSessionTracking } from './hooks/useSessionTracking';
-import { isElectron } from '@/lib/isElectron';
+// تم إزالة استيراد isElectron - الموقع يعمل كموقع ويب فقط
 import { getCategoryById, getCategories } from '@/lib/api/unified-api';
 import { configureCrossDomainAuth } from '@/lib/cross-domain-auth';
 import { detectLoadingLoop, autoFixStorage } from '@/lib/utils/storage-helper';

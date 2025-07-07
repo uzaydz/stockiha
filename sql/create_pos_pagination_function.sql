@@ -2,7 +2,7 @@
 CREATE OR REPLACE FUNCTION get_pos_products_paginated(
   p_organization_id UUID,
   p_page INTEGER DEFAULT 1,
-  p_page_size INTEGER DEFAULT 50,
+  p_page_size INTEGER DEFAULT 30,
   p_search_query TEXT DEFAULT NULL,
   p_category_id UUID DEFAULT NULL,
   p_sort_by TEXT DEFAULT 'name',
@@ -29,8 +29,8 @@ BEGIN
   
   -- التحقق من القيم
   IF p_page < 1 THEN p_page := 1; END IF;
-  IF p_page_size < 1 THEN p_page_size := 50; END IF;
-  IF p_page_size > 200 THEN p_page_size := 200; END IF; -- حد أقصى 200 منتج
+  IF p_page_size < 1 THEN p_page_size := 30; END IF;
+  IF p_page_size > 30 THEN p_page_size := 30; END IF; -- حد أقصى 30 منتج لتحسين الأداء
   
   -- حساب إجمالي المنتجات المطابقة للشروط
   SELECT COUNT(*)

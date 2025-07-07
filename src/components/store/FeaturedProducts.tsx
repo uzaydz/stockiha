@@ -13,11 +13,11 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useTenant } from '@/context/TenantContext';
-import { useShop } from '@/context/ShopContext';
+import { useStorePage } from '@/context/StorePageContext';
 import { getProducts } from '@/lib/api/products';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
-import { optimizeStoreImage, addPreloadLinks } from '@/lib/imageOptimization';
+import { optimizeStoreImage, smartPreloadImages, addPreloadLinks } from '@/lib/imageOptimization';
 
 // مكون محسن لتحميل الصور مع placeholder
 const OptimizedProductImage = ({ 
@@ -251,7 +251,7 @@ const convertDatabaseProductToStoreProduct = (dbProduct: DBProduct): Product => 
     category: categoryName,
     is_new: !!dbProduct.is_new,
     stock_quantity: Number(dbProduct.stock_quantity || 0),
-    slug: typeof dbProduct.slug === 'string' ? dbProduct.slug : dbProduct.id,
+    slug: typeof dbProduct.slug === 'string' && dbProduct.slug ? dbProduct.slug : (dbProduct.id || `product-${Date.now()}`),
     rating: 4.5 // قيمة افتراضية
   };
   
@@ -274,7 +274,20 @@ const FeaturedProducts = ({
   const [favorites, setFavorites] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetchedProducts, setFetchedProducts] = useState<Product[]>([]);
-  const { products: shopProducts } = useShop();
+  const { products: shopProducts } = useStorePage();
+
+  // دالة مساعدة لإنشاء slug من اسم المنتج
+  const generateSlugFromName = (name: string): string => {
+    return name.toLowerCase()
+      .replace(/[^\u0600-\u06FFa-z0-9\s]/g, '') // إزالة الرموز الخاصة مع الحفاظ على العربية
+      .replace(/\s+/g, '-') // استبدال المسافات بشرطات
+      .trim();
+  };
+
+  // دالة للحصول على slug المنتج
+  const getProductSlug = (product: Product): string => {
+    return product.slug || generateSlugFromName(product.name);
+  };
 
   // Preload صور المنتجات المهمة باستخدام المكتبة المحسنة
   useEffect(() => {
@@ -285,7 +298,7 @@ const FeaturedProducts = ({
         .filter(Boolean);
       
       if (imageUrls.length > 0) {
-        addPreloadLinks(imageUrls);
+        smartPreloadImages(imageUrls, { immediate: false, delay: 2000 });
       }
     };
 
@@ -345,11 +358,11 @@ const FeaturedProducts = ({
       let filtered = [...shopProducts];
       
       if (selectionCriteria === 'featured') {
-        filtered = filtered.filter(p => p.isFeatured);
+        filtered = filtered.filter(p => p.is_featured);
       } else if (selectionCriteria === 'newest') {
-        filtered = filtered.filter(p => p.isNew);
+        filtered = filtered.filter(p => p.is_new);
       } else if (selectionCriteria === 'discounted') {
-        filtered = filtered.filter(p => p.compareAtPrice && p.compareAtPrice < p.price);
+        filtered = filtered.filter(p => p.compare_at_price && p.compare_at_price < p.price);
       }
       
       return filtered.slice(0, displayCount);
@@ -524,7 +537,7 @@ const FeaturedProducts = ({
                     <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-secondary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-3xl"></div>
                     
                     <div className="relative overflow-hidden aspect-[4/3] bg-gradient-to-br from-muted/20 to-muted/5 rounded-t-3xl">
-                      <Link to={`/product-purchase-max-v2/${product.slug}`} className="block w-full h-full">
+                      <Link to={`/product-purchase-max-v2/${getProductSlug(product)}`} className="block w-full h-full">
                         <OptimizedProductImage 
                           src={product.imageUrl} 
                           alt={product.name}
@@ -580,12 +593,12 @@ const FeaturedProducts = ({
                     </div>
                     
                     <CardContent className="p-4 lg:p-6 relative z-10">
-                      <Link to={`/product-purchase-max-v2/${product.slug}`} className="block mb-2 text-sm text-muted-foreground hover:text-primary transition-colors">
+                      <Link to={`/product-purchase-max-v2/${getProductSlug(product)}`} className="block mb-2 text-sm text-muted-foreground hover:text-primary transition-colors">
                         {typeof product.category === 'object' && product.category !== null
                           ? (product.category as { name: string }).name
                           : product.category}
                       </Link>
-                      <Link to={`/product-purchase-max-v2/${product.slug}`} className="block font-bold text-lg mb-3 hover:text-primary transition-colors line-clamp-2 leading-tight">
+                      <Link to={`/product-purchase-max-v2/${getProductSlug(product)}`} className="block font-bold text-lg mb-3 hover:text-primary transition-colors line-clamp-2 leading-tight">
                         {product.name}
                       </Link>
                       
@@ -629,7 +642,7 @@ const FeaturedProducts = ({
                     
                     <CardFooter className="p-4 lg:p-6 pt-0 relative z-10">
                       <Button asChild className="w-full h-12 rounded-xl font-medium bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary text-white shadow-lg hover:shadow-xl transition-all duration-300">
-                        <Link to={`/product-purchase-max-v2/${product.slug}`} className="flex items-center justify-center gap-2">
+                        <Link to={`/product-purchase-max-v2/${getProductSlug(product)}`} className="flex items-center justify-center gap-2">
                           {t('featuredProducts.viewProduct')}
                           <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                         </Link>
@@ -642,7 +655,7 @@ const FeaturedProducts = ({
                     <div className="absolute inset-0 bg-gradient-to-br from-primary/2 to-secondary/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     
                     <div className="relative w-full sm:w-48 aspect-square sm:aspect-[4/3]">
-                      <Link to={`/product-purchase-max-v2/${product.slug}`} className="block w-full h-full">
+                      <Link to={`/product-purchase-max-v2/${getProductSlug(product)}`} className="block w-full h-full">
                         <OptimizedProductImage 
                           src={product.imageUrl} 
                           alt={product.name}
@@ -669,12 +682,12 @@ const FeaturedProducts = ({
                     
                     <div className="flex-1 p-6 flex flex-col justify-between relative z-10">
                       <div>
-                        <Link to={`/product-purchase-max-v2/${product.slug}`} className="block text-sm text-muted-foreground hover:text-primary transition-colors mb-2">
+                        <Link to={`/product-purchase-max-v2/${getProductSlug(product)}`} className="block text-sm text-muted-foreground hover:text-primary transition-colors mb-2">
                           {typeof product.category === 'object' && product.category !== null
                             ? (product.category as { name: string }).name
                             : product.category}
                         </Link>
-                        <Link to={`/product-purchase-max-v2/${product.slug}`} className="block font-bold text-xl mb-3 hover:text-primary transition-colors line-clamp-2">
+                        <Link to={`/product-purchase-max-v2/${getProductSlug(product)}`} className="block font-bold text-xl mb-3 hover:text-primary transition-colors line-clamp-2">
                           {product.name}
                         </Link>
                         
@@ -712,8 +725,8 @@ const FeaturedProducts = ({
                         </div>
                         
                         <div className="flex items-center gap-3">
-                          <Button asChild className="h-11 px-6 rounded-xl font-medium bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary text-white shadow-lg hover:shadow-xl transition-all duration-300">
-                            <Link to={`/product-purchase-max-v2/${product.slug}`} className="flex items-center gap-2">
+                          <Button asChild className="h-11 px-6 rounded-xl font-medium bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary text-white shadow-lg hover:shadow-xl transition-all duration-300 group">
+                            <Link to={`/product-purchase-max-v2/${getProductSlug(product)}`} className="flex items-center gap-2">
                               <Eye className="h-4 w-4" />
                               {t('featuredProducts.viewProduct')}
                             </Link>

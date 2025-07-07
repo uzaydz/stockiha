@@ -8,11 +8,9 @@ import { useDevtools } from '../hooks/useDevtools';
 import useTabFocusEffect from '../hooks/useTabFocusEffect';
 import useReactQueryState from '../hooks/useReactQueryState';
 import { useSessionTracking } from '../hooks/useSessionTracking';
-import { isElectron } from '../lib/isElectron';
 import SyncManager from '../components/SyncManager';
 
 // ============ إعدادات الأداء ============
-const isRunningInElectron = isElectron();
 
 // 🔧 مكون لتحديد متى يتم عرض مؤشر المزامنة
 export const SyncManagerWrapper = () => {
@@ -156,14 +154,14 @@ export const useAppInitialization = () => {
     
     // تأجيل مزامنة الفئات لتجنب التكرار مع React Strict Mode والاستدعاءات من POSDataContext
     const syncTimeout = setTimeout(() => {
-      // إيقاف المزامنة تماماً لتجنب التكرار مع POSDataContext
-      // فقط المزامنة إذا لم نكن في صفحة POS أو Dashboard (لتجنب التكرار مع POSDataContext)
-      const shouldSkipSync = window.location.pathname.includes('/pos') || 
-                            window.location.pathname.includes('/dashboard');
+      // إيقاف المزامنة تماماً لتجنب التكرار مع الـ providers الجديدة
+      // الآن useSharedStoreData يتولى جلب الفئات، لذا لا نحتاج مزامنة إضافية
+      const shouldSkipSync = true; // تعطيل المزامنة لتجنب الطلبات المضاعفة
       
       if (!shouldSkipSync) {
         syncCategoriesDataOnStartup();
       } else {
+        console.log('⏭️ تم تجاهل مزامنة الفئات - يتم الاعتماد على useSharedStoreData');
       }
     }, 2000); // تأخير ثانيتان بدلاً من ثانية واحدة
     

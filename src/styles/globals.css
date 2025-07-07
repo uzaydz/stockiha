@@ -1,4 +1,5 @@
 @import url('./viewport-simulator.css');
+@import url('./icon-hover-fix.css');
 /* تطبيق خط Tajawal المحلي فقط */
 * {
 font-family: 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;

@@ -2,9 +2,7 @@ import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 
-// 🚀 تهيئة إعدادات الأداء
-import { initializeApp } from './app-components/AppPerformance';
-initializeApp();
+// REMOVED: Performance monitoring - disabled to reduce memory usage
 
 // Import core components (lightweight)
 import SmartProviderWrapper from './components/routing/SmartProviderWrapper';

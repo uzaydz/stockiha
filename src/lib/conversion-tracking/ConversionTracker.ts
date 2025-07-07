@@ -6,6 +6,13 @@ declare global {
     ttq?: {
       track: (event: string, data?: any) => void;
     };
+    __trackingDebugData?: Array<{
+      timestamp: string;
+      type: string;
+      status: 'success' | 'error';
+      details: any;
+      platform?: string;
+    }>;
   }
 }
 
@@ -46,6 +53,11 @@ interface ConversionEvent {
     client_user_agent?: string;
     fbc?: string; // Facebook Click ID
     fbp?: string; // Facebook Browser ID
+    firstName?: string;
+    lastName?: string;
+    city?: string;
+    state?: string;
+    country?: string;
   };
   custom_data?: Record<string, any>;
 }
@@ -58,9 +70,101 @@ class ConversionTracker {
   private apiAvailable: boolean | null = null; // حالة توفر API
   private lastApiCheck: number = 0; // آخر وقت تم فيه فحص API
   private readonly API_CHECK_INTERVAL = 5 * 60 * 1000; // 5 دقائق
+  private recentEvents: Map<string, number> = new Map(); // تتبع الأحداث الحديثة لمنع التكرار
 
-  constructor(private productId: string) {
+  /**
+   * حفظ حدث التتبع للتشخيص
+   */
+  private logTrackingEvent(type: string, status: 'success' | 'error', details: any, platform?: string): void {
+    try {
+      if (typeof window !== 'undefined') {
+        if (!window.__trackingDebugData) {
+          window.__trackingDebugData = [];
+        }
+        
+        window.__trackingDebugData.push({
+          timestamp: new Date().toISOString(),
+          type,
+          status,
+          details,
+          platform
+        });
+        
+        // الحفاظ على آخر 50 حدث فقط
+        if (window.__trackingDebugData.length > 50) {
+          window.__trackingDebugData = window.__trackingDebugData.slice(-50);
+        }
+      }
+    } catch (error) {
+      // تجاهل أخطاء التسجيل
+    }
+  }
+
+  /**
+   * التحقق من تكرار الأحداث
+   */
+  private isDuplicateEvent(event: ConversionEvent): boolean {
+    const eventKey = `${event.event_type}_${event.product_id}_${event.value || 0}`;
+    const now = Date.now();
+    const lastEventTime = this.recentEvents.get(eventKey);
+    
+    // إذا كان الحدث نفسه حدث في آخر 5 ثواني، فهو مكرر
+    if (lastEventTime && (now - lastEventTime) < 5000) {
+      console.log(`⚠️ تم تجاهل حدث مكرر: ${event.event_type} للمنتج ${event.product_id}`);
+      return true;
+    }
+    
+    // حفظ وقت الحدث الحالي
+    this.recentEvents.set(eventKey, now);
+    
+    // تنظيف الأحداث القديمة (أكثر من دقيقة)
+    for (const [key, time] of this.recentEvents.entries()) {
+      if (now - time > 60000) {
+        this.recentEvents.delete(key);
+      }
+    }
+    
+    return false;
+  }
+
+  constructor(private productId: string, private externalSettings?: any) {
+    if (externalSettings) {
+      this.setExternalSettings(externalSettings);
+    } else {
     this.initializeSettings();
+    }
+  }
+
+  /**
+   * تعيين الإعدادات من مصدر خارجي (useProductTracking)
+   */
+  setExternalSettings(externalSettings: any): void {
+    if (externalSettings) {
+      this.settings = {
+        facebook: {
+          enabled: externalSettings.facebook?.enabled || false,
+          pixel_id: externalSettings.facebook?.pixel_id || undefined,
+          conversion_api_enabled: externalSettings.facebook?.conversion_api_enabled || false,
+          access_token: externalSettings.facebook?.access_token || undefined,
+          dataset_id: externalSettings.facebook?.dataset_id || undefined,
+          test_event_code: externalSettings.facebook?.test_event_code || undefined
+        },
+        google: {
+          enabled: externalSettings.google?.enabled || false,
+          conversion_id: externalSettings.google?.ads_conversion_id || undefined,
+          conversion_label: externalSettings.google?.ads_conversion_label || undefined,
+          gtag_id: externalSettings.google?.gtag_id || undefined
+        },
+        tiktok: {
+          enabled: externalSettings.tiktok?.enabled || false,
+          pixel_id: externalSettings.tiktok?.pixel_id || undefined,
+          access_token: externalSettings.tiktok?.access_token || undefined
+        },
+        test_mode: externalSettings.test_mode !== false
+      };
+      
+      console.log('✅ تم تعيين إعدادات ConversionTracker من مصدر خارجي:', this.settings);
+    }
   }
 
   /**
@@ -75,32 +179,59 @@ class ConversionTracker {
         return;
       }
 
-      // محاولة جلب الإعدادات من Edge Function أولاً (نفس طريقة ProductTrackingWrapper)
-      const SUPABASE_URL = 'https://wrnssatuvmumsczyldth.supabase.co';
-      const CONVERSION_SETTINGS_URL = `${SUPABASE_URL}/functions/v1/conversion-settings`;
-      
-      let response = await fetch(`${CONVERSION_SETTINGS_URL}?productId=${this.productId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || ''}`,
-        }
+      // استخدام Supabase client مباشرة (نفس طريقة useProductTracking)
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        import.meta.env.VITE_SUPABASE_URL!,
+        import.meta.env.VITE_SUPABASE_ANON_KEY!
+      );
+
+      // استدعاء دالة get_product_complete_data مباشرة
+      const { data: productData, error } = await supabase.rpc('get_product_complete_data', {
+        p_product_identifier: this.productId,
+        p_organization_id: null,
+        p_include_inactive: false,
+        p_data_scope: 'ultra'
       });
 
-      if (!response.ok) {
-        // fallback إلى API route المحلي
-        response = await fetch(`/api/conversion-settings/${this.productId}`, {
-          headers: { 'Cache-Control': 'max-age=300' } // 5 دقائق
-        });
+      if (error || !productData?.success) {
+        console.warn('⚠️ فشل في جلب إعدادات التتبع من ConversionTracker:', error);
+        return;
       }
+
+      // البحث عن marketing_settings في المكان الصحيح
+      const marketingSettings = productData.data?.product?.marketing_settings || productData.product?.marketing_settings;
       
-      if (response.ok) {
-        const data = await response.json();
-        this.settings = data.settings;
-        this.cacheSettings(data.settings);
-      } else {
+      if (marketingSettings) {
+        // تحويل البيانات إلى التنسيق المطلوب
+        const settings: ConversionSettings = {
+          facebook: {
+            enabled: marketingSettings.facebook?.enabled || false,
+            pixel_id: marketingSettings.facebook?.pixel_id || undefined,
+            conversion_api_enabled: marketingSettings.facebook?.conversion_api_enabled || false,
+            access_token: marketingSettings.facebook?.access_token || undefined,
+            dataset_id: marketingSettings.facebook?.dataset_id || undefined,
+            test_event_code: marketingSettings.facebook?.test_event_code || undefined
+          },
+          google: {
+            enabled: marketingSettings.google?.enabled || false,
+            conversion_id: marketingSettings.google?.ads_conversion_id || undefined,
+            conversion_label: marketingSettings.google?.ads_conversion_label || undefined,
+            gtag_id: marketingSettings.google?.gtag_id || undefined
+          },
+          tiktok: {
+            enabled: marketingSettings.tiktok?.enabled || false,
+            pixel_id: marketingSettings.tiktok?.pixel_id || undefined,
+            access_token: marketingSettings.tiktok?.access_token || undefined
+          },
+          test_mode: marketingSettings.test_mode !== false
+        };
+        
+        this.settings = settings;
+        this.cacheSettings(settings);
       }
     } catch (error) {
+      console.warn('⚠️ خطأ في تهيئة إعدادات ConversionTracker:', error);
     }
   }
 
@@ -113,6 +244,16 @@ class ConversionTracker {
     }
 
     if (!this.settings) {
+      return;
+    }
+
+    // فحص التكرار
+    if (this.isDuplicateEvent(event)) {
+      this.logTrackingEvent(event.event_type, 'error', {
+        reason: 'duplicate_event',
+        product_id: event.product_id,
+        value: event.value
+      }, 'ConversionTracker');
       return;
     }
 
@@ -180,45 +321,98 @@ class ConversionTracker {
    */
   private async sendToFacebook(event: ConversionEvent): Promise<void> {
     try {
-      // إنشاء event_id فريد مرة واحدة للاستخدام في كلاهما
-      const eventId = this.generateEventId(event);
+      // إنشاء event_ids منفصلة لكل مصدر لرؤية كلاهما في Facebook
+      const baseEventId = this.generateEventId(event);
+      const pixelEventId = `${baseEventId}_pixel`;
+      const apiEventId = `${baseEventId}_api`;
       
       // Facebook Pixel (Client-side) - يعمل بنجاح
       if (typeof window !== 'undefined' && window.fbq) {
         const eventData: any = {
           content_ids: [event.product_id],
-          content_type: 'product',
-          currency: event.currency || 'DZD'
+          content_type: 'product'
         };
 
+        // إضافة البيانات الأساسية
         if (event.value) eventData.value = event.value;
         if (event.order_id) eventData.order_id = event.order_id;
+        
+        // إضافة العملة للأحداث التي تتطلبها (Purchase فقط)
+        // Facebook يتطلب العملة لأحداث Purchase
+        if (event.event_type === 'purchase') {
+          // استخدام العملة المحددة أو DZD كافتراضي
+          const currency = event.currency || 'DZD';
+          eventData.currency = currency.toUpperCase();
+        }
 
-        // إضافة event_id للتكرار مع Server-side
-        const fbqOptions: any = { eventID: eventId };
+        // استخدام Event ID منفصل للـ Pixel
+        const fbqOptions: any = { eventID: pixelEventId };
         
         // إضافة test_event_code في وضع الاختبار
         if (this.settings?.test_mode && this.settings?.facebook?.test_event_code) {
           fbqOptions.testEventCode = this.settings.facebook.test_event_code;
         }
 
+        console.log('📤 إرسال Facebook Pixel:', {
+          eventType: this.mapEventType(event.event_type),
+          eventData,
+          options: fbqOptions,
+          originalCurrency: event.currency,
+          finalCurrency: eventData.currency
+        });
+
+        // إرسال الحدث
         window.fbq('track', this.mapEventType(event.event_type), eventData, fbqOptions);
+        
+        // تسجيل نجاح Facebook Pixel
+        this.logTrackingEvent(event.event_type, 'success', {
+          platform: 'facebook_pixel',
+          event_id: pixelEventId,
+          value: event.value,
+          currency: event.currency,
+          order_id: event.order_id
+        }, 'Facebook Pixel');
+
+        // إظهار تقرير Event Match Quality للمطورين (في وضع التطوير فقط)
+        if (process.env.NODE_ENV === 'development' || this.settings?.test_mode) {
+          try {
+            const { EventMatchQualityAnalyzer } = await import('../../utils/eventMatchQualityReport');
+            EventMatchQualityAnalyzer.logReport(eventData, event.user_data);
+          } catch (reportError) {
+            console.warn('⚠️ فشل في إنشاء تقرير Event Match Quality:', reportError);
+          }
+        }
       }
 
       // Facebook Conversion API (Server-side)
       if (this.settings?.facebook.conversion_api_enabled && this.settings.facebook.access_token) {
         try {
-          await this.sendToFacebookConversionAPI(event, eventId);
+          await this.sendToFacebookConversionAPI(event, apiEventId);
+          
+          // تسجيل نجاح Conversion API
+          this.logTrackingEvent(event.event_type, 'success', {
+            platform: 'facebook_conversion_api',
+            event_id: apiEventId,
+            value: event.value,
+            currency: event.currency,
+            order_id: event.order_id
+          }, 'Facebook Conversion API');
+          
         } catch (conversionApiError) {
-          // لا نوقف العملية، Client-side pixel يكفي
-          // فقط نسجل تحذير بدلاً من خطأ
-        }
-      } else {
-        if (!this.settings?.facebook.access_token) {
-        } else {
+          // تسجيل فشل Conversion API
+          this.logTrackingEvent(event.event_type, 'error', {
+            platform: 'facebook_conversion_api',
+            error: conversionApiError instanceof Error ? conversionApiError.message : 'خطأ غير معروف',
+            event_id: apiEventId
+          }, 'Facebook Conversion API');
         }
       }
     } catch (error) {
+      // تسجيل فشل عام في Facebook
+      this.logTrackingEvent(event.event_type, 'error', {
+        platform: 'facebook',
+        error: error instanceof Error ? error.message : 'خطأ غير معروف'
+      }, 'Facebook');
     }
   }
 
@@ -226,141 +420,38 @@ class ConversionTracker {
    * إرسال إلى Facebook Conversion API مع تحسينات شاملة للـ Event Match Quality
    */
   private async sendToFacebookConversionAPI(event: ConversionEvent, eventId: string): Promise<void> {
-    // جمع معلومات شاملة للمطابقة المتقدمة
-    const userAgent = navigator.userAgent;
-    const language = navigator.language || 'ar';
-    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    // استخدام Facebook Conversion API المباشر
+    const { createFacebookConversionAPI } = await import('./FacebookConversionAPI');
     
-    // جلب معرفات Facebook المحسنة
-    const fbp = this.getFacebookBrowserId();
-    const fbc = this.getFacebookClickId();
-    
-    // جمع معلومات إضافية للمطابقة
-    const screenResolution = `${screen.width}x${screen.height}`;
-    const colorDepth = screen.colorDepth;
-    const pixelRatio = window.devicePixelRatio || 1;
-    
-    // معرف خارجي فريد (order_id أو customer_id أو إنشاء واحد)
-    const externalId = event.order_id || 
-                      event.user_data?.external_id || 
-                      event.custom_data?.customer_id ||
-                      `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    const payload = {
-      data: [{
-        event_name: this.mapEventType(event.event_type),
-        event_time: Math.floor(Date.now() / 1000),
-        event_id: eventId,
-        action_source: 'website',
-        event_source_url: window.location.href,
-        user_data: {
-          // المعرف الخارجي (أولوية عالية للمطابقة)
-          external_id: externalId,
-          
-          // معلومات الاتصال (إذا كانت متوفرة)
-          ph: event.user_data?.phone || undefined, // سيتم hash في server
-          
-          // معلومات المتصفح والجهاز (بيانات هامة للمطابقة)
-          client_user_agent: userAgent,
-          client_ip_address: undefined, // سيتم جلبها من server
-          
-          // معرفات Facebook (أهم البيانات للمطابقة)
-          fbc: fbc,
-          fbp: fbp,
-          
-          // معلومات جغرافية ولغوية
-          country: 'dz', // الجزائر
-          language: language,
-          timezone: timezone,
-          
-          // معلومات إضافية للمطابقة المتقدمة
-          device_info: {
-            screen_resolution: screenResolution,
-            color_depth: colorDepth,
-            pixel_ratio: pixelRatio,
-            viewport: `${window.innerWidth}x${window.innerHeight}`,
-            platform: navigator.platform,
-            cookie_enabled: navigator.cookieEnabled
-          }
-        },
-        custom_data: {
-          content_ids: [event.product_id],
-          content_type: 'product',
-          currency: event.currency || 'DZD',
-          value: event.value,
-          order_id: event.order_id,
-          customer_id: event.custom_data?.customer_id,
-          
-          // معلومات إضافية للتتبع
-          content_name: `منتج ${event.product_id}`,
-          content_category: 'ecommerce',
-          num_items: 1,
-          
-          // معلومات الصفحة
-          page_title: document.title,
-          page_url: window.location.href,
-          referrer_url: document.referrer || undefined,
-          
-          // معلومات السلة/الطلب
-          ...(event.custom_data && event.custom_data)
-        },
-        
-        // معلومات إضافية للتتبع
-        opt_out: false,
-        referrer_url: document.referrer || undefined
-      }],
-      
-      // test_event_code فقط في وضع الاختبار
-      test_event_code: this.settings?.test_mode ? this.settings?.facebook?.test_event_code : undefined
+    const conversionAPI = createFacebookConversionAPI(
+      this.settings!.facebook.pixel_id!,
+      this.settings!.facebook.access_token!,
+      this.settings?.test_mode ? this.settings.facebook.test_event_code : undefined
+    );
+
+    // إعداد بيانات العميل للتمرير إلى Facebook Conversion API
+    const customerData = {
+      ...event.user_data,
+      // التأكد من وجود البيانات الأساسية
+      email: event.user_data?.email,
+      phone: event.user_data?.phone,
+      firstName: event.user_data?.firstName,
+      lastName: event.user_data?.lastName,
+      city: event.user_data?.city,
+      state: event.user_data?.state,
+      country: event.user_data?.country || 'DZ'
     };
 
-    // محاولة إرسال إلى Facebook Conversion API مع handling أفضل للأخطاء
-    let apiUrl = '/api/facebook-conversion-api';
-    
-    // إصلاح مؤقت لمشكلة base URL في بعض البيئات
-    if (typeof window !== 'undefined' && window.location.origin) {
-      const origin = window.location.origin;
-      if (!origin.includes('techocenter.com')) {
-        apiUrl = `${origin}/api/facebook-conversion-api`;
-      }
-    }
+    const payload = await conversionAPI.createEventPayload(
+      this.mapEventType(event.event_type),
+      event.product_id,
+      event.value,
+      event.order_id,
+      event.custom_data,
+      customerData
+    );
 
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify({
-        pixel_id: this.settings?.facebook.pixel_id,
-        access_token: this.settings?.facebook.access_token,
-        payload
-      })
-    });
-
-    if (!response.ok) {
-      let errorText;
-      let errorData;
-      
-      try {
-        errorText = await response.text();
-        errorData = JSON.parse(errorText);
-      } catch (parseError) {
-        errorData = { message: errorText || 'خطأ غير معروف' };
-      }
-      
-      // في حالة خطأ 400، أظهر تفاصيل أكثر
-      if (response.status === 400) {
-      }
-      
-      throw new Error(`Facebook Conversion API فشل: ${response.status} - ${errorData.error || errorData.message || 'خطأ غير معروف'}`);
-    }
-
-    const responseData = await response.json();
-
-    // طباعة تفاصيل إضافية في وضع الاختبار
-    if (this.settings?.test_mode) {
-    }
+    await conversionAPI.sendEvent(payload);
   }
 
   /**
@@ -705,11 +796,17 @@ class ConversionTracker {
 // تصدير كـ Singleton لكل منتج
 const trackers = new Map<string, ConversionTracker>();
 
-export function getConversionTracker(productId: string): ConversionTracker {
-  if (!trackers.has(productId)) {
-    trackers.set(productId, new ConversionTracker(productId));
+export function getConversionTracker(productId: string, settings?: any): ConversionTracker {
+  const cacheKey = `${productId}_${settings ? 'with_settings' : 'no_settings'}`;
+  
+  if (!trackers.has(cacheKey)) {
+    trackers.set(cacheKey, new ConversionTracker(productId, settings));
+  } else if (settings) {
+    // تحديث الإعدادات إذا كانت متوفرة
+    trackers.get(cacheKey)!.setExternalSettings(settings);
   }
-  return trackers.get(productId)!;
+  
+  return trackers.get(cacheKey)!;
 }
 
 export { ConversionTracker };

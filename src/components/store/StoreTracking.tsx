@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useTenant } from '@/context/TenantContext';
-import { getOrganizationSettings } from '@/lib/api/settings';
+import { useSharedStoreData } from '@/hooks/useSharedStoreData';
 
 // واجهة بيانات أكواد التتبع
 interface TrackingPixel {
@@ -16,42 +15,36 @@ interface TrackingPixels {
 }
 
 const StoreTracking: React.FC = () => {
-  const { currentOrganization } = useTenant();
+  const { organizationSettings } = useSharedStoreData();
   const [trackingPixels, setTrackingPixels] = useState<TrackingPixels | null>(null);
   const [customHeader, setCustomHeader] = useState<string | null>(null);
   const [customFooter, setCustomFooter] = useState<string | null>(null);
 
   useEffect(() => {
-    const loadTrackingSettings = async () => {
-      if (!currentOrganization?.id) return;
+    if (!organizationSettings) return;
 
-      try {
-        const orgSettings = await getOrganizationSettings(currentOrganization.id);
-        
-        if (orgSettings?.custom_js) {
-          try {
-            const parsedData = JSON.parse(orgSettings.custom_js);
-            if (parsedData.trackingPixels) {
-              setTrackingPixels(parsedData.trackingPixels);
-            }
-          } catch (error) {
+    try {
+      if (organizationSettings?.custom_js) {
+        try {
+          const parsedData = JSON.parse(organizationSettings.custom_js);
+          if (parsedData.trackingPixels) {
+            setTrackingPixels(parsedData.trackingPixels);
           }
+        } catch (error) {
         }
-        
-        // تعيين الرموز المخصصة للرأس والتذييل
-        if (orgSettings?.custom_header) {
-          setCustomHeader(orgSettings.custom_header);
-        }
-        
-        if (orgSettings?.custom_footer) {
-          setCustomFooter(orgSettings.custom_footer);
-        }
-      } catch (error) {
       }
-    };
-
-    loadTrackingSettings();
-  }, [currentOrganization?.id]);
+      
+      // تعيين الرموز المخصصة للرأس والتذييل
+      if (organizationSettings?.custom_header) {
+        setCustomHeader(organizationSettings.custom_header);
+      }
+      
+      if (organizationSettings?.custom_footer) {
+        setCustomFooter(organizationSettings.custom_footer);
+      }
+    } catch (error) {
+    }
+  }, [organizationSettings]);
 
   // إضافة نصوص البرمجة للتتبع في صفحة الويب
   useEffect(() => {

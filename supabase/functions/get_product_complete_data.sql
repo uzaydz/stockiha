@@ -204,7 +204,7 @@ BEGIN
 
   -- جلب إعدادات التسويق
   IF p_data_scope = 'ultra' THEN
-    -- جلب إعدادات مؤقت العرض
+    -- جلب إعدادات مؤقت العرض مع إعدادات التحويل للمؤسسة
     WITH offer_timer_data AS (
       SELECT JSONB_BUILD_OBJECT(
         'offer_timer_enabled', COALESCE(pms.offer_timer_enabled, FALSE),
@@ -238,22 +238,77 @@ BEGIN
         'fake_purchase_count', pms.fake_purchase_count,
         'test_mode', COALESCE(pms.test_mode, TRUE)
       ) as general_settings,
-      -- إعدادات Pixels
+      -- إعدادات Pixels والتتبع المحسنة
       JSONB_BUILD_OBJECT(
-        'enable_facebook_pixel', COALESCE(pms.enable_facebook_pixel, FALSE),
-        'facebook_pixel_id', pms.facebook_pixel_id,
-        'enable_tiktok_pixel', COALESCE(pms.enable_tiktok_pixel, FALSE),
-        'tiktok_pixel_id', pms.tiktok_pixel_id,
-        'enable_snapchat_pixel', COALESCE(pms.enable_snapchat_pixel, FALSE),
-        'snapchat_pixel_id', pms.snapchat_pixel_id,
-        'enable_google_ads_tracking', COALESCE(pms.enable_google_ads_tracking, FALSE),
-        'google_ads_conversion_id', pms.google_ads_conversion_id
+        -- Facebook Pixel & Conversion API
+        'facebook', JSONB_BUILD_OBJECT(
+          'enabled', COALESCE(pms.enable_facebook_pixel, FALSE),
+          'pixel_id', pms.facebook_pixel_id,
+          'conversion_api_enabled', COALESCE(pms.enable_facebook_conversion_api, FALSE),
+          'access_token', pms.facebook_access_token,
+          'test_event_code', pms.facebook_test_event_code,
+          'advanced_matching_enabled', COALESCE(pms.facebook_advanced_matching_enabled, FALSE),
+          'standard_events', COALESCE(pms.facebook_standard_events, '{}'::jsonb),
+          'dataset_id', pms.facebook_dataset_id
+        ),
+        -- TikTok Pixel & Events API
+        'tiktok', JSONB_BUILD_OBJECT(
+          'enabled', COALESCE(pms.enable_tiktok_pixel, FALSE),
+          'pixel_id', pms.tiktok_pixel_id,
+          'events_api_enabled', COALESCE(pms.tiktok_events_api_enabled, FALSE),
+          'access_token', pms.tiktok_access_token,
+          'test_event_code', pms.tiktok_test_event_code,
+          'advanced_matching_enabled', COALESCE(pms.tiktok_advanced_matching_enabled, FALSE),
+          'standard_events', COALESCE(pms.tiktok_standard_events, '{}'::jsonb)
+        ),
+        -- Google Ads & Enhanced Conversions
+        'google', JSONB_BUILD_OBJECT(
+          'enabled', COALESCE(pms.enable_google_ads_tracking, FALSE),
+          'gtag_id', pms.google_gtag_id,
+          'ads_conversion_id', pms.google_ads_conversion_id,
+          'ads_conversion_label', pms.google_ads_conversion_label,
+          'enhanced_conversions_enabled', COALESCE(pms.google_ads_enhanced_conversions_enabled, FALSE),
+          'global_site_tag_enabled', COALESCE(pms.google_ads_global_site_tag_enabled, FALSE),
+          'event_snippets', COALESCE(pms.google_ads_event_snippets, '{}'::jsonb),
+          'phone_conversion_number', pms.google_ads_phone_conversion_number,
+          'phone_conversion_label', pms.google_ads_phone_conversion_label
+        ),
+        -- Snapchat Pixel & Events API
+        'snapchat', JSONB_BUILD_OBJECT(
+          'enabled', COALESCE(pms.enable_snapchat_pixel, FALSE),
+          'pixel_id', pms.snapchat_pixel_id,
+          'events_api_enabled', COALESCE(pms.snapchat_events_api_enabled, FALSE),
+          'api_token', pms.snapchat_api_token,
+          'test_event_code', pms.snapchat_test_event_code,
+          'advanced_matching_enabled', COALESCE(pms.snapchat_advanced_matching_enabled, FALSE),
+          'standard_events', COALESCE(pms.snapchat_standard_events, '{}'::jsonb)
+        ),
+        -- إعدادات عامة
+        'test_mode', COALESCE(pms.test_mode, TRUE)
       ) as tracking_settings,
+      -- إعدادات التحويل للمؤسسة
+      COALESCE(
+        (SELECT JSONB_BUILD_OBJECT(
+          'organization_conversion_settings', JSONB_BUILD_OBJECT(
+            'facebook_app_id', ocs.facebook_app_id,
+            'facebook_business_id', ocs.facebook_business_id,
+            'google_measurement_id', ocs.google_measurement_id,
+            'google_ads_customer_id', ocs.google_ads_customer_id,
+            'google_analytics_property_id', ocs.google_analytics_property_id,
+            'tiktok_app_id', ocs.tiktok_app_id,
+            'default_currency_code', COALESCE(ocs.default_currency_code, 'DZD'),
+            'enable_enhanced_conversions', COALESCE(ocs.enable_enhanced_conversions, FALSE)
+          )
+        ) FROM organization_conversion_settings ocs WHERE ocs.organization_id = v_org_id),
+        '{}'::jsonb
+      ) as organization_settings,
       -- 🔧 إضافة معلومات تشخيصية للتطوير
       JSONB_BUILD_OBJECT(
         'debug_info', JSONB_BUILD_OBJECT(
           'product_id', v_product_id,
+          'organization_id', v_org_id,
           'pms_found', CASE WHEN pms.id IS NOT NULL THEN TRUE ELSE FALSE END,
+          'ocs_found', EXISTS(SELECT 1 FROM organization_conversion_settings WHERE organization_id = v_org_id),
           'offer_timer_enabled_raw', pms.offer_timer_enabled,
           'query_timestamp', NOW()
         )
@@ -266,6 +321,7 @@ BEGIN
       (COALESCE(timer_settings, '{}'::jsonb) || 
        COALESCE(general_settings, '{}'::jsonb) || 
        COALESCE(tracking_settings, '{}'::jsonb) ||
+       COALESCE(organization_settings, '{}'::jsonb) ||
        COALESCE(debug_info, '{}'::jsonb))::json
     INTO v_marketing_settings
     FROM offer_timer_data;
@@ -474,7 +530,11 @@ BEGIN
 
         -- إعدادات صفحة الشراء
         'purchase_page_config', CASE WHEN p_data_scope IN ('full', 'ultra') 
-          THEN mp.purchase_page_config ELSE NULL END
+          THEN mp.purchase_page_config ELSE NULL END,
+
+        -- العروض الخاصة
+        'special_offers_config', CASE WHEN p_data_scope IN ('full', 'ultra') 
+          THEN mp.special_offers_config ELSE NULL END
       ),
       
       -- الإحصائيات

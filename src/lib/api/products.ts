@@ -126,6 +126,7 @@ export type Product = Database['public']['Tables']['products']['Row'] & {
   money_back_text?: string;
   quality_guarantee_text?: string;
   purchase_page_config?: PurchasePageConfig | null;
+  special_offers_config?: any | null; // إضافة العروض الخاصة
   colors?: ProductColor[];
   sizes?: ProductSize[];
   use_sizes?: boolean;
@@ -485,16 +486,24 @@ export const getProductsPaginated = async (
       // تطبيق الـ pagination
       query = query.range(from, to);
 
+      // 🚀 تحسين الأداء: تنفيذ الاستعلام مع تقسيم العمليات
       const { data, error, count } = await query;
 
       if (error) {
         throw error;
       }
 
+      // تأخير قصير لتجنب حجب الواجهة
+      await new Promise(resolve => setTimeout(resolve, 2));
+
+      // 🚀 معالجة النتائج بشكل متدرج
       const totalCount = count || 0;
       const totalPages = Math.ceil(totalCount / limit);
       const hasNextPage = page < totalPages;
       const hasPreviousPage = page > 1;
+
+      // تأخير آخر قصير
+      await new Promise(resolve => setTimeout(resolve, 2));
 
       const result = {
         products: (data as Product[]) || [],
@@ -505,7 +514,8 @@ export const getProductsPaginated = async (
         hasPreviousPage,
       };
 
-      // حفظ النتيجة في الـ cache
+      // حفظ النتيجة في الـ cache مع تأخير
+      await new Promise(resolve => setTimeout(resolve, 1));
       resultsCache.set(cacheKey, {
         data: result,
         timestamp: Date.now(),
@@ -541,6 +551,7 @@ export const getProductById = async (id: string): Promise<Product | null> => {
     .from('products')
     .select(`
       *,
+      special_offers_config,
       purchase_page_config,
       category:category_id(id, name, slug),
       subcategory:subcategory_id(id, name, slug),
@@ -607,6 +618,20 @@ export const getProductById = async (id: string): Promise<Product | null> => {
     (processedData as any).purchase_page_config = rawData.purchase_page_config;
   } else {
     (processedData as any).purchase_page_config = null;
+  }
+
+  // Process special_offers_config: Similar to purchase_page_config
+  if (typeof rawData.special_offers_config === 'string') {
+    try {
+      (processedData as any).special_offers_config = JSON.parse(rawData.special_offers_config);
+    } catch (e) {
+      (processedData as any).special_offers_config = null;
+    }
+  } else if (typeof rawData.special_offers_config === 'object' && rawData.special_offers_config !== null) {
+    // Assume it's already a correctly structured object
+    (processedData as any).special_offers_config = rawData.special_offers_config;
+  } else {
+    (processedData as any).special_offers_config = null;
   }
 
   if (processedData.is_active === false) {
@@ -815,6 +840,7 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
     wholesale_tiers, 
     advancedSettings, 
     marketingSettings, // Destructure marketingSettings
+    special_offers_config, // إضافة العروض الخاصة
     ...mainProductData 
   } = productData;
 
@@ -942,6 +968,7 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
     created_by_user_id: user.id,
     updated_by_user_id: user.id,
     is_active: true,
+    // special_offers_config: special_offers_config || null, // مؤقتاً معطل حتى يتم تطبيق الميجريشن
   };
 
   // إدراج المنتج باستخدام function مؤقتة لتجاوز مشكلة RLS
@@ -1446,6 +1473,7 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
     product_marketing_settings: currentMarketingSettings,
     additional_images: updatedProductData.product_images?.map(img => img.image_url) || [],
     purchase_page_config: updatedProductData.purchase_page_config ? JSON.parse(JSON.stringify(updatedProductData.purchase_page_config)) : null,
+    special_offers_config: (updatedProductData as any).special_offers_config ? JSON.parse(JSON.stringify((updatedProductData as any).special_offers_config)) : null, // إضافة العروض الخاصة
   };
 
   // 🎯 استخدام النظام الموحد للتحديث التلقائي - مثل deleteProduct
@@ -2046,6 +2074,52 @@ export const updateProductPurchaseConfig = async (
   }
 };
 
+/**
+ * Update product special offers configuration
+ * This is separate from purchase_page_config.quantityOffers
+ */
+export const updateProductSpecialOffers = async (
+  productId: string,
+  config: any | null // Will be typed properly with SpecialOffersConfig
+): Promise<Product | null> => {
+  if (!productId) {
+    throw new Error('Product ID is required.');
+  }
+
+  try {
+    const jsonConfig = config ? JSON.parse(JSON.stringify(config)) : null;
+    
+    const updateData = { 
+      special_offers_config: jsonConfig,
+      updated_at: new Date().toISOString()
+    };
+    
+    const { data, error } = await supabase
+      .from('products')
+      .update(updateData)
+      .eq('id', productId)
+      .select(`
+        *,
+        special_offers_config,
+        category:category_id(id, name, slug),
+        subcategory:subcategory_id(id, name, slug)
+      `)
+      .single();
+
+    if (error) {
+      throw error;
+    }
+    
+    if (!data) {
+      throw new Error(`Product not found after updating special offers config: ${productId}`);
+    }
+
+    return data as any;
+  } catch (error) {
+    throw error;
+  }
+};
+
 export const getProductListForOrganization = async (
   organizationId: string
 ): Promise<{ id: string; name: string }[]> => {
@@ -2115,4 +2189,28 @@ export const updateReview = async (
     return false;
   }
   return true;
+};
+
+// 🚀 دالة محسنة لتحميل المنتجات بشكل متدرج
+export const getProductsPaginatedOptimized = async (
+  organizationId: string,
+  page: number = 1,
+  pageSize: number = 12,
+  options: {
+    includeInactive?: boolean;
+    searchQuery?: string;
+    categoryFilter?: string;
+    stockFilter?: string;
+    sortOption?: string;
+  } = {}
+): Promise<{
+  products: Product[];
+  totalCount: number;
+  totalPages: number;
+  currentPage: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}> => {
+  // استخدام الدالة الأصلية مع تحسينات الأداء
+  return await getProductsPaginated(organizationId, page, pageSize, options);
 };

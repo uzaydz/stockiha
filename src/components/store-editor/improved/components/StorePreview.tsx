@@ -62,6 +62,7 @@ import { clearStoreCacheByOrganizationId, clearCacheItem } from '@/lib/cache/sto
 import { useImprovedStoreEditor } from '../hooks/useImprovedStoreEditor'
 import { getCategories } from '@/lib/api/categories'
 import { useTenant } from '@/context/TenantContext'
+import { StorePageProvider } from '@/context/StorePageContext'
 
 // استيراد مكونات المتجر الفعلية
 import StoreBanner from '@/components/store/StoreBanner'
@@ -451,17 +452,19 @@ const ComponentWrapper = React.forwardRef<HTMLDivElement, ComponentProps>(({
           ? Math.max(component.settings.selectedProducts.length, component.settings.displayCount || 4)
           : component.settings.displayCount || 4;
         content = (
-          <FeaturedProducts 
-            title={component.settings.title}
-            description={component.settings.description}
-            displayCount={featuredDisplayCount}
-            selectionMethod={component.settings.selectionMethod}
-            selectionCriteria={component.settings.selectionCriteria}
-            selectedProducts={component.settings.selectedProducts}
-            displayType={component.settings.displayType}
-            organizationId={organizationId}
-            key={`featured-products-${JSON.stringify(component.settings).substring(0, 50)}`}
-          />
+          <StorePageProvider organizationId={organizationId}>
+            <FeaturedProducts 
+              title={component.settings.title}
+              description={component.settings.description}
+              displayCount={featuredDisplayCount}
+              selectionMethod={component.settings.selectionMethod}
+              selectionCriteria={component.settings.selectionCriteria}
+              selectedProducts={component.settings.selectedProducts}
+              displayType={component.settings.displayType}
+              organizationId={organizationId}
+              key={`featured-products-${JSON.stringify(component.settings).substring(0, 50)}`}
+            />
+          </StorePageProvider>
         )
         break
         

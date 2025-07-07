@@ -1,0 +1,301 @@
+/* إصلاح مشكلة الهوفر على الأيقونات - منع تحويلها لمربعات ملونة */
+
+/* إعادة تعيين شاملة لجميع الأيقونات */
+svg,
+.lucide,
+[class*="icon"],
+svg *,
+.lucide *,
+[class*="icon"] * {
+  background: none !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+}
+
+/* إصلاح خاص عند الهوفر */
+svg:hover,
+.lucide:hover,
+[class*="icon"]:hover,
+svg:hover *,
+.lucide:hover *,
+[class*="icon"]:hover * {
+  background: none !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+/* السماح للأيقونات داخل العناصر التفاعلية بالاحتفاظ بتأثيراتها الطبيعية */
+button:hover svg,
+button:hover .lucide,
+[role="button"]:hover svg,
+[role="button"]:hover .lucide,
+a:hover svg,
+a:hover .lucide {
+  background: none !important;
+  background-color: transparent !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+/* إصلاح خاص للأيقونات في العناصر التي تحتوي على hover classes */
+[class*="hover"]:hover svg,
+[class*="hover"]:hover .lucide {
+  background: none !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+/* إصلاح للأيقونات في المجموعات */
+.group:hover svg,
+.group:hover .lucide {
+  background: none !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+/* تأكد من أن الأيقونات تحافظ على شفافيتها */
+svg,
+.lucide,
+[class*="icon"] {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+/* إصلاح خاص للأيقونات الملونة */
+svg[fill]:not([fill="none"]):not([fill="currentColor"]),
+.lucide[fill]:not([fill="none"]):not([fill="currentColor"]) {
+  fill: currentColor !important;
+}
+
+svg[stroke]:not([stroke="none"]):not([stroke="currentColor"]),
+.lucide[stroke]:not([stroke="none"]):not([stroke="currentColor"]) {
+  stroke: currentColor !important;
+}
+
+/* إصلاح لمسارات الأيقونات */
+svg path,
+.lucide path {
+  fill: inherit !important;
+  stroke: inherit !important;
+  background: none !important;
+  background-color: transparent !important;
+}
+
+svg path:hover,
+.lucide path:hover {
+  fill: inherit !important;
+  stroke: inherit !important;
+  background: none !important;
+  background-color: transparent !important;
+}
+
+/* إصلاح خاص للأيقونات في الحالة النشطة */
+.active svg,
+.active .lucide,
+[aria-selected="true"] svg,
+[aria-selected="true"] .lucide {
+  background: none !important;
+  background-color: transparent !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+/* إصلاح للأيقونات في التبويبات */
+[role="tab"] svg,
+[role="tab"] .lucide,
+[role="tablist"] svg,
+[role="tablist"] .lucide {
+  background: none !important;
+  background-color: transparent !important;
+}
+
+[role="tab"]:hover svg,
+[role="tab"]:hover .lucide {
+  background: none !important;
+  background-color: transparent !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+/* إصلاح للأيقونات في القوائم المنسدلة */
+[role="menuitem"] svg,
+[role="menuitem"] .lucide,
+[role="option"] svg,
+[role="option"] .lucide {
+  background: none !important;
+  background-color: transparent !important;
+}
+
+[role="menuitem"]:hover svg,
+[role="menuitem"]:hover .lucide,
+[role="option"]:hover svg,
+[role="option"]:hover .lucide {
+  background: none !important;
+  background-color: transparent !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+/* إصلاح للأيقونات في البطاقات */
+.card svg,
+.card .lucide,
+[class*="card"] svg,
+[class*="card"] .lucide {
+  background: none !important;
+  background-color: transparent !important;
+}
+
+.card:hover svg,
+.card:hover .lucide,
+[class*="card"]:hover svg,
+[class*="card"]:hover .lucide {
+  background: none !important;
+  background-color: transparent !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+/* إصلاح شامل نهائي - منع تحويل الأيقونات لمربعات */
+* svg,
+* .lucide,
+* [class*="icon"],
+* svg *,
+* .lucide *,
+* [class*="icon"] * {
+  background: none !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+*:hover svg,
+*:hover .lucide,
+*:hover [class*="icon"],
+*:hover svg *,
+*:hover .lucide *,
+*:hover [class*="icon"] * {
+  background: none !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+/* إصلاح خاص للأيقونات التي قد تحتوي على pseudo-elements */
+svg::before,
+svg::after,
+.lucide::before,
+.lucide::after,
+[class*="icon"]::before,
+[class*="icon"]::after {
+  display: none !important;
+  content: none !important;
+  background: none !important;
+}
+
+svg:hover::before,
+svg:hover::after,
+.lucide:hover::before,
+.lucide:hover::after,
+[class*="icon"]:hover::before,
+[class*="icon"]:hover::after {
+  display: none !important;
+  content: none !important;
+  background: none !important;
+}
+
+/* منع أي تأثيرات على الحاويات التي تحتوي على أيقونات */
+*:has(svg):hover svg,
+*:has(.lucide):hover .lucide,
+*:has([class*="icon"]):hover [class*="icon"] {
+  background: none !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+/* إصلاح خاص لمنع تأثيرات Tailwind CSS */
+svg[class*="hover:"],
+.lucide[class*="hover:"],
+[class*="icon"][class*="hover:"] {
+  background: none !important;
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+/* إصلاح للأيقونات داخل العناصر التي تحتوي على hover classes */
+[class*="hover:"]:hover svg,
+[class*="hover:"]:hover .lucide,
+[class*="hover:"]:hover [class*="icon"] {
+  background: none !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+
+/* إصلاح خاص للتأثيرات التي قد تأتي من CSS variables */
+svg {
+  --tw-bg-opacity: 0 !important;
+  --tw-border-opacity: 0 !important;
+  --tw-shadow: none !important;
+}
+
+.lucide {
+  --tw-bg-opacity: 0 !important;
+  --tw-border-opacity: 0 !important;
+  --tw-shadow: none !important;
+}
+
+[class*="icon"] {
+  --tw-bg-opacity: 0 !important;
+  --tw-border-opacity: 0 !important;
+  --tw-shadow: none !important;
+}
+
+/* إصلاح نهائي مطلق لضمان عدم ظهور أي مربعات ملونة */
+svg,
+svg *,
+.lucide,
+.lucide *,
+[class*="icon"],
+[class*="icon"] * {
+  background-attachment: initial !important;
+  background-blend-mode: initial !important;
+  background-clip: initial !important;
+  background-origin: initial !important;
+  background-position: initial !important;
+  background-repeat: initial !important;
+  background-size: initial !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+} 

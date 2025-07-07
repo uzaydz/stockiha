@@ -1296,8 +1296,8 @@ main {
 .hover\:bg-primary\/5:hover.hover\:text-primary:hover,
 .group:hover .group-hover\:bg-primary\/10.group-hover\:text-primary,
 .group:hover .group-hover\:bg-primary\/5.group-hover\:text-primary {
-  background-color: hsl(var(--primary)) !important;
-  color: hsl(var(--primary-foreground)) !important;
+  background-color: hsl(var(--primary) / 0.1) !important;
+  color: hsl(var(--primary)) !important;
 }
 
 /* إصلاح شامل لجميع حالات الهوفر المتضاربة */
@@ -1305,7 +1305,7 @@ main {
 .hover\:bg-primary\/5:hover.hover\:text-primary:hover *,
 .group:hover .group-hover\:bg-primary\/10.group-hover\:text-primary *,
 .group:hover .group-hover\:bg-primary\/5.group-hover\:text-primary * {
-  color: hsl(var(--primary-foreground)) !important;
+  color: hsl(var(--primary)) !important;
 }
 
 /* إصلاح الأيقونات والعناصر الفرعية */
@@ -1494,6 +1494,21 @@ main {
   transition: all 0.3s ease !important;
 }
 
+/* منع تطبيق الخلفية على الأيقونات داخل navbar links */
+.navbar a[class*="hover:text-primary"]:hover svg,
+.nav a[class*="hover:text-primary"]:hover svg,
+[class*="font-medium"][class*="hover:text-primary"]:hover svg,
+.navbar a[class*="hover:text-primary"]:hover .lucide,
+.nav a[class*="hover:text-primary"]:hover .lucide,
+[class*="font-medium"][class*="hover:text-primary"]:hover .lucide {
+  background: none !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
 /* إصلاح للnavbar الخاص بـ landing page */
 .landing-navbar a:hover,
 .navbar-link:hover {
@@ -1504,6 +1519,19 @@ main {
   transition: all 0.3s ease !important;
 }
 
+/* منع تطبيق الخلفية على الأيقونات داخل navbar links */
+.landing-navbar a:hover svg,
+.navbar-link:hover svg,
+.landing-navbar a:hover .lucide,
+.navbar-link:hover .lucide {
+  background: none !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
 /* إصلاح للروابط التي تحتوي على text-slate-600 */
 [class*="text-slate-600"][class*="hover:text-primary"]:hover,
 [class*="dark:text-slate-300"][class*="hover:text-primary"]:hover {
@@ -1512,6 +1540,19 @@ main {
   padding: 0.5rem 0.75rem !important;
   border-radius: 0.5rem !important;
   transition: all 0.3s ease !important;
+}
+
+/* منع تطبيق الخلفية على الأيقونات داخل هذه الروابط */
+[class*="text-slate-600"][class*="hover:text-primary"]:hover svg,
+[class*="dark:text-slate-300"][class*="hover:text-primary"]:hover svg,
+[class*="text-slate-600"][class*="hover:text-primary"]:hover .lucide,
+[class*="dark:text-slate-300"][class*="hover:text-primary"]:hover .lucide {
+  background: none !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
 }
 
 /* إصلاح شامل لجميع navbar links */
@@ -1562,18 +1603,6 @@ nav a:hover,
 .group:hover svg.lucide,
 .group:hover .lucide {
   color: inherit !important;
-}
-
-/* إصلاح للأيقونات في الأزرار */
-.group:hover button svg[class*="group-hover:text-primary-foreground"],
-button.group:hover svg[class*="group-hover:text-primary-foreground"] {
-  color: hsl(var(--primary-foreground)) !important;
-}
-
-/* إصلاح للأيقونات في الروابط */
-.group:hover a svg[class*="group-hover:text-primary-foreground"],
-a.group:hover svg[class*="group-hover:text-primary-foreground"] {
-  color: hsl(var(--primary-foreground)) !important;
 }
 
 /* 🚀 قاعدة نهائية للخطوط - تطبق بعد تحميل جميع المكونات */
@@ -1726,3 +1755,401 @@ body[class*="tajawal"], body[class*="arabic"],
 .animation-delay-600 { animation-delay: 0.6s !important; }
 .animation-delay-700 { animation-delay: 0.7s !important; }
 .animation-delay-800 { animation-delay: 0.8s !important; }
+
+/* ===============================
+   إصلاح شامل نهائي لمشكلة الـ hover
+   =============================== */
+
+/* إصلاح شامل لجميع عناصر الـ hover التي تصبح غير مرئية */
+:root {
+  --hover-bg-light: hsl(var(--primary) / 0.1);
+  --hover-text-light: hsl(var(--primary));
+  --hover-bg-dark: hsl(var(--primary) / 0.2);
+  --hover-text-dark: hsl(var(--primary-foreground));
+}
+
+/* إصلاح عام لجميع عناصر الـ hover - مع استثناء الأزرار */
+[class*="hover:text-primary"]:hover:not(button):not([role="button"]),
+[class*="hover:text-primary"]:hover:not(button):not([role="button"]) *,
+[class*="hover:text-primary"]:hover:not(button):not([role="button"]) svg,
+.group:hover [class*="group-hover:text-primary"]:not(button):not([role="button"]),
+.group:hover [class*="group-hover:text-primary"]:not(button):not([role="button"]) *,
+.group:hover [class*="group-hover:text-primary"]:not(button):not([role="button"]) svg {
+  color: var(--hover-text-light) !important;
+}
+
+/* إصلاح للعناصر مع خلفية - مع استثناء الأزرار */
+[class*="hover:bg-primary"]:hover:not(button):not([role="button"]),
+.group:hover [class*="group-hover:bg-primary"]:not(button):not([role="button"]) {
+  background-color: var(--hover-bg-light) !important;
+  color: var(--hover-text-light) !important;
+}
+
+/* إصلاح خاص للأزرار - الحفاظ على الألوان الأصلية */
+button[class*="bg-primary"]:hover,
+[role="button"][class*="bg-primary"]:hover,
+button.group:hover [class*="group-hover:bg-primary"],
+[role="button"].group:hover [class*="group-hover:bg-primary"] {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+button[class*="bg-primary"]:hover *,
+[role="button"][class*="bg-primary"]:hover *,
+button.group:hover [class*="group-hover:bg-primary"] *,
+[role="button"].group:hover [class*="group-hover:bg-primary"] * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح للأزرار التي تحتوي على text-primary */
+button[class*="text-primary"]:hover,
+[role="button"][class*="text-primary"]:hover,
+button.group:hover [class*="group-hover:text-primary"],
+[role="button"].group:hover [class*="group-hover:text-primary"] {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+button[class*="text-primary"]:hover *,
+[role="button"][class*="text-primary"]:hover *,
+button.group:hover [class*="group-hover:text-primary"] *,
+[role="button"].group:hover [class*="group-hover:text-primary"] * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح خاص للأزرار والعناصر التفاعلية */
+button[class*="hover:text-primary"]:hover,
+a[class*="hover:text-primary"]:hover,
+[role="button"][class*="hover:text-primary"]:hover {
+  color: var(--hover-text-light) !important;
+  background-color: var(--hover-bg-light) !important;
+}
+
+/* إصلاح للوضع المظلم */
+.dark [class*="hover:text-primary"]:hover,
+.dark [class*="hover:text-primary"]:hover *,
+.dark [class*="hover:text-primary"]:hover svg,
+.dark .group:hover [class*="group-hover:text-primary"],
+.dark .group:hover [class*="group-hover:text-primary"] *,
+.dark .group:hover [class*="group-hover:text-primary"] svg {
+  color: var(--hover-text-dark) !important;
+}
+
+/* إصلاح الأيقونات في الوضع المظلم */
+.dark [class*="hover:text-primary"]:hover .lucide,
+.dark [class*="hover:text-primary"]:hover svg,
+.dark .group:hover [class*="group-hover:text-primary"] .lucide,
+.dark .group:hover [class*="group-hover:text-primary"] svg {
+  color: var(--hover-text-dark) !important;
+  stroke: var(--hover-text-dark) !important;
+  fill: none !important;
+  background: none !important;
+  background-color: transparent !important;
+}
+
+.dark [class*="hover:text-primary"]:hover svg[fill],
+.dark [class*="hover:text-primary"]:hover svg[fill="currentColor"],
+.dark .group:hover [class*="group-hover:text-primary"] svg[fill],
+.dark .group:hover [class*="group-hover:text-primary"] svg[fill="currentColor"] {
+  fill: var(--hover-text-dark) !important;
+  stroke: none !important;
+  background: none !important;
+  background-color: transparent !important;
+}
+
+.dark [class*="hover:text-primary"]:hover svg path,
+.dark [class*="hover:text-primary"]:hover .lucide path,
+.dark .group:hover [class*="group-hover:text-primary"] svg path,
+.dark .group:hover [class*="group-hover:text-primary"] .lucide path {
+  fill: none !important;
+  stroke: var(--hover-text-dark) !important;
+  background: none !important;
+  background-color: transparent !important;
+}
+
+.dark [class*="hover:text-primary"]:hover svg[fill] path,
+.dark .group:hover [class*="group-hover:text-primary"] svg[fill] path {
+  fill: var(--hover-text-dark) !important;
+  stroke: none !important;
+  background: none !important;
+  background-color: transparent !important;
+}
+
+.dark [class*="hover:bg-primary"]:hover,
+.dark .group:hover [class*="group-hover:bg-primary"] {
+  background-color: var(--hover-bg-dark) !important;
+  color: var(--hover-text-dark) !important;
+}
+
+/* إصلاح إضافي للوضع المظلم - التأكد من أن النص أبيض */
+.dark [class*="hover:text-primary"]:hover,
+.dark .group:hover [class*="group-hover:text-primary"] {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+.dark [class*="hover:text-primary"]:hover *,
+.dark .group:hover [class*="group-hover:text-primary"] * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح خاص للنافبار */
+.navbar [class*="hover:text-primary"]:hover,
+.navigation [class*="hover:text-primary"]:hover,
+nav [class*="hover:text-primary"]:hover {
+  color: var(--hover-text-light) !important;
+  background-color: var(--hover-bg-light) !important;
+}
+
+/* إصلاح النافبار في الوضع المظلم */
+.dark .navbar [class*="hover:text-primary"]:hover,
+.dark .navigation [class*="hover:text-primary"]:hover,
+.dark nav [class*="hover:text-primary"]:hover {
+  color: hsl(var(--primary-foreground)) !important;
+  background-color: var(--hover-bg-dark) !important;
+}
+
+/* إصلاح شامل للأيقونات */
+[class*="hover:text-primary"]:hover .lucide,
+[class*="hover:text-primary"]:hover svg,
+.group:hover [class*="group-hover:text-primary"] .lucide,
+.group:hover [class*="group-hover:text-primary"] svg {
+  color: var(--hover-text-light) !important;
+  stroke: var(--hover-text-light) !important;
+  fill: none !important;
+  background: none !important;
+  background-color: transparent !important;
+}
+
+/* إصلاح خاص للأيقونات التي تستخدم fill */
+[class*="hover:text-primary"]:hover svg[fill],
+[class*="hover:text-primary"]:hover svg[fill="currentColor"],
+.group:hover [class*="group-hover:text-primary"] svg[fill],
+.group:hover [class*="group-hover:text-primary"] svg[fill="currentColor"] {
+  fill: var(--hover-text-light) !important;
+  stroke: none !important;
+  background: none !important;
+  background-color: transparent !important;
+}
+
+/* إصلاح للأيقونات المختلطة (fill + stroke) */
+[class*="hover:text-primary"]:hover svg path,
+[class*="hover:text-primary"]:hover .lucide path,
+.group:hover [class*="group-hover:text-primary"] svg path,
+.group:hover [class*="group-hover:text-primary"] .lucide path {
+  fill: none !important;
+  stroke: var(--hover-text-light) !important;
+  background: none !important;
+  background-color: transparent !important;
+}
+
+/* إصلاح للأيقونات التي تحتوي على مسارات ملونة */
+[class*="hover:text-primary"]:hover svg[fill] path,
+.group:hover [class*="group-hover:text-primary"] svg[fill] path {
+  fill: var(--hover-text-light) !important;
+  stroke: none !important;
+  background: none !important;
+  background-color: transparent !important;
+}
+
+/* إزالة أي خلفيات غير مرغوب فيها من الأيقونات */
+[class*="hover:text-primary"]:hover svg,
+[class*="hover:text-primary"]:hover .lucide,
+.group:hover [class*="group-hover:text-primary"] svg,
+.group:hover [class*="group-hover:text-primary"] .lucide {
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+}
+
+/* إصلاح نهائي للتأكد من الرؤية */
+[class*="text-white"]:hover,
+[class*="text-white"]:hover * {
+  color: var(--hover-text-light) !important;
+}
+
+/* إصلاح للعناصر التي تحتوي على مشاكل تضارب */
+[class*="hover:bg-white"]:hover,
+[class*="hover:text-white"]:hover {
+  background-color: var(--hover-bg-light) !important;
+  color: var(--hover-text-light) !important;
+}
+
+/* ===============================
+   إصلاح إضافي للأيقونات المشكلة
+   =============================== */
+
+/* إصلاح شامل لجميع أنواع الأيقونات */
+[class*="hover"]:hover svg,
+[class*="hover"]:hover .lucide,
+.group:hover [class*="group-hover"] svg,
+.group:hover [class*="group-hover"] .lucide {
+  background-image: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+/* إصلاح للأيقونات التي تحتوي على gradients أو backgrounds */
+[class*="hover"]:hover svg *,
+[class*="hover"]:hover .lucide *,
+.group:hover [class*="group-hover"] svg *,
+.group:hover [class*="group-hover"] .lucide * {
+  background: none !important;
+  background-image: none !important;
+  background-color: transparent !important;
+}
+
+/* إصلاح خاص للأيقونات في الأزرار */
+button:hover svg,
+button:hover .lucide,
+[role="button"]:hover svg,
+[role="button"]:hover .lucide {
+  background: none !important;
+  background-color: transparent !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+/* إصلاح للأيقونات التي تستخدم mask أو clip-path */
+[class*="hover"]:hover svg,
+[class*="hover"]:hover .lucide {
+  mask: none !important;
+  -webkit-mask: none !important;
+  clip-path: none !important;
+}
+
+/* إصلاح نهائي للأيقونات المعقدة - معطل مؤقتاً لحل مشكلة الهوفر */
+/*
+svg:hover:not([class*="hover"]):not(.group-hover):not([data-icon-styled]),
+.lucide:hover:not([class*="hover"]):not(.group-hover):not([data-icon-styled]),
+[class*="icon"]:hover:not([class*="hover"]):not(.group-hover):not([data-icon-styled]) {
+  background: none !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+}
+*/
+
+/* إصلاح للعناصر التي تحتوي على مشاكل تضارب */
+[class*="hover:bg-white"]:hover,
+[class*="hover:text-white"]:hover {
+  background-color: var(--hover-bg-light) !important;
+  color: var(--hover-text-light) !important;
+}
+
+/* ===============================
+   نظام ألوان ذكي للوضع المظلم
+   =============================== */
+
+/* متغيرات ألوان ذكية للوضع المظلم */
+:root {
+  /* متغيرات للألوان الذكية */
+  --smart-primary-text: hsl(var(--primary));
+  --smart-primary-bg: hsl(var(--primary) / 0.1);
+  --smart-primary-border: hsl(var(--primary) / 0.2);
+  --smart-primary-icon: hsl(var(--primary));
+}
+
+.dark {
+  /* في الوضع المظلم، استخدم ألوان أفتح للنص والحدود */
+  --smart-primary-text: hsl(var(--primary-foreground));
+  --smart-primary-bg: hsl(var(--primary) / 0.2);
+  --smart-primary-border: hsl(var(--primary) / 0.3);
+  --smart-primary-icon: hsl(var(--primary-foreground));
+}
+
+/* تطبيق الألوان الذكية على العناصر المشكلة */
+
+/* إصلاح النصوص التي تستخدم text-primary */
+.dark [class*="text-primary"]:not([class*="hover"]):not([class*="group-hover"]) {
+  color: var(--smart-primary-text) !important;
+}
+
+/* إصلاح الخلفيات */
+.dark [class*="bg-primary/"]:not([class*="hover"]):not([class*="group-hover"]) {
+  background-color: var(--smart-primary-bg) !important;
+}
+
+/* إصلاح الحدود */
+.dark [class*="border-primary/"]:not([class*="hover"]):not([class*="group-hover"]) {
+  border-color: var(--smart-primary-border) !important;
+}
+
+/* إصلاح الأيقونات */
+.dark svg[class*="text-primary"]:not([class*="hover"]):not([class*="group-hover"]),
+.dark .lucide[class*="text-primary"]:not([class*="hover"]):not([class*="group-hover"]) {
+  color: var(--smart-primary-icon) !important;
+  stroke: var(--smart-primary-icon) !important;
+}
+
+/* إصلاح خاص للمكونات التي تحتوي على data-lov-id */
+.dark [data-lov-id] [class*="text-primary"],
+.dark [data-lov-id] .text-primary {
+  color: var(--smart-primary-text) !important;
+}
+
+.dark [data-lov-id] [class*="bg-primary/"],
+.dark [data-lov-id] .bg-primary {
+  background-color: var(--smart-primary-bg) !important;
+}
+
+.dark [data-lov-id] [class*="border-primary/"],
+.dark [data-lov-id] .border-primary {
+  border-color: var(--smart-primary-border) !important;
+}
+
+/* إصلاح خاص للأسعار والعناصر المهمة */
+.dark .text-4xl[class*="text-primary"],
+.dark .text-3xl[class*="text-primary"],
+.dark .text-2xl[class*="text-primary"] {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح للبادجات والشارات */
+.dark .badge[class*="text-primary"],
+.dark [class*="badge"][class*="text-primary"] {
+  color: hsl(var(--primary-foreground)) !important;
+  background-color: hsl(var(--primary) / 0.2) !important;
+}
+
+/* إصلاح للتدرجات اللونية */
+.dark [class*="from-primary"],
+.dark [class*="to-primary"],
+.dark [class*="via-primary"] {
+  --tw-gradient-from: hsl(var(--primary) / 0.3) !important;
+  --tw-gradient-to: hsl(var(--primary) / 0.1) !important;
+  --tw-gradient-via: hsl(var(--primary) / 0.2) !important;
+}
+
+/* إصلاح للظلال */
+.dark [class*="shadow-primary"] {
+  --tw-shadow-color: hsl(var(--primary) / 0.2) !important;
+}
+
+/* إصلاح خاص للمكونات التفاعلية */
+.dark button[class*="text-primary"]:not(:hover),
+.dark a[class*="text-primary"]:not(:hover) {
+  color: var(--smart-primary-text) !important;
+}
+
+/* إصلاح للعناصر التي تحتوي على أيقونات */
+.dark [class*="text-primary"] svg,
+.dark [class*="text-primary"] .lucide {
+  color: inherit !important;
+  stroke: currentColor !important;
+}
+
+/* إصلاح خاص للمنتجات والأسعار */
+.dark [data-component*="price"] [class*="text-primary"],
+.dark [data-component*="product"] [class*="text-primary"] {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح نهائي للتأكد من الرؤية */
+.dark .text-primary.font-black,
+.dark .text-primary.font-bold,
+.dark [class*="text-primary"][class*="font-black"],
+.dark [class*="text-primary"][class*="font-bold"] {
+  color: hsl(var(--primary-foreground)) !important;
+}

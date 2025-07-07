@@ -133,17 +133,18 @@ const POSHeader: React.FC<POSHeaderProps> = ({
             الإعدادات
           </Button>
 
-          {/* تم إزالة زر خدمة تصليح جديدة */}
-          {/* {isRepairServicesEnabled && (
+          {/* زر خدمة تصليح جديدة */}
+          {isRepairServicesEnabled && (
             <Button
               size="sm"
               variant="outline"
               onClick={onRepairDialogOpen}
+              title="خدمة تصليح جديدة"
             >
               <Wrench className="h-4 w-4 mr-2" />
               خدمة تصليح جديدة
             </Button>
-          )} */}
+          )}
           
           {/* زر التحديث السريع */}
           <Button

@@ -461,6 +461,120 @@ export async function createPurchase(
   }
 }
 
+// Update an existing purchase with items
+export async function updatePurchase(
+  organizationId: string,
+  purchaseId: string,
+  purchase: Partial<Omit<SupplierPurchase, 'id' | 'created_at' | 'updated_at' | 'balance_due' | 'payment_status'>>,
+  items: Omit<SupplierPurchaseItem, 'id' | 'purchase_id' | 'total_price' | 'tax_amount'>[]
+): Promise<SupplierPurchase | null> {
+  try {
+    // تحقق من صحة البيانات
+    if (!items || items.length === 0) {
+      throw new Error("لا يمكن تحديث المشتريات بدون عناصر");
+    }
+    
+    // تحقق من بيانات العناصر لضمان وجود وصف لكل عنصر
+    for (const item of items) {
+      if (!item.description) {
+        throw new Error("يجب إضافة وصف لكل عنصر من عناصر المشتريات");
+      }
+    }
+    
+    // تحديث بيانات المشتريات
+    const purchaseData = {
+      ...purchase,
+      updated_at: new Date().toISOString()
+    };
+    
+    // تحديث المشتريات
+    const { data: updatedPurchase, error: purchaseError } = await supabase
+      .from('supplier_purchases')
+      .update(purchaseData)
+      .eq('id', purchaseId)
+      .eq('organization_id', organizationId)
+      .select()
+      .single();
+    
+    if (purchaseError) throw purchaseError;
+    
+    // نحاول تحديث العناصر الموجودة بدلاً من حذفها وإعادة إنشائها
+    // أولاً، احصل على العناصر الموجودة
+    const { data: existingItems } = await supabase
+      .from('supplier_purchase_items')
+      .select('id')
+      .eq('purchase_id', purchaseId);
+    
+    // حذف العناصر الزائدة إذا كانت موجودة
+    if (existingItems && existingItems.length > items.length) {
+      const itemsToDelete = existingItems.slice(items.length);
+      for (const item of itemsToDelete) {
+        // محاولة حذف العنصر مع تجاهل أخطاء القيود الخارجية
+        try {
+          await supabase
+            .from('supplier_purchase_items')
+            .delete()
+            .eq('id', item.id);
+        } catch (error) {
+          console.warn('تحذير: فشل في حذف عنصر المشتريات:', error);
+        }
+      }
+    }
+    
+    // حذف جميع العناصر الموجودة (مع معالجة أخطاء القيود الخارجية)
+    try {
+      const { error: deleteError } = await supabase
+        .from('supplier_purchase_items')
+        .delete()
+        .eq('purchase_id', purchaseId);
+      
+      if (deleteError) {
+        // إذا فشل الحذف بسبب القيود الخارجية، نحاول نهجاً مختلفاً
+        if (deleteError.code === '23503') {
+          throw new Error('لا يمكن تحديث هذه المشتريات لأنها مرتبطة بدفعات في المخزون. يرجى التواصل مع المسؤول.');
+        } else {
+          throw deleteError;
+        }
+      }
+    } catch (error: any) {
+      if (error.message.includes('foreign key constraint')) {
+        throw new Error('لا يمكن تحديث هذه المشتريات لأنها مرتبطة بدفعات في المخزون. يرجى التواصل مع المسؤول.');
+      }
+      throw error;
+    }
+    
+    // إضافة العناصر الجديدة
+    const formattedItems = items.map(item => {
+      const quantity = Number(item.quantity) || 0;
+      const unit_price = Number(item.unit_price) || 0;
+      const tax_rate = Number(item.tax_rate) || 0;
+
+      return {
+        purchase_id: purchaseId,
+        product_id: item.product_id,
+        description: item.description || '',
+        quantity,
+        unit_price,
+        tax_rate,
+        color_id: (item as any).color_id || null,
+        size_id: (item as any).size_id || null,
+        variant_type: (item as any).variant_type || 'simple',
+        variant_display_name: (item as any).variant_display_name || null
+      };
+    });
+    
+    const { error: itemsError } = await supabase
+      .from('supplier_purchase_items')
+      .insert(formattedItems);
+    
+    if (itemsError) throw itemsError;
+    
+    return updatedPurchase;
+  } catch (error) {
+    throw error;
+  }
+}
+
 // Update purchase status
 export async function updatePurchaseStatus(
   organizationId: string,

@@ -3,7 +3,7 @@ import { FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/comp
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Loader2, Plus, FolderPlus, Folder, Tag, Tags, PlusCircle, FolderTree, AlertTriangle, HelpCircle } from "lucide-react";
+import { Loader2, Plus, FolderPlus, Folder, Tag, Tags, PlusCircle, FolderTree, AlertTriangle, HelpCircle, Upload, X, Image as ImageIcon } from "lucide-react";
 import { UseFormReturn } from "react-hook-form";
 import { ProductFormValues } from "@/types/product";
 import { type Category, type Subcategory, createCategory, createSubcategory } from '@/lib/api/categories';
@@ -12,6 +12,10 @@ import { clearSubcategoriesCache } from '@/lib/cache-utils';
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import ImageUploader from "@/components/ui/ImageUploader";
 
 interface ProductCategoriesProps {
   form: UseFormReturn<ProductFormValues>;
@@ -38,7 +42,26 @@ export default function ProductCategories({
   const [newSubcategoryName, setNewSubcategoryName] = useState('');
   const [isCreatingSubcategory, setIsCreatingSubcategory] = useState(false);
   
+  // حالة النافذة المنبثقة للفئة الجديدة
+  const [showCategoryDialog, setShowCategoryDialog] = useState(false);
+  const [newCategoryData, setNewCategoryData] = useState({
+    name: '',
+    description: '',
+    icon: '',
+    image_url: '',
+    type: 'product' as 'product' | 'service'
+  });
+  
   const watchCategoryId = form.watch('category_id');
+  
+  // الأيقونات المتاحة للفئات
+  const availableIcons = [
+    { name: 'FolderTree', icon: FolderTree, label: 'مجلد شجري' },
+    { name: 'Folder', icon: Folder, label: 'مجلد' },
+    { name: 'Tag', icon: Tag, label: 'علامة' },
+    { name: 'Tags', icon: Tags, label: 'علامات' },
+    { name: 'Package', icon: PlusCircle, label: 'حزمة' },
+  ];
   
   const handleCreateCategory = async () => {
     if (!newCategoryName.trim()) {
@@ -47,7 +70,6 @@ export default function ProductCategories({
     }
     
     if (!organizationId || organizationId.trim() === '') {
-      // لم يتم تحديد معرف المؤسسة
       return;
     }
     
@@ -63,6 +85,48 @@ export default function ProductCategories({
       form.setValue('category_id', newCategory.id);
       setNewCategoryName('');
       setShowNewCategoryInput(false);
+      toast.success('تم إنشاء الفئة بنجاح');
+    } catch (error) {
+      toast.error('حدث خطأ أثناء إنشاء الفئة');
+    } finally {
+      setIsCreatingCategory(false);
+    }
+  };
+
+  const handleCreateCategoryFromDialog = async () => {
+    if (!newCategoryData.name.trim()) {
+      toast.error('يرجى إدخال اسم للفئة');
+      return;
+    }
+    
+    if (!organizationId || organizationId.trim() === '') {
+      toast.error('معرف المؤسسة مطلوب');
+      return;
+    }
+    
+    setIsCreatingCategory(true);
+    try {
+      const newCategory = await createCategory({
+        name: newCategoryData.name,
+        description: newCategoryData.description || null,
+        icon: newCategoryData.icon || null,
+        image_url: newCategoryData.image_url || null,
+        type: newCategoryData.type
+      }, organizationId);
+      
+      onCategoryCreated(newCategory);
+      form.setValue('category_id', newCategory.id);
+      
+      // إعادة تعيين البيانات
+      setNewCategoryData({
+        name: '',
+        description: '',
+        icon: '',
+        image_url: '',
+        type: 'product'
+      });
+      
+      setShowCategoryDialog(false);
       toast.success('تم إنشاء الفئة بنجاح');
     } catch (error) {
       toast.error('حدث خطأ أثناء إنشاء الفئة');
@@ -95,7 +159,6 @@ export default function ProductCategories({
       setNewSubcategoryName('');
       setShowNewSubcategoryInput(false);
       
-      // تنظيف cache الفئات الفرعية
       clearSubcategoriesCache(organizationId);
       
       toast.success('تم إنشاء الفئة الفرعية بنجاح');
@@ -104,6 +167,10 @@ export default function ProductCategories({
     } finally {
       setIsCreatingSubcategory(false);
     }
+  };
+
+  const handleImageUpload = (imageUrl: string) => {
+    setNewCategoryData(prev => ({ ...prev, image_url: imageUrl }));
   };
 
   return (
@@ -258,6 +325,171 @@ export default function ProductCategories({
                         <Plus className="h-3.5 w-3.5" />
                         فئة جديدة
                       </Button>
+
+                      {/* زر النافذة المنبثقة المحسنة */}
+                      <Dialog open={showCategoryDialog} onOpenChange={setShowCategoryDialog}>
+                        <DialogTrigger asChild>
+                          <Button 
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-10 gap-1.5 px-3 text-sm border-primary/60 bg-gradient-to-r from-primary/5 to-primary/10 hover:from-primary/10 hover:to-primary/20 hover:border-primary/80 dark:hover:from-primary/15 dark:hover:to-primary/25 transition-all duration-300 shadow-sm hover:shadow-md"
+                            disabled={!organizationId || organizationId.trim() === ''}
+                          >
+                            <FolderPlus className="h-3.5 w-3.5" />
+                            فئة محسنة
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-[500px] bg-background/95 backdrop-blur-md border-border/60 shadow-2xl">
+                          <DialogHeader>
+                            <DialogTitle className="text-lg font-semibold text-right flex items-center gap-2">
+                              <FolderPlus className="h-5 w-5 text-primary" />
+                              إضافة فئة جديدة
+                            </DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4 py-4">
+                            {/* اسم الفئة */}
+                            <div className="space-y-2">
+                              <Label htmlFor="category-name" className="text-sm font-medium">
+                                اسم الفئة <span className="text-destructive">*</span>
+                              </Label>
+                              <Input
+                                id="category-name"
+                                placeholder="مثال: الإلكترونيات، الملابس، المنزل"
+                                value={newCategoryData.name}
+                                onChange={(e) => setNewCategoryData(prev => ({ ...prev, name: e.target.value }))}
+                                className="h-10 text-sm"
+                              />
+                            </div>
+
+                            {/* وصف الفئة */}
+                            <div className="space-y-2">
+                              <Label htmlFor="category-description" className="text-sm font-medium">
+                                وصف الفئة (اختياري)
+                              </Label>
+                              <Textarea
+                                id="category-description"
+                                placeholder="وصف مختصر للفئة..."
+                                value={newCategoryData.description}
+                                onChange={(e) => setNewCategoryData(prev => ({ ...prev, description: e.target.value }))}
+                                className="min-h-[80px] text-sm resize-none"
+                              />
+                            </div>
+
+                            {/* نوع الفئة */}
+                            <div className="space-y-2">
+                              <Label className="text-sm font-medium">نوع الفئة</Label>
+                              <Select
+                                value={newCategoryData.type}
+                                onValueChange={(value: 'product' | 'service') => 
+                                  setNewCategoryData(prev => ({ ...prev, type: value }))
+                                }
+                              >
+                                <SelectTrigger className="h-10 text-sm">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="product">منتجات</SelectItem>
+                                  <SelectItem value="service">خدمات</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            {/* اختيار الأيقونة */}
+                            <div className="space-y-2">
+                              <Label className="text-sm font-medium">الأيقونة (اختياري)</Label>
+                              <div className="grid grid-cols-5 gap-2">
+                                {availableIcons.map((iconData) => {
+                                  const IconComponent = iconData.icon;
+                                  return (
+                                    <Tooltip key={iconData.name}>
+                                      <TooltipTrigger asChild>
+                                        <button
+                                          type="button"
+                                          onClick={() => setNewCategoryData(prev => ({ 
+                                            ...prev, 
+                                            icon: prev.icon === iconData.name ? '' : iconData.name 
+                                          }))}
+                                          className={`p-3 rounded-lg border-2 transition-all duration-200 ${
+                                            newCategoryData.icon === iconData.name
+                                              ? 'border-primary bg-primary/10 text-primary'
+                                              : 'border-border/60 hover:border-primary/60 hover:bg-muted/50'
+                                          }`}
+                                        >
+                                          <IconComponent className="h-4 w-4" />
+                                        </button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p className="text-xs">{iconData.label}</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                                                         {/* رفع صورة */}
+                             <div className="space-y-2">
+                               <Label className="text-sm font-medium">صورة الفئة (اختياري)</Label>
+                               <ImageUploader
+                                 imageUrl={newCategoryData.image_url}
+                                 onImageUploaded={handleImageUpload}
+                                 folder="categories"
+                                 aspectRatio="1:1"
+                                 maxSizeInMB={2}
+                                 label=""
+                                 compact={true}
+                               />
+                             </div>
+
+                                                         {/* رابط إدارة الفئات */}
+                             <div className="bg-gradient-to-r from-blue-50/60 to-indigo-50/40 dark:from-blue-950/30 dark:to-indigo-950/20 p-3 rounded-xl border border-blue-200/50 dark:border-blue-800/30 backdrop-blur-sm">
+                               <p className="text-xs text-blue-700 dark:text-blue-300 flex items-center gap-2">
+                                 <FolderTree className="w-3 h-3" />
+                                 لإدارة الفئات بشكل متقدم، يمكنك زيارة 
+                                 <a 
+                                   href="/categories" 
+                                   className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 font-medium underline transition-colors"
+                                   target="_blank"
+                                   rel="noopener noreferrer"
+                                 >
+                                   صفحة الفئات
+                                 </a>
+                               </p>
+                             </div>
+
+                             {/* أزرار الإجراءات */}
+                             <div className="flex justify-end gap-3 pt-4">
+                               <Button
+                                 type="button"
+                                 variant="outline"
+                                 onClick={() => setShowCategoryDialog(false)}
+                                 className="px-4"
+                               >
+                                 إلغاء
+                               </Button>
+                               <Button
+                                 type="button"
+                                 onClick={handleCreateCategoryFromDialog}
+                                 disabled={isCreatingCategory || !newCategoryData.name.trim()}
+                                 className="px-4 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80"
+                               >
+                                 {isCreatingCategory ? (
+                                   <>
+                                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                     جاري الإنشاء...
+                                   </>
+                                 ) : (
+                                   <>
+                                     <PlusCircle className="h-4 w-4 mr-2" />
+                                     إنشاء الفئة
+                                   </>
+                                 )}
+                               </Button>
+                             </div>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
                     </div>
                   )}
                   <FormMessage className="text-xs" />

@@ -22,6 +22,7 @@ import ProductFeatures from '@/components/product/ProductFeatures';
 import ProductFormRenderer from '@/components/product/ProductFormRenderer';
 import ProductPurchaseSummary from '@/components/product/ProductPurchaseSummary';
 import ProductOfferTimer from '@/components/product/ProductOfferTimer';
+import SpecialOffersDisplay from '@/components/store/special-offers/SpecialOffersDisplay';
 
 // الـ Hooks والسياق
 import useProductPurchase from '@/hooks/useProductPurchase';
@@ -36,6 +37,25 @@ import {
 // إضافة استيراد دالة معالجة الطلبيات
 import { processOrder } from '@/api/store';
 import { useAbandonedCartTracking } from '@/hooks/useAbandonedCartTracking';
+
+// استيراد دوال العروض الخاصة
+import { 
+  getBestSpecialOffer,
+  getSpecialOfferSummary,
+  type SpecialOffer 
+} from '@/lib/api/productComplete';
+
+// استيراد مكونات التتبع المحسنة
+import ProductConversionTracker from '@/components/tracking/ProductConversionTracker';
+import EnhancedPixelLoader from '@/components/tracking/EnhancedPixelLoader';
+import { useProductTracking } from '@/hooks/useProductTracking';
+import { TrackingDebugConsole } from '@/components/debug/TrackingDebugConsole';
+import { ConversionAPIMonitor } from '@/components/debug/ConversionAPIMonitor';
+import { TrackingSettingsViewer } from '@/components/debug/TrackingSettingsViewer';
+import { FacebookEventsLogger } from '@/components/debug/FacebookEventsLogger';
+import QuickTrackingCheck from '@/components/debug/QuickTrackingCheck';
+import FacebookPixelChecker from '@/components/debug/FacebookPixelChecker';
+import CustomerDataTracker from '@/components/debug/CustomerDataTracker';
 
 // الأنواع
 interface Product {
@@ -91,6 +111,9 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
     const startTime = performance.now();
     return startTime;
   });
+
+  // مرجع لمتتبع التحويل
+  const conversionTrackerRef = useRef<any>(null);
   
   // حالات المكون
   const [submittedFormData, setSubmittedFormData] = useState<Record<string, any>>({});
@@ -101,6 +124,10 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
   }, [submittedFormData]);
   const [deliveryCalculation, setDeliveryCalculation] = useState<DeliveryCalculationResult | null>(null);
   const [isCalculatingDelivery, setIsCalculatingDelivery] = useState(false);
+  
+  // حالة العروض الخاصة
+  const [selectedOffer, setSelectedOffer] = useState<SpecialOffer | null>(null);
+  const [isQuantityUpdatedByOffer, setIsQuantityUpdatedByOffer] = useState(false);
 
   // استخدام hook المخصص لإدارة حالة المنتج - مع منع الطلبات المكررة
   const [state, actions] = useProductPurchase({
@@ -182,6 +209,23 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
     return id;
   }, [(organization as any)?.id, (product?.organization as any)?.id]);
 
+  // إعادة تعيين التمرير إلى الأعلى عند تحميل الصفحة وتنظيف preload links
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    
+    // تنظيف preload links القديمة لتجنب التحذيرات
+    const cleanupPreloadLinks = () => {
+      const oldLinks = document.querySelectorAll('link[rel="preload"][as="image"]');
+      oldLinks.forEach(link => {
+        if (link.parentNode) {
+          link.remove();
+        }
+      });
+    };
+    
+    cleanupPreloadLinks();
+  }, [actualProductId]);
+
   // hook الطلبات المتروكة المحسّن
   const [isSavingCart, abandonedCartActions] = useAbandonedCartTracking({
     productId: actualProductId,
@@ -196,6 +240,123 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
     saveInterval: 3, // حفظ كل 3 ثوان
     minPhoneLength: 8
   });
+
+  // 🎯 Hook التتبع المحسن للبكسل والكونفيجر API
+  const productTracking = useProductTracking({
+    productId: actualProductId!,
+    organizationId: organizationId,
+    autoLoadSettings: true,
+    enableDebugMode: process.env.NODE_ENV === 'development'
+  });
+
+  // دالة تحديث الكمية مع التتبع
+  const handleQuantityChange = useCallback((newQuantity: number) => {
+    const oldQuantity = quantity;
+    setQuantity(newQuantity);
+    
+    // تحديث الطلب المتروك سيتم تلقائياً عبر useEffect
+
+    // 🛍️ تتبع إضافة إلى السلة عند زيادة الكمية
+    if (newQuantity > oldQuantity && product && productTracking.isReady) {
+      const quantityDiff = newQuantity - oldQuantity;
+      productTracking.trackAddToCart({
+        name: product.name,
+        price: priceInfo?.price || 0,
+        quantity: quantityDiff,
+        image: product.images?.thumbnail_image || product.images?.additional_images?.[0]?.url,
+        selectedColor: selectedColor?.name,
+        selectedSize: selectedSize?.size_name
+      });
+    }
+  }, [quantity, setQuantity, abandonedCartActions, product, productTracking, priceInfo, selectedColor, selectedSize]);
+
+  // 📊 تتبع عرض المحتوى تلقائياً
+  useEffect(() => {
+    if (product && productTracking.isReady) {
+      console.log('🎯 تتبع عرض المحتوى:', product.name);
+      productTracking.trackViewContent({
+        name: product.name,
+        price: product.pricing?.price,
+        image: product.images?.thumbnail_image || product.images?.additional_images?.[0]?.url,
+        selectedColor: selectedColor?.name,
+        selectedSize: selectedSize?.size_name,
+        quantity
+      });
+    }
+  }, [product, productTracking.isReady, selectedColor, selectedSize, quantity]);
+
+  // 📊 تتبع تغيير المتغيرات (اللون والمقاس)
+  useEffect(() => {
+    if (product && productTracking.isReady && (selectedColor || selectedSize)) {
+      console.log('🎨 تتبع تغيير المتغيرات:', { color: selectedColor?.name, size: selectedSize?.size_name });
+      // إرسال حدث ViewContent مع المتغيرات الجديدة
+      productTracking.trackViewContent({
+        name: product.name,
+        price: product.pricing?.price || 0,
+        quantity: quantity,
+        image: product.images?.thumbnail_image || product.images?.additional_images?.[0]?.url,
+        selectedColor: selectedColor?.name,
+        selectedSize: selectedSize?.size_name
+      });
+    }
+  }, [selectedColor?.id, selectedSize?.id, product, productTracking.isReady, quantity]);
+
+  // 🎯 اختيار أفضل عرض تلقائياً عند تغيير الكمية
+  useEffect(() => {
+    if (product && (product as any).special_offers_config?.enabled) {
+      // تجاهل التحديث إذا كان بسبب اختيار عرض
+      if (isQuantityUpdatedByOffer) {
+        setIsQuantityUpdatedByOffer(false);
+        return;
+      }
+
+      const bestOffer = getBestSpecialOffer(product as any, quantity);
+      
+      // التحقق من أن العرض المقترح مختلف عن العرض الحالي لتجنب التحديث المستمر
+      if (bestOffer?.id !== selectedOffer?.id) {
+        setSelectedOffer(bestOffer);
+        
+        console.log('🔍 فحص العروض الخاصة:', {
+          special_offers_config: (product as any).special_offers_config,
+          enabled: (product as any).special_offers_config?.enabled,
+          offers: (product as any).special_offers_config?.offers,
+          offersLength: (product as any).special_offers_config?.offers?.length,
+          bestOffer,
+          quantity,
+          previousOfferId: selectedOffer?.id,
+          newOfferId: bestOffer?.id,
+          updatedByOffer: isQuantityUpdatedByOffer
+        });
+      }
+    }
+  }, [product, quantity, isQuantityUpdatedByOffer, selectedOffer?.id]);
+
+  // حساب السعر النهائي مع العروض الخاصة
+  const finalPriceCalculation = useMemo(() => {
+    if (!product) return { price: 0, quantity: 0, savings: 0, offerApplied: false };
+    
+    const offerSummary = getSpecialOfferSummary(product as any, selectedOffer, quantity);
+    
+    // تسجيل مؤقت للتشخيص
+    console.log('💰 تحديث السعر النهائي:', {
+      selectedOffer: selectedOffer?.name,
+      selectedOfferId: selectedOffer?.id,
+      originalQuantity: quantity,
+      finalQuantity: offerSummary.finalQuantity,
+      originalPrice: product.pricing?.price || 0,
+      finalPrice: offerSummary.finalPrice,
+      savings: offerSummary.savings,
+      offerApplied: offerSummary.offerApplied,
+      timestamp: new Date().toISOString()
+    });
+    
+    return {
+      price: offerSummary.finalPrice,
+      quantity: offerSummary.finalQuantity,
+      savings: offerSummary.savings,
+      offerApplied: offerSummary.offerApplied
+    };
+  }, [product, selectedOffer, quantity]);
 
   const handleFormChange = useCallback((data: Record<string, any>) => {
     console.log('📝 تغيير في بيانات النموذج:', data);
@@ -322,6 +483,29 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
   // معالجة إرسال النموذج والطلبية
   const handleFormSubmit = useCallback(async (data: Record<string, any>) => {
     try {
+      // 🛍️ تتبع بدء عملية الشراء
+      if (product && productTracking.isReady) {
+        await productTracking.trackInitiateCheckout({
+          name: product.name,
+          price: priceInfo?.price || 0,
+          quantity,
+          image: product.images?.thumbnail_image || product.images?.additional_images?.[0]?.url,
+          selectedColor: selectedColor?.name,
+          selectedSize: selectedSize?.size_name
+        }, {
+          email: data.customer_email || data.email,
+          phone: data.customer_phone || data.phone,
+          name: data.customer_name || data.name,
+          firstName: (data.customer_name || data.name)?.split(' ')[0],
+          lastName: (data.customer_name || data.name)?.split(' ').slice(1).join(' '),
+          city: data.municipality,
+          state: data.province,
+          country: 'DZ',
+          province: data.province,
+          municipality: data.municipality
+        });
+      }
+
       // إضافة console.log لتتبع البيانات
       console.group('🔍 تتبع بيانات النموذج - handleFormSubmit');
       console.log('📋 البيانات المستلمة:', data);
@@ -410,10 +594,41 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
       
       if (result && !result.error) {
         console.log('✅ نجحت معالجة الطلبية!');
+        
+        // 💰 تتبع إتمام الشراء
+        const orderId = result.id || result.order_id;
+        const totalValue = (priceInfo.price * quantity) + (deliveryCalculation?.deliveryFee || 0);
+        
+        if (product && productTracking.isReady && orderId) {
+          await productTracking.trackPurchase(
+            orderId.toString(),
+            totalValue,
+            {
+              name: product.name,
+              price: priceInfo?.price || 0,
+              quantity,
+              image: product.images?.thumbnail_image || product.images?.additional_images?.[0]?.url,
+              selectedColor: selectedColor?.name,
+              selectedSize: selectedSize?.size_name
+            },
+            {
+              email: data.customer_email || data.email,
+              phone: data.customer_phone || data.phone,
+              name: data.customer_name || data.name,
+              firstName: (data.customer_name || data.name)?.split(' ')[0],
+              lastName: (data.customer_name || data.name)?.split(' ').slice(1).join(' '),
+              city: data.municipality,
+              state: data.province,
+              country: 'DZ',
+              province: data.province,
+              municipality: data.municipality
+            }
+          );
+        }
+        
         toast.success('تم إنشاء الطلبية بنجاح!');
         
         // تحويل الطلب المتروك إلى طلب مُكتمل
-        const orderId = result.id || result.order_id;
         if (orderId) {
           await abandonedCartActions.markAsConverted(orderId);
         }
@@ -445,7 +660,9 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
     deliveryCalculation, 
     selectedColor, 
     selectedSize, 
-    navigate
+    navigate,
+    productTracking,
+    abandonedCartActions
   ]);
 
   // معالجة الشراء المباشر
@@ -463,7 +680,35 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
         return;
       }
 
+      // حساب السعر النهائي مع العروض الخاصة
+      const offerSummary = getSpecialOfferSummary(product, selectedOffer, quantity);
+      const finalQuantity = offerSummary.finalQuantity;
+      const finalPrice = offerSummary.finalPrice;
 
+
+
+      // 🛍️ تتبع بدء عملية الشراء المباشر
+      if (productTracking.isReady) {
+        await productTracking.trackInitiateCheckout({
+          name: product.name,
+          price: finalPrice,
+          quantity: finalQuantity,
+          image: product.images?.thumbnail_image || product.images?.additional_images?.[0]?.url,
+          selectedColor: selectedColor?.name,
+          selectedSize: selectedSize?.size_name
+        }, {
+          email: submittedFormData.customer_email || submittedFormData.email,
+          phone: submittedFormData.customer_phone || submittedFormData.phone,
+          name: submittedFormData.customer_name || submittedFormData.name,
+          firstName: (submittedFormData.customer_name || submittedFormData.name)?.split(' ')[0],
+          lastName: (submittedFormData.customer_name || submittedFormData.name)?.split(' ').slice(1).join(' '),
+          city: submittedFormData.municipality,
+          state: submittedFormData.province,
+          country: 'DZ',
+          province: submittedFormData.province,
+          municipality: submittedFormData.municipality
+        });
+      }
 
       // معالجة الطلبية باستخدام الواجهة الصحيحة
       const result = await processOrder(organizationId, {
@@ -481,16 +726,20 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
         productColorId: selectedColor?.id || null,
         productSizeId: selectedSize?.id || null,
         sizeName: selectedSize?.size_name || null,
-        quantity: quantity,
-        unitPrice: priceInfo.price,
-        totalPrice: (priceInfo.price * quantity) + (deliveryCalculation?.deliveryFee || 0),
+        quantity: finalQuantity,
+        unitPrice: finalPrice / finalQuantity, // السعر لكل قطعة مع العرض
+        totalPrice: finalPrice + (deliveryCalculation?.deliveryFee || 0),
         deliveryFee: deliveryCalculation?.deliveryFee || 0,
         formData: submittedFormData,
         metadata: {
           product_image: product.images?.thumbnail_image || product.images?.additional_images?.[0]?.url,
           shipping_provider: deliveryCalculation?.shippingProvider || { name: 'ياليدين', code: 'yalidine' },
           selected_color_name: selectedColor?.name,
-          selected_size_name: selectedSize?.size_name
+          selected_size_name: selectedSize?.size_name,
+          special_offer_id: selectedOffer?.id,
+          special_offer_name: selectedOffer?.name,
+          original_quantity: quantity,
+          savings: offerSummary.savings
         }
       });
       
@@ -501,6 +750,16 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
         const orderId = result.id || result.order_id;
         if (orderId) {
           await abandonedCartActions.markAsConverted(orderId);
+        }
+
+        // 💰 تتبع إتمام الشراء (Purchase)
+        if (conversionTrackerRef.current?.isReady) {
+          const totalValue = finalPrice + (deliveryCalculation?.deliveryFee || 0);
+          await conversionTrackerRef.current.trackPurchase(
+            orderId || `order_${Date.now()}`,
+            totalValue,
+            submittedFormData
+          );
         }
         
         // التوجه لصفحة الشكر مع رقم الطلب
@@ -529,7 +788,11 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
     submittedFormData, 
     selectedColor, 
     selectedSize, 
-    navigate
+    selectedOffer,
+    navigate,
+    productTracking,
+    abandonedCartActions,
+    conversionTrackerRef
   ]);
 
   // معالجة إعادة المحاولة
@@ -571,18 +834,55 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
   // ⏱️ تسجيل بداية عرض المكونات
 
   return (
+    <>
     <div className="min-h-screen bg-background transition-colors duration-300">
+      {/* مكونات التتبع المخفية */}
+      {actualProductId && organizationId && (
+        <>
+          {/* تحميل البكسلات */}
+          <EnhancedPixelLoader
+            productId={actualProductId}
+            organizationId={organizationId}
+            settings={productTracking.settings || undefined}
+            onPixelsLoaded={(loadedPixels) => {
+              console.log('📡 تم تحميل البكسلات:', loadedPixels);
+            }}
+            onPixelError={(platform, error) => {
+              console.error(`❌ خطأ في بكسل ${platform}:`, error);
+            }}
+          />
+          
+          {/* متتبع التحويل */}
+          <ProductConversionTracker
+            ref={conversionTrackerRef}
+            productId={actualProductId}
+            organizationId={organizationId}
+            product={product || undefined}
+            selectedColor={selectedColor}
+            selectedSize={selectedSize}
+            quantity={quantity}
+            currency="DZD"
+            onTrackingReady={() => {
+              console.log('🎯 متتبع التحويل جاهز');
+            }}
+            onTrackingError={(error) => {
+              console.error('❌ خطأ في متتبع التحويل:', error);
+            }}
+          />
+        </>
+      )}
+
       {/* النافبار الرئيسي */}
       <NavbarMain 
         className="bg-background/95 backdrop-blur-md border-b border-border/20"
         hideCategories={true}
       />
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8 pt-20">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
           {/* قسم الصور */}
           <motion.div 
-            className="lg:sticky lg:top-24"
+            className="lg:sticky lg:top-28"
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.5 }}
@@ -615,28 +915,32 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
               transition={{ duration: 0.4, delay: 0.1 }}
               className="pt-2"
             >
-              <ProductPriceDisplay
-                product={product}
-                selectedColor={selectedColor}
-                selectedSize={selectedSize}
-                quantity={quantity}
-              />
+                          <ProductPriceDisplay
+              product={product}
+              selectedColor={selectedColor}
+              selectedSize={selectedSize}
+              selectedOffer={selectedOffer}
+              quantity={quantity}
+              hideSpecialOfferDetails={(product as any).special_offers_config?.enabled && (product as any).special_offers_config?.offers?.length > 0}
+            />
             </motion.div>
 
-            {/* الكمية */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.25 }}
-              className="pt-3"
-            >
-              <ProductQuantitySelector
-                quantity={quantity}
-                onQuantityChange={setQuantity}
-                maxQuantity={Math.min(availableStock, 100)}
-                disabled={!canPurchase}
-              />
-            </motion.div>
+            {/* الكمية - يُخفى عندما تكون العروض الخاصة مُفعّلة */}
+            {!((product as any).special_offers_config?.enabled && (product as any).special_offers_config?.offers?.length > 0) && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: 0.25 }}
+                className="pt-3"
+              >
+                <ProductQuantitySelector
+                  quantity={quantity}
+                  onQuantityChange={handleQuantityChange}
+                  maxQuantity={Math.min(availableStock, 100)}
+                  disabled={!canPurchase}
+                />
+              </motion.div>
+            )}
 
             {/* مؤقت العرض */}
             {offerTimerSettings && (
@@ -674,9 +978,69 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
 
             <Separator className="bg-border/50 dark:bg-border/30" />
 
+            {/* العروض الخاصة */}
+            {product.special_offers_config?.enabled && product.special_offers_config.offers?.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: 0.35 }}
+                className="py-2"
+              >
+                <SpecialOffersDisplay
+                  config={product.special_offers_config}
+                  basePrice={product.pricing?.price || 0}
+                  onSelectOffer={(offer) => {
+                    console.log('🎯 اختيار عرض جديد:', {
+                      previousOffer: selectedOffer?.name,
+                      newOffer: offer?.name,
+                      newOfferId: offer?.id,
+                      timestamp: new Date().toISOString()
+                    });
+                    
+                    setSelectedOffer(offer);
+                    
+                    // تحديث الكمية تلقائياً لتتناسب مع العرض
+                    if (offer) {
+                      if (offer.quantity !== quantity) {
+                        console.log('📈 تحديث الكمية تلقائياً:', {
+                          oldQuantity: quantity,
+                          newQuantity: offer.quantity,
+                          offerName: offer.name
+                        });
+                        setIsQuantityUpdatedByOffer(true);
+                        setQuantity(offer.quantity);
+                      }
+                    } else {
+                      // إذا تم إلغاء العرض (اختيار "قطعة واحدة")، الرجوع للكمية 1
+                      if (quantity !== 1) {
+                        console.log('🔄 الرجوع للكمية الأساسية:', {
+                          oldQuantity: quantity,
+                          newQuantity: 1
+                        });
+                        setIsQuantityUpdatedByOffer(true);
+                        setQuantity(1);
+                      }
+                    }
+                  }}
+                  selectedOfferId={selectedOffer?.id}
+                />
+              </motion.div>
+            )}
+
+            {product.special_offers_config?.enabled && product.special_offers_config.offers?.length > 0 && (
+              <Separator className="bg-border/50 dark:bg-border/30" />
+            )}
+
             {/* أزرار الشراء */}
             <ProductActions
-              totalPrice={totalPrice}
+              totalPrice={(() => {
+                console.log('🛒 تحديث سعر ProductActions:', {
+                  finalPrice: finalPriceCalculation.price,
+                  selectedOffer: selectedOffer?.name,
+                  timestamp: new Date().toISOString()
+                });
+                return finalPriceCalculation.price;
+              })()}
               deliveryFee={summaryData?.deliveryFee || 0}
               canPurchase={canPurchase}
               buyingNow={buyingNow}
@@ -745,7 +1109,7 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
                     productName={product.name}
                     productImage={product.images?.additional_images?.[0]?.url || product.images?.thumbnail_image}
                     basePrice={product.pricing?.price || 0}
-                    quantity={quantity}
+                    quantity={finalPriceCalculation.quantity}
                     selectedColor={selectedColor ? {
                       name: selectedColor.name,
                       value: selectedColor.color_code || '#000000',
@@ -756,10 +1120,18 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
                       value: selectedSize.size_name,
                       price_modifier: selectedSize.price ? selectedSize.price - (product.pricing?.price || 0) : 0
                     } : undefined}
-                    subtotal={priceInfo.price * quantity}
-                    discount={priceInfo.discount}
+                    subtotal={(() => {
+                      console.log('📊 تحديث سعر ProductPurchaseSummary:', {
+                        subtotal: finalPriceCalculation.price,
+                        selectedOffer: selectedOffer?.name,
+                        savings: finalPriceCalculation.savings,
+                        timestamp: new Date().toISOString()
+                      });
+                      return finalPriceCalculation.price;
+                    })()}
+                    discount={priceInfo.discount + finalPriceCalculation.savings}
                     deliveryFee={summaryData?.deliveryFee || 0}
-                    total={totalPrice + (summaryData?.deliveryFee || 0)}
+                    total={finalPriceCalculation.price + (summaryData?.deliveryFee || 0)}
                     isLoadingDeliveryFee={summaryData?.isCalculating || false}
                     deliveryType={summaryData?.deliveryType || 'home'}
                     selectedProvince={summaryData?.selectedProvince}
@@ -795,6 +1167,31 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
         </div>
       </div>
     </div>
+
+    {/* مكون التحقق السريع من التتبع */}
+    <QuickTrackingCheck />
+
+    {/* كونسول التشخيص - فقط في بيئة التطوير */}
+    {process.env.NODE_ENV === 'development' && actualProductId && organizationId && (
+      <>
+        <TrackingDebugConsole 
+          productId={actualProductId} 
+          organizationId={organizationId}
+        />
+        <ConversionAPIMonitor />
+        <TrackingSettingsViewer 
+          settings={productTracking.settings}
+          productId={actualProductId}
+          organizationId={organizationId}
+        />
+        <FacebookEventsLogger 
+          pixelId={(productTracking.settings as any)?.facebook_pixel_id}
+        />
+        <FacebookPixelChecker />
+        <CustomerDataTracker />
+      </>
+    )}
+    </>
   );
 });
 

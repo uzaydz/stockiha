@@ -36,7 +36,7 @@ export async function getPaginatedProducts(
 ): Promise<PaginatedProductsResponse> {
   const {
     page = 1,
-    pageSize = 50,
+    pageSize = 30,
     searchQuery = null,
     categoryId = null,
     sortBy = 'name',

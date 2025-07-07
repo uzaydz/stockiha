@@ -8,8 +8,8 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '@/types/database.types';
 
 // متغيرات البيئة
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL!;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY!;
 
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Supabase URL and anonymous key are required.');
@@ -73,24 +73,23 @@ if (typeof window !== 'undefined' && window.__BAZAAR_MAIN_SUPABASE_CLIENT__) {
     auth: {
       autoRefreshToken: true,
       persistSession: true,
-      detectSessionInUrl: false,
+      detectSessionInUrl: true,
       // A single, consistent storage key across the app
       storageKey: 'bazaar-supabase-auth-unified-main', 
     },
     realtime: {
-      // إعدادات خاصة لحل مشكلة WebSocket في المتصفح
-      transport: typeof window !== 'undefined' ? window.WebSocket : undefined,
-      timeout: 20000,
-      heartbeatIntervalMs: 30000,
+      // DISABLED: WebSocket connections to reduce memory usage
+      // transport: typeof window !== 'undefined' ? window.WebSocket : undefined,
       params: {
-        eventsPerSecond: 10
+        eventsPerSecond: 0 // تعطيل الأحداث الفورية
       }
     },
     global: {
       headers: {
         'X-Client-Info': 'bazaar-unified-client-main',
         'X-Instance-Type': 'primary',
-        'X-Creation-Time': new Date().toISOString()
+        'X-Creation-Time': new Date().toISOString(),
+        'x-application-name': 'bazaar-console',
       }
     }
   });

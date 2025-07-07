@@ -2,7 +2,7 @@ import React, { memo, Suspense, lazy, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { TabsContent } from '@/components/ui/tabs';
 import { UseFormReturn } from 'react-hook-form';
-import { Loader2, Info, Images, DollarSign, Palette, Settings, Package, Truck, Megaphone, AlertTriangle } from 'lucide-react';
+import { Loader2, Info, Images, DollarSign, Palette, Settings, Package, Truck, Megaphone, AlertTriangle, BarChart2, Gift } from 'lucide-react';
 
 import { ProductFormValues, ProductColor, WholesaleTier } from '@/types/product';
 import { Category, Subcategory } from '@/lib/api/categories';
@@ -95,6 +95,14 @@ const MarketingAndEngagementTabs = createLazyComponent(
 const ProductAdvancedSettingsTabs = createLazyComponent(
   () => import('../ProductAdvancedSettingsTabs'), 
   'ProductAdvancedSettingsTabs'
+);
+const ConversionTrackingTab = createLazyComponent(
+  () => import('../marketing-and-engagement/ConversionTrackingTab'), 
+  'ConversionTrackingTab'
+);
+const SpecialOffersTab = createLazyComponent(
+  () => import('../special-offers/SpecialOffersTab'), 
+  'SpecialOffersTab'
 );
 
 interface SectionLoaderProps {
@@ -214,10 +222,11 @@ const ProductFormTabContent = memo<ProductFormTabContentProps>(({
               </div>
             </SafeSuspense>
             
-            {/* Categories and Selling Type */}
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-              <SafeSuspense fallback={<SectionLoader message="تحميل التصنيفات..." />}>
-                <div className="bg-gradient-to-r from-muted/20 to-muted/10 dark:from-muted/10 dark:to-muted/5 rounded-xl p-6 border border-border/30">
+            {/* Categories and Selling Type - Vertical Layout */}
+            <div className="space-y-6">
+              {/* Main Categories */}
+              <SafeSuspense fallback={<SectionLoader message="تحميل الفئات الرئيسية..." />}>
+                <div className="bg-gradient-to-r from-primary/5 to-primary/3 dark:from-primary/10 dark:to-primary/5 rounded-xl p-6 border border-primary/20">
                   <ProductCategories
                     form={form}
                     categories={categories}
@@ -229,8 +238,9 @@ const ProductFormTabContent = memo<ProductFormTabContentProps>(({
                 </div>
               </SafeSuspense>
               
+              {/* Selling Type */}
               <SafeSuspense fallback={<SectionLoader message="تحميل نوع البيع..." />}>
-                <div className="bg-gradient-to-r from-muted/20 to-muted/10 dark:from-muted/10 dark:to-muted/5 rounded-xl p-6 border border-border/30">
+                <div className="bg-gradient-to-r from-blue-50/30 to-indigo-50/20 dark:from-blue-950/20 dark:to-indigo-950/10 rounded-xl p-6 border border-blue-200/30 dark:border-blue-800/20">
                   <ProductSellingType form={form} onHasVariantsChange={onHasVariantsChange} />
                 </div>
               </SafeSuspense>
@@ -326,15 +336,86 @@ const ProductFormTabContent = memo<ProductFormTabContentProps>(({
           </TabsContent>
         )}
         
+        {/* Special Offers Tab */}
+        <TabsContent value="special_offers" className="p-6 space-y-6 m-0">
+          <TabSectionHeader
+            icon={Gift}
+            title="العروض الخاصة"
+            color="purple"
+            required={false}
+            tooltip="إنشاء عروض جذابة للكميات المختلفة لزيادة المبيعات"
+            description="عروض الباقات والكميات المتعددة بأسعار مخفضة"
+          />
+          
+          <SafeSuspense fallback={<SectionLoader message="تحميل مدير العروض الخاصة..." />}>
+            <div className="bg-gradient-to-r from-purple-50/30 to-pink-50/20 dark:from-purple-950/20 dark:to-pink-950/10 rounded-xl p-6 border border-purple-200/30 dark:border-purple-800/20">
+              <SpecialOffersTab
+                productName={form.watch('name') || 'المنتج'}
+                basePrice={watchPrice}
+                productId={productId}
+                productImage={watchThumbnailImage}
+                initialConfig={form.watch('special_offers_config')}
+                onChange={productId ? (config) => {
+                  // Store special offers config in form ONLY for existing products
+                  form.setValue('special_offers_config', config);
+                } : undefined}
+              />
+            </div>
+          </SafeSuspense>
+        </TabsContent>
+        
+        {/* Shipping & Templates Tab */}
+        <TabsContent value="shipping_templates" className="p-6 space-y-6 m-0">
+          <TabSectionHeader
+            icon={Truck}
+            title="التوصيل والنماذج"
+            color="green"
+            required={false}
+            tooltip="إعداد خيارات التوصيل والنماذج المختلفة"
+            description="خيارات التوصيل والنماذج"
+          />
+          
+          <SafeSuspense fallback={<SectionLoader message="تحميل إعدادات التوصيل..." />}>
+            <div className="bg-gradient-to-r from-green-50/30 to-emerald-50/20 dark:from-green-950/20 dark:to-emerald-950/10 rounded-xl p-6 border border-green-200/30 dark:border-green-800/20">
+              <ProductShippingAndTemplates
+                form={form}
+                organizationId={organizationId}
+              />
+            </div>
+          </SafeSuspense>
+        </TabsContent>
+        
+        {/* Conversion Tracking Tab */}
+        <TabsContent value="conversion_tracking" className="p-6 space-y-6 m-0">
+          <TabSectionHeader
+            icon={BarChart2}
+            title="تتبع التحويلات المتقدم"
+            color="purple"
+            required={false}
+            tooltip="إعداد تتبع التحويلات عبر منصات متعددة"
+            description="فيسبوك، جوجل، وتيك توك"
+          />
+          
+          <SafeSuspense fallback={<SectionLoader message="تحميل إعدادات التتبع..." />}>
+            <div className="bg-gradient-to-r from-indigo-50/30 to-purple-50/20 dark:from-indigo-950/20 dark:to-purple-950/10 rounded-xl p-6 border border-indigo-200/30 dark:border-indigo-800/20">
+              <ConversionTrackingTab
+                form={form}
+                organizationId={organizationId}
+                productId={productId}
+              />
+            </div>
+          </SafeSuspense>
+        </TabsContent>
+        
         {/* Advanced Settings Tab */}
         <TabsContent value="advanced" className="p-6 space-y-6 m-0">
           <TabSectionHeader
             icon={Settings}
-            title="خيارات متقدمة"
+            title="إعدادات عامة"
             color="amber"
             required={false}
-            tooltip="إعدادات الجملة والتوصيل والتسويق"
-            description="الخيارات المتقدمة والإعدادات الإضافية"
+            tooltip="إعدادات الجملة والتوصيل والإعدادات العامة"
+            description="الجملة، التوصيل، والإعدادات الإضافية"
           />
           
           <div className="space-y-8">
@@ -351,22 +432,6 @@ const ProductFormTabContent = memo<ProductFormTabContentProps>(({
                   productId={productId || ''}
                   organizationId={organizationId}
                   onChange={onWholesaleTiersChange} 
-                />
-              </SafeSuspense>
-            </div>
-            
-            {/* Shipping & Templates */}
-            <div className="bg-gradient-to-r from-muted/40 to-muted/20 dark:from-muted/20 dark:to-muted/10 rounded-xl p-6 border border-border/50 backdrop-blur-sm shadow-sm">
-              <h4 className="font-medium mb-4 flex items-center gap-3 text-foreground text-sm">
-                <div className="bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900/60 dark:to-green-800/60 p-2 rounded-lg shadow-sm">
-                  <Truck className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
-                </div>
-                التوصيل والنماذج
-              </h4>
-              <SafeSuspense fallback={<SectionLoader message="تحميل إعدادات التوصيل..." />}>
-                <ProductShippingAndTemplates
-                  form={form}
-                  organizationId={organizationId}
                 />
               </SafeSuspense>
             </div>

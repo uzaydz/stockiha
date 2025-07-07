@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext';
 import { useTenant } from './TenantContext';
 import { supabase } from '@/lib/supabase';
 import { deduplicateRequest } from '../lib/cache/deduplication';
+import { processDataInChunks } from '@/lib/performance-monitor';
 
 // =================================================================
 // 🎯 UnifiedDataContext - التوافق مع النظام القديم
@@ -245,18 +246,10 @@ const fetchAppInitializationData = async (userId: string, orgId: string): Promis
 const fetchPOSCompleteData = async (orgId: string): Promise<POSCompleteData> => {
   return deduplicateRequest(`pos-complete-${orgId}`, async () => {
     try {
-      // جلب البيانات باستخدام الدوال المحسنة
-      const [products, categories, customers, employees, posSettings] = await Promise.all([
-        // المنتجات
-        supabase
-          .from('products')
-          .select('*')
-          .eq('organization_id', orgId)
-          .eq('is_active', true)
-          .order('name')
-          .limit(200)
-          .then(({ data }) => data || []),
-        
+      // 🚀 تحسين الأداء: تحميل البيانات بشكل متدرج لتجنب المهام الطويلة
+      
+      // الخطوة 1: تحميل البيانات الأساسية والسريعة أولاً
+      const [categories, employees, posSettings] = await Promise.all([
         // الفئات - استخدام product_categories بدلاً من categories
         supabase
           .from('product_categories')
@@ -264,20 +257,8 @@ const fetchPOSCompleteData = async (orgId: string): Promise<POSCompleteData> => 
           .eq('organization_id', orgId)
           .eq('is_active', true)
           .order('name')
+          .limit(50) // تحديد العدد
           .then(({ data }) => data || []),
-        
-        // العملاء - إزالة address لأنه غير موجود في الجدول
-        supabase
-          .from('customers')
-          .select('id, name, phone, email, created_at, updated_at, organization_id')
-          .eq('organization_id', orgId)
-          .order('name')
-          .then(({ data, error }) => {
-            if (error) {
-              return [];
-            }
-            return data || [];
-          }),
         
         // الموظفين
         supabase
@@ -298,22 +279,76 @@ const fetchPOSCompleteData = async (orgId: string): Promise<POSCompleteData> => 
           .then((result) => result.data?.[0] || null)
       ]);
 
+      // تأخير قصير لتجنب حجب الواجهة
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+             // الخطوة 2: تحميل المنتجات مع تحسين الأداء
+       const productsPromise = supabase
+         .from('products')
+         .select('id, name, price, stock_quantity, is_active, category_id, has_variants')
+         .eq('organization_id', orgId)
+         .eq('is_active', true)
+         .order('name')
+                   .limit(20) // تقليل أكثر لتجنب المهام الطويلة
+         .then(({ data }) => data || []);
+      
+      // الخطوة 3: تحميل البيانات الثقيلة بشكل متدرج
+      const [products, subscriptions, customers] = await Promise.all([
+        productsPromise,
+        // الاشتراكات
+        supabase
+          .from('subscription_services')
+          .select('*')
+          .eq('organization_id', orgId)
+          .eq('is_active', true)
+          .limit(30) // تحديد العدد
+          .then(({ data }) => data || []),
+        
+        // العملاء
+        supabase
+          .from('customers')
+          .select('*')
+          .eq('organization_id', orgId)
+          .limit(50) // تحديد العدد
+          .then(({ data }) => data || [])
+      ]);
+
+      // تأخير قصير لتجنب حجب الواجهة
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      // الخطوة 4: معالجة البيانات بشكل متدرج
+      const processedProducts = await processDataInChunks(
+        products || [],
+        (product) => product, // المنتجات معالجة مسبقاً
+                 {
+           chunkSize: 3,  // تقليل أكثر
+           delay: 20,     // زيادة التأخير أكثر
+           taskName: 'معالجة منتجات UnifiedData'
+         }
+      );
+
+      // إحصائيات سريعة مع حماية من الأخطاء
+      const safeProducts = Array.isArray(processedProducts) ? processedProducts : [];
+      const safeCategories = Array.isArray(categories) ? categories : [];
+      
+      const stats = {
+        total_products: safeProducts.length,
+        active_products: safeProducts.filter(p => p && p.is_active).length,
+        low_stock_products: safeProducts.filter(p => p && p.stock_quantity < 10).length,
+        out_of_stock_products: safeProducts.filter(p => p && p.stock_quantity === 0).length,
+        products_with_variants: safeProducts.filter(p => p && p.has_variants).length,
+        total_categories: safeCategories.length
+      };
+
       return {
-        settings: posSettings,
-        products: products || [],
-        categories: categories || [],
-        customers: customers || [],
+        products,
+        categories,
+        customers,
         employees: (employees || []) as Employee[],
-        subscription_services: [],
-        stats: {
-          total_products: (products || []).length,
-          active_products: (products || []).filter(p => p.is_active).length,
-          low_stock_products: (products || []).filter(p => p.stock_quantity < 10).length,
-          out_of_stock_products: (products || []).filter(p => p.stock_quantity === 0).length,
-          products_with_variants: 0,
-          total_categories: (categories || []).length
-        },
-        subscription_categories: []
+        settings: posSettings,
+        subscription_services: subscriptions,
+        subscription_categories: [],
+        stats: stats
       } as POSCompleteData;
     } catch (error) {
       throw error;

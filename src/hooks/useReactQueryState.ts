@@ -1,122 +1,77 @@
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { isElectron } from '@/lib/isElectron';
 
 /**
- * خطاف مخصص للحفاظ على حالة React Query بين تبديل نوافذ التبويب
- * وتجنب إعادة تحميل البيانات غير الضرورية
+ * خطاف مخصص لإدارة حالة React Query مع منع تراكم الكاش
+ * يحسن الأداء ويمنع ارتفاع استهلاك الذاكرة
  */
 export function useReactQueryState() {
   const queryClient = useQueryClient();
-  // تحديد ما إذا كان التطبيق يعمل في بيئة Electron
-  const isRunningInElectron = isElectron();
   
-  // عند تحميل المكون، نقوم بإعداد مستمعي الأحداث لمعالجة تبديل التبويبات
   useEffect(() => {
-    // منع التحديث التلقائي المفرط مع السماح بالتحديث الضروري
-    if (!isRunningInElectron) {
+    // إعداد خيارات React Query المحسنة مع تنظيف دوري
+    queryClient.setDefaultOptions({
+      queries: {
+        refetchOnMount: true,        // ✅ تحديث عند تحميل المكون
+        refetchOnWindowFocus: false, // ❌ منع التحديث عند التركيز على النافذة
+        refetchOnReconnect: false,   // ❌ منع التحديث عند إعادة الاتصال (لتقليل الطلبات)
+        staleTime: 1 * 60 * 1000,    // البيانات صالحة لدقيقة واحدة فقط
+        gcTime: 3 * 60 * 1000,       // تنظيف البيانات بعد 3 دقائق
+        retry: 1,                    // محاولة واحدة فقط
+        retryDelay: 1000,           // ثانية واحدة بين المحاولات
+      }
+    });
+
+    // تنظيف دوري للكاش كل 5 دقائق
+    const cleanupInterval = setInterval(() => {
+      const cache = queryClient.getQueryCache();
+      const queries = cache.getAll();
       
-      queryClient.setDefaultOptions({
-        queries: {
-          refetchOnMount: true, // ✅ السماح بالتحديث عند تحميل المكون
-          refetchOnWindowFocus: false,
-          refetchOnReconnect: true, // ✅ السماح بإعادة الاتصال
-          staleTime: 2 * 60 * 1000, // دقيقتين للسماح بالتحديث الأسرع
-          gcTime: 10 * 60 * 1000, // 10 دقائق للتنظيف
+      queries.forEach((query) => {
+        const state = query.state;
+        if (state.dataUpdatedAt) {
+          const age = Date.now() - state.dataUpdatedAt;
+          // إزالة البيانات الأقدم من 5 دقائق
+          if (age > 5 * 60 * 1000) {
+            queryClient.removeQueries({ queryKey: query.queryKey });
+          }
         }
       });
-    }
+    }, 5 * 60 * 1000); // كل 5 دقائق
 
-    // معالج لحدث الانتقال بين الصفحات
-    const handleBeforeUnload = () => {
-      // تخزين حالة التطبيق قبل مغادرة الصفحة
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem('BAZAAR_APP_STATE_TIMESTAMP', Date.now().toString());
-      }
-    };
-    
-    // معالج لحدث تحميل الصفحة
-    const handlePageLoad = () => {
-      // إذا كنا في متصفح، نمنع التحديث التلقائي المفرط
-      if (!isRunningInElectron) {
-        
-        queryClient.setDefaultOptions({
-          queries: {
-            refetchOnMount: true, // ✅ السماح بالتحديث عند تحميل المكون
-            refetchOnWindowFocus: false,
-            refetchOnReconnect: true, // ✅ السماح بإعادة الاتصال
-            staleTime: 2 * 60 * 1000, // دقيقتين للسماح بالتحديث الأسرع
-            gcTime: 10 * 60 * 1000,
-          }
-        });
-        return;
-      }
-
-      // حاول استعادة بيانات التخزين المؤقت من localStorage في Electron
-      try {
-        const lastStateTime = parseInt(window.localStorage.getItem('BAZAAR_APP_STATE_TIMESTAMP') || '0');
-        const now = Date.now();
-        const staleDuration = 5 * 60 * 1000; // 5 دقائق
-        
-        // تعطيل invalidateQueries بشكل كامل لمنع الطلبات المكررة
-        // React Query سيعيد استخدام البيانات المخزنة بدلاً من إجراء طلبات جديدة
-      } catch (error) {
-      }
-    };
-    
-    // معالج تغير حالة التبويب (مرئي/مخفي)
+    // تنظيف عند تغير حالة التبويب
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        // إذا كنا في متصفح، نمنع تحديث البيانات عند العودة للتبويب
-        if (!isRunningInElectron) {
-          
-          queryClient.resumePausedMutations(); // استئناف المعاملات فقط
-          return;
-        }
-
-        // في Electron، نسمح بالتحديث المحدود
-        const lastStateTime = parseInt(window.localStorage.getItem('BAZAAR_APP_STATE_TIMESTAMP') || '0');
-        const now = Date.now();
-        const fastReturnThreshold = 1 * 60 * 1000; // 1 دقيقة
-
-        // استئناف العمليات المتوقفة
-        queryClient.resumePausedMutations();
-        
-        // إبطال صلاحية الاستعلامات النشطة فقط
-        if (now - lastStateTime < fastReturnThreshold) {
-          
-          // queryClient.invalidateQueries({ type: 'active' }); // تم التعليق لمنع الإبطال هنا أيضاً
-        } else {
-          
-          // queryClient.invalidateQueries(); // تم التعليق لمنع الإبطال هنا أيضاً
-        }
-      } else {
-        // عند مغادرة التبويب
-        window.localStorage.setItem('BAZAAR_APP_STATE_TIMESTAMP', Date.now().toString());
-        // إلغاء آمن للاستعلامات النشطة فقط
-        queryClient.cancelQueries({
+      if (document.hidden) {
+        // عند إخفاء التبويب، نظف البيانات القديمة
+        queryClient.invalidateQueries({
           predicate: (query) => {
             const state = query.state;
-            return state.fetchStatus === 'fetching' || state.status === 'pending';
+            if (state.dataUpdatedAt) {
+              const age = Date.now() - state.dataUpdatedAt;
+              return age > 2 * 60 * 1000; // البيانات الأقدم من دقيقتين
+            }
+            return false;
           }
         });
       }
     };
-    
-    // تسجيل مستمعي الأحداث
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    window.addEventListener('load', handlePageLoad);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    // تنظيف
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      window.removeEventListener('load', handlePageLoad);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+
+    // تنظيف عند إغلاق الصفحة
+    const handleBeforeUnload = () => {
+      queryClient.clear();
     };
-  }, [queryClient, isRunningInElectron]);
-  
-  return null;
+
+    // إضافة مستمعي الأحداث
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    // تنظيف عند إلغاء التحميل
+    return () => {
+      clearInterval(cleanupInterval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [queryClient]);
 }
 
 export default useReactQueryState;

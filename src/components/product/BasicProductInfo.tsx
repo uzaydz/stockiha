@@ -151,6 +151,7 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
                   <FormItem className="space-y-2">
                     <FormLabel className="text-sm font-medium text-foreground flex items-center gap-2">
                       رابط المنتج (Slug)
+                      <Badge variant="outline" className="text-xs shadow-sm">SEO</Badge>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <button
@@ -166,7 +167,7 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
                           side="top"
                           sideOffset={5}
                         >
-                          <p className="text-xs">رابط المنتج الذي سيظهر في شريط العنوان. يتم إنشاؤه تلقائياً من اسم المنتج أو يمكنك تخصيصه يدوياً.</p>
+                          <p className="text-xs">رابط المنتج الذي سيظهر في شريط العنوان ومحركات البحث. يتم إنشاؤه تلقائياً من اسم المنتج أو يمكنك تخصيصه يدوياً لتحسين SEO.</p>
                         </TooltipContent>
                       </Tooltip>
                     </FormLabel>
@@ -184,22 +185,51 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
                             />
                           </div>
                           {watchedSlug && (
-                            <p className="text-xs text-muted-foreground mt-1" dir="ltr">
-                              الرابط: /product/{watchedSlug}
-                            </p>
+                            <div className="mt-2 space-y-1">
+                              <div className="flex items-center gap-2">
+                                <p className="text-xs text-muted-foreground" dir="ltr">
+                                  الرابط: /product/{watchedSlug}
+                                </p>
+                                {isValidSlug(watchedSlug) ? (
+                                  <Badge variant="secondary" className="text-xs bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400">
+                                    صالح
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="destructive" className="text-xs">
+                                    غير صالح
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="bg-gradient-to-r from-blue-50/60 to-indigo-50/40 dark:from-blue-950/30 dark:to-indigo-950/20 p-2 rounded-lg border border-blue-200/50 dark:border-blue-800/30">
+                                <p className="text-xs text-blue-700 dark:text-blue-300">
+                                  {isSlugManual ? (
+                                    <>📝 تم تخصيص الرابط يدوياً</>
+                                  ) : (
+                                    <>🤖 تم إنشاء الرابط تلقائياً من اسم المنتج</>
+                                  )}
+                                </p>
+                              </div>
+                            </div>
                           )}
                         </div>
                       </FormControl>
                       {isSlugManual && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={resetSlugToAuto}
-                          className="px-3 h-10"
-                        >
-                          تلقائي
-                        </Button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={resetSlugToAuto}
+                              className="px-3 h-10 hover:bg-primary/5 hover:border-primary/50"
+                            >
+                              🔄 تلقائي
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="text-xs">إعادة تعيين الرابط ليتم إنشاؤه تلقائياً من اسم المنتج</p>
+                          </TooltipContent>
+                        </Tooltip>
                       )}
                     </div>
                     <FormMessage />
@@ -254,6 +284,8 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
                 <FormItem className="space-y-2">
                   <FormLabel className="text-sm font-medium text-foreground flex items-center gap-2">
                     وصف المنتج
+                    <span className="text-destructive">*</span>
+                    <Badge variant="destructive" className="text-xs shadow-sm">مطلوب</Badge>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <button
@@ -269,7 +301,7 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
                         side="top"
                         sideOffset={5}
                       >
-                        <p className="text-xs">وصف تفصيلي للمنتج يشمل المميزات والفوائد. يساعد العملاء في اتخاذ قرار الشراء.</p>
+                        <p className="text-xs">وصف تفصيلي للمنتج يشمل المميزات والفوائد. هذا الحقل مطلوب ويساعد العملاء في اتخاذ قرار الشراء.</p>
                       </TooltipContent>
                     </Tooltip>
                   </FormLabel>
@@ -277,13 +309,39 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
                     <div className="relative group">
                       <FileText className="absolute left-3 top-4 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-all duration-300 group-focus-within:scale-110" />
                       <Textarea 
-                        placeholder="اكتب وصفاً مفصلاً للمنتج يشمل المميزات والمواصفات..." 
-                        className="pl-10 min-h-[100px] resize-none text-sm bg-background/80 dark:bg-background/60 border-border/60 hover:border-primary/60 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-300 shadow-sm hover:shadow-md focus:shadow-lg backdrop-blur-sm" 
+                        placeholder="اكتب وصفاً مفصلاً للمنتج يشمل المميزات والمواصفات والفوائد..." 
+                        className="pl-10 min-h-[120px] resize-none text-sm bg-background/80 dark:bg-background/60 border-border/60 hover:border-primary/60 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-300 shadow-sm hover:shadow-md focus:shadow-lg backdrop-blur-sm" 
                         {...field} 
                       />
                       <div className="absolute inset-0 rounded-md bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-focus-within:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                      
+                      {/* Character Counter */}
+                      <div className="absolute bottom-2 left-2 text-xs text-muted-foreground">
+                        {field.value?.length || 0} حرف
+                        {field.value?.length >= 50 ? (
+                          <span className="text-green-600 dark:text-green-400 mr-1">✓</span>
+                        ) : (
+                          <span className="text-amber-600 dark:text-amber-400 mr-1">
+                            (ينصح بـ 50 حرف على الأقل)
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </FormControl>
+                  
+                  {/* Description Tips */}
+                  <div className="bg-gradient-to-r from-blue-50/60 to-indigo-50/40 dark:from-blue-950/30 dark:to-indigo-950/20 p-3 rounded-lg border border-blue-200/50 dark:border-blue-800/30">
+                    <p className="text-xs text-blue-700 dark:text-blue-300 mb-2 font-medium">
+                      💡 نصائح لكتابة وصف فعال:
+                    </p>
+                    <ul className="text-xs text-blue-600 dark:text-blue-400 space-y-1">
+                      <li>• اذكر المميزات الرئيسية والفوائد</li>
+                      <li>• أضف المواصفات التقنية المهمة</li>
+                      <li>• استخدم كلمات مفتاحية للبحث</li>
+                      <li>• اجعل الوصف واضح ومقنع</li>
+                    </ul>
+                  </div>
+                  
                   <FormMessage className="text-xs" />
                 </FormItem>
               )}

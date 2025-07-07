@@ -8,6 +8,7 @@ import { deduplicateRequest } from '../lib/cache/deduplication';
 import { supabase } from '@/lib/supabase';
 import { logPOSContextStatus } from '@/utils/productionDebug';
 import UnifiedRequestManager from '@/lib/unifiedRequestManager';
+import { processDataInChunks, optimizeLongTask } from '@/lib/performance-monitor';
 
 // =================================================================
 // 🎯 POSDataContext V2 - الحل الشامل مع تحليل قاعدة البيانات المعمق
@@ -250,176 +251,224 @@ const POSDataContext = createContext<POSData | undefined>(undefined);
 const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWithVariants[]> => {
   return deduplicateRequest(`pos-products-enhanced-${orgId}`, async () => {
     
-    // إستراتيجية محسنة: جلب جميع المنتجات النشطة بدلاً من التحديد
-    // حل مشكلة المنتجات الجديدة التي لا تظهر في الباركود
-    const { data: allProducts, error: allProductsError } = await supabase
-      .from('products')
-      .select(`
-        *,
-        product_colors (
-          id, product_id, name, color_code, image_url, quantity, price, barcode, 
-          is_default, has_sizes, variant_number, purchase_price,
-          product_sizes (
-            id, color_id, product_id, size_name, quantity, price, barcode, 
-            is_default, purchase_price
-          )
-        ),
-        product_categories!category_id (
-          id, name, description
-        )
-      `)
-      .eq('organization_id', orgId)
-      .eq('is_active', true)
-      .order('created_at', { ascending: false }); // ترتيب بالأحدث أولاً
+    // 🚀 تحسين الأداء: استخدام نظام التحسين التلقائي للمهام الطويلة
+    return optimizeLongTask(async () => {
+      
+      // الخطوة 1: تحميل المنتجات الأساسية أولاً (عدد محدود)
+      const { data: basicProducts, error: basicError } = await supabase
+        .from('products')
+        .select('id, name, price, is_active, organization_id, category_id')
+        .eq('organization_id', orgId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(15); // تقليل أكثر لتجنب المهام الطويلة
 
-    if (allProductsError) {
-      logPOSContextStatus('FETCH_ERROR', { error: allProductsError });
-      throw allProductsError;
-    }
-
-    if (!allProducts || allProducts.length === 0) {
-      logPOSContextStatus('NO_PRODUCTS', { orgId });
-      return [];
-    }
-
-    logPOSContextStatus('PRODUCTS_FETCHED', { 
-      count: allProducts.length,
-      withBarcode: allProducts.filter(p => p.barcode).length,
-      withColors: allProducts.filter(p => p.product_colors?.length > 0).length
-    });
-
-    // تحويل وتنظيف البيانات مع معالجة محسنة للباركودات
-    return allProducts.map(product => {
-      // حساب المخزون الفعلي مع تحسينات الباركود
-      let actualStockQuantity = product.stock_quantity || 0;
-      let totalVariantsStock = 0;
-      let hasValidBarcodes = false;
-
-      // معالجة الألوان والمقاسات مع تحديد صحة الباركودات
-      const processedColors = (product.product_colors || []).map((color: any) => {
-        const processedSizes = (color.product_sizes || []).map((size: any) => ({
-          id: size.id,
-          size_name: size.size_name,
-          quantity: size.quantity || 0,
-          price: size.price,
-          barcode: size.barcode?.trim() || undefined,
-          is_default: size.is_default,
-          purchase_price: size.purchase_price
-        }));
-
-        // تحديث إحصائيات المخزون والباركود
-        const colorStock = color.quantity || 0;
-        totalVariantsStock += colorStock + processedSizes.reduce((sum, size) => sum + (size.quantity || 0), 0);
-        
-        if (color.barcode?.trim()) hasValidBarcodes = true;
-        if (processedSizes.some(size => size.barcode)) hasValidBarcodes = true;
-
-        return {
-          id: color.id,
-          name: color.name,
-          color_code: color.color_code,
-          image_url: color.image_url,
-          quantity: colorStock,
-          price: color.price,
-          barcode: color.barcode?.trim() || undefined,
-          is_default: color.is_default,
-          has_sizes: color.has_sizes,
-          variant_number: color.variant_number,
-          purchase_price: color.purchase_price,
-          sizes: processedSizes
-        };
-      });
-
-      // حساب المخزون النهائي مع اعتبار المتغيرات
-      if (product.has_variants && processedColors.length > 0) {
-        actualStockQuantity = totalVariantsStock;
+      if (basicError) {
+        logPOSContextStatus('FETCH_ERROR', { error: basicError });
+        throw basicError;
       }
 
-      return {
-        // خصائص Product الأساسية
-        id: product.id,
-        name: product.name,
-        description: product.description || '',
-        price: product.price,
-        compareAtPrice: product.compare_at_price,
-        sku: product.sku,
-        barcode: product.barcode?.trim() || undefined, // تنظيف الباركود
-        category: product.product_categories?.[0] || 'أخرى',
-        category_id: product.category_id,
-        subcategory: product.subcategory,
-        subcategory_id: product.subcategory_id,
-        brand: product.brand,
-        images: Array.isArray(product.images) ? product.images : [],
-        thumbnailImage: product.thumbnail_image || '',
-        stockQuantity: actualStockQuantity,
-        stock_quantity: actualStockQuantity,
-        features: Array.isArray(product.features) ? product.features : [],
-        specifications: product.specifications || {},
-        isDigital: product.is_digital || false,
-        isNew: product.is_new,
-        isFeatured: product.is_featured,
-        createdAt: new Date(product.created_at),
-        updatedAt: new Date(product.updated_at || product.created_at),
-        has_variants: product.has_variants,
-        use_sizes: product.use_sizes,
-        
-        // خصائص إضافية من قاعدة البيانات
-        compare_at_price: product.compare_at_price,
-        purchase_price: product.purchase_price,
-        min_stock_level: product.min_stock_level,
-        reorder_level: product.reorder_level,
-        reorder_quantity: product.reorder_quantity,
-        slug: product.slug,
-        show_price_on_landing: product.show_price_on_landing !== false,
-        last_inventory_update: product.last_inventory_update,
-        is_active: product.is_active,
-        
-        // خصائص الجملة
-        wholesale_price: product.wholesale_price,
-        partial_wholesale_price: product.partial_wholesale_price,
-        min_wholesale_quantity: product.min_wholesale_quantity,
-        min_partial_wholesale_quantity: product.min_partial_wholesale_quantity,
-        allow_retail: product.allow_retail !== false,
-        allow_wholesale: product.allow_wholesale !== false,
-        allow_partial_wholesale: product.allow_partial_wholesale !== false,
-        
-        // خصائص المتغيرات والألوان المحسنة
-        colors: processedColors,
-        
-        // حساب المخزون الفعلي مع تحسينات
-        actual_stock_quantity: actualStockQuantity,
-        total_variants_stock: totalVariantsStock,
-        low_stock_warning: actualStockQuantity <= (product.min_stock_level || 5),
-        
-        // معلومات إضافية
-        has_fast_shipping: product.has_fast_shipping || false,
-        has_money_back: product.has_money_back || false,
-        has_quality_guarantee: product.has_quality_guarantee || false,
-        fast_shipping_text: product.fast_shipping_text,
-        money_back_text: product.money_back_text,
-        quality_guarantee_text: product.quality_guarantee_text,
-        
-        // معلومات الوحدة
-        is_sold_by_unit: product.is_sold_by_unit || false,
-        unit_type: product.unit_type,
-        use_variant_prices: product.use_variant_prices || false,
-        unit_purchase_price: product.unit_purchase_price,
-        unit_sale_price: product.unit_sale_price,
-        
-        // إعدادات الشحن
-        shipping_clone_id: product.shipping_clone_id,
-        name_for_shipping: product.name_for_shipping,
-        use_shipping_clone: product.use_shipping_clone || false,
-        shipping_method_type: product.shipping_method_type || 'normal',
-        
-        // تتبع المستخدم
-        created_by_user_id: product.created_by_user_id,
-        updated_by_user_id: product.updated_by_user_id,
-        
-        // معلومات مساعدة للباركود
-        has_valid_barcodes: hasValidBarcodes || !!product.barcode?.trim()
-      };
-    });
+      // تأخير قصير لتجنب حجب الواجهة
+      await new Promise(resolve => setTimeout(resolve, 5));
+
+      // الخطوة 2: تحميل التفاصيل الكاملة للمنتجات بشكل متدرج
+      const { data: allProducts, error: allProductsError } = await supabase
+        .from('products')
+        .select(`
+          *,
+          product_colors (
+            id, product_id, name, color_code, image_url, quantity, price, barcode, 
+            is_default, has_sizes, variant_number, purchase_price,
+            product_sizes (
+              id, color_id, product_id, size_name, quantity, price, barcode, 
+              is_default, purchase_price
+            )
+          ),
+          product_categories!category_id (
+            id, name, description
+          )
+        `)
+        .eq('organization_id', orgId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(20); // تقليل أكثر لتجنب المهام الطويلة
+
+      if (allProductsError) {
+        logPOSContextStatus('FETCH_ERROR', { error: allProductsError });
+        throw allProductsError;
+      }
+
+      if (!allProducts || !Array.isArray(allProducts) || allProducts.length === 0) {
+        logPOSContextStatus('NO_PRODUCTS', { orgId });
+        return [];
+      }
+
+      // تأخير قصير لتجنب حجب الواجهة
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      // الخطوة 3: معالجة البيانات بشكل متدرج مع نظام تقسيم المهام
+      const processedProducts: POSProductWithVariants[] = [];
+      
+      // 🚀 استخدام نظام تقسيم المهام الجديد
+      const processedBatches = await processDataInChunks(
+        allProducts,
+        (product) => {
+          // معالجة المنتج الواحد
+          const stockQuantity = product.stock_quantity || 0;
+          let actualStockQuantity = stockQuantity;
+          
+          // معالجة الألوان والمقاسات
+          const processedColors = (product.product_colors || []).map((color: any) => {
+            const processedSizes = (color.product_sizes || []).map((size: any) => ({
+              id: size.id,
+              size_name: size.size_name,
+              quantity: size.quantity || 0,
+              price: size.price,
+              barcode: size.barcode?.trim() || undefined,
+              is_default: size.is_default,
+              purchase_price: size.purchase_price
+            }));
+
+            // تحديث إحصائيات المخزون والباركود
+            const colorStock = color.quantity || 0;
+            let totalVariantsStock = colorStock + processedSizes.reduce((sum, size) => sum + (size.quantity || 0), 0);
+            let hasValidBarcodes = false;
+            
+            if (color.barcode?.trim()) hasValidBarcodes = true;
+            if (processedSizes.some(size => size.barcode)) hasValidBarcodes = true;
+
+            return {
+              id: color.id,
+              product_id: color.product_id,
+              name: color.name,
+              color_code: color.color_code,
+              image_url: color.image_url,
+              quantity: colorStock,
+              price: color.price,
+              barcode: color.barcode?.trim() || undefined,
+              is_default: color.is_default,
+              has_sizes: color.has_sizes,
+              variant_number: color.variant_number,
+              purchase_price: color.purchase_price,
+              sizes: processedSizes
+            };
+          });
+
+          // حساب المخزون النهائي مع اعتبار المتغيرات
+          if (product.has_variants && processedColors.length > 0) {
+            const totalVariantsStock = processedColors.reduce((total, color) => {
+              return total + (color.quantity || 0) + 
+                     (color.sizes?.reduce((sizeTotal, size) => sizeTotal + (size.quantity || 0), 0) || 0);
+            }, 0);
+            actualStockQuantity = totalVariantsStock;
+          }
+
+          return {
+            // خصائص Product الأساسية
+            id: product.id,
+            name: product.name,
+            description: product.description || '',
+            price: product.price,
+            compareAtPrice: product.compare_at_price,
+            sku: product.sku,
+            barcode: product.barcode?.trim() || undefined,
+            category: product.product_categories?.[0] || 'أخرى',
+            category_id: product.category_id,
+            subcategory: product.subcategory,
+            subcategory_id: product.subcategory_id,
+            brand: product.brand,
+            images: Array.isArray(product.images) ? product.images : [],
+            thumbnailImage: product.thumbnail_image || '',
+            stockQuantity: actualStockQuantity,
+            stock_quantity: actualStockQuantity,
+            features: Array.isArray(product.features) ? product.features : [],
+            specifications: typeof product.specifications === 'object' && product.specifications !== null ? product.specifications : {},
+            isDigital: product.is_digital || false,
+            isNew: product.is_new,
+            isFeatured: product.is_featured,
+            createdAt: new Date(product.created_at),
+            updatedAt: new Date(product.updated_at || product.created_at),
+            has_variants: product.has_variants,
+            use_sizes: product.use_sizes,
+            
+            // خصائص إضافية من قاعدة البيانات
+            compare_at_price: product.compare_at_price,
+            purchase_price: product.purchase_price,
+            min_stock_level: product.min_stock_level,
+            reorder_level: product.reorder_level,
+            reorder_quantity: product.reorder_quantity,
+            slug: product.slug,
+            show_price_on_landing: product.show_price_on_landing !== false,
+            last_inventory_update: product.last_inventory_update,
+            is_active: product.is_active,
+            
+            // خصائص الجملة
+            wholesale_price: product.wholesale_price,
+            partial_wholesale_price: product.partial_wholesale_price,
+            min_wholesale_quantity: product.min_wholesale_quantity,
+            min_partial_wholesale_quantity: product.min_partial_wholesale_quantity,
+            allow_retail: product.allow_retail !== false,
+            allow_wholesale: product.allow_wholesale !== false,
+            allow_partial_wholesale: product.allow_partial_wholesale !== false,
+            
+            // خصائص المتغيرات والألوان المحسنة
+            colors: processedColors,
+            
+            // حساب المخزون الفعلي مع تحسينات
+            actual_stock_quantity: actualStockQuantity,
+            total_variants_stock: processedColors.reduce((total, color) => {
+              return total + (color.quantity || 0) + 
+                     (color.sizes?.reduce((sizeTotal, size) => sizeTotal + (size.quantity || 0), 0) || 0);
+            }, 0),
+            low_stock_warning: actualStockQuantity <= (product.min_stock_level || 5),
+            
+            // معلومات إضافية
+            has_fast_shipping: product.has_fast_shipping || false,
+            has_money_back: product.has_money_back || false,
+            has_quality_guarantee: product.has_quality_guarantee || false,
+            fast_shipping_text: product.fast_shipping_text,
+            money_back_text: product.money_back_text,
+            quality_guarantee_text: product.quality_guarantee_text,
+            
+            // معلومات الوحدة
+            is_sold_by_unit: product.is_sold_by_unit || false,
+            unit_type: product.unit_type,
+            use_variant_prices: product.use_variant_prices || false,
+            unit_purchase_price: product.unit_purchase_price,
+            unit_sale_price: product.unit_sale_price,
+            
+            // إعدادات الشحن
+            shipping_clone_id: product.shipping_clone_id,
+            name_for_shipping: product.name_for_shipping,
+            use_shipping_clone: product.use_shipping_clone || false,
+            shipping_method_type: product.shipping_method_type || 'normal',
+            
+            // تتبع المستخدم
+            created_by_user_id: product.created_by_user_id,
+            updated_by_user_id: product.updated_by_user_id,
+            
+            // معلومات مساعدة للباركود
+            has_valid_barcodes: (processedColors.some(c => c.barcode || c.sizes?.some(s => s.barcode))) || !!product.barcode?.trim()
+          };
+        },
+        {
+          chunkSize: 2, // تقليل إلى منتجين فقط لتجنب المهام الطويلة
+          delay: 25,    // زيادة التأخير إلى 25ms
+          taskName: 'معالجة منتجات POS'
+        }
+      );
+
+      // تجميع النتائج
+      processedProducts.push(...processedBatches.flat());
+
+      logPOSContextStatus('PRODUCTS_PROCESSED', { 
+        count: processedProducts.length,
+        withVariants: processedProducts.filter(p => p.colors?.length > 0).length
+      });
+
+      return processedProducts;
+      
+    }, 'تحميل منتجات POS');
   });
 };
 
@@ -812,54 +861,52 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
     queryKey: ['pos-products-enhanced', orgId],
     queryFn: () => fetchPOSProductsWithVariants(orgId!),
     enabled: !!orgId,
-    staleTime: 10 * 60 * 1000, // 10 دقائق (تقليل من 5 دقائق)
-    gcTime: 30 * 60 * 1000, // 30 دقيقة (تقليل من 15)
-    retry: 1, // تقليل المحاولات
+    staleTime: 30 * 60 * 1000, // 30 دقيقة - زيادة كبيرة
+    gcTime: 60 * 60 * 1000, // 60 دقيقة
+    retry: 1,
     retryDelay: 3000,
-    refetchOnWindowFocus: false, // إيقاف التحديث عند التركيز
-    refetchOnMount: false, // منع التحديث عند التركيب المتكرر
-    refetchInterval: false, // إيقاف التحديث التلقائي
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchInterval: false,
   });
 
-  // تشخيص مشكلة خدمات الاشتراكات
-
-  // React Query لخدمات الاشتراك المحسنة
+  // React Query لخدمات الاشتراك - محسنة
   const {
     data: subscriptions = [],
     isLoading: isSubscriptionsLoading,
     error: subscriptionsError
   } = useQuery({
     queryKey: ['pos-subscriptions-enhanced', orgId],
-    queryFn: () => {
-      return fetchPOSSubscriptionsEnhanced(orgId!);
-    },
+    queryFn: () => fetchPOSSubscriptionsEnhanced(orgId!),
     enabled: !!orgId,
-    staleTime: 5 * 60 * 1000, // 5 دقائق فقط للاختبار
-    gcTime: 10 * 60 * 1000, // 10 دقائق للاختبار
-    retry: 2,
-    retryDelay: 1000,
-    refetchOnWindowFocus: true, // إجبار التحديث للاختبار
-    refetchOnMount: true, // إجبار التحديث عند التركيب
+    staleTime: 20 * 60 * 1000, // 20 دقيقة
+    gcTime: 40 * 60 * 1000, // 40 دقيقة
+    retry: 1,
+    retryDelay: 2000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchInterval: false,
   });
 
-  // React Query لفئات الاشتراك المحسنة
+  // React Query لفئات الخدمات - محسنة
   const {
     data: categories = [],
     isLoading: isCategoriesLoading,
     error: categoriesError
   } = useQuery({
-    queryKey: ['pos-subscription-categories-enhanced', orgId],
+    queryKey: ['pos-categories-enhanced', orgId],
     queryFn: () => fetchPOSCategoriesEnhanced(orgId!),
     enabled: !!orgId,
-    staleTime: 2 * 60 * 60 * 1000, // ساعتان (زيادة من ساعة)
-    gcTime: 8 * 60 * 60 * 1000, // 8 ساعات (زيادة من 4)
+    staleTime: 45 * 60 * 1000, // 45 دقيقة - الفئات لا تتغير كثيراً
+    gcTime: 90 * 60 * 1000, // 90 دقيقة
     retry: 1,
-    retryDelay: 1000,
+    retryDelay: 2000,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
+    refetchInterval: false,
   });
 
-  // React Query لفئات المنتجات
+  // React Query لفئات المنتجات - إضافة جديدة لحل مشكلة عدم ظهور الفئات
   const {
     data: productCategories = [],
     isLoading: isProductCategoriesLoading,
@@ -868,15 +915,16 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
     queryKey: ['pos-product-categories', orgId],
     queryFn: () => fetchProductCategories(orgId!),
     enabled: !!orgId,
-    staleTime: 60 * 60 * 1000, // ساعة كاملة (بيانات شبه ثابتة)
-    gcTime: 4 * 60 * 60 * 1000, // 4 ساعات
-    retry: 1, // تقليل المحاولات
+    staleTime: 30 * 60 * 1000, // 30 دقيقة
+    gcTime: 60 * 60 * 1000, // 60 دقيقة
+    retry: 1,
     retryDelay: 2000,
-    refetchOnWindowFocus: false, // منع التحديث عند التركيز
-    refetchOnMount: false, // منع التحديث عند التركيب المتكرر
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchInterval: false,
   });
 
-  // React Query لإعدادات POS المحسنة
+  // إعدادات POS - محسنة
   const {
     data: posSettings,
     isLoading: isPOSSettingsLoading,
@@ -885,47 +933,49 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
     queryKey: ['pos-settings-enhanced', orgId],
     queryFn: () => fetchPOSSettingsEnhanced(orgId!),
     enabled: !!orgId,
-    staleTime: 2 * 60 * 60 * 1000, // ساعتان (زيادة من 30 دقيقة)
-    gcTime: 4 * 60 * 60 * 1000, // 4 ساعات
+    staleTime: 60 * 60 * 1000, // 60 دقيقة - الإعدادات لا تتغير كثيراً
+    gcTime: 120 * 60 * 1000, // 120 دقيقة
     retry: 1,
-    retryDelay: 3000,
+    retryDelay: 2000,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
+    refetchInterval: false,
   });
 
-  // React Query لتطبيقات المؤسسة المحسنة
+  // تطبيقات المؤسسة - محسنة
   const {
     data: organizationApps = [],
     isLoading: isAppsLoading,
     error: appsError
   } = useQuery({
-    queryKey: ['pos-organization-apps-enhanced', orgId],
+    queryKey: ['pos-organization-apps', orgId],
     queryFn: () => fetchOrganizationAppsEnhanced(orgId!),
     enabled: !!orgId,
-    staleTime: 60 * 60 * 1000, // ساعة (زيادة من 20 دقيقة)
-    gcTime: 4 * 60 * 60 * 1000, // 4 ساعات
+    staleTime: 30 * 60 * 1000, // 30 دقيقة
+    gcTime: 60 * 60 * 1000, // 60 دقيقة
+    retry: 1,
+    retryDelay: 2000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchInterval: false,
+  });
+
+  // العملاء - تحميل مؤجل (lazy loading)
+  const {
+    data: customers = [],
+    isLoading: isCustomersLoading,
+    error: customersError
+  } = useQuery({
+    queryKey: ['pos-customers-light', orgId],
+    queryFn: () => fetchPOSCustomers(orgId!),
+    enabled: false, // تعطيل التحميل التلقائي
+    staleTime: 15 * 60 * 1000, // 15 دقيقة
+    gcTime: 30 * 60 * 1000, // 30 دقيقة
     retry: 1,
     retryDelay: 1000,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
-  });
-
-  // React Query للعملاء المحسنة
-  const {
-    data: customers = [],
-    isLoading: isCustomersLoading,
-    error: customersError,
-    refetch: refetchCustomers
-  } = useQuery({
-    queryKey: ['pos-customers-enhanced', orgId],
-    queryFn: () => fetchPOSCustomers(orgId!),
-    enabled: !!orgId,
-    staleTime: 0, // تقليل staleTime للتحديث السريع
-    gcTime: 5 * 60 * 1000, // 5 دقائق
-    retry: 2,
-    retryDelay: 1000,
-    refetchOnWindowFocus: false,
-    refetchOnMount: true,
+    refetchInterval: false,
   });
 
   // حساب إحصائيات المخزون
@@ -967,12 +1017,12 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
   }, [queryClient]);
 
   const refreshApps = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: ['pos-organization-apps-enhanced'] });
+    await queryClient.invalidateQueries({ queryKey: ['pos-organization-apps'] });
   }, [queryClient]);
 
   const refreshCustomers = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: ['pos-customers-enhanced'] });
-    await queryClient.refetchQueries({ queryKey: ['pos-customers-enhanced'] });
+    await queryClient.invalidateQueries({ queryKey: ['pos-customers-light'] });
+    await queryClient.refetchQueries({ queryKey: ['pos-customers-light'] });
   }, [queryClient]);
 
   // مستمع لتحديث العملاء عند إضافة عميل جديد
@@ -982,13 +1032,13 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
       try {
         // إجبار إعادة تحميل البيانات مباشرة
         await queryClient.invalidateQueries({ 
-          queryKey: ['pos-customers-enhanced', orgId],
+          queryKey: ['pos-customers-light', orgId],
           exact: true 
         });
         
         // إعادة تحميل البيانات
         const result = await queryClient.refetchQueries({ 
-          queryKey: ['pos-customers-enhanced', orgId],
+          queryKey: ['pos-customers-light', orgId],
           exact: true 
         });
 
@@ -1216,17 +1266,18 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
 
   // حساب حالة التحميل الإجمالية
   const isLoading = isProductsLoading || isSubscriptionsLoading || isCategoriesLoading || 
-                   isPOSSettingsLoading || isAppsLoading;
+                   isPOSSettingsLoading || isAppsLoading || isProductCategoriesLoading;
 
   // تجميع الأخطاء
   const errors = useMemo(() => ({
     products: productsError?.message,
     subscriptions: subscriptionsError?.message,
     categories: categoriesError?.message,
+    productCategories: productCategoriesError?.message,
     posSettings: posSettingsError?.message,
     apps: appsError?.message,
     customers: customersError?.message,
-  }), [productsError, subscriptionsError, categoriesError, posSettingsError, appsError, customersError]);
+  }), [productsError, subscriptionsError, categoriesError, productCategoriesError, posSettingsError, appsError, customersError]);
 
   // قيمة Context المحسنة
   const contextValue = useMemo<POSData>(() => ({
@@ -1234,7 +1285,7 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
     products,
     subscriptions,
     categories,
-    productCategories,
+    productCategories, // إصلاح: استخدام فئات المنتجات الفعلية من الـ query
     posSettings,
     organizationApps,
     customers,
@@ -1269,9 +1320,9 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
     checkLowStock,
     getProductPrice,
   }), [
-    products, subscriptions, categories, posSettings, organizationApps,
+    products, subscriptions, categories, productCategories, posSettings, organizationApps,
     inventoryStats, isLoading, isProductsLoading, isSubscriptionsLoading, 
-    isCategoriesLoading, isPOSSettingsLoading, isAppsLoading, errors,
+    isCategoriesLoading, isProductCategoriesLoading, isPOSSettingsLoading, isAppsLoading, errors,
     refreshAll, refreshProducts, refreshSubscriptions, refreshPOSSettings, refreshApps,
     getProductStock, updateProductStock, updateProductStockInCache, checkLowStock, getProductPrice
   ]);

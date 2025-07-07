@@ -126,6 +126,7 @@ export interface CompleteProduct {
   advanced_settings?: AdvancedSettings;
   marketing_settings?: MarketingSettings;
   purchase_page_config?: any;
+  special_offers_config?: SpecialOffersConfig;
 }
 
 export interface ProductImage {
@@ -315,6 +316,34 @@ export interface MarketingSettings {
     points_per_currency_unit?: number;
   };
   test_mode: boolean;
+}
+
+export interface SpecialOffer {
+  id: string;
+  name: string;
+  description?: string;
+  quantity: number;
+  bonusQuantity?: number;
+  originalPrice: number;
+  discountedPrice: number;
+  discountPercentage: number;
+  freeShipping: boolean;
+  isRecommended: boolean;
+  isPopular: boolean;
+  savings: number;
+  pricePerUnit: number;
+  features: string[];
+  badgeText?: string;
+  badgeColor: 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'danger';
+}
+
+export interface SpecialOffersConfig {
+  enabled: boolean;
+  offers: SpecialOffer[];
+  displayStyle: 'cards' | 'grid' | 'list';
+  showSavings: boolean;
+  showUnitPrice: boolean;
+  currency: string;
 }
 
 export interface ProductStats {
@@ -557,36 +586,241 @@ export const getFinalPrice = (
 ): {
   price: number;
   originalPrice: number;
+  compareAtPrice?: number;
   isWholesale: boolean;
   wholesaleTier?: WholesaleTier;
   discount?: number;
   discountPercentage?: number;
+  hasCompareAtPrice: boolean;
+  compareAtDiscountPercentage?: number;
 } => {
-  const originalPrice = getVariantPrice(product, colorId, sizeId);
+  const basePrice = getVariantPrice(product, colorId, sizeId);
   const wholesalePrice = getWholesalePrice(product, quantity);
+  
+  let finalPrice = basePrice;
+  let isWholesale = false;
+  let wholesaleTier: WholesaleTier | undefined;
 
-  if (wholesalePrice && wholesalePrice < originalPrice) {
-    const wholesaleTier = product.wholesale_tiers.find(tier => 
-      quantity >= tier.min_quantity && tier.price === wholesalePrice
-    );
+  // تحقق من أسعار الجملة
+  if (wholesalePrice !== null) {
+    finalPrice = wholesalePrice;
+    isWholesale = true;
+    wholesaleTier = product.wholesale_tiers.find(tier => quantity >= tier.min_quantity);
+  }
 
-    const discount = originalPrice - wholesalePrice;
-    const discountPercentage = (discount / originalPrice) * 100;
+  const totalPrice = finalPrice * quantity;
+  const originalTotalPrice = basePrice * quantity;
+  
+  // حساب الخصم
+  const discount = originalTotalPrice - totalPrice;
+  const discountPercentage = originalTotalPrice > 0 ? (discount / originalTotalPrice) * 100 : 0;
 
+  // معالجة السعر المقارن
+  const compareAtPrice = product.pricing?.compare_at_price;
+  const hasCompareAtPrice = Boolean(compareAtPrice && compareAtPrice > basePrice);
+  const compareAtDiscountPercentage = hasCompareAtPrice && compareAtPrice 
+    ? ((compareAtPrice - basePrice) / compareAtPrice) * 100 
+    : undefined;
+
+  return {
+    price: totalPrice,
+    originalPrice: originalTotalPrice,
+    compareAtPrice: compareAtPrice ? compareAtPrice * quantity : undefined,
+    isWholesale,
+    wholesaleTier,
+    discount: discount > 0 ? discount : undefined,
+    discountPercentage: discountPercentage > 0 ? discountPercentage : undefined,
+    hasCompareAtPrice,
+    compareAtDiscountPercentage
+  };
+};
+
+// دوال العروض الخاصة الجديدة
+export const getBestSpecialOffer = (
+  product: CompleteProduct,
+  requestedQuantity: number
+): SpecialOffer | null => {
+  console.log('🔍 getBestSpecialOffer - المدخلات:', {
+    enabled: product.special_offers_config?.enabled,
+    offersCount: product.special_offers_config?.offers?.length,
+    requestedQuantity,
+    offers: product.special_offers_config?.offers
+  });
+
+  if (!product.special_offers_config?.enabled || !product.special_offers_config.offers) {
+    console.log('❌ getBestSpecialOffer - العروض غير مُفعّلة أو غير موجودة');
+    return null;
+  }
+
+  // العثور على العروض المتاحة للكمية المطلوبة
+  const availableOffers = product.special_offers_config.offers.filter(
+    offer => requestedQuantity >= offer.quantity
+  );
+
+  console.log('📋 getBestSpecialOffer - العروض المتاحة:', {
+    requestedQuantity,
+    allOffers: product.special_offers_config.offers.map(o => ({
+      id: o.id,
+      name: o.name,
+      quantity: o.quantity,
+      savings: o.savings,
+      isAvailable: requestedQuantity >= o.quantity
+    })),
+    availableOffers: availableOffers.map(o => ({
+      id: o.id,
+      name: o.name,
+      quantity: o.quantity,
+      savings: o.savings
+    })),
+    availableCount: availableOffers.length
+  });
+
+  if (availableOffers.length === 0) {
+    console.log('❌ getBestSpecialOffer - لا توجد عروض متاحة للكمية المطلوبة');
+    return null;
+  }
+
+  // اختيار العرض بأفضل قيمة (أعلى توفير نسبي)
+  const bestOffer = availableOffers.reduce((best, current) => {
+    const bestSavingsPerUnit = best.savings / (best.quantity + (best.bonusQuantity || 0));
+    const currentSavingsPerUnit = current.savings / (current.quantity + (current.bonusQuantity || 0));
+    
+    return currentSavingsPerUnit > bestSavingsPerUnit ? current : best;
+  });
+
+  console.log('✅ getBestSpecialOffer - العرض المُختار:', {
+    id: bestOffer.id,
+    name: bestOffer.name,
+    quantity: bestOffer.quantity,
+    savings: bestOffer.savings,
+    discountedPrice: bestOffer.discountedPrice
+  });
+
+  return bestOffer;
+};
+
+export const calculateSpecialOfferPrice = (
+  product: CompleteProduct,
+  offer: SpecialOffer,
+  requestedQuantity: number
+): {
+  totalPrice: number;
+  totalQuantity: number;
+  pricePerUnit: number;
+  savings: number;
+  originalPrice: number;
+} => {
+  const basePrice = getVariantPrice(product);
+  const sets = Math.floor(requestedQuantity / offer.quantity);
+  const remainder = requestedQuantity % offer.quantity;
+
+  console.log('🧮 calculateSpecialOfferPrice - الحسابات:', {
+    offerName: offer.name,
+    requestedQuantity,
+    offerQuantity: offer.quantity,
+    offerDiscountedPrice: offer.discountedPrice,
+    basePrice,
+    sets,
+    remainder
+  });
+
+  let totalPrice: number;
+  let totalQuantity: number;
+  let savings: number;
+
+  if (requestedQuantity >= offer.quantity) {
+    // الطريقة العادية: المجموعات الكاملة + الباقي
+    const totalOfferPrice = sets * offer.discountedPrice;
+    const remainderPrice = remainder * basePrice;
+    
+    totalPrice = totalOfferPrice + remainderPrice;
+    totalQuantity = requestedQuantity + (sets * (offer.bonusQuantity || 0));
+  } else {
+    // العرض غير مُطبق: استخدام السعر العادي
+    totalPrice = requestedQuantity * basePrice;
+    totalQuantity = requestedQuantity;
+  }
+
+  const originalPrice = requestedQuantity * basePrice;
+  savings = originalPrice - totalPrice;
+
+  console.log('📊 calculateSpecialOfferPrice - النتائج:', {
+    offerApplied: requestedQuantity >= offer.quantity,
+    totalPrice,
+    totalQuantity,
+    originalPrice,
+    savings: Math.max(0, savings)
+  });
+
+  return {
+    totalPrice,
+    totalQuantity,
+    pricePerUnit: totalPrice / totalQuantity,
+    savings: Math.max(0, savings),
+    originalPrice
+  };
+};
+
+export const getSpecialOfferSummary = (
+  product: CompleteProduct,
+  selectedOffer: SpecialOffer | null,
+  requestedQuantity: number
+): {
+  finalPrice: number;
+  finalQuantity: number;
+  savings: number;
+  originalPrice: number;
+  offerApplied: boolean;
+  offerDetails?: {
+    name: string;
+    freeShipping: boolean;
+    features: string[];
+  };
+} => {
+  const basePrice = getVariantPrice(product);
+  const originalPrice = requestedQuantity * basePrice;
+
+  console.log('💰 getSpecialOfferSummary - المدخلات:', {
+    hasOffer: !!selectedOffer,
+    offerName: selectedOffer?.name,
+    offerId: selectedOffer?.id,
+    requestedQuantity,
+    basePrice,
+    originalPrice
+  });
+
+  if (!selectedOffer) {
+    console.log('❌ getSpecialOfferSummary - لا يوجد عرض محدد');
     return {
-      price: wholesalePrice,
+      finalPrice: originalPrice,
+      finalQuantity: requestedQuantity,
+      savings: 0,
       originalPrice,
-      isWholesale: true,
-      wholesaleTier,
-      discount,
-      discountPercentage
+      offerApplied: false
     };
   }
 
+  const calculation = calculateSpecialOfferPrice(product, selectedOffer, requestedQuantity);
+
+  console.log('✅ getSpecialOfferSummary - النتيجة:', {
+    finalPrice: calculation.totalPrice,
+    finalQuantity: calculation.totalQuantity,
+    savings: calculation.savings,
+    originalPrice: calculation.originalPrice,
+    offerApplied: true
+  });
+
   return {
-    price: originalPrice,
-    originalPrice,
-    isWholesale: false
+    finalPrice: calculation.totalPrice,
+    finalQuantity: calculation.totalQuantity,
+    savings: calculation.savings,
+    originalPrice: calculation.originalPrice,
+    offerApplied: true,
+    offerDetails: {
+      name: selectedOffer.name,
+      freeShipping: selectedOffer.freeShipping,
+      features: selectedOffer.features
+    }
   };
 };
 
@@ -651,5 +885,8 @@ export default {
   getVariantStock,
   isProductAvailable,
   getWholesalePrice,
-  getFinalPrice
+  getFinalPrice,
+  getBestSpecialOffer,
+  calculateSpecialOfferPrice,
+  getSpecialOfferSummary
 };

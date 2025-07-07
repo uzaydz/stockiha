@@ -21,6 +21,7 @@ import {
   CompleteProduct, 
   ProductColor, 
   ProductSize,
+  SpecialOffer,
   getProductMainPrice,
   getProductMaxPrice,
   getTotalStock,
@@ -29,7 +30,9 @@ import {
   getVariantPrice,
   getVariantStock,
   getFinalPrice,
-  isProductAvailable
+  isProductAvailable,
+  getBestSpecialOffer,
+  getSpecialOfferSummary
 } from '@/lib/api/productComplete';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -39,6 +42,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import SpecialOffersDisplay from '@/components/store/special-offers/SpecialOffersDisplay';
 
 // مكونات فرعية للصفحة
 interface ProductImageGalleryProps {
@@ -373,25 +377,32 @@ interface PriceDisplayProps {
   quantity: number;
   selectedColor?: ProductColor;
   selectedSize?: ProductSize;
+  selectedOffer?: SpecialOffer | null;
 }
 
 const PriceDisplay: React.FC<PriceDisplayProps> = ({ 
   product, 
   quantity, 
   selectedColor, 
-  selectedSize 
+  selectedSize,
+  selectedOffer 
 }) => {
+  // حساب السعر مع العروض الخاصة
+  const offerSummary = getSpecialOfferSummary(product, selectedOffer, quantity);
   const priceInfo = getFinalPrice(product, quantity, selectedColor?.id, selectedSize?.id);
-  const totalPrice = priceInfo.price * quantity;
-  const originalTotalPrice = priceInfo.originalPrice * quantity;
+  
+  // إذا كان هناك عرض خاص، استخدم أسعاره
+  const finalPrice = offerSummary.offerApplied ? offerSummary.finalPrice : priceInfo.price;
+  const finalQuantity = offerSummary.offerApplied ? offerSummary.finalQuantity : quantity;
+  const savings = offerSummary.savings;
 
   return (
     <div className="space-y-3">
-      {/* السعر الفردي */}
+      {/* السعر النهائي */}
       <div className="space-y-1">
         <div className="flex items-center space-x-2 rtl:space-x-reverse">
           <span className="text-2xl font-bold text-gray-900">
-            {priceInfo.price.toLocaleString()} دج
+            {finalPrice.toLocaleString()} دج
           </span>
           
           {priceInfo.isWholesale && (
@@ -399,48 +410,56 @@ const PriceDisplay: React.FC<PriceDisplayProps> = ({
               سعر الجملة
             </Badge>
           )}
+          
+          {offerSummary.offerApplied && (
+            <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+              عرض خاص
+            </Badge>
+          )}
         </div>
         
-        {priceInfo.originalPrice !== priceInfo.price && (
+        {/* عرض السعر الأصلي إذا كان هناك توفير */}
+        {savings > 0 && (
           <div className="flex items-center space-x-2 rtl:space-x-reverse text-sm">
             <span className="line-through text-gray-500">
-              {priceInfo.originalPrice.toLocaleString()} دج
+              {offerSummary.originalPrice.toLocaleString()} دج
             </span>
-            {priceInfo.discountPercentage && (
-              <Badge variant="destructive">
-                خصم {priceInfo.discountPercentage.toFixed(0)}%
-              </Badge>
-            )}
+            <Badge variant="destructive">
+              وفر {savings.toLocaleString()} دج
+            </Badge>
           </div>
         )}
       </div>
 
-      {/* السعر الإجمالي */}
-      {quantity > 1 && (
-        <div className="border-t pt-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600">
-              الإجمالي ({quantity} قطع):
+      {/* عرض تفاصيل العرض الخاص */}
+      {offerSummary.offerApplied && offerSummary.offerDetails && (
+        <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-3">
+          <div className="flex items-center space-x-2 rtl:space-x-reverse text-sm">
+            <span className="text-blue-800 font-medium">
+              {offerSummary.offerDetails.name}
             </span>
-            <div className="text-left">
-              <div className="text-xl font-bold text-gray-900">
-                {totalPrice.toLocaleString()} دج
-              </div>
-              {originalTotalPrice !== totalPrice && (
-                <div className="text-sm line-through text-gray-500">
-                  {originalTotalPrice.toLocaleString()} دج
-                </div>
-              )}
-            </div>
           </div>
+          
+          {finalQuantity > quantity && (
+            <div className="text-xs text-blue-700 mt-1">
+              ستحصل على {finalQuantity} قطعة (بدلاً من {quantity})
+            </div>
+          )}
+          
+          {offerSummary.offerDetails.freeShipping && (
+            <div className="text-xs text-green-700 mt-1 flex items-center">
+              <TruckIcon className="w-3 h-3 ml-1" />
+              شحن مجاني
+            </div>
+          )}
         </div>
       )}
 
       {/* معلومات مستوى الجملة */}
-      {priceInfo.wholesaleTier && (
+      {priceInfo.wholesaleTier && !offerSummary.offerApplied && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-3">
           <div className="flex items-center space-x-2 rtl:space-x-reverse text-sm text-green-800">
-                          <CheckCircleIcon className="w-4 h-4" />
+            <CheckCircleIcon className="w-4 h-4" />
             <span>
               سعر الجملة - الحد الأدنى {priceInfo.wholesaleTier.min_quantity} قطع
             </span>
@@ -449,7 +468,7 @@ const PriceDisplay: React.FC<PriceDisplayProps> = ({
       )}
 
       {/* عرض مستويات الجملة المتاحة */}
-      {product.wholesale_tiers.length > 0 && !priceInfo.isWholesale && (
+      {product.wholesale_tiers.length > 0 && !priceInfo.isWholesale && !offerSummary.offerApplied && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
           <h4 className="text-sm font-medium text-blue-900 mb-2">أسعار الجملة:</h4>
           <div className="space-y-1">
@@ -482,6 +501,9 @@ const ProductPurchasePageMax: React.FC = () => {
   const [selectedSize, setSelectedSize] = useState<ProductSize | undefined>();
   const [quantity, setQuantity] = useState(1);
   const [isInWishlist, setIsInWishlist] = useState(false);
+  
+  // حالة العروض الخاصة
+  const [selectedOffer, setSelectedOffer] = useState<SpecialOffer | null>(null);
 
   // حالة العمليات
   const [addingToCart, setAddingToCart] = useState(false);
@@ -500,7 +522,7 @@ const ProductPurchasePageMax: React.FC = () => {
         setLoading(true);
         const response = await getProductCompleteData(productId, {
           organizationId: organization?.id,
-          dataScope: 'ultra' // جلب جميع البيانات
+          dataScope: 'ultra' // جلب جميع البيانات بما في ذلك العروض الخاصة
         });
 
         if (!response || !response.success) {
@@ -509,6 +531,16 @@ const ProductPurchasePageMax: React.FC = () => {
 
         const productData = response.product;
         setProduct(productData);
+
+        // فحص مؤقت للعروض الخاصة
+        console.log('📦 بيانات المنتج المحملة:', {
+          productId: productData.id,
+          productName: productData.name,
+          special_offers_config: productData.special_offers_config,
+          enabled: productData.special_offers_config?.enabled,
+          offers: productData.special_offers_config?.offers,
+          dataScope: response.data_scope
+        });
 
         // تعيين الاختيارات الافتراضية
         if (productData.variants.has_variants) {
@@ -541,6 +573,14 @@ const ProductPurchasePageMax: React.FC = () => {
     }
   }, [selectedColor]);
 
+  // اختيار أفضل عرض تلقائياً عند تغيير الكمية
+  useEffect(() => {
+    if (product && product.special_offers_config?.enabled) {
+      const bestOffer = getBestSpecialOffer(product, quantity);
+      setSelectedOffer(bestOffer);
+    }
+  }, [product, quantity]);
+
   // حساب المخزون المتاح
   const availableStock = useMemo(() => {
     if (!product) return 0;
@@ -564,10 +604,24 @@ const ProductPurchasePageMax: React.FC = () => {
     try {
       setAddingToCart(true);
       
-      // هنا يمكن إضافة منطق إضافة المنتج إلى السلة
-      // await addToCart({ ... });
+      // حساب السعر النهائي مع العروض الخاصة
+      const offerSummary = getSpecialOfferSummary(product, selectedOffer, quantity);
       
-      toast.success('تم إضافة المنتج إلى السلة');
+      // هنا يمكن إضافة منطق إضافة المنتج إلى السلة
+      // await addToCart({ 
+      //   productId: product.id,
+      //   quantity: offerSummary.finalQuantity,
+      //   price: offerSummary.finalPrice,
+      //   selectedColor,
+      //   selectedSize,
+      //   specialOffer: selectedOffer
+      // });
+      
+      const message = selectedOffer 
+        ? `تم إضافة ${offerSummary.finalQuantity} قطعة إلى السلة (${selectedOffer.name})`
+        : 'تم إضافة المنتج إلى السلة';
+      
+      toast.success(message);
     } catch (error) {
       toast.error('فشل في إضافة المنتج إلى السلة');
     } finally {
@@ -582,6 +636,9 @@ const ProductPurchasePageMax: React.FC = () => {
     try {
       setBuyingNow(true);
       
+      // حساب السعر النهائي مع العروض الخاصة
+      const offerSummary = getSpecialOfferSummary(product, selectedOffer, quantity);
+      
       // هنا يمكن إضافة منطق الشراء المباشر
       // await proceedToCheckout({ ... });
       
@@ -590,7 +647,10 @@ const ProductPurchasePageMax: React.FC = () => {
           product,
           selectedColor,
           selectedSize,
-          quantity
+          quantity: offerSummary.finalQuantity,
+          originalQuantity: quantity,
+          specialOffer: selectedOffer,
+          priceDetails: offerSummary
         }
       });
     } catch (error) {
@@ -772,6 +832,7 @@ const ProductPurchasePageMax: React.FC = () => {
               quantity={quantity}
               selectedColor={selectedColor}
               selectedSize={selectedSize}
+              selectedOffer={selectedOffer}
             />
 
             <Separator />
@@ -804,6 +865,30 @@ const ProductPurchasePageMax: React.FC = () => {
                 disabled={!canPurchase}
               />
             </div>
+
+            {/* العروض الخاصة */}
+            {(() => {
+              // فحص مؤقت للتشخيص
+              console.log('🔍 فحص العروض الخاصة:', {
+                special_offers_config: product.special_offers_config,
+                enabled: product.special_offers_config?.enabled,
+                offers: product.special_offers_config?.offers,
+                offersLength: product.special_offers_config?.offers?.length,
+                shouldShow: product.special_offers_config?.enabled && product.special_offers_config.offers?.length > 0
+              });
+              
+              return product.special_offers_config?.enabled && product.special_offers_config.offers?.length > 0;
+            })() && (
+              <>
+                <Separator />
+                <SpecialOffersDisplay
+                  config={product.special_offers_config}
+                  basePrice={getVariantPrice(product, selectedColor?.id, selectedSize?.id)}
+                  onSelectOffer={setSelectedOffer}
+                  selectedOfferId={selectedOffer?.id}
+                />
+              </>
+            )}
 
             <Separator />
 

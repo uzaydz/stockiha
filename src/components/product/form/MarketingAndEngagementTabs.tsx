@@ -3,10 +3,9 @@ import { UseFormReturn } from 'react-hook-form';
 import { ProductFormValues } from '@/types/product';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
-import { Star, Target, Clock, Award } from 'lucide-react';
+import { Star, Clock, Award } from 'lucide-react';
 
 import ProductReviewsTab from './marketing-and-engagement/ProductReviewsTab';
-import ConversionTrackingTab from './marketing-and-engagement/ConversionTrackingTab';
 import OfferTimerTab from './marketing-and-engagement/OfferTimerTab';
 import LoyaltyPointsTab from './marketing-and-engagement/LoyaltyPointsTab';
 
@@ -22,7 +21,7 @@ const MarketingAndEngagementTabs: React.FC<MarketingAndEngagementTabsProps> = ({
       <Tabs defaultValue="reviews" className="w-full">
         {/* Modern Sub-Tabs Design */}
         <div className="mb-6">
-          <TabsList className="w-full bg-muted/30 p-1.5 rounded-lg grid grid-cols-2 md:grid-cols-4 h-auto gap-1">
+          <TabsList className="w-full bg-muted/30 p-1.5 rounded-lg grid grid-cols-3 h-auto gap-1">
             <TabsTrigger 
               value="reviews"
               className="flex items-center gap-2 px-3 py-2.5 text-sm font-medium rounded-md data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm hover:bg-muted/60 transition-all"
@@ -31,16 +30,6 @@ const MarketingAndEngagementTabs: React.FC<MarketingAndEngagementTabsProps> = ({
                 <Star className="w-3.5 h-3.5" />
               </div>
               <span className="hidden sm:inline">التقييمات</span>
-            </TabsTrigger>
-            
-            <TabsTrigger 
-              value="tracking"
-              className="flex items-center gap-2 px-3 py-2.5 text-sm font-medium rounded-md data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm hover:bg-muted/60 transition-all"
-            >
-              <div className="bg-current/20 p-1 rounded-full">
-                <Target className="w-3.5 h-3.5" />
-              </div>
-              <span className="hidden sm:inline">تتبع التحويلات</span>
             </TabsTrigger>
             
             <TabsTrigger 
@@ -69,14 +58,6 @@ const MarketingAndEngagementTabs: React.FC<MarketingAndEngagementTabsProps> = ({
           <Card className="border-0 shadow-none">
             <CardContent className="p-0">
               <ProductReviewsTab form={form} organizationId={organizationId} productId={productId} />
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="tracking" className="mt-6">
-          <Card className="border-0 shadow-none">
-            <CardContent className="p-0">
-              <ConversionTrackingTab form={form} organizationId={organizationId} productId={productId} />
             </CardContent>
           </Card>
         </TabsContent>

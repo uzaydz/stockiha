@@ -15,7 +15,9 @@ import {
   Palette,
   Settings,
   Smartphone,
-  Monitor
+  Monitor,
+  Gift,
+  Zap
 } from 'lucide-react';
 import { TabData, TabStatus } from '@/hooks/useProductFormTabs';
 
@@ -39,6 +41,8 @@ const iconMap = {
   DollarSign,
   Palette,
   Settings,
+  Gift,
+  Zap,
 } as const;
 
 const StatusIcon = memo<{ status: TabStatus }>(({ status }) => {

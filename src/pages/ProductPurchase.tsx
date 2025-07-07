@@ -142,6 +142,23 @@ const ProductPurchase = () => {
   // استخدام خطاف الزر اللاصق
   const { showStickyButton, scrollToOrderForm } = useStickyButtonLogic(orderFormRef);
 
+  // إعادة تعيين التمرير إلى الأعلى عند تحميل الصفحة وتنظيف preload links
+  React.useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    
+    // تنظيف preload links القديمة لتجنب التحذيرات
+    const cleanupPreloadLinks = () => {
+      const oldLinks = document.querySelectorAll('link[rel="preload"][as="image"]');
+      oldLinks.forEach(link => {
+        if (link.parentNode) {
+          link.remove();
+        }
+      });
+    };
+    
+    cleanupPreloadLinks();
+  }, [slug]);
+
   // تتبع البيانات للتصحيح
 
   // تحميل إعدادات الفوتر المخصص

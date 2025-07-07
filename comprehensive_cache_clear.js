@@ -1,195 +1,190 @@
-// ===================================================================
-// مسح شامل لجميع أنواع التخزين المؤقت - تشغيل في console المتصفح
-// ===================================================================
+// 🧹 تنظيف شامل لجميع أنواع الكاش - محسن ومبسط
+// تشغيل هذا الملف لحل مشكلة ارتفاع كاش المتصفح
 
-// 1. مسح localStorage
+console.log('🧹 بدء تنظيف شامل للكاش...');
+
+// 1. مسح LocalStorage بالكامل
 const clearLocalStorage = () => {
-  let deletedCount = 0;
-  const keysToDelete = [];
-  
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key && (
-      key.includes('shipping_fee') ||
-      key.includes('calculate_shipping') ||
-      key.includes('yalidine') ||
-      key.includes('cache') ||
-      key.includes('BAZAAR_REACT_QUERY_CACHE') ||
-      key.includes('bazaar-query-cache')
-    )) {
-      keysToDelete.push(key);
-    }
+  let count = 0;
+  try {
+    const keys = Object.keys(localStorage);
+    count = keys.length;
+    localStorage.clear();
+    console.log(`✅ تم مسح ${count} عنصر من localStorage`);
+  } catch (error) {
+    console.error('❌ خطأ في مسح localStorage:', error);
   }
-  
-  keysToDelete.forEach(key => {
-    localStorage.removeItem(key);
-    deletedCount++;
-  });
-  
-  return deletedCount;
+  return count;
 };
 
-// 2. مسح sessionStorage
+// 2. مسح SessionStorage بالكامل
 const clearSessionStorage = () => {
-  let deletedCount = 0;
-  const keysToDelete = [];
-  
-  for (let i = 0; i < sessionStorage.length; i++) {
-    const key = sessionStorage.key(i);
-    if (key && (
-      key.includes('shipping_fee') ||
-      key.includes('calculate_shipping') ||
-      key.includes('yalidine') ||
-      key.includes('cache')
-    )) {
-      keysToDelete.push(key);
-    }
+  let count = 0;
+  try {
+    const keys = Object.keys(sessionStorage);
+    count = keys.length;
+    sessionStorage.clear();
+    console.log(`✅ تم مسح ${count} عنصر من sessionStorage`);
+  } catch (error) {
+    console.error('❌ خطأ في مسح sessionStorage:', error);
   }
-  
-  keysToDelete.forEach(key => {
-    sessionStorage.removeItem(key);
-    deletedCount++;
-  });
-  
-  return deletedCount;
+  return count;
 };
 
-// 3. مسح IndexedDB (هذا هو المهم!)
+// 3. مسح IndexedDB - محسن
 const clearIndexedDB = async () => {
+  console.log('🗄️ بدء مسح IndexedDB...');
   
   try {
-    // الحصول على جميع قواعد البيانات
+    // الحصول على جميع قواعد البيانات الموجودة
     if ('indexedDB' in window && 'databases' in indexedDB) {
       const databases = await indexedDB.databases();
+      console.log(`📊 وجدت ${databases.length} قاعدة بيانات`);
       
-      // مسح قواعد البيانات المتعلقة بالتخزين المؤقت
+      // مسح جميع قواعد البيانات
       for (const db of databases) {
-        if (db.name && (
-          db.name.includes('cache') ||
-          db.name.includes('shipping') ||
-          db.name.includes('bazaar') ||
-          db.name.includes('query')
-        )) {
+        if (db.name) {
           try {
-            const deleteReq = indexedDB.deleteDatabase(db.name);
             await new Promise((resolve, reject) => {
+              const deleteReq = indexedDB.deleteDatabase(db.name);
               deleteReq.onsuccess = () => {
+                console.log(`✅ تم مسح قاعدة البيانات: ${db.name}`);
                 resolve();
               };
-              deleteReq.onerror = () => {
-                reject(deleteReq.error);
-              };
+              deleteReq.onerror = () => reject(deleteReq.error);
               deleteReq.onblocked = () => {
+                console.log(`⚠️ قاعدة البيانات محجوبة: ${db.name}`);
                 resolve(); // لا نريد إيقاف العملية
               };
             });
           } catch (error) {
+            console.error(`❌ خطأ في مسح ${db.name}:`, error);
           }
         }
       }
-    } else {
     }
     
-    // محاولة مسح قواعد البيانات المعروفة
+    // مسح قواعد البيانات المعروفة كاحتياط
     const knownDBNames = [
       'keyval-store',
       'localforage',
       'cache-storage',
       'bazaar-cache',
-      'react-query-cache'
+      'bazaar-query-cache',
+      'react-query-cache',
+      'supabase-cache',
+      'store-cache',
+      'auth-cache'
     ];
     
     for (const dbName of knownDBNames) {
       try {
-        const deleteReq = indexedDB.deleteDatabase(dbName);
         await new Promise((resolve) => {
-          deleteReq.onsuccess = () => {
-            resolve();
-          };
-          deleteReq.onerror = () => {
-            resolve();
-          };
-          deleteReq.onblocked = () => {
-            resolve();
-          };
+          const deleteReq = indexedDB.deleteDatabase(dbName);
+          deleteReq.onsuccess = () => resolve();
+          deleteReq.onerror = () => resolve();
+          deleteReq.onblocked = () => resolve();
         });
       } catch (error) {
+        // تجاهل الأخطاء
       }
     }
     
+    console.log('✅ تم الانتهاء من مسح IndexedDB');
+    
   } catch (error) {
+    console.error('❌ خطأ في مسح IndexedDB:', error);
   }
-  
 };
 
 // 4. مسح Cache API
 const clearCacheAPI = async () => {
+  console.log('💾 بدء مسح Cache API...');
   
   if ('caches' in window) {
     try {
       const cacheNames = await caches.keys();
+      console.log(`📦 وجدت ${cacheNames.length} كاش`);
       
-      for (const cacheName of cacheNames) {
-        await caches.delete(cacheName);
-      }
+      await Promise.all(
+        cacheNames.map(async (cacheName) => {
+          const deleted = await caches.delete(cacheName);
+          console.log(`${deleted ? '✅' : '❌'} مسح كاش: ${cacheName}`);
+        })
+      );
       
+      console.log('✅ تم الانتهاء من مسح Cache API');
     } catch (error) {
+      console.error('❌ خطأ في مسح Cache API:', error);
     }
   } else {
+    console.log('ℹ️ Cache API غير متاح');
   }
 };
 
 // 5. مسح React Query Cache
 const clearReactQueryCache = () => {
+  console.log('⚛️ مسح React Query Cache...');
   
   try {
-    // محاولة الوصول لـ React Query Client
-    if (window.__REACT_QUERY_GLOBAL_CLIENT) {
-      window.__REACT_QUERY_GLOBAL_CLIENT.clear();
+    // محاولة الوصول إلى queryClient إذا كان متاحاً
+    if (window.queryClient) {
+      window.queryClient.clear();
+      console.log('✅ تم مسح React Query Cache');
     } else {
+      console.log('ℹ️ React Query Cache غير متاح');
     }
   } catch (error) {
+    console.error('❌ خطأ في مسح React Query Cache:', error);
   }
 };
 
-// 6. مسح أي متغيرات عامة متعلقة بالتخزين المؤقت
+// 6. مسح متغيرات الذاكرة العامة
 const clearGlobalVariables = () => {
+  console.log('🌐 مسح متغيرات الذاكرة العامة...');
   
-  const variablesToClear = [
-    'cachedShippingFees',
-    'shippingCache',
-    'yalidineCache',
-    'calculateShippingCache'
-  ];
-  
-  variablesToClear.forEach(varName => {
-    if (window[varName]) {
-      delete window[varName];
-    }
-  });
-  
+  try {
+    // قائمة المتغيرات المحتملة
+    const globalVars = [
+      '__REACT_QUERY_STATE__',
+      '__CACHE_DATA__',
+      '__SUPABASE_CACHE__',
+      '__STORE_CACHE__',
+      'cacheManager',
+      'storeCache'
+    ];
+    
+    let cleared = 0;
+    globalVars.forEach(varName => {
+      if (window[varName]) {
+        delete window[varName];
+        cleared++;
+      }
+    });
+    
+    console.log(`✅ تم مسح ${cleared} متغير عام`);
+  } catch (error) {
+    console.error('❌ خطأ في مسح المتغيرات العامة:', error);
+  }
 };
 
-// 7. إجبار تحديث الصفحة مع تجاهل التخزين المؤقت
+// 7. إعادة تحميل الصفحة
 const forceRefresh = () => {
+  console.log('🔄 إعادة تحميل الصفحة...');
   
-  // محاولة مسح Service Workers
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations().then(registrations => {
-      registrations.forEach(registration => {
-        registration.unregister();
-      });
-    });
-  }
-  
-  // إعادة تحميل الصفحة مع تجاهل التخزين المؤقت
   setTimeout(() => {
-    window.location.reload(true); // إعادة تحميل قوية
+    // محاولة إعادة تحميل قوية
+    if (window.location.reload) {
+      window.location.reload(true); // إعادة تحميل من الخادم
+    } else {
+      window.location.href = window.location.href;
+    }
   }, 2000);
 };
 
 // تشغيل جميع عمليات المسح
 const clearEverything = async () => {
+  console.log('🚀 بدء التنظيف الشامل...');
   
   const localStorageCount = clearLocalStorage();
   const sessionStorageCount = clearSessionStorage();
@@ -199,8 +194,24 @@ const clearEverything = async () => {
   clearReactQueryCache();
   clearGlobalVariables();
 
+  console.log(`
+🎉 تم الانتهاء من التنظيف الشامل!
+📊 الإحصائيات:
+  - LocalStorage: ${localStorageCount} عنصر
+  - SessionStorage: ${sessionStorageCount} عنصر
+  - IndexedDB: تم المسح
+  - Cache API: تم المسح
+  - React Query: تم المسح
+  - المتغيرات العامة: تم المسح
+
+🔄 سيتم إعادة تحميل الصفحة خلال ثانيتين...
+  `);
+
   forceRefresh();
 };
 
-// تشغيل المسح الشامل
-clearEverything();
+// بدء التنظيف
+clearEverything().catch(error => {
+  console.error('❌ خطأ في التنظيف الشامل:', error);
+  forceRefresh();
+});

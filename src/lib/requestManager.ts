@@ -169,7 +169,7 @@ export const optimizedQueries = {
     );
   },
 
-  getProducts: async (organizationId: string, limit = 500) => {
+  getProducts: async (organizationId: string, limit = 30) => {
     return cachedQuery.multiple('products', () => 
       supabase
         .from('products')

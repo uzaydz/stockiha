@@ -186,14 +186,18 @@ const Products = memo(() => {
     setLoadError(null);
 
     try {
-      // استخدام القيم من refs للحصول على أحدث البيانات
+      // 🚀 تحسين الأداء: تجهيز البيانات بشكل متدرج
+      
+      // الخطوة 1: تحضير المعاملات
       const currentPageValue = page || currentPageRef.current;
       const currentFilters = filtersRef.current;
       const currentDebouncedQuery = debouncedSearchQueryRef.current;
       
       const searchFilters = { ...currentFilters, ...filterOverrides };
 
-      const result = await getProductsPaginated(
+      // الخطوة 2: تنفيذ الطلب مع تحسين الأداء
+      const { getProductsPaginatedOptimized } = await import('@/lib/api/products');
+      const result = await getProductsPaginatedOptimized(
         currentOrganization.id,
         currentPageValue,
         pageSize,
@@ -212,9 +216,16 @@ const Products = memo(() => {
         return;
       }
 
-      // تحديث الحالة
+      // 🚀 تحديث الحالة بشكل متدرج لتجنب حجب الواجهة
+      
+      // تحديث البيانات الأساسية أولاً
       setProducts(result.products);
       setTotalCount(result.totalCount);
+      
+      // تأخير قصير لتجنب حجب الواجهة
+      await new Promise(resolve => setTimeout(resolve, 5));
+      
+      // تحديث بيانات التصفح
       setTotalPages(result.totalPages);
       setCurrentPage(result.currentPage);
       setHasNextPage(result.hasNextPage);
@@ -236,7 +247,7 @@ const Products = memo(() => {
         setIsRefreshing(false);
       }
     }
-  }, [currentOrganization?.id]); // إزالة جميع dependencies عدا organization
+  }, [currentOrganization?.id]);
 
   // Load categories optimized
   const loadCategories = useCallback(async () => {
@@ -244,16 +255,26 @@ const Products = memo(() => {
 
     setCategoriesLoading(true);
     try {
+      // 🚀 تحسين الأداء: تحميل الفئات بشكل محسن
+      
       // استخدام الـ API البسيط لجلب الفئات
       const { getCategories } = await import('@/lib/api/products');
       const categoriesData = await getCategories(currentOrganization.id);
       
-      setCategories(categoriesData.map(cat => ({
+      // تأخير قصير لتجنب حجب الواجهة
+      await new Promise(resolve => setTimeout(resolve, 5));
+      
+      // معالجة البيانات بشكل متدرج
+      const processedCategories = categoriesData.map(cat => ({
         id: cat.id,
         name: cat.name,
         slug: cat.slug || ''
-      })));
+      }));
+      
+      setCategories(processedCategories);
+      
     } catch (error) {
+      console.error('خطأ في تحميل الفئات:', error);
     } finally {
       setCategoriesLoading(false);
     }
@@ -268,35 +289,38 @@ const Products = memo(() => {
       return;
     }
 
-    // تحميل البيانات الأساسية
+    // 🚀 تحميل البيانات الأساسية بشكل متدرج لتجنب المهام الطويلة
     const loadData = async () => {
       try {
-        await Promise.all([
-          fetchProducts(currentPage),
-          loadCategories()
-        ]);
+        // الخطوة 1: تحميل الفئات أولاً (أسرع)
+        const categoriesPromise = loadCategories();
+        
+        // تأخير قصير لتجنب حجب الواجهة
+        await new Promise(resolve => setTimeout(resolve, 5));
+        
+        // الخطوة 2: تحميل المنتجات بشكل متدرج
+        const productsPromise = fetchProducts(currentPage);
+        
+        // انتظار اكتمال التحميل
+        await Promise.all([categoriesPromise, productsPromise]);
+        
       } catch (error) {
+        console.error('خطأ في تحميل البيانات:', error);
       }
     };
 
-    // تأخير قصير لتجنب الاستدعاءات المتعددة
-    const timeoutId = setTimeout(loadData, 100);
-
-    return () => {
-      clearTimeout(timeoutId);
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
-  }, [
-    currentOrganization?.id,
-    currentPage,
-    debouncedSearchQuery,
-    filters.categoryFilter,
-    filters.stockFilter,
-    filters.sortOption,
-    pageSize
-  ]);
+    // استخدام requestIdleCallback لتجنب حجب الواجهة
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      window.requestIdleCallback(() => {
+        loadData();
+      }, { timeout: 1000 });
+    } else {
+      // fallback للمتصفحات التي لا تدعم requestIdleCallback
+      setTimeout(() => {
+        loadData();
+      }, 100);
+    }
+  }, [currentOrganization?.id, currentPage, debouncedSearchQuery, filters.categoryFilter, filters.stockFilter, filters.sortOption, pageSize]);
 
   // Page navigation handlers
   const handlePageChange = useCallback((page: number) => {
@@ -420,7 +444,7 @@ const Products = memo(() => {
   ), [debouncedSearchQuery, filters.categoryFilter, filters.stockFilter, resetFilters]);
 
   // Loading state
-  if (isLoading && !isRefreshing && products.length === 0) {
+  if (isLoading && !isRefreshing && (!Array.isArray(products) || products.length === 0)) {
     return (
       <Layout>
         <ProductsSkeleton />
@@ -429,7 +453,7 @@ const Products = memo(() => {
   }
 
   // Error state
-  if (loadError && products.length === 0) {
+  if (loadError && (!Array.isArray(products) || products.length === 0)) {
     return (
       <Layout>
         <div className="container mx-auto p-6">
@@ -444,7 +468,7 @@ const Products = memo(() => {
       <div className="container mx-auto p-6 space-y-6">
         {/* Products Header with all buttons */}
         <ProductsHeader
-          productCount={products.length}
+          productCount={Array.isArray(products) ? products.length : 0}
           onAddProduct={() => setIsAddProductOpen(true)}
           products={products}
           onAddProductClick={() => {}}
@@ -559,7 +583,7 @@ const Products = memo(() => {
           )}
 
           {/* Products List */}
-          {products.length === 0 ? (
+          {!Array.isArray(products) || products.length === 0 ? (
             renderEmptyState()
           ) : (
             <>

@@ -33,19 +33,24 @@ const ProductImageGalleryV2 = memo<ProductImageGalleryV2Props>(({
   const allImages = useMemo(() => {
     const imageList: string[] = [];
     
-    // إضافة صورة اللون المختار أولاً
-    if (selectedColor?.image_url && !imageList.includes(selectedColor.image_url)) {
+    // إضافة صورة اللون المختار أولاً فقط إذا كان لديه صورة فعلية
+    if (selectedColor?.image_url && 
+        selectedColor.image_url.trim() !== '' && 
+        selectedColor.image_url !== '/images/placeholder-product.jpg' &&
+        !imageList.includes(selectedColor.image_url)) {
       imageList.push(selectedColor.image_url);
     }
     
     // إضافة الصورة الرئيسية
-    if (product.images.thumbnail_image && !imageList.includes(product.images.thumbnail_image)) {
+    if (product.images.thumbnail_image && 
+        product.images.thumbnail_image.trim() !== '' &&
+        !imageList.includes(product.images.thumbnail_image)) {
       imageList.push(product.images.thumbnail_image);
     }
     
     // إضافة باقي الصور
     product.images.additional_images.forEach(img => {
-      if (!imageList.includes(img.url)) {
+      if (img.url && img.url.trim() !== '' && !imageList.includes(img.url)) {
         imageList.push(img.url);
       }
     });
@@ -55,12 +60,32 @@ const ProductImageGalleryV2 = memo<ProductImageGalleryV2Props>(({
 
   const currentIndex = allImages.indexOf(activeImage);
 
+  // تهيئة الصورة النشطة عند تحميل الكومبوننت
+  useEffect(() => {
+    if (!activeImage && allImages.length > 0) {
+      setActiveImage(allImages[0]);
+      setImageLoaded(false);
+    }
+  }, [allImages, activeImage]);
+
   // تحديث الصورة النشطة عندما تتغير الصورة الرئيسية (عند تغيير اللون)
   useEffect(() => {
-    const newActiveImage = selectedColor?.image_url || allImages[0];
-    setActiveImage(newActiveImage);
-    setImageLoaded(false);
-  }, [selectedColor, allImages]);
+    // استخدام صورة اللون المختار فقط إذا كان لديه صورة فعلية
+    const newActiveImage = (selectedColor?.image_url && 
+                           selectedColor.image_url.trim() !== '' && 
+                           selectedColor.image_url !== '/images/placeholder-product.jpg') 
+      ? selectedColor.image_url 
+      : allImages[0];
+    
+    // تحديث الصورة النشطة فقط إذا كانت مختلفة عن الحالية
+    if (newActiveImage && newActiveImage !== activeImage) {
+      setActiveImage(newActiveImage);
+      setImageLoaded(false);
+    } else if (newActiveImage === activeImage) {
+      // إذا كانت نفس الصورة، تأكد من أنها محملة
+      setImageLoaded(true);
+    }
+  }, [selectedColor, allImages, activeImage]);
 
   // تحميل الصورة
   const handleImageLoad = useCallback(() => {

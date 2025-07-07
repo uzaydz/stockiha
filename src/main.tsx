@@ -22,7 +22,6 @@ import AuthPerformanceMonitor from './components/debug/AuthPerformanceMonitor';
 (window as any).React = React;
 
 // ⚡ Essential polyfills only
-import './lib/env-polyfill';
 import './lib/polyfills';
 
 // 🚀 تطبيق تحسينات الأداء فوراً
@@ -199,33 +198,3 @@ Promise.allSettled([
 setTimeout(() => {
   import('./lib/performance-config').catch(() => {});
 }, 500);
-
-// 🛠️ Service Worker (Production Only)
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  window.addEventListener('load', async () => {
-    try {
-      const registration = await navigator.serviceWorker.register('/sw-advanced.js', {
-        scope: '/',
-        updateViaCache: 'none'
-      });
-      
-      registration.addEventListener('updatefound', () => {
-        const newWorker = registration.installing;
-        if (newWorker) {
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              newWorker.postMessage({ type: 'SKIP_WAITING' });
-            }
-          });
-        }
-      });
-      
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        window.location.reload();
-      });
-      
-    } catch (error) {
-      // Ignore service worker errors
-    }
-  });
-}

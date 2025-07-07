@@ -110,6 +110,7 @@ export const useProductFormInitialization = ({
       use_variant_prices: formUseVariantPrices,
       is_sold_by_unit: productData?.is_sold_by_unit ?? true,
       advancedSettings: formAdvancedSettings as ProductAdvancedSettings,
+      special_offers_config: (productData as any)?.special_offers_config || undefined,
       marketingSettings: {
         // Review Settings
         enable_reviews: true,

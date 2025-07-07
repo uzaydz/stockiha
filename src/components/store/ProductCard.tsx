@@ -65,12 +65,24 @@ const ProductCard = React.memo(({
 
   const handleBuyNow = (e: React.MouseEvent) => {
     e.stopPropagation();
-    navigate(`/product-purchase-max-v2/${product.slug}`);
+    // إنشاء slug من الاسم إذا لم يكن موجود
+    const productSlug = product.slug || 
+      product.name.toLowerCase()
+        .replace(/[^\u0600-\u06FFa-z0-9\s]/g, '') // إزالة الرموز الخاصة مع الحفاظ على العربية
+        .replace(/\s+/g, '-') // استبدال المسافات بشرطات
+        .trim();
+    navigate(`/product-purchase-max-v2/${productSlug}`);
     toast.success(t('productCard.buyingProduct', { productName: product.name }));
   };
 
   const handleViewProduct = () => {
-    navigate(`/product-purchase-max-v2/${product.slug}`);
+    // إنشاء slug من الاسم إذا لم يكن موجود
+    const productSlug = product.slug || 
+      product.name.toLowerCase()
+        .replace(/[^\u0600-\u06FFa-z0-9\s]/g, '') // إزالة الرموز الخاصة مع الحفاظ على العربية
+        .replace(/\s+/g, '-') // استبدال المسافات بشرطات
+        .trim();
+    navigate(`/product-purchase-max-v2/${productSlug}`);
   };
 
   // حساب نسبة الخصم

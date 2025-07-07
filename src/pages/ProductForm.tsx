@@ -49,6 +49,7 @@ const ProductForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [autoSaveDrafts, setAutoSaveDrafts] = useState(true);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [isManualSubmit, setIsManualSubmit] = useState(false);
 
   // Form state
   const [additionalImages, setAdditionalImages] = useState<string[]>([]);
@@ -233,6 +234,16 @@ const ProductForm = () => {
 
   // Enhanced submit handler
   const onSubmit = async (data: ProductFormValues) => {
+    // منع الحفظ إذا لم يكن الإرسال يدوياً (مثل تحديث العروض الخاصة)
+    if (!isManualSubmit) {
+      console.log('🚫 تم منع الحفظ التلقائي - لم يكن الإرسال يدوياً');
+      setIsManualSubmit(false); // إعادة تعيين
+      return;
+    }
+
+    console.log('✅ الحفظ اليدوي مقبول');
+    setIsManualSubmit(false); // إعادة تعيين
+
     if (!organizationIdFromTenant && !data.organization_id) {
       toast.error("خطأ حرج: معرّف المؤسسة مفقود. لا يمكن إنشاء/تحديل المنتج.");
       return;
@@ -367,6 +378,7 @@ const ProductForm = () => {
         slug: data.slug || `${data.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`,
         advancedSettings: data.advancedSettings || undefined,
         marketingSettings: data.marketingSettings || undefined,
+        special_offers_config: data.special_offers_config || undefined,
         additional_images: imagesToSubmit,
       };
       
@@ -836,6 +848,10 @@ const ProductForm = () => {
                     isSubmitting || 
                     (!form.getValues('organization_id') && !organizationIdFromTenant)
                   }
+                  onClick={() => {
+                    // تحديد أن هذا إرسال يدوي
+                    setIsManualSubmit(true);
+                  }}
                   className={cn(
                     "flex-1 sm:flex-none",
                     permissionWarning 

@@ -149,86 +149,25 @@ export function formatCurrency(amount: number): string {
 }
 
 /**
- * التحقق مما إذا كانت التطبيق يعمل في بيئة Electron
+ * التحقق مما إذا كانت التطبيق يعمل في بيئة Electron - معطل لضمان عمل الموقع كموقع ويب فقط
  */
 export const isElectron = (): boolean => {
-  // التحقق من وجود واجهة Electron API (الطريقة الأكثر موثوقية)
-  if (typeof window !== 'undefined' && (window as any).electronAPI) {
-    return true;
-  }
-  
-  // التحقق من وجود خصائص العملية الرئيسية للإلكترون
-  if (
-    typeof window !== 'undefined' && 
-    typeof (window as any).process === 'object' && 
-    (window as any).process?.type === 'renderer'
-  ) {
-    return true;
-  }
-
-  // محاولة استدعاء وحدة الإلكترون (في بيئة الإلكترون فقط)
-  if (
-    typeof window !== 'undefined' &&
-    typeof (window as any).require === 'function'
-  ) {
-    try {
-      const electron = (window as any).require('electron');
-      if (electron) return true;
-    } catch (e) {
-      // نحن لسنا في بيئة إلكترون
-    }
-  }
-  
-  // وضع علامة على الصفحة لتوضيح أننا في متصفح
-  if (typeof window !== 'undefined' && !(window as any).__IS_BROWSER_ENV_DETECTED) {
-    
-    (window as any).__IS_BROWSER_ENV_DETECTED = true;
-  }
-  
-  // بشكل افتراضي، نفترض أننا في بيئة المتصفح
-  return false;
+  return false; // دائماً false لضمان عدم تشغيل أي كود خاص بـ Electron
 };
 
 /**
- * Proporciona una alternativa segura a path.join para entornos web
+ * بديل آمن لـ path.join للبيئات الويب
  */
 export const safePath = (...paths: string[]): string => {
-  if (isElectron()) {
-    try {
-      // En entorno Electron, usar el módulo path
-      const path = window.require('path');
-      return path.join(...paths);
-    } catch (error) {
-    }
-  }
-  
-  // Fallback para entornos web: simple join con separador /
+  // دمج بسيط مع فاصل / للبيئات الويب
   return paths.join('/').replace(/\/+/g, '/');
 };
 
 /**
- * الحصول على مسار بيانات المستخدم في تطبيق Electron
+ * الحصول على مسار بيانات المستخدم للبيئات الويب
  */
 export const getUserDataPath = (): string => {
-  if (isElectron()) {
-    try {
-      // محاولة الوصول إلى واجهة Electron
-      const electronAPI = (window as any).electronAPI;
-      if (electronAPI && electronAPI.getUserDataPath) {
-        return electronAPI.getUserDataPath();
-      }
-      
-      // في حالة عدم توفر واجهة electronAPI، نحاول الوصول مباشرة إلى app
-      const electron = window.require('electron');
-      const app = electron.remote ? electron.remote.app : electron.app;
-      if (app && app.getPath) {
-        return app.getPath('userData');
-      }
-    } catch (error) {
-    }
-  }
-  
-  // في حالة الفشل أو في بيئة المتصفح، نرجع مسار افتراضي
+  // في بيئة المتصفح، نرجع مسار افتراضي
   return './user-data';
 };
 
