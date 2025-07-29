@@ -1,0 +1,97 @@
+import { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { LineChart, BarChart, Activity } from 'lucide-react';
+import { SuppliersDashboard } from '@/components/suppliers/SuppliersDashboard';
+import Layout from '@/components/Layout';
+import { useAuth } from '@/context/AuthContext';
+
+export default function SupplierReports() {
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const { user } = useAuth();
+  
+  // محاولة الحصول على organization_id بطرق متعددة
+  const [organizationId, setOrganizationId] = useState<string | undefined>(undefined);
+  
+  // تحديد organization_id عند تهيئة المكون
+  useEffect(() => {
+    // محاولة الحصول على organization_id من كائن المستخدم
+    if (user && 'organization_id' in user) {
+      
+      setOrganizationId((user as any).organization_id);
+      return;
+    }
+    
+    // محاولة الحصول من التخزين المحلي
+    const storedOrgId = localStorage.getItem('bazaar_organization_id');
+    if (storedOrgId) {
+      
+      setOrganizationId(storedOrgId);
+      return;
+    }
+    
+    // القيمة الاحتياطية النهائية (يمكن تغييرها حسب احتياجك)
+    
+    setOrganizationId("10c02497-45d4-417a-857b-ad383816d7a0");
+  }, [user]);
+  
+  return (
+    <Layout>
+      <div className="container mx-auto py-6">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold tracking-tight">تقارير الموردين</h1>
+          <p className="text-muted-foreground">تحليل بيانات الموردين والمشتريات</p>
+        </div>
+        
+        <Tabs defaultValue="dashboard" value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="mb-4">
+            <TabsTrigger value="dashboard" className="flex items-center">
+              <Activity className="ml-2 h-4 w-4" />
+              لوحة المعلومات
+            </TabsTrigger>
+            <TabsTrigger value="payments" className="flex items-center">
+              <LineChart className="ml-2 h-4 w-4" />
+              تقارير المدفوعات
+            </TabsTrigger>
+            <TabsTrigger value="performance" className="flex items-center">
+              <BarChart className="ml-2 h-4 w-4" />
+              تقارير الأداء
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="dashboard">
+            <SuppliersDashboard />
+          </TabsContent>
+          
+          <TabsContent value="payments">
+            <Card>
+              <CardHeader>
+                <CardTitle>تقارير المدفوعات</CardTitle>
+                <CardDescription>تحليل مدفوعات الموردين والمبالغ المستحقة</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-center h-40">
+                  <p className="text-muted-foreground">تقارير المدفوعات قيد التطوير</p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="performance">
+            <Card>
+              <CardHeader>
+                <CardTitle>تقارير الأداء</CardTitle>
+                <CardDescription>تحليل أداء الموردين وجودة المنتجات</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-center h-40">
+                  <p className="text-muted-foreground">تقارير الأداء قيد التطوير</p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </Layout>
+  );
+}

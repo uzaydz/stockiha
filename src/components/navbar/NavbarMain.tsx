@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Menu, ChevronDown, ArrowRightToLine, ArrowLeftToLine, Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -15,91 +15,160 @@ import LanguageSwitcher from '@/components/language/LanguageSwitcher';
 import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
 import { useApps } from '@/context/AppsContext';
-import { useOrganizationSettings } from '@/hooks/useOrganizationSettings';
-import { getProductCategories } from '@/api/store';
-import type { Category } from '@/api/store';
+import { useStoreInfo, useOrganizationSettings } from '@/hooks/useAppInitData';
+import { useProductPageSettings } from '@/context/ProductPageContext';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { requestCache, createCacheKey } from '@/lib/cache/requestCache';
-import { usePhaseLoader } from '../LoadingController';
+
 import type { OrganizationSettings } from '@/types/settings';
 
 interface NavbarMainProps {
   className?: string;
   toggleSidebar?: () => void;
   isSidebarOpen?: boolean;
-  categories?: Category[];
   isMobile?: boolean;
   organizationSettings?: OrganizationSettings | null;
   hideCategories?: boolean;
 }
 
+// دوال آمنة للـ hooks
+const useAuthSafe = () => {
+  try {
+    return useAuth();
+  } catch {
+    return {
+      user: null,
+      userProfile: null,
+      loading: false
+    };
+  }
+};
+
+const useTenantSafe = () => {
+  try {
+    return useTenant();
+  } catch {
+    return {
+      currentOrganization: null,
+      isLoading: false
+    };
+  }
+};
+
+const useAppsSafe = () => {
+  try {
+    return useApps();
+  } catch {
+    return {
+      isAppEnabled: () => false,
+      organizationApps: []
+    };
+  }
+};
+
 export function NavbarMain({
   className,
   toggleSidebar,
   isSidebarOpen,
-  categories: propCategories = [],
   isMobile,
   organizationSettings: propOrganizationSettings,
   hideCategories = false
 }: NavbarMainProps) {
-  const { user, userProfile } = useAuth();
+  const { user, userProfile } = useAuthSafe();
   const { t } = useTranslation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isQuickLinksOpen, setIsQuickLinksOpen] = useState(false);
   const location = useLocation();
-  const { currentOrganization } = useTenant();
-  const { isAppEnabled, organizationApps } = useApps();
-  
-  // تحسين فحص تفعيل تطبيق التصليحات مع memoization وthrottled logging
-  const isRepairServicesEnabled = useMemo(() => {
-    const enabled = isAppEnabled('repair-services');
-    
-    // throttled logging للتطوير - فقط عند تغيير الحالة
-    if (import.meta.env.DEV) {
-      const currentTime = Date.now();
-      const lastLogKey = 'repair_services_log_time';
-      const lastLogTime = parseInt(localStorage.getItem(lastLogKey) || '0');
-      
-      // طباعة الرسالة فقط إذا مر أكثر من 5 ثوان
-      if (currentTime - lastLogTime > 5000) {
-        localStorage.setItem(lastLogKey, currentTime.toString());
-      }
-    }
-    
-    return enabled;
-  }, [organizationApps, isAppEnabled]); // يعتمد على organizationApps بدلاً من استدعاء isAppEnabled في كل render
-  
-  const [storeCategories, setStoreCategories] = useState<Category[]>(propCategories);
-  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+  const { currentOrganization } = useTenantSafe();
+  const { isAppEnabled, organizationApps } = useAppsSafe();
+
   const [isScrolled, setIsScrolled] = useState(false);
   
-  // استخدام hook إعدادات المؤسسة المحسن
-  const { settings: organizationSettings, isLoading: isLoadingSettings } = useOrganizationSettings({
-    organizationId: currentOrganization?.id
-  });
+  // استخدام useStoreInfo مع البنية الصحيحة
+  const storeInfo = useStoreInfo();
+  const storeName = storeInfo?.name || null;
+  const logoUrl = storeInfo?.logo_url || null;
+  const storeInfoLoading = !storeInfo; // إذا لم نحصل على البيانات بعد
   
-  // استخراج البيانات من إعدادات المؤسسة
-  const orgLogo = organizationSettings?.logo_url || '';
-  const siteName = organizationSettings?.site_name || currentOrganization?.name || '';
-  const displayTextWithLogo = organizationSettings?.display_text_with_logo !== false;
+  // 🔧 نظام احتياطي لجلب بيانات الشعار
+  const [fallbackLogo, setFallbackLogo] = useState<string | null>(null);
+  const [fallbackSiteName, setFallbackSiteName] = useState<string | null>(null);
+  
+  // محاولة جلب البيانات من مصادر أخرى إذا فشل النظام الأساسي
+  useEffect(() => {
+    const fetchFallbackData = async () => {
+      try {
+        // محاولة جلب من localStorage مباشرة
+        const appInitData = localStorage.getItem('bazaar_app_init_data');
+        if (appInitData) {
+          const data = JSON.parse(appInitData);
+          if (data?.organization?.settings) {
+            const settings = data.organization.settings;
+            setFallbackLogo(settings.logo_url || null);
+            setFallbackSiteName(settings.site_name || data.organization.name || null);
+          }
+        }
+        
+        // إذا لم تتوفر البيانات، محاولة إعادة تهيئة النظام
+        if (!storeInfo && currentOrganization?.id) {
+          const { initializeApp } = await import('@/lib/appInitializer');
+          const initData = await initializeApp(currentOrganization.id);
+          if (initData?.organization?.settings) {
+            setFallbackLogo(initData.organization.settings.logo_url || null);
+            setFallbackSiteName(initData.organization.settings.site_name || initData.organization.name || null);
+          }
+        }
+      } catch (error) {
+      }
+    };
+    
+    // تشغيل البحث الاحتياطي بعد ثانية إذا لم تتوفر البيانات الأساسية
+    const timeoutId = setTimeout(() => {
+      if (!logoUrl && !storeName) {
+        fetchFallbackData();
+      }
+    }, 1000);
+    
+    return () => clearTimeout(timeoutId);
+  }, [storeInfo, logoUrl, storeName, currentOrganization?.id]);
+  
+  // إصلاح مشكلة destructuring عندما يكون useOrganizationSettings يرجع null
+  const organizationSettingsResult = useOrganizationSettings();
+  const { settings: organizationSettings, isLoading: settingsLoading } = organizationSettingsResult || { 
+    settings: null, 
+    isLoading: false 
+  };
+  
+  // 🔥 للنطاقات المخصصة: استخدام ProductPageContext
+  const organizationSettingsFromProduct = useProductPageSettings();
+  
+  // 🔥 إصلاح: استخدام إعدادات المؤسسة المحسنة
+  const finalOrganizationSettings = organizationSettings || organizationSettingsFromProduct;
+  
+  // استخراج البيانات من إعدادات المؤسسة مع النظام الاحتياطي
+  const orgLogo = logoUrl || fallbackLogo || finalOrganizationSettings?.logo_url || '';
+  const siteName = storeName || fallbackSiteName || finalOrganizationSettings?.site_name || currentOrganization?.name || '';
+  const displayTextWithLogo = finalOrganizationSettings?.display_text_with_logo !== false;
+  
+  // 🔍 Console logs للتحقق من البيانات
+  useEffect(() => {
+  }, [storeInfo, storeName, logoUrl, organizationSettings, organizationSettingsFromProduct, finalOrganizationSettings, orgLogo, siteName, currentOrganization?.name, currentOrganization?.id]);
+  
+  // 🔍 Log مبسط للبيانات النهائية
+  useEffect(() => {
+    if (finalOrganizationSettings) {
+    } else {
+    }
+  }, [orgLogo, siteName, finalOrganizationSettings, displayTextWithLogo]);
 
   const isAdminPage = location.pathname.startsWith('/dashboard');
   const isAdmin = userProfile?.role === 'admin';
   const isEmployee = userProfile?.role === 'employee';
   const isStaff = isAdmin || isEmployee;
-  
-  // استخدام نظام التحكم في التحميل للتنسيق مع باقي المكونات
-  const {
-    canStartLoading: canLoadNavigation,
-    startLoading: startNavigationLoading,
-    finishLoading: finishNavigationLoading,
-    hasAttemptedLoad: hasAttemptedNavigationLoad
-  } = usePhaseLoader('navigation');
-  
+
   // تعطيل إضافة المساحة التلقائية للمحتوى - سيتم التحكم بها من خلال كل صفحة حسب الحاجة
   useEffect(() => {
     // تحديد ارتفاع النافبار الثابت للاستخدام في CSS variables
@@ -125,21 +194,21 @@ export function NavbarMain({
   
   // تحديث عنوان الصفحة والأيقونة عند تغيير الإعدادات
   useEffect(() => {
-    if (organizationSettings) {
+    if (finalOrganizationSettings) {
       // تحديث عنوان الصفحة
       if (siteName) {
         document.title = siteName;
       }
       
       // تحديث الأيقونة
-      if (organizationSettings.favicon_url) {
+      if (finalOrganizationSettings.favicon_url) {
         const faviconElement = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
         if (faviconElement) {
-          faviconElement.href = `${organizationSettings.favicon_url}?t=${Date.now()}`;
+          faviconElement.href = `${finalOrganizationSettings.favicon_url}?t=${Date.now()}`;
         } else {
           const newFavicon = document.createElement('link');
           newFavicon.rel = 'icon';
-          newFavicon.href = `${organizationSettings.favicon_url}?t=${Date.now()}`;
+          newFavicon.href = `${finalOrganizationSettings.favicon_url}?t=${Date.now()}`;
           document.head.appendChild(newFavicon);
         }
       }
@@ -154,88 +223,9 @@ export function NavbarMain({
         });
       }
     }
-  }, [organizationSettings, siteName, orgLogo]);
+  }, [finalOrganizationSettings, siteName, orgLogo]);
 
-  // Load product categories - محسن مع نظام التحكم في التحميل
-  useEffect(() => {
-    if (!canLoadNavigation || hasAttemptedNavigationLoad) {
-      return;
-    }
-    
-    const fetchCategories = async () => {
-      // إذا كانت الفئات محملة من الخارج، استخدمها مباشرة
-      if (propCategories?.length) {
-        setStoreCategories(propCategories);
-        return;
-      }
-      
-      // إذا لم يكن لدينا معرف المؤسسة، لا نحمل شيء
-      if (!currentOrganization?.id) return;
-      
-      // إذا كانت الفئات محملة بالفعل ولم تتغير المؤسسة، لا نحمل مرة أخرى
-      if (storeCategories.length > 0) {
-        return;
-      }
-      
-      // بدء التحميل مع التنسيق
-      if (!startNavigationLoading()) {
-        return; // إذا لم يستطع البدء، انتظار
-      }
-      
-      setIsLoadingCategories(true);
-      try {
-        // استخدام نظام التخزين المؤقت الجديد مع cache أطول
-        const cacheKey = createCacheKey('navbar_categories', currentOrganization.id);
-        
-        const categoriesFromDB = await requestCache.get(
-          cacheKey,
-          () => getProductCategories(currentOrganization.id),
-          300000 // 5 دقائق cache
-        );
-        
-        setStoreCategories(categoriesFromDB || []);
-        
-        if (process.env.NODE_ENV === 'development') {
-        }
-      } catch (error) {
-        setStoreCategories([]);
-      } finally {
-        setIsLoadingCategories(false);
-        finishNavigationLoading(); // إنهاء التحميل
-      }
-    };
-
-    // تأخير بسيط للسماح للمكونات الأعلى أولوية بالتحميل أولاً
-    const timeoutId = setTimeout(fetchCategories, 200);
-    
-    return () => clearTimeout(timeoutId);
-  }, [currentOrganization?.id, propCategories, canLoadNavigation, hasAttemptedNavigationLoad, 
-      startNavigationLoading, finishNavigationLoading]);
-
-  // Enhanced notification sample data
-  const sampleNotifications = [
-    {
-      id: '1',
-      title: 'طلب جديد',
-      message: 'تم إنشاء طلب جديد برقم #12345',
-      time: 'منذ 5 دقائق',
-      read: false
-    },
-    {
-      id: '2',
-      title: 'إشعار النظام',
-      message: 'تم تحديث إعدادات المتجر بنجاح',
-      time: 'منذ ساعة',
-      read: false
-    },
-    {
-      id: '3',
-      title: 'تعليق جديد',
-      message: 'علق أحمد على منتج "PlayStation 5"',
-      time: 'منذ 3 ساعات',
-      read: true
-    }
-  ];
+  // تم إزالة الإشعارات الوهمية - نستخدم النظام الحقيقي الآن
 
   if (!userProfile && user) {
     return (
@@ -355,7 +345,7 @@ export function NavbarMain({
             <div className="bg-gradient-to-r from-background/40 to-background/60 backdrop-blur-md rounded-full border border-border/20 shadow-lg px-2 py-1">
               <NavbarLinks 
                 isAdminPage={isAdminPage} 
-                categories={storeCategories} 
+                categories={[]} 
               />
             </div>
           </div>
@@ -371,20 +361,14 @@ export function NavbarMain({
 
           {/* Action buttons with enhanced styling */}
           <div className="flex items-center gap-2">
-            {/* مبدل اللغة - يظهر فقط إذا كان تطبيق التصليحات (repair-services) مفعل في قاعدة البيانات */}
-            {isRepairServicesEnabled && (
-              <div className="bg-gradient-to-r from-background/40 to-background/60 backdrop-blur-md rounded-full border border-border/20 shadow-sm">
-                <LanguageSwitcher className="px-2" variant="dropdown" showText={false} />
-              </div>
-            )}
-            
+
             <div className="bg-gradient-to-r from-background/40 to-background/60 backdrop-blur-md rounded-full border border-border/20 shadow-sm p-1">
               <NavbarThemeToggle />
             </div>
             
             {user && (
               <div className="bg-gradient-to-r from-background/40 to-background/60 backdrop-blur-md rounded-full border border-border/20 shadow-sm p-1">
-                <NavbarNotifications initialNotifications={sampleNotifications} />
+                <NavbarNotifications />
               </div>
             )}
             
@@ -418,7 +402,7 @@ export function NavbarMain({
               siteName={siteName}
               displayTextWithLogo={displayTextWithLogo}
               isAdminPage={isAdminPage}
-              categories={storeCategories}
+              categories={[]}
             >
               {isAdminPage && (
                 <div className="mb-4">

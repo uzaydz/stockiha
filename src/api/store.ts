@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase-client';
 import { withCache, LONG_CACHE_TTL, SHORT_CACHE_TTL } from '@/lib/cache/storeCache';
 import { getSupabaseClient } from '@/lib/supabase-client';
 import UnifiedRequestManager from '@/lib/unifiedRequestManager';
+import { safeUuidOrNull } from '@/utils/uuid-helpers';
 
 // واجهات البيانات التي تتوافق مع قاعدة البيانات
 export interface ProductColor {
@@ -33,7 +34,8 @@ export interface Product {
   price: number;
   discount_price?: number;
   stock_quantity: number;
-  imageUrl: string;
+  imageUrl?: string;
+  thumbnail_image?: string;
   category: string;
   is_new?: boolean;
   is_featured?: boolean;
@@ -164,7 +166,7 @@ export async function getFeaturedProducts(organizationId: string): Promise<Produ
     const supabaseClient = getSupabaseClient();
     const { data: productsRaw, error } = await supabaseClient
       .from('products')
-      .select('id, name, description, price, compare_at_price, thumbnail_image, thumbnail_url, images, stock_quantity, created_at, is_featured, is_active, slug, is_new')
+      .select('id, name, description, price, compare_at_price, thumbnail_image, images, stock_quantity, created_at, is_featured, is_active, slug, is_new')
       .eq('organization_id', organizationId)
       .eq('is_active', true) // إضافة شرط للتأكد من أن المنتج مفعل
       .limit(20);
@@ -195,10 +197,8 @@ export async function getFeaturedProducts(organizationId: string): Promise<Produ
       // معالجة روابط الصور المصغرة للتأكد من صحتها
       let thumbnailImage = '';
       
-      // استخدم thumbnail_url أولاً إذا كان متاحاً، ثم انتقل إلى thumbnail_image
-      if (product.thumbnail_url) {
-        thumbnailImage = product.thumbnail_url.trim();
-      } else if (product.thumbnail_image) {
+      // استخدم thumbnail_image
+      if (product.thumbnail_image) {
         thumbnailImage = product.thumbnail_image.trim();
       }
       
@@ -903,70 +903,114 @@ export async function processOrder(
   try {
     const supabaseClient = getSupabaseClient();
     
-    // استخدام التحويل الصريح (type casting) لتجاوز تدقيق المعاملات
+    // Helper function to convert empty strings to null for UUID fields - استخدام الدالة المحسنة
+    const toUuidOrNull = safeUuidOrNull;
+    
+    // 🚨 CONSOLE LOG: بيانات الطلبية قبل الإرسال لقاعدة البيانات
+    
+    // استخدام دالة process_online_order_new المحدثة مع جميع المعاملات
     const params = {
       p_full_name: fullName,
       p_phone: phone,
       p_province: province,
       p_municipality: municipality,
+      p_product_id: productId,
+      p_organization_id: organizationId,  // ✅ Moved to correct position
       p_address: address,
       p_city: city || '',
       p_delivery_company: deliveryCompany,
       p_delivery_option: deliveryOption,
       p_payment_method: paymentMethod,
       p_notes: notes || '',
-      p_product_id: productId,
-      p_product_color_id: productColorId || null,
-      p_product_size_id: productSizeId || null,
-      p_size_name: sizeName || '',
+      p_product_color_id: toUuidOrNull(productColorId),  // ✅ Properly convert to null
+      p_product_size_id: toUuidOrNull(productSizeId),    // ✅ Properly convert to null
+      p_size_name: sizeName || null,                     // ✅ Convert empty string to null
       p_quantity: quantity,
       p_unit_price: unitPrice,
       p_total_price: totalPrice,
       p_delivery_fee: deliveryFee,
-      p_organization_id: organizationId,
       p_form_data: formData || null,
       p_metadata: metadata || null,
-      p_stop_desk_id: stop_desk_id || null
+      p_stop_desk_id: toUuidOrNull(stop_desk_id)         // ✅ Properly convert to null
     };
+
+    // 🚨 CONSOLE LOG: معاملات الدالة المرسلة لـ Supabase
 
     // استخدام "as any" لتجاوز تدقيق النوع في TypeScript
     const { data, error } = await supabaseClient.rpc('process_online_order_new', params as any);
 
-    if (error) {
+    // 🚨 CONSOLE LOG: نتيجة استدعاء قاعدة البيانات
+
+    // 🚨 التحقق من حالة الخطأ في البيانات المُرجعة من قاعدة البيانات
+    if (data && (data as any)?.status === 'error') {
+      throw new Error((data as any)?.error || 'خطأ من قاعدة البيانات');
+    }
+
+  // 🚨 CONSOLE LOG: فحص كمية المخزون بعد الطلبية
+  if (!error && data) {
+    
+    try {
+      const supabaseClient = getSupabaseClient();
       
-      // تحقق مما إذا كانت المشكلة هي عدم وجود الدالة الجديدة
-      if (error.code === 'PGRST202') {
+      // فحص كمية المنتج الرئيسي
+      const { data: productAfter } = await supabaseClient
+        .from('products')
+        .select('stock_quantity')
+        .eq('id', productId)
+        .single();
 
-        // إعادة صياغة المعاملات حسب الدالة القديمة
-        const fallbackParams = {
-          p_full_name: fullName,
-          p_phone: phone,
-          p_province: province,
-          p_address: address,
-          p_delivery_company: deliveryCompany,
-          p_payment_method: paymentMethod,
-          p_notes: notes || '',
-          p_product_id: productId,
-          p_product_color_id: productColorId || null,
-          p_quantity: quantity,
-          p_unit_price: unitPrice,
-          p_total_price: totalPrice,
-          p_delivery_fee: deliveryFee,
-          p_organization_id: organizationId
-        };
+      // فحص كمية اللون إذا كان موجود
+      const validProductColorId = toUuidOrNull(productColorId);
+      if (validProductColorId) {
+        
+        const { data: colorAfter } = await supabaseClient
+          .from('product_colors')
+          .select('quantity, name')
+          .eq('id', validProductColorId)
+          .single();
 
-        try {
-          const fallbackResult = await supabaseClient.rpc('process_online_order', fallbackParams as any);
+      // 🧪 CONSOLE LOG: اختبار خصم المخزون مباشرة باستخدام UPDATE
+      try {
+        
+        const { data: updateResult, error: updateError } = await supabaseClient
+          .from('product_colors')
+          .update({ quantity: colorAfter?.quantity - 1 })
+          .eq('id', validProductColorId)
+          .select('quantity, name');
+        
+        if (updateError) {
+        } else {
           
-          if (fallbackResult.error) {
-            throw new Error(`فشل استدعاء الدالتين. الخطأ: ${fallbackResult.error.message}`);
-          }
-
-          return fallbackResult.data;
-        } catch (fallbackError) {
-          throw fallbackError;
+          // إعادة الكمية كما كانت
+          await supabaseClient
+            .from('product_colors')
+            .update({ quantity: colorAfter?.quantity })
+            .eq('id', validProductColorId);
+          
         }
+      } catch (testError) {
       }
+      }
+      
+      // فحص كمية المقاس إذا كان موجود
+      const validProductSizeId = toUuidOrNull(productSizeId);
+      if (validProductSizeId) {
+        
+        const { data: sizeAfter } = await supabaseClient
+          .from('product_sizes')
+          .select('quantity')
+          .eq('id', validProductSizeId)
+          .single();
+        
+      }
+    } catch (checkError) {
+    }
+  }
+
+    if (error) {
+      // 🚨 CONSOLE LOG: خطأ في قاعدة البيانات
+      
+      // إضافة تشخيص مفصل للخطأ
       
       // Try to determine the specific error from the error message
       let detailedError = error.message;

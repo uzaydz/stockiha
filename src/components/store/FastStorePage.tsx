@@ -19,9 +19,24 @@ import UltraFastStorePage from './UltraFastStorePage';
 // 🚀 FAST STORE PAGE - نسخة محسنة مع دعم النظام القديم
 // =================================================================
 
+// 🚨 إضافة نظام تتبع الأداء
+const STORE_PAGE_DEBUG = true;
+const STORE_PERFORMANCE_METRICS = {
+  totalRenders: 0,
+  loadDataCalls: 0,
+  themeApplications: 0,
+  warnings: [] as string[]
+};
+
+const logStorePerformanceIssue = (type: string, data: any) => {
+  if (!STORE_PAGE_DEBUG) return;
+  
+  STORE_PERFORMANCE_METRICS.warnings.push(`${type}: ${JSON.stringify(data)}`);
+};
+
 // Lazy imports للمكونات الثقيلة (للتوافق مع النظام القديم)
 const LazyStoreBanner = React.lazy(() => import('./StoreBanner'));
-const LazyProductCategories = React.lazy(() => import('./ProductCategories'));
+const LazyProductCategories = React.lazy(() => import('./ProductCategoriesOptimized'));
 const LazyFeaturedProducts = React.lazy(() => import('./FeaturedProducts'));
 const LazyCustomerTestimonials = React.lazy(() => import('./CustomerTestimonials'));
 const LazyStoreAbout = React.lazy(() => import('./StoreAbout'));
@@ -40,22 +55,60 @@ const LegacyFastStorePage: React.FC<FastStorePageProps> = ({
   const { currentOrganization } = useTenant();
   const { state, loadStoreData } = useStore();
 
+  // 🚨 تتبع تحميل البيانات
+  STORE_PERFORMANCE_METRICS.totalRenders++;
+
   // تحميل البيانات باستخدام النظام الجديد
   useEffect(() => {
+    const loadStartTime = performance.now();
+
     if (currentSubdomain && !state.organizationData && !state.isLoading) {
+      STORE_PERFORMANCE_METRICS.loadDataCalls++;
+
       loadStoreData(currentSubdomain);
+      
+      const loadEndTime = performance.now();
+      const loadDuration = loadEndTime - loadStartTime;
+      
+      if (loadDuration > 100) {
+        logStorePerformanceIssue('SLOW_LOAD_DATA_CALL', {
+          duration: loadDuration,
+          subdomain: currentSubdomain
+        });
+      }
+    } else {
+      const reasons = [];
+      if (!currentSubdomain) reasons.push('لا يوجد subdomain');
+      if (state.organizationData) reasons.push('البيانات موجودة بالفعل');
+      if (state.isLoading) reasons.push('التحميل جاري');
+      
     }
   }, [currentSubdomain, state.organizationData, state.isLoading, loadStoreData]);
 
   // تطبيق الثيم
   useEffect(() => {
+    const themeStartTime = performance.now();
+
     if (state.storeSettings && state.organizationData?.id) {
+      STORE_PERFORMANCE_METRICS.themeApplications++;
+
       updateOrganizationTheme(state.organizationData.id, {
         theme_primary_color: state.storeSettings.theme_primary_color,
         theme_secondary_color: state.storeSettings.theme_secondary_color,
         theme_mode: state.storeSettings.theme_mode,
         custom_css: state.storeSettings.custom_css
       });
+      
+      const themeEndTime = performance.now();
+      const themeDuration = themeEndTime - themeStartTime;
+      
+      if (themeDuration > 50) {
+        logStorePerformanceIssue('SLOW_THEME_APPLICATION', {
+          duration: themeDuration,
+          organizationId: state.organizationData.id
+        });
+      }
+    } else {
     }
   }, [state.storeSettings, state.organizationData?.id]);
 

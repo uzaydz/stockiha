@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { getSupabaseClient } from '@/lib/supabase';
 import { withCache, DEFAULT_CACHE_TTL } from '@/lib/cache/storeCache';
+import { isValidUuid } from '@/utils/uuid-helpers';
 
 // Define Organization type here or import it if defined elsewhere
 // For now, let's assume a simple type for the return
@@ -127,7 +128,7 @@ export const getOrganizationBySubdomain = async (subdomain: string): Promise<Org
     const orgId = localStorage.getItem('bazaar_organization_id');
     
     // إذا كان هناك معرف مؤسسة محفوظ محلياً، نستخدمه بدلاً من النطاق الفرعي
-    if (orgId) {
+    if (isValidUuid(orgId)) {
       // Note: getOrganizationById should also be wrapped withCache or use it
       return getOrganizationById(orgId);
     }

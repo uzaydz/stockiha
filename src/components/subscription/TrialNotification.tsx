@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -22,6 +22,16 @@ interface OrganizationWithSettings {
   };
 }
 
+// 🔥 Cache مركزي لمنع التكرار المفرط في TrialNotification
+const TRIAL_NOTIFICATION_CACHE = new Map<string, {
+  data: any;
+  timestamp: number;
+  isCalculating: boolean;
+}>();
+
+const TRIAL_CACHE_DURATION = 2 * 60 * 1000; // دقيقتان
+const CALCULATION_DEBOUNCE_TIME = 2000; // ثانيتان
+
 export const TrialNotification: React.FC = () => {
   const { organization } = useAuth();
   const [daysLeft, setDaysLeft] = useState<number | null>(null);
@@ -35,12 +45,70 @@ export const TrialNotification: React.FC = () => {
   // مرجع للتحكم في debouncing
   const calculationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastOrganizationIdRef = useRef<string | null>(null);
+  const lastCalculationTimeRef = useRef<number>(0);
+
+  // 🔥 دالة محسنة للحصول على بيانات التجربة من الكاش أو الخادم
+  const getTrialData = async (org: OrganizationWithSettings): Promise<any> => {
+    const cacheKey = `trial_${org.id}`;
+    const now = Date.now();
+    
+    // التحقق من الكاش المركزي أولاً
+    const cached = TRIAL_NOTIFICATION_CACHE.get(cacheKey);
+    if (cached && (now - cached.timestamp) < TRIAL_CACHE_DURATION) {
+      // إذا كان هناك حساب جاري، انتظر
+      if (cached.isCalculating) {
+        return null;
+      }
+      return cached.data;
+    }
+
+    // إذا كان هناك حساب جاري بالفعل، لا نكرر
+    if (cached?.isCalculating) {
+      return null;
+    }
+
+    // تسجيل أن الحساب جاري
+    TRIAL_NOTIFICATION_CACHE.set(cacheKey, {
+      data: cached?.data || null,
+      timestamp: cached?.timestamp || 0,
+      isCalculating: true
+    });
+
+    try {
+      const result = await SubscriptionService.calculateTotalDaysLeft(org, null);
+      
+      // حفظ النتيجة في الكاش
+      TRIAL_NOTIFICATION_CACHE.set(cacheKey, {
+        data: result,
+        timestamp: now,
+        isCalculating: false
+      });
+      
+      return result;
+    } catch (error) {
+      // في حالة الخطأ، نزيل علامة الحساب الجاري
+      TRIAL_NOTIFICATION_CACHE.set(cacheKey, {
+        data: cached?.data || null,
+        timestamp: cached?.timestamp || 0,
+        isCalculating: false
+      });
+      return null;
+    }
+  };
+
+  // تحسين useMemo للتحقق من تغيير المؤسسة
+  const organizationChanged = useMemo(() => {
+    return organization?.id !== lastOrganizationIdRef.current;
+  }, [organization?.id]);
 
   useEffect(() => {
     if (!organization || isCalculating) return;
     
-    // تجنب إعادة الحساب للمؤسسة نفسها
-    if (lastOrganizationIdRef.current === organization.id) {
+    const now = Date.now();
+    const timeSinceLastCalculation = now - lastCalculationTimeRef.current;
+    
+    // منع إعادة الحساب للمؤسسة نفسها في وقت قصير
+    if (!organizationChanged && timeSinceLastCalculation < CALCULATION_DEBOUNCE_TIME) {
       return;
     }
     
@@ -51,12 +119,15 @@ export const TrialNotification: React.FC = () => {
       if (isCalculating) return;
       
       setIsCalculating(true);
+      lastCalculationTimeRef.current = now;
       
       try {
-        const result = await SubscriptionService.calculateTotalDaysLeft(
-          organization as unknown as OrganizationWithSettings,
-          null
-        );
+        const result = await getTrialData(organization as unknown as OrganizationWithSettings);
+        
+        if (!result) {
+          // لا توجد بيانات أو جاري الحساب، لا نفعل شيئاً
+          return;
+        }
 
         setDaysLeft(result.totalDaysLeft);
         setTrialDaysLeft(result.trialDaysLeft);
@@ -76,6 +147,7 @@ export const TrialNotification: React.FC = () => {
         }
 
       } catch (error) {
+        console.warn('Trial notification calculation failed:', error);
         setShowNotification(false);
       } finally {
         setIsCalculating(false);
@@ -95,7 +167,7 @@ export const TrialNotification: React.FC = () => {
         clearTimeout(calculationTimeoutRef.current);
       }
     };
-  }, [organization?.id, isCalculating]);
+  }, [organization?.id, isCalculating, organizationChanged]);
 
   // تنظيف المراجع عند إلغاء تحميل المكون
   useEffect(() => {

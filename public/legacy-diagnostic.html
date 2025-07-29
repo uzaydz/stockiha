@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>فحص التوافق - سطوكيها</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            direction: rtl;
+            text-align: right;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-item {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border-left: 4px solid #ccc;
+        }
+        .test-pass {
+            background-color: #d4edda;
+            border-left-color: #28a745;
+            color: #155724;
+        }
+        .test-fail {
+            background-color: #f8d7da;
+            border-left-color: #dc3545;
+            color: #721c24;
+        }
+        .test-warning {
+            background-color: #fff3cd;
+            border-left-color: #ffc107;
+            color: #856404;
+        }
+        .device-info {
+            background-color: #e7f3ff;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .btn {
+            background-color: #6b21a8;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .btn:hover {
+            background-color: #553285;
+        }
+        .console-output {
+            background-color: #2d3748;
+            color: #fff;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 فحص التوافق مع الأجهزة القديمة</h1>
+        <p>هذه الصفحة تساعد في تشخيص مشاكل التوافق مع الـ iPad القديم والمتصفحات القديمة</p>
+        
+        <div class="device-info" id="deviceInfo">
+            <h2>معلومات الجهاز</h2>
+            <div id="deviceDetails">جاري التحميل...</div>
+        </div>
+
+        <div>
+            <h2>اختبارات التوافق</h2>
+            <div id="compatibilityTests">جاري تشغيل الاختبارات...</div>
+        </div>
+
+        <div>
+            <button class="btn" onclick="runAllTests()">إعادة تشغيل جميع الاختبارات</button>
+            <button class="btn" onclick="testMainApp()">اختبار التطبيق الرئيسي</button>
+            <button class="btn" onclick="clearConsole()">مسح الكونسول</button>
+        </div>
+
+        <div>
+            <h2>سجل الكونسول</h2>
+            <div class="console-output" id="consoleOutput">سيتم عرض رسائل الكونسول هنا...</div>
+        </div>
+    </div>
+
+    <script>
+        // اعتراض console.log لعرضه في الصفحة
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+        
+        const consoleOutput = document.getElementById('consoleOutput');
+        
+        function addToConsole(type, ...args) {
+            const timestamp = new Date().toLocaleTimeString('ar-EG');
+            const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)).join(' ');
+            consoleOutput.textContent += `[${timestamp}] ${type.toUpperCase()}: ${message}\n`;
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addToConsole('log', ...args);
+        };
+        
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addToConsole('error', ...args);
+        };
+        
+        console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            addToConsole('warn', ...args);
+        };
+        
+        function clearConsole() {
+            consoleOutput.textContent = '';
+        }
+        
+        // جمع معلومات الجهاز
+        function getDeviceInfo() {
+            const userAgent = navigator.userAgent;
+            const isIOS = /iPad|iPhone|iPod/.test(userAgent);
+            const isSafari = /Safari/.test(userAgent) && !userAgent.includes('Chrome');
+            
+            // استخراج إصدار iOS
+            let iosVersion = 'غير معروف';
+            if (isIOS) {
+                const match = userAgent.match(/OS (\d+)_(\d+)/);
+                if (match) {
+                    iosVersion = `${match[1]}.${match[2]}`;
+                }
+            }
+            
+            // استخراج إصدار Safari
+            let safariVersion = 'غير معروف';
+            if (isSafari) {
+                const match = userAgent.match(/Version\/(\d+\.\d+)/);
+                if (match) {
+                    safariVersion = match[1];
+                }
+            }
+            
+            return {
+                userAgent,
+                isIOS,
+                isSafari,
+                iosVersion,
+                safariVersion,
+                screenWidth: screen.width,
+                screenHeight: screen.height,
+                devicePixelRatio: window.devicePixelRatio || 1,
+                language: navigator.language,
+                platform: navigator.platform,
+                cookieEnabled: navigator.cookieEnabled,
+                onLine: navigator.onLine
+            };
+        }
+        
+        // عرض معلومات الجهاز
+        function displayDeviceInfo() {
+            const info = getDeviceInfo();
+            const deviceDetails = document.getElementById('deviceDetails');
+            
+            deviceDetails.innerHTML = `
+                <strong>نوع الجهاز:</strong> ${info.isIOS ? 'iOS Device' : 'جهاز آخر'}<br>
+                <strong>المتصفح:</strong> ${info.isSafari ? 'Safari' : 'متصفح آخر'}<br>
+                <strong>إصدار iOS:</strong> ${info.iosVersion}<br>
+                <strong>إصدار Safari:</strong> ${info.safariVersion}<br>
+                <strong>دقة الشاشة:</strong> ${info.screenWidth} × ${info.screenHeight}<br>
+                <strong>نسبة البكسل:</strong> ${info.devicePixelRatio}<br>
+                <strong>اللغة:</strong> ${info.language}<br>
+                <strong>المنصة:</strong> ${info.platform}<br>
+                <strong>الكوكيز مفعلة:</strong> ${info.cookieEnabled ? 'نعم' : 'لا'}<br>
+                <strong>متصل بالإنترنت:</strong> ${info.onLine ? 'نعم' : 'لا'}<br>
+                <strong>User Agent:</strong><br><small>${info.userAgent}</small>
+            `;
+        }
+        
+        // اختبارات التوافق
+        function createTestItem(name, passed, message) {
+            const className = passed ? 'test-pass' : 'test-fail';
+            const icon = passed ? '✅' : '❌';
+            return `<div class="test-item ${className}">${icon} <strong>${name}:</strong> ${message}</div>`;
+        }
+        
+        function createWarningItem(name, message) {
+            return `<div class="test-item test-warning">⚠️ <strong>${name}:</strong> ${message}</div>`;
+        }
+        
+        function runCompatibilityTests() {
+            const testsContainer = document.getElementById('compatibilityTests');
+            let results = '';
+            
+            console.log('🧪 بدء اختبارات التوافق...');
+            
+            // اختبار ES6 Features
+            results += createTestItem('Object.assign', typeof Object.assign === 'function', 
+                typeof Object.assign === 'function' ? 'مدعوم' : 'غير مدعوم - سيتم استخدام polyfill');
+            
+            results += createTestItem('Array.includes', Array.prototype.includes !== undefined, 
+                Array.prototype.includes !== undefined ? 'مدعوم' : 'غير مدعوم - سيتم استخدام polyfill');
+            
+            results += createTestItem('String.includes', String.prototype.includes !== undefined, 
+                String.prototype.includes !== undefined ? 'مدعوم' : 'غير مدعوم - سيتم استخدام polyfill');
+            
+            // اختبار Promise
+            results += createTestItem('Promise', typeof Promise !== 'undefined', 
+                typeof Promise !== 'undefined' ? 'مدعوم' : 'غير مدعوم - سيتم استخدام polyfill');
+            
+            // اختبار Fetch API
+            results += createTestItem('Fetch API', typeof fetch !== 'undefined', 
+                typeof fetch !== 'undefined' ? 'مدعوم' : 'غير مدعوم - سيتم استخدام polyfill');
+            
+            // اختبار URL API
+            results += createTestItem('URL API', typeof URL !== 'undefined', 
+                typeof URL !== 'undefined' ? 'مدعوم' : 'غير مدعوم - سيتم استخدام polyfill');
+            
+            // اختبار CSS Custom Properties
+            const supportsCSSVariables = window.CSS && CSS.supports && CSS.supports('color', 'var(--fake-var)');
+            results += createTestItem('CSS Custom Properties', supportsCSSVariables, 
+                supportsCSSVariables ? 'مدعوم' : 'غير مدعوم - سيتم استخدام polyfill');
+            
+            // اختبار requestAnimationFrame
+            results += createTestItem('requestAnimationFrame', typeof requestAnimationFrame !== 'undefined', 
+                typeof requestAnimationFrame !== 'undefined' ? 'مدعوم' : 'غير مدعوم - سيتم استخدام polyfill');
+            
+            // اختبار IntersectionObserver
+            results += createTestItem('IntersectionObserver', typeof IntersectionObserver !== 'undefined', 
+                typeof IntersectionObserver !== 'undefined' ? 'مدعوم' : 'غير مدعوم - سيتم استخدام polyfill');
+            
+            // اختبار localStorage
+            let localStorageWorking = false;
+            try {
+                localStorage.setItem('test', 'test');
+                localStorage.removeItem('test');
+                localStorageWorking = true;
+            } catch (e) {
+                console.error('localStorage test failed:', e);
+            }
+            results += createTestItem('localStorage', localStorageWorking, 
+                localStorageWorking ? 'يعمل بشكل طبيعي' : 'لا يعمل - قد يؤثر على حفظ البيانات');
+            
+            // اختبار WebSocket
+            results += createTestItem('WebSocket', typeof WebSocket !== 'undefined', 
+                typeof WebSocket !== 'undefined' ? 'مدعوم' : 'غير مدعوم - قد تكون هناك مشاكل في الاتصال الفوري');
+            
+            // فحص إصدار iOS
+            const info = getDeviceInfo();
+            if (info.isIOS) {
+                const iosVersionNumber = parseFloat(info.iosVersion);
+                if (iosVersionNumber < 12) {
+                    results += createWarningItem('إصدار iOS قديم', 
+                        `iOS ${info.iosVersion} قديم جداً. يُنصح بالتحديث إلى iOS 12 أو أحدث للحصول على أفضل تجربة`);
+                } else if (iosVersionNumber < 13) {
+                    results += createWarningItem('إصدار iOS', 
+                        `iOS ${info.iosVersion} قديم نسبياً. تم تطبيق polyfills خاصة لضمان التوافق`);
+                }
+            }
+            
+            testsContainer.innerHTML = results;
+            console.log('✅ انتهت اختبارات التوافق');
+        }
+        
+        function runAllTests() {
+            console.log('🔄 إعادة تشغيل جميع الاختبارات...');
+            displayDeviceInfo();
+            runCompatibilityTests();
+        }
+        
+        function testMainApp() {
+            console.log('🚀 اختبار التطبيق الرئيسي...');
+            
+            // محاولة تحميل التطبيق الرئيسي
+            const testFrame = document.createElement('iframe');
+            testFrame.style.display = 'none';
+            testFrame.src = '/';
+            
+            testFrame.onload = function() {
+                console.log('✅ تم تحميل التطبيق الرئيسي بنجاح');
+                document.body.removeChild(testFrame);
+            };
+            
+            testFrame.onerror = function() {
+                console.error('❌ فشل في تحميل التطبيق الرئيسي');
+                document.body.removeChild(testFrame);
+            };
+            
+            setTimeout(() => {
+                if (testFrame.parentNode) {
+                    console.warn('⚠️ انتهت مهلة تحميل التطبيق الرئيسي (10 ثواني)');
+                    document.body.removeChild(testFrame);
+                }
+            }, 10000);
+            
+            document.body.appendChild(testFrame);
+        }
+        
+        // تشغيل الاختبارات عند تحميل الصفحة
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('📱 صفحة فحص التوافق جاهزة');
+            runAllTests();
+        });
+    </script>
+</body>
+</html> 

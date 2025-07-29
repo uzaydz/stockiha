@@ -1,0 +1,2296 @@
+/* 🌐 تحميل خطوط Tajawal من Google Fonts كـ backup */
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap');
+
+/* استيراد ملفات CSS الإضافية */
+@import './components/landing-page-builder/styles/cta-button.css';
+@import './styles/apps-management.css';
+
+/* 🎨 تعريفات خطوط Tajawal المحلية - أولوية عالية مع أكثر من مسار */
+@font-face {
+  font-family: 'TajawalForced';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block; /* تغيير من swap إلى block لضمان التحميل */
+  src: url('/fonts/tajawal-regular.woff2') format('woff2'),
+       url('./fonts/tajawal-regular.woff2') format('woff2'),
+       url('../public/fonts/tajawal-regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'TajawalForced';
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+  src: url('/fonts/tajawal-medium.woff2') format('woff2'),
+       url('./fonts/tajawal-medium.woff2') format('woff2'),
+       url('../public/fonts/tajawal-medium.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'TajawalForced';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('/fonts/tajawal-bold.woff2') format('woff2'),
+       url('./fonts/tajawal-bold.woff2') format('woff2'),
+       url('../public/fonts/tajawal-bold.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('/fonts/tajawal-regular.woff2') format('woff2'),
+       url('./fonts/tajawal-regular.woff2') format('woff2'),
+       url('../public/fonts/tajawal-regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+  src: url('/fonts/tajawal-medium.woff2') format('woff2'),
+       url('./fonts/tajawal-medium.woff2') format('woff2'),
+       url('../public/fonts/tajawal-medium.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('/fonts/tajawal-bold.woff2') format('woff2'),
+       url('./fonts/tajawal-bold.woff2') format('woff2'),
+       url('../public/fonts/tajawal-bold.woff2') format('woff2');
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 🎯 تطبيق خط Tajawal بأولوية عالية جداً - بدون @layer لتجنب مشاكل Lazy Loading */
+html, body, *, *::before, *::after {
+  font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+}
+
+/* 🔧 إعدادات خاصة للعناصر الشائعة */
+h1, h2, h3, h4, h5, h6, p, span, div, a, button, input, textarea, select, label {
+  font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+}
+
+/* 🚀 إجبار خاص للعناصر التي قد تتداخل */
+.properties-panel-rtl, .properties-panel-enhanced, [class*="properties"], [class*="panel"] {
+  font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+}
+
+/* 💪 إجبار أقوى للعناصر العنيدة */
+[style*="font-family"] {
+  font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+}
+
+/* 🎯 تطبيق خط Tajawal في @layer base للتوافق مع Tailwind */
+@layer base {
+  html, body, *, *::before, *::after {
+    font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+  }
+  
+  /* 🔧 إعدادات خاصة للعناصر الشائعة */
+  h1, h2, h3, h4, h5, h6, p, span, div, a, button, input, textarea, select, label {
+    font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+  }
+  
+  /* 🚀 إجبار خاص للعناصر التي قد تتداخل */
+  .properties-panel-rtl, .properties-panel-enhanced, [class*="properties"], [class*="panel"] {
+    font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+  }
+  
+  /* 💪 إجبار أقوى للعناصر العنيدة */
+  [style*="font-family"] {
+    font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+  }
+}
+
+/* Custom gradient utilities */
+@layer utilities {
+  .bg-gradient-radial {
+    background-image: radial-gradient(ellipse at center, var(--tw-gradient-stops));
+  }
+  
+  .perspective-1000 {
+    perspective: 1000px;
+  }
+  
+  .transform-gpu {
+    transform: translateZ(0);
+  }
+}
+
+@layer base {
+  :root {
+    /* متغيرات الألوان الأساسية - الوضع الافتراضي (فاتح) */
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 210 40% 98%;
+    --primary-lighter: 217.2 91.2% 85%;
+    --primary-darker: 217.2 91.2% 35%;
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 84% 4.9%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96%;
+    --accent-foreground: 222.2 84% 4.9%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 217.2 91.2% 59.8%;
+
+    --radius: 0.75rem;
+
+    /* متغيرات الشريط الجانبي */
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 222.2 84% 4.9%;
+    --sidebar-primary: 217.2 91.2% 59.8%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 210 40% 96%;
+    --sidebar-accent-foreground: 222.2 84% 4.9%;
+    --sidebar-border: 214.3 31.8% 91.4%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* متغيرات مخصصة للانتقالات السريعة */
+    --theme-transition-duration: 0.15s;
+    --theme-transition-timing: ease-out;
+  }
+
+  .light {
+    /* الوضع الفاتح - ألوان محسنة */
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 210 40% 98%;
+    --primary-lighter: 217.2 91.2% 85%;
+    --primary-darker: 217.2 91.2% 35%;
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 84% 4.9%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96%;
+    --accent-foreground: 222.2 84% 4.9%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 217.2 91.2% 59.8%;
+
+    /* الشريط الجانبي - الوضع الفاتح */
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 222.2 84% 4.9%;
+    --sidebar-primary: 217.2 91.2% 59.8%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 210 40% 96%;
+    --sidebar-accent-foreground: 222.2 84% 4.9%;
+    --sidebar-border: 214.3 31.8% 91.4%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    /* الوضع الداكن - ألوان محسنة ومتباينة */
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 210 40% 98%;
+    --primary-lighter: 217.2 91.2% 75%;
+    --primary-darker: 217.2 91.2% 45%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 217.2 91.2% 59.8%;
+
+    /* الشريط الجانبي - الوضع الداكن */
+    --sidebar-background: 222.2 84% 4.9%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 217.2 91.2% 59.8%;
+    --sidebar-primary-foreground: 222.2 84% 4.9%;
+    --sidebar-accent: 217.2 32.6% 17.5%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217.2 32.6% 17.5%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  /* تحسين الانتقالات لتكون سريعة جداً */
+  * {
+    @apply border-border;
+  }
+
+  /* تحسين الجسم الرئيسي */
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+    transition: background-color var(--theme-transition-duration) var(--theme-transition-timing),
+                color var(--theme-transition-duration) var(--theme-transition-timing);
+    color-scheme: light dark;
+  }
+
+  /* 🔧 إجبار تطبيق خط Tajawal على جميع العناصر */
+  *, *::before, *::after {
+    font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+  }
+  
+  /* 🎯 Force Arabic text with stronger specificity */
+  html[lang="ar"] *, body[dir="rtl"] *, .arabic-text {
+    font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+  }
+  
+  /* Ensure all elements inherit theme colors */
+  *, *::before, *::after {
+    border-color: hsl(var(--border));
+  }
+  
+  /* Apply theme to all card elements */
+  .card, [class*="card"] {
+    background-color: hsl(var(--card));
+    color: hsl(var(--card-foreground));
+  }
+  
+  /* Apply theme to all background elements */
+  .bg-background {
+    background-color: hsl(var(--background)) !important;
+  }
+  
+  .text-foreground {
+    color: hsl(var(--foreground)) !important;
+  }
+  
+  /* Ensure theme colors are applied to common elements */
+  input, textarea, select {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    border-color: hsl(var(--border));
+  }
+  
+  /* Apply theme to buttons */
+  button {
+    transition: all var(--theme-transition-duration) var(--theme-transition-timing);
+  }
+  
+  /* Fallback for data-theme attribute */
+  [data-theme="light"] {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 84% 4.9%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222.2 84% 4.9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 222.2 84% 4.9%;
+    --sidebar-primary: 217.2 91.2% 59.8%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 210 40% 96%;
+    --sidebar-accent-foreground: 222.2 84% 4.9%;
+    --sidebar-border: 214.3 31.8% 91.4%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+  
+  [data-theme="dark"] {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 222.2 84% 4.9%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 217.2 91.2% 59.8%;
+    --sidebar-primary-foreground: 222.2 84% 4.9%;
+    --sidebar-accent: 217.2 32.6% 17.5%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217.2 32.6% 17.5%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer components {
+  /* أزرار محسنة بدون تأثيرات كبيرة */
+  .primary-button {
+    @apply bg-primary text-primary-foreground hover:bg-primary/90;
+    transition: background-color var(--theme-transition-duration) var(--theme-transition-timing);
+  }
+  
+  .custom-button {
+    @apply bg-primary text-primary-foreground hover:bg-primary-lighter;
+    transition: background-color var(--theme-transition-duration) var(--theme-transition-timing);
+  }
+  
+  /* بطاقات محسنة وبسيطة */
+  .custom-card {
+    @apply bg-card text-card-foreground border rounded-lg shadow-sm;
+    transition: all var(--theme-transition-duration) var(--theme-transition-timing);
+  }
+
+  /* انتقال سلس وسريع للثيم */
+  .theme-transition {
+    transition: all var(--theme-transition-duration) var(--theme-transition-timing);
+  }
+}
+
+/* تحسينات RTL */
+[dir="rtl"] .flip-x {
+  transform: scaleX(-1);
+}
+
+/* شريط التمرير المحسن */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted) / 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary) / 0.5);
+  border-radius: 4px;
+  transition: background var(--theme-transition-duration) var(--theme-transition-timing);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary) / 0.7);
+}
+
+/* شريط التمرير للشريط الجانبي */
+.sidebar-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-track {
+  background: hsl(var(--sidebar-accent) / 0.2);
+  border-radius: 3px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+  background: hsl(var(--sidebar-primary) / 0.4);
+  border-radius: 3px;
+  transition: background var(--theme-transition-duration) var(--theme-transition-timing);
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--sidebar-primary) / 0.6);
+}
+
+/* تنسيق مخصص لمحتوى القائمة الجانبية */
+#sidebar-content {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--sidebar-primary) / 0.4) hsl(var(--sidebar-accent) / 0.2);
+}
+
+#sidebar-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+#sidebar-content::-webkit-scrollbar-track {
+  background: hsl(var(--sidebar-accent) / 0.2);
+  border-radius: 3px;
+}
+
+#sidebar-content::-webkit-scrollbar-thumb {
+  background: hsl(var(--sidebar-primary) / 0.4);
+  border-radius: 3px;
+  transition: background var(--theme-transition-duration) var(--theme-transition-timing);
+}
+
+#sidebar-content::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--sidebar-primary) / 0.6);
+}
+
+/* إزالة الرسوم المتحركة الكبيرة */
+
+/* تحسين الفوكس */
+:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+  transition: outline var(--theme-transition-duration) var(--theme-transition-timing);
+}
+
+/* إخفاء شريط التمرير */
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* فئات مساعدة للانتقالات */
+  .transition-theme {
+    transition: all var(--theme-transition-duration) var(--theme-transition-timing);
+  }
+
+  .transition-colors-theme {
+    transition: color var(--theme-transition-duration) var(--theme-transition-timing),
+                background-color var(--theme-transition-duration) var(--theme-transition-timing),
+                border-color var(--theme-transition-duration) var(--theme-transition-timing);
+  }
+
+  /* تحسينات للأداء */
+  .gpu-accelerated {
+    transform: translateZ(0);
+    will-change: transform;
+  }
+
+  .smooth-rendering {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Navbar spacing utilities */
+  .navbar-spacer {
+    padding-top: 64px; /* ارتفاع النافبار الثابت المحدث */
+  }
+  
+  .navbar-offset {
+    margin-top: 64px; /* بديل للـ padding-top */
+  }
+  
+  /* للصفحات التي تحتاج مساحة أكبر أو أصغر */
+  .navbar-spacer-sm {
+    padding-top: 48px;
+  }
+  
+  .navbar-spacer-lg {
+    padding-top: 80px;
+  }
+}
+
+/* Add these custom styles for simplified product form */
+.product-form-container {
+  @apply mx-auto max-w-7xl px-4 py-6;
+}
+
+.product-form-header {
+  @apply flex items-center justify-between mb-6 p-4 bg-card rounded-xl border border-border/20;
+}
+
+.product-form-sidebar {
+  @apply space-y-4;
+}
+
+.product-form-content {
+  @apply bg-card rounded-xl border border-border/20 p-6;
+}
+
+.product-tab-simple {
+  @apply flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-all duration-200;
+  @apply data-[state=active]:bg-background data-[state=active]:shadow-sm;
+}
+
+.product-info-item {
+  @apply flex items-center gap-3 p-3 rounded-lg bg-muted/50 border;
+}
+
+.product-info-icon {
+  @apply w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center;
+}
+
+/* Enhanced product form styles */
+.product-form-progress {
+  @apply bg-gradient-to-r from-background to-background/95 border border-border/20 rounded-xl;
+}
+
+.product-form-tab-active {
+  @apply bg-primary text-primary-foreground border-primary shadow-md;
+}
+
+.product-form-tab-inactive {
+  @apply bg-background hover:bg-muted/50 border-border/50;
+}
+
+.product-form-section {
+  @apply bg-muted/30 rounded-lg p-4 border border-border/50;
+}
+
+.product-form-navigation {
+  @apply flex items-center gap-2 px-3 py-2 text-sm rounded-lg;
+  @apply border border-border hover:bg-muted/50 disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+/* Keyboard shortcuts styling */
+.kbd-shortcut {
+  @apply px-1 py-0.5 bg-muted rounded text-xs font-mono border border-border/50;
+}
+
+/* Progress indicator improvements */
+.progress-complete {
+  @apply text-green-600 bg-green-50 border-green-200;
+}
+
+.progress-partial {
+  @apply text-yellow-600 bg-yellow-50 border-yellow-200;
+}
+
+.progress-empty {
+  @apply text-muted-foreground bg-muted/30 border-border;
+}
+
+/* Enhanced pricing styles */
+.pricing-input-purchase {
+  @apply border-blue-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100;
+}
+
+.pricing-input-selling {
+  @apply border-green-200 focus:border-green-400 focus:ring-2 focus:ring-green-100;
+}
+
+.pricing-comparison-card {
+  @apply bg-gradient-to-br from-muted/20 to-muted/40 border border-border/50 rounded-lg p-4;
+}
+
+.profit-analysis-card {
+  @apply border border-border/50 bg-gradient-to-br from-background to-background/95;
+}
+
+.profit-metric-card {
+  @apply p-4 rounded-lg border transition-all duration-200 hover:shadow-md;
+}
+
+.profit-metric-profitable {
+  @apply bg-gradient-to-br from-green-50 to-emerald-100 border-green-200 text-green-900;
+}
+
+.profit-metric-warning {
+  @apply bg-gradient-to-br from-yellow-50 to-amber-100 border-yellow-200 text-yellow-900;
+}
+
+.profit-metric-loss {
+  @apply bg-gradient-to-br from-red-50 to-red-100 border-red-200 text-red-900;
+}
+
+.profit-metric-neutral {
+  @apply bg-gradient-to-br from-gray-50 to-gray-100 border-gray-200 text-gray-900;
+}
+
+/* Enhanced alert styles for different profit statuses */
+.alert-profitable {
+  @apply border-green-200 bg-green-50 text-green-800;
+}
+
+.alert-break-even {
+  @apply border-yellow-200 bg-yellow-50 text-yellow-800;
+}
+
+.alert-loss {
+  @apply border-red-200 bg-red-50 text-red-800;
+}
+
+/* Currency formatting improvements */
+.currency-dzd {
+  @apply font-mono text-lg font-bold tracking-wide;
+}
+
+.currency-label {
+  @apply text-xs font-medium text-muted-foreground bg-muted/50 px-2 py-1 rounded;
+}
+
+/* Price breakdown visualization */
+.price-breakdown-bar {
+  @apply h-2 rounded-full overflow-hidden bg-muted/30;
+}
+
+.price-breakdown-segment {
+  @apply h-full transition-all duration-300;
+}
+
+.price-breakdown-cost {
+  @apply bg-blue-500;
+}
+
+.price-breakdown-profit {
+  @apply bg-green-500;
+}
+
+/* Visual price comparison styles */
+.price-comparison-flow {
+  @apply flex items-center gap-4 p-4 bg-gradient-to-r from-blue-50 via-white to-green-50 rounded-lg border;
+}
+
+.price-comparison-step {
+  @apply text-center p-3 rounded-lg border bg-white shadow-sm min-w-24;
+}
+
+.price-comparison-arrow {
+  @apply text-muted-foreground opacity-60;
+}
+
+/* Enhanced tooltips for pricing */
+.pricing-tooltip {
+  @apply bg-popover border border-border rounded-lg shadow-lg px-3 py-2 text-sm max-w-xs;
+}
+
+/* Wholesale tiers styling */
+.wholesale-tier-row {
+  @apply flex gap-3 p-4 border border-border rounded-lg bg-muted/20 transition-all duration-200;
+  @apply hover:bg-muted/30 hover:border-border/80;
+}
+
+.wholesale-tier-input {
+  @apply h-10 transition-all duration-200 focus:ring-2 focus:ring-primary/20;
+}
+
+/* Dark theme adjustments for pricing */
+.dark .profit-metric-profitable {
+  @apply bg-gradient-to-br from-green-900/20 to-emerald-900/30 border-green-800/50 text-green-400;
+}
+
+.dark .profit-metric-warning {
+  @apply bg-gradient-to-br from-yellow-900/20 to-amber-900/30 border-yellow-800/50 text-yellow-400;
+}
+
+.dark .profit-metric-loss {
+  @apply bg-gradient-to-br from-red-900/20 to-red-900/30 border-red-800/50 text-red-400;
+}
+
+.dark .profit-metric-neutral {
+  @apply bg-gradient-to-br from-gray-900/20 to-gray-900/30 border-gray-800/50 text-gray-400;
+}
+
+.dark .alert-profitable {
+  @apply border-green-800/50 bg-green-900/20 text-green-400;
+}
+
+.dark .alert-break-even {
+  @apply border-yellow-800/50 bg-yellow-900/20 text-yellow-400;
+}
+
+.dark .alert-loss {
+  @apply border-red-800/50 bg-red-900/20 text-red-400;
+}
+
+.dark .price-comparison-flow {
+  @apply from-blue-900/20 via-background to-green-900/20;
+}
+
+.dark .price-comparison-step {
+  @apply bg-card border-border;
+}
+
+/* Animation improvements for profit indicators */
+@keyframes profit-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.profit-indicator-animate {
+  animation: profit-pulse 2s ease-in-out infinite;
+}
+
+/* Enhanced Hero Section Animations */
+@keyframes blob {
+  0% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  33% {
+    transform: translate(30px, -50px) scale(1.1);
+  }
+  66% {
+    transform: translate(-20px, 20px) scale(0.9);
+  }
+  100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+}
+
+.animate-blob {
+  animation: blob 7s infinite;
+}
+
+.animation-delay-2000 {
+  animation-delay: 2s;
+}
+
+.animation-delay-4000 {
+  animation-delay: 4s;
+}
+
+/* Grid pattern for background */
+.bg-grid-pattern {
+  background-image: radial-gradient(circle, hsl(var(--primary)) 1px, transparent 1px);
+  background-size: 50px 50px;
+}
+
+/* Enhanced gradient backgrounds */
+.bg-size-200 {
+  background-size: 200% 200%;
+}
+
+/* Hero specific responsive improvements */
+@media (max-width: 640px) {
+  .hero-title-mobile {
+    @apply text-3xl leading-tight;
+  }
+  
+  .hero-subtitle-mobile {
+    @apply text-base px-4;
+  }
+  
+  .hero-buttons-mobile {
+    @apply flex-col gap-4 w-full px-4;
+  }
+}
+
+/* AllInOneSection Enhancements */
+.all-in-one-section {
+  @apply relative overflow-hidden;
+}
+
+/* Smooth hover transitions for feature cards */
+.feature-card-hover {
+  @apply transition-all duration-300 ease-out;
+}
+
+.feature-card-hover:hover {
+  @apply transform translate-y-[-2px] shadow-lg;
+}
+
+/* System tab animations */
+.system-tab-active {
+  @apply relative overflow-hidden;
+}
+
+.system-tab-active::before {
+  content: '';
+  @apply absolute inset-0 bg-gradient-to-r from-primary/20 to-primary/10 opacity-0 transition-opacity duration-300;
+}
+
+.system-tab-active:hover::before {
+  @apply opacity-100;
+}
+
+/* Floating badges animation */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px) rotate(var(--rotate));
+  }
+  50% {
+    transform: translateY(-10px) rotate(var(--rotate));
+  }
+}
+
+.float-animation {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Interactive visual card 3D effect */
+.card-3d {
+  transform-style: preserve-3d;
+  transition: transform 0.6s;
+}
+
+.card-3d:hover {
+  transform: rotateY(5deg) rotateX(5deg);
+}
+
+/* Gradient text animation */
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.gradient-text-animated {
+  background-size: 200% 200%;
+  animation: gradient-shift 3s ease infinite;
+}
+
+/* Performance optimizations */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Responsive improvements for AllInOneSection */
+@media (max-width: 768px) {
+  .all-in-one-mobile {
+    @apply px-4 py-16;
+  }
+  
+  .feature-grid-mobile {
+    @apply grid-cols-1 gap-3;
+  }
+  
+  .system-tabs-mobile {
+    @apply flex-wrap gap-2;
+  }
+  
+  .hero-button-mobile {
+    @apply w-full justify-center min-w-0;
+  }
+  
+  .hero-features-mobile {
+    @apply grid-cols-1 gap-4 px-4;
+  }
+  
+  .hero-stats-mobile {
+    @apply grid-cols-2 gap-4 text-center;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 768px) {
+  .hero-features-tablet {
+    @apply grid-cols-2 gap-6;
+  }
+  
+  .hero-stats-tablet {
+    @apply grid-cols-2 gap-6;
+  }
+}
+
+/* Performance optimizations */
+.hero-optimized {
+  @apply will-change-transform;
+  transform: translateZ(0);
+}
+
+.hero-text-optimized {
+  @apply will-change-auto;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Interactive elements hover states */
+.hero-interactive-card {
+  @apply transition-all duration-300 ease-out;
+  will-change: transform, box-shadow;
+}
+
+.hero-interactive-card:hover {
+  @apply transform scale-105 shadow-xl;
+}
+
+/* Reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .animate-blob,
+  .animate-breathe,
+  .animate-theme-particles-float,
+  .animate-moving-gradient,
+  .animate-bounce {
+    animation: none;
+  }
+  
+  .hero-interactive-card:hover {
+    transform: none;
+  }
+}
+
+/* Focus accessibility improvements */
+.hero-focusable:focus-visible {
+  @apply outline-2 outline-primary outline-offset-2;
+}
+
+/* Text selection improvements */
+.hero-text-selection::selection {
+  @apply bg-primary/20 text-primary;
+}
+
+/* Loading states */
+.hero-loading-skeleton {
+  @apply bg-gradient-to-r from-muted via-muted/50 to-muted;
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Enhanced focus states for accessibility */
+.pricing-input:focus-visible {
+  @apply ring-2 ring-primary ring-offset-2 outline-none;
+}
+
+.profit-metric-card:focus-visible {
+  @apply ring-2 ring-primary ring-offset-2 outline-none;
+}
+
+/* Optimized smooth scrolling and performance */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Remove complex animations and focus on clean transitions - Performance Optimized */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Only essential transitions for better performance */
+a, button, input, textarea, select {
+  @apply transition-colors duration-200 ease-in-out;
+}
+
+/* تحسينات شاملة للأداء والسكرول السلس */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  overflow-x: hidden;
+  height: 100%;
+}
+
+body {
+  -webkit-overflow-scrolling: touch;
+  overflow-x: hidden;
+  will-change: scroll-position;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+  height: auto;
+}
+
+/* تسريع جميع العناصر المتحركة */
+[data-framer-motion] {
+  transform: translateZ(0);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+
+/* Optimize animations for 60fps */
+@media (prefers-reduced-motion: no-preference) {
+  * {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Contain layout shifts */
+.landing-section {
+  contain: layout style paint;
+}
+
+/* Optimize framer-motion components - تحسين مكونات الحركة */
+[data-framer-motion] {
+  transform: translateZ(0);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+
+/* تحسينات إضافية للأداء */
+.landing-section {
+  contain: layout style paint;
+  will-change: auto;
+}
+
+/* تقليل التأثيرات المكلفة */
+.shadow-lg, .shadow-xl {
+  will-change: box-shadow;
+}
+
+/* تحسين الصور */
+img {
+  will-change: auto;
+  backface-visibility: hidden;
+}
+
+/* تحسين الانتقالات */
+.transition-all {
+  transition-property: transform, opacity, box-shadow;
+  transition-duration: 200ms;
+  transition-timing-function: ease-in-out;
+}
+
+/* إزالة الحركات المعقدة على الموبايل */
+@media (max-width: 768px) {
+  [data-framer-motion] {
+    transform: none !important;
+    animation: none !important;
+  }
+  
+  .hover\\:scale-105:hover {
+    transform: none !important;
+  }
+  
+  .transition-all {
+    transition: none !important;
+  }
+}
+
+/* تحسينات إضافية للأداء */
+.landing-page-optimized {
+  contain: layout style paint;
+  will-change: auto;
+}
+
+/* تحسين أداء الخطوط مع خط احتياطي */
+/* إزالة المرجع للملف المحلي غير الموجود والاعتماد على Google Fonts */
+.font-arabic-fallback {
+  font-family: 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif;
+}
+
+/* خط احتياطي سريع - محلي فقط */
+.font-arabic {
+  font-family: 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif;
+}
+
+/* تحسين loading للصور */
+img {
+  loading: lazy;
+  decoding: async;
+}
+
+/* تحسين الذاكرة - تنظيف الحركات غير المستخدمة */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* تحسين أداء السكرول */
+.smooth-scroll {
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--primary)) transparent;
+}
+
+/* تقليل repaint للعناصر الثابتة */
+.static-element {
+  will-change: auto;
+  transform: none;
+}
+
+/* تحسين البطاقات */
+.optimized-card {
+  contain: layout style;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Simplified card styles */
+.card-simple {
+  @apply bg-card border border-border/20 rounded-xl p-4 shadow-sm;
+}
+
+/* Clean button styles */
+.btn-primary-simple {
+  @apply bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg px-4 py-2 font-medium;
+}
+
+.btn-outline-simple {
+  @apply border border-border bg-background hover:bg-muted/50 rounded-lg px-4 py-2 font-medium;
+}
+
+/* Enhanced responsive design for tabs */
+@media (max-width: 640px) {
+  .product-form-tabs {
+    @apply grid-cols-2 gap-1;
+  }
+  
+  .product-form-tab-content {
+    @apply p-4;
+  }
+}
+
+@media (min-width: 1024px) {
+  .product-form-tabs {
+    @apply grid-cols-5;
+  }
+}
+
+/* Smooth animations for tab transitions */
+.tab-content-enter {
+  @apply opacity-0 translate-y-2;
+}
+
+.tab-content-enter-active {
+  @apply opacity-100 translate-y-0 transition-all duration-300 ease-out;
+}
+
+/* Focus styles for accessibility */
+.product-form-tab:focus-visible {
+  @apply ring-2 ring-primary ring-offset-2 outline-none;
+}
+
+/* Tooltip improvements */
+.tooltip-content {
+  @apply bg-popover text-popover-foreground border border-border rounded-lg px-3 py-2;
+  @apply shadow-lg max-w-xs text-sm z-50;
+}
+
+/* Badge improvements for dark/light mode consistency */
+.badge-gradient {
+  @apply bg-gradient-to-r from-primary/20 to-primary/10 text-primary-foreground;
+  @apply dark:from-primary/30 dark:to-primary/20 dark:text-primary-foreground;
+  @apply border border-primary/20 dark:border-primary/30;
+}
+
+.badge-gradient-success {
+  @apply bg-gradient-to-r from-green-500/20 to-green-400/10 text-green-800;
+  @apply dark:from-green-500/30 dark:to-green-400/20 dark:text-green-400;
+  @apply border border-green-500/20 dark:border-green-500/30;
+}
+
+.badge-gradient-info {
+  @apply bg-gradient-to-r from-blue-500/20 to-blue-400/10 text-blue-800;
+  @apply dark:from-blue-500/30 dark:to-blue-400/20 dark:text-blue-400;
+  @apply border border-blue-500/20 dark:border-blue-500/30;
+}
+
+.badge-gradient-warning {
+  @apply bg-gradient-to-r from-yellow-500/20 to-yellow-400/10 text-yellow-800;
+  @apply dark:from-yellow-500/30 dark:to-yellow-400/20 dark:text-yellow-400;
+  @apply border border-yellow-500/20 dark:border-yellow-500/30;
+}
+
+.badge-gradient-purple {
+  @apply bg-gradient-to-r from-purple-500/20 to-purple-400/10 text-purple-800;
+  @apply dark:from-purple-500/30 dark:to-purple-400/20 dark:text-purple-400;
+  @apply border border-purple-500/20 dark:border-purple-500/30;
+}
+
+/* Ensure badge text is always readable */
+[class*="badge"] {
+  @apply font-semibold;
+}
+
+/* Fix badge contrast in dark mode */
+.dark [class*="badge"] {
+  @apply shadow-sm;
+}
+
+/* إصلاح مشكلة الفراغ الكبير في صفحات لوحة التحكم */
+.dashboard-layout {
+  min-height: calc(100vh - 4rem);
+  max-height: fit-content;
+}
+
+.dashboard-content {
+  min-height: auto;
+  max-width: 100%;
+  padding-bottom: 2rem;
+}
+
+/* تحسين تخطيط المحتوى الرئيسي */
+main {
+  display: block;
+  contain: layout style;
+}
+
+/* تحسين شريط التمرير العام */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-track-transparent::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thumb-primary\/30::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary) / 0.3);
+  border-radius: 3px;
+}
+
+.hover\:scrollbar-thumb-primary\/50:hover::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary) / 0.5);
+}
+
+/* إصلاح مشكلة الهوفر للأزرار - الأولوية العالية */
+.hover\:bg-primary\/10:hover.hover\:text-primary:hover,
+.hover\:bg-primary\/5:hover.hover\:text-primary:hover,
+.group:hover .group-hover\:bg-primary\/10.group-hover\:text-primary,
+.group:hover .group-hover\:bg-primary\/5.group-hover\:text-primary {
+  background-color: hsl(var(--primary) / 0.1) !important;
+  color: hsl(var(--primary)) !important;
+}
+
+/* إصلاح شامل لجميع حالات الهوفر المتضاربة */
+.hover\:bg-primary\/10:hover.hover\:text-primary:hover *,
+.hover\:bg-primary\/5:hover.hover\:text-primary:hover *,
+.group:hover .group-hover\:bg-primary\/10.group-hover\:text-primary *,
+.group:hover .group-hover\:bg-primary\/5.group-hover\:text-primary * {
+  color: hsl(var(--primary)) !important;
+}
+
+/* إصلاح الأيقونات والعناصر الفرعية */
+.hover\:bg-primary\/10:hover.hover\:text-primary:hover svg,
+.hover\:bg-primary\/5:hover.hover\:text-primary:hover svg,
+.group:hover .group-hover\:bg-primary\/10.group-hover\:text-primary svg,
+.group:hover .group-hover\:bg-primary\/5.group-hover\:text-primary svg {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح لـ navbar links */
+.navbar-link.group:hover {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+.navbar-link.group:hover * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح شامل لجميع الأزرار التي تحتوي على المشكلة */
+.group:hover .group-hover\:text-primary,
+.hover\:text-primary:hover {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح خاص للقوائم المنسدلة */
+.dropdown-item:hover {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+.dropdown-item:hover * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح لأزرار التنقل */
+.navbar-link:hover,
+.nav-link:hover {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+.navbar-link:hover *,
+.nav-link:hover * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح إضافي للعناصر التي تحتوي على كلاسات متضاربة */
+[class*="hover:bg-primary"][class*="hover:text-primary"]:hover {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+[class*="hover:bg-primary"][class*="hover:text-primary"]:hover * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح للعناصر التي تستخدم group */
+.group[class*="hover:bg-primary"]:hover [class*="group-hover:text-primary"],
+.group:hover [class*="group-hover:bg-primary"][class*="group-hover:text-primary"] {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح شامل للتأكد من أن النص مرئي */
+.group:hover [class*="group-hover:text-primary"] *,
+[class*="hover:text-primary"]:hover * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح خاص للأزرار في FeaturesSection */
+.feature-category-button:hover,
+[class*="bg-card"][class*="hover:bg-primary"]:hover {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+.feature-category-button:hover *,
+[class*="bg-card"][class*="hover:bg-primary"]:hover * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح خاص للبadges التي تحتوي على gradients */
+[class*="bg-gradient-to-r"][class*="text-primary"]:hover,
+[class*="hover:bg-gradient-to-r"][class*="text-primary"]:hover {
+  background: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+[class*="bg-gradient-to-r"][class*="text-primary"]:hover *,
+[class*="hover:bg-gradient-to-r"][class*="text-primary"]:hover * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح للعناصر التي تحتوي على من primary/10 إلى purple */
+[class*="from-primary/10"][class*="to-purple-500/10"][class*="text-primary"]:hover,
+[class*="hover:from-primary/20"][class*="hover:to-purple-500/20"]:hover {
+  background: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+[class*="from-primary/10"][class*="to-purple-500/10"][class*="text-primary"]:hover *,
+[class*="hover:from-primary/20"][class*="hover:to-purple-500/20"]:hover * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح شامل للبadges والعناصر المشابهة */
+.badge[class*="text-primary"]:hover,
+[class*="badge"][class*="text-primary"]:hover,
+[class*="px-4"][class*="py-2"][class*="text-primary"]:hover {
+  background: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+.badge[class*="text-primary"]:hover *,
+[class*="badge"][class*="text-primary"]:hover *,
+[class*="px-4"][class*="py-2"][class*="text-primary"]:hover * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح للعناصر التي تحتوي على border-primary مع text-primary */
+[class*="border-primary"][class*="text-primary"]:hover {
+  background: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+  border-color: hsl(var(--primary)) !important;
+}
+
+[class*="border-primary"][class*="text-primary"]:hover * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح الanimations المستمرة المزعجة */
+@media (prefers-reduced-motion: reduce) {
+  /* إيقاف جميع الanimations المستمرة للمستخدمين الذين يفضلون تقليل الحركة */
+  [data-framer-motion] {
+    animation: none !important;
+    transition: none !important;
+  }
+  
+  /* إيقاف framer motion animations */
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* تحكم في الanimations المستمرة - جعلها أقل تشتيتاً */
+[class*="rotate"] {
+  animation-duration: 8s !important; /* إبطاء الanimations */
+}
+
+/* تقليل شدة الrotation animations */
+@keyframes gentle-rotate {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(2deg); }
+  50% { transform: rotate(0deg); }
+  75% { transform: rotate(-2deg); }
+}
+
+/* إستبدال الrotations العدوانية بحركات أكثر هدوءاً */
+.gentle-animation {
+  animation: gentle-rotate 6s ease-in-out infinite;
+}
+
+/* إيقاف الanimations على الأزرار */
+.hero-button [data-framer-motion] {
+  animation: none !important;
+}
+
+/* إيقاف الanimations المستمرة في الأيقونات */
+.icon-no-animation {
+  animation: none !important;
+  transform: none !important;
+}
+
+/* إصلاح navbar links - إضافة خلفية عند الهوفر */
+.navbar a[class*="hover:text-primary"]:hover,
+.nav a[class*="hover:text-primary"]:hover,
+[class*="font-medium"][class*="hover:text-primary"]:hover {
+  background-color: hsl(var(--primary) / 0.1) !important;
+  color: hsl(var(--primary)) !important;
+  padding: 0.5rem 0.75rem !important;
+  border-radius: 0.5rem !important;
+  transition: all 0.3s ease !important;
+}
+
+/* منع تطبيق الخلفية على الأيقونات داخل navbar links */
+.navbar a[class*="hover:text-primary"]:hover svg,
+.nav a[class*="hover:text-primary"]:hover svg,
+[class*="font-medium"][class*="hover:text-primary"]:hover svg,
+.navbar a[class*="hover:text-primary"]:hover .lucide,
+.nav a[class*="hover:text-primary"]:hover .lucide,
+[class*="font-medium"][class*="hover:text-primary"]:hover .lucide {
+  background: none !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+/* إصلاح للnavbar الخاص بـ landing page */
+.landing-navbar a:hover,
+.navbar-link:hover {
+  background-color: hsl(var(--primary) / 0.1) !important;
+  color: hsl(var(--primary)) !important;
+  padding: 0.5rem 0.75rem !important;
+  border-radius: 0.5rem !important;
+  transition: all 0.3s ease !important;
+}
+
+/* منع تطبيق الخلفية على الأيقونات داخل navbar links */
+.landing-navbar a:hover svg,
+.navbar-link:hover svg,
+.landing-navbar a:hover .lucide,
+.navbar-link:hover .lucide {
+  background: none !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+/* إصلاح للروابط التي تحتوي على text-slate-600 */
+[class*="text-slate-600"][class*="hover:text-primary"]:hover,
+[class*="dark:text-slate-300"][class*="hover:text-primary"]:hover {
+  background-color: hsl(var(--primary) / 0.1) !important;
+  color: hsl(var(--primary)) !important;
+  padding: 0.5rem 0.75rem !important;
+  border-radius: 0.5rem !important;
+  transition: all 0.3s ease !important;
+}
+
+/* منع تطبيق الخلفية على الأيقونات داخل هذه الروابط */
+[class*="text-slate-600"][class*="hover:text-primary"]:hover svg,
+[class*="dark:text-slate-300"][class*="hover:text-primary"]:hover svg,
+[class*="text-slate-600"][class*="hover:text-primary"]:hover .lucide,
+[class*="dark:text-slate-300"][class*="hover:text-primary"]:hover .lucide {
+  background: none !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+/* إصلاح شامل لجميع navbar links */
+nav a:hover,
+.navbar a:hover,
+.navigation a:hover {
+  background-color: hsl(var(--primary) / 0.1) !important;
+  color: hsl(var(--primary)) !important;
+  padding: 0.5rem 0.75rem !important;
+  border-radius: 0.5rem !important;
+  transition: all 0.3s ease !important;
+}
+
+/* تأكد من أن النص مرئي في الوضع الداكن */
+.dark nav a:hover,
+.dark .navbar a:hover,
+.dark .navigation a:hover {
+  background-color: hsl(var(--primary) / 0.15) !important;
+  color: hsl(var(--primary)) !important;
+}
+
+/* إصلاح مشكلة الأيقونات في group hover */
+.group:hover [class*="group-hover:text-primary-foreground"],
+.group:hover svg[class*="group-hover:text-primary-foreground"] {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح الأيقونات التي تحتوي على text-muted-foreground مع group-hover */
+.group:hover [class*="text-muted-foreground"][class*="group-hover:text-primary-foreground"],
+.group:hover svg[class*="text-muted-foreground"][class*="group-hover:text-primary-foreground"] {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح خاص للأيقونات في navbar */
+.group:hover .lucide[class*="group-hover:text-primary-foreground"],
+.navbar .group:hover svg[class*="group-hover:text-primary-foreground"],
+.nav .group:hover svg[class*="group-hover:text-primary-foreground"] {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح للأيقونات التي تستخدم currentColor */
+.group:hover svg[stroke="currentColor"][class*="group-hover:text-primary-foreground"],
+.group:hover svg[fill="currentColor"][class*="group-hover:text-primary-foreground"] {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح شامل للأيقونات في حالة hover */
+.group:hover svg.lucide,
+.group:hover .lucide {
+  color: inherit !important;
+}
+
+/* 🚀 قاعدة نهائية للخطوط - تطبق بعد تحميل جميع المكونات */
+* {
+  font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+}
+
+/* خاص للمكونات المحملة بشكل lazy */
+[data-react-component], [data-component], .react-component {
+  font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+}
+
+/* تطبيق على جميع النصوص مع Google Fonts backup */
+.text-foreground, .text-muted-foreground, .text-primary, .text-secondary {
+  font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+}
+
+/* Class خاص عندما يتم إجبار الخطوط */
+.tajawal-forced,
+.tajawal-forced * {
+  font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+}
+
+/* 🚀 حل إضافي - تطبيق الخطوط مع أقصى أولوية */
+html[lang="ar"], html[dir="rtl"], 
+body[class*="tajawal"], body[class*="arabic"],
+.ar, .arabic, [dir="rtl"] {
+  font-family: 'TajawalForced', 'Tajawal', 'Droid Arabic Naskh', 'Tahoma', 'Arial Unicode MS', 'Arial', sans-serif !important;
+}
+
+/* خاص للنصوص العربية */
+*:lang(ar), [dir="rtl"] *, .arabic * {
+  font-family: 'TajawalForced', 'Tajawal', 'Droid Arabic Naskh', 'Tahoma', 'Arial Unicode MS', 'Arial', sans-serif !important;
+}
+
+/* 🔧 حل تجريبي - إجبار أكثر للخطوط العربية */
+@media screen {
+  * {
+    font-family: 'TajawalForced', 'Tajawal', 'Droid Arabic Naskh', 'Tahoma', 'Arial Unicode MS', 'Arial', sans-serif !important;
+  }
+  
+  /* لكل العناصر التي تحتوي على نص عربي */
+  *:not([class*="icon"]):not([class*="svg"]):not(svg):not(path) {
+    font-family: 'TajawalForced', 'Tajawal', 'Droid Arabic Naskh', 'Tahoma', 'Arial Unicode MS', 'Arial', sans-serif !important;
+  }
+}
+
+/* تأثيرات مخصصة لمكون فئات المنتجات */
+@keyframes gradient-x {
+  0%, 100% {
+    background-size: 200% 200%;
+    background-position: left center;
+  }
+  50% {
+    background-size: 200% 200%;
+    background-position: right center;
+  }
+}
+
+@keyframes shimmer-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes float-gentle {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(59, 130, 246, 0);
+  }
+}
+
+@keyframes sparkle {
+  0%, 100% {
+    opacity: 0;
+    transform: scale(0);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-gradient-x {
+  animation: gradient-x 8s ease infinite;
+}
+
+.animate-shimmer {
+  animation: shimmer-slide 3s ease-in-out infinite;
+}
+
+.animate-float-gentle {
+  animation: float-gentle 4s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 3s ease-in-out infinite;
+}
+
+.animate-sparkle {
+  animation: sparkle 2s ease-in-out infinite;
+}
+
+.bg-size-300 {
+  background-size: 300% 300%;
+}
+
+/* تحسينات لصور الفئات */
+.category-image-container {
+  background: linear-gradient(135deg, hsl(var(--muted)) 0%, hsl(var(--muted/50)) 100%);
+}
+
+.category-card-hover-effects {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.category-card-hover-effects:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+/* تأثير مخصص للصور المحتواة */
+.image-contain-wrapper {
+  background: linear-gradient(145deg, 
+    rgba(var(--muted), 0.3) 0%, 
+    rgba(var(--muted), 0.1) 50%, 
+    rgba(var(--muted), 0.3) 100%);
+}
+
+/* تحسين الanimations delay classes */
+.animation-delay-100 { animation-delay: 0.1s !important; }
+.animation-delay-200 { animation-delay: 0.2s !important; }
+.animation-delay-300 { animation-delay: 0.3s !important; }
+.animation-delay-400 { animation-delay: 0.4s !important; }
+.animation-delay-500 { animation-delay: 0.5s !important; }
+.animation-delay-600 { animation-delay: 0.6s !important; }
+.animation-delay-700 { animation-delay: 0.7s !important; }
+.animation-delay-800 { animation-delay: 0.8s !important; }
+
+/* ===============================
+   إصلاح شامل نهائي لمشكلة الـ hover
+   =============================== */
+
+/* إصلاح شامل لجميع عناصر الـ hover التي تصبح غير مرئية */
+/* ===============================
+   نظام ألوان محسّن للهوفر
+   =============================== */
+
+:root {
+  /* Light Mode - ألوان صحيحة للوضع الفاتح */
+  --hover-text-safe: hsl(var(--primary));
+  --hover-bg-safe: hsl(var(--primary) / 0.1);
+  --hover-text-contrast: hsl(var(--foreground));
+  --hover-bg-contrast: hsl(var(--muted));
+  --hover-text-light: hsl(var(--primary));
+}
+
+.dark {
+  /* Dark Mode - ألوان صحيحة للوضع المظلم */
+  --hover-text-safe: hsl(var(--primary-foreground));
+  --hover-bg-safe: hsl(var(--primary) / 0.15);
+  --hover-text-contrast: hsl(var(--foreground));
+  --hover-bg-contrast: hsl(var(--muted));
+}
+
+/* إصلاح شامل للنصوص في الهوفر - يتعامل مع جميع أنواع text-primary */
+[class*="hover:text-primary"]:hover:not(button):not([role="button"]),
+[class*="text-primary"][class*="hover"]:hover:not(button):not([role="button"]),
+.group:hover [class*="group-hover:text-primary"]:not(button):not([role="button"]) {
+  color: var(--hover-text-safe) !important;
+}
+
+/* إصلاح خاص للكلاسات التي تحتوي على opacity مثل text-primary/80 */
+[class*="text-primary/"][class*="hover"]:hover:not(button):not([role="button"]),
+[class*="hover:text-primary/"]:hover:not(button):not([role="button"]),
+.group:hover [class*="group-hover:text-primary/"]:not(button):not([role="button"]) {
+  color: var(--hover-text-safe) !important;
+}
+
+/* إصلاح الخلفيات في الهوفر */
+[class*="hover:bg-primary"]:hover:not(button):not([role="button"]),
+.group:hover [class*="group-hover:bg-primary"]:not(button):not([role="button"]) {
+  background-color: var(--hover-bg-safe) !important;
+  color: var(--hover-text-safe) !important;
+}
+
+/* الأزرار - ألوان مناسبة للقراءة */
+button[class*="bg-primary"]:hover,
+[role="button"][class*="bg-primary"]:hover,
+button.group:hover [class*="group-hover:bg-primary"],
+[role="button"].group:hover [class*="group-hover:bg-primary"] {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* نصوص الأزرار */
+button[class*="text-primary"]:hover,
+[role="button"][class*="text-primary"]:hover,
+button.group:hover [class*="group-hover:text-primary"],
+[role="button"].group:hover [class*="group-hover:text-primary"],
+button[class*="hover:text-primary"]:hover,
+a[class*="hover:text-primary"]:hover,
+[role="button"][class*="hover:text-primary"]:hover {
+  color: hsl(var(--primary-foreground)) !important;
+  background-color: hsl(var(--primary)) !important;
+}
+
+/* ===============================
+   إصلاح الأيقونات - حل بسيط وفعّال
+   =============================== */
+
+/* منع خلفيات الأيقونات في جميع الحالات */
+[class*="hover"]:hover svg,
+[class*="hover"]:hover .lucide,
+.group:hover [class*="group-hover"] svg,
+.group:hover [class*="group-hover"] .lucide,
+svg, .lucide {
+  background: none !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+}
+
+/* إعادة تعيين افتراضية لجميع أيقونات Lucide */
+.lucide {
+  fill: none !important;
+  stroke: currentColor !important;
+  stroke-width: 2 !important;
+}
+
+/* أيقونات SVG عامة - افتراضياً بدون fill */
+svg:not([fill]):not(.custom-fill):not([data-icon-filled]) {
+  fill: none !important;
+  stroke: currentColor !important;
+}
+
+/* إصلاحات شاملة للأيقونات - منع التلوين الكامل */
+[class*="hover:text-primary"]:hover svg,
+[class*="hover:text-primary"]:hover .lucide,
+[class*="text-primary"][class*="hover"]:hover svg,
+[class*="text-primary"][class*="hover"]:hover .lucide,
+.group:hover [class*="group-hover:text-primary"] svg,
+.group:hover [class*="group-hover:text-primary"] .lucide {
+  color: var(--hover-text-safe) !important;
+  stroke: currentColor !important;
+  fill: none !important;
+  background: none !important;
+  background-color: transparent !important;
+}
+
+/* للأيقونات التي تحتاج fill (مثل النجوم المملوءة) */
+[class*="hover:text-primary"]:hover svg[fill]:not([fill="none"]):not(.lucide),
+[class*="text-primary"][class*="hover"]:hover svg[fill]:not([fill="none"]):not(.lucide),
+.group:hover [class*="group-hover:text-primary"] svg[fill]:not([fill="none"]):not(.lucide) {
+  fill: currentColor !important;
+  stroke: none !important;
+}
+
+/* ===============================
+   إصلاح خاص لأزرار المجموعات في SideMenu
+   =============================== */
+
+/* أزرار المجموعات المطوية */
+[data-group-button]:hover {
+  color: var(--hover-text-safe) !important;
+}
+
+[data-group-button]:hover svg,
+[data-group-button]:hover .lucide {
+  color: inherit !important;
+  stroke: currentColor !important;
+  fill: none !important;
+  background: none !important;
+  background-color: transparent !important;
+}
+
+/* أزرار المجموعات - للأيقونات التي تحتاج fill */
+[data-group-button]:hover svg[fill]:not([fill="none"]) {
+  fill: currentColor !important;
+  stroke: none !important;
+}
+
+/* إصلاح للنصوص في sidebar */
+.sidebar [class*="hover:text-primary"]:hover,
+#sidebar-container [class*="hover:text-primary"]:hover {
+  color: var(--hover-text-safe) !important;
+}
+
+/* ===============================
+   إصلاحات إضافية للمشاكل الشائعة
+   =============================== */
+
+/* إصلاح للأيقونات التي تتحول لمربعات */
+button:hover svg:not([data-keep-fill]),
+a:hover svg:not([data-keep-fill]),
+[role="button"]:hover svg:not([data-keep-fill]) {
+  fill: none !important;
+  stroke: currentColor !important;
+  background: none !important;
+}
+
+/* إصلاح للعناصر مع classes متعددة */
+[class*="text-primary"][class*="hover"]:hover svg,
+[class*="hover"][class*="text-primary"]:hover svg {
+  fill: none !important;
+  stroke: currentColor !important;
+  color: var(--hover-text-safe) !important;
+}
+
+/* إصلاح خاص للـ group hover في sidebar */
+.group:hover svg,
+[data-group]:hover svg {
+  fill: none !important;
+  stroke: currentColor !important;
+}
+
+/* إصلاح خاص للنافبار */
+.navbar [class*="hover:text-primary"]:hover,
+.navigation [class*="hover:text-primary"]:hover,
+nav [class*="hover:text-primary"]:hover {
+  color: var(--hover-text-safe) !important;
+  background-color: var(--hover-bg-safe) !important;
+}
+
+/* إصلاح نهائي وبسيط لجميع الأيقونات */
+[class*="hover:text-primary"]:hover .lucide,
+[class*="hover:text-primary"]:hover svg,
+[class*="text-primary"][class*="hover"]:hover .lucide,
+[class*="text-primary"][class*="hover"]:hover svg,
+.group:hover [class*="group-hover:text-primary"] .lucide,
+.group:hover [class*="group-hover:text-primary"] svg {
+  color: var(--hover-text-safe) !important;
+  stroke: currentColor !important;
+  fill: none !important;
+  background: none !important;
+  background-color: transparent !important;
+}
+
+/* إصلاح للأيقونات التي تحتوي على مسارات ملونة */
+[class*="hover:text-primary"]:hover svg[fill] path,
+.group:hover [class*="group-hover:text-primary"] svg[fill] path {
+  fill: var(--hover-text-light) !important;
+  stroke: none !important;
+  background: none !important;
+  background-color: transparent !important;
+}
+
+/* إزالة أي خلفيات غير مرغوب فيها من الأيقونات */
+[class*="hover:text-primary"]:hover svg,
+[class*="hover:text-primary"]:hover .lucide,
+.group:hover [class*="group-hover:text-primary"] svg,
+.group:hover [class*="group-hover:text-primary"] .lucide {
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+}
+
+/* إصلاح نهائي للتأكد من الرؤية */
+[class*="text-white"]:hover,
+[class*="text-white"]:hover * {
+  color: var(--hover-text-light) !important;
+}
+
+/* إصلاح للعناصر التي تحتوي على مشاكل تضارب */
+[class*="hover:bg-white"]:hover,
+[class*="hover:text-white"]:hover {
+  background-color: var(--hover-bg-light) !important;
+  color: var(--hover-text-light) !important;
+}
+
+/* ===============================
+   إصلاح إضافي للأيقونات المشكلة
+   =============================== */
+
+/* إصلاح شامل لجميع أنواع الأيقونات */
+[class*="hover"]:hover svg,
+[class*="hover"]:hover .lucide,
+.group:hover [class*="group-hover"] svg,
+.group:hover [class*="group-hover"] .lucide {
+  background-image: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+/* إصلاح للأيقونات التي تحتوي على gradients أو backgrounds */
+[class*="hover"]:hover svg *,
+[class*="hover"]:hover .lucide *,
+.group:hover [class*="group-hover"] svg *,
+.group:hover [class*="group-hover"] .lucide * {
+  background: none !important;
+  background-image: none !important;
+  background-color: transparent !important;
+}
+
+/* إصلاح خاص للأيقونات في الأزرار */
+button:hover svg,
+button:hover .lucide,
+[role="button"]:hover svg,
+[role="button"]:hover .lucide {
+  background: none !important;
+  background-color: transparent !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+/* إصلاح للأيقونات التي تستخدم mask أو clip-path */
+[class*="hover"]:hover svg,
+[class*="hover"]:hover .lucide {
+  mask: none !important;
+  -webkit-mask: none !important;
+  clip-path: none !important;
+}
+
+/* إصلاح نهائي للأيقونات المعقدة - معطل مؤقتاً لحل مشكلة الهوفر */
+/*
+svg:hover:not([class*="hover"]):not(.group-hover):not([data-icon-styled]),
+.lucide:hover:not([class*="hover"]):not(.group-hover):not([data-icon-styled]),
+[class*="icon"]:hover:not([class*="hover"]):not(.group-hover):not([data-icon-styled]) {
+  background: none !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+}
+*/
+
+/* إصلاح للعناصر التي تحتوي على مشاكل تضارب */
+[class*="hover:bg-white"]:hover,
+[class*="hover:text-white"]:hover {
+  background-color: var(--hover-bg-light) !important;
+  color: var(--hover-text-light) !important;
+}
+
+/* ===============================
+   نظام ألوان ذكي للوضع المظلم
+   =============================== */
+
+/* متغيرات ألوان ذكية للوضع المظلم */
+:root {
+  /* متغيرات للألوان الذكية */
+  --smart-primary-text: hsl(var(--primary));
+  --smart-primary-bg: hsl(var(--primary) / 0.1);
+  --smart-primary-border: hsl(var(--primary) / 0.2);
+  --smart-primary-icon: hsl(var(--primary));
+}
+
+.dark {
+  /* في الوضع المظلم، استخدم ألوان أفتح للنص والحدود */
+  --smart-primary-text: hsl(var(--primary-foreground));
+  --smart-primary-bg: hsl(var(--primary) / 0.2);
+  --smart-primary-border: hsl(var(--primary) / 0.3);
+  --smart-primary-icon: hsl(var(--primary-foreground));
+}
+
+/* تطبيق الألوان الذكية على العناصر المشكلة */
+
+/* إصلاح النصوص التي تستخدم text-primary */
+.dark [class*="text-primary"]:not([class*="hover"]):not([class*="group-hover"]) {
+  color: var(--smart-primary-text) !important;
+}
+
+/* إصلاح الخلفيات */
+.dark [class*="bg-primary/"]:not([class*="hover"]):not([class*="group-hover"]) {
+  background-color: var(--smart-primary-bg) !important;
+}
+
+/* إصلاح الحدود */
+.dark [class*="border-primary/"]:not([class*="hover"]):not([class*="group-hover"]) {
+  border-color: var(--smart-primary-border) !important;
+}
+
+/* إصلاح الأيقونات */
+.dark svg[class*="text-primary"]:not([class*="hover"]):not([class*="group-hover"]),
+.dark .lucide[class*="text-primary"]:not([class*="hover"]):not([class*="group-hover"]) {
+  color: var(--smart-primary-icon) !important;
+  stroke: var(--smart-primary-icon) !important;
+}
+
+/* إصلاح خاص للمكونات التي تحتوي على data-lov-id */
+.dark [data-lov-id] [class*="text-primary"],
+.dark [data-lov-id] .text-primary {
+  color: var(--smart-primary-text) !important;
+}
+
+.dark [data-lov-id] [class*="bg-primary/"],
+.dark [data-lov-id] .bg-primary {
+  background-color: var(--smart-primary-bg) !important;
+}
+
+.dark [data-lov-id] [class*="border-primary/"],
+.dark [data-lov-id] .border-primary {
+  border-color: var(--smart-primary-border) !important;
+}
+
+/* إصلاح خاص للأسعار والعناصر المهمة */
+.dark .text-4xl[class*="text-primary"],
+.dark .text-3xl[class*="text-primary"],
+.dark .text-2xl[class*="text-primary"] {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح للبادجات والشارات */
+.dark .badge[class*="text-primary"],
+.dark [class*="badge"][class*="text-primary"] {
+  color: hsl(var(--primary-foreground)) !important;
+  background-color: hsl(var(--primary) / 0.2) !important;
+}
+
+/* إصلاح للتدرجات اللونية */
+.dark [class*="from-primary"],
+.dark [class*="to-primary"],
+.dark [class*="via-primary"] {
+  --tw-gradient-from: hsl(var(--primary) / 0.3) !important;
+  --tw-gradient-to: hsl(var(--primary) / 0.1) !important;
+  --tw-gradient-via: hsl(var(--primary) / 0.2) !important;
+}
+
+/* إصلاح للظلال */
+.dark [class*="shadow-primary"] {
+  --tw-shadow-color: hsl(var(--primary) / 0.2) !important;
+}
+
+/* إصلاح خاص للمكونات التفاعلية */
+.dark button[class*="text-primary"]:not(:hover),
+.dark a[class*="text-primary"]:not(:hover) {
+  color: var(--smart-primary-text) !important;
+}
+
+/* إصلاح للعناصر التي تحتوي على أيقونات */
+.dark [class*="text-primary"] svg,
+.dark [class*="text-primary"] .lucide {
+  color: inherit !important;
+  stroke: currentColor !important;
+}
+
+/* إصلاح خاص للمنتجات والأسعار */
+.dark [data-component*="price"] [class*="text-primary"],
+.dark [data-component*="product"] [class*="text-primary"] {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح نهائي للتأكد من الرؤية */
+.dark .text-primary.font-black,
+.dark .text-primary.font-bold,
+.dark [class*="text-primary"][class*="font-black"],
+.dark [class*="text-primary"][class*="font-bold"] {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* Shimmer animation للصور */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 1.5s infinite;
+}
+
+/* تحسينات للصور */
+img[loading="lazy"] {
+  content-visibility: auto;
+}
+
+/* تأثيرات راقية للفئات */
+.bg-gradient-radial {
+  background: radial-gradient(var(--tw-gradient-stops));
+}
+
+/* تحسينات الأداء للحركات */
+.will-change-transform {
+  will-change: transform;
+}
+
+/* تأثيرات ضوئية للبطاقات */
+.category-card-luxury {
+  position: relative;
+  overflow: hidden;
+}
+
+.category-card-luxury::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+  transition: left 0.5s ease-out;
+}
+
+.category-card-luxury:hover::before {
+  left: 100%;
+}
+
+/* تحسين الانتقالات */
+.transition-luxury {
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* تأثيرات الظلال المتقدمة */
+.shadow-luxury {
+  box-shadow: 
+    0 4px 20px rgba(0, 0, 0, 0.1),
+    0 8px 40px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.shadow-luxury-hover {
+  box-shadow: 
+    0 8px 30px rgba(0, 0, 0, 0.15),
+    0 12px 60px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+/* تحسينات الأداء للصور - تسريع العرض */
+img {
+  image-rendering: optimizeSpeed;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000;
+}
+
+img[loading="eager"] {
+  content-visibility: auto;
+  contain-intrinsic-size: 300px 200px;
+}
+
+/* تحسين shimmer للسرعة */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 1s infinite;
+}
+
+/* تحسين انتقالات الصور */
+.category-image-container {
+  contain: layout style paint;
+  transform: translateZ(0);
+}
+
+.category-image-container img {
+  will-change: auto;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+/* تحسين performance للبطاقات */
+.category-card {
+  contain: layout style;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* تسريع transitions */
+.fast-transition {
+  transition: all 0.15s ease-out !important;
+}
+
+.instant-transition {
+  transition: none !important;
+}

@@ -271,13 +271,8 @@ export class EventMatchQualityAnalyzer {
     const report = this.analyzeEventData(eventData, userData);
     const textReport = this.generateTextReport(report);
     
-    console.group('📊 Event Match Quality Report');
-    console.log(textReport);
     console.groupCollapsed('📋 البيانات التفصيلية');
-    console.table(report.currentData);
-    console.groupEnd();
-    console.groupEnd();
   }
 }
 
-export default EventMatchQualityAnalyzer; 
+export default EventMatchQualityAnalyzer;

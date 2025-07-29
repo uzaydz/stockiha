@@ -640,15 +640,8 @@ export const getBestSpecialOffer = (
   product: CompleteProduct,
   requestedQuantity: number
 ): SpecialOffer | null => {
-  console.log('🔍 getBestSpecialOffer - المدخلات:', {
-    enabled: product.special_offers_config?.enabled,
-    offersCount: product.special_offers_config?.offers?.length,
-    requestedQuantity,
-    offers: product.special_offers_config?.offers
-  });
 
   if (!product.special_offers_config?.enabled || !product.special_offers_config.offers) {
-    console.log('❌ getBestSpecialOffer - العروض غير مُفعّلة أو غير موجودة');
     return null;
   }
 
@@ -657,26 +650,7 @@ export const getBestSpecialOffer = (
     offer => requestedQuantity >= offer.quantity
   );
 
-  console.log('📋 getBestSpecialOffer - العروض المتاحة:', {
-    requestedQuantity,
-    allOffers: product.special_offers_config.offers.map(o => ({
-      id: o.id,
-      name: o.name,
-      quantity: o.quantity,
-      savings: o.savings,
-      isAvailable: requestedQuantity >= o.quantity
-    })),
-    availableOffers: availableOffers.map(o => ({
-      id: o.id,
-      name: o.name,
-      quantity: o.quantity,
-      savings: o.savings
-    })),
-    availableCount: availableOffers.length
-  });
-
   if (availableOffers.length === 0) {
-    console.log('❌ getBestSpecialOffer - لا توجد عروض متاحة للكمية المطلوبة');
     return null;
   }
 
@@ -686,14 +660,6 @@ export const getBestSpecialOffer = (
     const currentSavingsPerUnit = current.savings / (current.quantity + (current.bonusQuantity || 0));
     
     return currentSavingsPerUnit > bestSavingsPerUnit ? current : best;
-  });
-
-  console.log('✅ getBestSpecialOffer - العرض المُختار:', {
-    id: bestOffer.id,
-    name: bestOffer.name,
-    quantity: bestOffer.quantity,
-    savings: bestOffer.savings,
-    discountedPrice: bestOffer.discountedPrice
   });
 
   return bestOffer;
@@ -714,16 +680,6 @@ export const calculateSpecialOfferPrice = (
   const sets = Math.floor(requestedQuantity / offer.quantity);
   const remainder = requestedQuantity % offer.quantity;
 
-  console.log('🧮 calculateSpecialOfferPrice - الحسابات:', {
-    offerName: offer.name,
-    requestedQuantity,
-    offerQuantity: offer.quantity,
-    offerDiscountedPrice: offer.discountedPrice,
-    basePrice,
-    sets,
-    remainder
-  });
-
   let totalPrice: number;
   let totalQuantity: number;
   let savings: number;
@@ -743,14 +699,6 @@ export const calculateSpecialOfferPrice = (
 
   const originalPrice = requestedQuantity * basePrice;
   savings = originalPrice - totalPrice;
-
-  console.log('📊 calculateSpecialOfferPrice - النتائج:', {
-    offerApplied: requestedQuantity >= offer.quantity,
-    totalPrice,
-    totalQuantity,
-    originalPrice,
-    savings: Math.max(0, savings)
-  });
 
   return {
     totalPrice,
@@ -780,17 +728,7 @@ export const getSpecialOfferSummary = (
   const basePrice = getVariantPrice(product);
   const originalPrice = requestedQuantity * basePrice;
 
-  console.log('💰 getSpecialOfferSummary - المدخلات:', {
-    hasOffer: !!selectedOffer,
-    offerName: selectedOffer?.name,
-    offerId: selectedOffer?.id,
-    requestedQuantity,
-    basePrice,
-    originalPrice
-  });
-
   if (!selectedOffer) {
-    console.log('❌ getSpecialOfferSummary - لا يوجد عرض محدد');
     return {
       finalPrice: originalPrice,
       finalQuantity: requestedQuantity,
@@ -801,14 +739,6 @@ export const getSpecialOfferSummary = (
   }
 
   const calculation = calculateSpecialOfferPrice(product, selectedOffer, requestedQuantity);
-
-  console.log('✅ getSpecialOfferSummary - النتيجة:', {
-    finalPrice: calculation.totalPrice,
-    finalQuantity: calculation.totalQuantity,
-    savings: calculation.savings,
-    originalPrice: calculation.originalPrice,
-    offerApplied: true
-  });
 
   return {
     finalPrice: calculation.totalPrice,

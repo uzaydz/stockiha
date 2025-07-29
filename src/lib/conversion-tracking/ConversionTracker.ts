@@ -110,7 +110,6 @@ class ConversionTracker {
     
     // إذا كان الحدث نفسه حدث في آخر 5 ثواني، فهو مكرر
     if (lastEventTime && (now - lastEventTime) < 5000) {
-      console.log(`⚠️ تم تجاهل حدث مكرر: ${event.event_type} للمنتج ${event.product_id}`);
       return true;
     }
     
@@ -163,7 +162,6 @@ class ConversionTracker {
         test_mode: externalSettings.test_mode !== false
       };
       
-      console.log('✅ تم تعيين إعدادات ConversionTracker من مصدر خارجي:', this.settings);
     }
   }
 
@@ -179,12 +177,8 @@ class ConversionTracker {
         return;
       }
 
-      // استخدام Supabase client مباشرة (نفس طريقة useProductTracking)
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        import.meta.env.VITE_SUPABASE_URL!,
-        import.meta.env.VITE_SUPABASE_ANON_KEY!
-      );
+      // استخدام Supabase client المشترك بدلاً من إنشاء instance جديد
+      const { supabase } = await import('@/lib/supabase-client');
 
       // استدعاء دالة get_product_complete_data مباشرة
       const { data: productData, error } = await supabase.rpc('get_product_complete_data', {
@@ -195,7 +189,6 @@ class ConversionTracker {
       });
 
       if (error || !productData?.success) {
-        console.warn('⚠️ فشل في جلب إعدادات التتبع من ConversionTracker:', error);
         return;
       }
 
@@ -231,7 +224,6 @@ class ConversionTracker {
         this.cacheSettings(settings);
       }
     } catch (error) {
-      console.warn('⚠️ خطأ في تهيئة إعدادات ConversionTracker:', error);
     }
   }
 
@@ -353,14 +345,6 @@ class ConversionTracker {
           fbqOptions.testEventCode = this.settings.facebook.test_event_code;
         }
 
-        console.log('📤 إرسال Facebook Pixel:', {
-          eventType: this.mapEventType(event.event_type),
-          eventData,
-          options: fbqOptions,
-          originalCurrency: event.currency,
-          finalCurrency: eventData.currency
-        });
-
         // إرسال الحدث
         window.fbq('track', this.mapEventType(event.event_type), eventData, fbqOptions);
         
@@ -379,7 +363,6 @@ class ConversionTracker {
             const { EventMatchQualityAnalyzer } = await import('../../utils/eventMatchQualityReport');
             EventMatchQualityAnalyzer.logReport(eventData, event.user_data);
           } catch (reportError) {
-            console.warn('⚠️ فشل في إنشاء تقرير Event Match Quality:', reportError);
           }
         }
       }

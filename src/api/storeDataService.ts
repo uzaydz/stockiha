@@ -130,6 +130,7 @@ let pendingPromise: Promise<{ data: StoreInitializationData | null; isLoading: b
  */
 async function fetchStoreInitializationDataViaRpc(subdomain: string): Promise<StoreInitializationData | null> {
   try {
+    
     // @ts-ignore supabase-next-line <<< تمت الإضافة لتجاوز خطأ النوع مؤقتًا. لا يزال rpc بحاجة إلى تحسينات في النوع.
     const { data, error: rpcError } = await supabase.rpc('get_store_init_data', {
       org_subdomain: subdomain,
@@ -148,8 +149,21 @@ async function fetchStoreInitializationDataViaRpc(subdomain: string): Promise<St
       };
     }
     
+    // التحقق من صحة البيانات المرجعة
+    if (!data) {
+      return { 
+        error: 'لم يتم العثور على بيانات المتجر', 
+        organization_details: null, 
+        organization_settings: null, 
+        categories: [], 
+        subcategories: [], 
+        featured_products: [], 
+        shipping_info: null,
+        store_layout_components: [] 
+      };
+    }
+
     // data يمكن أن يكون أي Json هنا. نحتاج للتحقق إذا كان يحتوي على خطأ من داخل دالة RPC
-    // أو إذا كان هو البيانات المتوقعة.
     if (typeof data === 'object' && data !== null && 'error' in data && typeof data.error === 'string') {
       // إذا كانت الدالة في قاعدة البيانات تُرجع فقط { error: "..." }
       // نحتاج لضمان أن الكائن المرجع يطابق StoreInitializationData
@@ -165,35 +179,29 @@ async function fetchStoreInitializationDataViaRpc(subdomain: string): Promise<St
       };
     }
 
-    // نفترض أنه StoreInitializationData صالح.
-    // التحقق الأكثر دقة يتطلب فحص كل الحقول، لكن هذا يتجاوز الإصلاح السريع للنوع.
-    if (typeof data === 'object' && data !== null && 
-        'organization_details' in data && 
-        'organization_settings' in data && 
-        'categories' in data &&
-        'subcategories' in data &&
-        'featured_products' in data &&
-        'shipping_info' in data &&
-        'store_layout_components' in data 
-    ) {
-       return data as unknown as StoreInitializationData;
-    }
-
-    // إذا وصل الكود إلى هنا، فإن data ليست بالشكل المتوقع (لا خطأ واضح ولا بيانات صالحة)
-    return { 
-        error: 'Unexpected data structure from RPC.', 
-        organization_details: null, 
-        organization_settings: null, 
-        categories: [], 
-        subcategories: [], 
-        featured_products: [], 
-        shipping_info: null,
-        store_layout_components: [] 
-      };
+    // استخدام الوظيفة المبسطة الجديدة
+    return validateAndReturnStoreData(data);
 
   } catch (e: any) {
+    
     return { 
-        error: e.message || 'Unknown exception', 
+      error: e.message || 'خطأ غير متوقع أثناء جلب بيانات المتجر', 
+      organization_details: null, 
+      organization_settings: null, 
+      categories: [], 
+      subcategories: [], 
+      featured_products: [], 
+      shipping_info: null,
+      store_layout_components: [] 
+    };
+  }
+}
+
+function validateAndReturnStoreData(data: any): StoreInitializationData {
+    // التحقق من صحة البيانات المرجعة
+    if (!data) {
+      return { 
+        error: 'لم يتم العثور على بيانات المتجر', 
         organization_details: null, 
         organization_settings: null, 
         categories: [], 
@@ -202,7 +210,34 @@ async function fetchStoreInitializationDataViaRpc(subdomain: string): Promise<St
         shipping_info: null,
         store_layout_components: [] 
       };
-  }
+    }
+
+    // data يمكن أن يكون أي Json هنا. نحتاج للتحقق إذا كان يحتوي على خطأ من داخل دالة RPC
+    if (typeof data === 'object' && data !== null && 'error' in data && typeof data.error === 'string') {
+      return { 
+        error: data.error, 
+        organization_details: null, 
+        organization_settings: null, 
+        categories: [], 
+        subcategories: [], 
+        featured_products: [], 
+        shipping_info: null,
+        store_layout_components: [] 
+      };
+    }
+
+    // تحويل البيانات وإعطاء قيم افتراضية للحقول المفقودة
+    const dataObj = data as Record<string, any>;
+    
+    return {
+      organization_details: dataObj.organization_details || null,
+      organization_settings: dataObj.organization_settings || null,
+      categories: dataObj.categories || [],
+      subcategories: dataObj.subcategories || [],
+      featured_products: dataObj.featured_products || [],
+      shipping_info: dataObj.shipping_info || null,
+      store_layout_components: dataObj.store_layout_components || []
+    } as StoreInitializationData;
 }
 
 export async function getStoreDataFast(subdomain: string): Promise<{

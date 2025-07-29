@@ -1,0 +1,364 @@
+/* تأثيرات مخصصة للإشعارات - تم التحديث */
+
+/* تأثير النقاط المضيئة المحسن */
+@keyframes glow-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.05);
+    box-shadow: 0 0 0 8px rgba(59, 130, 246, 0.1);
+  }
+}
+
+/* تأثير الموجات المحسن */
+@keyframes ripple {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(2.5);
+    opacity: 0;
+  }
+}
+
+/* تأثير النبضة البطيئة */
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+/* تأثير التدرج المتحرك المحسن */
+@keyframes gradient-shift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* تأثير الانزلاق للإشعارات */
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(100px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+/* تأثير الظهور التدريجي */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* تأثير التوهج المتحرك */
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+/* الكلاسات المحسنة */
+
+/* تأثير الظلال المتقدم */
+.notification-shadow-advanced {
+  box-shadow: 
+    0 10px 25px -5px rgba(0, 0, 0, 0.1),
+    0 8px 10px -6px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+
+.notification-shadow-advanced-dark {
+  box-shadow: 
+    0 10px 25px -5px rgba(0, 0, 0, 0.4),
+    0 8px 10px -6px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+/* تأثير الضباب المحسن */
+.notification-backdrop-enhanced {
+  backdrop-filter: blur(40px) saturate(200%) contrast(120%);
+  -webkit-backdrop-filter: blur(40px) saturate(200%) contrast(120%);
+}
+
+/* تأثير التدرج المتحرك المحسن */
+.notification-gradient-animated {
+  background: linear-gradient(-45deg, 
+    rgba(59, 130, 246, 0.1),
+    rgba(147, 51, 234, 0.1),
+    rgba(239, 68, 68, 0.1),
+    rgba(34, 197, 94, 0.1),
+    rgba(59, 130, 246, 0.1)
+  );
+  background-size: 400% 400%;
+  animation: gradient-shift 8s ease infinite;
+}
+
+/* تأثير النبضة البطيئة */
+.animate-pulse-slow {
+  animation: pulse-slow 3s ease-in-out infinite;
+}
+
+/* تأثير التوهج للإشعارات العاجلة */
+.notification-urgent-glow {
+  position: relative;
+  overflow: hidden;
+}
+
+.notification-urgent-glow::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: linear-gradient(45deg, 
+    transparent, 
+    rgba(239, 68, 68, 0.3), 
+    transparent
+  );
+  border-radius: inherit;
+  animation: shimmer 2s linear infinite;
+  z-index: -1;
+}
+
+/* تحسينات السكرول المتقدمة */
+.notification-scroll-enhanced {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(156, 163, 175, 0.3) transparent;
+  scroll-behavior: smooth;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+}
+
+.notification-scroll-enhanced::-webkit-scrollbar {
+  width: 6px;
+}
+
+.notification-scroll-enhanced::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 3px;
+}
+
+.notification-scroll-enhanced::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    to bottom,
+    rgba(156, 163, 175, 0.4),
+    rgba(156, 163, 175, 0.6)
+  );
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.notification-scroll-enhanced::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    to bottom,
+    rgba(156, 163, 175, 0.6),
+    rgba(156, 163, 175, 0.8)
+  );
+}
+
+/* إصلاح مشكلة السكرول في الـ ScrollArea */
+[data-radix-scroll-area-viewport] {
+  overflow-y: auto !important;
+  scroll-behavior: smooth;
+}
+
+/* تأثيرات الماوس المتقدمة */
+.notification-hover-lift {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: center;
+}
+
+.notification-hover-lift:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 
+    0 20px 40px -10px rgba(0, 0, 0, 0.15),
+    0 10px 20px -5px rgba(0, 0, 0, 0.1);
+}
+
+/* تأثير التركيز المتقدم */
+.notification-focus-advanced:focus-visible {
+  outline: 2px solid rgba(59, 130, 246, 0.6);
+  outline-offset: 4px;
+  border-radius: 16px;
+  box-shadow: 
+    0 0 0 4px rgba(59, 130, 246, 0.1),
+    0 8px 25px -5px rgba(59, 130, 246, 0.3);
+}
+
+/* تأثيرات الأيقونات المحسنة */
+.notification-icon-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+.notification-icon-bounce-in {
+  animation: bounceIn 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+@keyframes bounceIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.3) rotate(-10deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05) rotate(5deg);
+  }
+  70% {
+    transform: scale(0.9) rotate(-2deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+/* تأثير التلاشي المحسن */
+.notification-fade-in-enhanced {
+  animation: fadeInUpEnhanced 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+@keyframes fadeInUpEnhanced {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 40px, 0) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+/* تحسينات الأداء المتقدمة */
+.notification-optimized-advanced {
+  will-change: transform, opacity, box-shadow;
+  contain: layout style paint;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+/* تأثيرات الحدود المتدرجة المحسنة */
+.notification-gradient-border-advanced {
+  position: relative;
+  background: linear-gradient(135deg, transparent, transparent);
+  border: 1px solid transparent;
+}
+
+.notification-gradient-border-advanced::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  padding: 1px;
+  background: linear-gradient(135deg, 
+    rgba(59, 130, 246, 0.5),
+    rgba(147, 51, 234, 0.5),
+    rgba(239, 68, 68, 0.5),
+    rgba(34, 197, 94, 0.5)
+  );
+  border-radius: inherit;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  -webkit-mask-composite: xor;
+  animation: gradient-shift 6s linear infinite;
+}
+
+/* تأثيرات التحميل */
+.notification-loading-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.4) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  background-size: 200px 100%;
+  animation: shimmer 1.5s linear infinite;
+}
+
+/* تحسينات للدارك مود المتقدمة */
+@media (prefers-color-scheme: dark) {
+  .notification-shadow-advanced {
+    box-shadow: 
+      0 10px 25px -5px rgba(0, 0, 0, 0.6),
+      0 8px 10px -6px rgba(0, 0, 0, 0.4),
+      0 0 0 1px rgba(255, 255, 255, 0.1);
+  }
+  
+  .notification-loading-shimmer {
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.1) 50%,
+      rgba(255, 255, 255, 0) 100%
+    );
+  }
+}
+
+/* تأثيرات الانتقال المتقدمة */
+.notification-enter {
+  animation: slide-in-right 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.notification-exit {
+  animation: slide-out-left 0.3s cubic-bezier(0.55, 0.055, 0.675, 0.19);
+}
+
+@keyframes slide-out-left {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-100px) scale(0.9);
+  }
+}
+
+/* تأثير النبضة للأزرار */
+.notification-button-pulse:hover {
+  animation: buttonPulse 0.6s ease-in-out;
+}
+
+@keyframes buttonPulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+} 

@@ -1,10 +1,199 @@
 import { supabase } from '@/lib/supabase';
 
 /**
- * دالة محسنة وآمنة لحذف المنتج مع تشخيص أفضل للأخطاء
- * تستخدم دالة safe_delete_product في قاعدة البيانات
+ * 🔄 دالة تعطيل المنتج (أفضل من الحذف النهائي)
+ * تعطل المنتج ويمكن إعادة تفعيله لاحقاً
  */
-export const deleteProductEnhanced = async (productId: string): Promise<{
+export const disableProduct = async (productId: string): Promise<{
+  success: boolean;
+  error?: {
+    code: string;
+    message: string;
+    details?: any;
+  };
+}> => {
+  try {
+    // الحصول على معرف المستخدم الحالي
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return {
+        success: false,
+        error: {
+          code: 'AUTH_REQUIRED',
+          message: 'يجب تسجيل الدخول لتعطيل المنتج'
+        }
+      };
+    }
+    
+    // الحصول على معرف المؤسسة من جدول users
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('organization_id')
+      .eq('id', user.id)
+      .single();
+    
+    if (userError || !userData?.organization_id) {
+      return {
+        success: false,
+        error: {
+          code: 'ORGANIZATION_REQUIRED',
+          message: 'معرف المؤسسة مطلوب'
+        }
+      };
+    }
+    
+    const organizationId = userData.organization_id;
+    
+    // تعطيل المنتج بدلاً من حذفه
+    const { data, error } = await supabase
+      .from('products')
+      .update({ 
+        is_active: false,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', productId)
+      .eq('organization_id', organizationId)
+      .select('name')
+      .single();
+    
+    if (error) {
+      
+      if (error.code === 'PGRST116') {
+        return {
+          success: false,
+          error: {
+            code: 'PRODUCT_NOT_FOUND',
+            message: 'المنتج غير موجود أو لا ينتمي لمؤسستك'
+          }
+        };
+      }
+      
+      return {
+        success: false,
+        error: {
+          code: error.code || 'UNKNOWN_ERROR',
+          message: error.message || 'حدث خطأ غير متوقع أثناء تعطيل المنتج',
+          details: error
+        }
+      };
+    }
+
+    return {
+      success: true
+    };
+    
+  } catch (error: any) {
+    
+    return {
+      success: false,
+      error: {
+        code: 'UNEXPECTED_ERROR',
+        message: 'حدث خطأ غير متوقع',
+        details: error
+      }
+    };
+  }
+};
+
+/**
+ * ✅ دالة إعادة تفعيل المنتج
+ */
+export const enableProduct = async (productId: string): Promise<{
+  success: boolean;
+  error?: {
+    code: string;
+    message: string;
+    details?: any;
+  };
+}> => {
+  try {
+    // الحصول على معرف المستخدم الحالي
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return {
+        success: false,
+        error: {
+          code: 'AUTH_REQUIRED',
+          message: 'يجب تسجيل الدخول لإعادة تفعيل المنتج'
+        }
+      };
+    }
+    
+    // الحصول على معرف المؤسسة من جدول users
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('organization_id')
+      .eq('id', user.id)
+      .single();
+    
+    if (userError || !userData?.organization_id) {
+      return {
+        success: false,
+        error: {
+          code: 'ORGANIZATION_REQUIRED',
+          message: 'معرف المؤسسة مطلوب'
+        }
+      };
+    }
+    
+    const organizationId = userData.organization_id;
+    
+    // إعادة تفعيل المنتج
+    const { data, error } = await supabase
+      .from('products')
+      .update({ 
+        is_active: true,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', productId)
+      .eq('organization_id', organizationId)
+      .select('name')
+      .single();
+    
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return {
+          success: false,
+          error: {
+            code: 'PRODUCT_NOT_FOUND',
+            message: 'المنتج غير موجود'
+          }
+        };
+      }
+      
+      return {
+        success: false,
+        error: {
+          code: error.code || 'UNKNOWN_ERROR',
+          message: error.message || 'حدث خطأ أثناء إعادة تفعيل المنتج',
+          details: error
+        }
+      };
+    }
+    
+    return {
+      success: true
+    };
+    
+  } catch (error: any) {
+    return {
+      success: false,
+      error: {
+        code: 'UNEXPECTED_ERROR',
+        message: 'حدث خطأ غير متوقع',
+        details: error
+      }
+    };
+  }
+};
+
+/**
+ * 🗑️ دالة الحذف النهائي (للاستخدام في حالات خاصة فقط)
+ * ⚠️ تحذير: هذا سيحذف المنتج نهائياً!
+ */
+export const deleteProductPermanently = async (productId: string): Promise<{
   success: boolean;
   error?: {
     code: string;
@@ -35,18 +224,6 @@ export const deleteProductEnhanced = async (productId: string): Promise<{
     
     if (orderCheckError) {
       
-      // تسجيل المحاولة الفاشلة
-      try {
-        await supabase.rpc('log_product_deletion_attempt', {
-          p_product_id: productId,
-          p_user_id: user.id,
-          p_status: 'failed',
-          p_error_message: 'فشل التحقق من الطلبات المرتبطة',
-          p_error_code: 'ORDER_CHECK_FAILED'
-        });
-      } catch (err) {
-      }
-      
       return {
         success: false,
         error: {
@@ -57,118 +234,58 @@ export const deleteProductEnhanced = async (productId: string): Promise<{
       };
     }
     
-    // إذا كان المنتج مستخدم في طلبات
+    // إذا كان المنتج مستخدم في طلبات، امنع الحذف النهائي
     if (orderItems && orderItems.length > 0) {
-      try {
-        await supabase.rpc('log_product_deletion_attempt', {
-          p_product_id: productId,
-          p_user_id: user.id,
-          p_status: 'failed',
-          p_error_message: 'المنتج مرتبط بطلبات سابقة',
-          p_error_code: 'PRODUCT_IN_USE'
-        });
-      } catch (err) {
-      }
-      
       return {
         success: false,
         error: {
           code: 'PRODUCT_IN_USE',
-          message: 'لا يمكن حذف المنتج لأنه مستخدم في طلبات سابقة. يمكنك تعطيل المنتج بدلاً من حذفه.'
+          message: 'لا يمكن حذف المنتج نهائياً لأنه مستخدم في طلبات سابقة. استخدم خيار التعطيل بدلاً من ذلك.'
         }
       };
     }
     
-    // استخدام الدالة الآمنة لحذف المنتج
-    const { data: deleteResult, error: deleteError } = await supabase
-      .rpc('safe_delete_product', {
-        p_product_id: productId,
-        p_user_id: user.id
-      });
+    // الحصول على معرف المؤسسة من جدول users
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('organization_id')
+      .eq('id', user.id)
+      .single();
     
-    if (deleteError) {
-      
-      // تسجيل المحاولة الفاشلة
-      try {
-        await supabase.rpc('log_product_deletion_attempt', {
-          p_product_id: productId,
-          p_user_id: user.id,
-          p_status: 'failed',
-          p_error_message: deleteError.message,
-          p_error_code: deleteError.code
-        });
-      } catch (err) {
-      }
-      
+    if (userError || !userData?.organization_id) {
       return {
         success: false,
         error: {
-          code: deleteError.code || 'UNKNOWN_ERROR',
-          message: deleteError.message || 'حدث خطأ غير متوقع أثناء حذف المنتج',
+          code: 'ORGANIZATION_REQUIRED',
+          message: 'معرف المؤسسة مطلوب'
+        }
+      };
+    }
+    
+    const organizationId = userData.organization_id;
+    
+    // حذف البيانات المرتبطة أولاً
+    await supabase.from('inventory_log').delete().eq('product_id', productId);
+    await supabase.from('product_images').delete().eq('product_id', productId);
+    await supabase.from('product_colors').delete().eq('product_id', productId);
+    await supabase.from('product_sizes').delete().eq('product_id', productId);
+    
+    // حذف المنتج نفسه
+    const { error: deleteError } = await supabase
+      .from('products')
+      .delete()
+      .eq('id', productId)
+      .eq('organization_id', organizationId);
+    
+    if (deleteError) {
+      return {
+        success: false,
+        error: {
+          code: deleteError.code || 'DELETE_FAILED',
+          message: deleteError.message || 'فشل حذف المنتج',
           details: deleteError
         }
       };
-    }
-    
-    // التحقق من نتيجة الحذف
-    if (!deleteResult?.success) {
-      const errorMessage = deleteResult?.error || 'فشل حذف المنتج';
-      
-      // تسجيل المحاولة الفاشلة
-      try {
-        await supabase.rpc('log_product_deletion_attempt', {
-          p_product_id: productId,
-          p_user_id: user.id,
-          p_status: 'failed',
-          p_error_message: errorMessage,
-          p_error_code: deleteResult?.code || 'DELETE_FAILED'
-        });
-      } catch (err) {
-      }
-      
-      // معالجة أخطاء محددة
-      if (errorMessage.includes('ليس لديك صلاحية')) {
-        return {
-          success: false,
-          error: {
-            code: 'PERMISSION_DENIED',
-            message: errorMessage,
-            details: deleteResult
-          }
-        };
-      }
-      
-      if (errorMessage.includes('المنتج لا ينتمي لمؤسستك')) {
-        return {
-          success: false,
-          error: {
-            code: 'WRONG_ORGANIZATION',
-            message: errorMessage,
-            details: deleteResult
-          }
-        };
-      }
-      
-      return {
-        success: false,
-        error: {
-          code: 'DELETE_FAILED',
-          message: errorMessage,
-          details: deleteResult
-        }
-      };
-    }
-    
-    // تسجيل النجاح
-    try {
-      await supabase.rpc('log_product_deletion_attempt', {
-        p_product_id: productId,
-        p_user_id: user.id,
-        p_status: 'success',
-        p_error_message: null,
-        p_error_code: null
-      });
-    } catch (err) {
     }
     
     return {
@@ -176,7 +293,6 @@ export const deleteProductEnhanced = async (productId: string): Promise<{
     };
     
   } catch (error: any) {
-    
     return {
       success: false,
       error: {
@@ -188,30 +304,50 @@ export const deleteProductEnhanced = async (productId: string): Promise<{
   }
 };
 
+// الحفاظ على اسم الدالة القديمة للتوافق مع باقي الكود
+export const deleteProductEnhanced = disableProduct;
+
 /**
- * دالة لجلب سجل محاولات حذف المنتج (للمديرين فقط)
+ * دالة لجلب المنتجات المعطلة (للمديرين فقط)
  */
-export const getProductDeletionAttempts = async (productId?: string): Promise<{
+export const getDisabledProducts = async (): Promise<{
   success: boolean;
   data?: any[];
   error?: string;
 }> => {
   try {
-    let query = supabase
-      .from('product_deletion_attempts')
-      .select(`
-        *,
-        product:products(name),
-        user:users(name, email)
-      `)
-      .order('created_at', { ascending: false })
-      .limit(50);
+    const { data: { user } } = await supabase.auth.getUser();
     
-    if (productId) {
-      query = query.eq('product_id', productId);
+    if (!user) {
+      return {
+        success: false,
+        error: 'يجب تسجيل الدخول'
+      };
     }
     
-    const { data, error } = await query;
+    // الحصول على معرف المؤسسة
+    const { data: userData } = await supabase
+      .from('users')
+      .select('organization_id')
+      .eq('id', user.id)
+      .single();
+    
+    if (!userData?.organization_id) {
+      return {
+        success: false,
+        error: 'معرف المؤسسة مطلوب'
+      };
+    }
+    
+    const { data, error } = await supabase
+      .from('products')
+      .select(`
+        id, name, sku, price, cost, stock_quantity, 
+        created_at, updated_at, is_active
+      `)
+      .eq('organization_id', userData.organization_id)
+      .eq('is_active', false)
+      .order('updated_at', { ascending: false });
     
     if (error) {
       return {

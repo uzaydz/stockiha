@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase-client';
 import { getSupabaseClient } from '@/lib/supabase-client';
+import { isValidUuid } from '@/utils/uuid-helpers';
 
 // دالة للحصول على منظمة تحتوي على خدمات كاحتياطي
 export const getOrganizationWithServices = async (): Promise<string | null> => {
@@ -82,7 +83,7 @@ export const getOrganizationId = async (currentUser: any = null): Promise<string
     
     // 2. محاولة الحصول من التخزين المحلي
     const storedOrgId = localStorage.getItem('bazaar_organization_id');
-    if (storedOrgId) {
+    if (isValidUuid(storedOrgId)) {
       
       // التحقق من صحة المعرف المخزن
       const { data: orgCheckArray, error: orgError } = await supabase

@@ -116,6 +116,15 @@ BEGIN
     -- تحديث حالة has_variants للمنتج
     UPDATE public.products SET has_variants = true WHERE id = create_product_color.product_id;
     
+    -- تحديث كمية المنتج بناءً على مجموع كميات الألوان
+    UPDATE public.products 
+    SET stock_quantity = (
+        SELECT COALESCE(SUM(quantity), 0) 
+        FROM public.product_colors 
+        WHERE product_id = create_product_color.product_id
+    )
+    WHERE id = create_product_color.product_id;
+    
     RETURN new_color_id;
 END;
 $$;
@@ -170,6 +179,15 @@ BEGIN
         is_default = COALESCE(update_product_color.is_default, is_default)
     WHERE id = update_product_color.color_id;
     
+    -- تحديث كمية المنتج بناءً على مجموع كميات الألوان
+    UPDATE public.products 
+    SET stock_quantity = (
+        SELECT COALESCE(SUM(quantity), 0) 
+        FROM public.product_colors 
+        WHERE product_id = product_id
+    )
+    WHERE id = product_id;
+    
     RETURN true;
 END;
 $$;
@@ -213,6 +231,15 @@ BEGIN
     IF colors_count = 0 THEN
         UPDATE public.products SET has_variants = false WHERE id = product_id;
     END IF;
+    
+    -- تحديث كمية المنتج بناءً على مجموع كميات الألوان المتبقية
+    UPDATE public.products 
+    SET stock_quantity = (
+        SELECT COALESCE(SUM(quantity), 0) 
+        FROM public.product_colors 
+        WHERE product_id = product_id
+    )
+    WHERE id = product_id;
     
     RETURN true;
 END;

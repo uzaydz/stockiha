@@ -11,6 +11,12 @@ import { useQuery } from '@tanstack/react-query';
 // معلومات البيئة - تم إزالة console.log
 
 // Global Cache للبيانات - محسن ومطور
+interface CacheEntry<T = any> {
+  data: T;
+  timestamp: number;
+  ttl?: number;
+}
+
 const globalCache = new Map<string, CacheEntry<any>>();
 const globalActiveRequests = new Map<string, Promise<any>>();
 
@@ -24,12 +30,10 @@ const globalRequestDeduplication = new Map<string, {
   timestamp: number;
 }>();
 
-// Cache عالمي للبيانات مع TTL
-interface CacheEntry<T> {
-  data: T;
-  timestamp: number;
-  ttl: number;
-}
+// 🔥 نظام Deduplication متقدم لمنع الطلبات المتكررة
+const ACTIVE_REQUESTS = new Map<string, Promise<any>>();
+const REQUEST_DEBOUNCE_TIME = 500; // نصف ثانية
+const LAST_REQUEST_TIMES = new Map<string, number>();
 
 /**
  * دالة مساعدة لتنظيف Cache المنتهي الصلاحية
@@ -131,7 +135,7 @@ const createDirectRestRequest = async (key: string): Promise<any> => {
   } else if (key.includes('settings')) {
     const orgId = key.split('_').pop();
     endpoint = 'organization_settings';
-    params = `?organization_id=eq.${orgId}&limit=1`;
+    params = `?select=*&organization_id=eq.${orgId}&limit=1`;
   } else if (key.includes('subscriptions')) {
     const orgId = key.split('_').pop();
     endpoint = 'organization_subscriptions';
@@ -349,6 +353,65 @@ const executeRequest = async <T>(
 }
 
 /**
+ * تنفيذ طلب مع منع التكرار المفرط
+ */
+async function executeRequestWithDeduplication<T>(
+  key: string,
+  requestFn: () => Promise<T>,
+  cacheTime: number = 5 * 60 * 1000
+): Promise<T> {
+  const now = Date.now();
+  
+  // التحقق من الـ debouncing
+  const lastRequestTime = LAST_REQUEST_TIMES.get(key) || 0;
+  if (now - lastRequestTime < REQUEST_DEBOUNCE_TIME) {
+    // إذا كان هناك طلب نشط، انتظره
+    const activeRequest = ACTIVE_REQUESTS.get(key);
+    if (activeRequest) {
+      return await activeRequest;
+    }
+  }
+  
+  // التحقق من الكاش أولاً
+  const cached = globalCache.get(key);
+  if (cached && (now - cached.timestamp) < cacheTime) {
+    return cached.data;
+  }
+  
+  // إذا كان هناك طلب نشط لنفس المفتاح، انتظره
+  const existingRequest = ACTIVE_REQUESTS.get(key);
+  if (existingRequest) {
+    return await existingRequest;
+  }
+  
+  // إنشاء طلب جديد
+  const requestPromise = (async () => {
+    try {
+      LAST_REQUEST_TIMES.set(key, now);
+      const result = await requestFn();
+      
+      // حفظ في الكاش
+      globalCache.set(key, {
+        data: result,
+        timestamp: now
+      });
+      
+      return result;
+    } catch (error) {
+      throw error;
+    } finally {
+      // إزالة الطلب من القائمة النشطة
+      ACTIVE_REQUESTS.delete(key);
+    }
+  })();
+  
+  // حفظ الطلب في القائمة النشطة
+  ACTIVE_REQUESTS.set(key, requestPromise);
+  
+  return await requestPromise;
+}
+
+/**
  * مدير الطلبات الموحد
  */
 export class UnifiedRequestManager {
@@ -362,190 +425,136 @@ export class UnifiedRequestManager {
 
     const cacheKey = `unified_categories_${orgId}`;
     
-    // مسح الكاش للتأكد من عدم وجود بيانات قديمة
-    globalCache.delete(cacheKey);
-    
-    // مسح أي cache keys ذات صلة
-    const keysToDelete = Array.from(globalCache.keys()).filter(key => 
-      typeof key === 'string' && (key.includes('categories') || key.includes(orgId))
+    return executeRequestWithDeduplication(
+      cacheKey,
+      async () => {
+        if (import.meta.env.DEV) {
+          console.log(`🔄 [UnifiedRequestManager] جلب فئات المنتجات للمؤسسة: ${orgId}`);
+        }
+
+        const { data, error } = await supabase
+          .from('product_categories')
+          .select('*')
+          .eq('organization_id', orgId)
+          .eq('is_active', true)
+          .order('name', { ascending: true })
+          .limit(1000);
+
+        if (error) {
+          console.error('خطأ في جلب فئات المنتجات:', error);
+          return [];
+        }
+        
+        if (import.meta.env.DEV) {
+          console.log(`✅ [UnifiedRequestManager] تم جلب ${data?.length || 0} فئة منتج`);
+        }
+        
+        return data || [];
+      },
+      10 * 60 * 1000 // 10 دقائق cache للفئات
     );
-    keysToDelete.forEach(key => globalCache.delete(key));
-
-    try {
-      // استخدام REST API مباشر بدون أي تعامل مع Supabase client لتجنب الحلقة اللا نهائية
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      
-      if (!supabaseUrl || !supabaseKey) {
-        return [];
-      }
-
-      // استخدام anonymous key بدلاً من محاولة الحصول على access token
-      const authToken = supabaseKey;
-
-      // إنشاء URL صحيح بدون cache busting parameters مشكوك فيها
-      const url = `${supabaseUrl}/rest/v1/product_categories?select=*&organization_id=eq.${orgId}&is_active=eq.true&order=name.asc&limit=1000`;
-
-      const headers = {
-        'apikey': supabaseKey,
-        'Authorization': `Bearer ${authToken}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=representation',
-        'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
-        'Pragma': 'no-cache',
-        'Expires': '0',
-        'If-None-Match': '*',
-        'X-Cache-Bypass': 'true',
-        'X-Requested-With': 'XMLHttpRequest',
-        'X-Client-Info': `unified-categories-${Date.now()}`,
-        'X-Request-ID': `${Date.now()}-${Math.random()}`,
-        'X-Session-ID': Math.random().toString(36)
-      };
-
-      const startTime = performance.now();
-      const response = await fetch(url, { 
-        method: 'GET',
-        headers,
-        cache: 'no-store'
-      });
-      
-      const endTime = performance.now();
-
-      // طباعة تفاصيل Response headers بالكامل
-      const responseHeaders = Object.fromEntries(response.headers.entries());
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        return [];
-      }
-
-      const data = await response.json();
-      
-      // طباعة تفاصيل البيانات المستلمة بشكل مفصل
-      
-      if (Array.isArray(data)) {
-        
-        // حفظ في الكاش
-        globalCache.set(cacheKey, { data, timestamp: Date.now(), ttl: 300000 }); // 5 دقائق
-        
-        return data;
-      } else {
-        return [];
-      }
-    } catch (error) {
-      return [];
-    }
   }
   
   /**
-   * جلب إعدادات المنظمة - موحد ومحسن مع cache أطول
+   * جلب إعدادات المؤسسة - موحد مع cache أطول
    */
   static async getOrganizationSettings(orgId: string) {
     if (!orgId) {
-      if (import.meta.env.DEV) {
-      }
       return null;
     }
     
-    return executeRequest(
+    return executeRequestWithDeduplication(
       `unified_org_settings_${orgId}`,
       async () => {
         if (import.meta.env.DEV) {
+          console.log(`🔄 [UnifiedRequestManager] جلب إعدادات المؤسسة: ${orgId}`);
         }
         
         const { data, error } = await supabase
           .from('organization_settings')
           .select('*')
           .eq('organization_id', orgId)
-          .limit(1)
           .maybeSingle();
 
         if (error) {
-          throw error;
+          console.error('خطأ في جلب إعدادات المؤسسة:', error);
+          return null;
         }
-
+        
+        if (import.meta.env.DEV) {
+          console.log(`✅ [UnifiedRequestManager] تم جلب إعدادات المؤسسة`);
+        }
+        
         return data;
       },
-      30000 // 30 second timeout
+      20 * 60 * 1000 // 20 دقيقة cache للإعدادات
     );
   }
-  
+
   /**
-   * جلب اشتراكات المنظمة - موحد
+   * جلب بيانات المؤسسة - موحد مع cache أطول
    */
-  static async getOrganizationSubscriptions(orgId: string) {
-    return executeRequest(
-      `unified_org_subscriptions_${orgId}`,
+  static async getOrganizationById(orgId: string) {
+    if (!orgId) {
+      return null;
+    }
+    
+    return executeRequestWithDeduplication(
+      `unified_organization_${orgId}`,
       async () => {
-        const { data, error } = await supabase
-          .from('organization_subscriptions')
-          .select('*, plan:plan_id(id, name, code)')
-          .eq('organization_id', orgId)
-          .eq('status', 'active')
-          .gt('end_date', new Date().toISOString())
-          .order('created_at', { ascending: false })
-          .limit(1);
-        
-        if (error) {
-          return [];
+        if (import.meta.env.DEV) {
+          console.log(`🔄 [UnifiedRequestManager] جلب بيانات المؤسسة: ${orgId}`);
         }
         
-        return data || [];
-      },
-      30 * 60 * 1000 // 30 دقيقة
-    );
-  }
-  
-  /**
-   * جلب فئات فرعية - موحد
-   */
-  static async getProductSubcategories() {
-    return executeRequest(
-      `unified_subcategories_all`,
-      async () => {
         const { data, error } = await supabase
-          .from('product_subcategories')
+          .from('organizations')
           .select('*')
-          .order('name');
-        
+          .eq('id', orgId)
+          .maybeSingle();
+
         if (error) {
-          return [];
+          console.error('خطأ في جلب بيانات المؤسسة:', error);
+          return null;
         }
         
-        return data || [];
+        if (import.meta.env.DEV) {
+          console.log(`✅ [UnifiedRequestManager] تم جلب بيانات المؤسسة`);
+        }
+        
+        return data;
       },
-      15 * 60 * 1000 // 15 دقيقة
+      15 * 60 * 1000 // 15 دقيقة cache للمؤسسة
     );
   }
-  
+
   /**
-   * جلب تطبيقات المنظمة - موحد ومحسن مع cache أطول
+   * جلب تطبيقات المؤسسة - موحد مع cache أطول
    */
   static async getOrganizationApps(orgId: string) {
     if (!orgId) {
-      if (import.meta.env.DEV) {
-      }
       return [];
     }
     
-    return executeRequest(
+    return executeRequestWithDeduplication(
       `unified_org_apps_${orgId}`,
       async () => {
         if (import.meta.env.DEV) {
+          console.log(`🔄 [UnifiedRequestManager] جلب تطبيقات المؤسسة: ${orgId}`);
         }
         
-        // @ts-ignore - جدول organization_apps موجود في قاعدة البيانات
         const { data, error } = await supabase
-          .from('organization_apps' as any)
+          .from('organization_apps')
           .select('*')
           .eq('organization_id', orgId)
           .order('created_at', { ascending: false });
 
         if (error) {
+          console.error('خطأ في جلب تطبيقات المؤسسة:', error);
           return [];
         }
         
         if (import.meta.env.DEV) {
+          console.log(`✅ [UnifiedRequestManager] تم جلب ${data?.length || 0} تطبيق`);
         }
         
         return data || [];
@@ -555,19 +564,21 @@ export class UnifiedRequestManager {
   }
   
   /**
-   * جلب مستخدم بالمعرف - موحد مع cache أطول
+   * جلب مستخدم بالمعرف - موحد مع cache أطول وdeduplication قوي
    */
   static async getUserById(userId: string) {
     if (!userId) {
       if (import.meta.env.DEV) {
+        console.warn(`⚠️ [UnifiedRequestManager] معرف المستخدم فارغ`);
       }
       return null;
     }
     
-    return executeRequest(
+    return executeRequestWithDeduplication(
       `unified_user_${userId}`,
       async () => {
         if (import.meta.env.DEV) {
+          console.log(`🔄 [UnifiedRequestManager] جلب بيانات المستخدم: ${userId}`);
         }
         
         const { data, error } = await supabase
@@ -577,10 +588,12 @@ export class UnifiedRequestManager {
           .maybeSingle();
 
         if (error) {
+          console.error('خطأ في جلب بيانات المستخدم:', error);
           return null;
         }
         
         if (import.meta.env.DEV) {
+          console.log(`✅ [UnifiedRequestManager] تم جلب بيانات المستخدم`);
         }
         
         return data;
@@ -594,45 +607,52 @@ export class UnifiedRequestManager {
    */
   static clearCache(pattern?: string) {
     if (pattern) {
-      // حذف Cache المطابق للنمط
+      // مسح الكاش المطابق للنمط
       for (const key of globalCache.keys()) {
         if (key.includes(pattern)) {
           globalCache.delete(key);
         }
       }
-      // حذف الطلبات الجارية أيضاً
-      for (const key of globalActiveRequests.keys()) {
+      
+      // مسح الطلبات النشطة المطابقة للنمط
+      for (const key of ACTIVE_REQUESTS.keys()) {
         if (key.includes(pattern)) {
-          globalActiveRequests.delete(key);
+          ACTIVE_REQUESTS.delete(key);
         }
       }
-      for (const key of globalRequestDeduplication.keys()) {
+      
+      // مسح أوقات الطلبات المطابقة للنمط
+      for (const key of LAST_REQUEST_TIMES.keys()) {
         if (key.includes(pattern)) {
-          globalRequestDeduplication.delete(key);
+          LAST_REQUEST_TIMES.delete(key);
         }
+      }
+      
+      if (import.meta.env.DEV) {
+        console.log(`🧹 [UnifiedRequestManager] تم مسح الكاش للنمط: ${pattern}`);
       }
     } else {
-      // حذف كل Cache
+      // مسح كل الكاش
       globalCache.clear();
-      globalActiveRequests.clear();
-      globalRequestDeduplication.clear();
-    }
-    
-    if (import.meta.env.DEV) {
+      ACTIVE_REQUESTS.clear();
+      LAST_REQUEST_TIMES.clear();
+      
+      if (import.meta.env.DEV) {
+        console.log(`🧹 [UnifiedRequestManager] تم مسح كل الكاش`);
+      }
     }
   }
   
   /**
-   * معلومات Cache للتصحيح
+   * إحصائيات الكاش والطلبات النشطة
    */
-  static getCacheInfo() {
+  static getCacheStats() {
     return {
       cacheSize: globalCache.size,
-      activeRequests: globalActiveRequests.size,
-      deduplicationRequests: globalRequestDeduplication.size,
+      activeRequests: ACTIVE_REQUESTS.size,
+      lastRequestTimes: LAST_REQUEST_TIMES.size,
       cacheKeys: Array.from(globalCache.keys()),
-      activeKeys: Array.from(globalActiveRequests.keys()),
-      deduplicationKeys: Array.from(globalRequestDeduplication.keys())
+      activeRequestKeys: Array.from(ACTIVE_REQUESTS.keys())
     };
   }
 

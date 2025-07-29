@@ -1,11 +1,146 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { unifiedCache } from '@/lib/unified-cache-system';
-import { consoleManager } from '@/lib/console-manager';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { useTenant } from '@/context/TenantContext';
 import { Order } from '@/components/orders/table/OrderTableTypes';
 import { useOptimizedInterval } from '@/hooks/useOptimizedInterval';
+
+// دالة إلغاء الطلب مع إرجاع المخزون
+const cancelOrderWithInventoryRestore = async (orderId: string, organizationId: string) => {
+  try {
+    // جلب إعدادات المؤسسة
+    const { data: settings, error: settingsError } = await supabase
+      .from('organization_settings')
+      .select('custom_js')
+      .eq('organization_id', organizationId)
+      .single();
+
+    if (settingsError) {
+      throw new Error('فشل في جلب إعدادات المؤسسة');
+    }
+
+    // التحقق من إعداد خصم المخزون التلقائي
+    let autoDeductInventory = false;
+    if (settings?.custom_js) {
+      try {
+        const customJs = typeof settings.custom_js === 'string' 
+          ? JSON.parse(settings.custom_js) 
+          : settings.custom_js;
+        autoDeductInventory = customJs?.auto_deduct_inventory === true;
+      } catch (e) {
+        // تجاهل أخطاء تحليل JSON
+      }
+    }
+
+    let totalRestoredItems = 0;
+
+    // إذا كان خصم المخزون التلقائي مفعلاً، قم بإرجاع المخزون
+    if (autoDeductInventory) {
+      // جلب منتجات الطلب
+      const { data: orderItems, error: itemsError } = await supabase
+        .from('online_order_items')
+        .select('product_id, quantity, product_name')
+        .eq('order_id', orderId);
+
+      if (itemsError) {
+        throw new Error('فشل في جلب منتجات الطلب');
+      }
+
+      // إرجاع المخزون لكل منتج
+      for (const item of orderItems || []) {
+        if (item.product_id) {
+          // جلب المخزون الحالي
+          const { data: product, error: productError } = await supabase
+            .from('products')
+            .select('stock_quantity')
+            .eq('id', item.product_id)
+            .eq('organization_id', organizationId)
+            .single();
+
+          if (!productError && product) {
+            const previousStock = product.stock_quantity || 0;
+            const newStock = previousStock + item.quantity;
+
+            // تحديث المخزون
+            await supabase
+              .from('products')
+              .update({ 
+                stock_quantity: newStock,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', item.product_id)
+              .eq('organization_id', organizationId);
+
+            // تسجيل حركة المخزون
+            await supabase
+              .from('inventory_logs')
+              .insert({
+                product_id: item.product_id,
+                product_name: item.product_name,
+                quantity: item.quantity,
+                previous_stock: previousStock,
+                new_stock: newStock,
+                type: 'return',
+                reference_id: orderId,
+                notes: 'إرجاع مخزون بسبب إلغاء الطلب',
+                organization_id: organizationId
+              });
+
+            totalRestoredItems += item.quantity;
+          }
+        }
+      }
+    }
+
+    // تحديث حالة الطلب إلى ملغي
+    const { error: updateError } = await supabase
+      .from('online_orders')
+      .update({ 
+        status: 'cancelled',
+        updated_at: new Date().toISOString(),
+        notes: autoDeductInventory 
+          ? `تم إلغاء الطلب وإرجاع ${totalRestoredItems} قطعة للمخزون`
+          : 'تم إلغاء الطلب (لم يتم إرجاع المخزون لأن خصم المخزون التلقائي غير مفعل)'
+      })
+      .eq('id', orderId)
+      .eq('organization_id', organizationId);
+
+    if (updateError) {
+      throw new Error('فشل في تحديث حالة الطلب');
+    }
+
+    // إنشاء سجل إلغاء الطلب
+    await supabase
+      .from('order_cancellations')
+      .insert({
+        order_id: orderId,
+        organization_id: organizationId,
+        cancellation_reason: 'تم إلغاء الطلب من صفحة الطلبات',
+        inventory_restored: autoDeductInventory,
+        cancelled_items_count: totalRestoredItems,
+        cancelled_amount: 0, // يمكن حساب المبلغ لاحقاً
+        total_items_count: totalRestoredItems,
+        is_partial_cancellation: false
+      });
+
+    return {
+      success: true,
+      order_id: orderId,
+      inventory_restored: autoDeductInventory,
+      restored_items_count: totalRestoredItems,
+      message: autoDeductInventory 
+        ? `تم إلغاء الطلب وإرجاع ${totalRestoredItems} قطعة للمخزون`
+        : 'تم إلغاء الطلب (لم يتم إرجاع المخزون لأن خصم المخزون التلقائي غير مفعل)'
+    };
+
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || 'حدث خطأ أثناء إلغاء الطلب'
+    };
+  }
+};
 
 interface UseOrdersDataOptions {
   pageSize?: number;
@@ -408,6 +543,42 @@ export const useOrdersData = (options: UseOrdersDataOptions = {}) => {
     }));
   }, []);
 
+  // Update filters (alias for applyFilters to maintain compatibility)
+  const updateFilters = useCallback((newFilters: Partial<typeof filters>) => {
+    applyFilters(newFilters);
+  }, [applyFilters]);
+
+  // Go to specific page
+  const goToPage = useCallback(async (page: number) => {
+    if (!currentOrganization?.id || state.loading) return;
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    setState(prev => ({
+      ...prev,
+      loading: true,
+      currentPage: page,
+    }));
+
+    try {
+      await fetchOrdersOptimized(page, controller.signal);
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+      }
+    }
+  }, [currentOrganization?.id, state.loading, fetchOrdersOptimized]);
+
+  // Update order locally
+  const updateOrderLocally = useCallback((orderId: string, updates: Partial<Order>) => {
+    setState(prev => ({
+      ...prev,
+      orders: prev.orders.map(order =>
+        order.id === orderId ? { ...order, ...updates } : order
+      ),
+    }));
+  }, []);
+
   // Refresh data
   const refresh = useCallback(() => {
     // Clear cache
@@ -449,21 +620,9 @@ export const useOrdersData = (options: UseOrdersDataOptions = {}) => {
     if (enablePolling && !state.loading) {
       fetchOrderMetrics();
     }
-  }, enablePolling ? pollingInterval : null, {
-    enabled: enablePolling && !state.loading,
-    adaptiveDelay: true,
-    maxInstances: 1,
-    maxAttempts: 3, // تقليل عدد المحاولات
-    onError: (error) => {
-      
-      // إيقاف polling مؤقتاً عند مشاكل الموارد
-      if (error.message && error.message.includes('ERR_INSUFFICIENT_RESOURCES')) {
-        // يمكن إضافة منطق إيقاف polling هنا
-      }
-    }
-  });
+  }, pollingInterval);
 
-  // Cleanup on unmount
+  // Cleanup
   useEffect(() => {
     return () => {
       if (abortControllerRef.current) {
@@ -481,13 +640,16 @@ export const useOrdersData = (options: UseOrdersDataOptions = {}) => {
     filters: memoizedFilters,
     loadMore,
     applyFilters,
+    updateFilters,
+    goToPage,
+    updateOrderLocally,
     refresh,
     pageSize,
   };
 };
 
 // Hook for individual order operations
-export const useOrderOperations = () => {
+export const useOrderOperations = (updateOrderLocally?: (orderId: string, updates: Partial<Order>) => void) => {
   const { currentOrganization } = useTenant();
   const { toast } = useToast();
 
@@ -495,25 +657,77 @@ export const useOrderOperations = () => {
     if (!currentOrganization?.id) return { success: false };
 
     try {
-      const { error } = await supabase
-        .from('online_orders')
-        .update({ status, updated_at: new Date().toISOString() })
-        .eq('id', orderId)
-        .eq('organization_id', currentOrganization.id);
+      // إذا كانت الحالة إلغاء، استخدم الدالة المخصصة لإرجاع المخزون
+      if (status === 'cancelled') {
+        // استخدام الدالة المباشرة بدلاً من RPC لتجنب مشكلة TypeScript
+        const { data, error } = await supabase
+          .from('online_orders')
+          .select('id, organization_id')
+          .eq('id', orderId)
+          .eq('organization_id', currentOrganization.id)
+          .single();
 
-      if (error) throw error;
+        if (error || !data) {
+          throw new Error('الطلب غير موجود');
+        }
 
-      toast({
-        title: "تم تحديث حالة الطلب",
-        description: "تم تحديث حالة الطلب بنجاح",
-      });
+        // استدعاء دالة إلغاء مخصصة
+        const result = await cancelOrderWithInventoryRestore(orderId, currentOrganization.id);
+        
+        if (!result.success) {
+          throw new Error(result.error || 'فشل في إلغاء الطلب');
+        }
 
-      return { success: true };
+        toast({
+          title: "تم إلغاء الطلب",
+          description: result.message,
+          className: result.inventory_restored 
+            ? "bg-green-100 border-green-400 text-green-700" 
+            : undefined,
+        });
+
+        // تحديث البيانات محلياً
+        if (updateOrderLocally) {
+          updateOrderLocally(orderId, { 
+            status: 'cancelled',
+            updated_at: new Date().toISOString(),
+            notes: result.inventory_restored 
+              ? `تم إلغاء الطلب وإرجاع ${result.restored_items_count} قطعة للمخزون`
+              : 'تم إلغاء الطلب (لم يتم إرجاع المخزون لأن خصم المخزون التلقائي غير مفعل)'
+          });
+        }
+
+        return { success: true, data: result };
+      } else {
+        // للحالات الأخرى، استخدم التحديث العادي
+        const { error } = await supabase
+          .from('online_orders')
+          .update({ status, updated_at: new Date().toISOString() })
+          .eq('id', orderId)
+          .eq('organization_id', currentOrganization.id);
+
+        if (error) throw error;
+
+        toast({
+          title: "تم تحديث حالة الطلب",
+          description: "تم تحديث حالة الطلب بنجاح",
+        });
+
+        // تحديث البيانات محلياً
+        if (updateOrderLocally) {
+          updateOrderLocally(orderId, { 
+            status,
+            updated_at: new Date().toISOString()
+          });
+        }
+
+        return { success: true };
+      }
     } catch (error) {
       toast({
         variant: "destructive",
-        title: "خطأ في تحديث حالة الطلب",
-        description: "حدث خطأ أثناء محاولة تحديث حالة الطلب.",
+        title: status === 'cancelled' ? "خطأ في إلغاء الطلب" : "خطأ في تحديث حالة الطلب",
+        description: error instanceof Error ? error.message : "حدث خطأ أثناء محاولة تحديث حالة الطلب.",
       });
       return { success: false, error };
     }
@@ -535,6 +749,17 @@ export const useOrderOperations = () => {
         title: "تم تحديث حالة الطلبات",
         description: `تم تحديث حالة ${orderIds.length} طلب بنجاح`,
       });
+
+      // تحديث البيانات محلياً
+      if (updateOrderLocally) {
+        const updates = { 
+          status,
+          updated_at: new Date().toISOString()
+        };
+        orderIds.forEach(orderId => {
+          updateOrderLocally(orderId, updates);
+        });
+      }
 
       return { success: true };
     } catch (error) {

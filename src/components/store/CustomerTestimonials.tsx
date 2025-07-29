@@ -103,9 +103,45 @@ export function CustomerTestimonials({
       setLoading(true);
       try {
         if (organizationId) {
-          const data = await getTestimonials(organizationId, { active: true });
+          // 🚀 محاولة استخدام البيانات المحفوظة من appInitializer أولاً
+          const { getAppInitData } = await import('@/lib/appInitializer');
+          const appData = getAppInitData();
+          
+          if (appData?.testimonials && appData.testimonials.length > 0) {
+            const convertedData = appData.testimonials.map((item: any) => ({
+              id: item.id,
+              customerName: item.customer_name,
+              customerAvatar: item.customer_avatar,
+              rating: item.rating,
+              comment: item.comment,
+              verified: item.verified,
+              purchaseDate: item.purchase_date,
+              productName: item.product_name,
+              productImage: item.product_image,
+            }));
+            setTestimonials(convertedData);
+            setLoading(false);
+            return;
+          }
+          
+          // 🔄 إذا لم تتوفر البيانات المحفوظة، جلب من قاعدة البيانات مع التنسيق
+          const { coordinateRequest } = await import('@/lib/api/requestCoordinator');
+          
+          const data = await coordinateRequest(
+            'customer_testimonials',
+            { 
+              organization_id: organizationId,
+              is_active: true,
+              order: 'created_at.desc'
+            },
+            async () => {
+              return await getTestimonials(organizationId, { active: true });
+            },
+            'CustomerTestimonials'
+          );
+          
           // تحويل البيانات من تنسيق قاعدة البيانات إلى تنسيق المكون
-          const convertedData = data.map(item => ({
+          const convertedData = data.map((item: any) => ({
             id: item.id,
             customerName: item.customer_name,
             customerAvatar: item.customer_avatar,

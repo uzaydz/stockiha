@@ -9,6 +9,7 @@ import { API_TIMEOUTS, RETRY_CONFIG, withTimeout, withRetry } from '@/config/api
 import { useUser } from './UserContext';
 import { useLocation } from 'react-router-dom';
 // Removed deprecated auth fixes import
+import { isValidUuid } from '@/utils/uuid-helpers';
 
 // إضافة global flag لمنع التشغيل المزدوج
 declare global {
@@ -582,6 +583,65 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const orgData = updateOrganizationFromData(authOrganization);
     setOrganization(orgData);
     
+    // 🔥 حفظ بيانات المؤسسة في الكاش للنظام الديناميكي (من AuthContext)
+    try {
+      
+      // حفظ البيانات الأساسية للمؤسسة
+      const orgDataForCache = {
+        id: orgData.id,
+        name: orgData.name,
+        description: orgData.description || `${orgData.name} - متجر إلكتروني متميز`,
+        logo_url: orgData.logo_url,
+        subdomain: orgData.subdomain || currentSubdomain
+      };
+      
+      // حفظ إعدادات المؤسسة (قد تكون فارغة في البداية)
+      const orgSettings = {
+        site_name: orgData.name,
+        seo_store_title: orgData.name,
+        seo_meta_description: orgData.description || `${orgData.name} - أفضل المنتجات بأفضل الأسعار`,
+        meta_keywords: `${orgData.name}, متجر إلكتروني, تسوق أونلاين`,
+        logo_url: orgData.logo_url,
+        favicon_url: orgData.logo_url
+      };
+      
+      // حفظ البيانات في localStorage
+      localStorage.setItem('bazaar_organization_id', orgData.id);
+      localStorage.setItem(`bazaar_organization_${orgData.id}`, JSON.stringify(orgDataForCache));
+      localStorage.setItem(`bazaar_org_settings_${orgData.id}`, JSON.stringify(orgSettings));
+      
+      // حفظ في session storage للوصول السريع حسب النطاق الفرعي
+      const subdomain = orgData.subdomain || currentSubdomain;
+      if (subdomain && subdomain !== 'main') {
+        const storeInfo = {
+          name: orgData.name,
+          description: orgData.description || `${orgData.name} - متجر إلكتروني متميز`,
+          logo_url: orgData.logo_url,
+          favicon_url: orgData.logo_url,
+          seo: {
+            title: orgData.name,
+            description: orgData.description || `${orgData.name} - أفضل المنتجات بأفضل الأسعار`,
+            keywords: `${orgData.name}, متجر إلكتروني, تسوق أونلاين`,
+            og_image: orgData.logo_url
+          }
+        };
+        sessionStorage.setItem(`store_${subdomain}`, JSON.stringify(storeInfo));
+        
+      }
+      
+      // إطلاق حدث مخصص لتنبيه النظام الديناميكي
+      const updateEvent = new CustomEvent('organizationDataUpdated', {
+        detail: {
+          organization: orgDataForCache,
+          settings: orgSettings,
+          subdomain
+        }
+      });
+      window.dispatchEvent(updateEvent);
+
+    } catch (error) {
+    }
+    
     // حفظ معرف المؤسسة في التخزين المحلي
     localStorage.setItem('bazaar_organization_id', authOrganization.id);
     setIsLoading(false);
@@ -669,6 +729,65 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           setOrganization(org);
           updateLocalStorageOrgId(org.id);
 
+          // 🔥 حفظ بيانات المؤسسة في الكاش للنظام الديناميكي
+          try {
+            
+            // حفظ البيانات الأساسية للمؤسسة
+            const orgDataForCache = {
+              id: org.id,
+              name: org.name,
+              description: org.description || `${org.name} - متجر إلكتروني متميز`,
+              logo_url: org.logo_url,
+              subdomain: org.subdomain || currentSubdomain
+            };
+            
+            // حفظ إعدادات المؤسسة (قد تكون فارغة في البداية)
+            const orgSettings = {
+              site_name: org.name,
+              seo_store_title: org.name,
+              seo_meta_description: org.description || `${org.name} - أفضل المنتجات بأفضل الأسعار`,
+              meta_keywords: `${org.name}, متجر إلكتروني, تسوق أونلاين`,
+              logo_url: org.logo_url,
+              favicon_url: org.logo_url
+            };
+            
+            // حفظ البيانات في localStorage
+            localStorage.setItem('bazaar_organization_id', org.id);
+            localStorage.setItem(`bazaar_organization_${org.id}`, JSON.stringify(orgDataForCache));
+            localStorage.setItem(`bazaar_org_settings_${org.id}`, JSON.stringify(orgSettings));
+            
+            // حفظ في session storage للوصول السريع حسب النطاق الفرعي
+            const subdomain = org.subdomain || currentSubdomain;
+            if (subdomain && subdomain !== 'main') {
+              const storeInfo = {
+                name: org.name,
+                description: org.description || `${org.name} - متجر إلكتروني متميز`,
+                logo_url: org.logo_url,
+                favicon_url: org.logo_url,
+                seo: {
+                  title: org.name,
+                  description: org.description || `${org.name} - أفضل المنتجات بأفضل الأسعار`,
+                  keywords: `${org.name}, متجر إلكتروني, تسوق أونلاين`,
+                  og_image: org.logo_url
+                }
+              };
+              sessionStorage.setItem(`store_${subdomain}`, JSON.stringify(storeInfo));
+              
+            }
+            
+            // إطلاق حدث مخصص لتنبيه النظام الديناميكي
+            const updateEvent = new CustomEvent('organizationDataUpdated', {
+              detail: {
+                organization: orgDataForCache,
+                settings: orgSettings,
+                subdomain
+              }
+            });
+            window.dispatchEvent(updateEvent);
+
+          } catch (error) {
+          }
+
           // تحقق ما إذا كان المستخدم الحالي هو مسؤول المؤسسة
           if (user && user.id === org.owner_id) {
             setIsOrgAdmin(true);
@@ -696,7 +815,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const timeoutId = setTimeout(delayedLoad, 500);
     
     return () => clearTimeout(timeoutId);
-  }, [authOrganization, user]); // إزالة dependencies إضافية غير ضرورية
+  }, [authOrganization, user, currentSubdomain]); // إزالة dependencies إضافية غير ضرورية
 
   // دالة debounced لـ refreshOrganizationData مع منطق التحديث الكامل
   const debouncedRefresh = useCallback(
@@ -717,6 +836,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       try {
         // مسح كل التخزين المؤقت المتعلق بالمؤسسة
         const orgId = localStorage.getItem('bazaar_organization_id');
+        console.log('🔍 [DEBUG] Retrieved orgId from localStorage:', { orgId, raw: JSON.stringify(orgId) });
         if (orgId) {
           localStorage.removeItem(`organization:${orgId}`);
           
@@ -735,7 +855,9 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
         
         // استخدام معرف المؤسسة لجلب البيانات المحدثة مباشرة
-        if (orgId) {
+        console.log('🔍 [DEBUG] orgId value:', { orgId, type: typeof orgId, isValid: isValidUuid(orgId) });
+        if (isValidUuid(orgId)) {
+          console.log('✅ [DEBUG] orgId is valid, proceeding with query');
           const supabaseClient = await getSupabaseClient();
           
           const { data: orgData, error: orgError } = await supabaseClient

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
+import { createPortal } from 'react-dom';
 import { Loader2, Save, Package, ArrowLeft, Eye, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Helmet } from 'react-helmet';
 
@@ -236,13 +237,11 @@ const ProductForm = () => {
   const onSubmit = async (data: ProductFormValues) => {
     // منع الحفظ إذا لم يكن الإرسال يدوياً (مثل تحديث العروض الخاصة)
     if (!isManualSubmit) {
-      console.log('🚫 تم منع الحفظ التلقائي - لم يكن الإرسال يدوياً');
-      setIsManualSubmit(false); // إعادة تعيين
       return;
     }
 
-    console.log('✅ الحفظ اليدوي مقبول');
-    setIsManualSubmit(false); // إعادة تعيين
+    // إعادة تعيين بعد التحقق
+    setIsManualSubmit(false);
 
     if (!organizationIdFromTenant && !data.organization_id) {
       toast.error("خطأ حرج: معرّف المؤسسة مفقود. لا يمكن إنشاء/تحديل المنتج.");
@@ -579,307 +578,415 @@ const ProductForm = () => {
   }
 
   return (
-    <Layout>
-      <Helmet>
-        <title>
-          {isEditMode 
-            ? `تعديل: ${productNameForTitle || watchName || 'منتج'}` 
-            : 'إنشاء منتج جديد'
-          } - سوق
-        </title>
-      </Helmet>
-      
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          const currentOrgIdInFormState = form.getValues('organization_id');
-          
-          if (!currentOrgIdInFormState && organizationIdFromTenant) {
-            form.setValue('organization_id', organizationIdFromTenant, { 
-              shouldValidate: false, 
-              shouldDirty: false 
-            });
-          }
-          form.handleSubmit(onSubmit, onInvalid)(e);
-        }}
-        className="min-h-screen bg-muted/30"
-      >
-        {/* Enhanced Header */}
-        <div className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="container mx-auto px-4 sm:px-6 py-3">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => navigate('/dashboard/products')}
-                  disabled={isSubmitting}
-                  className="shrink-0"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-                <div className="min-w-0">
-                  <h1 className="text-lg sm:text-xl font-semibold truncate">
-                    {isEditMode 
-                      ? `تعديل: ${productNameForTitle || watchName || 'منتج'}` 
-                      : 'إضافة منتج جديد'
-                    }
-                  </h1>
-                  <p className="text-sm text-muted-foreground hidden sm:block">
-                    {isEditMode ? 'قم بتعديل تفاصيل المنتج' : 'أضف منتج جديد إلى متجرك'}
-                  </p>
+    <>
+      <Layout>
+        <Helmet>
+          <title>
+            {isEditMode 
+              ? `تعديل: ${productNameForTitle || watchName || 'منتج'}` 
+              : 'إنشاء منتج جديد'
+            } - سوق
+          </title>
+        </Helmet>
+        
+        <form
+          id="product-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const currentOrgIdInFormState = form.getValues('organization_id');
+            
+            if (!currentOrgIdInFormState && organizationIdFromTenant) {
+              form.setValue('organization_id', organizationIdFromTenant, { 
+                shouldValidate: false, 
+                shouldDirty: false 
+              });
+            }
+            form.handleSubmit(onSubmit, onInvalid)(e);
+          }}
+          className="min-h-screen bg-muted/30"
+        >
+          {/* Enhanced Header */}
+          <div className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+            <div className="container mx-auto px-4 sm:px-6 py-3">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => navigate('/dashboard/products')}
+                    disabled={isSubmitting}
+                    className="shrink-0"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                  <div className="min-w-0">
+                    <h1 className="text-lg sm:text-xl font-semibold truncate">
+                      {isEditMode 
+                        ? `تعديل: ${productNameForTitle || watchName || 'منتج'}` 
+                        : 'إضافة منتج جديد'
+                      }
+                    </h1>
+                    <p className="text-sm text-muted-foreground hidden sm:block">
+                      {isEditMode ? 'قم بتعديل تفاصيل المنتج' : 'أضف منتج جديد إلى متجرك'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  {/* Auto-save indicator */}
+                  {autoSaveDrafts && !isEditMode && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      {isSavingDraft ? (
+                        <>
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          <span className="hidden sm:inline">جاري الحفظ...</span>
+                        </>
+                      ) : isDirty ? (
+                        <>
+                          <div className="h-2 w-2 bg-amber-500 rounded-full animate-pulse" />
+                          <span className="hidden sm:inline">غير محفوظ</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="h-3 w-3 text-green-500" />
+                          <span className="hidden sm:inline">محفوظ</span>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                {/* Auto-save indicator */}
-                {autoSaveDrafts && !isEditMode && (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    {isSavingDraft ? (
-                      <>
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        <span className="hidden sm:inline">جاري الحفظ...</span>
-                      </>
-                    ) : isDirty ? (
-                      <>
-                        <div className="h-2 w-2 bg-amber-500 rounded-full animate-pulse" />
-                        <span className="hidden sm:inline">غير محفوظ</span>
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 className="h-3 w-3 text-green-500" />
-                        <span className="hidden sm:inline">محفوظ</span>
-                      </>
-                    )}
-                  </div>
-                )}
+              {/* Progress indicator */}
+              <div className="mt-3 flex items-center gap-2">
+                <div className="flex-1 bg-muted rounded-full h-2">
+                  <div 
+                    className="bg-primary h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                  {progress}% مكتمل
+                </span>
               </div>
-            </div>
-
-            {/* Progress indicator */}
-            <div className="mt-3 flex items-center gap-2">
-              <div className="flex-1 bg-muted rounded-full h-2">
-                <div 
-                  className="bg-primary h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-              <span className="text-xs text-muted-foreground whitespace-nowrap">
-                {progress}% مكتمل
-              </span>
             </div>
           </div>
-        </div>
 
-        {/* Main Content */}
-        <div className="container mx-auto px-4 sm:px-6 py-6">
-          {/* Welcome Message for New Products */}
-          {!isEditMode && (
-            <Alert className="mb-6 border-primary/20 bg-primary/5">
-              <Package className="h-4 w-4" />
-              <AlertTitle>إنشاء منتج جديد</AlertTitle>
-              <AlertDescription>
-                املأ جميع المعلومات المطلوبة لإنشاء منتج احترافي. سيتم حفظ مسودة تلقائياً أثناء الكتابة.
-              </AlertDescription>
-            </Alert>
-          )}
+          {/* Main Content */}
+          <div className="container mx-auto px-4 sm:px-6 py-6">
+            {/* Welcome Message for New Products */}
+            {!isEditMode && (
+              <Alert className="mb-6 border-primary/20 bg-primary/5">
+                <Package className="h-4 w-4" />
+                <AlertTitle>إنشاء منتج جديد</AlertTitle>
+                <AlertDescription>
+                  املأ جميع المعلومات المطلوبة لإنشاء منتج احترافي. سيتم حفظ مسودة تلقائياً أثناء الكتابة.
+                </AlertDescription>
+              </Alert>
+            )}
 
-          {/* Permission warning */}
-          {permissionWarning && (
-            <Alert className="mb-6 border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20">
-              <AlertCircle className="h-4 w-4 text-amber-600" />
-              <AlertTitle className="text-amber-800 dark:text-amber-200">تحذير الصلاحيات</AlertTitle>
-              <AlertDescription className="text-amber-700 dark:text-amber-300">
-                {permissionWarning}
-              </AlertDescription>
-            </Alert>
-          )}
+            {/* Permission warning */}
+            {permissionWarning && (
+              <Alert className="mb-6 border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20">
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+                <AlertTitle className="text-amber-800 dark:text-amber-200">تحذير الصلاحيات</AlertTitle>
+                <AlertDescription className="text-amber-700 dark:text-amber-300">
+                  {permissionWarning}
+                </AlertDescription>
+              </Alert>
+            )}
 
-          {/* Form validation errors */}
-          {Object.keys(formErrors).length > 0 && (
-            <Alert variant="destructive" className="mb-6">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>يرجى إصلاح الأخطاء التالية:</AlertTitle>
-              <AlertDescription>
-                <ul className="list-disc list-inside space-y-1 mt-2">
-                  {Object.entries(formErrors).map(([field, error]) => (
-                    <li key={field} className="text-sm">
-                      {typeof error === 'object' && error && 'message' in error && error.message 
-                        ? String(error.message)
-                        : `خطأ في حقل ${field}`
-                      }
-                    </li>
-                  ))}
-                </ul>
-              </AlertDescription>
-            </Alert>
-          )}
+            {/* Form validation errors */}
+            {Object.keys(formErrors).length > 0 && (
+              <Alert variant="destructive" className="mb-6">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>يرجى إصلاح الأخطاء التالية:</AlertTitle>
+                <AlertDescription>
+                  <ul className="list-disc list-inside space-y-1 mt-2">
+                    {Object.entries(formErrors).map(([field, error]) => (
+                      <li key={field} className="text-sm">
+                        {typeof error === 'object' && error && 'message' in error && error.message 
+                          ? String(error.message)
+                          : `خطأ في حقل ${field}`
+                        }
+                      </li>
+                    ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            )}
 
-          {/* Responsive Grid Layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            {/* Quick Info Sidebar */}
-            <div className="lg:col-span-1 space-y-6">
-              <div className="sticky top-24">
-                <ProductQuickInfoPanel
-                  form={form}
-                  isEditMode={isEditMode}
-                  productId={productId}
-                  thumbnailImage={watchThumbnailImage}
-                />
-                
-                {/* Enhanced Settings Panel */}
-                <Card className="mt-4">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium flex items-center gap-2">
-                      تقدم النموذج
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">مكتمل</span>
-                        <span className="font-medium">{progress}%</span>
-                      </div>
-                      <Progress value={progress} className="h-2" />
-                    </div>
-                    
-                    <Separator />
-                    
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="autosave" className="text-sm">
-                        الحفظ التلقائي
-                      </Label>
-                      <Switch
-                        id="autosave"
-                        checked={autoSaveDrafts}
-                        onCheckedChange={setAutoSaveDrafts}
-                        disabled={isEditMode}
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label className="text-sm">حالة النموذج</Label>
-                      <div className="flex flex-wrap gap-1">
-                        <Badge variant={isValid ? 'default' : 'secondary'} className="text-xs">
-                          {isValid ? 'صحيح' : 'غير مكتمل'}
-                        </Badge>
-                        {isDirty && (
-                          <Badge variant="outline" className="text-xs">
-                            معدل
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-
-            {/* Main Form Content */}
-            <div className="lg:col-span-3 space-y-6">
-              <ProductFormTabs
-                form={form}
-                organizationId={organizationIdFromTenant}
-                productId={productId}
-                additionalImages={additionalImages}
-                productColors={productColors}
-                wholesaleTiers={wholesaleTiers}
-                categories={categories}
-                subcategories={subcategories}
-                useVariantPrices={useVariantPrices}
-                useSizes={useSizes}
-                watchHasVariants={watchHasVariants}
-                watchPrice={watchPrice}
-                watchPurchasePrice={watchPurchasePrice}
-                watchThumbnailImage={watchThumbnailImage}
-                onMainImageChange={handleMainImageChange}
-                onAdditionalImagesChange={handleAdditionalImagesChange}
-                onProductColorsChange={handleProductColorsChange}
-                onWholesaleTiersChange={handleWholesaleTiersChange}
-                onCategoryCreated={handleCategoryCreated}
-                onSubcategoryCreated={handleSubcategoryCreated}
-                onHasVariantsChange={handleHasVariantsChange}
-                onUseVariantPricesChange={handleUseVariantPricesChange}
-                onUseSizesChange={handleUseSizesChange}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Enhanced Sticky Action Bar */}
-        <div className="sticky bottom-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="container mx-auto px-4 sm:px-6 py-4">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                {isDirty && (
-                  <div className="flex items-center gap-2">
-                    <div className="h-2 w-2 bg-amber-500 rounded-full animate-pulse" />
-                    <span>لديك تغييرات غير محفوظة</span>
-                  </div>
-                )}
-                {isValid ? (
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    <span>النموذج صحيح</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4 text-amber-500" />
-                    <span>النموذج يحتوي على أخطاء ({Object.keys(formErrors).length})</span>
-                  </div>
-                )}
-              </div>
-              
-              <div className="flex gap-3 w-full sm:w-auto">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => navigate('/dashboard/products')}
-                  disabled={isSubmitting}
-                  className="flex-1 sm:flex-none"
-                >
-                  إلغاء
-                </Button>
-                
-                <Button
-                  type="submit"
-                  disabled={
-                    isSubmitting || 
-                    (!form.getValues('organization_id') && !organizationIdFromTenant)
-                  }
-                  onClick={() => {
-                    // تحديد أن هذا إرسال يدوي
-                    setIsManualSubmit(true);
-                  }}
-                  className={cn(
-                    "flex-1 sm:flex-none",
-                    permissionWarning 
-                      ? "bg-amber-600 hover:bg-amber-700 border-amber-600" 
-                      : "bg-primary hover:bg-primary/90"
-                  )}
-                >
-                  {isSubmitting ? (
+            {/* Mobile Status Indicator */}
+            <div className="lg:hidden mb-4">
+              <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border">
+                <div className="flex items-center gap-2">
+                  {isValid ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      جاري المعالجة...
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      <span className="text-sm font-medium text-green-700 dark:text-green-400">النموذج صحيح</span>
                     </>
                   ) : (
                     <>
-                      <Save className="h-4 w-4 mr-2" />
-                      {permissionWarning 
-                        ? `محاولة ${isEditMode ? 'حفظ التغييرات' : 'إنشاء المنتج'}`
-                        : `${isEditMode ? 'حفظ التغييرات' : 'إنشاء المنتج'}`
-                      }
+                      <AlertCircle className="h-4 w-4 text-amber-500" />
+                      <span className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                        يحتوي على أخطاء ({Object.keys(formErrors).length})
+                      </span>
                     </>
                   )}
-                </Button>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  {isDirty && (
+                    <div className="flex items-center gap-1">
+                      <div className="h-2 w-2 bg-amber-500 rounded-full animate-pulse" />
+                      <span className="text-xs text-amber-600 dark:text-amber-400">معدل</span>
+                    </div>
+                  )}
+                  <div className="text-xs font-medium text-primary">
+                    {progress}% مكتمل
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Responsive Grid Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              {/* Quick Info Sidebar - Hidden on mobile */}
+              <div className="hidden lg:block lg:col-span-1 space-y-6">
+                <div className="sticky top-24">
+                  <ProductQuickInfoPanel
+                    form={form}
+                    isEditMode={isEditMode}
+                    productId={productId}
+                    thumbnailImage={watchThumbnailImage}
+                  />
+                  
+                  {/* Enhanced Settings Panel - Hidden on mobile */}
+                  <Card className="hidden lg:block mt-4">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm font-medium flex items-center gap-2">
+                        تقدم النموذج
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">مكتمل</span>
+                          <span className="font-medium">{progress}%</span>
+                        </div>
+                        <Progress value={progress} className="h-2" />
+                      </div>
+                      
+                      <Separator />
+                      
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="autosave" className="text-sm">
+                          الحفظ التلقائي
+                        </Label>
+                        <Switch
+                          id="autosave"
+                          checked={autoSaveDrafts}
+                          onCheckedChange={setAutoSaveDrafts}
+                          disabled={isEditMode}
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label className="text-sm">حالة النموذج</Label>
+                        <div className="flex flex-wrap gap-1">
+                          <Badge variant={isValid ? 'default' : 'secondary'} className="text-xs">
+                            {isValid ? 'صحيح' : 'غير مكتمل'}
+                          </Badge>
+                          {isDirty && (
+                            <Badge variant="outline" className="text-xs">
+                              معدل
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+
+              {/* Main Form Content - Full width on mobile, 3/4 on desktop */}
+              <div className="col-span-1 lg:col-span-3 space-y-6 pb-24 lg:pb-6">
+                <ProductFormTabs
+                  form={form}
+                  organizationId={organizationIdFromTenant}
+                  productId={productId}
+                  additionalImages={additionalImages}
+                  productColors={productColors}
+                  wholesaleTiers={wholesaleTiers}
+                  categories={categories}
+                  subcategories={subcategories}
+                  useVariantPrices={useVariantPrices}
+                  useSizes={useSizes}
+                  watchHasVariants={watchHasVariants}
+                  watchPrice={watchPrice}
+                  watchPurchasePrice={watchPurchasePrice}
+                  watchThumbnailImage={watchThumbnailImage}
+                  onMainImageChange={handleMainImageChange}
+                  onAdditionalImagesChange={handleAdditionalImagesChange}
+                  onProductColorsChange={handleProductColorsChange}
+                  onWholesaleTiersChange={handleWholesaleTiersChange}
+                  onCategoryCreated={handleCategoryCreated}
+                  onSubcategoryCreated={handleSubcategoryCreated}
+                  onHasVariantsChange={handleHasVariantsChange}
+                  onUseVariantPricesChange={handleUseVariantPricesChange}
+                  onUseSizesChange={handleUseSizesChange}
+                />
               </div>
             </div>
           </div>
-        </div>
-      </form>
-    </Layout>
+
+          {/* Enhanced Sticky Action Bar - Hidden on mobile, shown on desktop */}
+          <div className="hidden lg:block sticky bottom-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+            <div className="container mx-auto px-4 sm:px-6 py-4">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                  {isDirty && (
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 bg-amber-500 rounded-full animate-pulse" />
+                      <span>لديك تغييرات غير محفوظة</span>
+                    </div>
+                  )}
+                  {isValid ? (
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      <span>النموذج صحيح</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 text-amber-500" />
+                      <span>النموذج يحتوي على أخطاء ({Object.keys(formErrors).length})</span>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="flex gap-3 w-full sm:w-auto">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => navigate('/dashboard/products')}
+                    disabled={isSubmitting}
+                    className="flex-1 sm:flex-none"
+                  >
+                    إلغاء
+                  </Button>
+                  
+                  <Button
+                    type="submit"
+                    form="product-form"
+                    disabled={
+                      isSubmitting || 
+                      (!form.getValues('organization_id') && !organizationIdFromTenant)
+                    }
+                    onClick={() => {
+                      // تحديد أن هذا إرسال يدوي
+                      setIsManualSubmit(true);
+                    }}
+                    className={cn(
+                      "flex-1 sm:flex-none",
+                      permissionWarning 
+                        ? "bg-amber-600 hover:bg-amber-700 border-amber-600" 
+                        : "bg-primary hover:bg-primary/90"
+                    )}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        جاري المعالجة...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4 mr-2" />
+                        {permissionWarning 
+                          ? `محاولة ${isEditMode ? 'حفظ التغييرات' : 'إنشاء المنتج'}`
+                          : `${isEditMode ? 'حفظ التغييرات' : 'إنشاء المنتج'}`
+                        }
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </form>
+      </Layout>
+
+      {/* Mobile Floating Action Buttons - Using Portal to ensure proper positioning */}
+      {typeof window !== 'undefined' && document.body && createPortal(
+        <div className="lg:hidden fixed bottom-6 left-1/2 transform -translate-x-1/2 z-[9999]" 
+             style={{ 
+               position: 'fixed',
+               bottom: '24px',
+               left: '50%',
+               transform: 'translateX(-50%)',
+               zIndex: 9999
+             }}>
+          <div className="flex items-center gap-4">
+            {/* Cancel Button */}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate('/dashboard/products')}
+              disabled={isSubmitting}
+              className="h-12 w-12 rounded-full shadow-xl bg-background/95 backdrop-blur-sm border-2 hover:scale-105 active:scale-95 transition-all duration-300"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            
+            {/* Main Action Button */}
+            <div className="relative">
+              {/* Glow effect */}
+              <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl animate-pulse"></div>
+              
+              <Button
+                type="submit"
+                form="product-form"
+                disabled={
+                  isSubmitting || 
+                  (!form.getValues('organization_id') && !organizationIdFromTenant)
+                }
+                onClick={() => {
+                  setIsManualSubmit(true);
+                }}
+                className={cn(
+                  "relative h-16 px-8 rounded-full shadow-2xl transition-all duration-300 hover:shadow-3xl hover:scale-105 active:scale-95 font-semibold text-base",
+                  "bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80",
+                  "border-2 border-primary-foreground/20",
+                  permissionWarning && "from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800"
+                )}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                    <span className="text-sm sm:text-base">جاري المعالجة...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-5 w-5 mr-2" />
+                    <span className="text-sm sm:text-base">
+                      {isEditMode ? 'حفظ التغييرات' : 'إنشاء المنتج'}
+                    </span>
+                  </>
+                )}
+              </Button>
+              
+              {/* Progress indicator for mobile */}
+              {isDirty && (
+                <div className="absolute -top-2 -right-2 w-6 h-6 bg-amber-500 rounded-full flex items-center justify-center animate-bounce">
+                  <div className="w-2 h-2 bg-white rounded-full"></div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
   );
 };
 

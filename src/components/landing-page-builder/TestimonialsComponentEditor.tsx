@@ -201,13 +201,39 @@ const TestimonialsComponentEditor: React.FC<TestimonialsComponentEditorProps> = 
     setIsLoading(true);
     setError(null);
     try {
-      const { data, error } = await supabase
-        .from('customer_testimonials')
-        .select('*')
-        .eq('organization_id', tenant?.id)
-        .order('created_at', { ascending: false });
+      // 🚀 محاولة استخدام البيانات المحفوظة من appInitializer أولاً
+      const { getAppInitData } = await import('@/lib/appInitializer');
+      const appData = getAppInitData();
       
-      if (error) throw error;
+      if (appData?.testimonials && appData.testimonials.length > 0) {
+        setDbTestimonials(appData.testimonials);
+        setIsLoading(false);
+        return;
+      }
+      
+      // 🔄 إذا لم تتوفر البيانات المحفوظة، جلب من قاعدة البيانات مع التنسيق
+      const { coordinateRequest } = await import('@/lib/api/requestCoordinator');
+      
+      const data = await coordinateRequest(
+        'customer_testimonials',
+        { 
+          organization_id: tenant?.id,
+          is_active: true,
+          order: 'created_at.desc'
+        },
+        async () => {
+          const { data, error } = await supabase
+            .from('customer_testimonials')
+            .select('*')
+            .eq('organization_id', tenant?.id)
+            .order('created_at', { ascending: false });
+          
+          if (error) throw error;
+          return data;
+        },
+        'TestimonialsComponentEditor'
+      );
+      
       setDbTestimonials(data || []);
     } catch (err) {
       setError('حدث خطأ أثناء جلب التقييمات. يرجى المحاولة مرة أخرى.');

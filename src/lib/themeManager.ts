@@ -140,7 +140,7 @@ function applyThemeToDOM(theme: UnifiedTheme): void {
       element.style.setProperty('--sidebar-primary', primaryHSL, 'important');
       element.style.setProperty('--sidebar-ring', primaryHSL, 'important');
     });
-    
+
     // إضافة data attribute للتتبع
     root.setAttribute('data-theme-primary-original', theme.primaryColor);
     root.setAttribute('data-theme-primary-hsl', primaryHSL);
@@ -582,14 +582,13 @@ export function applyInstantTheme(): void {
             lastUpdated: Date.now()
           };
         } else {
-          // للمؤسسات الأخرى، استخدم الثيم الافتراضي
-          theme = {
-            ...DEFAULT_STORE_THEME,
-            organizationId: orgId
-          };
+          // لا تطبق ثيم افتراضي - انتظار تحميل إعدادات المؤسسة الفعلية
+          // سيتم تطبيق الثيم الصحيح عبر forceApplyOrganizationTheme عند تحميل البيانات
+          return; // خروج مبكر بدون تطبيق ثيم افتراضي
         }
       } else {
-        theme = DEFAULT_STORE_THEME;
+        // للصفحات بدون معرف مؤسسة، انتظار تحميل البيانات بدلاً من تطبيق ألوان افتراضية
+        return; // خروج مبكر بدون تطبيق أي ثيم
       }
     }
     
@@ -750,16 +749,24 @@ export function forceApplyOrganizationTheme(
     themeMode = settings.theme_mode;
   }
 
+  // إذا لم توجد ألوان مخصصة، لا تطبق أي ثيم لتجنب الألوان الافتراضية
+  if (!settings.theme_primary_color || !settings.theme_secondary_color) {
+    
+    // استخدام الثيم العام أو عدم تطبيق أي ثيم
+    // هذا يمنع تطبيق الألوان الافتراضية الخاطئة
+    return;
+  }
+
   const theme: UnifiedTheme = {
-    primaryColor: settings.theme_primary_color || DEFAULT_STORE_THEME.primaryColor,
-    secondaryColor: settings.theme_secondary_color || DEFAULT_STORE_THEME.secondaryColor,
+    primaryColor: settings.theme_primary_color,
+    secondaryColor: settings.theme_secondary_color,
     mode: themeMode,
     customCss: settings.custom_css || '',
     organizationId,
     subdomain,
     lastUpdated: Date.now()
   };
-  
+
   // حفظ الثيم في التخزين المحلي
   saveTheme(theme, 'organization');
   
@@ -773,6 +780,7 @@ export function forceApplyOrganizationTheme(
   
   // تطبيق الثيم فوراً
   applyThemeToDOM(theme);
+  
 }
 
 // تصدير الدوال الرئيسية

@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTenant } from '@/context/TenantContext';
 import { supabase } from '@/lib/supabase-client';
 import { getOrganizationSettings } from '@/lib/api/settings';
+import { useMemo, useCallback } from 'react';
 
 // نوع البيانات المشتركة للمتجر
 interface SharedStoreData {
@@ -18,6 +19,10 @@ interface SharedStoreData {
 let globalStoreDataCache: { [key: string]: any } = {};
 let globalCacheTimestamp: { [key: string]: number } = {};
 const CACHE_DURATION = 2 * 60 * 1000; // دقيقتان
+
+// تقليل الـ logging المفرط
+let logCounter = 0;
+const MAX_LOGS_PER_SESSION = 5;
 
 // Preloader للصور
 const preloadImages = (products: any[], categories: any[]) => {
@@ -48,23 +53,34 @@ const preloadImages = (products: any[], categories: any[]) => {
   });
   
   Promise.all(preloadPromises).then(() => {
-    console.log('🖼️ تم تحميل الصور مسبقاً');
+    if (logCounter < MAX_LOGS_PER_SESSION) {
+    }
   });
 };
 
+// خيارات Hook البيانات المشتركة
+interface UseSharedStoreDataOptions {
+  includeCategories?: boolean;
+  includeProducts?: boolean;
+  includeFeaturedProducts?: boolean;
+}
+
 // Hook مشترك لجلب بيانات المتجر مرة واحدة مع تحسينات الأداء
-export const useSharedStoreData = () => {
+export const useSharedStoreData = (options: UseSharedStoreDataOptions = {}) => {
+  const {
+    includeCategories = true,
+    includeProducts = true,
+    includeFeaturedProducts = true
+  } = options;
   const { currentOrganization } = useTenant();
   const queryClient = useQueryClient();
   const organizationId = currentOrganization?.id;
 
-  // تتبع الأداء - بداية
+  // تتبع الأداء - بداية (مقيد)
   const startTime = performance.now();
-  console.log('🚀 [PERFORMANCE] بداية useSharedStoreData:', {
-    organizationId,
-    timestamp: new Date().toISOString(),
-    startTime: startTime
-  });
+  if (logCounter < MAX_LOGS_PER_SESSION) {
+    logCounter++;
+  }
 
   // تحسين: استخدام cache محلي أولاً
   const getCachedData = (key: string) => {
@@ -72,7 +88,8 @@ export const useSharedStoreData = () => {
     const timestamp = globalCacheTimestamp[key];
     
     if (cached && timestamp && (Date.now() - timestamp) < CACHE_DURATION) {
-      console.log('⚡ [PERFORMANCE] استخدام cache محلي - توفير:', (Date.now() - timestamp) / 1000, 'ثانية');
+      if (logCounter < MAX_LOGS_PER_SESSION) {
+      }
       return cached;
     }
     return null;
@@ -81,7 +98,8 @@ export const useSharedStoreData = () => {
   const setCachedData = (key: string, data: any) => {
     globalStoreDataCache[key] = data;
     globalCacheTimestamp[key] = Date.now();
-    console.log('💾 [PERFORMANCE] حفظ البيانات في cache محلي');
+    if (logCounter < MAX_LOGS_PER_SESSION) {
+    }
   };
 
   // جلب جميع البيانات معاً في استدعاء واحد محسن
@@ -90,10 +108,11 @@ export const useSharedStoreData = () => {
     isLoading,
     error
   } = useQuery({
-    queryKey: ['shared-store-data', organizationId],
+    queryKey: ['shared-store-data', organizationId, includeCategories, includeProducts, includeFeaturedProducts],
     queryFn: async () => {
       if (!organizationId) {
-        console.log('❌ [PERFORMANCE] لا يوجد organizationId');
+        if (logCounter < MAX_LOGS_PER_SESSION) {
+        }
         return null;
       }
       
@@ -101,79 +120,84 @@ export const useSharedStoreData = () => {
       const cacheKey = `store-data-${organizationId}`;
       const cachedData = getCachedData(cacheKey);
       if (cachedData) {
-        console.log('📋 [PERFORMANCE] استخدام البيانات المخزنة محلياً - توفير وقت تحميل');
+        if (logCounter < MAX_LOGS_PER_SESSION) {
+        }
         return cachedData;
       }
       
       const fetchStartTime = performance.now();
-      console.log('🚀 [PERFORMANCE] بداية جلب البيانات الجديدة:', {
-        organizationId,
-        fetchStartTime
-      });
+      if (logCounter < MAX_LOGS_PER_SESSION) {
+      }
       
       try {
         // استدعاء متوازي لجميع البيانات المطلوبة
-        console.log('📡 [PERFORMANCE] بداية الاستدعاءات المتوازية...');
+        if (logCounter < MAX_LOGS_PER_SESSION) {
+        }
         const parallelStart = performance.now();
         
-        const [orgSettings, productsResponse, categoriesResponse] = await Promise.all([
-          getOrganizationSettings(organizationId).catch(err => {
-            console.warn('⚠️ [PERFORMANCE] فشل في جلب إعدادات المؤسسة:', err);
-            return null;
-          }),
-          supabase
-            .from('products')
-            .select(`
-              id, name, description, price, compare_at_price, 
-              thumbnail_image, images, stock_quantity, 
-              is_featured, is_new, category_id, slug,
-              category:category_id(id, name, slug),
-              subcategory:subcategory_id(id, name, slug)
-            `)
-            .eq('organization_id', organizationId)
-            .eq('is_active', true)
-            .order('created_at', { ascending: false })
-            .limit(200),
-          supabase
-            .from('product_categories')
-            .select('id, name, slug, image_url, is_active')
-            .eq('organization_id', organizationId)
-            .eq('is_active', true)
-            .order('name', { ascending: true })
-            .limit(100)
-        ]);
-
-        const parallelEnd = performance.now();
-        console.log('✅ [PERFORMANCE] انتهاء الاستدعاءات المتوازية:', {
-          duration: (parallelEnd - parallelStart) / 1000,
-          'ثواني': (parallelEnd - parallelStart) / 1000
+        // جلب البيانات بناءً على الخيارات
+        const orgSettings = await getOrganizationSettings(organizationId).catch(err => {
+          if (logCounter < MAX_LOGS_PER_SESSION) {
+          }
+          return null;
         });
 
+        // جلب المنتجات إذا كان مطلوباً
+        const productsResponse = includeProducts 
+          ? await supabase
+              .from('products')
+              .select(`
+                id, name, description, price, compare_at_price, 
+                thumbnail_image, images, stock_quantity, 
+                is_featured, is_new, category_id, slug,
+                category:category_id(id, name, slug),
+                subcategory:subcategory_id(id, name, slug)
+              `)
+              .eq('organization_id', organizationId)
+              .eq('is_active', true)
+              .order('created_at', { ascending: false })
+              .limit(200)
+          : { data: [], error: null };
+
+        // جلب الفئات إذا كان مطلوباً
+        const categoriesResponse = includeCategories
+          ? await supabase
+              .from('product_categories')
+              .select('id, name, slug, image_url, is_active')
+              .eq('organization_id', organizationId)
+              .eq('is_active', true)
+              .order('name', { ascending: true })
+              .limit(100)
+          : { data: [], error: null };
+
+        const parallelEnd = performance.now();
+        if (logCounter < MAX_LOGS_PER_SESSION) {
+        }
+
         if (productsResponse.error) {
-          console.error('❌ [PERFORMANCE] خطأ في جلب المنتجات:', {
-            error: productsResponse.error,
-            duration: (performance.now() - fetchStartTime) / 1000
-          });
+          if (logCounter < MAX_LOGS_PER_SESSION) {
+          }
           throw productsResponse.error;
         }
         if (categoriesResponse.error) {
-          console.error('❌ [PERFORMANCE] خطأ في جلب الفئات:', {
-            error: categoriesResponse.error,
-            duration: (performance.now() - fetchStartTime) / 1000
-          });
+          if (logCounter < MAX_LOGS_PER_SESSION) {
+          }
           throw categoriesResponse.error;
         }
 
         const products = productsResponse.data || [];
         const categories = categoriesResponse.data || [];
-        const featuredProducts = products.filter(product => product.is_featured);
+        const featuredProducts = includeFeaturedProducts && includeProducts 
+          ? products.filter(product => product.is_featured)
+          : [];
 
-        console.log('📊 [PERFORMANCE] إحصائيات البيانات المُحملة:', {
-          products: products.length,
-          categories: categories.length,
-          featuredProducts: featuredProducts.length,
-          orgSettings: orgSettings ? 'موجود' : 'غير موجود'
-        });
+        if (logCounter < MAX_LOGS_PER_SESSION) {
+        }
+
+        // 🔍 تشخيص: عرض محتوى إعدادات المؤسسة الفعلي
+        if (logCounter < MAX_LOGS_PER_SESSION && orgSettings) {
+        } else if (logCounter < MAX_LOGS_PER_SESSION) {
+        }
 
         const result = {
           organization: currentOrganization,
@@ -187,33 +211,27 @@ export const useSharedStoreData = () => {
         setCachedData(cacheKey, result);
         
         const fetchEndTime = performance.now();
-        console.log('✅ [PERFORMANCE] انتهاء جلب البيانات:', {
-          totalDuration: (fetchEndTime - fetchStartTime) / 1000,
-          'إجمالي الوقت بالثواني': (fetchEndTime - fetchStartTime) / 1000
-        });
+        if (logCounter < MAX_LOGS_PER_SESSION) {
+        }
 
         // تحميل الصور مسبقاً في الخلفية
         setTimeout(() => {
           const preloadStart = performance.now();
-          console.log('🖼️ [PERFORMANCE] بداية تحميل الصور مسبقاً...');
+          if (logCounter < MAX_LOGS_PER_SESSION) {
+          }
           
           preloadImages(products, categories);
           
           const preloadEnd = performance.now();
-          console.log('✅ [PERFORMANCE] انتهاء تحميل الصور مسبقاً:', {
-            duration: (preloadEnd - preloadStart) / 1000,
-            'وقت التحميل بالثواني': (preloadEnd - preloadStart) / 1000
-          });
+          if (logCounter < MAX_LOGS_PER_SESSION) {
+          }
         }, 100);
 
         return result;
       } catch (error) {
         const errorTime = performance.now();
-        console.error('❌ [PERFORMANCE] خطأ في جلب البيانات:', {
-          error,
-          duration: (errorTime - fetchStartTime) / 1000,
-          'وقت الخطأ بالثواني': (errorTime - fetchStartTime) / 1000
-        });
+        if (logCounter < MAX_LOGS_PER_SESSION) {
+        }
         throw error;
       }
     },
@@ -230,37 +248,32 @@ export const useSharedStoreData = () => {
 
   // تتبع حالة التحميل
   const endTime = performance.now();
-  console.log('📈 [PERFORMANCE] حالة useSharedStoreData:', {
-    isLoading,
-    hasError: !!error,
-    hasData: !!storeData,
-    totalHookDuration: (endTime - startTime) / 1000,
-    'إجمالي وقت الـ Hook بالثواني': (endTime - startTime) / 1000
-  });
+  if (logCounter < MAX_LOGS_PER_SESSION) {
+  }
 
   // دالة لتحديث البيانات
-  const refreshData = () => {
-    console.log('🔄 [PERFORMANCE] طلب تحديث البيانات...');
+  const refreshData = useCallback(() => {
+    if (logCounter < MAX_LOGS_PER_SESSION) {
+    }
     const refreshStart = performance.now();
     
     if (organizationId) {
       const cacheKey = `store-data-${organizationId}`;
       delete globalStoreDataCache[cacheKey];
       delete globalCacheTimestamp[cacheKey];
-      console.log('🗑️ [PERFORMANCE] تم حذف cache محلي');
+      if (logCounter < MAX_LOGS_PER_SESSION) {
+      }
     }
     
     queryClient.invalidateQueries({ queryKey: ['shared-store-data', organizationId] });
     
     const refreshEnd = performance.now();
-    console.log('✅ [PERFORMANCE] انتهاء طلب التحديث:', {
-      duration: (refreshEnd - refreshStart) / 1000,
-      'وقت التحديث بالثواني': (refreshEnd - refreshStart) / 1000
-    });
-  };
+    if (logCounter < MAX_LOGS_PER_SESSION) {
+    }
+  }, [organizationId, queryClient]);
 
-  // إرجاع البيانات بشكل منظم
-  return {
+  // إرجاع البيانات بشكل منظم (محسن مع memoization)
+  return useMemo(() => ({
     organization: storeData?.organization || null,
     organizationSettings: storeData?.organizationSettings || null,
     products: storeData?.products || [],
@@ -269,5 +282,5 @@ export const useSharedStoreData = () => {
     isLoading,
     error: error?.message || null,
     refreshData
-  };
-}; 
+  }), [storeData, isLoading, error, refreshData]);
+};

@@ -1,0 +1,23 @@
+/* 🚀 CSS Components Index - تم إنشاؤه بواسطة CSS Splitter */
+
+/* ===== CRITICAL CSS (تحميل فوري) ===== */
+@import './components/fonts.css';
+@import './components/theme-variables.css';
+@import './components/base.css';
+
+/* ===== NON-CRITICAL CSS (تحميل مؤجل) ===== */
+@import './components/components-basic.css';
+@import './components/hover-fixes.css';
+@import './components/performance.css';
+@import './components/scrollbar.css';
+@import './components/store-components.css';
+@import './components/forms.css';
+@import './components/responsive.css';
+@import './components/dark-mode.css';
+@import './components/animations.css';
+
+/* Statistics: */
+/* Files Created: 12 */
+/* Total Size: 49KB */
+/* Critical: 21KB */
+/* Non-Critical: 28KB */

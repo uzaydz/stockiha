@@ -516,7 +516,9 @@ BEGIN
           'shipping_info', mp.shipping_info,
           'template_info', mp.template_info,
           'shipping_method_type', COALESCE(mp.shipping_method_type, 'default'),
-          'use_shipping_clone', COALESCE(mp.use_shipping_clone, FALSE)
+          'use_shipping_clone', COALESCE(mp.use_shipping_clone, FALSE),
+          'shipping_provider_id', mp.shipping_provider_id,
+          'shipping_clone_id', mp.shipping_clone_id
         ),
 
         -- النماذج (مخصص أو افتراضي) 🆕

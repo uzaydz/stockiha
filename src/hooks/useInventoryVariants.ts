@@ -100,7 +100,7 @@ interface UseInventoryVariantsActions {
   updateEditingNotes: (notes: string) => void;
   previewChanges: () => Promise<void>;
   cancelEditing: () => void;
-  saveChanges: () => Promise<void>;
+  saveChanges: () => Promise<VariantUpdateResponse>;
   
   // إدارة الأخطاء
   clearError: () => void;
@@ -440,7 +440,9 @@ export function useInventoryVariants(
       editingVariant: prev.editingVariant ? {
         ...prev.editingVariant,
         newQuantity
-      } : null
+      } : null,
+      // مسح معاينة التغييرات السابقة
+      changePreview: null
     }));
   }, []);
 
@@ -483,15 +485,19 @@ export function useInventoryVariants(
   }, []);
 
   const saveChanges = useCallback(async () => {
-    if (!state.editingVariant) return;
+    if (!state.editingVariant) {
+      throw new Error('لا توجد بيانات للحفظ');
+    }
+
+    const { productId, variantId, newQuantity, notes } = state.editingVariant;
 
     try {
-      await updateVariant({
-        product_id: state.editingVariant.productId,
-        variant_id: state.editingVariant.variantId,
-        new_quantity: state.editingVariant.newQuantity,
+      const response = await updateVariant({
+        product_id: productId,
+        variant_id: variantId,
+        new_quantity: newQuantity,
         operation_type: 'manual',
-        notes: state.editingVariant.notes || undefined
+        notes: notes || undefined
       });
 
       setState(prev => ({
@@ -500,8 +506,11 @@ export function useInventoryVariants(
         changePreview: null
       }));
 
+      return response;
+
     } catch (error) {
       // الخطأ يتم التعامل معه في updateVariant
+      throw error;
     }
   }, [state.editingVariant, updateVariant]);
 

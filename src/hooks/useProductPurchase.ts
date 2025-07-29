@@ -18,6 +18,8 @@ export interface UseProductPurchaseProps {
   productId?: string;
   organizationId?: string;
   dataScope?: DataScope;
+  enabled?: boolean; // 🔧 إضافة معامل لتفعيل/إيقاف الجلب
+  preloadedProduct?: CompleteProduct; // 🚀 بيانات محملة مسبقاً لتجنب الطلبات المكررة
 }
 
 export interface ProductPurchaseState {
@@ -70,9 +72,23 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 دقائق
 export const useProductPurchase = ({
   productId,
   organizationId,
-  dataScope = 'ultra'
+  dataScope = 'ultra',
+  enabled = true,
+  preloadedProduct
 }: UseProductPurchaseProps): [ProductPurchaseState, ProductPurchaseActions] => {
   const { toast } = useToast();
+
+  // 🔍 تتبع preloadedProduct (في بيئة التطوير فقط)
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔍 [useProductPurchase] تم استلام البيانات:', {
+      productId,
+      hasPreloadedProduct: !!preloadedProduct,
+      preloadedProductId: preloadedProduct?.id,
+      preloadedProductName: preloadedProduct?.name,
+      enabled,
+      timestamp: new Date().toISOString()
+    });
+  }
   
   // الحالة الأساسية
   const [product, setProduct] = useState<CompleteProduct | null>(null);
@@ -89,11 +105,13 @@ export const useProductPurchase = ({
   const [buyingNow, setBuyingNow] = useState(false);
   const [isInWishlist, setIsInWishlist] = useState(false);
 
-  // refs لتجنب الاستدعاءات المتعددة
+  // refs لتجنب الاستدعاءات المتعددة - مع تحسين أكبر
   const fetchingRef = useRef(false);
   const lastFetchKey = useRef<string>('');
   const mountedRef = useRef(true);
   const lastParamsRef = useRef<string>('');
+  const enabledRef = useRef(enabled); // 🔧 تتبع حالة enabled
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null); // 🔧 تتبع setTimeout
 
   // الوصول إلى الـ cache العالمي
   const getCache = useCallback(() => {
@@ -108,6 +126,48 @@ export const useProductPurchase = ({
     if (!productId) {
       setError('معرف المنتج غير صحيح');
       setLoading(false);
+      return;
+    }
+
+    // 🚀 استخدام البيانات المحملة مسبقاً إذا كانت متوفرة
+    // التحقق من تطابق ID أو slug
+    const productMatches = preloadedProduct && (
+      preloadedProduct.id === productId || 
+      preloadedProduct.slug === productId
+    );
+    
+    if (productMatches) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('✅ [useProductPurchase] استخدام البيانات المحملة مسبقاً:', {
+          productId,
+          productName: preloadedProduct.name,
+          preloadedProductId: preloadedProduct.id,
+          preloadedProductSlug: preloadedProduct.slug,
+          matchType: preloadedProduct.id === productId ? 'ID' : 'slug',
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      setProduct(preloadedProduct);
+      setLoading(false);
+      setError(null);
+      
+      // تعيين الاختيارات الافتراضية
+      if (preloadedProduct.variants.has_variants) {
+        const defaultColor = getDefaultColor(preloadedProduct);
+        setSelectedColor(defaultColor || undefined);
+        
+        if (defaultColor && defaultColor.has_sizes) {
+          const defaultSize = getDefaultSize(defaultColor);
+          setSelectedSize(defaultSize || undefined);
+        }
+      }
+      
+      setQuantity(1);
+      
+      // ✅ تحديث fetchingRef لمنع الاستدعاءات المتوازية
+      fetchingRef.current = false;
+      
       return;
     }
 
@@ -188,27 +248,184 @@ export const useProductPurchase = ({
       setLoading(false);
       fetchingRef.current = false;
     }
-  }, [productId, organizationId, dataScope, getCache]);
+  }, [productId, organizationId, dataScope, preloadedProduct, getCache]);
 
   // جلب المنتج فقط عندما تتوفر جميع البيانات المطلوبة - مع منع الطلبات المكررة
   useEffect(() => {
-    // إذا لم يكن لدينا productId، لا نفعل شيئاً
-    if (!productId) return;
+    // تحديث enabledRef
+    enabledRef.current = enabled;
     
-    // منع الطلبات المكررة: إذا كان هناك طلب جاري، لا نبدأ آخر
-    if (fetchingRef.current) {
+    // 🚨 شروط إيقاف الجلب
+    if (!enabled) {
+      setLoading(false);
       return;
     }
     
-    // تأخير البحث قليلاً للسماح للـ organizationId بالتحديث
-    const timeoutId = setTimeout(() => {
-      if (!fetchingRef.current) { // فحص إضافي للتأكد
-        fetchProduct();
-      }
-    }, 300); // زيادة التأخير لتقليل الطلبات المكررة
+    if (!productId) {
+      setError('معرف المنتج غير صحيح');
+      setLoading(false);
+      return;
+    }
 
-    return () => clearTimeout(timeoutId);
-  }, [productId, organizationId, dataScope, fetchProduct]);
+    // التأكد من وجود organizationId (مطلوب للبحث بـ slug)
+    if (!organizationId) {
+      console.log('⏸️ [useProductPurchase] انتظار organizationId:', {
+        productId,
+        organizationId,
+        enabled,
+        timestamp: new Date().toISOString()
+      });
+      setLoading(true);
+      return;
+    }
+
+    // 🚀 إذا كانت البيانات المحملة مسبقاً متوفرة، استخدمها فوراً
+    // التحقق من تطابق ID أو slug
+    const productMatches = preloadedProduct && (
+      preloadedProduct.id === productId || 
+      preloadedProduct.slug === productId
+    );
+    
+    if (productMatches) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🎯 [useProductPurchase] استخدام البيانات المحملة مسبقاً في useEffect:', {
+          productId,
+          productName: preloadedProduct.name,
+          preloadedProductId: preloadedProduct.id,
+          preloadedProductSlug: preloadedProduct.slug,
+          matchType: preloadedProduct.id === productId ? 'ID' : 'slug',
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      // ✅ إلغاء أي setTimeout جاري
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+        if (process.env.NODE_ENV === 'development') {
+          console.log('✅ [useProductPurchase] تم إلغاء setTimeout المعلق');
+        }
+      } else if (process.env.NODE_ENV === 'development') {
+        console.log('ℹ️ [useProductPurchase] لا يوجد setTimeout للإلغاء');
+      }
+      
+      setProduct(preloadedProduct);
+      setLoading(false);
+      setError(null);
+      
+      // تعيين الاختيارات الافتراضية
+      if (preloadedProduct.variants.has_variants) {
+        const defaultColor = getDefaultColor(preloadedProduct);
+        setSelectedColor(defaultColor || undefined);
+        
+        if (defaultColor && defaultColor.has_sizes) {
+          const defaultSize = getDefaultSize(defaultColor);
+          setSelectedSize(defaultSize || undefined);
+        }
+      }
+      
+      setQuantity(1);
+      
+      // ✅ تحديث lastParamsRef لمنع الاستدعاءات اللاحقة
+      const currentParamsKey = `${productId}-${organizationId || 'public'}-${dataScope}-${enabled}`;
+      lastParamsRef.current = currentParamsKey;
+      
+      return () => {}; // لا حاجة لتنظيف setTimeout
+    } else if (preloadedProduct && process.env.NODE_ENV === 'development') {
+      console.log('⚠️ [useProductPurchase] preloadedProduct موجود لكن لا يطابق:', {
+        productId,
+        preloadedProductId: preloadedProduct.id,
+        preloadedProductSlug: preloadedProduct.slug,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // إنشاء مفتاح فريد للطلب الحالي
+    const currentParamsKey = `${productId}-${organizationId || 'public'}-${dataScope}-${enabled}`;
+    
+    // منع الطلبات المكررة: إذا كان هناك طلب جاري بنفس المعاملات
+    if (fetchingRef.current && lastParamsRef.current === currentParamsKey) {
+      return;
+    }
+    
+        // تحسين: إذا كانت البيانات المحملة مسبقاً موجودة ومطابقة، لا حاجة للـ setTimeout
+    const hasMatchingPreloadedData = preloadedProduct && (
+      preloadedProduct.id === productId || 
+      preloadedProduct.slug === productId
+    );
+    
+    if (hasMatchingPreloadedData) {
+      // البيانات موجودة، لا حاجة للانتظار
+      return () => {};
+    }
+    
+    // تأخير البحث قليلاً للسماح للمعاملات بالاستقرار
+    if (process.env.NODE_ENV === 'development') {
+      console.log('⏰ [useProductPurchase] إنشاء setTimeout جديد');
+    }
+    timeoutRef.current = setTimeout(() => {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('⏰ [useProductPurchase] تنفيذ setTimeout');
+        }
+      // فحص إضافي للتأكد من عدم تغيير المعاملات أثناء التأخير
+      // وعدم وجود بيانات محملة مسبقاً
+      const currentPreloadedProduct = preloadedProduct;
+      const productMatches = currentPreloadedProduct && (
+        currentPreloadedProduct.id === productId || 
+        currentPreloadedProduct.slug === productId
+      );
+      
+      if (productMatches) {
+        console.log('🛑 [useProductPurchase] إلغاء setTimeout - البيانات المحملة مسبقاً متاحة الآن:', {
+          productId,
+          preloadedProductId: currentPreloadedProduct.id,
+          preloadedProductSlug: currentPreloadedProduct.slug,
+          matchType: currentPreloadedProduct.id === productId ? 'ID' : 'slug',
+          timestamp: new Date().toISOString()
+        });
+        timeoutRef.current = null;
+        return;
+      } else if (process.env.NODE_ENV === 'development') {
+        console.log('ℹ️ [useProductPurchase] setTimeout يتحقق - لا توجد بيانات محملة مسبقاً بعد:', {
+          productId,
+          hasPreloadedProduct: !!currentPreloadedProduct,
+          preloadedProductId: currentPreloadedProduct?.id,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      // التأكد من وجود organizationId قبل محاولة الجلب
+      if (enabledRef.current && !fetchingRef.current && lastParamsRef.current !== currentParamsKey && organizationId) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('🔄 [useProductPurchase] بدء جلب البيانات العادي:', {
+            productId,
+            hasPreloadedProduct: !!preloadedProduct,
+            enabled,
+            organizationId,
+            currentParamsKey,
+            timestamp: new Date().toISOString()
+          });
+        }
+        lastParamsRef.current = currentParamsKey;
+        fetchProduct();
+      } else if (!organizationId && process.env.NODE_ENV === 'development') {
+        console.log('⚠️ [useProductPurchase] تجاهل setTimeout - organizationId غير متوفر:', {
+          productId,
+          organizationId,
+          enabled: enabledRef.current,
+          timestamp: new Date().toISOString()
+        });
+      }
+      timeoutRef.current = null; // تنظيف المرجع
+    }, 300); // زيادة التأخير أكثر للسماح للبيانات المحملة مسبقاً بالوصول
+
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
+  }, [productId, organizationId, dataScope, enabled, preloadedProduct, fetchProduct]);
 
   // تحديث المقاس عند تغيير اللون
   useEffect(() => {
@@ -243,7 +460,8 @@ export const useProductPurchase = ({
       return {
         price: 0,
         originalPrice: 0,
-        isWholesale: false
+        isWholesale: false,
+        hasCompareAtPrice: false // 🔧 إضافة الخاصية المطلوبة
       };
     }
     return getFinalPrice(product, quantity, selectedColor?.id, selectedSize?.id);

@@ -9,6 +9,9 @@ import { ServerResponse, IncomingMessage } from 'http';
 import type { ModuleFormat, OutputOptions } from 'rollup';
 import { visualizer } from 'rollup-plugin-visualizer';
 import million from 'million/compiler';
+import { gzipSync, brotliCompressSync } from 'zlib';
+import fs from 'fs';
+import type { OutputAsset } from 'rollup';
 
 // تكوين استيراد ملفات Markdown كنصوص
 function rawContentPlugin(): Plugin {
@@ -50,6 +53,7 @@ function contentTypePlugin(): Plugin {
         // Set proper content type for HTML files
         if (req.url === '/' || req.url?.endsWith('.html')) {
           res.setHeader('Content-Type', 'text/html; charset=utf-8');
+          res.setHeader('Vary', 'Accept-Encoding');
         }
         
         // 🎨 إعدادات خاصة لملفات الخطوط
@@ -66,10 +70,69 @@ function contentTypePlugin(): Plugin {
         if (req.url?.endsWith('.css')) {
           res.setHeader('Content-Type', 'text/css; charset=utf-8');
           res.setHeader('Cache-Control', 'public, max-age=3600');
+          res.setHeader('Vary', 'Accept-Encoding');
+        }
+        
+        // إضافة ترويسات للملفات JavaScript
+        if (req.url?.endsWith('.js')) {
+          res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+          res.setHeader('Vary', 'Accept-Encoding');
+        }
+        
+        // إضافة ترويسات للملفات JSON
+        if (req.url?.endsWith('.json')) {
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.setHeader('Vary', 'Accept-Encoding');
+        }
+        
+        // إضافة ترويسات للملفات SVG
+        if (req.url?.endsWith('.svg')) {
+          res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
+          res.setHeader('Vary', 'Accept-Encoding');
         }
         
         next();
       });
+    }
+  };
+}
+
+function criticalCSSPlugin(): Plugin {
+  return {
+    name: 'critical-css-plugin',
+    enforce: 'post',
+    generateBundle(options, bundle) {
+      // العثور على ملف CSS الرئيسي
+      const cssFiles = Object.keys(bundle).filter(file => file.endsWith('.css'));
+      
+      if (cssFiles.length > 0) {
+        const mainCssFile = cssFiles[0];
+        const cssContent = bundle[mainCssFile] as OutputAsset;
+        
+        if (typeof cssContent.source === 'string') {
+          // استخراج CSS الحيوي (أول 1000 سطر)
+          const lines = cssContent.source.split('\n');
+          const criticalLines = lines.slice(0, Math.min(1000, lines.length));
+          const criticalCSS = criticalLines.join('\n');
+          
+          // إنشاء ملف CSS حيوي منفصل
+          this.emitFile({
+            type: 'asset',
+            fileName: 'critical.css',
+            source: criticalCSS
+          });
+          
+          // CSS غير الحيوي (الباقي)
+          const nonCriticalCSS = lines.slice(1000).join('\n');
+          if (nonCriticalCSS.trim()) {
+            this.emitFile({
+              type: 'asset', 
+              fileName: 'non-critical.css',
+              source: nonCriticalCSS
+            });
+          }
+        }
+      }
     }
   };
 }
@@ -248,6 +311,8 @@ export default defineConfig(({ command, mode }) => {
         template: 'treemap', // أو 'sunburst' أو 'network'
       }),
       
+      criticalCSSPlugin(),
+      
       // 🎯 polyfills خفيفة للويب فقط
       nodePolyfills({
         globals: {
@@ -310,8 +375,8 @@ export default defineConfig(({ command, mode }) => {
       assetsDir: 'assets',
       emptyOutDir: true,
       sourcemap: isDev,
-      // تحسينات بناء Electron + PERFORMANCE OPTIMIZATION
-      target: 'es2020',
+      // تحسينات بناء للمتصفحات القديمة - دعم أوسع
+      target: 'es2015',
       minify: isProd ? 'terser' as const : false, // تغيير إلى terser للضغط الأفضل
       terserOptions: isProd ? {
         compress: {
@@ -319,12 +384,15 @@ export default defineConfig(({ command, mode }) => {
           drop_debugger: true,
           unused: false,
           side_effects: false,
-          passes: 2,
+          passes: 1,
+          toplevel: false,
+          reduce_funcs: false,
+          reduce_vars: false,
         },
         mangle: {
           safari10: true,
-          keep_fnames: /^(deduplicateRequest|interceptFetch|POSDataProvider|DashboardDataContext|StoreDataContext|AuthSingleton|UnifiedRequestManager|initializeRequestSystems|checkUserRequires2FA|handleSuccessfulLogin|PerformanceTracker|UltimateRequestController)$/,
-          reserved: ['console', 'log', 'warn', 'error', 'info', 'require', 'exports', 'module']
+          keep_fnames: /^(deduplicateRequest|interceptFetch|POSDataProvider|DashboardDataContext|StoreDataContext|AuthSingleton|UnifiedRequestManager|initializeRequestSystems|checkUserRequires2FA|handleSuccessfulLogin|UltimateRequestController|PrintReceipt|useCompletePOSData|usePOSData|useTenant)$/,
+          reserved: ['console', 'log', 'warn', 'error', 'info', 'require', 'exports', 'module', 'PrintReceipt', 'useCompletePOSData', 'default']
         },
         format: {
           comments: false,
@@ -360,99 +428,133 @@ export default defineConfig(({ command, mode }) => {
             return `assets/[name]-[hash].${ext}`;
           },
           manualChunks: {
-            // ✅ Core Infrastructure (تحميل أولي فقط)
-            'core-react': ['react', 'react-dom', 'react/jsx-runtime'],
-            'core-router': ['react-router-dom', '@remix-run/router'],
-            
-            // ✅ Essential UI (تحميل عند الحاجة)
-            'ui-base': [
-              'lucide-react',
-              'class-variance-authority', 
-              'clsx',
-              'tailwind-merge'
+            // 🚀 Core Bundle - تحميل فوري واحد (تقليل من 15 حزمة إلى 5)
+            'vendor-core': [
+              'react', 'react-dom', 'react/jsx-runtime',
+              'react-router-dom', '@remix-run/router',
+              '@tanstack/react-query',
+              '@supabase/supabase-js'
             ],
             
-            // 🔄 Split Heavy Libraries (lazy load)
-            'charts-heavy': [
-              '@nivo/bar', '@nivo/line', '@nivo/pie',
-              'recharts', 'chart.js', 'react-chartjs-2'
+            // 🎨 UI Core - المكونات الأساسية فقط (تحميل فوري)
+            'ui-core': [
+              'lucide-react', 'class-variance-authority', 'clsx', 'tailwind-merge'
             ],
             
-            'editors-heavy': [
-              '@monaco-editor/react',
-              '@tinymce/tinymce-react'
+            // 📱 UI Essentials - Dialog, DropdownMenu, Tooltip (استخدام عالي)
+            'ui-essentials': [
+              '@radix-ui/react-dialog', 
+              '@radix-ui/react-dropdown-menu', 
+              '@radix-ui/react-tooltip',
+              '@radix-ui/react-slot'
             ],
             
-            'ui-heavy-mui': [
-              '@mui/material', '@mui/icons-material', '@mui/x-date-pickers',
-              '@emotion/react', '@emotion/styled'
+            // 📝 UI Forms - مكونات النماذج (تحميل عند الطلب)
+            'ui-forms': [
+              '@radix-ui/react-select',
+              '@radix-ui/react-checkbox',
+              '@radix-ui/react-radio-group',
+              '@radix-ui/react-label',
+              '@radix-ui/react-switch'
             ],
             
-            'ui-heavy-antd': ['antd'],
-            
-            'radix-ui': [
-              '@radix-ui/react-accordion', '@radix-ui/react-alert-dialog',
-              '@radix-ui/react-aspect-ratio', '@radix-ui/react-avatar',
-              '@radix-ui/react-checkbox', '@radix-ui/react-collapsible',
-              '@radix-ui/react-context-menu', '@radix-ui/react-dialog',
-              '@radix-ui/react-dropdown-menu', '@radix-ui/react-hover-card',
-              '@radix-ui/react-icons', '@radix-ui/react-label',
-              '@radix-ui/react-menubar', '@radix-ui/react-navigation-menu',
-              '@radix-ui/react-popover', '@radix-ui/react-progress',
-              '@radix-ui/react-radio-group', '@radix-ui/react-scroll-area',
-              '@radix-ui/react-select', '@radix-ui/react-separator',
-              '@radix-ui/react-slider', '@radix-ui/react-slot',
-              '@radix-ui/react-switch', '@radix-ui/react-tabs',
-              '@radix-ui/react-toast', '@radix-ui/react-toggle',
-              '@radix-ui/react-toggle-group', '@radix-ui/react-tooltip'
+            // 📊 UI Layout - مكونات التخطيط (تحميل عند الطلب)
+            'ui-layout': [
+              '@radix-ui/react-tabs',
+              '@radix-ui/react-accordion',
+              '@radix-ui/react-collapsible',
+              '@radix-ui/react-separator',
+              '@radix-ui/react-scroll-area'
             ],
             
-            'pdf-printing': [
-              'jspdf', 'jspdf-autotable', 'html2canvas',
-              'react-to-print', 'react-barcode', 'qrcode', 'qrcode.react'
+            // 🎯 UI Advanced - مكونات متقدمة (تحميل عند الطلب)
+            'ui-advanced': [
+              '@radix-ui/react-progress',
+              '@radix-ui/react-slider',
+              '@radix-ui/react-toggle',
+              '@radix-ui/react-toggle-group',
+              '@radix-ui/react-avatar',
+              '@radix-ui/react-aspect-ratio'
             ],
             
-            'database-heavy': [
-              'dexie'
+            // 🔔 UI Feedback - مكونات التغذية الراجعة (تحميل عند الطلب)
+            'ui-feedback': [
+              '@radix-ui/react-toast',
+              '@radix-ui/react-alert-dialog',
+              '@radix-ui/react-hover-card',
+              '@radix-ui/react-popover'
             ],
             
-            'animation-motion': ['framer-motion'],
-            
-            'form-validation': [
-              'react-hook-form', '@hookform/resolvers',
-              'zod', 'zod-to-json-schema'
+            // 🧭 UI Navigation - مكونات التنقل (تحميل عند الطلب)
+            'ui-navigation': [
+              '@radix-ui/react-navigation-menu',
+              '@radix-ui/react-menubar',
+              '@radix-ui/react-context-menu'
             ],
             
-            'data-utils': [
-              'lodash-es', 'date-fns', 'dayjs',
-              'uuid', 'nanoid'
+            // 🎨 UI Icons - الأيقونات (تحميل منفصل)
+            'ui-icons': [
+              '@radix-ui/react-icons'
             ],
             
-            'network-libs': [
-              'axios', 'axios-retry',
-              '@supabase/supabase-js', '@supabase/auth-helpers-react', '@supabase/realtime-js'
+            // 📊 Charts Core - المخططات الأساسية (تحميل عند الطلب)
+            'charts-core': [
+              '@nivo/bar', '@nivo/line', '@nivo/pie'
             ],
             
-            'state-management': [
-              '@tanstack/react-query', '@tanstack/react-query-persist-client',
-              '@tanstack/query-sync-storage-persister',
-              'zustand', 'valtio', 'immer'
+            // 📈 Charts Advanced - المخططات المتقدمة (تحميل عند الطلب)
+            'charts-advanced': [
+              'recharts'
             ],
             
-            'i18n-localization': [
-              'i18next', 'react-i18next', 'i18next-browser-languagedetector'
+            // 🎨 Animation Core - الحركات الأساسية (استخدام واسع)
+            'animation-core': [
+              'framer-motion'
             ],
             
-            'monitoring-sentry': [
-              '@sentry/react', '@sentry/browser', '@sentry/tracing', '@sentry/replay'
+            // 🎛️ UI Material - Material UI (استخدام محدود جداً)
+            'ui-material': [
+              '@mui/material', '@mui/icons-material'
             ],
             
-            // 🔧 Split App Logic
+            // ⚡ Code Editor - محرر الأكواد (استخدام محدود جداً)
+            'code-editor': [
+              '@monaco-editor/react'
+            ],
+            
+            // 🔧 Utilities - أدوات مساعدة
+            'vendor-utils': [
+              'lodash-es', 'date-fns', 'axios',
+              'react-hook-form', '@hookform/resolvers', 'zod'
+            ],
+            
+            // 🔧 Split App Logic - تقسيم محسن
+            
+            // 🏪 POS Module - جميع مكونات POS مدمجة لتجنب مشاكل التبعيات
             'pos-module': [
               './src/context/POSDataContext.tsx',
-              './src/pages/POSOptimized.tsx'
+              './src/pages/POSOptimized.tsx',
+              './src/components/pos/POSWrapper.tsx',
+              './src/components/pos/POSHeader.tsx',
+              './src/components/pos/POSContent.tsx',
+              './src/components/pos/Cart.tsx',
+              './src/components/pos/CartOptimized.tsx',
+              './src/components/pos/CartItem.tsx',
+              './src/components/pos/CartSummary.tsx',
+              './src/components/pos/CartTabManager.tsx',
+              './src/components/pos/CartTabShortcuts.tsx',
+              './src/components/pos/EmptyCart.tsx',
+              './src/components/pos/ProductCatalog.tsx',
+              './src/components/pos/ProductCatalogOptimized.tsx',
+              './src/components/pos/ProductVariantSelector.tsx',
+              './src/components/pos/PaymentDialog.tsx',
+              './src/components/pos/PaymentDialogOptimized.tsx',
+              './src/components/pos/NewCustomerDialog.tsx',
+              './src/components/pos/PrintReceipt.tsx',
+              './src/components/pos/PrintReceiptDialog.tsx',
+              './src/hooks/useCompletePOSData.ts'
             ],
-            
+
             'dashboard-module': [
               './src/context/DashboardDataContext.tsx',
               './src/pages/Dashboard.tsx'
@@ -486,7 +588,7 @@ export default defineConfig(({ command, mode }) => {
         makeAbsoluteExternalsRelative: false,
       },
       // 🎯 تحسين للويب فقط (بدون Electron)
-      assetsInlineLimit: 4096, // 4KB للويب - تصغير لضمان عدم inline للخطوط
+      assetsInlineLimit: 8192, // 8KB - تجميع الصور الصغيرة لتقليل طلبات HTTP
       
       // 🎨 إعدادات خاصة لملفات الأصول
       assetsInclude: ['**/*.woff2', '**/*.woff', '**/*.ttf'],
@@ -505,16 +607,22 @@ export default defineConfig(({ command, mode }) => {
       // 🎨 تقسيم CSS للأداء - معطل مؤقتاً لحل مشكلة الخطوط
       cssCodeSplit: false, // إعطاء CSS أولوية لضمان تحميل الخطوط
       
-      // ⚡ تحسين module preloading للويب
+      // ⚡ تحسين module preloading للويب - تحميل الحزم الأساسية فقط
       modulePreload: {
         polyfill: true,
         resolveDependencies: (filename, deps) => {
-          // تحميل المكونات الأساسية أولاً
-          return deps.filter(dep => 
-            dep.includes('react') || 
-            dep.includes('router') || 
-            dep.includes('core-')
+          // تحميل الحزم الأساسية فقط فوراً - مع إصلاح مشكلة pos-print
+          const coreDeps = deps.filter(dep => 
+            dep.includes('vendor-core') || 
+            dep.includes('ui-core') ||
+            dep.includes('ui-essentials') ||
+            dep.includes('pos-module') ||
+            dep.includes('main')
           );
+          
+          // تم دمج جميع مكونات POS في pos-module لتجنب مشاكل التبعيات
+          
+          return coreDeps;
         }
       },
     },
@@ -563,6 +671,15 @@ export default defineConfig(({ command, mode }) => {
         'tailwind-merge',
         'classnames',
         
+        // Essential Radix UI Components (ui-essentials)
+        '@radix-ui/react-dialog',
+        '@radix-ui/react-dropdown-menu',
+        '@radix-ui/react-tooltip',
+        '@radix-ui/react-slot',
+        
+        // Essential Animation (used in 285+ files)
+        'framer-motion',
+        
         // Core Polyfills Only
         'util',
         'buffer',
@@ -602,15 +719,17 @@ export default defineConfig(({ command, mode }) => {
         // Lodash (causes chunking issues when pre-optimized)
         'lodash',
         
-        // Heavy Animation
-        'framer-motion',
+        // Heavy Animation - moved to include
+        // 'framer-motion', // تم نقله إلى include
         
-        // All Radix UI (load on demand)
+        // All Radix UI (load on demand) - باستثناء الأساسيات
         '@radix-ui/react-accordion', '@radix-ui/react-alert-dialog',
         '@radix-ui/react-aspect-ratio', '@radix-ui/react-avatar',
         '@radix-ui/react-checkbox', '@radix-ui/react-collapsible',
-        '@radix-ui/react-context-menu', '@radix-ui/react-dialog',
-        '@radix-ui/react-dropdown-menu', '@radix-ui/react-hover-card',
+        '@radix-ui/react-context-menu', 
+        // '@radix-ui/react-dialog', // مسموح - في ui-essentials
+        // '@radix-ui/react-dropdown-menu', // مسموح - في ui-essentials  
+        '@radix-ui/react-hover-card',
         '@radix-ui/react-icons', '@radix-ui/react-label',
         '@radix-ui/react-menubar', '@radix-ui/react-navigation-menu',
         '@radix-ui/react-popover', '@radix-ui/react-progress',
@@ -619,7 +738,8 @@ export default defineConfig(({ command, mode }) => {
         '@radix-ui/react-slider', '@radix-ui/react-slot',
         '@radix-ui/react-switch', '@radix-ui/react-tabs',
         '@radix-ui/react-toast', '@radix-ui/react-toggle',
-        '@radix-ui/react-toggle-group', '@radix-ui/react-tooltip',
+        '@radix-ui/react-toggle-group', 
+        // '@radix-ui/react-tooltip', // مسموح - في ui-essentials
         
         // Heavy Utilities
         'axios',
@@ -629,7 +749,7 @@ export default defineConfig(({ command, mode }) => {
         '@sentry/react', '@sentry/browser', '@sentry/tracing', '@sentry/replay',
         
         // Context Providers (load on demand)
-        './src/context/POSDataContext.tsx',
+        // './src/context/POSDataContext.tsx', // تم نقله إلى pos-module
         './src/context/DashboardDataContext.tsx',
         './src/lib/cache/deduplication.ts'
       ],
@@ -639,7 +759,7 @@ export default defineConfig(({ command, mode }) => {
       
              // ⚡ تسريع عملية التحسين 
        esbuildOptions: {
-         target: 'es2020',
+         target: 'es2015',
          keepNames: true,
          minify: false, // لا نضغط في optimizeDeps
          treeShaking: false, // لا نقطع الشجرة في optimizeDeps
@@ -661,7 +781,7 @@ export default defineConfig(({ command, mode }) => {
       postcss: undefined // استخدام PostCSS الافتراضي
     },
     esbuild: {
-      target: 'es2020',
+      target: 'es2015',
       drop: isProd ? ['debugger'] : [],
       legalComments: 'none',
       jsx: 'automatic',

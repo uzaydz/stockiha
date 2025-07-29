@@ -96,6 +96,12 @@
     "privacyPolicy": "Privacy Policy",
     "termsOfService": "Terms of Service"
   },
+  "form": {
+    "fillFormToOrder": "Fill the form to order",
+    "orderForm": "Order Form",
+    "submit": "Submit Order",
+    "required": "Required"
+  },
   "common": {
     "loading": "Loading...",
     "error": "Error occurred",

@@ -1,3 +1,9 @@
+-- حذف الدوال الموجودة مسبقاً (إذا وجدت)
+DROP FUNCTION IF EXISTS public.create_product_size(UUID, UUID, TEXT, INTEGER, NUMERIC, TEXT, BOOLEAN);
+DROP FUNCTION IF EXISTS public.update_product_size(UUID, TEXT, INTEGER, NUMERIC, TEXT, BOOLEAN);
+DROP FUNCTION IF EXISTS public.delete_product_size(UUID);
+DROP FUNCTION IF EXISTS public.get_product_sizes(UUID);
+
 -- التعديلات اللازمة لدعم مقاسات المنتجات
 -- Created: 2024-07-25
 
@@ -192,24 +198,24 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
-    color_id UUID;
-    product_id UUID;
+    target_color_id UUID;
+    target_product_id UUID;
     product_org_id UUID;
     user_org_id UUID;
     is_default_size BOOLEAN;
     sizes_count INTEGER;
 BEGIN
     -- الحصول على معرف اللون والمنتج وحالة المقاس الافتراضي من معرف المقاس
-    SELECT ps.color_id, ps.product_id, ps.is_default INTO color_id, product_id, is_default_size 
+    SELECT ps.color_id, ps.product_id, ps.is_default INTO target_color_id, target_product_id, is_default_size 
     FROM public.product_sizes ps 
     WHERE ps.id = delete_product_size.size_id;
     
-    IF color_id IS NULL THEN
+    IF target_color_id IS NULL THEN
         RAISE EXCEPTION 'المقاس غير موجود';
     END IF;
     
     -- التحقق من أن المستخدم مسؤول عن المؤسسة المالكة للمنتج
-    SELECT organization_id INTO product_org_id FROM public.products WHERE id = product_id;
+    SELECT organization_id INTO product_org_id FROM public.products WHERE id = target_product_id;
     SELECT organization_id INTO user_org_id FROM public.users WHERE id = auth.uid() AND is_org_admin = true;
 
     IF user_org_id IS NULL OR user_org_id != product_org_id THEN
@@ -223,10 +229,10 @@ BEGIN
     IF is_default_size THEN
         UPDATE public.product_sizes 
         SET is_default = true 
-        WHERE color_id = color_id 
+        WHERE color_id = target_color_id 
         AND id = (
             SELECT id FROM public.product_sizes 
-            WHERE color_id = color_id 
+            WHERE color_id = target_color_id 
             LIMIT 1
         );
     END IF;
@@ -236,18 +242,18 @@ BEGIN
     SET quantity = (
         SELECT COALESCE(SUM(quantity), 0) 
         FROM public.product_sizes 
-        WHERE color_id = color_id
+        WHERE color_id = target_color_id
     )
-    WHERE id = color_id;
+    WHERE id = target_color_id;
     
     -- تحديث كمية المنتج بناءً على مجموع كميات الألوان
     UPDATE public.products 
     SET stock_quantity = (
         SELECT COALESCE(SUM(quantity), 0) 
         FROM public.product_colors 
-        WHERE product_id = product_id
+        WHERE product_id = target_product_id
     )
-    WHERE id = product_id;
+    WHERE id = target_product_id;
     
     RETURN true;
 END;
@@ -265,6 +271,10 @@ $$;
 
 -- تعديل RLS (Row Level Security) على الجدول الجديد
 ALTER TABLE public.product_sizes ENABLE ROW LEVEL SECURITY;
+
+-- حذف السياسات الموجودة مسبقاً (إذا وجدت)
+DROP POLICY IF EXISTS "أي شخص يمكنه قراءة مقاسات المنتجات" ON public.product_sizes;
+DROP POLICY IF EXISTS "فقط المسؤولون عن المؤسسة يمكنهم إدارة مقاسات المنتجات" ON public.product_sizes;
 
 -- إنشاء سياسات الأمان للجدول الجديد
 CREATE POLICY "أي شخص يمكنه قراءة مقاسات المنتجات" ON public.product_sizes

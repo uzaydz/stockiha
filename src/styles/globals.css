@@ -1,3 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Shimmer Animation */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+}
+
+/* باقي الأنماط الموجودة */
 @import url('./viewport-simulator.css');
 @import url('./icon-hover-fix.css');
 /* تطبيق خط Tajawal المحلي فقط */

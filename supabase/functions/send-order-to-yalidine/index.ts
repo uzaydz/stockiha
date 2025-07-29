@@ -4,7 +4,7 @@ import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-
 // Moved corsHeaders directly here
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*", // In production, restrict this to your specific domain(s)
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-application-name",
   "Access-Control-Allow-Methods": "POST, OPTIONS", // Add other methods if needed
 };
 
@@ -219,8 +219,9 @@ serve(async (req: Request) => {
             if (communeIdString && typeof communeIdString === 'string') {
                 const communeId = parseInt(communeIdString, 10);
                 if (!isNaN(communeId)) {
+                    // البحث في الجدول العالمي بدلاً من الجدول المحدود
                     const {data: communeInfo, error: cError} = await supabase
-                        .from("yalidine_municipalities")
+                        .from("yalidine_municipalities_global")
                         .select("name")
                         .eq("id", communeId)
                         .limit(1)
@@ -229,6 +230,20 @@ serve(async (req: Request) => {
                     } else if (communeInfo && communeInfo.name) {
                         toCommuneName = communeInfo.name;
                     } else {
+                        // إذا لم نجد البلدية بالرقم المحدد، نبحث عن البلدية الرئيسية للولاية
+                        const wilayaId = parseInt(addressDetails.state, 10);
+                        if (!isNaN(wilayaId)) {
+                            const {data: mainCommune, error: mainError} = await supabase
+                                .from("yalidine_municipalities_global")
+                                .select("name")
+                                .eq("wilaya_id", wilayaId)
+                                .order("id")
+                                .limit(1)
+                                .single();
+                            if (mainCommune && mainCommune.name) {
+                                toCommuneName = mainCommune.name;
+                            }
+                        }
                     }
                 } else {
                 }
@@ -258,7 +273,15 @@ serve(async (req: Request) => {
     }
 
     if (!toWilayaName || !toCommuneName) {
-         return new Response(JSON.stringify({ error: `Destination Wilaya or Commune is missing for order ${orderId}. Please ensure address or stop desk is correctly set.` }), {
+         return new Response(JSON.stringify({ 
+            error: `Destination Wilaya or Commune is missing for order ${orderId}. Please ensure address or stop desk is correctly set.`,
+            debug_info: {
+                toWilayaName,
+                toCommuneName,
+                shipping_address_id: orderData.shipping_address_id,
+                stop_desk_id: orderData.stop_desk_id
+            }
+        }), {
             status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
     }
@@ -332,15 +355,31 @@ serve(async (req: Request) => {
         const yalidineTrackingId = parcelSpecificResult.tracking;
         const labelUrl = parcelSpecificResult.label; 
 
-        await supabase
+        // تحديث قاعدة البيانات مع التحقق من النتيجة
+        const { data: updateData, error: updateError } = await supabase
           .from("online_orders")
           .update({ 
             yalidine_tracking_id: yalidineTrackingId, 
             yalidine_label_url: labelUrl,
-            status: "processing" 
+            shipping_provider: "yalidine",
+            status: "processing",
+            updated_at: new Date().toISOString()
           })
-          .eq("id", orderId);
-          
+          .eq("id", orderId)
+          .select();
+
+        if (updateError) {
+          return new Response(JSON.stringify({ 
+            success: false, 
+            message: "Yalidine shipment created but database update failed", 
+            tracking_id: yalidineTrackingId,
+            error_details: updateError.message 
+          }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
         return new Response(JSON.stringify({ success: true, tracking_id: yalidineTrackingId, label_url: labelUrl }), {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },

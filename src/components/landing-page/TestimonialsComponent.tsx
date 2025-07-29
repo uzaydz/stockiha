@@ -58,17 +58,51 @@ export const TestimonialsComponent: React.FC<TestimonialsComponentProps> = ({
     
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('customer_testimonials')
-        .select('*')
-        .eq('organization_id', settings.organizationId)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
+      // 🚀 محاولة استخدام البيانات المحفوظة من appInitializer أولاً
+      const { getAppInitData } = await import('@/lib/appInitializer');
+      const appData = getAppInitData();
       
-      if (error) throw error;
+      if (appData?.testimonials && appData.testimonials.length > 0) {
+        const mappedItems: TestimonialItem[] = appData.testimonials.map((item: any) => ({
+          id: item.id,
+          name: item.customer_name,
+          role: item.product_name || '',
+          avatar: item.customer_avatar || '',
+          comment: item.comment,
+          rating: item.rating
+        }));
+        
+        setTestimonials(mappedItems);
+        setIsLoading(false);
+        return;
+      }
+      
+      // 🔄 إذا لم تتوفر البيانات المحفوظة، جلب من قاعدة البيانات مع التنسيق
+      const { coordinateRequest } = await import('@/lib/api/requestCoordinator');
+      
+      const data = await coordinateRequest(
+        'customer_testimonials',
+        { 
+          organization_id: settings.organizationId,
+          is_active: true,
+          order: 'created_at.desc'
+        },
+        async () => {
+          const { data, error } = await supabase
+            .from('customer_testimonials')
+            .select('*')
+            .eq('organization_id', settings.organizationId)
+            .eq('is_active', true)
+            .order('created_at', { ascending: false });
+          
+          if (error) throw error;
+          return data;
+        },
+        'TestimonialsComponent'
+      );
       
       if (data) {
-        const mappedItems: TestimonialItem[] = data.map(item => ({
+        const mappedItems: TestimonialItem[] = data.map((item: any) => ({
           id: item.id,
           name: item.customer_name,
           role: item.product_name || '',

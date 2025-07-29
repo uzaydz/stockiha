@@ -62,26 +62,11 @@ export class OptimizedStoreService {
   }
 
   // =================================================================
-  // 🎯 الطريقة الرئيسية المحسنة
+  // 🎯 الطريقة الرئيسية المحسنة - بدون كاش
   // =================================================================
   async getStoreDataOptimized(subdomain: string): Promise<OptimizedStoreData> {
-    const cacheKey = `optimized_store_${subdomain}`;
-    
     try {
-      // فحص الذاكرة المؤقتة أولاً
-      const cachedData = this.memoryCache.get(cacheKey);
-      if (cachedData) {
-        return cachedData;
-      }
-
-      // فحص التخزين المؤقت المحلي
-      const localCachedData = await getCacheData(cacheKey);
-      if (localCachedData) {
-        this.memoryCache.set(cacheKey, localCachedData, this.CACHE_TTL);
-        return localCachedData as OptimizedStoreData;
-      }
-
-      // استخدام المدير المركزي لجلب جميع البيانات
+      // جلب البيانات مباشرة من قاعدة البيانات في كل مرة
       const allStoreData = await centralRequestManager.getAllStoreData(subdomain);
 
       // تحويل البيانات إلى التنسيق المطلوب
@@ -98,13 +83,10 @@ export class OptimizedStoreService {
         cacheTimestamp: new Date().toISOString()
       };
 
-      // حفظ في جميع طبقات التخزين المؤقت
-      this.memoryCache.set(cacheKey, optimizedData, this.CACHE_TTL);
-      await setCacheData(cacheKey, optimizedData, this.CACHE_TTL);
-
       return optimizedData;
 
     } catch (error: any) {
+      console.error('خطأ في جلب بيانات المتجر:', error);
       
       // إرجاع بيانات افتراضية في حالة الخطأ
       return {
@@ -143,26 +125,8 @@ export class OptimizedStoreService {
   }
 
   async clearStoreCache(organizationId: string): Promise<void> {
-    try {
-      // مسح جميع أنواع التخزين المؤقت
-      const cacheKeys = [
-        `optimized_store_${organizationId}`,
-        `store_data_${organizationId}`,
-        `store_components_${organizationId}`,
-        `store_categories_${organizationId}`,
-        `store_products_${organizationId}`
-      ];
-
-      // مسح من الذاكرة المؤقتة
-      cacheKeys.forEach(key => {
-        this.memoryCache.delete(key);
-      });
-
-      // مسح من التخزين المؤقت المحلي
-      await Promise.all(cacheKeys.map(key => clearCacheItem(key)));
-
-    } catch (error) {
-    }
+    // لا نحتاج لمسح الكاش لأننا لا نستخدمه بعد الآن
+    console.log('تم استدعاء clearStoreCache ولكن الكاش معطل');
   }
 
   // =================================================================

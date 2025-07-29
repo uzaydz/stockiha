@@ -68,14 +68,6 @@ export class FacebookConversionAPI {
       ...(this.testEventCode && { test_event_code: this.testEventCode })
     };
 
-    console.log('🔄 إرسال Facebook Conversion API:', {
-      url,
-      pixelId: this.pixelId,
-      testMode: !!this.testEventCode,
-      eventCount: payload.data.length,
-      events: payload.data.map(d => d.event_name)
-    });
-
     try {
       const response = await fetch(url, {
         method: 'POST',
@@ -95,12 +87,6 @@ export class FacebookConversionAPI {
         } catch {
           errorData = { message: errorText };
         }
-
-        console.error('❌ Facebook Conversion API خطأ:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorData
-        });
 
         // تسجيل الخطأ في بيانات التشخيص
         if (typeof window !== 'undefined') {
@@ -127,12 +113,6 @@ export class FacebookConversionAPI {
       }
 
       const responseData = await response.json();
-      
-      console.log('✅ Facebook Conversion API نجح:', {
-        eventsReceived: responseData.events_received,
-        fbtrace_id: responseData.fbtrace_id,
-        messages: responseData.messages
-      });
 
       // تسجيل النجاح في بيانات التشخيص
       if (typeof window !== 'undefined') {
@@ -157,7 +137,6 @@ export class FacebookConversionAPI {
 
       return responseData;
     } catch (error) {
-      console.error('❌ خطأ في إرسال Facebook Conversion API:', error);
       throw error;
     }
   }
@@ -317,7 +296,6 @@ export class FacebookConversionAPI {
       
       return hashHex;
     } catch (error) {
-      console.warn('فشل في تشفير البيانات:', error);
       return '';
     }
   }
@@ -519,7 +497,6 @@ export class FacebookConversionAPI {
       
       return undefined;
     } catch (error) {
-      console.warn('خطأ في جلب Facebook Click ID:', error);
       return undefined;
     }
   }
@@ -534,4 +511,4 @@ export function createFacebookConversionAPI(
   testEventCode?: string
 ): FacebookConversionAPI {
   return new FacebookConversionAPI(pixelId, accessToken, testEventCode);
-} 
+}

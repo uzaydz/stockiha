@@ -87,6 +87,65 @@ function applyThemeToDOM(theme: Theme) {
   root.style.display = '';
 }
 
+// إضافة دالة تحويل HEX إلى HSL
+function hexToHSL(hex: string): string {
+  // إزالة # في حال وجودها
+  hex = hex.replace(/^#/, '');
+  
+  // التحقق من صحة اللون
+  if (!/^[0-9A-F]{6}$/i.test(hex) && !/^[0-9A-F]{3}$/i.test(hex)) {
+    return '217.2 91.2% 59.8%'; // لون افتراضي
+  }
+  
+  // تحويل إلى RGB
+  let r = 0, g = 0, b = 0;
+  if (hex.length === 3) {
+    r = parseInt(hex[0] + hex[0], 16);
+    g = parseInt(hex[1] + hex[1], 16);
+    b = parseInt(hex[2] + hex[2], 16);
+  } else if (hex.length === 6) {
+    r = parseInt(hex.substring(0, 2), 16);
+    g = parseInt(hex.substring(2, 4), 16);
+    b = parseInt(hex.substring(4, 6), 16);
+  }
+  
+  // تطبيع RGB إلى قيم بين 0 و 1
+  r /= 255;
+  g /= 255;
+  b /= 255;
+  
+  // حساب قيم HSL
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h = 0, s = 0, l = (max + min) / 2;
+
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    
+    switch (max) {
+      case r:
+        h = (g - b) / d + (g < b ? 6 : 0);
+        break;
+      case g:
+        h = (b - r) / d + 2;
+        break;
+      case b:
+        h = (r - g) / d + 4;
+        break;
+    }
+    
+    h /= 6;
+  }
+  
+  // تحويل إلى صيغة CSS
+  h = Math.round(h * 360);
+  s = Math.round(s * 100);
+  l = Math.round(l * 100);
+  
+  return `${h} ${s}% ${l}%`;
+}
+
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialOrganizationId }) => {
   // استخدام console.log مباشرة في التطوير لتجنب تغيير dependencies
   const isDebug = process.env.NODE_ENV === 'development';
@@ -162,23 +221,16 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
   // دالة جلب وتطبيق ثيم المؤسسة مع حماية من التكرار
   const applyOrganizationTheme = useCallback(async () => {
     const applyStart = performance.now();
-    console.log('🎨 [PERFORMANCE] بداية تطبيق ثيم المؤسسة:', {
-      organizationId: initialOrganizationId,
-      isApplying: isApplyingThemeRef.current,
-      applyStart
-    });
     
     // منع التشغيل المتزامن
     if (isApplyingThemeRef.current) {
       if (isDebug) {
-        console.log('⏸️ [PERFORMANCE] منع التشغيل المتزامن لتطبيق ثيم المؤسسة');
       }
       return;
     }
 
     if (!initialOrganizationId) {
       if (isDebug) {
-        console.log('⚠️ [PERFORMANCE] لا يوجد معرف مؤسسة لتطبيق الثيم');
       }
       return;
     }
@@ -186,7 +238,6 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
     // منع التطبيق المتكرر لنفس المؤسسة
     if (lastAppliedOrganizationIdRef.current === initialOrganizationId && hasInitializedRef.current) {
       if (isDebug) {
-        console.log('⏭️ [PERFORMANCE] تم تطبيق ثيم هذه المؤسسة بالفعل');
       }
       return;
     }
@@ -196,34 +247,21 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
 
     try {
       if (isDebug) {
-        console.log('🎨 [PERFORMANCE] بدء تطبيق ثيم المؤسسة:', initialOrganizationId);
       }
 
       // جلب إعدادات المؤسسة
       const settingsStart = performance.now();
-      console.log('📡 [PERFORMANCE] بداية جلب إعدادات المؤسسة...');
       
       const orgSettings = await getOrganizationSettings(initialOrganizationId);
       
       const settingsEnd = performance.now();
-      console.log('✅ [PERFORMANCE] انتهاء جلب إعدادات المؤسسة:', {
-        duration: (settingsEnd - settingsStart) / 1000,
-        'وقت جلب الإعدادات بالثواني': (settingsEnd - settingsStart) / 1000,
-        hasSettings: !!orgSettings
-      });
 
       if (orgSettings) {
         // تطبيق وضع الثيم فوراً إذا كان متاحاً
         if ((orgSettings as any).theme_mode) {
           const themeStart = performance.now();
           const orgTheme = convertThemeMode((orgSettings as any).theme_mode);
-          
-          console.log('🎨 [PERFORMANCE] تطبيق وضع الثيم:', {
-            originalMode: (orgSettings as any).theme_mode,
-            convertedTheme: orgTheme,
-            themeStart
-          });
-          
+
           // حفظ تفضيل المؤسسة
           localStorage.setItem('theme-preference', orgTheme);
           localStorage.setItem('bazaar_org_theme', JSON.stringify({
@@ -240,53 +278,32 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
           }
           
           const themeEnd = performance.now();
-          console.log('✅ [PERFORMANCE] انتهاء تطبيق وضع الثيم:', {
-            duration: (themeEnd - themeStart) / 1000,
-            'وقت تطبيق الوضع بالثواني': (themeEnd - themeStart) / 1000
-          });
         }
         
         // تطبيق ألوان المؤسسة المخصصة فوراً
         if ((orgSettings as any).theme_primary_color || (orgSettings as any).theme_secondary_color) {
           const colorsStart = performance.now();
-          console.log('🎨 [PERFORMANCE] بداية تطبيق الألوان المخصصة:', {
-            primaryColor: (orgSettings as any).theme_primary_color,
-            secondaryColor: (orgSettings as any).theme_secondary_color,
-            colorsStart
-          });
           
           const root = document.documentElement;
           
           if ((orgSettings as any).theme_primary_color) {
-            root.style.setProperty('--primary', (orgSettings as any).theme_primary_color);
+            root.style.setProperty('--primary', hexToHSL((orgSettings as any).theme_primary_color));
           }
           if ((orgSettings as any).theme_secondary_color) {
-            root.style.setProperty('--secondary', (orgSettings as any).theme_secondary_color);
+            root.style.setProperty('--secondary', hexToHSL((orgSettings as any).theme_secondary_color));
           }
           
           const colorsEnd = performance.now();
-          console.log('✅ [PERFORMANCE] انتهاء تطبيق الألوان المخصصة:', {
-            duration: (colorsEnd - colorsStart) / 1000,
-            'وقت تطبيق الألوان بالثواني': (colorsEnd - colorsStart) / 1000
-          });
         }
         
         // تطبيق الخطوط المخصصة
         if ((orgSettings as any).theme_font_family) {
           const fontStart = performance.now();
-          console.log('🎨 [PERFORMANCE] بداية تطبيق الخط المخصص:', {
-            fontFamily: (orgSettings as any).theme_font_family,
-            fontStart
-          });
           
           const root = document.documentElement;
           root.style.setProperty('--font-family', (orgSettings as any).theme_font_family);
           
           const fontEnd = performance.now();
-          console.log('✅ [PERFORMANCE] انتهاء تطبيق الخط المخصص:', {
-            duration: (fontEnd - fontStart) / 1000,
-            'وقت تطبيق الخط بالثواني': (fontEnd - fontStart) / 1000
-          });
         }
         }
 
@@ -295,57 +312,31 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
         hasInitializedRef.current = true;
 
       if (isDebug) {
-        console.log('✅ [PERFORMANCE] تم تطبيق ثيم المؤسسة بنجاح:', initialOrganizationId);
       }
 
     } catch (error) {
       const errorTime = performance.now();
-      console.error('❌ [PERFORMANCE] خطأ في تطبيق ثيم المؤسسة:', {
-        error,
-        organizationId: initialOrganizationId,
-        duration: (errorTime - applyStart) / 1000,
-        'وقت الخطأ بالثواني': (errorTime - applyStart) / 1000
-      });
     } finally {
       // إزالة العلم
       isApplyingThemeRef.current = false;
       
       const applyEnd = performance.now();
-      console.log('🏁 [PERFORMANCE] انتهاء تطبيق ثيم المؤسسة:', {
-        totalDuration: (applyEnd - applyStart) / 1000,
-        'إجمالي وقت تطبيق ثيم المؤسسة بالثواني': (applyEnd - applyStart) / 1000,
-        organizationId: initialOrganizationId
-      });
     }
   }, [initialOrganizationId, theme, isDebug]);
 
   // تطبيق الثيم الأولي على DOM
   useEffect(() => {
     const themeApplyStart = performance.now();
-    console.log('🎨 [PERFORMANCE] بداية تطبيق الثيم الأولي:', {
-      theme,
-      themeApplyStart
-    });
     
     applyThemeToDOM(theme);
     lastAppliedThemeRef.current = theme;
     
     const themeApplyEnd = performance.now();
-    console.log('✅ [PERFORMANCE] انتهاء تطبيق الثيم الأولي:', {
-      theme,
-      duration: (themeApplyEnd - themeApplyStart) / 1000,
-      'وقت تطبيق الثيم بالثواني': (themeApplyEnd - themeApplyStart) / 1000
-    });
   }, [theme]);
 
   // تطبيق فوري للثيم عند تحميل الكومبوننت لأول مرة
   useEffect(() => {
     const initialThemeStart = performance.now();
-    console.log('🚀 [PERFORMANCE] بداية تطبيق الثيم الفوري:', {
-      theme,
-      initialOrganizationId,
-      initialThemeStart
-    });
     
     // تطبيق الثيم فوراً عند التحميل
     applyThemeToDOM(theme);
@@ -353,7 +344,6 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
     // محاولة تحميل الثيم من localStorage فوراً
     const savedOrgTheme = localStorage.getItem('theme-preference');
     if (savedOrgTheme && ['light', 'dark', 'system'].includes(savedOrgTheme) && savedOrgTheme !== theme) {
-      console.log('💾 [PERFORMANCE] تطبيق ثيم محفوظ من localStorage:', savedOrgTheme);
       setTheme(savedOrgTheme as Theme);
       applyThemeToDOM(savedOrgTheme as Theme);
     }
@@ -363,10 +353,6 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
       // تطبيق فوري بدون انتظار
       const quickApplyTheme = async () => {
         const quickStart = performance.now();
-        console.log('⚡ [PERFORMANCE] بداية التطبيق السريع للثيم من cache:', {
-          organizationId: initialOrganizationId,
-          quickStart
-        });
         
         try {
           const cachedOrgTheme = localStorage.getItem('bazaar_org_theme');
@@ -377,42 +363,26 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
               applyThemeToDOM(parsed.mode);
               
               const quickEnd = performance.now();
-              console.log('⚡ [PERFORMANCE] تطبيق سريع للثيم من cache:', {
-                mode: parsed.mode,
-                duration: (quickEnd - quickStart) / 1000,
-                'وقت التطبيق السريع بالثواني': (quickEnd - quickStart) / 1000
-              });
             }
           }
         } catch (e) {
-          console.error('❌ [PERFORMANCE] خطأ في التطبيق السريع للثيم:', e);
         }
       };
       quickApplyTheme();
       
       // تطبيق كامل في الخلفية
       setTimeout(() => {
-        console.log('🔄 [PERFORMANCE] بداية التطبيق الكامل للثيم في الخلفية');
         applyOrganizationTheme();
       }, 100);
     }
     
     const initialThemeEnd = performance.now();
-    console.log('✅ [PERFORMANCE] انتهاء تطبيق الثيم الفوري:', {
-      duration: (initialThemeEnd - initialThemeStart) / 1000,
-      'إجمالي وقت التطبيق الفوري بالثواني': (initialThemeEnd - initialThemeStart) / 1000
-    });
   }, []);
 
   // تطبيق ثيم المؤسسة عند تغيير المعرف - مع تحسين
   useEffect(() => {
     if (initialOrganizationId && initialOrganizationId !== lastAppliedOrganizationIdRef.current) {
       const orgThemeStart = performance.now();
-      console.log('🏢 [PERFORMANCE] بداية تطبيق ثيم المؤسسة:', {
-        organizationId: initialOrganizationId,
-        lastApplied: lastAppliedOrganizationIdRef.current,
-        orgThemeStart
-      });
       
       // تطبيق سريع من cache أولاً
       const cachedOrgTheme = localStorage.getItem('bazaar_org_theme');
@@ -422,13 +392,8 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
           if (parsed.organizationId === initialOrganizationId && parsed.mode) {
             setTheme(parsed.mode);
             applyThemeToDOM(parsed.mode);
-            console.log('⚡ [PERFORMANCE] تطبيق سريع للثيم من cache:', {
-              mode: parsed.mode,
-              organizationId: initialOrganizationId
-            });
           }
         } catch (e) {
-          console.error('❌ [PERFORMANCE] خطأ في تطبيق ثيم المؤسسة من cache:', e);
         }
       }
       
@@ -436,10 +401,6 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
       applyOrganizationTheme();
       
       const orgThemeEnd = performance.now();
-      console.log('✅ [PERFORMANCE] انتهاء تطبيق ثيم المؤسسة:', {
-        duration: (orgThemeEnd - orgThemeStart) / 1000,
-        'وقت تطبيق ثيم المؤسسة بالثواني': (orgThemeEnd - orgThemeStart) / 1000
-      });
     }
   }, [initialOrganizationId, applyOrganizationTheme]);
 

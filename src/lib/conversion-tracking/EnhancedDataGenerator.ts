@@ -289,7 +289,6 @@ export class EnhancedDataGenerator {
         return ip;
       }
     } catch (error) {
-      console.warn('فشل في جلب عنوان IP:', error);
     }
     
     return undefined;
@@ -385,7 +384,6 @@ export class EnhancedDataGenerator {
 
       return locationData;
     } catch (error) {
-      console.warn('فشل في تقدير بيانات الموقع:', error);
       return {
         country: 'DZ',
         city: 'الجزائر',
@@ -452,4 +450,4 @@ export class EnhancedDataGenerator {
   }
 }
 
-export default EnhancedDataGenerator; 
+export default EnhancedDataGenerator;

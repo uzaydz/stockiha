@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { CartTab } from '@/components/pos/CartTabManager';
 import { Product, Service, User } from '@/types';
@@ -34,18 +34,28 @@ export const useCartTabs = (options: UseCartTabsOptions = {}) => {
         const saved = localStorage.getItem(storageKey);
         if (saved) {
           const parsedTabs = JSON.parse(saved);
+          console.log('📂 استعادة التبويبات من localStorage:', parsedTabs.map(t => ({ 
+            id: t.id, 
+            name: t.name, 
+            itemsCount: t.cartItems?.length || 0 
+          })));
+          
           // تحويل التواريخ من نصوص إلى كائنات Date
-          return parsedTabs.map((tab: any) => ({
+          const restoredTabs = parsedTabs.map((tab: any) => ({
             ...tab,
             createdAt: new Date(tab.createdAt),
             lastModified: new Date(tab.lastModified)
           }));
+          
+          return restoredTabs;
         }
       } catch (error) {
+        console.error('خطأ في استعادة التبويبات:', error);
       }
     }
 
     // إنشاء تبويب افتراضي
+    console.log('🆕 إنشاء تبويب افتراضي جديد');
     return [{
       id: uuidv4(),
       name: 'عميل جديد',
@@ -60,18 +70,32 @@ export const useCartTabs = (options: UseCartTabsOptions = {}) => {
 
   const [activeTabId, setActiveTabId] = useState<string>(tabs[0]?.id || '');
 
-  // حفظ التبويبات في التخزين المحلي
+  // حفظ التبويبات في التخزين المحلي - محسن لتجنب التداخل
   useEffect(() => {
     if (autoSave && tabs.length > 0) {
-      try {
-        localStorage.setItem(storageKey, JSON.stringify(tabs));
-      } catch (error) {
-      }
+      // تأخير صغير لتجنب الحفظ المتكرر أثناء التحديثات السريعة
+      const timeoutId = setTimeout(() => {
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(tabs));
+        } catch (error) {
+          console.error('خطأ في حفظ التبويبات:', error);
+        }
+      }, 100);
+
+      return () => clearTimeout(timeoutId);
     }
   }, [tabs, autoSave, storageKey]);
 
-  // العثور على التبويب النشط
-  const activeTab = tabs.find(tab => tab.id === activeTabId);
+  // العثور على التبويب النشط - محسن للتحديث التلقائي
+  const activeTab = useMemo(() => {
+    const foundTab = tabs.find(tab => tab.id === activeTabId);
+    console.log('🔍 البحث عن التبويب النشط:', { 
+      activeTabId, 
+      foundTab: foundTab ? { id: foundTab.id, itemsCount: foundTab.cartItems.length } : null,
+      allTabs: tabs.map(t => ({ id: t.id, itemsCount: t.cartItems.length }))
+    });
+    return foundTab;
+  }, [tabs, activeTabId]);
 
   // إضافة تبويب جديد
   const addTab = useCallback((name?: string, customerId?: string, customerName?: string) => {
@@ -115,7 +139,7 @@ export const useCartTabs = (options: UseCartTabsOptions = {}) => {
     });
   }, [tabs.length, activeTabId]);
 
-  // تحديث تبويب
+  // تحديث تبويب - للاستخدام مع الدوال القديمة فقط
   const updateTab = useCallback((tabId: string, updates: Partial<CartTab>) => {
     setTabs(prev => prev.map(tab => 
       tab.id === tabId 
@@ -124,7 +148,7 @@ export const useCartTabs = (options: UseCartTabsOptions = {}) => {
     ));
   }, []);
 
-  // إضافة منتج للتبويب النشط
+  // إضافة منتج للتبويب النشط - محسن للعمل مع الحالة الحالية
   const addItemToCart = useCallback((product: Product, quantity: number = 1, options?: {
     colorId?: string;
     colorName?: string;
@@ -134,82 +158,201 @@ export const useCartTabs = (options: UseCartTabsOptions = {}) => {
     variantPrice?: number;
     variantImage?: string;
   }) => {
-    if (!activeTab) return;
-
-    const newItem: CartItem = {
-      product,
+    console.log('➕ بداية إضافة منتج للسلة:', { 
+      productId: product.id, 
+      productName: product.name,
       quantity,
-      ...options
-    };
-
-    // البحث عن منتج مشابه في السلة
-    const existingIndex = activeTab.cartItems.findIndex(item =>
-      item.product.id === product.id &&
-      item.colorId === options?.colorId &&
-      item.sizeId === options?.sizeId
-    );
-
-    if (existingIndex >= 0) {
-      // تحديث الكمية
-      const updatedCartItems = [...activeTab.cartItems];
-      updatedCartItems[existingIndex].quantity += quantity;
-      updateTab(activeTab.id, { cartItems: updatedCartItems });
-    } else {
-      // إضافة منتج جديد
-      updateTab(activeTab.id, { 
-        cartItems: [...activeTab.cartItems, newItem] 
-      });
-    }
-  }, [activeTab, updateTab]);
-
-  // تحديث كمية منتج
-  const updateItemQuantity = useCallback((tabId: string, index: number, quantity: number) => {
-    const tab = tabs.find(t => t.id === tabId);
-    if (!tab) return;
-
-    if (quantity <= 0) {
-      // حذف المنتج
-      const updatedCartItems = tab.cartItems.filter((_, i) => i !== index);
-      updateTab(tabId, { cartItems: updatedCartItems });
-    } else {
-      // تحديث الكمية
-      const updatedCartItems = [...tab.cartItems];
-      updatedCartItems[index].quantity = quantity;
-      updateTab(tabId, { cartItems: updatedCartItems });
-    }
-  }, [tabs, updateTab]);
-
-  // حذف منتج من السلة
-  const removeItemFromCart = useCallback((tabId: string, index: number) => {
-    const tab = tabs.find(t => t.id === tabId);
-    if (!tab) return;
-
-    const updatedCartItems = tab.cartItems.filter((_, i) => i !== index);
-    updateTab(tabId, { cartItems: updatedCartItems });
-  }, [tabs, updateTab]);
-
-  // مسح السلة
-  const clearCart = useCallback((tabId: string) => {
-    updateTab(tabId, { 
-      cartItems: [],
-      selectedServices: [],
-      selectedSubscriptions: []
+      activeTabId
     });
-  }, [updateTab]);
 
-  // إضافة خدمة
+    // استخدام setTabs للحصول على أحدث حالة
+    setTabs(currentTabs => {
+      const currentActiveTab = currentTabs.find(tab => tab.id === activeTabId);
+      
+      if (!currentActiveTab) {
+        console.warn('⚠️ لا يوجد تبويب نشط لإضافة المنتج');
+        return currentTabs;
+      }
+
+      console.log('📊 حالة التبويب النشط الحالية:', { 
+        tabId: currentActiveTab.id,
+        currentItemsCount: currentActiveTab.cartItems.length,
+        items: currentActiveTab.cartItems.map(item => ({ id: item.product.id, name: item.product.name, quantity: item.quantity }))
+      });
+
+      const newItem: CartItem = {
+        product,
+        quantity,
+        ...options
+      };
+
+      // البحث عن منتج مشابه في السلة
+      const existingIndex = currentActiveTab.cartItems.findIndex(item =>
+        item.product.id === product.id &&
+        item.colorId === options?.colorId &&
+        item.sizeId === options?.sizeId
+      );
+
+      if (existingIndex >= 0) {
+        // تحديث الكمية
+        const updatedCartItems = [...currentActiveTab.cartItems];
+        updatedCartItems[existingIndex].quantity += quantity;
+        console.log('🔄 تحديث كمية منتج موجود:', { 
+          index: existingIndex, 
+          oldQuantity: currentActiveTab.cartItems[existingIndex].quantity,
+          newQuantity: updatedCartItems[existingIndex].quantity,
+          totalItems: updatedCartItems.length
+        });
+
+        return currentTabs.map(tab => 
+          tab.id === activeTabId 
+            ? { ...tab, cartItems: updatedCartItems, lastModified: new Date() }
+            : tab
+        );
+      } else {
+        // إضافة منتج جديد
+        const newCartItems = [...currentActiveTab.cartItems, newItem];
+        console.log('🆕 إضافة منتج جديد:', { 
+          newItemsCount: newCartItems.length,
+          newItem: { id: product.id, name: product.name },
+          allItems: newCartItems.map(item => ({ id: item.product.id, name: item.product.name }))
+        });
+
+        return currentTabs.map(tab => 
+          tab.id === activeTabId 
+            ? { ...tab, cartItems: newCartItems, lastModified: new Date() }
+            : tab
+        );
+      }
+    });
+  }, [activeTabId]);
+
+  // تحديث كمية منتج - محسن للعمل مع الحالة الحالية
+  const updateItemQuantity = useCallback((tabId: string, index: number, quantity: number) => {
+    console.log('🔢 تحديث كمية منتج:', { tabId, index, quantity });
+    
+    setTabs(currentTabs => {
+      const tab = currentTabs.find(t => t.id === tabId);
+      if (!tab) {
+        console.warn('⚠️ التبويب غير موجود:', tabId);
+        return currentTabs;
+      }
+
+      if (quantity <= 0) {
+        // حذف المنتج
+        const updatedCartItems = tab.cartItems.filter((_, i) => i !== index);
+        console.log('🗑️ حذف منتج:', { index, newItemsCount: updatedCartItems.length });
+        
+        return currentTabs.map(t => 
+          t.id === tabId 
+            ? { ...t, cartItems: updatedCartItems, lastModified: new Date() }
+            : t
+        );
+      } else {
+        // تحديث الكمية
+        const updatedCartItems = [...tab.cartItems];
+        updatedCartItems[index].quantity = quantity;
+        console.log('📝 تحديث كمية:', { index, newQuantity: quantity, totalItems: updatedCartItems.length });
+        
+        return currentTabs.map(t => 
+          t.id === tabId 
+            ? { ...t, cartItems: updatedCartItems, lastModified: new Date() }
+            : t
+        );
+      }
+    });
+  }, []);
+
+  // حذف منتج من السلة - محسن للعمل مع الحالة الحالية
+  const removeItemFromCart = useCallback((tabId: string, index: number) => {
+    console.log('🗑️ حذف منتج من السلة:', { tabId, index });
+    
+    setTabs(currentTabs => {
+      const tab = currentTabs.find(t => t.id === tabId);
+      if (!tab) {
+        console.warn('⚠️ التبويب غير موجود:', tabId);
+        return currentTabs;
+      }
+
+      const updatedCartItems = tab.cartItems.filter((_, i) => i !== index);
+      console.log('✅ تم حذف المنتج:', { index, newItemsCount: updatedCartItems.length });
+      
+      return currentTabs.map(t => 
+        t.id === tabId 
+          ? { ...t, cartItems: updatedCartItems, lastModified: new Date() }
+          : t
+      );
+    });
+  }, []);
+
+  // مسح السلة - محسن للحفظ الفوري والعمل مع الحالة الحالية
+  const clearCart = useCallback((tabId: string) => {
+    console.log('🗑️ مسح السلة للتبويب:', tabId);
+    
+    setTabs(currentTabs => {
+      const tab = currentTabs.find(t => t.id === tabId);
+      if (!tab) {
+        console.warn('⚠️ التبويب غير موجود:', tabId);
+        return currentTabs;
+      }
+
+      console.log('📊 قبل المسح:', { itemsCount: tab.cartItems.length, servicesCount: tab.selectedServices.length });
+      
+      const updatedTabs = currentTabs.map(t => 
+        t.id === tabId 
+          ? { 
+              ...t, 
+              cartItems: [],
+              selectedServices: [],
+              selectedSubscriptions: [],
+              lastModified: new Date() 
+            }
+          : t
+      );
+      
+      console.log('📝 التبويبات بعد المسح:', updatedTabs.map(t => ({ id: t.id, itemsCount: t.cartItems.length })));
+      
+      // حفظ فوري في localStorage لضمان عدم عودة البيانات
+      if (autoSave) {
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(updatedTabs));
+          console.log('💾 تم حفظ السلة المفرغة في localStorage');
+        } catch (error) {
+          console.error('خطأ في حفظ السلة المفرغة:', error);
+        }
+      }
+      
+      return updatedTabs;
+    });
+  }, [autoSave, storageKey]);
+
+  // إضافة خدمة - محسن للعمل مع الحالة الحالية
   const addService = useCallback((service: Service & {
     scheduledDate?: Date;
     notes?: string;
     customerId?: string;
     public_tracking_code?: string;
   }) => {
-    if (!activeTab) return;
+    console.log('🔧 إضافة خدمة:', { serviceId: service.id, serviceName: service.name, activeTabId });
+    
+    setTabs(currentTabs => {
+      const currentActiveTab = currentTabs.find(tab => tab.id === activeTabId);
+      
+      if (!currentActiveTab) {
+        console.warn('⚠️ لا يوجد تبويب نشط لإضافة الخدمة');
+        return currentTabs;
+      }
 
-    updateTab(activeTab.id, {
-      selectedServices: [...activeTab.selectedServices, service]
+      const newServices = [...currentActiveTab.selectedServices, service];
+      console.log('✅ تم إضافة الخدمة:', { newServicesCount: newServices.length });
+
+      return currentTabs.map(tab => 
+        tab.id === activeTabId 
+          ? { ...tab, selectedServices: newServices, lastModified: new Date() }
+          : tab
+      );
     });
-  }, [activeTab, updateTab]);
+  }, [activeTabId]);
 
   // حذف خدمة
   const removeService = useCallback((tabId: string, serviceId: string) => {
@@ -341,6 +484,28 @@ export const useCartTabs = (options: UseCartTabsOptions = {}) => {
     };
   }, [tabs]);
 
+  // مسح جميع البيانات المحفوظة (للطوارئ)
+  const clearAllSavedData = useCallback(() => {
+    try {
+      localStorage.removeItem(storageKey);
+      // إعادة تعيين التبويبات للحالة الافتراضية
+      const defaultTab = {
+        id: uuidv4(),
+        name: 'عميل جديد',
+        cartItems: [],
+        selectedServices: [],
+        selectedSubscriptions: [],
+        createdAt: new Date(),
+        lastModified: new Date(),
+        isActive: true
+      };
+      setTabs([defaultTab]);
+      setActiveTabId(defaultTab.id);
+    } catch (error) {
+      console.error('خطأ في مسح البيانات المحفوظة:', error);
+    }
+  }, [storageKey]);
+
   return {
     tabs,
     activeTab,
@@ -362,6 +527,7 @@ export const useCartTabs = (options: UseCartTabsOptions = {}) => {
     assignCustomerToTab,
     duplicateTab,
     clearEmptyTabs,
-    getTabSummary
+    getTabSummary,
+    clearAllSavedData
   };
 };

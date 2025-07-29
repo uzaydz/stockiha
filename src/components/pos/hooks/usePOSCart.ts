@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
 import { Product } from '@/types';
 import { useCartTabs } from '@/hooks/useCartTabs';
@@ -60,13 +60,36 @@ export const usePOSCart = ({
     maxTabs: 8
   });
 
-  // للتوافق مع الكود الحالي
-  const cartItems = activeTab?.cartItems || [];
-  const selectedServices = activeTab?.selectedServices || [];
-  const selectedSubscriptions = activeTab?.selectedSubscriptions || [];
+  // للتوافق مع الكود الحالي - محسن للتحديث التلقائي
+  const cartItems = useMemo(() => {
+    const items = activeTab?.cartItems || [];
+    console.log('🛒 تحديث cartItems:', { 
+      tabId: activeTab?.id, 
+      itemsCount: items.length,
+      items: items.map(item => ({ id: item.product.id, name: item.product.name, quantity: item.quantity }))
+    });
+    return items;
+  }, [activeTab?.cartItems, activeTab?.id]);
+  
+  const selectedServices = useMemo(() => {
+    const services = activeTab?.selectedServices || [];
+    console.log('🔧 تحديث selectedServices:', { tabId: activeTab?.id, servicesCount: services.length });
+    return services;
+  }, [activeTab?.selectedServices, activeTab?.id]);
+  
+  const selectedSubscriptions = useMemo(() => {
+    const subscriptions = activeTab?.selectedSubscriptions || [];
+    console.log('📋 تحديث selectedSubscriptions:', { tabId: activeTab?.id, subscriptionsCount: subscriptions.length });
+    return subscriptions;
+  }, [activeTab?.selectedSubscriptions, activeTab?.id]);
 
   // إضافة منتج أساسي للسلة
   const addItemToCart = useCallback((product: Product) => {
+
+    if (!activeTabId) {
+      return;
+    }
+
     // استخدام المخزون من المنتج نفسه أولاً
     let currentStock = product.stockQuantity || product.stock_quantity || 0;
     
@@ -78,41 +101,19 @@ export const usePOSCart = ({
         currentStock = stockFromContext;
       }
     } catch (error) {
-      // استخدام المخزون من المنتج نفسه في حالة الخطأ
+      // استخدام المخزون من المنتج مباشرة في حالة الخطأ
     }
-    
-    // البحث عن منتج مشابه في السلة
-    const existingItem = activeTab?.cartItems.find(item => 
-      item.product.id === product.id && 
-      !item.colorId && 
-      !item.sizeId
-    );
-    
-    if (existingItem) {
-      if (existingItem.quantity >= currentStock) {
-        toast.error(`لا يمكن إضافة المزيد من "${product.name}". الكمية المتاحة: ${currentStock}`);
-        return;
-      }
-    } else {
-      if (currentStock <= 0) {
-        toast.error(`المنتج "${product.name}" غير متوفر في المخزون`);
-        return;
-      }
+
+    // التحقق من توفر المخزون
+    if (currentStock <= 0) {
+      // يمكن إضافة toast notification هنا لاحقاً
+      return;
     }
-    
-    // إضافة المنتج للتبويب النشط
+
+    // إضافة المنتج للسلة مباشرة
     addItemToCartTab(product, 1);
     
-    // تحديث المخزون في cache فوراً (إنقاص المخزون عند البيع)
-    updateProductStockInCache(
-      product.id,
-      null,
-      null,
-      -1
-    );
-    
-    toast.success(`تمت إضافة "${product.name}" إلى السلة`);
-  }, [activeTab, addItemToCartTab, getProductStock, products, updateProductStockInCache]);
+  }, [activeTabId, getProductStock, products, addItemToCartTab]);
 
   // إضافة منتج مع متغيرات للسلة
   const addVariantToCart = useCallback((
@@ -178,13 +179,8 @@ export const usePOSCart = ({
       variantImage
     });
     
-    // تحديث المخزون في cache فوراً (إنقاص المخزون عند البيع)
-    updateProductStockInCache(
-      product.id,
-      colorId || null,
-      sizeId || null,
-      -1
-    );
+    // ✅ تم إصلاح المشكلة: لا يتم تحديث المخزون عند إضافة المنتج للسلة
+    // المخزون سيتم تحديثه فقط عند إتمام الطلب الفعلي
     
     toast.success(`تمت إضافة "${variantName || product.name}" إلى السلة`);
   }, [activeTab, addItemToCartTab, updateProductStockInCache]);
@@ -193,17 +189,12 @@ export const usePOSCart = ({
   const removeItemFromCart = useCallback((index: number) => {
     const item = cartItems[index];
     
-    // إرجاع المخزون (زيادة المخزون عند الحذف)
-    updateProductStockInCache(
-      item.product.id, 
-      item.colorId || null, 
-      item.sizeId || null, 
-      item.quantity
-    );
+    // ✅ تم إصلاح المشكلة: لا يتم تحديث المخزون عند حذف المنتج من السلة
+    // المخزون سيتم تحديثه فقط عند إتمام/إلغاء الطلب الفعلي
     
     removeItemFromCartTab(activeTabId, index);
-    toast.success('تم حذف المنتج وإرجاع المخزون');
-  }, [cartItems, removeItemFromCartTab, activeTabId, updateProductStockInCache]);
+    toast.success('تم حذف المنتج من السلة');
+  }, [cartItems, removeItemFromCartTab, activeTabId]);
 
   // تحديث كمية المنتج في السلة
   const updateItemQuantity = useCallback((index: number, quantity: number) => {
@@ -246,26 +237,11 @@ export const usePOSCart = ({
       
       // تعيين الكمية بالحد الأقصى المتاح
       updateItemQuantityTab(activeTabId, index, totalAvailable);
-      
-      // تحديث المخزون (إنقاص المخزون عند زيادة الكمية)
-      updateProductStockInCache(
-        item.product.id,
-        item.colorId || null,
-        item.sizeId || null,
-        -(totalAvailable - oldQuantity)
-      );
       return;
     }
     
-    // تحديث المخزون بناءً على الفرق (إنقاص المخزون عند زيادة الكمية)
-    if (quantityDiff !== 0) {
-      updateProductStockInCache(
-        item.product.id,
-        item.colorId || null,
-        item.sizeId || null,
-        -quantityDiff
-      );
-    }
+    // ✅ تم إصلاح المشكلة: لا يتم تحديث المخزون عند تغيير الكمية في السلة
+    // المخزون سيتم تحديثه فقط عند إتمام الطلب الفعلي
     
     updateItemQuantityTab(activeTabId, index, quantity);
   }, [cartItems, updateItemQuantityTab, activeTabId, getProductStock, products, updateProductStockInCache]);
@@ -292,21 +268,18 @@ export const usePOSCart = ({
     toast.success('تم تحديث السعر بنجاح');
   }, [cartItems, activeTabId, updateTab]);
 
-  // مسح السلة
+  // مسح السلة - محسن مع تنظيف شامل
   const clearCart = useCallback(() => {
-    // إرجاع المخزون لجميع المنتجات (زيادة المخزون عند المسح)
-    cartItems.forEach(item => {
-      updateProductStockInCache(
-        item.product.id, 
-        item.colorId || null, 
-        item.sizeId || null, 
-        item.quantity
-      );
-    });
+    console.log('🗑️ مسح السلة - التبويب النشط:', activeTabId);
+    console.log('🗑️ عناصر السلة قبل المسح:', cartItems.length);
+
+    // ✅ تم إصلاح المشكلة: لا يتم تحديث المخزون عند مسح السلة
+    // المخزون سيتم تحديثه فقط عند إتمام/إلغاء الطلب الفعلي
     
     clearCartTab(activeTabId);
-    toast.success('تم مسح السلة وإرجاع المخزون');
-  }, [cartItems, clearCartTab, activeTabId, updateProductStockInCache]);
+
+    toast.success('تم مسح السلة');
+  }, [clearCartTab, activeTabId, cartItems.length]);
 
   // إضافة اشتراك للسلة
   const handleAddSubscription = useCallback((subscription: any, pricing?: any) => {

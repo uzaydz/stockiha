@@ -113,28 +113,19 @@ export const getOrganizationSettings = async (organizationId: string) => {
   }
   
   const settings = await UnifiedRequestManager.getOrganizationSettings(organizationId);
-  
-  // إذا لم توجد إعدادات، إرجاع الإعدادات الافتراضية
+
+  // إذا لم توجد إعدادات، عدم إرجاع ألوان افتراضية - دع themeManager يتعامل مع ذلك
   if (!settings) {
-    return {
-      organization_id: organizationId,
-      theme_primary_color: '#3B82F6',
-      theme_secondary_color: '#10B981',
-      theme_mode: 'light' as const,
-      site_name: 'stockiha',
-      custom_css: null,
-      logo_url: null,
-      favicon_url: null,
-      default_language: 'ar',
-      custom_js: null,
-      custom_header: null,
-      custom_footer: null,
-      enable_registration: true,
-      enable_public_site: true
-    };
+    return null; // إرجاع null بدلاً من القيم الافتراضية
   }
   
-  return settings;
+  // إصلاح إضافي: إذا كانت البيانات مصفوفة، استخرج العنصر الأول
+  let finalSettings = settings;
+  if (Array.isArray(settings) && settings.length > 0) {
+    finalSettings = settings[0];
+  }
+
+  return finalSettings;
 };
 
 /**

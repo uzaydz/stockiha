@@ -17,8 +17,7 @@ import { OrganizationDataProvider } from '@/contexts/OrganizationDataContext';
 import { LoadingControllerProvider } from '@/components/LoadingController';
 import { ShopProvider } from "@/context/ShopContext";
 import { StoreProvider } from "@/context/StoreContext";
-import { UnifiedDataProvider } from '@/context/UnifiedDataContext';
-import { UniversalDataUpdateProvider } from '@/context/UniversalDataUpdateContext';
+import { SuperUnifiedDataProvider } from '@/context/SuperUnifiedDataContext';
 import { SupabaseProvider } from "@/context/SupabaseContext";
 
 // Context محسن للصفحات العامة
@@ -26,9 +25,19 @@ import { ProductPageProvider } from '@/context/ProductPageContext';
 import { StorePageProvider } from '@/context/StorePageContext';
 import { ProductsPageProvider } from '@/context/ProductsPageContext';
 
+// المزودين الأساسيين الضروريين
+import { UserProvider } from '@/context/UserContext';
+import { SharedStoreDataProvider, MinimalSharedStoreDataProvider, ProductPageSharedStoreDataProvider } from '@/context/SharedStoreDataContext';
+import { OptimizedSharedStoreDataProvider, MinimalOptimizedSharedStoreDataProvider } from '@/context/OptimizedSharedStoreDataContext';
+import { GlobalLoadingProvider } from '@/components/store/GlobalLoadingManager';
+import AppWrapper from '@/components/AppWrapper';
+
 import queryClient from "@/lib/config/queryClient";
 import i18n from '@/i18n';
 import { applyFontsOptimized } from '@/utils/performanceOptimizer';
+
+// 🚨 إضافة نظام تتبع الأداء والمشاكل
+const PERFORMANCE_DEBUG = true; // تغيير إلى false في الإنتاج
 
 interface SmartProviderWrapperProps {
   children: ReactNode;
@@ -70,86 +79,96 @@ interface ProviderConfig {
   storePage?: boolean;
   // Provider محسن لصفحة المنتجات
   productsPage?: boolean;
-  // Provider الثيم (اختياري)
-  theme?: boolean;
 }
+
+// 🚨 مراقبة الأداء والمتكررات
+const GLOBAL_WRAPPER_INSTANCES = new Map<string, boolean>();
+const WRAPPER_RENDERED = new Set<string>();
+const PERFORMANCE_METRICS = {
+  totalRenders: 0,
+  totalDuplicates: 0,
+  averageTime: 0,
+  warnings: [] as string[]
+};
+
+// 🔧 دالة تسجيل مشاكل الأداء
+const logPerformanceIssue = (type: string, data: any) => {
+  if (!PERFORMANCE_DEBUG) return;
+  
+  PERFORMANCE_METRICS.warnings.push(`${type}: ${JSON.stringify(data)}`);
+};
 
 // إعدادات محسنة للـ POS - فقط الضروري
 const PROVIDER_CONFIGS: Record<PageType, ProviderConfig> = {
   'public-product': {
     core: true,
-    auth: false,
-    tenant: false,
-    unifiedData: false,
+    auth: true,   // ✅ مطلوب لـ TenantProvider (حتى لو كان guest)
+    tenant: true,  // ✅ مطلوب لتحديد المؤسسة
+    unifiedData: false,    // ❌ ثقيل جداً - نستخدم ProductPageProvider بدلاً منه
     organizationData: false,
     dashboard: false,
     shop: false,
     apps: false,
-    productPage: true, // ✅ فقط للمنتجات
-    theme: true, // ✅ مطلوب لتطبيق ثيم المؤسسة
+    productPage: true, // ✅ فقط للمنتجات - بيانات خفيفة
   },
   'public-store': {
     core: true,
-    auth: false,
+    auth: true,    // ✅ مطلوب لـ TenantProvider
     tenant: true,  // لتحديد المؤسسة
-    unifiedData: false,
-    organizationData: true, // للفئات والمنتجات
+    unifiedData: true,    // ✅ مطلوب لـ useIsAppEnabled في NavbarLinks
+    organizationData: false, // ❌ غير مطلوب - البيانات موجودة في SuperUnifiedDataProvider
     dashboard: false,
-    shop: true,
+    shop: false,   // ❌ غير مطلوب - البيانات موجودة في SuperUnifiedDataProvider
     apps: false,
     productPage: false,
-    theme: true, // ✅ مطلوب لتطبيق ثيم المؤسسة
   },
   'max-store': {
     core: true,
-    auth: false,
+    auth: true,    // ✅ مطلوب لـ TenantProvider
     tenant: true,   // ✅ نحتاج TenantContext لتحديد المؤسسة فقط
-    unifiedData: false,
+    unifiedData: false,    // ❌ ثقيل جداً - نستخدم providers خفيفة
     organizationData: false, // ❌ سنستخدم Providers محسنة بدلاً منه
     dashboard: false,
     shop: false,    // ❌ سنستخدم Providers محسنة بدلاً من ShopProvider الثقيل
     apps: false,
-    productPage: false,
+    productPage: true, // ✅ للمنتجات - بيانات خفيفة
     storePage: true, // ✅ نحتاج StorePageProvider للصفحة الرئيسية
     productsPage: true, // ✅ نحتاج ProductsPageProvider لصفحة المنتجات
-    theme: true,    // ✅ نحتاج ThemeContext
   },
   'auth': {
     core: true,
     auth: true,
-    tenant: false,
-    unifiedData: false,
+    tenant: true,
+    unifiedData: true,    // ✅ مطلوب لـ useIsAppEnabled في NavbarLinks
     organizationData: false,
     dashboard: false,
     shop: false,
     apps: false,
     productPage: false,
-    theme: true, // ✅ مطلوب لتطبيق الثيم المناسب
   },
   'dashboard': {
     core: true,
     auth: true,
     tenant: true,
-    unifiedData: true,  // ✅ كامل فقط للوحة التحكم
-    organizationData: true,
-    dashboard: true,
-    shop: true,  // ✅ مطلوب لـ store-editor و معاينة المتجر
-    apps: true,
+    unifiedData: true,     // ✅ فقط SuperUnifiedDataProvider للحصول على جميع البيانات
+    organizationData: false, // ❌ إزالة التكرار - البيانات موجودة في SuperUnifiedDataProvider
+    dashboard: false,      // ❌ إزالة - البيانات موجودة في SuperUnifiedDataProvider  
+    shop: false,          // ❌ إزالة - البيانات موجودة في SuperUnifiedDataProvider
+    apps: false,          // ❌ إزالة - البيانات موجودة في SuperUnifiedDataProvider
     productPage: false,
   },
   'pos': {
     core: true,
     auth: true,
     tenant: true,
-    unifiedData: true,
+    unifiedData: true, // ✅ مطلوب لـ POS لعرض التطبيقات في القائمة الجانبية
     organizationData: false, // غير مطلوب لـ POS
     dashboard: false, // غير مطلوب لـ POS
     shop: true, // ✅ مطلوب لـ POS - تم تصحيح الخطأ
-    apps: true, // مطلوب لـ POS
+    apps: false, // ❌ إزالة - البيانات موجودة في SuperUnifiedDataProvider
     productPage: false,
     storePage: false,
     productsPage: false,
-    theme: true, // مطلوب لـ POS
   },
   'super-admin': {
     core: true,
@@ -175,15 +194,14 @@ const PROVIDER_CONFIGS: Record<PageType, ProviderConfig> = {
   },
   'landing': {
     core: true,
-    auth: false,
+    auth: true,    // ✅ مطلوب لـ TenantProvider
     tenant: true,  // لعرض معلومات المؤسسة
-    unifiedData: false,
+    unifiedData: true,    // ✅ مطلوب لـ useIsAppEnabled في NavbarLinks
     organizationData: false,
     dashboard: false,
     shop: false,
     apps: false,
     productPage: false,
-    theme: true, // ✅ مطلوب لتطبيق ثيم المؤسسة
   },
   'minimal': {
     core: true,
@@ -199,8 +217,7 @@ const PROVIDER_CONFIGS: Record<PageType, ProviderConfig> = {
 };
 
 // Global deduplication system - للتتبع فقط (تم تعطيل منطق التكرار لتجنب مشاكل React)
-const GLOBAL_WRAPPER_INSTANCES = new Map<string, boolean>();
-const WRAPPER_RENDERED = new Set<string>();
+// استخدام المتغيرات المُعرّفة بالأعلى بدلاً من إعادة التعريف
 
 // إضافة cache للتحقق من التكرار
 let lastRenderedPageType: PageType | null = null;
@@ -220,15 +237,76 @@ const determinePageType = (pathname: string): PageType => {
   
   // للـ localhost، نتحقق من وجود subdomain في الاسم
   const hasSubdomainLocalhost = isLocalhost && hostname.split('.').length > 1 && !hostname.startsWith('www.');
-  const hasSubdomain = !isLocalhost && hostname.split('.').length > 2;
+  // 🔧 إصلاح: استثناء www من اعتباره subdomain
+  const hasSubdomain = !isLocalhost && hostname.split('.').length > 2 && !hostname.startsWith('www.');
   const isCustomDomain = !isLocalhost && !hostname.includes('stockiha.com') && !hostname.includes('ktobi.online');
   
   let pageType: PageType;
 
+  // 🔧 إصلاح: إضافة التحقق من النطاقات العامة للمنصة
+  const platformDomains = ['stockiha.com', 'www.stockiha.com', 'ktobi.online', 'www.ktobi.online'];
+  const isPlatformDomain = platformDomains.includes(hostname);
+
+  // 🔧 إصلاح: التحقق من نطاق المنصة أولاً
+  if (isPlatformDomain) {
+    if (pathname === '/') {
+      pageType = 'landing';
+    } else if (pathname.includes('/features') || pathname.includes('/pricing') || pathname.includes('/contact')) {
+      pageType = 'landing';
+    } else if (pathname.includes('/login') || pathname.includes('/signup')) {
+      pageType = 'auth';
+    } else if (pathname === '/pos' || pathname === '/dashboard/pos-advanced') {
+      pageType = 'pos';
+    } else if (pathname.includes('/dashboard')) {
+      pageType = 'dashboard';
+    } else if (pathname.includes('/super-admin')) {
+      pageType = 'super-admin';
+    } else if (pathname.includes('/call-center')) {
+      pageType = 'call-center';
+    } else {
+      pageType = 'minimal';
+    }
+  }
   // إذا كان المسار هو الصفحة الرئيسية وهناك subdomain أو custom domain = Max Store
-  if (pathname === '/' && (hasSubdomainLocalhost || hasSubdomain || isCustomDomain)) {
-    console.log('🎯 تم تحديد صفحة Max Store:', { hostname, hasSubdomainLocalhost, hasSubdomain, isCustomDomain });
+  else if (pathname === '/' && (hasSubdomainLocalhost || hasSubdomain || isCustomDomain)) {
     pageType = 'max-store';
+  }
+  // صفحات المتجر العامة - تحقق من وجود subdomain أو custom domain
+  else if (
+    (pathname === '/products' ||
+    pathname.includes('/category/') ||
+    pathname.includes('/products/details/') ||
+    pathname === '/thank-you') && // 🔧 إضافة صفحة الشكر للمتاجر
+    (hasSubdomainLocalhost || hasSubdomain || isCustomDomain)
+  ) {
+    pageType = 'max-store';
+  }
+  // صفحات شراء المنتجات مع subdomain
+  else if (
+    (pathname.includes('/product-purchase-max') ||
+    pathname.includes('/product-max') ||
+    pathname.includes('/product-public') ||
+    pathname.match(/^\/products\/[^\/]+$/)) && // منتج واحد محدد
+    (hasSubdomainLocalhost || hasSubdomain || isCustomDomain)
+  ) {
+    pageType = 'public-product';
+  }
+  // 🔧 إصلاح: التعامل مع localhost بدون subdomain
+  else if (isLocalhost) {
+    // localhost بدون subdomain - يحتاج AuthProvider للوصول إلى /login و /dashboard
+    if (pathname.includes('/login') || pathname.includes('/signup')) {
+      pageType = 'auth';
+    } else if (pathname === '/pos' || pathname === '/dashboard/pos-advanced') {
+      pageType = 'pos';
+    } else if (pathname.includes('/dashboard')) {
+      pageType = 'dashboard';
+    } else if (pathname.includes('/super-admin')) {
+      pageType = 'super-admin';
+    } else if (pathname.includes('/call-center')) {
+      pageType = 'call-center';
+    } else {
+      pageType = 'landing'; // بدلاً من minimal للحصول على AuthProvider
+    }
   }
   // صفحات شراء المنتجات
   else if (
@@ -239,54 +317,14 @@ const determinePageType = (pathname: string): PageType => {
   ) {
     pageType = 'public-product';
   }
-  // صفحات المتجر العامة - تحقق من وجود subdomain أو custom domain
+  // صفحات المتجر العامة - بدون subdomain
   else if (
     pathname === '/products' ||
     pathname.includes('/category/') ||
     pathname.includes('/products/details/') ||
-    pathname === '/' && !pathname.includes('/dashboard')
+    pathname === '/thank-you' // 🔧 إضافة صفحة الشكر للمتاجر
   ) {
-    // إذا كان هناك subdomain أو custom domain، استخدم max-store
-    if (hasSubdomainLocalhost || hasSubdomain || isCustomDomain) {
-      console.log('🎯 تم تحديد صفحة Max Store للمسار:', pathname, { hostname, hasSubdomainLocalhost, hasSubdomain, isCustomDomain });
-      pageType = 'max-store';
-    } else {
-      pageType = 'public-store';
-    }
-  }
-  // صفحات المصادقة
-  else if (
-    pathname.includes('/login') ||
-    pathname.includes('/signup') ||
-    pathname.includes('/admin/signup') ||
-    pathname.includes('/tenant/signup')
-  ) {
-    pageType = 'auth';
-  }
-  // الإدارة العليا
-  else if (pathname.includes('/super-admin')) {
-    pageType = 'super-admin';
-  }
-  // مركز الاتصال
-  else if (pathname.includes('/call-center')) {
-    pageType = 'call-center';
-  }
-  // نقطة البيع - يجب أن يكون قبل dashboard
-  else if (pathname === '/pos' || pathname === '/dashboard/pos') {
-    pageType = 'pos';
-  }
-  // لوحة التحكم (بعد التحقق من POS)
-  else if (pathname.includes('/dashboard')) {
-    pageType = 'dashboard';
-  }
-  // صفحات الهبوط
-  else if (
-    pathname.includes('/features') ||
-    pathname.includes('/pricing') ||
-    pathname.includes('/contact') ||
-    pathname.match(/^\/[^\/]+$/) // صفحة هبوط مخصصة
-  ) {
-    pageType = 'landing';
+    pageType = 'public-store';
   }
   // الباقي صفحات بسيطة
   else {
@@ -304,14 +342,9 @@ const determinePageType = (pathname: string): PageType => {
 export const SmartProviderWrapper: React.FC<SmartProviderWrapperProps> = ({ children }) => {
   const location = useLocation();
   
-  // تتبع الأداء - بداية
+  // 🚨 تتبع الأداء - بداية
   const wrapperStartTime = performance.now();
-  console.log('🎯 [PERFORMANCE] بداية SmartProviderWrapper:', {
-    pathname: location.pathname,
-    search: location.search,
-    timestamp: new Date().toISOString(),
-    startTime: wrapperStartTime
-  });
+  PERFORMANCE_METRICS.totalRenders++;
   
   // منع تشغيل متعدد لنفس المسار - تحسين
   const instanceKey = `wrapper-${location.pathname}-${location.search}`;
@@ -319,35 +352,42 @@ export const SmartProviderWrapper: React.FC<SmartProviderWrapperProps> = ({ chil
   // تحسين: منع إعادة الإنشاء إذا كان نفس المسار
   const isAlreadyRendered = WRAPPER_RENDERED.has(instanceKey);
   
+  // 🚨 تتبع التكرارات
   if (isAlreadyRendered) {
-    console.warn('⚠️ [PERFORMANCE] تكرار في SmartProviderWrapper - نفس المسار:', {
+    PERFORMANCE_METRICS.totalDuplicates++;
+    logPerformanceIssue('DUPLICATE_WRAPPER_RENDER', {
       instanceKey,
       pathname: location.pathname,
-      'مشكلة': 'تم تشغيل الـ wrapper مرتين لنفس المسار'
+      search: location.search,
+      totalDuplicates: PERFORMANCE_METRICS.totalDuplicates,
+      message: 'تم تشغيل الـ wrapper مرتين لنفس المسار - مشكلة أداء'
     });
   }
   
   // ✅ تم تبسيط المنطق لتجنب مشاكل Rules of Hooks
   useEffect(() => {
     const effectStart = performance.now();
-    console.log('🔄 [PERFORMANCE] useEffect SmartProviderWrapper:', {
-      instanceKey,
-      effectStart
-    });
+    
+    // 🚨 تتبع useEffect
     
     // تسجيل الـ instance للتتبع فقط
     GLOBAL_WRAPPER_INSTANCES.set(instanceKey, true);
     WRAPPER_RENDERED.add(instanceKey);
     
     const effectEnd = performance.now();
-    console.log('✅ [PERFORMANCE] انتهاء useEffect SmartProviderWrapper:', {
-      duration: (effectEnd - effectStart) / 1000,
-      'وقت التأثير بالثواني': (effectEnd - effectStart) / 1000
-    });
     
+    // 🚨 تتبع مدة useEffect
+    const effectDuration = effectEnd - effectStart;
+    if (effectDuration > 5) { // إذا كان useEffect يستغرق أكثر من 5ms
+      logPerformanceIssue('SLOW_USEEFFECT', {
+        duration: effectDuration,
+        instanceKey,
+        pathname: location.pathname
+      });
+    }
+
     // تنظيف عند الإلغاء
     return () => {
-      console.log('🧹 [PERFORMANCE] تنظيف SmartProviderWrapper:', instanceKey);
       GLOBAL_WRAPPER_INSTANCES.delete(instanceKey);
       // لا نحذف من WRAPPER_RENDERED للاحتفاظ بالcache
     };
@@ -356,27 +396,22 @@ export const SmartProviderWrapper: React.FC<SmartProviderWrapperProps> = ({ chil
   // تحديد نوع الصفحة والـ providers المطلوبة - تحسين مع cache
   const { pageType, config } = useMemo(() => {
     const pageTypeStart = performance.now();
-    console.log('🔍 [PERFORMANCE] بداية تحديد نوع الصفحة:', {
-      pathname: location.pathname,
-      pageTypeStart
-    });
     
     const type = determinePageType(location.pathname);
     const pageConfig = PROVIDER_CONFIGS[type];
     
     const pageTypeEnd = performance.now();
+    const pageTypeDuration = pageTypeEnd - pageTypeStart;
     
-    // تقليل الطباعة إذا كان نفس النوع
-    if (!isAlreadyRendered) {
-      console.log('📄 [PERFORMANCE] نوع الصفحة المحدد:', {
-        type,
+    // 🚨 تتبع تحديد نوع الصفحة
+    
+    // تحذير إذا كان تحديد النوع بطيئاً
+    if (pageTypeDuration > 10) {
+      logPerformanceIssue('SLOW_PAGE_TYPE_DETERMINATION', {
+        duration: pageTypeDuration,
         pathname: location.pathname,
-        config: pageConfig,
-        duration: (pageTypeEnd - pageTypeStart) / 1000,
-        'وقت التحديد بالثواني': (pageTypeEnd - pageTypeStart) / 1000
+        pageType: type
       });
-    } else {
-      console.log('⏭️ [PERFORMANCE] تجاهل طباعة نوع الصفحة - تم تشغيلها مسبقاً');
     }
     
     return { pageType: type, config: pageConfig };
@@ -386,36 +421,24 @@ export const SmartProviderWrapper: React.FC<SmartProviderWrapperProps> = ({ chil
   useEffect(() => {
     if (!isAlreadyRendered) {
       const fontStart = performance.now();
-      console.log('🎨 [PERFORMANCE] بداية تطبيق الخطوط:', {
-        pathname: location.pathname,
-        fontStart
-      });
       
       // استخدام الدالة المحسنة
       const timeout = setTimeout(() => {
         applyFontsOptimized();
         
         const fontEnd = performance.now();
-        console.log('✅ [PERFORMANCE] انتهاء تطبيق الخطوط:', {
-          duration: (fontEnd - fontStart) / 1000,
-          'وقت تطبيق الخطوط بالثواني': (fontEnd - fontStart) / 1000
-        });
       }, 50);
       
       return () => clearTimeout(timeout);
     } else {
-      console.log('⏭️ [PERFORMANCE] تجاهل تطبيق الخطوط - تم تطبيقها مسبقاً');
     }
   }, [location.pathname, isAlreadyRendered]);
 
   // 🔥 تحسين: استخدام useMemo لمنع إعادة إنشاء الـ providers
   const wrappedContent = useMemo(() => {
     const providersStart = performance.now();
-    console.log('🏗️ [PERFORMANCE] بداية إنشاء الـ providers:', {
-      pageType,
-      config,
-      providersStart
-    });
+    
+    // 🚨 تتبع إنشاء الـ providers
     
     let content = children;
 
@@ -423,11 +446,9 @@ export const SmartProviderWrapper: React.FC<SmartProviderWrapperProps> = ({ chil
 
     // Core providers (دائماً مطلوبة) - يجب أن تكون الأولى
     if (config.core) {
-      console.log('🔧 [PERFORMANCE] تفعيل Core providers');
       
       // Product Page provider (محسن للمنتجات) - داخل QueryClientProvider
       if (config.productPage) {
-        console.log('🛍️ [PERFORMANCE] تفعيل ProductPageProvider');
         // استخراج معلومات المؤسسة من URL
         const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
         const isLocalhost = hostname.includes('localhost');
@@ -456,10 +477,7 @@ export const SmartProviderWrapper: React.FC<SmartProviderWrapperProps> = ({ chil
         }
 
         content = (
-          <ProductPageProvider
-            subdomain={subdomain}
-            hostname={customDomain}
-          >
+          <ProductPageProvider>
             {content}
           </ProductPageProvider>
         );
@@ -467,7 +485,6 @@ export const SmartProviderWrapper: React.FC<SmartProviderWrapperProps> = ({ chil
 
       // Store Page provider (محسن لصفحات المتجر) - داخل QueryClientProvider
       if (config.storePage) {
-        console.log('🏪 [PERFORMANCE] تفعيل StorePageProvider للصفحة:', pageType);
         content = (
           <StorePageProvider>
             {content}
@@ -477,7 +494,6 @@ export const SmartProviderWrapper: React.FC<SmartProviderWrapperProps> = ({ chil
 
       // Products Page provider (محسن لصفحة المنتجات) - داخل QueryClientProvider
       if (config.productsPage) {
-        console.log('🛍️ [PERFORMANCE] تفعيل ProductsPageProvider للصفحة:', pageType);
         content = (
           <ProductsPageProvider>
             {content}
@@ -485,37 +501,22 @@ export const SmartProviderWrapper: React.FC<SmartProviderWrapperProps> = ({ chil
         );
       }
 
-      // جميع Providers التي تستخدم React Query - داخل QueryClientProvider
+      // جميع Providers التي تستخدم React Query - داخل القائمة الرئيسية
       
-      // Auth providers
-      if (config.auth) {
-        console.log('🔐 [PERFORMANCE] تفعيل AuthProvider للصفحة:', pageType);
-        content = <AuthProvider>{content}</AuthProvider>;
-      }
+      // Auth و Tenant providers تم تطبيقهم بالفعل في النظام الأساسي أعلاه
+      // لذا نقوم بتعطيلهم هنا لتجنب التكرار
 
-      // Tenant providers - يجب أن يكون مبكراً لتحديد المؤسسة
-      if (config.tenant) {
-        console.log('🏢 [PERFORMANCE] تفعيل TenantProvider للصفحة:', pageType);
-        content = <TenantProvider>{content}</TenantProvider>;
-      } else {
-        console.log('❌ [PERFORMANCE] تجاهل TenantProvider للصفحة:', pageType);
-      }
-
-      // Unified Data providers (الثقيلة - فقط عند الضرورة)
+      // Super Unified Data provider (الحل الموحد الجديد - بدلاً من المتضاربة)
       if (config.unifiedData) {
-        console.log('🔗 [PERFORMANCE] تفعيل UnifiedDataProvider للصفحة:', pageType);
         content = (
-          <UnifiedDataProvider>
-            <UniversalDataUpdateProvider>
-              {content}
-            </UniversalDataUpdateProvider>
-          </UnifiedDataProvider>
+          <SuperUnifiedDataProvider>
+            {content}
+          </SuperUnifiedDataProvider>
         );
       }
 
       // Organization Data providers
       if (config.organizationData) {
-        console.log('🏛️ [PERFORMANCE] تفعيل OrganizationDataProvider للصفحة:', pageType);
         content = <OrganizationDataProvider>{content}</OrganizationDataProvider>;
       }
 
@@ -526,7 +527,6 @@ export const SmartProviderWrapper: React.FC<SmartProviderWrapperProps> = ({ chil
 
       // Shop providers
       if (config.shop) {
-        console.log('�� [PERFORMANCE] تفعيل ShopProvider للصفحة:', pageType);
         content = (
           <ShopProvider>
             <StoreProvider>
@@ -534,8 +534,6 @@ export const SmartProviderWrapper: React.FC<SmartProviderWrapperProps> = ({ chil
             </StoreProvider>
           </ShopProvider>
         );
-      } else {
-        console.log('❌ [PERFORMANCE] تجاهل ShopProvider للصفحة:', pageType);
       }
 
       // Apps providers
@@ -544,36 +542,130 @@ export const SmartProviderWrapper: React.FC<SmartProviderWrapperProps> = ({ chil
       }
 
       // تطبيق Core providers في الطبقة الخارجية
-      // Theme Provider - يُطبق مبكراً لتجنب التأخير في الثيم
-      if (config.theme) {
-        console.log('🎨 [PERFORMANCE] تفعيل ThemeProvider للصفحة:', pageType);
-        content = (
-          <QueryClientProvider client={queryClient}>
-            <TooltipProvider>
-              <LoadingControllerProvider maxConcurrentRequests={3}>
-                <SupabaseProvider>
-                  <ThemeProvider>
-                    {content}
-                  </ThemeProvider>
-                </SupabaseProvider>
-              </LoadingControllerProvider>
-            </TooltipProvider>
-          </QueryClientProvider>
-        );
-      } else {
-        console.log('❌ [PERFORMANCE] تجاهل ThemeProvider للصفحة:', pageType);
-        content = (
-          <QueryClientProvider client={queryClient}>
-            <TooltipProvider>
-              <LoadingControllerProvider maxConcurrentRequests={3}>
-                <SupabaseProvider>
-                  {content}
-                </SupabaseProvider>
-              </LoadingControllerProvider>
-            </TooltipProvider>
-          </QueryClientProvider>
-        );
-      }
+      // إصلاح ترتيب الـ providers - AuthProvider أولاً
+      // ملاحظة: TenantProvider يحتاج دائماً إلى AuthProvider لذا تم تحديث التكوين لضمان ذلك
+      // ملاحظة: NavbarLinks يستخدم useIsAppEnabled من SuperUnifiedDataContext لذا تحتاج الصفحات العامة إلى unifiedData: true
+      // ملاحظة: POSOrdersOptimized يستخدم useOrdersData من UnifiedDataContext لذا تحتاج صفحة dashboard إلى organizationData: true
+      content = (
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <LoadingControllerProvider maxConcurrentRequests={3}>
+              <SupabaseProvider>
+                {/* AuthProvider يجب أن يكون أولاً */}
+                {config.auth ? (
+                  <AuthProvider>
+                    {config.tenant ? (
+                      <TenantProvider>
+                        <UserProvider>
+                                                  {/* للـ dashboard نحتاج OptimizedSharedStoreDataProvider لبعض الصفحات مثل Orders */}
+                        {pageType === 'dashboard' ? (
+                          <OptimizedSharedStoreDataProvider>
+                            <ThemeProviderWrapper>
+                              <GlobalLoadingProvider>
+                                <AppWrapper>
+                                  {content}
+                                </AppWrapper>
+                              </GlobalLoadingProvider>
+                            </ThemeProviderWrapper>
+                          </OptimizedSharedStoreDataProvider>
+                        ) : pageType === 'public-product' ? (
+                          <ProductPageSharedStoreDataProvider>
+                            <ThemeProviderWrapper>
+                              <GlobalLoadingProvider>
+                                <AppWrapper>
+                                  {content}
+                                </AppWrapper>
+                              </GlobalLoadingProvider>
+                            </ThemeProviderWrapper>
+                          </ProductPageSharedStoreDataProvider>
+                        ) : (
+                          <SharedStoreDataProvider>
+                            <ThemeProviderWrapper>
+                              <GlobalLoadingProvider>
+                                <AppWrapper>
+                                  {content}
+                                </AppWrapper>
+                              </GlobalLoadingProvider>
+                            </ThemeProviderWrapper>
+                          </SharedStoreDataProvider>
+                        )}
+                        </UserProvider>
+                      </TenantProvider>
+                    ) : (
+                      <UserProvider>
+                        {pageType === 'dashboard' ? (
+                          <MinimalOptimizedSharedStoreDataProvider>
+                            <ThemeProviderWrapper>
+                              <GlobalLoadingProvider>
+                                <AppWrapper>
+                                  {content}
+                                </AppWrapper>
+                              </GlobalLoadingProvider>
+                            </ThemeProviderWrapper>
+                          </MinimalOptimizedSharedStoreDataProvider>
+                        ) : pageType === 'public-product' ? (
+                          <MinimalSharedStoreDataProvider>
+                            <ThemeProviderWrapper>
+                              <GlobalLoadingProvider>
+                                <AppWrapper>
+                                  {content}
+                                </AppWrapper>
+                              </GlobalLoadingProvider>
+                            </ThemeProviderWrapper>
+                          </MinimalSharedStoreDataProvider>
+                        ) : (
+                          <MinimalSharedStoreDataProvider>
+                            <ThemeProviderWrapper>
+                              <GlobalLoadingProvider>
+                                <AppWrapper>
+                                  {content}
+                                </AppWrapper>
+                              </GlobalLoadingProvider>
+                            </ThemeProviderWrapper>
+                          </MinimalSharedStoreDataProvider>
+                        )}
+                      </UserProvider>
+                    )}
+                  </AuthProvider>
+                ) : (
+                                  // للصفحات التي لا تحتاج مصادقة أو tenant
+                pageType === 'dashboard' ? (
+                  <MinimalOptimizedSharedStoreDataProvider>
+                    <ThemeProviderWrapper>
+                      <GlobalLoadingProvider>
+                        <AppWrapper>
+                          {content}
+                        </AppWrapper>
+                      </GlobalLoadingProvider>
+                    </ThemeProviderWrapper>
+                  </MinimalOptimizedSharedStoreDataProvider>
+                ) : pageType === 'public-product' ? (
+                  <MinimalSharedStoreDataProvider>
+                    <ThemeProviderWrapper>
+                      <GlobalLoadingProvider>
+                        <AppWrapper>
+                          {content}
+                        </AppWrapper>
+                      </GlobalLoadingProvider>
+                    </ThemeProviderWrapper>
+                  </MinimalSharedStoreDataProvider>
+                ) : (
+                  <MinimalSharedStoreDataProvider>
+                    <ThemeProviderWrapper>
+                      <GlobalLoadingProvider>
+                        <AppWrapper>
+                          {content}
+                        </AppWrapper>
+                      </GlobalLoadingProvider>
+                    </ThemeProviderWrapper>
+                    </MinimalSharedStoreDataProvider>
+                  )
+                )}
+              </SupabaseProvider>
+            </LoadingControllerProvider>
+          </TooltipProvider>
+        </QueryClientProvider>
+      );
 
       // إضافة I18n و Helmet في النهاية
       content = (
@@ -588,10 +680,19 @@ export const SmartProviderWrapper: React.FC<SmartProviderWrapperProps> = ({ chil
     }
 
     const providersEnd = performance.now();
-    console.log('✅ [PERFORMANCE] انتهاء إنشاء الـ providers:', {
-      duration: (providersEnd - providersStart) / 1000,
-      'وقت إنشاء الـ providers بالثواني': (providersEnd - providersStart) / 1000
-    });
+    const providersDuration = providersEnd - providersStart;
+
+    // 🚨 تتبع مدة إنشاء الـ providers
+
+    // تحذير إذا كان إنشاء الـ providers بطيئاً
+    if (providersDuration > 50) {
+      logPerformanceIssue('SLOW_PROVIDERS_CREATION', {
+        duration: providersDuration,
+        pageType,
+        config,
+        pathname: location.pathname
+      });
+    }
 
     return content;
   }, [
@@ -607,24 +708,46 @@ export const SmartProviderWrapper: React.FC<SmartProviderWrapperProps> = ({ chil
     config.dashboard,
     config.shop,
     config.apps,
-    config.theme,
     pageType,
     location.pathname,
     location.search,
     isAlreadyRendered
   ]); // 🔥 تحسين dependencies لتجنب إعادة التحميل غير الضروري
 
-  // تتبع الأداء - نهاية
+  // 🚨 تتبع الأداء - نهاية
   const wrapperEndTime = performance.now();
-  console.log('🏁 [PERFORMANCE] انتهاء SmartProviderWrapper:', {
-    totalDuration: (wrapperEndTime - wrapperStartTime) / 1000,
-    'إجمالي وقت الـ wrapper بالثواني': (wrapperEndTime - wrapperStartTime) / 1000,
-    pageType,
-    pathname: location.pathname,
-    isAlreadyRendered
-  });
+  const totalWrapperDuration = wrapperEndTime - wrapperStartTime;
+  
+  // تحديث المقاييس العامة
+  PERFORMANCE_METRICS.averageTime = 
+    (PERFORMANCE_METRICS.averageTime * (PERFORMANCE_METRICS.totalRenders - 1) + totalWrapperDuration) / 
+    PERFORMANCE_METRICS.totalRenders;
+
+  // طباعة تقرير الأداء النهائي
+
+  // تحذير إذا كان الـ wrapper بطيئاً جداً
+  if (totalWrapperDuration > 100) {
+    logPerformanceIssue('VERY_SLOW_WRAPPER', {
+      duration: totalWrapperDuration,
+      pageType,
+      pathname: location.pathname,
+      message: 'SmartProviderWrapper يستغرق وقتاً طويلاً - مشكلة أداء خطيرة'
+    });
+  }
+
+  // إضافة معلومات الأداء إلى window للتشخيص
+  if (typeof window !== 'undefined') {
+    (window as any).smartWrapperPerformance = PERFORMANCE_METRICS;
+  }
 
   return wrappedContent;
 };
 
 export default SmartProviderWrapper;
+
+// ThemeProviderWrapper من main.tsx
+const ThemeProviderWrapper = ({ children }: { children: React.ReactNode }) => (
+  <ThemeProvider>
+    {children}
+  </ThemeProvider>
+);

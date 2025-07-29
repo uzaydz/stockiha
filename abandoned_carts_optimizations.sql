@@ -469,20 +469,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- إنشاء مهمة لبدء الاستماع للإشعارات عند بدء تشغيل قاعدة البيانات
-SELECT cron.schedule('* * * * *', $$ 
-  SELECT pg_advisory_lock(123456);
-  SELECT CASE 
-    WHEN NOT EXISTS (
-      SELECT 1 
-      FROM pg_stat_activity 
-      WHERE application_name = 'abandoned_carts_refresher'
-    ) THEN
-      pg_background_launch($SQL$
-        -- استخدام أمر SQL وحيد بدلاً من كتلة DO
-        SELECT set_config('application_name', 'abandoned_carts_refresher', false), listen_and_refresh_abandoned_carts();
-      $SQL$)
-    ELSE NULL
-  END;
-  SELECT pg_advisory_unlock(123456);
+-- إنشاء مهمة لتحديث الجداول المُجمعة كل 5 دقائق
+-- ملاحظة: pg_background_launch غير متوفر في Supabase، لذا نستخدم cron job بسيط
+SELECT cron.schedule('refresh_abandoned_carts', '*/5 * * * *', $$ 
+  -- تحديث الجداول المُجمعة كل 5 دقائق
+  REFRESH MATERIALIZED VIEW CONCURRENTLY abandoned_carts_view;
+  REFRESH MATERIALIZED VIEW CONCURRENTLY abandoned_carts_stats;
 $$); 

@@ -119,7 +119,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [state, dispatch] = useReducer(storeReducer, initialState);
 
   // =================================================================
-  // 🎯 تحميل بيانات المتجر
+  // 🎯 تحميل بيانات المتجر - بدون كاش
   // =================================================================
   const loadStoreData = useCallback(async (subdomain: string, forceReload = false) => {
     if (!subdomain) {
@@ -130,11 +130,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     dispatch({ type: 'SET_LOADING', payload: true });
     
     try {
-      // إذا كان هناك طلب لإعادة التحميل، قم بتنظيف الكاش أولاً
-      if (forceReload) {
-        await optimizedStoreService.clearStoreCache(subdomain);
-      }
-
+      // جلب البيانات مباشرة في كل مرة
       const data = await optimizedStoreService.getStoreDataOptimized(subdomain);
       
       if (data) {
@@ -178,14 +174,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   // =================================================================
-  // 🎯 تنظيف الكاش
+  // 🎯 تنظيف الكاش - معطل
   // =================================================================
   const invalidateCache = useCallback(async (subdomain: string, orgId?: string) => {
-    try {
-      await optimizedStoreService.clearStoreCache(subdomain);
-      dispatch({ type: 'INVALIDATE_CACHE' });
-    } catch (error: any) {
-    }
+    // لا نحتاج لمسح الكاش لأننا لا نستخدمه بعد الآن
+    console.log('تم استدعاء invalidateCache ولكن الكاش معطل');
+    dispatch({ type: 'INVALIDATE_CACHE' });
   }, []);
 
   // =================================================================

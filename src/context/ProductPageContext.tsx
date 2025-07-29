@@ -1,6 +1,7 @@
 import React, { createContext, useContext, ReactNode, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { isValidUuid } from '@/utils/uuid-helpers';
 
 // أنواع البيانات المطلوبة فقط لصفحات المنتجات
 interface ProductPageContextType {
@@ -37,7 +38,7 @@ const fetchOrganizationData = async (params: {
   
   let query = supabase.from('organizations').select('*');
   
-  if (organizationId) {
+  if (isValidUuid(organizationId)) {
     query = query.eq('id', organizationId);
   } else if (hostname && !hostname.includes('localhost')) {
     query = query.eq('domain', hostname);
@@ -63,15 +64,33 @@ const fetchOrganizationSettings = async (organizationId: string) => {
   return data;
 };
 
-// دالة جلب المحافظات (مطلوبة لحساب الشحن)
+// دالة جلب المحافظات (مطلوبة لحساب الشحن) مع timeout
 const fetchYalidineProvinces = async () => {
-  const { data, error } = await supabase
+  // إضافة timeout للاستعلام
+  const timeoutPromise = new Promise((_, reject) => 
+    setTimeout(() => reject(new Error('انتهت مهلة تحميل المحافظات')), 10000)
+  );
+  
+  const queryPromise = supabase
     .from('yalidine_provinces_global')
     .select('id, name_ar')
     .order('name_ar');
   
-  if (error) throw error;
-  return data || [];
+  try {
+    const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
+    
+    if (error) {
+      console.error('خطأ في تحميل المحافظات:', error);
+      // إرجاع مصفوفة فارغة بدلاً من رمي خطأ
+      return [];
+    }
+    
+    return data || [];
+  } catch (error) {
+    console.error('خطأ في تحميل المحافظات:', error);
+    // إرجاع مصفوفة فارغة في حالة الخطأ
+    return [];
+  }
 };
 
 export const ProductPageProvider: React.FC<ProductPageProviderProps> = ({
@@ -116,7 +135,7 @@ export const ProductPageProvider: React.FC<ProductPageProviderProps> = ({
     refetchOnMount: false, // منع إعادة الطلب عند كل mount
   });
 
-  // جلب المحافظات (مرة واحدة فقط) - مع منع الطلبات المكررة
+  // جلب المحافظات (مرة واحدة فقط) - مع منع الطلبات المكررة وتحسين الأداء
   const {
     data: yalidineProvinces,
     isLoading: provincesLoading,
@@ -125,12 +144,17 @@ export const ProductPageProvider: React.FC<ProductPageProviderProps> = ({
   } = useQuery({
     queryKey: ['yalidine-provinces-light'],
     queryFn: fetchYalidineProvinces,
-    staleTime: 2 * 60 * 60 * 1000, // ساعتين (زيادة للحد من الطلبات)
-    gcTime: 24 * 60 * 60 * 1000, // 24 ساعة
-    retry: 1, // تقليل المحاولات
+    staleTime: 5 * 60 * 1000, // 5 دقائق
+    gcTime: 30 * 60 * 1000, // 30 دقيقة
+    retry: 2, // محاولتين فقط
+    retryDelay: 1000, // ثانية واحدة بين المحاولات
     refetchOnWindowFocus: false,
-    refetchOnReconnect: false, // منع إعادة الطلب عند إعادة الاتصال
-    refetchOnMount: false, // منع إعادة الطلب عند كل mount
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+    // إضافة timeout على مستوى الاستعلام
+    meta: {
+      timeout: 8000 // 8 ثوان
+    }
   });
 
   // تحديد اللغة الافتراضية
@@ -189,6 +213,16 @@ export const useProductPage = () => {
 export const useProductPageOrganization = () => {
   const { organization } = useProductPage();
   return organization;
+};
+
+// Hook للوصول السريع للإعدادات (آمن للاستخدام خارج ProductPageProvider)
+export const useProductPageSettings = () => {
+  const context = useContext(ProductPageContext);
+  // إذا لم يكن ضمن ProductPageProvider، إرجاع null بدلاً من رمي خطأ
+  if (context === undefined) {
+    return null;
+  }
+  return context.organizationSettings || null;
 };
 
 export default ProductPageContext;

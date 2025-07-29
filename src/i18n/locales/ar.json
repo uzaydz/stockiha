@@ -96,6 +96,12 @@
     "privacyPolicy": "سياسة الخصوصية",
     "termsOfService": "شروط الخدمة"
   },
+  "form": {
+    "fillFormToOrder": "املأ الاستمارة للطلب",
+    "orderForm": "نموذج الطلب",
+    "submit": "إرسال الطلب",
+    "required": "مطلوب"
+  },
   "common": {
     "loading": "جاري التحميل...",
     "error": "حدث خطأ",

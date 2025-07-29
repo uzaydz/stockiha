@@ -67,11 +67,25 @@ export const useProductTracking = (options: ProductTrackingOptions) => {
       return;
     }
 
+    // إذا كان التحميل التلقائي معطل، لا تجلب البيانات
+    if (!autoLoadSettings) {
+      // استخدام إعدادات افتراضية بدلاً من جلب البيانات
+      const defaultSettings: TrackingSettings = {
+        facebook: { enabled: false },
+        google: { enabled: false },
+        tiktok: { enabled: false },
+        test_mode: true
+      };
+      setSettings(defaultSettings);
+      settingsLoadedRef.current = true;
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
     try {
-      console.log('🔄 تحميل إعدادات التتبع...', { productId, organizationId });
 
       // استخدام Supabase client مباشرة لجلب البيانات
       const { createClient } = await import('@supabase/supabase-js');
@@ -89,7 +103,6 @@ export const useProductTracking = (options: ProductTrackingOptions) => {
       });
 
       if (error) {
-        console.error('❌ خطأ في جلب بيانات المنتج:', error);
         throw new Error(`خطأ في قاعدة البيانات: ${error.message}`);
       }
 
@@ -99,23 +112,12 @@ export const useProductTracking = (options: ProductTrackingOptions) => {
 
       // تسجيل مفصل للتشخيص
       if (enableDebugMode) {
-        console.log('🔍 البيانات المُستلمة من Supabase:', {
-          productData: productData,
-          hasData: !!productData.data,
-          hasProduct: !!productData.data?.product,
-          hasDirectProduct: !!productData.product,
-          hasMarketingSettings: !!productData.data?.product?.marketing_settings,
-          hasDirectMarketingSettings: !!productData.product?.marketing_settings,
-          marketingSettingsContent: productData.data?.product?.marketing_settings || productData.product?.marketing_settings
-        });
       }
 
       // البحث عن marketing_settings في المكان الصحيح
       const marketingSettings = productData.data?.product?.marketing_settings || productData.product?.marketing_settings;
       
       if (!marketingSettings) {
-        console.warn('⚠️ إعدادات التسويق غير موجودة، سيتم استخدام إعدادات افتراضية');
-        console.log('🔍 محتوى productData:', productData);
         // استخدام إعدادات افتراضية بدلاً من رمي خطأ
         const defaultSettings: TrackingSettings = {
           facebook: { enabled: false },
@@ -157,9 +159,6 @@ export const useProductTracking = (options: ProductTrackingOptions) => {
       settingsLoadedRef.current = true;
       
       if (enableDebugMode) {
-        console.log('✅ تم تحميل إعدادات التتبع مباشرة من Supabase:', trackingSettings);
-        console.log('🔍 بيانات التسويق الكاملة:', marketingSettings);
-        console.log('🔍 معلومات التشخيص:', marketingSettings.debug_info);
       }
       
       // وضع الإعدادات في متغير عام لاستخدامها في ConversionTracker
@@ -167,7 +166,6 @@ export const useProductTracking = (options: ProductTrackingOptions) => {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'خطأ غير معروف';
       setError(errorMessage);
-      console.error('❌ خطأ في تحميل إعدادات التتبع:', err);
     } finally {
       setIsLoading(false);
     }
@@ -191,10 +189,8 @@ export const useProductTracking = (options: ProductTrackingOptions) => {
         trackerRef.current = getConversionTracker(productId, settings);
         
         if (enableDebugMode) {
-          console.log('✅ تم تهيئة متتبع التحويل مع الإعدادات');
         }
       } catch (err) {
-        console.error('❌ خطأ في تهيئة متتبع التحويل:', err);
         setError('فشل في تهيئة متتبع التحويل');
       }
     };
@@ -206,7 +202,6 @@ export const useProductTracking = (options: ProductTrackingOptions) => {
   const trackEvent = useCallback(async (event: TrackingEvent) => {
     if (!trackerRef.current) {
       if (enableDebugMode) {
-        console.warn('🚨 المتتبع غير جاهز، سيتم تأجيل الحدث');
       }
       
       // تأجيل الحدث لمدة قصيرة
@@ -218,10 +213,8 @@ export const useProductTracking = (options: ProductTrackingOptions) => {
       await trackerRef.current.trackEvent(event);
       
       if (enableDebugMode) {
-        console.log('📊 تم تتبع الحدث:', event);
       }
     } catch (err) {
-      console.error('❌ خطأ في تتبع الحدث:', err);
     }
   }, [enableDebugMode]);
 
@@ -429,4 +422,4 @@ export const useProductTracking = (options: ProductTrackingOptions) => {
       organizationId
     } : undefined
   };
-}; 
+};

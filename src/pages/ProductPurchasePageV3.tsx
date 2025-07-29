@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
+import { getSupabaseClient } from '@/lib/supabase';
+import { Helmet } from 'react-helmet-async';
 
 // استيراد المكونات الجديدة المحسنة
 import { NavbarMain } from '@/components/navbar/NavbarMain';
@@ -20,13 +22,15 @@ import ProductPriceDisplay from '@/components/product/ProductPriceDisplay';
 import ProductQuantitySelector from '@/components/product/ProductQuantitySelector';
 import ProductFeatures from '@/components/product/ProductFeatures';
 import ProductFormRenderer from '@/components/product/ProductFormRenderer';
-import ProductPurchaseSummary from '@/components/product/ProductPurchaseSummary';
 import ProductOfferTimer from '@/components/product/ProductOfferTimer';
 import SpecialOffersDisplay from '@/components/store/special-offers/SpecialOffersDisplay';
 
 // الـ Hooks والسياق
 import useProductPurchase from '@/hooks/useProductPurchase';
-import { useProductPage } from '@/context/ProductPageContext';
+import { useTenant } from '@/context/TenantContext';
+import { useProductPageSettings } from '@/context/ProductPageContext';
+import { useSharedOrgSettingsOnly } from '@/context/SharedStoreDataContext';
+import { useUnifiedProductPageData } from '@/hooks/useUnifiedProductPageData';
 
 // حاسبة التوصيل
 import { 
@@ -45,6 +49,9 @@ import {
   type SpecialOffer 
 } from '@/lib/api/productComplete';
 
+// استيراد مكونات التحليلات
+
+
 // استيراد مكونات التتبع المحسنة
 import ProductConversionTracker from '@/components/tracking/ProductConversionTracker';
 import EnhancedPixelLoader from '@/components/tracking/EnhancedPixelLoader';
@@ -55,7 +62,30 @@ import { TrackingSettingsViewer } from '@/components/debug/TrackingSettingsViewe
 import { FacebookEventsLogger } from '@/components/debug/FacebookEventsLogger';
 import QuickTrackingCheck from '@/components/debug/QuickTrackingCheck';
 import FacebookPixelChecker from '@/components/debug/FacebookPixelChecker';
-import CustomerDataTracker from '@/components/debug/CustomerDataTracker';
+import { CustomerDataTracker } from '@/components/debug/CustomerDataTracker';
+import { MatchQualityOptimizer } from '@/components/debug/MatchQualityOptimizer';
+
+// 🚨 إضافة نظام تتبع الأداء لصفحة المنتج
+const PRODUCT_PAGE_DEBUG = false;
+const PRODUCT_PERFORMANCE_METRICS = {
+  totalRenders: 0,
+  hookCalls: 0,
+  useEffectCalls: 0,
+  deliveryCalculations: 0,
+  databaseQueries: 0,
+  warnings: [] as string[]
+};
+
+const logProductPerformanceIssue = (type: string, data: any) => {
+  if (!PRODUCT_PAGE_DEBUG) return;
+  
+  PRODUCT_PERFORMANCE_METRICS.warnings.push(`${type}: ${JSON.stringify(data)}`);
+};
+
+const logProductPageEvent = (event: string, data: any) => {
+  if (!PRODUCT_PAGE_DEBUG) return;
+  
+};
 
 // الأنواع
 interface Product {
@@ -78,9 +108,22 @@ interface Product {
   marketing_settings?: any;
   shipping_and_templates?: {
     shipping_info?: any;
+    template_info?: any;
+    shipping_method_type?: string;
+    use_shipping_clone?: boolean;
+    shipping_provider_id?: number;
+    shipping_clone_id?: number;
   };
   organization?: {
     id: string;
+  };
+  // إضافة معلومات المخزون
+  inventory?: {
+    stock_quantity?: number;
+    min_stock_level?: number;
+    reorder_level?: number;
+    reorder_quantity?: number;
+    last_inventory_update?: string;
   };
   // إضافة خصائص الألوان والمقاسات
   variants?: {
@@ -100,40 +143,177 @@ interface Product {
 }
 
 const ProductPurchasePageV3: React.FC = React.memo(() => {
+  // 🚨 تتبع بداية رسم المكون
+  const renderStartTime = performance.now();
+  PRODUCT_PERFORMANCE_METRICS.totalRenders++;
+
   const { productId, productIdentifier } = useParams<{ productId?: string; productIdentifier?: string }>();
   // استخدام productIdentifier إذا كان متوفراً، وإلا استخدام productId
   const actualProductId = productIdentifier || productId;
   const navigate = useNavigate();
-  const { organization } = useProductPage();
+  const { currentOrganization: organization } = useTenant();
   
-  // ⏱️ قياس وقت تحميل الصفحة
-  const [pageStartTime] = useState(() => {
-    const startTime = performance.now();
-    return startTime;
+  // 🚨 تتبع معلومات الصفحة (في بيئة التطوير فقط)
+  if (process.env.NODE_ENV === 'development') {
+    logProductPageEvent('COMPONENT_RENDER_START', {
+      productId: actualProductId,
+      organizationId: organization?.id,
+      renderNumber: PRODUCT_PERFORMANCE_METRICS.totalRenders
+    });
+  }
+  
+  // 🎯 استخدام Hook موحد لجلب جميع البيانات مع منع التكرار
+  const unifiedData = useUnifiedProductPageData({
+    productId: actualProductId,
+    organizationId: organization?.id,
+    enabled: !!actualProductId && !!organization?.id
   });
 
+  // 🎨 استيراد إعدادات المؤسسة لتطبيق الثيم (Fallback) - محسن لصفحة المنتج
+  // استخدام Hook مخصص يجلب فقط إعدادات المؤسسة بدون الفئات والمنتجات
+  const { organizationSettings: sharedOrgSettings } = useSharedOrgSettingsOnly();
+  const organizationSettingsFromProduct = useProductPageSettings();
+  
+  // 🔧 استخدام useMemo لتجنب تغيير organizationSettings في كل render
+  const organizationSettings = useMemo(() => 
+    unifiedData.organizationSettings || sharedOrgSettings || organizationSettingsFromProduct, 
+    [unifiedData.organizationSettings, sharedOrgSettings, organizationSettingsFromProduct]
+  );
+  
   // مرجع لمتتبع التحويل
   const conversionTrackerRef = useRef<any>(null);
   
   // حالات المكون
   const [submittedFormData, setSubmittedFormData] = useState<Record<string, any>>({});
   
-  // تتبع تغييرات submittedFormData
+  // 🔧 تتبع مُحسن - دمج عدة effects في واحد لتقليل re-renders
   useEffect(() => {
-    console.log('💾 تحديث submittedFormData:', submittedFormData);
-  }, [submittedFormData]);
+    PRODUCT_PERFORMANCE_METRICS.useEffectCalls++;
+    if (process.env.NODE_ENV === 'development') {
+      logProductPageEvent('useEffect_combined_tracking', {
+        hasFormData: Object.keys(submittedFormData).length > 0,
+        formDataKeys: Object.keys(submittedFormData),
+        hasOrganizationSettings: !!organizationSettings,
+        hasPrimaryColor: !!organizationSettings?.theme_primary_color,
+        hasSecondaryColor: !!organizationSettings?.theme_secondary_color,
+        organizationId: organization?.id,
+        useEffectCallNumber: PRODUCT_PERFORMANCE_METRICS.useEffectCalls
+      });
+    }
+  }, [
+    submittedFormData, 
+    organizationSettings?.theme_primary_color, 
+    organizationSettings?.theme_secondary_color, 
+    organization?.id
+  ]);
+  
+  // 🎨 تطبيق ثيم المؤسسة - دمج مع التتبع المُحسن
+  useEffect(() => {
+    // تطبيق الثيم فقط إذا تغيرت الألوان أو organizationId
+    if (!organizationSettings || !organization?.id) {
+      return;
+    }
+    
+    const applyTheme = async () => {
+      try {
+        const { forceApplyOrganizationTheme } = await import('@/lib/themeManager');
+        
+        await forceApplyOrganizationTheme(organization.id, {
+          theme_primary_color: organizationSettings.theme_primary_color,
+          theme_secondary_color: organizationSettings.theme_secondary_color,
+          theme_mode: (organizationSettings as any).theme_mode || 'light',
+          custom_css: (organizationSettings as any).custom_css
+        });
+        
+      } catch (error) {
+        // خطأ في تطبيق الثيم
+      }
+    };
+    
+    applyTheme();
+  }, [
+    organizationSettings?.theme_primary_color, 
+    organizationSettings?.theme_secondary_color, 
+    organization?.id
+  ]);
+
+  // 📊 إعداد مخصص للـ theme (تم إزالته لأن forceApplyOrganizationTheme يقوم بهذا)
+
+  // 🔄 حالة انتظار لتجنب الطلبات المبكرة بدون organizationId
+  const [isOrganizationReady, setIsOrganizationReady] = useState(!!organization?.id);
   const [deliveryCalculation, setDeliveryCalculation] = useState<DeliveryCalculationResult | null>(null);
   const [isCalculatingDelivery, setIsCalculatingDelivery] = useState(false);
-  
-  // حالة العروض الخاصة
   const [selectedOffer, setSelectedOffer] = useState<SpecialOffer | null>(null);
   const [isQuantityUpdatedByOffer, setIsQuantityUpdatedByOffer] = useState(false);
+  const [showValidationErrors, setShowValidationErrors] = useState(false);
+  const [hasTriedToSubmit, setHasTriedToSubmit] = useState(false);
 
-  // استخدام hook المخصص لإدارة حالة المنتج - مع منع الطلبات المكررة
+  // 🎯 الحصول على organizationId مع الانتظار لحل مشكلة "Organization ID is required"
+  // 🚨 تحسين: استخدام useRef لتجنب re-renders غير ضرورية
+  const organizationIdRef = useRef(organization?.id || null);
+  const organizationId = useMemo(() => {
+    const currentId = organization?.id || null;
+    if (currentId !== organizationIdRef.current) {
+      organizationIdRef.current = currentId;
+      logProductPageEvent('ORGANIZATION_ID_CHANGED', { 
+        oldId: organizationIdRef.current, 
+        newId: currentId 
+      });
+    }
+    return currentId;
+  }, [organization?.id]);
+
+  // مراقبة تحميل المؤسسة - محسن لتجنب re-renders
+  useEffect(() => {
+    PRODUCT_PERFORMANCE_METRICS.useEffectCalls++;
+    
+    logProductPageEvent('useEffect_organizationReady', {
+      organizationId,
+      hasOrganizationId: !!organizationId,
+      isOrganizationReady,
+      useEffectCallNumber: PRODUCT_PERFORMANCE_METRICS.useEffectCalls
+    });
+
+    // 🚨 تحسين: فقط إذا كان هناك تغيير حقيقي
+    if (organizationId && !isOrganizationReady) {
+      setIsOrganizationReady(true);
+      logProductPageEvent('ORGANIZATION_READY', { organizationId });
+    } else if (!organizationId && isOrganizationReady) {
+      setIsOrganizationReady(false);
+      logProductPageEvent('ORGANIZATION_NOT_READY', { organizationId });
+    }
+  }, [organizationId]); // 🔧 إزالة isOrganizationReady من dependencies لتجنب infinite loop
+
+  // 🔧 تحسين منطق جلب المنتج - تجنب تغيير المعاملات عند كل render
+  const stableParams = useMemo(() => {
+    // نريد جلب المنتج فقط إذا كان لدينا organizationId و productId
+    // بدون الاعتماد على isOrganizationReady الذي يتغير كثيراً
+    const hasRequiredData = !!organizationId && !!actualProductId;
+    
+    return {
+      productId: hasRequiredData ? actualProductId : undefined,
+      organizationId: hasRequiredData ? organizationId : undefined,
+      dataScope: 'ultra' as const,
+      enabled: hasRequiredData
+    };
+  }, [organizationId, actualProductId]); // 🎯 اعتماد فقط على البيانات الأساسية
+  
+  // 🚨 تتبع استدعاء useProductPurchase
+  PRODUCT_PERFORMANCE_METRICS.hookCalls++;
+  if (process.env.NODE_ENV === 'development') {
+    logProductPageEvent('HOOK_CALL_useProductPurchase', {
+      shouldFetchProduct: stableParams.enabled,
+      organizationId,
+      productId: actualProductId,
+      isOrganizationReady,
+      hookCallNumber: PRODUCT_PERFORMANCE_METRICS.hookCalls,
+      params: stableParams
+    });
+  }
+  
   const [state, actions] = useProductPurchase({
-    productId: actualProductId,
-    organizationId: organization?.id || undefined,
-    dataScope: 'ultra'
+    ...stableParams,
+    preloadedProduct: unifiedData.product // 🚀 تمرير البيانات المحملة مسبقاً
   });
 
   // مراقبة عدد الـ renders لتتبع الطلبات المكررة
@@ -165,33 +345,49 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
     formStrategy
   } = state;
 
-  // ⏱️ تتبع وقت تحميل البيانات
+  // تتبع تغييرات priceInfo
   useEffect(() => {
-    if (product && !loading) {
-      const loadTime = performance.now() - pageStartTime;
-    }
-  }, [product, loading, pageStartTime, formData]);
+    PRODUCT_PERFORMANCE_METRICS.useEffectCalls++;
+    
+    logProductPageEvent('useEffect_priceInfo', {
+      hasPriceInfo: !!priceInfo,
+      selectedColorId: selectedColor?.id,
+      selectedSizeId: selectedSize?.id,
+      quantity,
+      useEffectCallNumber: PRODUCT_PERFORMANCE_METRICS.useEffectCalls
+    });
+  }, [
+    priceInfo?.price, 
+    priceInfo?.originalPrice, 
+    selectedColor?.id, 
+    selectedSize?.id, 
+    quantity
+  ]); // 🔧 استخدام قيم محددة بدلاً من الكائنات كاملة
 
-  // ⏱️ تتبع وقت اكتمال تحميل النموذج
+  // إعادة تعيين حالة التحقق من الصحة عند تغيير الاختيارات
   useEffect(() => {
-    if (formData && product && !loading) {
-      const formLoadTime = performance.now() - pageStartTime;
-    }
-  }, [formData, product, loading, pageStartTime, formStrategy]);
+    PRODUCT_PERFORMANCE_METRICS.useEffectCalls++;
+    
+    logProductPageEvent('useEffect_validationReset', {
+      hasTriedToSubmit,
+      hasSelectedColor: !!selectedColor,
+      hasSelectedSize: !!selectedSize,
+      useEffectCallNumber: PRODUCT_PERFORMANCE_METRICS.useEffectCalls
+    });
 
-  // ⏱️ تتبع وقت تحميل المتغيرات (الألوان والمقاسات)
-  useEffect(() => {
-    if (product?.variants?.has_variants && product.variants.colors?.length) {
-      const variantsLoadTime = performance.now() - pageStartTime;
+    if (hasTriedToSubmit && (selectedColor || selectedSize)) {
+      setShowValidationErrors(false);
+      setHasTriedToSubmit(false);
+      logProductPageEvent('VALIDATION_RESET', { selectedColor: selectedColor?.id, selectedSize: selectedSize?.id });
     }
-  }, [product?.variants, pageStartTime]);
+  }, [selectedColor?.id, selectedSize?.id, hasTriedToSubmit]); // 🔧 استخدام IDs بدلاً من الكائنات
 
   // ⏱️ تتبع حساب رسوم التوصيل
   useEffect(() => {
     if (deliveryCalculation) {
-      const deliveryTime = performance.now() - pageStartTime;
+      // تحديث حساب رسوم التوصيل تم بنجاح
     }
-  }, [deliveryCalculation, pageStartTime]);
+  }, [deliveryCalculation]);
 
   const {
     setSelectedColor,
@@ -202,12 +398,6 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
     toggleWishlist,
     shareProduct
   } = actions;
-
-  // الحصول على organizationId مع تثبيت القيمة
-  const organizationId = useMemo(() => {
-    const id = (organization as any)?.id || (product?.organization as any)?.id || null;
-    return id;
-  }, [(organization as any)?.id, (product?.organization as any)?.id]);
 
   // إعادة تعيين التمرير إلى الأعلى عند تحميل الصفحة وتنظيف preload links
   useEffect(() => {
@@ -241,13 +431,23 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
     minPhoneLength: 8
   });
 
-  // 🎯 Hook التتبع المحسن للبكسل والكونفيجر API
+  // 🎯 Hook التتبع المحسن للبكسل والكونفيجر API - مع تحسينات لمنع التكرار
   const productTracking = useProductTracking({
     productId: actualProductId!,
     organizationId: organizationId,
-    autoLoadSettings: true,
+    autoLoadSettings: false, // تعطيل التحميل التلقائي لمنع استدعاء get_product_complete_data
     enableDebugMode: process.env.NODE_ENV === 'development'
   });
+
+  // تحميل إعدادات التتبع يدوياً عند الحاجة فقط (للبكسل)
+  useEffect(() => {
+    // تحميل إعدادات التتبع فقط إذا كان المنتج محمل ولم يتم تحميل الإعدادات بعد
+    if (product && !productTracking.isReady && !productTracking.isLoading) {
+      productTracking.loadTrackingSettings();
+    }
+  }, [product, productTracking.isReady, productTracking.isLoading, productTracking.loadTrackingSettings]);
+
+
 
   // دالة تحديث الكمية مع التتبع
   const handleQuantityChange = useCallback((newQuantity: number) => {
@@ -257,7 +457,7 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
     // تحديث الطلب المتروك سيتم تلقائياً عبر useEffect
 
     // 🛍️ تتبع إضافة إلى السلة عند زيادة الكمية
-    if (newQuantity > oldQuantity && product && productTracking.isReady) {
+    if (newQuantity > oldQuantity && product && productTracking?.isReady) {
       const quantityDiff = newQuantity - oldQuantity;
       productTracking.trackAddToCart({
         name: product.name,
@@ -272,8 +472,7 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
 
   // 📊 تتبع عرض المحتوى تلقائياً
   useEffect(() => {
-    if (product && productTracking.isReady) {
-      console.log('🎯 تتبع عرض المحتوى:', product.name);
+    if (product && productTracking?.isReady) {
       productTracking.trackViewContent({
         name: product.name,
         price: product.pricing?.price,
@@ -283,12 +482,11 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
         quantity
       });
     }
-  }, [product, productTracking.isReady, selectedColor, selectedSize, quantity]);
+  }, [product, productTracking?.isReady, selectedColor, selectedSize, quantity]);
 
   // 📊 تتبع تغيير المتغيرات (اللون والمقاس)
   useEffect(() => {
-    if (product && productTracking.isReady && (selectedColor || selectedSize)) {
-      console.log('🎨 تتبع تغيير المتغيرات:', { color: selectedColor?.name, size: selectedSize?.size_name });
+    if (product && productTracking?.isReady && (selectedColor || selectedSize)) {
       // إرسال حدث ViewContent مع المتغيرات الجديدة
       productTracking.trackViewContent({
         name: product.name,
@@ -299,7 +497,7 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
         selectedSize: selectedSize?.size_name
       });
     }
-  }, [selectedColor?.id, selectedSize?.id, product, productTracking.isReady, quantity]);
+  }, [selectedColor?.id, selectedSize?.id, product, productTracking?.isReady, quantity]);
 
   // 🎯 اختيار أفضل عرض تلقائياً عند تغيير الكمية
   useEffect(() => {
@@ -316,17 +514,6 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
       if (bestOffer?.id !== selectedOffer?.id) {
         setSelectedOffer(bestOffer);
         
-        console.log('🔍 فحص العروض الخاصة:', {
-          special_offers_config: (product as any).special_offers_config,
-          enabled: (product as any).special_offers_config?.enabled,
-          offers: (product as any).special_offers_config?.offers,
-          offersLength: (product as any).special_offers_config?.offers?.length,
-          bestOffer,
-          quantity,
-          previousOfferId: selectedOffer?.id,
-          newOfferId: bestOffer?.id,
-          updatedByOffer: isQuantityUpdatedByOffer
-        });
       }
     }
   }, [product, quantity, isQuantityUpdatedByOffer, selectedOffer?.id]);
@@ -338,20 +525,9 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
     const offerSummary = getSpecialOfferSummary(product as any, selectedOffer, quantity);
     
     // تسجيل مؤقت للتشخيص
-    console.log('💰 تحديث السعر النهائي:', {
-      selectedOffer: selectedOffer?.name,
-      selectedOfferId: selectedOffer?.id,
-      originalQuantity: quantity,
-      finalQuantity: offerSummary.finalQuantity,
-      originalPrice: product.pricing?.price || 0,
-      finalPrice: offerSummary.finalPrice,
-      savings: offerSummary.savings,
-      offerApplied: offerSummary.offerApplied,
-      timestamp: new Date().toISOString()
-    });
     
     return {
-      price: offerSummary.finalPrice,
+      price: offerSummary.finalPrice || priceInfo?.price || 0,
       quantity: offerSummary.finalQuantity,
       savings: offerSummary.savings,
       offerApplied: offerSummary.offerApplied
@@ -359,8 +535,6 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
   }, [product, selectedOffer, quantity]);
 
   const handleFormChange = useCallback((data: Record<string, any>) => {
-    console.log('📝 تغيير في بيانات النموذج:', data);
-    console.log('🔑 المفاتيح الحالية:', Object.keys(data));
     setSubmittedFormData(data);
     
     // حفظ مؤجل للطلب المتروك عند تغيير البيانات (تقليل الاستدعاءات)
@@ -423,6 +597,62 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
         const weight = 1; 
         const productPrice = product?.pricing?.price || 0;
         
+        // تحديد شركة التوصيل المناسبة بناءً على إعدادات المنتج
+        let shippingProvider: {
+          code: string;
+          name: string;
+          type: 'yalidine' | 'zrexpress' | 'ecotrack' | 'custom' | 'clone';
+        } = {
+          code: 'yalidine',
+          name: 'ياليدين', 
+          type: 'yalidine'
+        };
+
+        if (product?.shipping_and_templates?.shipping_info) {
+          if (product.shipping_and_templates.shipping_info.type === 'provider' && product.shipping_and_templates.shipping_info.code) {
+            shippingProvider = {
+              code: product.shipping_and_templates.shipping_info.code,
+              name: product.shipping_and_templates.shipping_info.name || product.shipping_and_templates.shipping_info.code,
+              type: product.shipping_and_templates.shipping_info.code as any
+            };
+          } else if (product.shipping_and_templates.shipping_info.type === 'clone') {
+            // في حالة استخدام clone (أسعار موحدة)
+            shippingProvider = {
+              code: 'clone',
+              name: product.shipping_and_templates.shipping_info.name || 'شحن موحد',
+              type: 'clone'
+            };
+          } else {
+            // 🚨 FALLBACK: في حالة عدم وجود shipping_info، نحاول استخدام البيانات الخام
+            const rawShippingProviderId = (product?.shipping_and_templates as any)?.shipping_provider_id || (product as any)?.shipping_provider_id;
+            const rawUseShippingClone = (product?.shipping_and_templates as any)?.use_shipping_clone || (product as any)?.use_shipping_clone;
+            const rawShippingCloneId = (product?.shipping_and_templates as any)?.shipping_clone_id || (product as any)?.shipping_clone_id;
+            
+            if (rawShippingProviderId === 2) {
+              // ZR Express provider ID = 2
+              shippingProvider = {
+                code: 'zrexpress',
+                name: 'ZR Express',
+                type: 'zrexpress'
+              };
+            } else if (rawShippingProviderId === 1) {
+              // Yalidine provider ID = 1
+              shippingProvider = {
+                code: 'yalidine',
+                name: 'ياليدين',
+                type: 'yalidine'
+              };
+            } else if (rawShippingProviderId) {
+              // مقدم خدمة آخر
+              shippingProvider = {
+                code: `provider_${rawShippingProviderId}`,
+                name: `مقدم الخدمة ${rawShippingProviderId}`,
+                type: 'custom'
+              };
+            }
+          }
+        }
+
         const deliveryInput = {
           organizationId,
           selectedProvinceId: submittedFormData.province,
@@ -431,15 +661,12 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
           weight,
           productPrice,
           quantity,
-          shippingProvider: {
-            code: 'yalidine',
-            name: 'ياليدين',
-            type: 'yalidine' as const
-          },
+          shippingProvider,
           productShippingInfo: product?.shipping_and_templates?.shipping_info || undefined
         };
 
         const result = await calculateDeliveryFeesOptimized(deliveryInput);
+        
         setDeliveryCalculation(result);
         
       } catch (error) {
@@ -484,7 +711,7 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
   const handleFormSubmit = useCallback(async (data: Record<string, any>) => {
     try {
       // 🛍️ تتبع بدء عملية الشراء
-      if (product && productTracking.isReady) {
+      if (product && productTracking?.isReady) {
         await productTracking.trackInitiateCheckout({
           name: product.name,
           price: priceInfo?.price || 0,
@@ -506,29 +733,58 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
         });
       }
 
-      // إضافة console.log لتتبع البيانات
-      console.group('🔍 تتبع بيانات النموذج - handleFormSubmit');
-      console.log('📋 البيانات المستلمة:', data);
-      console.log('🏢 معرف المؤسسة:', organizationId);
-      console.log('📦 بيانات المنتج:', product ? 'موجود' : 'غير موجود');
+      // 🚨 CONSOLE LOG: تتبع شامل لعملية تقديم الطلبية
       
       // التحقق من الحقول المطلوبة
-      console.log('🔍 التحقق من الحقول المطلوبة:');
-      console.log('  - customer_name:', data.customer_name);
-      console.log('  - customer_phone:', data.customer_phone);
-      console.log('  - province:', data.province);
-      console.log('  - municipality:', data.municipality);
       
       // عرض جميع مفاتيح البيانات
-      console.log('🗝️ جميع المفاتيح المتاحة:', Object.keys(data));
-      console.groupEnd();
       
+      // معلومات اللون والمقاس المختار
+
+      // 🚨 CONSOLE LOG: فحص إعدادات المؤسسة لخصم المخزون التلقائي باستخدام نظام التنسيق
+      try {
+        const { coordinateRequest } = await import('@/lib/api/requestCoordinator');
+        const orgSettings = await coordinateRequest(
+          'organization_settings',
+          { 
+            organization_id: organizationId,
+            select: 'custom_js'
+          },
+          async () => {
+            const supabase = getSupabaseClient();
+            const { data, error } = await supabase
+              .from('organization_settings')
+              .select('custom_js')
+              .eq('organization_id', organizationId)
+              .single();
+            
+            if (error) throw error;
+            return data;
+          },
+          'ProductPurchasePageV3'
+        );
+        const orgError = null;
+
+        if (orgSettings?.custom_js) {
+          try {
+            const parsedSettings = JSON.parse(orgSettings.custom_js);
+          } catch (parseError) {
+          }
+        }
+      } catch (error) {
+      }
+      
+      // دالة مساعدة لتحويل UUID بشكل آمن
+      const safeUuidOrNull = (value: string | undefined | null): string | null => {
+        if (!value || value === 'undefined' || value === 'null') return null;
+        return value;
+      };
+
       // حفظ بيانات النموذج
       setSubmittedFormData(data);
       
       // التحقق من وجود البيانات المطلوبة
       if (!product || !organizationId) {
-        console.error('❌ خطأ: بيانات المنتج أو المؤسسة مفقودة');
         toast.error('حدث خطأ في تحميل بيانات المنتج');
         return;
       }
@@ -536,22 +792,8 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
       // التحقق من وجود بيانات النموذج المطلوبة - مع فحص أسماء مختلفة
       const customerName = data.customer_name || data.name || data.full_name || data.fullName;
       const customerPhone = data.customer_phone || data.phone || data.telephone || data.mobile;
-      
-      console.log('🔍 البحث عن أسماء مختلفة للحقول:');
-      console.log('  - customer_name:', data.customer_name);
-      console.log('  - name:', data.name);
-      console.log('  - full_name:', data.full_name);
-      console.log('  - fullName:', data.fullName);
-      console.log('  - customer_phone:', data.customer_phone);
-      console.log('  - phone:', data.phone);
-      console.log('  - telephone:', data.telephone);
-      console.log('  - mobile:', data.mobile);
-      console.log('✅ النتيجة النهائية:', { customerName, customerPhone });
-      
+
       if (!customerName || !customerPhone) {
-        console.error('❌ خطأ: بيانات العميل مفقودة');
-        console.log('المطلوب: اسم العميل ورقم الهاتف');
-        console.log('الموجود:', { customerName, customerPhone });
         toast.error('يرجى ملء جميع البيانات المطلوبة (الاسم ورقم الهاتف)');
         return;
       }
@@ -569,12 +811,12 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
         paymentMethod: 'cash_on_delivery',
         notes: data.notes || '',
         productId: product.id,
-        productColorId: selectedColor?.id || null,
-        productSizeId: selectedSize?.id || null,
+        productColorId: safeUuidOrNull(selectedColor?.id),
+        productSizeId: safeUuidOrNull(selectedSize?.id),
         sizeName: selectedSize?.size_name || null,
         quantity: quantity,
         unitPrice: priceInfo.price,
-        totalPrice: (priceInfo.price * quantity) + (deliveryCalculation?.deliveryFee || 0),
+        totalPrice: priceInfo.price * quantity, // إصلاح: سعر المنتج فقط بدون رسوم التوصيل
         deliveryFee: deliveryCalculation?.deliveryFee || 0,
         formData: data,
         metadata: {
@@ -584,22 +826,20 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
           selected_size_name: selectedSize?.size_name
         }
       };
-      
-      console.log('📦 بيانات الطلبية المرسلة لـ processOrder:', orderPayload);
+
+      // 🚨 CONSOLE LOG: بيانات الطلبية قبل الإرسال
       
       // معالجة الطلبية باستخدام الواجهة الصحيحة
+      
       const result = await processOrder(organizationId, orderPayload);
-      
-      console.log('📋 نتيجة processOrder:', result);
-      
+
       if (result && !result.error) {
-        console.log('✅ نجحت معالجة الطلبية!');
         
         // 💰 تتبع إتمام الشراء
         const orderId = result.id || result.order_id;
         const totalValue = (priceInfo.price * quantity) + (deliveryCalculation?.deliveryFee || 0);
         
-        if (product && productTracking.isReady && orderId) {
+        if (product && productTracking?.isReady && orderId) {
           await productTracking.trackPurchase(
             orderId.toString(),
             totalValue,
@@ -635,7 +875,6 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
         
         // التوجه لصفحة الشكر مع رقم الطلب
         const orderNumber = result.order_number || result.orderNumber || Math.floor(Math.random() * 10000);
-        console.log('🎯 رقم الطلب:', orderNumber);
         navigate(`/thank-you?orderNumber=${orderNumber}`, {
           state: {
             orderNumber: orderNumber,
@@ -645,11 +884,9 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
           }
         });
       } else {
-        console.error('❌ فشلت معالجة الطلبية:', result);
         toast.error(result?.error || 'حدث خطأ أثناء إنشاء الطلبية');
       }
     } catch (error) {
-      console.error('خطأ في معالجة الطلبية:', error);
       toast.error('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى');
     }
   }, [
@@ -668,6 +905,32 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
   // معالجة الشراء المباشر
   const handleBuyNow = useCallback(async () => {
     try {
+      // 🚨 تفعيل عرض أخطاء التحقق من الصحة
+      setHasTriedToSubmit(true);
+      setShowValidationErrors(true);
+      
+      // التحقق من صحة المتغيرات المطلوبة
+      if (!canPurchase) {
+        // التحقق من المتغيرات المحددة
+        if (product?.variants?.has_variants && !selectedColor) {
+          toast.error('يرجى اختيار اللون المطلوب');
+          return;
+        }
+        
+        if (selectedColor?.has_sizes && !selectedSize) {
+          toast.error('يرجى اختيار المقاس المطلوب');
+          return;
+        }
+        
+        if (quantity <= 0) {
+          toast.error('يرجى تحديد كمية صحيحة');
+          return;
+        }
+        
+        toast.error('يرجى التحقق من جميع البيانات المطلوبة');
+        return;
+      }
+      
       // التحقق من وجود البيانات المطلوبة
       if (!product || !organizationId) {
         toast.error('حدث خطأ في تحميل بيانات المنتج');
@@ -685,10 +948,8 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
       const finalQuantity = offerSummary.finalQuantity;
       const finalPrice = offerSummary.finalPrice;
 
-
-
       // 🛍️ تتبع بدء عملية الشراء المباشر
-      if (productTracking.isReady) {
+      if (productTracking?.isReady) {
         await productTracking.trackInitiateCheckout({
           name: product.name,
           price: finalPrice,
@@ -710,6 +971,12 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
         });
       }
 
+      // دالة مساعدة لتحويل UUID بشكل آمن
+      const safeUuidOrNull = (value: string | undefined | null): string | null => {
+        if (!value || value === 'undefined' || value === 'null') return null;
+        return value;
+      };
+
       // معالجة الطلبية باستخدام الواجهة الصحيحة
       const result = await processOrder(organizationId, {
         fullName: submittedFormData.customer_name,
@@ -723,12 +990,12 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
         paymentMethod: 'cash_on_delivery',
         notes: submittedFormData.notes || '',
         productId: product.id,
-        productColorId: selectedColor?.id || null,
-        productSizeId: selectedSize?.id || null,
+        productColorId: safeUuidOrNull(selectedColor?.id),
+        productSizeId: safeUuidOrNull(selectedSize?.id),
         sizeName: selectedSize?.size_name || null,
         quantity: finalQuantity,
         unitPrice: finalPrice / finalQuantity, // السعر لكل قطعة مع العرض
-        totalPrice: finalPrice + (deliveryCalculation?.deliveryFee || 0),
+        totalPrice: finalPrice, // إصلاح: سعر المنتج فقط بدون رسوم التوصيل
         deliveryFee: deliveryCalculation?.deliveryFee || 0,
         formData: submittedFormData,
         metadata: {
@@ -776,7 +1043,6 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
         toast.error(result?.error || 'حدث خطأ أثناء إنشاء الطلبية');
       }
     } catch (error) {
-      console.error('خطأ في معالجة الطلبية:', error);
       toast.error('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى');
     }
   }, [
@@ -801,40 +1067,165 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
   }, []);
 
   // ⏱️ تتبع وقت اكتمال عرض الصفحة
-  useEffect(() => {
-    if (product && !loading && !error) {
-      // تأخير صغير للتأكد من اكتمال عرض جميع المكونات
-      const timeoutId = setTimeout(() => {
-        const totalTime = performance.now() - pageStartTime;
-
-         // 📊 ملخص الأداء النهائي
-         console.groupCollapsed('📊 تقرير الأداء الشامل - ProductPurchasePageV3');
-      }, 100);
-
-      return () => clearTimeout(timeoutId);
-    }
-  }, [product, loading, error, pageStartTime, formData, deliveryCalculation]);
+  // تم حذف هذا القسم لتحسين الأداء
 
   // حالة التحميل
-  if (loading) {
+  if (loading || !isOrganizationReady) {
     return <ProductPageSkeleton />;
   }
 
   // حالة الخطأ
-  if (error || !product) {
-    const errorTime = performance.now() - pageStartTime;
+
+  // 🔍 مكون SEO للمنتج
+  const ProductSEOHead = () => {
+    const storeName = organizationSettings?.site_name || organization?.name || 'المتجر';
+    
+    // إذا لم تكن البيانات متوفرة بعد، استخدم بيانات افتراضية محسنة
+    if (!product || !organization) {
+      const defaultTitle = actualProductId 
+        ? `منتج ${actualProductId} | ${storeName}`
+        : `${storeName} - متجر إلكتروني`;
+      
+      return (
+        <Helmet>
+          <title>{defaultTitle}</title>
+          <meta name="description" content={`تسوق من ${storeName} - متجر إلكتروني بأفضل الأسعار والعروض. توصيل سريع لجميع الولايات.`} />
+          <meta name="robots" content="index, follow" />
+          <meta name="googlebot" content="index, follow" />
+        </Helmet>
+      );
+    }
+
+    // البيانات متوفرة، انشئ SEO كامل
+    const productName = product.name || 'منتج';
+    const productPrice = priceInfo?.price ? `${priceInfo.price.toLocaleString()} د.ج` : '';
+    
+    // إنشاء عنوان محسن للSEO
+    const title = `${productName} ${productPrice ? `- ${productPrice}` : ''} | ${storeName}`;
+    
+    // إنشاء وصف محسن للSEO
+    let description = `اشتري ${productName} بأفضل سعر من ${storeName}. `;
+    if (product.description) {
+      // استخراج أول 150 حرف من الوصف
+      const cleanDescription = product.description.replace(/<[^>]*>/g, '').trim();
+      description += cleanDescription.length > 100 ? cleanDescription.substring(0, 100) + '...' : cleanDescription;
+    } else {
+      description += 'توصيل سريع لجميع الولايات. جودة عالية وأسعار منافسة.';
+    }
+    
+    // URL الكنسي
+    const canonicalUrl = window.location.href.split('?')[0]; // إزالة query parameters
+    
+    // صورة المنتج للـ Open Graph
+    const ogImage = (product.images && product.images[0]) || undefined;
+    const productPriceValue = priceInfo?.price || 0;
+    const productAvailability = availableStock > 0 ? 'in stock' : 'out of stock';
+    
     return (
-      <ProductErrorPage 
-        error={error}
-        onRetry={handleRetry}
-      />
+      <Helmet>
+        {/* العنوان الأساسي */}
+        <title>{title}</title>
+        
+        {/* Meta Tags أساسية */}
+        <meta name="description" content={description} />
+        <meta name="keywords" content={`${productName}, ${storeName}, شراء اونلاين, منتجات عامة, الجزائر`} />
+        
+        {/* Open Graph Tags للـ Facebook */}
+        <meta property="og:type" content="product" />
+        <meta property="og:title" content={title} />
+        <meta property="og:description" content={description} />
+        <meta property="og:url" content={canonicalUrl} />
+        <meta property="og:site_name" content={storeName} />
+        <meta property="og:locale" content="ar_DZ" />
+        {ogImage && <meta property="og:image" content={ogImage} />}
+        
+        {/* Twitter Card Tags */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={title} />
+        <meta name="twitter:description" content={description} />
+        {ogImage && <meta name="twitter:image" content={ogImage} />}
+        
+        {/* Product Schema أساسي */}
+        <meta property="product:price:amount" content={productPriceValue.toString()} />
+        <meta property="product:price:currency" content="DZD" />
+        <meta property="product:availability" content={productAvailability} />
+        
+        {/* Canonical URL */}
+        <link rel="canonical" href={canonicalUrl} />
+        
+        {/* Robots */}
+        <meta name="robots" content="index, follow" />
+        <meta name="googlebot" content="index, follow" />
+        
+        {/* JSON-LD Structured Data للمنتج */}
+        <script type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Product",
+            "name": productName,
+            "description": description,
+            "image": ogImage ? [ogImage] : [],
+            "url": canonicalUrl,
+            "brand": {
+              "@type": "Brand",
+              "name": storeName
+            },
+            "offers": {
+              "@type": "Offer",
+              "price": productPriceValue,
+              "priceCurrency": "DZD",
+              "availability": productAvailability === 'in stock' 
+                ? "https://schema.org/InStock" 
+                : "https://schema.org/OutOfStock",
+              "seller": {
+                "@type": "Organization",
+                "name": storeName
+              }
+            },
+            "category": "منتجات عامة"
+          })}
+        </script>
+      </Helmet>
     );
-  }
+  };
 
   // ⏱️ تسجيل بداية عرض المكونات
 
+  // التحقق من إعدادات المؤسسة أولاً
+  if (!organizationSettings || !organization?.id) {
+    return (
+      <>
+        {/* SEO Head للمنتج - حتى أثناء التحميل */}
+        <ProductSEOHead />
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">جاري تحميل المنتج...</p>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // التحقق من حالة الخطأ بعد تعريف جميع الـ hooks
+  if (error || !product) {
+    return (
+      <>
+        {/* SEO Head للمنتج - دائماً في الأعلى */}
+        <ProductSEOHead />
+        <ProductErrorPage 
+          error={error}
+          onRetry={handleRetry}
+        />
+      </>
+    );
+  }
+
   return (
     <>
+      {/* SEO Head للمنتج - دائماً في الأعلى */}
+      <ProductSEOHead />
+      
     <div className="min-h-screen bg-background transition-colors duration-300">
       {/* مكونات التتبع المخفية */}
       {actualProductId && organizationId && (
@@ -845,10 +1236,8 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
             organizationId={organizationId}
             settings={productTracking.settings || undefined}
             onPixelsLoaded={(loadedPixels) => {
-              console.log('📡 تم تحميل البكسلات:', loadedPixels);
             }}
             onPixelError={(platform, error) => {
-              console.error(`❌ خطأ في بكسل ${platform}:`, error);
             }}
           />
           
@@ -863,10 +1252,8 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
             quantity={quantity}
             currency="DZD"
             onTrackingReady={() => {
-              console.log('🎯 متتبع التحويل جاهز');
             }}
             onTrackingError={(error) => {
-              console.error('❌ خطأ في متتبع التحويل:', error);
             }}
           />
         </>
@@ -973,6 +1360,8 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
                 selectedSize={selectedSize}
                 onColorSelect={setSelectedColor}
                 onSizeSelect={setSelectedSize}
+                showValidation={showValidationErrors || hasTriedToSubmit}
+                hasValidationError={!canPurchase && hasTriedToSubmit}
               />
             </motion.div>
 
@@ -990,33 +1379,18 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
                   config={product.special_offers_config}
                   basePrice={product.pricing?.price || 0}
                   onSelectOffer={(offer) => {
-                    console.log('🎯 اختيار عرض جديد:', {
-                      previousOffer: selectedOffer?.name,
-                      newOffer: offer?.name,
-                      newOfferId: offer?.id,
-                      timestamp: new Date().toISOString()
-                    });
                     
                     setSelectedOffer(offer);
                     
                     // تحديث الكمية تلقائياً لتتناسب مع العرض
                     if (offer) {
                       if (offer.quantity !== quantity) {
-                        console.log('📈 تحديث الكمية تلقائياً:', {
-                          oldQuantity: quantity,
-                          newQuantity: offer.quantity,
-                          offerName: offer.name
-                        });
                         setIsQuantityUpdatedByOffer(true);
                         setQuantity(offer.quantity);
                       }
                     } else {
                       // إذا تم إلغاء العرض (اختيار "قطعة واحدة")، الرجوع للكمية 1
                       if (quantity !== 1) {
-                        console.log('🔄 الرجوع للكمية الأساسية:', {
-                          oldQuantity: quantity,
-                          newQuantity: 1
-                        });
                         setIsQuantityUpdatedByOffer(true);
                         setQuantity(1);
                       }
@@ -1034,11 +1408,6 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
             {/* أزرار الشراء */}
             <ProductActions
               totalPrice={(() => {
-                console.log('🛒 تحديث سعر ProductActions:', {
-                  finalPrice: finalPriceCalculation.price,
-                  selectedOffer: selectedOffer?.name,
-                  timestamp: new Date().toISOString()
-                });
                 return finalPriceCalculation.price;
               })()}
               deliveryFee={summaryData?.deliveryFee || 0}
@@ -1058,6 +1427,8 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
               <ProductFeatures product={product} />
             </motion.div>
 
+            {/* إحصائيات مبسطة للزوار - متاحة لجميع المستخدمين */}
+
             {/* النماذج */}
             {formData && (
               <motion.div
@@ -1071,18 +1442,35 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
                   formStrategy={formStrategy}
                   onFormSubmit={handleFormSubmit}
                   onFormChange={handleFormChange}
-                  loading={buyingNow}
+                  isLoading={buyingNow}
                   isSubmitting={buyingNow}
+                  isLoadingDeliveryFee={summaryData?.isCalculating || false}
+                  isCalculatingDelivery={summaryData?.isCalculating || false}
+                  deliveryFee={summaryData?.deliveryFee}
                   className="mb-4"
                   // تمرير بيانات المنتج والمزامنة
                   product={{
                     has_variants: product.variants?.has_variants,
-                    colors: product.variants?.colors
+                    colors: product.variants?.colors,
+                    stock_quantity: product.inventory?.stock_quantity
                   }}
                   selectedColor={selectedColor}
                   selectedSize={selectedSize}
                   onColorSelect={setSelectedColor}
                   onSizeSelect={setSelectedSize}
+                  // إضافة البيانات المالية
+                  subtotal={finalPriceCalculation.price}
+                  total={finalPriceCalculation.price + (summaryData?.deliveryFee || 0)}
+                  quantity={quantity}
+                  // إضافة معلومات الموقع للتحقق من التوصيل المجاني
+                  selectedProvince={summaryData?.selectedProvince ? {
+                    id: summaryData.selectedProvince.id.toString(),
+                    name: summaryData.selectedProvince.name
+                  } : undefined}
+                  selectedMunicipality={summaryData?.selectedMunicipality ? {
+                    id: summaryData.selectedMunicipality.id.toString(),
+                    name: summaryData.selectedMunicipality.name
+                  } : undefined}
                 />
 
                 {/* مؤشر حفظ الطلب المتروك */}
@@ -1098,55 +1486,6 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
                   </motion.div>
                 )}
 
-                {/* ملخص الطلب */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: 0.8 }}
-                  className="mt-6"
-                >
-                  <ProductPurchaseSummary
-                    productName={product.name}
-                    productImage={product.images?.additional_images?.[0]?.url || product.images?.thumbnail_image}
-                    basePrice={product.pricing?.price || 0}
-                    quantity={finalPriceCalculation.quantity}
-                    selectedColor={selectedColor ? {
-                      name: selectedColor.name,
-                      value: selectedColor.color_code || '#000000',
-                      price_modifier: selectedColor.price ? selectedColor.price - (product.pricing?.price || 0) : 0
-                    } : undefined}
-                    selectedSize={selectedSize ? {
-                      name: selectedSize.size_name,
-                      value: selectedSize.size_name,
-                      price_modifier: selectedSize.price ? selectedSize.price - (product.pricing?.price || 0) : 0
-                    } : undefined}
-                    subtotal={(() => {
-                      console.log('📊 تحديث سعر ProductPurchaseSummary:', {
-                        subtotal: finalPriceCalculation.price,
-                        selectedOffer: selectedOffer?.name,
-                        savings: finalPriceCalculation.savings,
-                        timestamp: new Date().toISOString()
-                      });
-                      return finalPriceCalculation.price;
-                    })()}
-                    discount={priceInfo.discount + finalPriceCalculation.savings}
-                    deliveryFee={summaryData?.deliveryFee || 0}
-                    total={finalPriceCalculation.price + (summaryData?.deliveryFee || 0)}
-                    isLoadingDeliveryFee={summaryData?.isCalculating || false}
-                    deliveryType={summaryData?.deliveryType || 'home'}
-                    selectedProvince={summaryData?.selectedProvince}
-                    selectedMunicipality={summaryData?.selectedMunicipality ? {
-                      id: summaryData.selectedMunicipality.id,
-                      name: summaryData.selectedMunicipality.name
-                    } : undefined}
-                    shippingProvider={summaryData?.shippingProvider ? {
-                      name: summaryData.shippingProvider.name,
-                      logo: summaryData.shippingProvider.logo
-                    } : undefined}
-                    currency="دج"
-                  />
-                </motion.div>
-
                 {/* الوصف - تحت ملخص الطلب */}
                 {product.description && (
                   <motion.div
@@ -1157,7 +1496,6 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
                   >
                     <ProductDescription 
                       description={product.description}
-                      maxLength={200}
                     />
                   </motion.div>
                 )}
@@ -1165,6 +1503,7 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
             )}
           </motion.div>
         </div>
+
       </div>
     </div>
 
@@ -1180,19 +1519,58 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
         />
         <ConversionAPIMonitor />
         <TrackingSettingsViewer 
-          settings={productTracking.settings}
+          settings={productTracking?.settings || null}
           productId={actualProductId}
           organizationId={organizationId}
         />
         <FacebookEventsLogger 
-          pixelId={(productTracking.settings as any)?.facebook_pixel_id}
+          pixelId={(productTracking?.settings as any)?.facebook_pixel_id || null}
         />
         <FacebookPixelChecker />
         <CustomerDataTracker />
+        <MatchQualityOptimizer />
       </>
     )}
     </>
   );
+
+  // 🚨 تحذير الأداء النهائي
+  const renderEndTime = performance.now();
+  const totalRenderTime = renderEndTime - renderStartTime;
+  
+  if (totalRenderTime > 100) {
+    logProductPerformanceIssue('SLOW_COMPONENT_RENDER', {
+      duration: totalRenderTime,
+      renderNumber: PRODUCT_PERFORMANCE_METRICS.totalRenders,
+      productId: actualProductId,
+      organizationId
+    });
+  }
+
+  if (PRODUCT_PERFORMANCE_METRICS.totalRenders > 5) {
+    logProductPerformanceIssue('EXCESSIVE_RERENDERS', {
+      totalRenders: PRODUCT_PERFORMANCE_METRICS.totalRenders,
+      hookCalls: PRODUCT_PERFORMANCE_METRICS.hookCalls,
+      useEffectCalls: PRODUCT_PERFORMANCE_METRICS.useEffectCalls,
+      productId: actualProductId,
+      organizationId,
+      message: 'المكون يعيد الرسم كثيراً - مشكلة أداء خطيرة'
+    });
+  }
+
+  // إضافة معلومات الأداء إلى window للتشخيص
+  if (typeof window !== 'undefined') {
+    (window as any).productPagePerformance = PRODUCT_PERFORMANCE_METRICS;
+  }
+
+  if (process.env.NODE_ENV === 'development') {
+    logProductPageEvent('COMPONENT_RENDER_END', {
+      renderTime: totalRenderTime,
+      renderNumber: PRODUCT_PERFORMANCE_METRICS.totalRenders,
+      productId: actualProductId,
+      organizationId
+    });
+  }
 });
 
 ProductPurchasePageV3.displayName = 'ProductPurchasePageV3';

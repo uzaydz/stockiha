@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" class="light">
+  <head>
+  <!-- 🔤 Font Preloads لتحسين تحميل الخطوط -->
+  <link rel="preload" href="/fonts/tajawal-regular.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/tajawal-medium.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/tajawal-bold.woff2" as="font" type="font/woff2" crossorigin>
+  
+  <!-- 🚀 Resource Hints للأداء -->
+  <link rel="dns-prefetch" href="//fonts.googleapis.com">
+  <link rel="dns-prefetch" href="//fonts.gstatic.com">
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5">
+    <title>سطوكيها - منصة إدارة المتاجر الذكية</title>
+    <meta name="description" content="سطوكيها - منصة إدارة المتاجر الذكية لإنشاء متجرك الإلكتروني وإدارة المبيعات والمخزون بكل سهولة" />
+    <meta name="author" content="سطوكيها" />
+    
+    <!-- إضافة سكريبت للتعامل مع وضع الإضاءة -->
+    <script>
+      // حاول تطبيق الوضع المحفوظ قبل تحميل الصفحة لمنع وميض الشاشة
+      const storedTheme = localStorage.getItem('theme') || 'light';
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      const initialTheme = storedTheme === 'system' ? systemTheme : storedTheme;
+      document.documentElement.classList.add(initialTheme);
+      document.documentElement.style.colorScheme = initialTheme;
+    </script>
+    
+    <!-- Polyfill for process -->
+    <script>
+      window.process = window.process || { env: {} };
+      window.global = window.global || window;
+    </script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <meta property="og:title" content="سطوكيها - منصة إدارة المتاجر الذكية" />
+    <meta property="og:description" content="منصة إدارة المتاجر الذكية لإنشاء متجرك الإلكتروني وإدارة المبيعات والمخزون بكل سهولة" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/icon.png" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@stockiha" />
+    <meta name="twitter:image" content="/icon.png" />
+    
+    <!-- PWA Support -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#6b21a8">
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+    
+    <!-- مخصص لـ Vercel و SPA -->
+    <meta name="vercel-deployment" content="true">
+    <meta name="format-detection" content="telephone=no">
+
+    <!-- نظام إدارة الثيمات الموحد - يمنع الوميض ويطبق الألوان فوراً -->
+    <script>
+      (function() {
+        try {
+          // تحديد نوع الصفحة الحالية
+          function getCurrentPageType() {
+            const hostname = window.location.hostname;
+            const pathname = window.location.pathname;
+            
+            // إذا كان في لوحة التحكم
+            if (pathname.startsWith('/admin') || pathname.startsWith('/dashboard')) {
+              return 'admin';
+            }
+            
+            // إذا كان نطاق فرعي أو نطاق مخصص (متجر)
+            if (hostname.includes('.') && !hostname.startsWith('www.')) {
+              const parts = hostname.split('.');
+              if (parts.length > 2 || (parts.length === 2 && parts[1] === 'localhost')) {
+                return 'store';
+              }
+            }
+            
+            // التحقق من النطاق المخصص
+            const storedOrgId = localStorage.getItem('bazaar_organization_id');
+            if (storedOrgId) {
+              return 'store';
+            }
+            
+            return 'global';
+          }
+          
+          // تحويل HEX إلى HSL مبسط
+          function hexToHSL(hex) {
+            hex = hex.replace(/^#/, '');
+            
+            if (!/^[0-9A-F]{6}$/i.test(hex)) {
+              return '0 0% 50%'; // لون رمادي كقيمة افتراضية
+            }
+            
+            const r = parseInt(hex.substring(0, 2), 16) / 255;
+            const g = parseInt(hex.substring(2, 4), 16) / 255;
+            const b = parseInt(hex.substring(4, 6), 16) / 255;
+            
+            const max = Math.max(r, g, b);
+            const min = Math.min(r, g, b);
+            let h = 0, s = 0, l = (max + min) / 2;
+
+            if (max !== min) {
+              const d = max - min;
+              s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+              
+              switch (max) {
+                case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                case g: h = (b - r) / d + 2; break;
+                case b: h = (r - g) / d + 4; break;
+              }
+              h /= 6;
+            }
+            
+            h = Math.round(h * 360);
+            s = Math.round(s * 100);
+            l = Math.round(l * 100);
+            
+            return h + ' ' + s + '% ' + l + '%';
+          }
+          
+          // الألوان الافتراضية
+          const DEFAULT_GLOBAL_COLORS = {
+            primary: '#0099ff',
+            secondary: '#6b21a8'
+          };
+          
+          const DEFAULT_STORE_COLORS = {
+            primary: '#22c55e',
+            secondary: '#16a34a'
+          };
+          
+          const pageType = getCurrentPageType();
+          let primaryColor, secondaryColor;
+          
+          if (pageType === 'store' || pageType === 'admin') {
+            // للمتاجر ولوحة التحكم، محاولة استرجاع ألوان المؤسسة
+            const orgTheme = localStorage.getItem('bazaar_org_theme');
+            const hostname = window.location.hostname;
+            const cachedTheme = localStorage.getItem('org_theme_' + hostname);
+            
+            if (orgTheme) {
+              try {
+                const theme = JSON.parse(orgTheme);
+                primaryColor = theme.primaryColor;
+                secondaryColor = theme.secondaryColor;
+              } catch (e) {}
+            }
+            
+            if (!primaryColor && cachedTheme) {
+              try {
+                const theme = JSON.parse(cachedTheme);
+                primaryColor = theme.primaryColor;
+                secondaryColor = theme.secondaryColor;
+              } catch (e) {}
+            }
+            
+            // استخدام الألوان الافتراضية للمتجر إذا لم نجد ألوان محفوظة
+            if (!primaryColor) {
+              primaryColor = DEFAULT_STORE_COLORS.primary;
+              secondaryColor = DEFAULT_STORE_COLORS.secondary;
+            }
+          } else {
+            // للموقع العام، استخدام الألوان العامة
+            const globalTheme = localStorage.getItem('bazaar_global_theme');
+            
+            if (globalTheme) {
+              try {
+                const theme = JSON.parse(globalTheme);
+                primaryColor = theme.primaryColor;
+                secondaryColor = theme.secondaryColor;
+              } catch (e) {}
+            }
+            
+            // استخدام الألوان الافتراضية العامة إذا لم نجد ألوان محفوظة
+            if (!primaryColor) {
+              primaryColor = DEFAULT_GLOBAL_COLORS.primary;
+              secondaryColor = DEFAULT_GLOBAL_COLORS.secondary;
+            }
+          }
+          
+          // تطبيق الألوان فوراً
+          if (primaryColor) {
+            const primaryHSL = hexToHSL(primaryColor);
+            document.documentElement.style.setProperty('--primary', primaryHSL, 'important');
+            document.documentElement.style.setProperty('--ring', primaryHSL, 'important');
+            document.documentElement.style.setProperty('--sidebar-primary', primaryHSL, 'important');
+            document.documentElement.style.setProperty('--sidebar-ring', primaryHSL, 'important');
+          }
+          
+          if (secondaryColor) {
+            const secondaryHSL = hexToHSL(secondaryColor);
+            document.documentElement.style.setProperty('--secondary', secondaryHSL, 'important');
+            document.documentElement.style.setProperty('--secondary-foreground', '0 0% 100%', 'important');
+          }
+          
+        } catch (error) {
+          console.warn('خطأ في تطبيق الألوان المخزنة محلياً:', error);
+        }
+      })();
+    </script>
+  
+  <!-- 🎯 Critical CSS للتحميل الفوري -->
+  <style id="critical-css">
+    /* 🎯 CRITICAL CSS - للتحميل الفوري inline */
+/* يجب إدراجه في <head> لتحسين FCP/LCP */
+
+/* === FONTS.CSS === */
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap');
+
+/* استيراد ملفات CSS الإضافية */
+@import './components/landing-page-builder/styles/cta-button.css';
+@import './styles/apps-management.css';
+
+/* 🎨 تعريفات خطوط Tajawal المحلية - أولوية عالية مع أكثر من مسار */
+@font-face {
+  font-family: 'TajawalForced';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block; /* تغيير من swap إلى block لضمان التحميل */
+  src: url('/fonts/tajawal-regular.woff2') format('woff2'),
+       url('./fonts/tajawal-regular.woff2') format('woff2'),
+       url('../public/fonts/tajawal-regular.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'TajawalForced';
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+  src: url('/fonts/tajawal-medium.woff2') format('woff2'),
+       url('./fonts/tajawal-medium.woff2') format('woff2'),
+       url('../public/fonts/tajawal-medium.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'TajawalForced';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('/fonts/tajawal-bold.woff2') format('woff2'),
+       url('./fonts/tajawal-bold.woff2') format('woff2'),
+       url('../public/fonts/tajawal-bold.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('/fonts/tajawal-regular.woff2') format('woff2'),
+       url('./fonts/tajawal-regular.woff2') format('woff2'),
+       url('../public/fonts/tajawal-regular.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+  src: url('/fonts/tajawal-medium.woff2') format('woff2'),
+       url('./fonts/tajawal-medium.woff2') format('woff2'),
+       url('../public/fonts/tajawal-medium.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('/fonts/tajawal-bold.woff2') format('woff2'),
+       url('./fonts/tajawal-bold.woff2') format('woff2'),
+       url('../public/fonts/tajawal-bold.woff2') format('woff2');
+}
+  font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+}
+
+/* 🔧 إعدادات خاصة للعناصر الشائعة */
+h1, h2, h3, h4, h5, h6, p, span, div, a, button, input, textarea, select, label {
+  font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+}
+
+/* 🚀 إجبار خاص للعناصر التي قد تتداخل */
+.properties-panel-rtl, .properties-panel-enhanced, [class*="properties"], [class*="panel"] {
+  font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+}
+
+/* 💪 إجبار أقوى للعناصر العنيدة */
+[style*="font-family"] {
+  font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+}
+
+    font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+  }
+  
+  /* 🔧 إعدادات خاصة للعناصر الشائعة */
+  h1, h2, h3, h4, h5, h6, p, span, div, a, button, input, textarea, select, label {
+    font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+  }
+  
+  /* 🚀 إجبار خاص للعناصر التي قد تتداخل */
+  .properties-panel-rtl, .properties-panel-enhanced, [class*="properties"], [class*="panel"] {
+    font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+  }
+  
+  /* 💪 إجبار أقوى للعناصر العنيدة */
+  [style*="font-family"] {
+    font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+  }
+}
+
+/* Custom gradient utilities */
+@layer utilities {
+  .bg-gradient-radial {
+    background-image: radial-gradient(ellipse at center, var(--tw-gradient-stops));
+  }
+  
+  .perspective-1000 {
+    perspective: 1000px;
+  }
+  
+  .transform-gpu {
+    font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+    font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+  }
+  
+  /* 🎯 Force Arabic text with stronger specificity */
+  html[lang="ar"] *, body[dir="rtl"] *, .arabic-text {
+    font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+  }
+  
+  /* Ensure all elements inherit theme colors */
+  *, *::before, *::after {
+    border-color: hsl(var(--border));
+  }
+  
+  /* Apply theme to all card elements */
+  .card, [class*="card"] {
+    background-color: hsl(var(--card));
+    color: hsl(var(--card-foreground));
+  }
+  
+  /* Apply theme to all background elements */
+  .bg-background {
+.font-arabic-fallback {
+  font-family: 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif;
+}
+.font-arabic {
+  font-family: 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif;
+}
+  font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+}
+
+/* خاص للمكونات المحملة بشكل lazy */
+[data-react-component], [data-component], .react-component {
+  font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+}
+
+/* تطبيق على جميع النصوص مع Google Fonts backup */
+.text-foreground, .text-muted-foreground, .text-primary, .text-secondary {
+  font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+}
+
+/* Class خاص عندما يتم إجبار الخطوط */
+.tajawal-forced,
+.tajawal-forced * {
+  font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+}
+
+/* 🚀 حل إضافي - تطبيق الخطوط مع أقصى أولوية */
+html[lang="ar"], html[dir="rtl"], 
+body[class*="tajawal"], body[class*="arabic"],
+.ar, .arabic, [dir="rtl"] {
+  font-family: 'TajawalForced', 'Tajawal', 'Droid Arabic Naskh', 'Tahoma', 'Arial Unicode MS', 'Arial', sans-serif !important;
+}
+
+/* خاص للنصوص العربية */
+*:lang(ar), [dir="rtl"] *, .arabic * {
+  font-family: 'TajawalForced', 'Tajawal', 'Droid Arabic Naskh', 'Tahoma', 'Arial Unicode MS', 'Arial', sans-serif !important;
+}
+
+/* 🔧 حل تجريبي - إجبار أكثر للخطوط العربية */
+@media screen {
+  * {
+    font-family: 'TajawalForced', 'Tajawal', 'Droid Arabic Naskh', 'Tahoma', 'Arial Unicode MS', 'Arial', sans-serif !important;
+  }
+    font-family: 'TajawalForced', 'Tajawal', 'Droid Arabic Naskh', 'Tahoma', 'Arial Unicode MS', 'Arial', sans-serif !important;
+  }
+}
+
+/* تأثيرات مخصصة لمكون فئات المنتجات */
+
+/* === THEME-VARIABLES.CSS === */
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 210 40% 98%;
+    --primary-lighter: 217.2 91.2% 85%;
+    --primary-darker: 217.2 91.2% 35%;
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 84% 4.9%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96%;
+    --accent-foreground: 222.2 84% 4.9%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 217.2 91.2% 59.8%;
+
+    --radius: 0.75rem;
+
+    /* متغيرات الشريط الجانبي */
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 222.2 84% 4.9%;
+    --sidebar-primary: 217.2 91.2% 59.8%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 210 40% 96%;
+    --sidebar-accent-foreground: 222.2 84% 4.9%;
+    --sidebar-border: 214.3 31.8% 91.4%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* متغيرات مخصصة للانتقالات السريعة */
+    --theme-transition-duration: 0.15s;
+    --theme-transition-timing: ease-out;
+  }
+
+  .light {
+    /* الوضع الفاتح - ألوان محسنة */
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 210 40% 98%;
+    --primary-lighter: 217.2 91.2% 85%;
+    --primary-darker: 217.2 91.2% 35%;
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 84% 4.9%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96%;
+    --accent-foreground: 222.2 84% 4.9%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 217.2 91.2% 59.8%;
+
+    /* الشريط الجانبي - الوضع الفاتح */
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 222.2 84% 4.9%;
+    --sidebar-primary: 217.2 91.2% 59.8%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 210 40% 96%;
+    --sidebar-accent-foreground: 222.2 84% 4.9%;
+    --sidebar-border: 214.3 31.8% 91.4%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 210 40% 98%;
+    --primary-lighter: 217.2 91.2% 75%;
+    --primary-darker: 217.2 91.2% 45%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 217.2 91.2% 59.8%;
+
+    /* الشريط الجانبي - الوضع الداكن */
+    --sidebar-background: 222.2 84% 4.9%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 217.2 91.2% 59.8%;
+    --sidebar-primary-foreground: 222.2 84% 4.9%;
+    --sidebar-accent: 217.2 32.6% 17.5%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217.2 32.6% 17.5%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  /* تحسين الانتقالات لتكون سريعة جداً */
+  * {
+    @apply border-border;
+  }
+
+  /* تحسين الجسم الرئيسي */
+    background-color: hsl(var(--background)) !important;
+  }
+  
+  .text-foreground {
+    color: hsl(var(--foreground)) !important;
+  }
+  
+  /* Ensure theme colors are applied to common elements */
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    border-color: hsl(var(--border));
+  }
+  
+  /* Apply theme to buttons */
+  button {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 84% 4.9%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222.2 84% 4.9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 222.2 84% 4.9%;
+    --sidebar-primary: 217.2 91.2% 59.8%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 210 40% 96%;
+    --sidebar-accent-foreground: 222.2 84% 4.9%;
+    --sidebar-border: 214.3 31.8% 91.4%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+  
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 222.2 84% 4.9%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 217.2 91.2% 59.8%;
+    --sidebar-primary-foreground: 222.2 84% 4.9%;
+    --sidebar-accent: 217.2 32.6% 17.5%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217.2 32.6% 17.5%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+  background: hsl(var(--primary) / 0.5);
+  border-radius: 4px;
+  background: hsl(var(--primary) / 0.7);
+}
+
+/* شريط التمرير للشريط الجانبي */
+  background: hsl(var(--sidebar-accent) / 0.2);
+  border-radius: 3px;
+}
+
+  background: hsl(var(--sidebar-primary) / 0.4);
+  border-radius: 3px;
+  background: hsl(var(--sidebar-primary) / 0.6);
+}
+
+/* تنسيق مخصص لمحتوى القائمة الجانبية */
+#sidebar-content {
+  background: hsl(var(--sidebar-accent) / 0.2);
+  border-radius: 3px;
+}
+
+  background: hsl(var(--sidebar-primary) / 0.4);
+  border-radius: 3px;
+  background: hsl(var(--sidebar-primary) / 0.6);
+}
+
+/* إزالة الرسوم المتحركة الكبيرة */
+
+/* تحسين الفوكس */
+:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+  background-image: radial-gradient(circle, hsl(var(--primary)) 1px, transparent 1px);
+  background-size: 50px 50px;
+}
+
+/* Enhanced gradient backgrounds */
+.bg-size-200 {
+  background-size: 200% 200%;
+}
+
+/* Hero specific responsive improvements */
+  background: hsl(var(--primary) / 0.3);
+  border-radius: 3px;
+}
+
+  background: hsl(var(--primary) / 0.5);
+}
+
+/* إصلاح مشكلة الهوفر للأزرار - الأولوية العالية */
+  background-color: hsl(var(--primary) / 0.1) !important;
+  color: hsl(var(--primary)) !important;
+}
+
+/* إصلاح شامل لجميع حالات الهوفر المتضاربة */
+  color: hsl(var(--primary)) !important;
+}
+
+/* إصلاح الأيقونات والعناصر الفرعية */
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح لـ navbar links */
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح شامل لجميع الأزرار التي تحتوي على المشكلة */
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح خاص للقوائم المنسدلة */
+.dropdown-item:hover {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+.dropdown-item:hover * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح لأزرار التنقل */
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح إضافي للعناصر التي تحتوي على كلاسات متضاربة */
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح للعناصر التي تستخدم group */
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح شامل للتأكد من أن النص مرئي */
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح خاص للأزرار في FeaturesSection */
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح خاص للبadges التي تحتوي على gradients */
+[class*="bg-gradient-to-r"][class*="text-primary"]:hover,
+  background: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+[class*="bg-gradient-to-r"][class*="text-primary"]:hover *,
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح للعناصر التي تحتوي على من primary/10 إلى purple */
+[class*="from-primary/10"][class*="to-purple-500/10"][class*="text-primary"]:hover,
+[class*="hover:from-primary/20"][class*="hover:to-purple-500/20"]:hover {
+  background: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+[class*="from-primary/10"][class*="to-purple-500/10"][class*="text-primary"]:hover *,
+[class*="hover:from-primary/20"][class*="hover:to-purple-500/20"]:hover * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح شامل للبadges والعناصر المشابهة */
+.badge[class*="text-primary"]:hover,
+[class*="badge"][class*="text-primary"]:hover,
+[class*="px-4"][class*="py-2"][class*="text-primary"]:hover {
+  background: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+.badge[class*="text-primary"]:hover *,
+[class*="badge"][class*="text-primary"]:hover *,
+[class*="px-4"][class*="py-2"][class*="text-primary"]:hover * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح للعناصر التي تحتوي على border-primary مع text-primary */
+[class*="border-primary"][class*="text-primary"]:hover {
+  background: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+  border-color: hsl(var(--primary)) !important;
+}
+
+[class*="border-primary"][class*="text-primary"]:hover * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح الanimations المستمرة المزعجة */
+@media (prefers-reduced-motion: reduce) {
+  /* إيقاف جميع الanimations المستمرة للمستخدمين الذين يفضلون تقليل الحركة */
+  [data-framer-motion] {
+  background-color: hsl(var(--primary) / 0.1) !important;
+  color: hsl(var(--primary)) !important;
+  padding: 0.5rem 0.75rem !important;
+  border-radius: 0.5rem !important;
+  background-color: hsl(var(--primary) / 0.1) !important;
+  color: hsl(var(--primary)) !important;
+  padding: 0.5rem 0.75rem !important;
+  border-radius: 0.5rem !important;
+  background-color: hsl(var(--primary) / 0.1) !important;
+  color: hsl(var(--primary)) !important;
+  padding: 0.5rem 0.75rem !important;
+  border-radius: 0.5rem !important;
+  background-color: hsl(var(--primary) / 0.1) !important;
+  color: hsl(var(--primary)) !important;
+  padding: 0.5rem 0.75rem !important;
+  border-radius: 0.5rem !important;
+  background-color: hsl(var(--primary) / 0.15) !important;
+  color: hsl(var(--primary)) !important;
+}
+
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح خاص للأيقونات في navbar */
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح للأيقونات التي تستخدم currentColor */
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+  --hover-text-safe: hsl(var(--primary));
+  --hover-bg-safe: hsl(var(--primary) / 0.1);
+  --hover-text-contrast: hsl(var(--foreground));
+  --hover-bg-contrast: hsl(var(--muted));
+  --hover-text-light: hsl(var(--primary));
+}
+
+  --hover-text-safe: hsl(var(--primary-foreground));
+  --hover-bg-safe: hsl(var(--primary) / 0.15);
+  --hover-text-contrast: hsl(var(--foreground));
+  --hover-bg-contrast: hsl(var(--muted));
+}
+
+/* إصلاح شامل للنصوص في الهوفر - يتعامل مع جميع أنواع text-primary */
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* نصوص الأزرار */
+button[class*="text-primary"]:hover,
+[role="button"][class*="text-primary"]:hover,
+  color: hsl(var(--primary-foreground)) !important;
+  background-color: hsl(var(--primary)) !important;
+}
+
+/* ===============================
+   إصلاح الأيقونات - حل بسيط وفعّال
+   =============================== */
+
+/* منع خلفيات الأيقونات في جميع الحالات */
+[class*="hover"]:hover svg,
+[class*="hover"]:hover .lucide,
+.group:hover [class*="group-hover"] svg,
+.group:hover [class*="group-hover"] .lucide,
+svg, .lucide {
+  background: none !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+}
+
+/* إعادة تعيين افتراضية لجميع أيقونات Lucide */
+.lucide {
+  fill: none !important;
+  stroke: currentColor !important;
+  stroke-width: 2 !important;
+}
+
+/* أيقونات SVG عامة - افتراضياً بدون fill */
+svg:not([fill]):not(.custom-fill):not([data-icon-filled]) {
+  fill: none !important;
+  stroke: currentColor !important;
+}
+
+/* إصلاحات شاملة للأيقونات - منع التلوين الكامل */
+  --smart-primary-text: hsl(var(--primary));
+  --smart-primary-bg: hsl(var(--primary) / 0.1);
+  --smart-primary-border: hsl(var(--primary) / 0.2);
+  --smart-primary-icon: hsl(var(--primary));
+}
+
+  --smart-primary-text: hsl(var(--primary-foreground));
+  --smart-primary-bg: hsl(var(--primary) / 0.2);
+  --smart-primary-border: hsl(var(--primary) / 0.3);
+  --smart-primary-icon: hsl(var(--primary-foreground));
+}
+
+/* تطبيق الألوان الذكية على العناصر المشكلة */
+
+/* إصلاح النصوص التي تستخدم text-primary */
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح للبادجات والشارات */
+  color: hsl(var(--primary-foreground)) !important;
+  background-color: hsl(var(--primary) / 0.2) !important;
+}
+
+/* إصلاح للتدرجات اللونية */
+  --tw-gradient-from: hsl(var(--primary) / 0.3) !important;
+  --tw-gradient-to: hsl(var(--primary) / 0.1) !important;
+  --tw-gradient-via: hsl(var(--primary) / 0.2) !important;
+}
+
+/* إصلاح للظلال */
+  --tw-shadow-color: hsl(var(--primary) / 0.2) !important;
+}
+
+/* إصلاح خاص للمكونات التفاعلية */
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح نهائي للتأكد من الرؤية */
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* Shimmer animation للصور */
+
+/* === BASE.CSS === */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 🎯 تطبيق خط Tajawal بأولوية عالية جداً - بدون @layer لتجنب مشاكل Lazy Loading */
+html, body, *, *::before, *::after {
+/* 🎯 تطبيق خط Tajawal في @layer base للتوافق مع Tailwind */
+@layer base {
+  html, body, *, *::before, *::after {
+@layer base {
+  :root {
+    /* متغيرات الألوان الأساسية - الوضع الافتراضي (فاتح) */
+  body {
+    @apply bg-background text-foreground;
+html {
+  scroll-behavior: smooth;
+}
+html {
+  scroll-behavior: smooth;
+  overflow-x: hidden;
+  height: 100%;
+}
+body {
+  -webkit-overflow-scrolling: touch;
+  overflow-x: hidden;
+
+  </style>
+
+  <!-- ⚡ Performance Hints -->
+  <meta name="theme-color" content="#3b82f6">
+  <meta name="color-scheme" content="light dark">
+</head>
+
+  <body>
+    <div id="root"></div>
+    <!-- IMPORTANT: DO NOT REMOVE THIS SCRIPT TAG OR THIS VERY COMMENT! -->
+    <script src="https://cdn.gpteng.co/gptengineer.js" type="module"></script>
+  </body>
+</html>

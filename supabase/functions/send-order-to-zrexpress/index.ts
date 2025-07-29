@@ -4,7 +4,7 @@ import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-
 // CORS headers
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-application-name",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -220,15 +220,121 @@ serve(async (req: Request) => {
 
         if (addressDetails) {
             wilayaId = addressDetails.state || "";
-            communeName = addressDetails.city || addressDetails.municipality || "";
             addressLine = addressDetails.street_address || "";
+            
+            // تحويل رقم البلدية إلى اسمها من قاعدة البيانات
+            const municipalityId = addressDetails.city || addressDetails.municipality || "";
+            
+            if (municipalityId) {
+                const { data: municipalityData, error: munError } = await supabase
+                    .from('yalidine_municipalities_global')
+                    .select('name, name_ar, wilaya_name, wilaya_name_ar')
+                    .eq('id', parseInt(municipalityId))
+                    .single();
+
+                if (municipalityData) {
+                    communeName = municipalityData.name || municipalityData.name_ar || municipalityId;
+                    
+                    // جلب اسم الولاية أيضاً
+                    const wilayaName = municipalityData.wilaya_name_ar || municipalityData.wilaya_name;
+                    if (wilayaName) {
+                        addressLine = addressLine || `${communeName}, ${wilayaName}`;
+                    }
+                    
+                } else {
+                    
+                    // محاولة الحصول على عاصمة الولاية كـ fallback
+                    const { data: wilayaCapital } = await supabase
+                        .from('yalidine_municipalities_global')
+                        .select('name, name_ar, wilaya_name, wilaya_name_ar')
+                        .eq('wilaya_id', parseInt(wilayaId))
+                        .like('name', `%${wilayaId === '9' ? 'Blida' : 'Capital'}%`)
+                        .limit(1)
+                        .single();
+                    
+                    if (wilayaCapital) {
+                        communeName = wilayaCapital.name || wilayaCapital.name_ar || `المدينة الرئيسية`;
+                        const wilayaName = wilayaCapital.wilaya_name_ar || wilayaCapital.wilaya_name;
+                        if (wilayaName) {
+                            addressLine = addressLine || `${communeName}, ${wilayaName}`;
+                        }
+                    } else {
+                        // استخدام اسم الولاية مباشرة
+                        const { data: wilayaInfo } = await supabase
+                            .from('yalidine_provinces_global')
+                            .select('name, name_ar')
+                            .eq('id', parseInt(wilayaId))
+                            .single();
+                        
+                        if (wilayaInfo) {
+                            communeName = wilayaInfo.name_ar || wilayaInfo.name || `ولاية ${wilayaId}`;
+                            addressLine = addressLine || communeName;
+                        } else {
+                            communeName = `ولاية ${wilayaId}`;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // إذا لم نجد البيانات من العنوان المحفوظ، نتحقق من form_data
+    if (!wilayaId || !communeName) {
+        if (orderData.form_data) {
+            let formData = orderData.form_data;
+            if (typeof formData === 'string') {
+                try {
+                    formData = JSON.parse(formData);
+                } catch (e) {
+                    formData = null;
+                }
+            }
+
+            if (formData && formData.province && formData.municipality) {
+                // تحويل أرقام الولايات والبلديات إلى أسماء
+                const provinceId = formData.province.toString();
+                const municipalityId = formData.municipality.toString();
+
+                // جلب اسم الولاية والبلدية معاً
+                const { data: municipalityData } = await supabase
+                    .from('yalidine_municipalities_global')
+                    .select('name, name_ar, wilaya_name, wilaya_name_ar, wilaya_id')
+                    .eq('id', municipalityId)
+                    .single();
+
+                if (municipalityData) {
+                    // تعيين معرف الولاية واسم البلدية
+                    wilayaId = municipalityData.wilaya_id?.toString() || provinceId;
+                    communeName = municipalityData.name || municipalityData.name_ar || municipalityId;
+                    
+                    // إنشاء العنوان الكامل مع اسم الولاية
+                    const wilayaName = municipalityData.wilaya_name_ar || municipalityData.wilaya_name;
+                    if (formData.address && wilayaName) {
+                        addressLine = `${formData.address}, ${wilayaName}`;
+                    } else if (wilayaName) {
+                        addressLine = `${communeName}, ${wilayaName}`;
+                    }
+                }
+
+                // استخراج العنوان إذا كان متوفراً
+                if (formData.address) {
+                    addressLine = formData.address;
+                }
+            }
         }
     }
 
     // التأكد من وجود البيانات المطلوبة
     if (!wilayaId || !communeName) {
+        
         return new Response(JSON.stringify({ 
-            error: `Destination Wilaya or Commune is missing for order ${orderId}. Please ensure address is correctly set.` 
+            success: false,
+            message: `بيانات العنوان ناقصة للطلب ${orderId}. الولاية: ${wilayaId || 'مفقودة'}, البلدية: ${communeName || 'مفقودة'}. يرجى التحقق من صحة بيانات العنوان.`,
+            error_details: {
+                missing_wilaya: !wilayaId,
+                missing_commune: !communeName,
+                order_form_data: orderData.form_data
+            }
         }), {
             status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
@@ -251,21 +357,44 @@ serve(async (req: Request) => {
     // إنشاء tracking number فريد
     const trackingNumber = `ZR${Date.now()}${Math.floor(Math.random() * 1000)}`;
 
+    // تنظيف وتحضير النصوص العربية لـ ZR Express
+    const cleanArabicText = (text: string): string => {
+      if (!text) return "";
+      // إزالة الرموز الخاصة والحفاظ على النص العربي والإنجليزي والأرقام فقط
+      return text.replace(/[^\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF\w\s\d-.,()]/g, '').trim();
+    };
+
+    // التحقق من صحة معرف الولاية (يجب أن يكون بين 1 و 58)
+    const wilayaIdNum = parseInt(wilayaId);
+    if (isNaN(wilayaIdNum) || wilayaIdNum < 1 || wilayaIdNum > 58) {
+        return new Response(JSON.stringify({ 
+            success: false,
+            message: `معرف الولاية غير صحيح: ${wilayaId}. يجب أن يكون رقماً بين 1 و 58.`,
+            error_details: {
+                invalid_wilaya_id: wilayaId,
+                order_id: orderId,
+                form_data: orderData.form_data
+            }
+        }), {
+            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+    }
+
     // إعداد بيانات الشحنة لـ ZR Express
     const parcelData = {
       Tracking: trackingNumber,
       TypeLivraison: orderData.shipping_option === 'desk' || orderData.stop_desk_id ? "1" : "0", // 0: منزل, 1: مكتب
       TypeColis: "0", // 0: عادي, 1: استبدال
       Confrimee: "1", // مؤكد للشحن
-      Client: customerName || "العميل",
+      Client: cleanArabicText(customerName) || "العميل",
       MobileA: customerPhone || "0500000000",
       MobileB: "", // رقم ثانوي (اختياري)
-      Adresse: addressLine || `${communeName}, الولاية ${wilayaId}`,
-      IDWilaya: wilayaId,
-      Commune: communeName,
+      Adresse: cleanArabicText(addressLine) || `${cleanArabicText(communeName)}, الولاية ${wilayaId}`,
+      IDWilaya: wilayaIdNum, // تحويل إلى رقم بدلاً من نص
+      Commune: cleanArabicText(communeName),
       Total: (orderData.total || 0).toString(),
-      Note: orderData.notes || "",
-      TProduit: productList,
+      Note: cleanArabicText(orderData.notes || ""),
+      TProduit: cleanArabicText(productList),
       id_Externe: orderData.customer_order_number || orderId,
       Source: "Bazaar Console"
     };
@@ -274,6 +403,9 @@ serve(async (req: Request) => {
     if (!parcelData.MobileA || !/^0[0-9]{8,9}$/.test(parcelData.MobileA)) {
         parcelData.MobileA = "0500000000";
     }
+    
+    // تحويل Total إلى رقم (ZR Express قد يتوقع رقماً)
+    parcelData.Total = parseInt(parcelData.Total) || 0;
 
     // إرسال الطلب إلى ZR Express
     const zrResult = await zrApiClient.createParcel(parcelData);
@@ -288,13 +420,26 @@ serve(async (req: Request) => {
       // البحث عن الاستجابة في مصفوفة Colis
       if (responseData.Colis && Array.isArray(responseData.Colis) && responseData.Colis.length > 0) {
         const parcelResponse = responseData.Colis[0];
+        
         if (parcelResponse.MessageRetour === "Good" || parcelResponse.MessageRetour === "OK") {
           finalTrackingId = parcelResponse.Tracking || trackingNumber;
           isSuccess = true;
         } else {
+          
+          // إضافة رسائل خطأ مفهومة للعربية
+          let arabicErrorMessage = `خطأ من ZR Express: ${parcelResponse.MessageRetour}`;
+          if (parcelResponse.MessageRetour === "Wilaya Erreur") {
+            arabicErrorMessage = `خطأ في الولاية المحددة (${parcelResponse.IDWilaya}). الولاية غير مدعومة أو غير صحيحة في نظام ZR Express. يرجى التحقق من رقم الولاية.`;
+          } else if (parcelResponse.MessageRetour === "Commune Erreur") {
+            arabicErrorMessage = `خطأ في البلدية المحددة (${parcelResponse.Commune}). البلدية غير مدعومة أو غير صحيحة في نظام ZR Express.`;
+          } else if (parcelResponse.MessageRetour.includes("Phone")) {
+            arabicErrorMessage = "خطأ في رقم الهاتف. يرجى التحقق من صحة رقم الهاتف.";
+          }
+          
           return new Response(JSON.stringify({ 
             success: false, 
-            message: `ZR Express API error: ${parcelResponse.MessageRetour}`,
+            message: arabicErrorMessage,
+            error_code: parcelResponse.MessageRetour,
             details: responseData 
           }), {
             status: 400, 
@@ -305,18 +450,34 @@ serve(async (req: Request) => {
         // في حالة الاستجابة المباشرة
         finalTrackingId = responseData.Tracking || trackingNumber;
         isSuccess = true;
+      } else {
       }
 
       if (isSuccess) {
-        // تحديث الطلب في قاعدة البيانات
-        await supabase
+        // تحديث الطلب في قاعدة البيانات مع التحقق من النتيجة
+        const { data: updateData, error: updateError } = await supabase
           .from("online_orders")
           .update({ 
             zrexpress_tracking_id: finalTrackingId,
-            status: "processing" 
+            shipping_provider: "zrexpress",
+            status: "processing",
+            updated_at: new Date().toISOString()
           })
-          .eq("id", orderId);
-          
+          .eq("id", orderId)
+          .select();
+
+        if (updateError) {
+          return new Response(JSON.stringify({ 
+            success: false, 
+            message: "ZR Express shipment created but database update failed", 
+            tracking_id: finalTrackingId,
+            error_details: updateError.message 
+          }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
         return new Response(JSON.stringify({ 
           success: true, 
           tracking_id: finalTrackingId,
@@ -337,6 +498,7 @@ serve(async (req: Request) => {
         });
       }
     } else {
+      
       return new Response(JSON.stringify({ 
         success: false, 
         message: "Failed to communicate with ZR Express API.", 

@@ -1,399 +1,314 @@
-import { useState, useEffect } from 'react';
-import { BellIcon, BellRing, Check, Clock, Eye, LayoutList, MoreHorizontal, XCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import React, { useState, useRef, useEffect } from 'react';
+import { Bell } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useRealTimeNotifications, type NotificationItem } from '@/hooks/useRealTimeNotifications';
 import { Badge } from '@/components/ui/badge';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-  DropdownMenuGroup,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuPortal,
-  DropdownMenuLabel
-} from '@/components/ui/dropdown-menu';
-import { cn } from '@/lib/utils';
-import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
+import { motion, AnimatePresence } from 'framer-motion';
+import { playTestNotificationSound } from '@/lib/notification-sounds';
+import './notifications.css';
 
-interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  time: string;
-  read: boolean;
-  type?: 'order' | 'system' | 'comment' | 'payment';
-  link?: string;
-}
+// Import sub-components
+import { NotificationHeader } from './NotificationHeader';
+import { NotificationSettings } from './NotificationSettings';
+import { NotificationFilters } from './NotificationFilters';
+import { NotificationItem as NotificationItemComponent } from './NotificationItem';
+import { NotificationActions } from './NotificationActions';
 
 interface NavbarNotificationsProps {
   className?: string;
-  initialNotifications?: Notification[];
   maxItems?: number;
 }
 
-export function NavbarNotifications({ className, initialNotifications = [], maxItems = 5 }: NavbarNotificationsProps) {
-  const [notifications, setNotifications] = useState<Notification[]>(initialNotifications);
-  const [isOpen, setIsOpen] = useState(false);
-  const [bellRinging, setBellRinging] = useState(false);
+export function NavbarNotifications({ className, maxItems = 8 }: NavbarNotificationsProps) {
+  const navigate = useNavigate();
+  const {
+    notifications,
+    stats,
+    settings,
+    isRealtimeConnected,
+    markAsRead,
+    markAllAsRead,
+    removeNotification,
+    clearAllNotifications,
+    updateSettings,
+    getNotificationIcon
+  } = useRealTimeNotifications();
+
+  const [showSettings, setShowSettings] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
-  
-  const unreadCount = notifications.filter(n => !n.read).length;
-  
-  // محاكاة إشعار جديد بعد قليل من التحميل الأولي
-  useEffect(() => {
-    // فقط للعرض التوضيحي - في التطبيق الحقيقي ستأتي الإشعارات من الخادم
-    const timer = setTimeout(() => {
-      const newNotification: Notification = {
-        id: `${Date.now()}`,
-        title: 'طلب جديد',
-        message: 'تم استلام طلب جديد برقم #33245',
-        time: 'الآن',
-        read: false,
-        type: 'order',
-        link: '/dashboard/orders/33245'
-      };
-      setNotifications(prev => [newNotification, ...prev]);
-      triggerBellAnimation();
-    }, 3000);
-    
-    return () => clearTimeout(timer);
-  }, []);
-  
-  // تشغيل حركة جرس الإشعارات
-  const triggerBellAnimation = () => {
-    setBellRinging(true);
-    setTimeout(() => setBellRinging(false), 2000);
-  };
-  
-  // طريقة عرض وقت الإشعار بشكل أفضل
-  const formatTime = (timeString: string) => {
-    if (timeString === 'الآن') return timeString;
-    if (timeString.includes('دقيقة') || timeString.includes('دقائق')) return timeString;
-    
-    // يمكن إضافة منطق خاص بتنسيق التواريخ هنا
-    return timeString;
-  };
-  
-  // ضبط وسم الإشعار حسب نوعه
-  const getNotificationIcon = (type?: string) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const bellRef = useRef<HTMLButtonElement>(null);
+
+  // 🎯 فلترة الإشعارات حسب النوع
+  const filterNotifications = (type: string) => {
     switch (type) {
-      case 'order':
-        return <LayoutList className="h-3.5 w-3.5 mr-1.5 text-blue-500" />;
-      case 'payment':
-        return <BellRing className="h-3.5 w-3.5 mr-1.5 text-emerald-500" />;
-      case 'comment':
-        return <BellRing className="h-3.5 w-3.5 mr-1.5 text-amber-500" />;
-      default:
-        return <BellRing className="h-3.5 w-3.5 mr-1.5 text-primary" />;
+      case 'unread': return notifications.filter(n => !n.is_read);
+      case 'urgent': return notifications.filter(n => n.priority === 'urgent');
+      case 'orders': return notifications.filter(n => n.type === 'new_order');
+      case 'stock': return notifications.filter(n => n.type === 'low_stock');
+      default: return notifications;
     }
   };
-  
-  // وضع علامة على جميع الإشعارات كمقروءة
-  const markAllAsRead = () => {
-    setNotifications(notifications.map(notification => ({ ...notification, read: true })));
-  };
-  
-  // وضع علامة على إشعار واحد كمقروء
-  const markAsRead = (id: string) => {
-    setNotifications(notifications.map(notification => 
-      notification.id === id ? { ...notification, read: true } : notification
-    ));
-  };
-  
-  // حذف إشعار محدد
-  const removeNotification = (id: string) => {
-    setNotifications(notifications.filter(notification => notification.id !== id));
-  };
-  
-  // تصفية الإشعارات حسب علامة التبويب النشطة
-  const filteredNotifications = () => {
-    if (activeTab === 'all') return notifications;
-    if (activeTab === 'unread') return notifications.filter(n => !n.read);
-    return notifications;
-  };
-  
-  return (
-    <div className={className}>
-      <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
-        <DropdownMenuTrigger asChild>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="relative rounded-full bg-background/40 backdrop-blur-sm border border-border/20 shadow-sm hover:shadow-md hover:bg-primary/10 transition-all duration-300 group"
-          >
-            <div className={cn(
-              "transition-all duration-300 relative",
-              bellRinging && "animate-wiggle"
-            )}>
-              <BellIcon className="h-4.5 w-4.5 text-muted-foreground group-hover:text-primary transition-colors duration-300" />
-            </div>
-            
-            {unreadCount > 0 && (
-              <Badge 
-                variant="destructive" 
-                className={cn(
-                  "absolute -top-1 -right-1 flex items-center justify-center h-4 min-w-4 text-[10px] px-0.5 py-0",
-                  "bg-rose-500 border-white dark:border-background border-2",
-                  bellRinging && "animate-pulse"
-                )}
-              >
-                {unreadCount}
-              </Badge>
-            )}
-            
-            {/* تأثير خلفية التفاعل */}
-            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-tr from-primary/10 via-primary/5 to-transparent -z-10 rounded-full"></div>
-          </Button>
-        </DropdownMenuTrigger>
+
+  // 🔗 التعامل مع النقر على الإشعار مع التنقل المناسب
+  const handleNotificationClick = (notification: NotificationItem) => {
+    
+    // وضع علامة مقروءة أولاً
+    if (!notification.is_read) {
+      markAsRead(notification.id);
+    }
+
+    // إغلاق قائمة الإشعارات
+    setIsOpen(false);
+
+    // التنقل حسب نوع الإشعار
+    switch (notification.type) {
+      case 'new_order':
+      case 'order_status_change':
+      case 'payment_received':
+        navigate('/dashboard/orders');
+        break;
         
-        <DropdownMenuContent align="end" className="w-80 p-0 border-border/40 shadow-lg rounded-xl overflow-hidden bg-card/95 backdrop-blur-sm">
-          <div className="p-2 border-b border-border/20 flex items-center justify-between">
-            <DropdownMenuLabel className="flex items-center text-foreground font-medium">
-              <BellRing className="h-4 w-4 mr-2 text-primary" />
-              الإشعارات
-              {unreadCount > 0 && (
-                <Badge 
-                  variant="secondary" 
-                  className="mr-2 h-5 px-1.5 text-xs bg-primary/10 text-primary"
-                >
-                  {unreadCount}
-                </Badge>
-              )}
-            </DropdownMenuLabel>
-            <div className="flex gap-1">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-7 w-7 rounded-full hover:bg-primary/10 transition-all duration-300" 
-                onClick={markAllAsRead}
-                disabled={unreadCount === 0}
+      case 'low_stock':
+        navigate('/dashboard/inventory');
+        break;
+        
+      default:
+        // إذا كان هناك رابط مخصص في الإشعار
+        if (notification.action?.link) {
+          navigate(notification.action.link);
+        } else {
+          // العودة للوحة التحكم الرئيسية
+          navigate('/dashboard');
+        }
+    }
+  };
+
+  // 🔊 تشغيل صوت التجربة
+  const handlePlayTestSound = () => {
+    try {
+      playTestNotificationSound();
+    } catch (error) {
+    }
+  };
+
+  // 📋 التنقل إلى صفحة عرض جميع الإشعارات
+  const handleViewAllNotifications = () => {
+    setIsOpen(false);
+    // يمكن إنشاء صفحة مخصصة للإشعارات لاحقاً
+    navigate('/dashboard/notifications');
+  };
+
+  // 🎉 تأثير اهتزاز الجرس عند إشعار جديد
+  useEffect(() => {
+    if (stats.unread > 0 && bellRef.current) {
+      bellRef.current.classList.add('animate-bounce');
+      setTimeout(() => {
+        bellRef.current?.classList.remove('animate-bounce');
+      }, 1000);
+    }
+  }, [stats.unread]);
+
+  const filteredNotifications = filterNotifications(activeTab);
+  const displayedNotifications = filteredNotifications.slice(0, maxItems);
+  const hasMoreNotifications = filteredNotifications.length > maxItems;
+
+  // حساب الإحصائيات للفلاتر
+  const filterCounts = {
+    all: notifications.length,
+    unread: notifications.filter(n => !n.is_read).length,
+    urgent: notifications.filter(n => n.priority === 'urgent').length,
+    orders: notifications.filter(n => n.type === 'new_order').length,
+    stock: notifications.filter(n => n.type === 'low_stock').length,
+  };
+
+  return (
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          ref={bellRef}
+          variant="ghost"
+          size="sm"
+          className={cn(
+            "relative p-3 rounded-2xl transition-all duration-500 ease-out group",
+            "hover:bg-slate-100/80 dark:hover:bg-slate-800/80",
+            "hover:scale-105 active:scale-95",
+            "focus:ring-2 focus:ring-blue-500/30 focus:outline-none",
+            "border border-transparent hover:border-slate-200/60 dark:hover:border-slate-700/60",
+            "backdrop-blur-sm",
+            stats.unread > 0 && [
+              "bg-gradient-to-r from-blue-50/60 to-purple-50/60 dark:from-blue-950/30 dark:to-purple-950/30",
+              "border-blue-200/40 dark:border-blue-800/40",
+              "shadow-lg shadow-blue-500/10 dark:shadow-blue-400/10"
+            ],
+            className
+          )}
+        >
+          <motion.div
+            whileHover={{ 
+              rotate: [0, -8, 8, -4, 0],
+              transition: { duration: 0.6, ease: "easeInOut" }
+            }}
+            className="relative"
+          >
+            <Bell className={cn(
+              "h-5 w-5 transition-all duration-300",
+              stats.unread > 0 
+                ? "text-blue-600 dark:text-blue-400 drop-shadow-sm" 
+                : "text-slate-600 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-300"
+            )} />
+            
+            {/* تأثير النبضة للإشعارات العاجلة */}
+            {stats.urgent > 0 && (
+              <motion.div
+                className="absolute inset-0 bg-red-500/20 rounded-full"
+                animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0, 0.5] }}
+                transition={{ repeat: Infinity, duration: 2 }}
+              />
+            )}
+          </motion.div>
+          
+          <AnimatePresence>
+            {stats.unread > 0 && (
+              <motion.div
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 600, damping: 25 }}
+                className="absolute -top-2 -right-2"
               >
-                <Check className="h-3.5 w-3.5 text-muted-foreground" />
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-7 w-7 rounded-full hover:bg-primary/10 transition-all duration-300"
-                  >
-                    <MoreHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="min-w-[160px] p-1.5 bg-card/95 backdrop-blur-sm rounded-lg">
-                  <DropdownMenuItem 
-                    className="text-sm cursor-pointer rounded-md px-2.5 py-1.5 flex items-center transition-colors duration-200 text-foreground focus:text-primary"
-                    onClick={markAllAsRead}
-                    disabled={unreadCount === 0}
-                  >
-                    <Check className="h-3.5 w-3.5 mr-2 opacity-70" /> تعليم الكل كمقروء
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    className="text-sm cursor-pointer rounded-md px-2.5 py-1.5 flex items-center transition-colors duration-200 text-foreground focus:text-primary"
-                  >
-                    <Eye className="h-3.5 w-3.5 mr-2 opacity-70" /> عرض كل الإشعارات
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-          
-          <Tabs defaultValue="all" className="w-full" value={activeTab} onValueChange={setActiveTab}>
-            <div className="flex items-center justify-between border-b border-border/20 px-2 py-1">
-              <TabsList className="h-8 p-0.5 rounded-lg bg-muted/60 w-auto">
-                <TabsTrigger 
-                  value="all" 
-                  className="rounded-md h-7 px-3 py-1 text-xs data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm"
+                <Badge 
+                  className={cn(
+                    "h-6 w-6 p-0 flex items-center justify-center text-xs font-bold",
+                    "bg-gradient-to-br from-red-500 via-red-600 to-pink-600 text-white",
+                    "shadow-lg shadow-red-500/40 dark:shadow-red-400/30",
+                    "ring-2 ring-white dark:ring-slate-900",
+                    "border-0",
+                    stats.urgent > 0 && "animate-pulse"
+                  )}
                 >
-                  الكل
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="unread" 
-                  className="rounded-md h-7 px-3 py-1 text-xs data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm"
+                  {stats.unread > 99 ? '99+' : stats.unread}
+                </Badge>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </Button>
+      </PopoverTrigger>
+
+      <PopoverContent 
+        className={cn(
+          "w-96 p-0 border-0 shadow-2xl",
+          "bg-white/95 dark:bg-slate-900/95",
+          "backdrop-blur-2xl backdrop-saturate-150",
+          "ring-1 ring-slate-200/50 dark:ring-slate-700/50",
+          "rounded-3xl overflow-hidden"
+        )} 
+        align="end"
+        sideOffset={12}
+      >
+        {/* الرأس */}
+        <NotificationHeader
+          stats={stats}
+          isRealtimeConnected={isRealtimeConnected}
+          settings={settings}
+          showSettings={showSettings}
+          onToggleSettings={() => setShowSettings(!showSettings)}
+          onToggleSound={() => updateSettings({ soundEnabled: !settings.soundEnabled })}
+        />
+
+        {/* الإعدادات المنزلقة */}
+        <AnimatePresence>
+          {showSettings && (
+            <NotificationSettings
+              settings={settings}
+              onUpdateSettings={updateSettings}
+              onPlayTestSound={handlePlayTestSound}
+            />
+          )}
+        </AnimatePresence>
+
+        {/* تبويبات الفلتر */}
+        <NotificationFilters
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          counts={filterCounts}
+        />
+
+        {/* قائمة الإشعارات */}
+        <ScrollArea className="max-h-80 overflow-auto notification-scroll-enhanced">
+          <div className="px-1">
+            <AnimatePresence mode="popLayout">
+              {displayedNotifications.length === 0 ? (
+                <motion.div
+                  key="empty-state"
+                  initial={{ opacity: 0, y: 40 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -40 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  className="p-8 text-center"
                 >
-                  غير المقروءة {unreadCount > 0 && `(${unreadCount})`}
-                </TabsTrigger>
-              </TabsList>
-            </div>
-            
-            <TabsContent value="all" className="m-0">
-              <ScrollArea className="max-h-[300px]">
-                {notifications.length > 0 ? (
-                  <div className="divide-y divide-border/10">
-                    {notifications.map((notification) => (
-                      <div 
-                        key={notification.id} 
-                        className={cn(
-                          "p-3 relative transition-colors duration-200 hover:bg-muted/60 group",
-                          notification.read ? "opacity-80" : "bg-primary/5 dark:bg-primary/10",
-                          "border-l-2 border-transparent hover:border-l-2",
-                          notification.read ? "hover:border-l-primary/30" : "border-l-primary"
-                        )}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 space-y-1">
-                            <div className="flex items-center">
-                              {getNotificationIcon(notification.type)}
-                              <h4 className={cn(
-                                "text-sm font-medium leading-none",
-                                notification.read ? "text-foreground/90" : "text-foreground"
-                              )}>
-                                {notification.title}
-                              </h4>
-                            </div>
-                            <p className="text-xs text-muted-foreground line-clamp-2">{notification.message}</p>
-                            <div className="flex items-center pt-1 text-[10px] text-muted-foreground">
-                              <Clock className="h-3 w-3 mr-1" />
-                              {formatTime(notification.time)}
-                            </div>
-                          </div>
-                          
-                          <div className="flex opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                            {!notification.read && (
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-6 w-6 rounded-full hover:bg-primary/10" 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  markAsRead(notification.id);
-                                }}
-                              >
-                                <Check className="h-3 w-3 text-muted-foreground" />
-                              </Button>
-                            )}
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-6 w-6 rounded-full hover:bg-destructive/10 hover:text-destructive" 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                removeNotification(notification.id);
-                              }}
-                            >
-                              <XCircle className="h-3 w-3" />
-                            </Button>
-                          </div>
-                          
-                          {/* شعاع ضوئي متحرك عند التحويم */}
-                          <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                            <div className="absolute -inset-1 bg-gradient-to-r from-transparent via-primary/5 to-transparent opacity-0 group-hover:opacity-100 translate-x-[-100%] group-hover:translate-x-[100%] transition-all duration-1000 ease-in-out"></div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="py-10 px-4 text-center">
-                    <div className="rounded-full size-12 mx-auto mb-3 flex items-center justify-center bg-muted/40">
-                      <BellIcon className="h-6 w-6 text-muted-foreground opacity-40" />
-                    </div>
-                    <p className="text-sm text-muted-foreground">لا توجد إشعارات</p>
-                  </div>
-                )}
-              </ScrollArea>
-            </TabsContent>
-            
-            <TabsContent value="unread" className="m-0">
-              <ScrollArea className="max-h-[300px]">
-                {filteredNotifications().length > 0 ? (
-                  <div className="divide-y divide-border/10">
-                    {filteredNotifications().map((notification) => (
-                      <div 
-                        key={notification.id} 
-                        className={cn(
-                          "p-3 relative transition-colors duration-200 hover:bg-muted/60 group",
-                          "bg-primary/5 dark:bg-primary/10",
-                          "border-l-2 border-l-primary"
-                        )}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 space-y-1">
-                            <div className="flex items-center">
-                              {getNotificationIcon(notification.type)}
-                              <h4 className="text-sm font-medium leading-none text-foreground">
-                                {notification.title}
-                              </h4>
-                            </div>
-                            <p className="text-xs text-muted-foreground line-clamp-2">{notification.message}</p>
-                            <div className="flex items-center pt-1 text-[10px] text-muted-foreground">
-                              <Clock className="h-3 w-3 mr-1" />
-                              {formatTime(notification.time)}
-                            </div>
-                          </div>
-                          
-                          <div className="flex opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-6 w-6 rounded-full hover:bg-primary/10" 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                markAsRead(notification.id);
-                              }}
-                            >
-                              <Check className="h-3 w-3 text-muted-foreground" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-6 w-6 rounded-full hover:bg-destructive/10 hover:text-destructive" 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                removeNotification(notification.id);
-                              }}
-                            >
-                              <XCircle className="h-3 w-3" />
-                            </Button>
-                          </div>
-                          
-                          {/* شعاع ضوئي متحرك عند التحويم */}
-                          <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                            <div className="absolute -inset-1 bg-gradient-to-r from-transparent via-primary/5 to-transparent opacity-0 group-hover:opacity-100 translate-x-[-100%] group-hover:translate-x-[100%] transition-all duration-1000 ease-in-out"></div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="py-10 px-4 text-center">
-                    <div className="rounded-full size-12 mx-auto mb-3 flex items-center justify-center bg-muted/40">
-                      <Check className="h-6 w-6 text-muted-foreground opacity-40" />
-                    </div>
-                    <p className="text-sm text-muted-foreground">لا توجد إشعارات غير مقروءة</p>
-                  </div>
-                )}
-              </ScrollArea>
-            </TabsContent>
-          </Tabs>
-          
-          <div className="p-2 border-t border-border/20">
-            <Button 
-              variant="ghost" 
-              className="w-full text-xs justify-center rounded-lg h-8 hover:bg-primary/5 hover:text-primary transition-colors duration-200"
-            >
-              عرض كل الإشعارات
-            </Button>
+                  <motion.div
+                    initial={{ scale: 0.8 }}
+                    animate={{ scale: 1 }}
+                    transition={{ delay: 0.1, type: "spring", stiffness: 500, damping: 25 }}
+                    className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 rounded-2xl flex items-center justify-center shadow-lg"
+                  >
+                    <Bell className="h-8 w-8 text-slate-400 dark:text-slate-500" />
+                  </motion.div>
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                  >
+                    <p className="text-slate-600 dark:text-slate-400 font-semibold text-base mb-2">
+                      لا توجد إشعارات
+                    </p>
+                    <p className="text-sm text-slate-500 dark:text-slate-500 leading-relaxed">
+                      {activeTab === 'all' 
+                        ? 'ستظهر جميع إشعاراتك هنا' 
+                        : `لا توجد إشعارات في قسم "${
+                            activeTab === 'unread' ? 'الجديد' :
+                            activeTab === 'urgent' ? 'العاجل' :
+                            activeTab === 'orders' ? 'الطلبات' :
+                            activeTab === 'stock' ? 'المخزون' : ''
+                          }"`
+                      }
+                    </p>
+                  </motion.div>
+                </motion.div>
+              ) : (
+                <div className="py-1">
+                  {displayedNotifications.map((notification, index) => (
+                    <NotificationItemComponent
+                      key={notification.id}
+                      notification={notification}
+                      index={index}
+                      onMarkAsRead={markAsRead}
+                      onRemove={removeNotification}
+                      onClick={handleNotificationClick}
+                    />
+                  ))}
+                </div>
+              )}
+            </AnimatePresence>
           </div>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+        </ScrollArea>
+
+        {/* أزرار الإجراءات */}
+        <NotificationActions
+          hasNotifications={notifications.length > 0}
+          hasUnread={stats.unread}
+          hasMoreNotifications={hasMoreNotifications}
+          totalFiltered={filteredNotifications.length}
+          onMarkAllAsRead={markAllAsRead}
+          onClearAll={clearAllNotifications}
+          onViewAll={handleViewAllNotifications}
+        />
+      </PopoverContent>
+    </Popover>
   );
 }
-
-// إضافة هذه القاعدة إلى ملف index.css
-// @keyframes wiggle {
-//   0%, 100% { transform: rotate(0deg); }
-//   25% { transform: rotate(-8deg); }
-//   50% { transform: rotate(0deg); }
-//   75% { transform: rotate(8deg); }
-// }
-// 
-// .animate-wiggle {
-//   animation: wiggle 0.5s ease-in-out infinite;
-// }

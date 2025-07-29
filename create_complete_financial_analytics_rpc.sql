@@ -1,10 +1,33 @@
 -- 🎯 دالة RPC شاملة للتحليلات المالية المتقدمة
 -- تحسب جميع مصادر الإيرادات والأرباح بطريقة مثالية
 
--- 🗑️ حذف النسخة القديمة من الدالة لتجنب التعارض
+-- 🗑️ حذف النسخ القديمة من الدالة لتجنب التعارض
 DROP FUNCTION IF EXISTS get_complete_financial_analytics(UUID, TIMESTAMP WITH TIME ZONE, TIMESTAMP WITH TIME ZONE, UUID);
+DROP FUNCTION IF EXISTS get_complete_financial_analytics(UUID, TIMESTAMP WITH TIME ZONE, TIMESTAMP WITH TIME ZONE, UUID, UUID, TEXT, TEXT, NUMERIC, NUMERIC, BOOLEAN, BOOLEAN);
 
-CREATE OR REPLACE FUNCTION get_complete_financial_analytics(
+-- 🗑️ حذف جميع النسخ الممكنة من الدالة
+DROP FUNCTION IF EXISTS get_complete_financial_analytics(UUID, TIMESTAMP WITH TIME ZONE, TIMESTAMP WITH TIME ZONE);
+DROP FUNCTION IF EXISTS get_complete_financial_analytics(UUID, TIMESTAMP WITH TIME ZONE, TIMESTAMP WITH TIME ZONE, UUID, UUID, TEXT, TEXT, NUMERIC, NUMERIC, BOOLEAN);
+DROP FUNCTION IF EXISTS get_complete_financial_analytics CASCADE;
+DROP FUNCTION IF EXISTS get_complete_financial_analytics_advanced CASCADE;
+
+-- 🗑️ حذف أي نسخ أخرى محتملة
+DO $$ 
+DECLARE 
+    func_record RECORD;
+BEGIN 
+    FOR func_record IN 
+        SELECT p.proname, pg_get_function_identity_arguments(p.oid) as args
+        FROM pg_proc p 
+        JOIN pg_namespace n ON p.pronamespace = n.oid 
+        WHERE n.nspname = 'public' 
+        AND p.proname LIKE '%get_complete_financial_analytics%'
+    LOOP 
+        EXECUTE 'DROP FUNCTION IF EXISTS public.' || func_record.proname || '(' || func_record.args || ') CASCADE';
+    END LOOP; 
+END $$;
+
+CREATE OR REPLACE FUNCTION get_complete_financial_analytics_advanced(
     p_organization_id UUID,
     p_start_date TIMESTAMP WITH TIME ZONE,
     p_end_date TIMESTAMP WITH TIME ZONE,
@@ -82,7 +105,15 @@ RETURNS TABLE(
     total_transactions_count INTEGER,
     
     -- تفاصيل JSON للتحليل المتقدم
-    detailed_breakdown JSONB
+    detailed_breakdown JSONB,
+    
+    -- أفضل المنتجات مبيعاً
+    top_pos_products JSONB,
+    top_online_products JSONB,
+    
+    -- إحصائيات الطلبات
+    pos_orders_stats JSONB,
+    online_orders_stats JSONB
 ) AS $$
 DECLARE
     -- متغيرات للمبيعات POS
@@ -147,6 +178,12 @@ DECLARE
     v_total_transactions INTEGER := 0;
     
     v_detailed_breakdown JSONB;
+    
+    -- متغيرات للمنتجات والطلبات
+    v_top_pos_products JSONB;
+    v_top_online_products JSONB;
+    v_pos_orders_stats JSONB;
+    v_online_orders_stats JSONB;
 BEGIN
     
     -- 🛒 1. حساب أرباح مبيعات نقطة البيع (POS)
@@ -295,20 +332,34 @@ BEGIN
         AND oo.created_at >= p_start_date::timestamp
         AND oo.created_at < (p_end_date::timestamp + INTERVAL '1 day')
         AND oo.status != 'cancelled'
-        -- ✅ فقط الطلبيات المؤكدة مع العميل (للدفع عند التوصيل)
+        -- ✅ فقط الطلبيات المؤكدة أو المرسلة أو المسلمة (للدفع عند التوصيل)
         AND (
             CASE 
                 WHEN p_include_refunds = TRUE THEN 
-                    EXISTS (
-                        SELECT 1 FROM call_confirmation_statuses 
-                        WHERE id = oo.call_confirmation_status_id 
-                        AND name IN ('confirmed', 'delivered', 'completed')
+                    (
+                        -- الطلبيات المؤكدة عبر call center
+                        EXISTS (
+                            SELECT 1 FROM call_confirmation_statuses 
+                            WHERE id = oo.call_confirmation_status_id 
+                            AND organization_id = p_organization_id
+                            AND name = 'مؤكد'
+                        )
+                        OR 
+                        -- الطلبيات المرسلة أو المسلمة
+                        oo.status IN ('shipped', 'delivered')
                     )
                 ELSE 
-                    EXISTS (
-                        SELECT 1 FROM call_confirmation_statuses 
-                        WHERE id = oo.call_confirmation_status_id 
-                        AND name IN ('confirmed', 'delivered', 'completed')
+                    (
+                        -- الطلبيات المؤكدة عبر call center
+                        EXISTS (
+                            SELECT 1 FROM call_confirmation_statuses 
+                            WHERE id = oo.call_confirmation_status_id 
+                            AND organization_id = p_organization_id
+                            AND name = 'مؤكد'
+                        )
+                        OR 
+                        -- الطلبيات المرسلة أو المسلمة
+                        oo.status IN ('shipped', 'delivered')
                     ) AND oo.status != 'returned'
             END
         )
@@ -594,7 +645,250 @@ BEGIN
         ELSE 0 
     END;
     
-    -- 🗂️ 14. إنشاء تفاصيل JSON
+    -- 🏆 14. حساب أفضل المنتجات مبيعاً من POS
+    SELECT jsonb_agg(
+        jsonb_build_object(
+            'name', p.name,
+            'sku', p.sku,
+            'total_quantity_sold', product_stats.total_quantity,
+            'order_count', product_stats.order_count,
+            'total_revenue', product_stats.total_revenue,
+            'avg_selling_price', ROUND(product_stats.total_revenue / NULLIF(product_stats.total_quantity, 0), 2),
+            'purchase_price', p.purchase_price,
+            'total_profit', product_stats.total_profit,
+            'profit_margin', CASE 
+                WHEN product_stats.total_revenue > 0 
+                THEN ROUND((product_stats.total_profit / product_stats.total_revenue) * 100, 2)
+                ELSE 0 
+            END
+        )
+    )
+    INTO v_top_pos_products
+    FROM (
+        SELECT 
+            oi.product_id,
+            SUM(oi.quantity) as total_quantity,
+            COUNT(DISTINCT o.id) as order_count,
+            SUM(oi.quantity * oi.unit_price) as total_revenue,
+            SUM(oi.quantity * (oi.unit_price - COALESCE(p.purchase_price, 0))) as total_profit
+        FROM order_items oi
+        JOIN orders o ON oi.order_id = o.id
+        JOIN products p ON oi.product_id = p.id
+        WHERE 
+            o.organization_id = p_organization_id
+            AND o.created_at >= p_start_date::timestamp
+            AND o.created_at < (p_end_date::timestamp + INTERVAL '1 day')
+            AND o.status = 'completed'
+            AND (o.is_online = FALSE OR o.is_online IS NULL)
+        GROUP BY oi.product_id
+        ORDER BY total_quantity DESC
+        LIMIT 10
+    ) product_stats
+    JOIN products p ON product_stats.product_id = p.id;
+
+    -- إذا لم تكن هناك منتجات POS، ضع قائمة فارغة
+    IF v_top_pos_products IS NULL THEN
+        v_top_pos_products := '[]'::jsonb;
+    END IF;
+
+    -- 🌐 15. حساب أفضل المنتجات مبيعاً من المتجر الإلكتروني
+    SELECT jsonb_agg(
+        jsonb_build_object(
+            'name', p.name,
+            'sku', p.sku,
+            'total_quantity_sold', product_stats.total_quantity,
+            'order_count', product_stats.order_count,
+            'total_revenue', product_stats.total_revenue,
+            'avg_selling_price', ROUND(product_stats.total_revenue / NULLIF(product_stats.total_quantity, 0), 2),
+            'purchase_price', p.purchase_price,
+            'total_profit', product_stats.total_profit,
+            'profit_margin', CASE 
+                WHEN product_stats.total_revenue > 0 
+                THEN ROUND((product_stats.total_profit / product_stats.total_revenue) * 100, 2)
+                ELSE 0 
+            END
+        )
+    )
+    INTO v_top_online_products
+    FROM (
+        SELECT 
+            ooi.product_id,
+            SUM(ooi.quantity) as total_quantity,
+            COUNT(DISTINCT oo.id) as order_count,
+            SUM(ooi.quantity * ooi.unit_price) as total_revenue,
+            SUM(ooi.quantity * (ooi.unit_price - COALESCE(p.purchase_price, 0))) as total_profit
+        FROM online_order_items ooi
+        JOIN online_orders oo ON ooi.order_id = oo.id
+        JOIN products p ON ooi.product_id = p.id
+        WHERE 
+            oo.organization_id = p_organization_id
+            AND oo.created_at >= p_start_date::timestamp
+            AND oo.created_at < (p_end_date::timestamp + INTERVAL '1 day')
+            AND oo.status != 'cancelled'
+            -- الشرط المُحدَّث: يشمل "مؤكد" و "تم الإرسال" و "تم التوصيل"
+            AND (
+                EXISTS (
+                    SELECT 1 FROM call_confirmation_statuses 
+                    WHERE id = oo.call_confirmation_status_id 
+                    AND organization_id = p_organization_id
+                    AND name = 'مؤكد'
+                )
+                OR oo.status IN ('shipped', 'delivered')
+            )
+        GROUP BY ooi.product_id
+        ORDER BY total_quantity DESC
+        LIMIT 10
+    ) product_stats
+    JOIN products p ON product_stats.product_id = p.id;
+
+    -- إذا لم تكن هناك منتجات أونلاين، ضع قائمة فارغة
+    IF v_top_online_products IS NULL THEN
+        v_top_online_products := '[]'::jsonb;
+    END IF;
+
+    -- 📊 16. حساب إحصائيات الطلبات POS
+    WITH pos_orders_data AS (
+        SELECT 
+            status,
+            total,
+            created_at,
+            COUNT(*) OVER() as total_orders,
+            COUNT(CASE WHEN status != 'cancelled' THEN 1 END) OVER() as active_orders,
+            SUM(CASE WHEN status != 'cancelled' THEN total ELSE 0 END) OVER() as pos_total_revenue,
+            MIN(created_at) OVER() as earliest_order,
+            MAX(created_at) OVER() as latest_order
+        FROM orders
+        WHERE 
+            organization_id = p_organization_id
+            AND created_at >= p_start_date::timestamp
+            AND created_at < (p_end_date::timestamp + INTERVAL '1 day')
+            AND (is_online = FALSE OR is_online IS NULL)
+    ),
+    pos_status_breakdown AS (
+        SELECT 
+            status,
+            COUNT(*) as status_count,
+            SUM(total) as status_total,
+            ROUND(AVG(total), 2) as avg_amount
+        FROM orders
+        WHERE 
+            organization_id = p_organization_id
+            AND created_at >= p_start_date::timestamp
+            AND created_at < (p_end_date::timestamp + INTERVAL '1 day')
+            AND (is_online = FALSE OR is_online IS NULL)
+        GROUP BY status
+    )
+    SELECT jsonb_build_object(
+        'total_orders', COALESCE(MAX(total_orders), 0),
+        'active_orders', COALESCE(MAX(active_orders), 0),
+        'total_revenue', COALESCE(MAX(pos_total_revenue), 0),
+        'avg_order_value', CASE 
+            WHEN MAX(active_orders) > 0 
+            THEN ROUND(MAX(pos_total_revenue) / MAX(active_orders), 2)
+            ELSE 0 
+        END,
+        'earliest_order', MIN(earliest_order),
+        'latest_order', MAX(latest_order),
+        'status_breakdown', COALESCE(
+            (SELECT jsonb_object_agg(
+                status, 
+                jsonb_build_object(
+                    'count', status_count,
+                    'total_amount', status_total,
+                    'avg_amount', avg_amount
+                )
+            ) FROM pos_status_breakdown),
+            '{}'::jsonb
+        )
+    )
+    INTO v_pos_orders_stats
+    FROM pos_orders_data
+    LIMIT 1;
+
+    -- إذا لم تكن هناك بيانات، ضع قيم افتراضية
+    IF v_pos_orders_stats IS NULL THEN
+        v_pos_orders_stats := jsonb_build_object(
+            'total_orders', 0,
+            'active_orders', 0,
+            'total_revenue', 0,
+            'avg_order_value', 0,
+            'earliest_order', NULL,
+            'latest_order', NULL,
+            'status_breakdown', '{}'::jsonb
+        );
+    END IF;
+
+    -- 🌐 17. حساب إحصائيات الطلبات الإلكترونية
+    WITH online_orders_data AS (
+        SELECT 
+            status,
+            total,
+            created_at,
+            COUNT(*) OVER() as total_orders,
+            COUNT(CASE WHEN status != 'cancelled' THEN 1 END) OVER() as active_orders,
+            SUM(CASE WHEN status != 'cancelled' THEN total ELSE 0 END) OVER() as online_total_revenue,
+            MIN(created_at) OVER() as earliest_order,
+            MAX(created_at) OVER() as latest_order
+        FROM online_orders
+        WHERE 
+            organization_id = p_organization_id
+            AND created_at >= p_start_date::timestamp
+            AND created_at < (p_end_date::timestamp + INTERVAL '1 day')
+    ),
+    online_status_breakdown AS (
+        SELECT 
+            status,
+            COUNT(*) as status_count,
+            SUM(total) as status_total,
+            ROUND(AVG(total), 2) as avg_amount
+        FROM online_orders
+        WHERE 
+            organization_id = p_organization_id
+            AND created_at >= p_start_date::timestamp
+            AND created_at < (p_end_date::timestamp + INTERVAL '1 day')
+        GROUP BY status
+    )
+    SELECT jsonb_build_object(
+        'total_orders', COALESCE(MAX(total_orders), 0),
+        'active_orders', COALESCE(MAX(active_orders), 0),
+        'total_revenue', COALESCE(MAX(online_total_revenue), 0),
+        'avg_order_value', CASE 
+            WHEN MAX(active_orders) > 0 
+            THEN ROUND(MAX(online_total_revenue) / MAX(active_orders), 2)
+            ELSE 0 
+        END,
+        'earliest_order', MIN(earliest_order),
+        'latest_order', MAX(latest_order),
+        'status_breakdown', COALESCE(
+            (SELECT jsonb_object_agg(
+                status, 
+                jsonb_build_object(
+                    'count', status_count,
+                    'total_amount', status_total,
+                    'avg_amount', avg_amount
+                )
+            ) FROM online_status_breakdown),
+            '{}'::jsonb
+        )
+    )
+    INTO v_online_orders_stats
+    FROM online_orders_data
+    LIMIT 1;
+
+    -- إذا لم تكن هناك بيانات، ضع قيم افتراضية
+    IF v_online_orders_stats IS NULL THEN
+        v_online_orders_stats := jsonb_build_object(
+            'total_orders', 0,
+            'active_orders', 0,
+            'total_revenue', 0,
+            'avg_order_value', 0,
+            'earliest_order', NULL,
+            'latest_order', NULL,
+            'status_breakdown', '{}'::jsonb
+        );
+    END IF;
+
+    -- 🗂️ 18. إنشاء تفاصيل JSON
     v_detailed_breakdown := jsonb_build_object(
         'sales_breakdown', jsonb_build_object(
             'pos_sales', jsonb_build_object(
@@ -719,8 +1013,88 @@ BEGIN
         v_avg_order_value,
         v_total_transactions,
         
-        v_detailed_breakdown;
+        v_detailed_breakdown,
         
+        v_top_pos_products,
+        v_top_online_products,
+        v_pos_orders_stats,
+        v_online_orders_stats;
+        
+END;
+$$ LANGUAGE plpgsql;
+
+-- إنشاء نسخة مختصرة بـ 4 معاملات للتوافق مع الكود الموجود
+CREATE OR REPLACE FUNCTION get_complete_financial_analytics(
+    p_organization_id UUID,
+    p_start_date TIMESTAMP WITH TIME ZONE,
+    p_end_date TIMESTAMP WITH TIME ZONE,
+    p_employee_id UUID DEFAULT NULL
+)
+RETURNS TABLE(
+    total_revenue NUMERIC,
+    total_cost NUMERIC,
+    total_gross_profit NUMERIC,
+    total_expenses NUMERIC,
+    total_net_profit NUMERIC,
+    profit_margin_percentage NUMERIC,
+    pos_sales_revenue NUMERIC,
+    pos_sales_cost NUMERIC,
+    pos_sales_profit NUMERIC,
+    pos_orders_count INTEGER,
+    online_sales_revenue NUMERIC,
+    online_sales_cost NUMERIC,
+    online_sales_profit NUMERIC,
+    online_orders_count INTEGER,
+    repair_services_revenue NUMERIC,
+    repair_services_profit NUMERIC,
+    repair_orders_count INTEGER,
+    service_bookings_revenue NUMERIC,
+    service_bookings_profit NUMERIC,
+    service_bookings_count INTEGER,
+    game_downloads_revenue NUMERIC,
+    game_downloads_profit NUMERIC,
+    game_downloads_count INTEGER,
+    subscription_services_revenue NUMERIC,
+    subscription_services_profit NUMERIC,
+    subscription_transactions_count INTEGER,
+    currency_sales_revenue NUMERIC,
+    currency_sales_profit NUMERIC,
+    currency_sales_count INTEGER,
+    flexi_sales_revenue NUMERIC,
+    flexi_sales_profit NUMERIC,
+    flexi_sales_count INTEGER,
+    total_debt_amount NUMERIC,
+    debt_impact_on_capital NUMERIC,
+    paid_debt_amount NUMERIC,
+    total_losses_cost NUMERIC,
+    total_losses_selling_value NUMERIC,
+    total_returns_amount NUMERIC,
+    one_time_expenses NUMERIC,
+    recurring_expenses_annual NUMERIC,
+    avg_order_value NUMERIC,
+    total_transactions_count INTEGER,
+    detailed_breakdown JSONB,
+    top_pos_products JSONB,
+    top_online_products JSONB,
+    pos_orders_stats JSONB,
+    online_orders_stats JSONB
+) AS $$
+BEGIN
+    -- استدعاء الدالة الكاملة مع القيم الافتراضية
+    RETURN QUERY
+    SELECT * FROM get_complete_financial_analytics(
+        p_organization_id,
+        p_start_date,
+        p_end_date,
+        p_employee_id,
+        NULL::UUID,        -- p_branch_id
+        NULL::TEXT,        -- p_transaction_type
+        NULL::TEXT,        -- p_payment_method
+        NULL::NUMERIC,     -- p_min_amount
+        NULL::NUMERIC,     -- p_max_amount
+        TRUE,              -- p_include_partial_payments
+        TRUE               -- p_include_refunds
+    );
 END;
 $$ LANGUAGE plpgsql;
 
@@ -750,9 +1124,118 @@ WHERE status != 'cancelled';
 CREATE INDEX IF NOT EXISTS idx_financial_analytics_expenses_date_org 
 ON expenses(organization_id, expense_date, status, is_recurring);
 
+-- ✅ دالة للتوافق مع التطبيق (11 معامل بنفس الترتيب المطلوب)
+CREATE OR REPLACE FUNCTION get_complete_financial_analytics(
+    p_organization_id UUID,
+    p_start_date TIMESTAMP WITH TIME ZONE,
+    p_end_date TIMESTAMP WITH TIME ZONE,
+    p_employee_id UUID DEFAULT NULL,
+    p_branch_id UUID DEFAULT NULL,
+    p_transaction_type TEXT DEFAULT NULL,
+    p_payment_method TEXT DEFAULT NULL,
+    p_min_amount NUMERIC DEFAULT NULL,
+    p_max_amount NUMERIC DEFAULT NULL,
+    p_include_partial_payments BOOLEAN DEFAULT TRUE,
+    p_include_refunds BOOLEAN DEFAULT TRUE
+)
+RETURNS TABLE(
+    -- إجماليات رئيسية
+    total_revenue NUMERIC,
+    total_cost NUMERIC,
+    total_gross_profit NUMERIC,
+    total_expenses NUMERIC,
+    total_net_profit NUMERIC,
+    profit_margin_percentage NUMERIC,
+    
+    -- تفاصيل المبيعات
+    pos_sales_revenue NUMERIC,
+    pos_sales_cost NUMERIC,
+    pos_sales_profit NUMERIC,
+    pos_orders_count INTEGER,
+    
+    online_sales_revenue NUMERIC,
+    online_sales_cost NUMERIC,
+    online_sales_profit NUMERIC,
+    online_orders_count INTEGER,
+    
+    -- الخدمات
+    repair_services_revenue NUMERIC,
+    repair_services_profit NUMERIC,
+    repair_orders_count INTEGER,
+    
+    service_bookings_revenue NUMERIC,
+    service_bookings_profit NUMERIC,
+    service_bookings_count INTEGER,
+    
+    game_downloads_revenue NUMERIC,
+    game_downloads_profit NUMERIC,
+    game_downloads_count INTEGER,
+    
+    subscription_services_revenue NUMERIC,
+    subscription_services_profit NUMERIC,
+    subscription_transactions_count INTEGER,
+    
+    currency_sales_revenue NUMERIC,
+    currency_sales_profit NUMERIC,
+    currency_sales_count INTEGER,
+    
+    flexi_sales_revenue NUMERIC,
+    flexi_sales_profit NUMERIC,
+    flexi_sales_count INTEGER,
+    
+    -- المديونية
+    total_debt_amount NUMERIC,
+    debt_impact_on_capital NUMERIC,
+    paid_debt_amount NUMERIC,
+    
+    -- الخسائر والإرجاعات
+    total_losses_cost NUMERIC,
+    total_losses_selling_value NUMERIC,
+    total_returns_amount NUMERIC,
+    
+    -- المصروفات
+    one_time_expenses NUMERIC,
+    recurring_expenses_annual NUMERIC,
+    
+    -- تحليلات إضافية
+    avg_order_value NUMERIC,
+    total_transactions_count INTEGER,
+    
+    -- تفاصيل JSON للتحليل المتقدم
+    detailed_breakdown JSONB,
+    
+    -- أفضل المنتجات مبيعاً
+    top_pos_products JSONB,
+    top_online_products JSONB,
+    
+    -- إحصائيات الطلبات
+    pos_orders_stats JSONB,
+    online_orders_stats JSONB
+) AS $$
+BEGIN
+    -- ✅ استدعاء الدالة الأساسية مباشرة
+    RETURN QUERY
+    SELECT * FROM get_complete_financial_analytics_advanced(
+        p_organization_id,
+        p_start_date,
+        p_end_date,
+        p_employee_id,
+        p_branch_id,
+        p_transaction_type,
+        p_payment_method,
+        p_min_amount,
+        p_max_amount,
+        p_include_partial_payments,
+        p_include_refunds
+    );
+END;
+$$ LANGUAGE plpgsql;
+
 -- 🎉 اختبار الدالة
 -- SELECT * FROM get_complete_financial_analytics(
 --     'your-organization-id'::UUID,
 --     '2025-01-01 00:00:00+00'::TIMESTAMP WITH TIME ZONE,
 --     '2025-12-31 23:59:59+00'::TIMESTAMP WITH TIME ZONE
 -- ); 
+
+ 
